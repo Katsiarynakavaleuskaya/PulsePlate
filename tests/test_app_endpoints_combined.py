@@ -8,11 +8,15 @@ EN: Combined tests for app endpoints: health, monitoring, root and package shim 
 These are "easy coverage" tests that cover basic monitoring endpoints and app package behavior.
 """
 
+import asyncio
 import os
 import sys
+from xml.etree import ElementTree
+from fastapi import Request
 from fastapi.testclient import TestClient
 
 import app as apppkg
+from app.bootstrap import public_discovery
 import pytest
 
 
@@ -52,14 +56,73 @@ class TestHealthAndMonitoringEndpoints:
             or "Prometheus client not available" in content
         )
 
-    def test_root_page_renders(self, client: TestClient) -> None:
-        """Test root / endpoint renders HTML BMI calculator"""
+    def test_root_returns_direct_api_probe(self, client: TestClient) -> None:
+        """Test GET / returns JSON when hitting FastAPI directly (Caddy serves SPA at apex)."""
         response = client.get("/")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/json")
+        data = response.json()
+        assert data["surface"] == "api"
+
+    def test_legacy_bmi_page_renders(self, client: TestClient) -> None:
+        """Legacy HTML BMI calculator remains on /legacy/bmi-calculator."""
+        response = client.get("/legacy/bmi-calculator")
         assert response.status_code == 200
         content = response.text
         assert "<title" in content
         assert "BMI Calculator" in content
         assert "form" in content.lower()
+
+    def test_sitemap_endpoint_serves_public_routes(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Test /sitemap.xml serves the canonical public discovery surface."""
+        monkeypatch.delenv("PRODUCTION_DOMAIN", raising=False)
+
+        response = client.get("/sitemap.xml")
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("application/xml")
+
+        sitemap_root = ElementTree.fromstring(response.text)
+        namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        loc_values = {
+            loc.text
+            for loc in sitemap_root.findall("sitemap:url/sitemap:loc", namespace)
+            if loc.text is not None
+        }
+        assert loc_values == {
+            "http://testserver/",
+            "http://testserver/privacy",
+            "http://testserver/terms",
+            "http://testserver/legacy/bmi-calculator",
+        }
+
+    def test_sitemap_endpoint_prefers_configured_production_domain(
+        self,
+        client: TestClient,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Configured production host wins over direct-origin/testserver hostnames."""
+        monkeypatch.setenv("PRODUCTION_DOMAIN", "pulseplate.app")
+
+        response = client.get("/sitemap.xml")
+
+        assert response.status_code == 200
+        sitemap_root = ElementTree.fromstring(response.text)
+        namespace = {"sitemap": "http://www.sitemaps.org/schemas/sitemap/0.9"}
+        loc_values = {
+            loc.text
+            for loc in sitemap_root.findall("sitemap:url/sitemap:loc", namespace)
+            if loc.text is not None
+        }
+        assert loc_values == {
+            "https://pulseplate.app/",
+            "https://pulseplate.app/privacy",
+            "https://pulseplate.app/terms",
+            "https://pulseplate.app/legacy/bmi-calculator",
+        }
 
     def test_favicon_endpoint(self, client: TestClient) -> None:
         """Test /favicon.ico returns 200 OK, 204 No Content, or 404 if not found"""
@@ -74,6 +137,8 @@ class TestHealthAndMonitoringEndpoints:
         assert "privacy_policy" in data
         assert "data_retention" in data
         assert "contact" in data
+        assert "policy_version" in data
+        assert "providers" in data
         # Assert structure/keys; avoid brittle exact phrasing
         assert isinstance(data["privacy_policy"], str)
 
@@ -146,3 +211,84 @@ class TestAppPackageShimEdges:
         """Test that getattr raises AttributeError for missing attributes."""
         with pytest.raises(AttributeError):
             getattr(apppkg, "__definitely_missing_attribute__")  # noqa: B009
+
+
+class TestPublicDiscoveryHelpers:
+    """Unit coverage for public sitemap helper branches."""
+
+    @staticmethod
+    def _request_for_host(host: str, *, scheme: str = "https") -> Request:
+        scope = {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": scheme,
+            "path": public_discovery.SITEMAP_ROUTE_PATH,
+            "raw_path": public_discovery.SITEMAP_ROUTE_PATH.encode("utf-8"),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [(b"host", host.encode("utf-8"))],
+            "client": ("127.0.0.1", 12345),
+            "server": (host, 443 if scheme == "https" else 80),
+        }
+        return Request(scope)
+
+    def test_build_public_url_normalizes_base_and_path(self) -> None:
+        """Builder normalizes base/path separators before joining URLs."""
+        public_url = public_discovery._build_public_url(
+            base_url="https://pulseplate.app",
+            path="privacy",
+        )
+        assert public_url == "https://pulseplate.app/privacy"
+
+    def test_build_public_sitemap_xml_escapes_query_values(self) -> None:
+        """XML builder escapes query separators and keeps canonical loc entries."""
+        sitemap_xml = public_discovery.build_public_sitemap_xml(
+            base_url="https://pulseplate.app",
+            paths=("privacy", "/terms?utm=summer&ref=share"),
+        )
+
+        assert sitemap_xml.startswith('<?xml version="1.0" encoding="UTF-8"?>')
+        assert "<loc>https://pulseplate.app/privacy</loc>" in sitemap_xml
+        assert "<loc>https://pulseplate.app/terms?utm=summer&amp;ref=share</loc>" in sitemap_xml
+
+    def test_resolve_public_sitemap_base_url_prefers_sanitized_production_domain(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Configured production domain wins after quote/scheme/trailing-slash cleanup."""
+        monkeypatch.setenv(public_discovery.PRODUCTION_DOMAIN_ENV, ' "http://pulseplate.app/" ')
+
+        resolved_base_url = public_discovery.resolve_public_sitemap_base_url(
+            self._request_for_host("direct-origin.internal")
+        )
+
+        assert resolved_base_url == "https://pulseplate.app"
+
+    def test_resolve_public_sitemap_base_url_falls_back_to_request_host(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Missing production domain falls back to the direct request base URL."""
+        monkeypatch.delenv(public_discovery.PRODUCTION_DOMAIN_ENV, raising=False)
+
+        resolved_base_url = public_discovery.resolve_public_sitemap_base_url(
+            self._request_for_host("edge.pulseplate.test")
+        )
+
+        assert resolved_base_url == "https://edge.pulseplate.test/"
+
+    def test_serve_public_sitemap_returns_xml_response(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Async response helper returns XML with canonical public URLs."""
+        monkeypatch.delenv(public_discovery.PRODUCTION_DOMAIN_ENV, raising=False)
+
+        response = asyncio.run(
+            public_discovery.serve_public_sitemap(self._request_for_host("edge.pulseplate.test"))
+        )
+
+        assert response.media_type == "application/xml"
+        assert response.body.startswith(b'<?xml version="1.0" encoding="UTF-8"?>')
+        assert b"https://edge.pulseplate.test/privacy" in response.body

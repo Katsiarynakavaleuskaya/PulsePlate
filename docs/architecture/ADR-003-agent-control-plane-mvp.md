@@ -52,29 +52,58 @@ flowchart LR
     and `IssuedScopedToken` helpers with fail-closed secret requirements.
   - `tests/test_agent_control_plane_mvp.py:1` — deterministic validation of policy decisions,
     audit signature integrity, and scoped-token TTL/secret validation.
-- Tracking item and owner/DoD: `docs/roadmap/BACKLOG_LEDGER.md:60` (`P0: Agent Control Plane MVP`).
-- Remaining scope for follow-up PRs:
-  - Wire primitives into execution path (policy gate before privileged actions).
-  - Add persistent signed audit trail sink and verification pipeline.
-  - Introduce execution sandbox boundary and approval-mode routing.
+- Runtime integration slice landed for privileged CBT/RAG work:
+  - `app/routers/cbt_insight.py:218` — execution mode resolved fail-closed before privileged work.
+  - `app/routers/cbt_insight.py:261` — policy gate + signed audit persisted before `rag.retrieve`.
+  - `app/routers/cbt_insight.py:340` — policy gate + signed audit persisted before `llm.generate`.
+  - `app/routers/cbt_insight.py:352` — PRO monthly quota enforced before provider call.
+  - `core/rag/simple_rag.py:109` — chunk content redacted before preview/prompt exposure.
+  - `tests/test_cbt_insight_api.py:680` — deterministic blocked/misconfigured mode coverage.
+  - `tests/test_cbt_insight_api.py:710` — deterministic PRO quota enforcement coverage.
+- Local sandbox foundation landed for developer-machine orchestration work:
+  - `app/security/execution_sandbox.py:1` — bounded local execution sandbox with
+    allowlisted binaries, cwd confinement, timeout, output, and env controls.
+  - `scripts/orchestration/run_local_sandbox.py:1` — deterministic CLI wrapper for
+    exercising the sandbox locally.
+  - `tests/test_execution_sandbox.py:1` — deterministic validation of allowed,
+    denied, timeout, truncation, and cwd-escape paths.
+- Tracking items and status live in `docs/roadmap/BACKLOG_LEDGER.md` (`Agent Control Plane MVP`,
+  local execution sandbox foundation, `simple_rag` thread safety, PRO quota parity,
+  and RAG redaction follow-ups).
+- Remaining scope for follow-up PRs is intentionally narrow:
+  - Stronger isolation beyond the developer-machine sandbox (for example, container/VM runner boundary).
+  - Nonce-bearing scoped tokens and wider production rollout hardening.
+  - Expand control-plane wiring beyond the current privileged CBT/RAG slice when new agent runtimes land.
 
-### Exit Criteria (Temporary Seam)
+### Exit Criteria (Updated Status)
 
-This ADR introduces a temporary seam for MVP primitives. Exit criteria to close the seam:
+This ADR introduced a temporary seam for MVP primitives. For the current privileged
+CBT/RAG execution slice, the operational closure criteria are now met:
 
-1. **Policy gate integrated**: All privileged agent actions pass through `require_policy_allow()`.
-2. **Audit trail persistent**: Signed envelopes written to durable storage (not just in-memory).
-3. **Secrets boundary enforced**: No plaintext credentials outside SecretsBroker flow.
-4. **Test coverage**: Deterministic tests for all bypass scenarios (fail-closed behavior verified).
-5. **Backlog ledger closed**: `docs/roadmap/BACKLOG_LEDGER.md:60` P0 entry marked complete with DoD evidence.
+1. **Policy gate integrated**: all privileged agent actions pass through `require_policy_allow()`.
+2. **Audit trail persistent**: signed envelopes are written to durable storage (not just in-memory).
+3. **Secrets boundary enforced**: fail-closed secret requirements remain in place.
+4. **Execution modes enforced**: `auto-safe`, `review-required`, and `blocked` are resolved fail-closed.
+5. **Quota + redaction enforced**: quota is consumed before provider calls; RAG previews/context are redacted.
+6. **Bounded local sandbox available**: higher-risk developer-machine execution now runs only through
+   the allowlisted sandbox boundary with explicit cwd/env/output limits.
+7. **Test coverage**: deterministic tests verify bypass, timeout, quota, mode, and sandbox failure paths.
 
-Until exit criteria are met, this is an **interim solution** with explicit tracking in backlog.
+The broader `ExecutionSandbox` box in the architecture diagram remains a future
+stronger-isolation expansion boundary, but it is no longer a blocker for the
+current control-plane MVP slice.
+
+Open follow-up work is now narrower:
+
+- remote/stronger isolation beyond the developer-machine sandbox
+- nonce-bearing scoped tokens
+- broader multi-surface rollout beyond the current CBT/runtime slice
 
 ## Security Boundaries
 
 - `SecretsBroker`: single authority for credential vending
 - `PolicyGate`: required before tool execution
-- `ExecutionSandbox`: bounded execution for higher-risk actions
+- `ExecutionSandbox`: bounded local execution for higher-risk actions
 - `SignedAuditTrail`: tamper-evident execution trace
 
 ## Non-Goals (MVP)

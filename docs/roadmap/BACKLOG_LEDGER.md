@@ -20,46 +20,2286 @@ If it is not recorded here — it does not exist.
 4) Closing an item requires:
    - PR merged OR explicit "won't do" decision recorded (with reason).
 
----
+## Open Items
 
-## P0 — Next (Must happen)
+<!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
-- [x] P0-1: API Surface Governance / Namespace guards
+Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
+
+### P0
+
+<a id="ledger-p0-self-hosted-postgres-droplet-foundation"></a>
+- [x] P0: Self-hosted Postgres Droplet Foundation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (deployment-safety blocker)
+  - Target PR: PR `#1417` (`docs/close-postgres-droplet-foundation-ledger`)
+  - Area: infra / database / deploy
+  - Status: Closed by repo/runtime evidence reconciliation. Managed PostgreSQL is the canonical default production lane; self-hosted PostgreSQL on the Droplet remains the supported lane B. No new infra implementation PR is required before Foods B2.
+  - Reason: The repo already carries both production lanes, the required environment contract, and backup/restore operational assets. This item stayed open only because the backlog wording drifted behind the shipped deploy/runtime truth. SQLite remains dev/test fallback only.
+  - Links:
+    - docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md
+    - deploy/docker-compose.production.yaml
+    - deploy/docker-compose.production.selfhosted.yaml
+    - deploy/systemd/pulseplate-postgres-backup.service.example
+    - deploy/systemd/pulseplate-postgres-backup.timer.example
+    - scripts/ops/postgres_backup.sh
+    - scripts/ops/postgres_restore.sh
+    - .env.example
+  - DoD:
+    - Backlog wording no longer claims an open infra implementation wave that is already present in repo
+    - Closure evidence points to the canonical two-lane runbook, both production compose files, backup/restore assets, and `.env.example`
+    - Deploy/docs canon is explicit that managed PostgreSQL is the default production lane and self-hosted PostgreSQL is the supported lane B
+    - Foods sequencing no longer treats this item as the mandatory implementation blocker ahead of B2
+
+<a id="ledger-p0-payments-ruby-ios"></a>
+- [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (revenue continuity)
+  - Target PR: PR #1182 (B1 baseline) -> PR #1295 (main bootstrap blocker) -> PR #1296 (activation/persistence closeout) -> PR-TBD-BILLING-ENTITLEMENT-ROUTING
+  - Status: B1 baseline closed (PR #1182); bootstrap blocker landed via PR #1295; activation + subscription persistence truth merged in PR #1296; current `main` carries the backend entitlement-routing runtime contract shipped in PR #1192, with the closeout packet in PR #1298 documenting that landed backend authz truth. Next active P0 release-truth lane: `ledger-p0-web-entitlement-truth`. Evidence: `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`, `app/services/payments_activation.py:1`, `app/middleware/api_tiers.py:225`, `app/bootstrap/startup_guards.py:25`, `tests/test_paid_route_guards.py:289`, `tests/test_paid_route_guards.py:311`.
+  - Carryover: PR #1005 keeps only the `RUBY` -> `RU_BY` identifier cleanup so the ledger stays aligned with the existing payments contract naming.
+  - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
+  - Links:
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+    - docs/contracts/API_CANONICAL_MAP.md
+    - docs/IOS_API_INTEGRATION.md
+    - docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md
+    - docs/contracts/PRODUCT_TIER_MAP.md
+    - docs/review/PR_1182_FIXED_MAPPING.md
+    - ios/PulsePlate/Services/ProKeyProvider.swift:1
+    - app/routers/pro_registration.py:1
+    - app/routers/pro_payments.py:1
+    - app/schemas/payments.py:1
+    - app/services/payments_activation.py:1
+  - Prerequisites:
+    - ✅ Tier activation contract exists (FREE/PRO/VIP)
+    - ✅ Unified billing activation service is finalized for source-specific receipts
+  - DoD:
+    - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
+    - `activate_subscription()` contract supports all three sources with deterministic audit trail
+    - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
+    - API/webhook/error contracts are tested and non-breaking for existing clients
+    - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
+
+<a id="ledger-p0-billing-activation-service"></a>
+- [x] P0: Billing activation service follow-through after Apple verify
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #909 (`feat/pr-909-food-db-next`)
-  - Status: ✅ Merged (PR #909, 2026-02-26)
-  - Area: backend / API governance / OpenAPI contracts
-  - Finding Type: architecture governance gap
-  - Reason: Public OpenAPI surface drift must be locked to canonical FREE/PRO/VIP namespaces to prevent schema sprawl and tier-discipline erosion.
+  - Target PR: PR #1296
+  - Status: ✅ Merged (PR #1296, 2026-04-02)
+  - Area: backend / payments / activation
+  - Finding Type: monetization chain gap
+  - Reason: The verify-only PR intentionally stops before activation side effects, so the next runtime segment must consume the normalized Apple verification payload and activate paid access deterministically.
   - Links:
-    - `docs/architecture/ADR_API_SURFACE_CONSOLIDATION_2026-02-26.md`
-    - `tests/test_openapi_namespace_guards.py`
-    - `legacy_app.py`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Activation service consumes the Apple verification contract without reintroducing client tier truth
+    - Verify and activate remain separate runtime stages with deterministic handoff semantics
+    - Activation-path tests cover success, replay, and failure transitions
+    - No active runtime truth or readback path depends on `_ACTIVATIONS`
+    - Activation readback is derived from persisted `subscriptions` plus `subscription_activation_audit`
+
+<a id="ledger-p0-billing-subscription-persistence"></a>
+- [x] P0: Subscription persistence for billing activation outcomes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #1296
+  - Status: ✅ Merged (PR #1296, 2026-04-02)
+  - Area: backend / payments / persistence
+  - Finding Type: subscription state gap
+  - Reason: Verification responses are activation-ready, but canonical subscription state still lacks durable persistence for user, tier, platform, expiry, and receipt-linked audit fields.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `app/services/subscriptions.py`
+    - `app/schemas/payments.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Subscription state is persisted with deterministic idempotency semantics
+    - Persisted truth is stored in `subscriptions` plus `subscription_activation_audit`
+    - Persistence schema stores canonical tier/platform/expires_at/receipt audit fields
+    - Activation readback and reconcile status resolve from persisted subscription lineage
+    - Tests prove repeated activation cannot create duplicate subscription state
+
+<a id="ledger-p0-billing-entitlement-routing"></a>
+- [x] P0: Entitlement-backed routing after billing activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #1192 (runtime entitlement routing baseline) -> PR #1298 (docs/authz closeout packet) -> PR #1380 (docs-only ledger closeout)
+  - Status: ✅ Closed. Current `main` already carries the backend entitlement-routing runtime contract shipped in PR #1192; PR #1298 provides the closeout packet and governance evidence for that landed backend authz behavior. This docs-only lane reconciles the canonical ledger to shipped behavior and promotes `ledger-p0-web-entitlement-truth` as the next active P0 release-truth lane.
+  - Area: backend / authz / routing
+  - Finding Type: access-control gap
+  - Reason: Closed by shipped backend entitlement-routing plus fail-closed startup/runtime guards; remaining web/frontend entitlement truth stays tracked under `ledger-p0-web-entitlement-truth`.
+  - Evidence:
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md:22`
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md:40`
+    - `docs/review/PR_1298_FIXED_MAPPING.md:43`
+    - `app/middleware/api_tiers.py:225`
+    - `app/middleware/api_tiers.py:364`
+    - `app/routers/billing.py:242`
+    - `app/bootstrap/startup_guards.py:25`
+    - `tests/test_paid_route_guards.py:289`
+    - `tests/test_paid_route_guards.py:311`
+    - `tests/test_pro_vip_route_dependency_guard.py:86`
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/middleware/api_tiers.py`
+    - `app/bootstrap/startup_guards.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+  - DoD:
+    - Entitlement truth is derived from backend activation/subscription state
+    - Route guards consume entitlement state instead of client-declared tier
+    - Production/staging fail closed when DB-backed entitlement mode is required but disabled/misconfigured
+    - Manual RU/BY rails have an explicit pre-entitlement contract (transport-auth carveout or documented back-office-only posture)
+    - Regression tests cover paid, expired, and missing-entitlement paths
+
+<a id="ledger-p0-requested-agent-bootstrap"></a>
+- [x] P0: Requested-agent bootstrap override and advisory specialist contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #1354 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1354)
+  - Status: ✅ Merged (PR #1354, 2026-04-06; merge commit `ba9ea2f8`). Ledger checkbox closed in PR #1356 (mandatory docs-only follow-up the same working day; backlog ledger policy).
+  - Area: orchestration / task bootstrap / routing
+  - Finding Type: coordinator bootstrap gap
+  - Reason: The canonical coordinator workflow must preserve explicit user-requested agent slugs instead of dropping them during bootstrap. This is especially critical for `agent-coordinator`, `backend-engineer`, `bug-hunter`, `ml-engineer-agent`, and `data-scientist-agent`, where current routing semantics otherwise under-express user intent or hide non-routable specialists.
+  - Links:
+    - `scripts/orchestration/task_bootstrap.py`
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md`
+    - `docs/orchestration/workflow.md`
+    - `tests/test_task_bootstrap.py` (integration tests: `test_build_task_packet_*requested*`)
+  - DoD:
+    - Task packet schema records `requested_agents`
+    - Bootstrap either honors, preserves as advisory, or rejects each requested slug with explicit rationale
+    - Non-routable specialists are documented as user-requestable/advisory rather than silently unreachable
+    - Deterministic tests cover routable promotion and non-routable advisory behavior
+  - Evidence (implementation):
+    - Graph slot set is evaluated before the non-routable specialist list so in-graph secondaries (e.g. `data-scientist-agent` on `cv`) promote correctly: `scripts/orchestration/task_bootstrap.py:568` (`allowed_promotions`), `:575` (graph precedence comment)
+    - Doc precedence: `docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md:10`, rule 14 `docs/orchestration/AGENT_ROUTING_GRAPH.md:116`
+
+<a id="ledger-p0-verify-env-wrapper-parity"></a>
+- [ ] P0: Verify-env executable wrapper parity for local merge gate
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: #1357
+  - Area: tooling / local verify / developer workflow
+  - Finding Type: false-green preflight gap
+  - Reason: Local `make verify` can fail after `verify-env` already passed when stale `.venv` console entrypoints still point to deleted interpreters/worktrees. The preflight must detect broken wrappers or switch the gate to interpreter-module mode so local merge evidence is trustworthy.
+  - Links:
+    - `Makefile`
+    - `scripts/ci/check_local_verify_environment.py`
+    - `tests/test_check_local_verify_environment.py`
+    - `RUNBOOK_AGENT.md` (section “Clean-Clone Verify Parity” / verify-env)
+    - `AGENTS.md` (Hard Gates / verify-env console-script note)
+  - DoD:
+    - `verify-env` detects stale or non-executable repo tool wrappers before `lint`
+    - Local verify path fails with explicit remediation instead of bad-interpreter shell errors
+    - Deterministic tests cover stale shebang or broken-wrapper detection
+    - Local merge-gate docs reference the stronger parity check
+  - Status: implementation may land in a runtime PR; close this checkbox via a same-day docs-only PR after merge (ledger policy).
+
+<a id="ledger-p0-web-entitlement-truth"></a>
+- [x] P0: Web entitlement truth must come from canonical backend/store state
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR `#1381`
+  - Status: ✅ Closed. PR `#1381` (`feat(frontend): move web premium truth to canonical backend/store state`) merged on `2026-04-09` (`America/New_York`). Exception approved by KK on `2026-04-13`: the docs-only closeout was intentionally batched into the monetization planning-wave bootstrap after merged-state verification across the monetization backbone. Current `main` keeps canonical web entitlement truth on `/api/v1/pro/session`, release-path mocks no longer institutionalize `/api/purchase` or `/api/restore`, and web checkout remains thin-client-safe / fail-closed instead of pretending browser-side purchase success.
+  - Area: frontend / monetization / thin-client
+  - Finding Type: thin-client and release-truth gap
+  - Reason: This release-truth lane is no longer an active runtime gap. `origin/main` already consumes canonical backend/store session truth on the web surface, so remaining monetization work must move to planning-flow value capture instead of reopening entitlement plumbing.
+  - Links:
+    - `frontend/src/lib/usePremium.ts`
+    - `frontend/src/lib/paywallPurchase.ts`
+    - `frontend/src/mocks/handlers.ts`
+    - `frontend/src/mocks/__tests__/purchase.test.ts`
+    - `frontend/src/pages/Pro/__tests__/ProPaywallPage.test.tsx`
     - `frontend/src/api/openapi.json`
+    - `frontend/AGENTS.md`
   - DoD:
-    - OpenAPI namespace guard test is merged and enforced in CI
-    - Legacy `/api/v1/foods*` and `/api/v1/restaurants*` are hidden from OpenAPI schema
-    - Runtime compatibility for legacy routes remains intact
-    - API surface consolidation ADR is merged
+    - Web premium/paywall state derives from canonical backend or StoreKit-backed truth, not `localStorage`
+    - Mock-only `/api/purchase` / `/api/restore` flows are removed from release path or explicitly gated to dev-only
+    - Thin-client guards and targeted frontend tests cover the new source-of-truth path
+    - Funnel/recovery UX stays additive and contract-safe
 
-- [x] P0-2: WS namespace migration (`/ws` -> `/api/v1/pro/ws`)
+<a id="ledger-p0-web-progress-contract"></a>
+- [x] P0: Web progress route must not ship demo-grade health data
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
-  - Target PR: PR #919 (`feat/p0-2-ws-canonical-clean`)
-  - Status: ✅ Merged (PR #919, 2026-02-26)
-  - Area: backend / realtime transport / API governance
-  - Finding Type: namespace consistency follow-up
-  - Reason: WebSocket path still uses transitional root namespace (`/ws`) and must align with canonical PRO surface while preserving a deprecation window.
+  - Target PR: PR #1299 (runtime truth hardening) -> PR #1301 (docs closeout)
+  - Area: frontend / progress UX / trust
+  - Finding Type: user-facing data integrity gap
+  - Status: ✅ Runtime closeout already landed on `main`; this docs-only lane reconciles roadmap/design/audit truth to the shipped release-safe behavior.
+  - Reason: The release path no longer renders fabricated progress charts. Current web behavior is an explicit trusted empty state with export disabled until real data exists, so the remaining gap is documentation drift rather than a new frontend/backend feature lane.
   - Links:
-    - `app/routers/realtime_ws.py`
-    - `app/main.py`
-    - `frontend/src/api/wsClient.ts`
+    - `frontend/src/features/progress/ProgressCharts.tsx`
+    - `frontend/src/pages/Progress.tsx`
+    - `frontend/src/features/progress/__tests__/ProgressCharts.test.tsx`
+    - `docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md`
+    - `docs/analysis/FRONTEND_IOS_VISUAL_ANALYSIS.md`
   - DoD:
-    - Canonical WebSocket endpoint available at `/api/v1/pro/ws`
-    - `/ws` compatibility alias is deprecated with removal window documented
-    - OpenAPI/guard policy updated to remove transitional `/ws` allowance
-    - Frontend ws client defaults to canonical path
+    - Progress route renders explicit empty/loading states instead of fabricated chart fixtures in the release path
+    - Tests lock the trusted empty-state behavior rather than demo-only chart values
+    - UX remains clear when historical data is absent
+    - Release screenshots/copy cannot imply fabricated trend data
+    - Future backend-fed history/chart work remains a separate optional lane and is not claimed as implemented here
+
+<a id="ledger-p0-eu-compliance-control-plane-follow-through"></a>
+- [ ] P0: EU-first compliance control plane follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #1046 -> PR #1307 -> PR-TBD-EU-COMPLIANCE-FOLLOW-THROUGH
+  - Status: 🟡 In progress (baseline control-plane foundation merged in PR #1046; runtime/doc sync follow-through, legacy `/privacy` disclosure alignment, and deterministic drift-hardening merged in PR #1307 on 2026-04-03; program-level DSAR/public-surface and regulated-lane follow-through remain open)
+  - Area: backend / privacy / legal docs / AI governance
+  - Finding Type: compliance program hardening
+  - Reason: Foundation runtime/docs work now establishes a canonical compliance control plane (`docs/compliance/*`, `core/compliance/*`, additive `/privacy` sync), but rollout still needs one program-level epic so future privacy, transparency, DSAR, and regulated-lane work does not drift into isolated follow-ups. This epic supersedes fragmented treatment of the same theme.
+  - Links:
+    - `docs/compliance/README.md`
+    - `docs/compliance/DATA_CLASSIFICATION_AND_PROCESSING_MATRIX.md`
+    - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/compliance/US_REGULATED_LANE_RFC_42_CFR_PART_2.md`
+    - `docs/legal/Privacy.md`
+    - `docs/review/PR_1307_FIXED_MAPPING.md`
+    - `core/compliance/privacy.py`
+    - `core/compliance/transparency.py`
+    - `legacy_app.py`
+    - `tests/test_compliance_control_plane.py`
+  - DoD:
+    - `/privacy`, `docs/legal/Privacy.md`, and `core/compliance/*` remain synchronized for every new health-ish or AI surface
+    - New AI or health-adjacent surfaces add transparency + minimization entries before release
+    - Support-led DSAR workflow for direct-user artifacts is documented and used until a public auth-bound DSAR API is explicitly designed
+    - The US regulated lane remains blocked from the wellness runtime until separate legal/compliance approval
+    - Future public DSAR/export/delete endpoints are blocked until auth/ownership contract is explicit
+
+<a id="ledger-p0-legal-policy-publish"></a>
+- [x] P0: Legal policy publish and client-link alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-1304
+  - Status: ✅ Merged (PR #1304, 2026-04-02)
+  - Area: docs / legal / release readiness
+  - Finding Type: policy publication gap
+  - Reason (EN): Privacy and Terms posture has been materially clarified in runtime and compliance docs, but canonical published policy paths and client references still need one explicit release-blocker item.
+  - Links:
+    - `docs/legal/Privacy.md`
+    - `legacy_app.py`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+  - DoD:
+    - Canonical privacy and terms publication paths exist in-repo
+    - Web and iOS clients link to the published policy paths consistently
+    - Published text stays aligned with runtime wellness/compliance posture
+<a id="ledger-p0-insight-fallback-chain"></a>
+- [x] P0: Insight fallback chain + echo-mode readiness visibility
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (VIP reliability)
+  - Target PR: PR `#1379`
+  - Status: ✅ Merged (PR #1379, 2026-04-10; merge commit `1ddf8c6778ca1f13c2bfce2e052db5409e8d06ba`)
+  - Reason (EN): Master checklist items #2 and #4 require deterministic behavior when primary LLM/provider path is unavailable and explicit operator visibility for fallback/echo mode.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md
+    - docs/review/PR_1379_FIXED_MAPPING.md
+    - llm.py
+    - app/routers/vip.py
+    - app/main.py
+  - DoD:
+    - Provider fallback order is deterministic and test-covered
+    - `/ready` exposes fallback/echo-mode state without leaking secrets
+    - Insight response contract remains backward-compatible under fallback
+
+
+<a id="ledger-p0-master-checklist-triage"></a>
+- [ ] P0: Master checklist phase-fit triage (PulsePlate_Master_Checklist v1.0)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (program alignment / scope control)
+  - Target PR: PR-TBD-MASTER-CHECKLIST-TRIAGE
+  - Status: 🟡 In progress (phase-fit matrix published; execution mapping in progress)
+  - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
+  - Links:
+    - docs/roadmap/BACKLOG_LEDGER.md
+    - docs/roadmap/PulsePlate_Master_Checklist_v1.0.md:1
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - [PulsePlate_Master_Checklist v1.0 source](https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+  - DoD:
+    - Every checklist item is mapped to one of: `Now`, `Next`, `Later`, `Deferred`
+    - Canonical triage matrix artifact exists in-repo and is versioned
+    - `Now` items are represented by explicit backlog entries with owner + DoD + target PR
+    - `Later/Deferred` items include re-activation trigger (release readiness / market / platform milestone)
+    - No duplicate or conflicting ownership across active worktrees
+
+### P1
+
+<a id="ledger-p1-planning-flow-monetization-wave"></a>
+- [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR `#1416` -> PR `#1434` -> PR `#1464` -> PR-TBD-planning-next-best-action-consumers
+  - Lane note: current branch `feat/planning-paywall-exposure-ledger`; planned follow-up branch `feat/planning-next-best-action-consumers`
+  - Status: 🟡 Active epic. Bootstrap governance opened the wave on `2026-04-13` (`America/New_York`); PR `#1416` merged the general paywall exposure ledger foundation on `2026-04-15`, PR `#1434` merged intervention trigger engine v1 on `2026-04-17`, and PR-2 is now the narrow planning-specific ledger wiring/taxonomy delta.
+  - Area: product / growth / monetization / planning flow
+  - Finding Type: monetization value-capture orchestration
+  - Reason (EN): `origin/main` already closed the backend monetization spine through merged PRs `#1296` (`2026-04-02`), `#1312` (`2026-04-03`), and `#1381` (`2026-04-09`). The next profitable lane is not another receipt/entitlement rewrite; it is deterministic monetization over the planning-first journey `BMI -> targets -> daily plate -> weekly plan -> export/recipe follow-through`. The epic must stay thin-client-safe, additive, and worktree-isolated so billing/provider modernization does not get reopened by accident. (RU: Биллинг-спайн уже закрыт на `main`; следующий шаг — monetization поверх planning flow, а не новый receipt/entitlement PR.)
+  - Links:
+    - `README.md`
+    - `docs/contracts/PRODUCT_TIER_MAP.md`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md`
+    - `app/routers/bmi.py`
+    - `app/routers/pro.py`
+    - `frontend/src/lib/usePremium.ts`
+    - `frontend/src/lib/paywallPurchase.ts`
+  - DoD:
+    - Bootstrap docs PR reconciles stale ledger wording and records the monetization PR train under explicit coordinator-owned governance
+    - PR-1 adds backend-owned `next_best_action` hints on canonical BMI / PRO planning surfaces without touching billing, provider verification, or client-side pricing truth
+    - PR-2 adds deterministic planning-surface paywall exposure wiring/taxonomy on top of merged ledger foundation PR `#1416`, aligned to `docs/analytics/*` canon
+    - PR-3 consumes backend `next_best_action` hints on web/iOS while preserving fail-closed web checkout semantics
+    - Every PR in the wave runs from a fresh `worktree`, merges only after current-head merge-readiness passes, then fast-forward syncs local `main` before the next PR starts
+    - Follow-up surfaces (`paywall-copy-alignment`, CBT premium packaging, business-wave follow-through) remain explicitly deferred until after PR-3
+
+<a id="ledger-p1-fonttools-private-index-bump"></a>
+- [ ] P1: Bump fonttools to >=4.62.0 after private Python index mirrors fixed wheels (remove Safety ignore 88739)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain / CVE debt; mirrors `docs/security/` waiver discipline)
+  - Target PR: TBD (land when `PULSEPLATE_PYTHON_INDEX_URL` resolves `fonttools>=4.62.0` with locked install + Docker)
+  - Area: security / CI / dependencies
+  - Reason (EN): Public PyPI ships patched `fonttools`; the approved private index currently exposes only `4.61.1`, so pins and Safety policy ignore PyUp `88739` are intentional until the mirror syncs. (RU: зеркало пакетов отстаёт от PyPI — после появления колеса >=4.62.0 убрать ignore и поднять пин.)
+  - Links:
+    - `docs/security/FONTTOOLS_TTX_EVAL_ADVISORY.md:1`
+    - `safety-policy.yaml:12`
+    - `requirements.txt:57`
+    - `scripts/ci/install_locked_python_requirements.py:277`
+  - DoD:
+    - `requirements.txt`, `requirements-ci-lite.txt`, `requirements-lock.txt` pin `fonttools>=4.62.0` (or exact fixed version available on the private index)
+    - Remove `88739` from `safety-policy.yaml`
+    - Locked install + Docker production target succeed against the private index; `make verify` green
+    - Advisory updated (remove-by closed or docs-only follow-up per backlog policy)
+
+<a id="ledger-p1-cryptography-private-index-sync"></a>
+- [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR-TBD` (follow-up after `PR #1418`)
+  - Status: Active as of `13 April 2026`
+  - Area: security / CI / dependencies
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.1`, `ruff 0.15.11`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.5.4`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.1`, `ruff 0.15.11`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1` и `transformers 5.5.4`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
+  - Links:
+    - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
+    - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
+    - `scripts/ci/emergency_python_wheels.json`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `.github/actions/python-setup/action.yml`
+    - `Dockerfile`
+  - Evidence:
+    - Emergency manifest entries for the still-active fallback set remain pinned in
+      `scripts/ci/emergency_python_wheels.json:8-19` (`cryptography 46.0.7`),
+      `scripts/ci/emergency_python_wheels.json:22-61` (`pillow 12.2.0`),
+      `scripts/ci/emergency_python_wheels.json:64-69` (`pytest 9.0.3`),
+      `scripts/ci/emergency_python_wheels.json:71-76` (`faker 40.15.0`),
+      `scripts/ci/emergency_python_wheels.json:78-83` (`hypothesis 6.152.1`),
+      `scripts/ci/emergency_python_wheels.json:100-105`
+      (`sentence-transformers 5.4.1`),
+      `scripts/ci/emergency_python_wheels.json:107-112` (`ruff 0.15.11`),
+      `scripts/ci/emergency_python_wheels.json:114-119`
+      (`types-pyyaml 6.0.12.20260408`), and
+      `scripts/ci/emergency_python_wheels.json:121-126`
+      (`transformers 5.5.4`).
+    - Installer/bootstrap fallback logic is implemented in
+      `scripts/ci/install_locked_python_requirements.py:275-359`
+      (manifest load/validation), `scripts/ci/install_locked_python_requirements.py:401-420`
+      (exact-pin detection across requirements/constraints),
+      `scripts/ci/install_locked_python_requirements.py:457-490`
+      (artifact staging), and `.github/actions/python-setup/action.yml:70`
+      (shared CI wiring).
+  - DoD:
+    - [ ] Approved private proxy serves every still-active `scripts/ci/emergency_python_wheels.json` entry without manifest fallbacks
+    - [ ] `scripts/ci/emergency_python_wheels.json` is removed from canonical CI/Docker paths
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Security advisories are updated to mark the emergency fallback retired
+
+<a id="ledger-p1-pillow-private-index-sync"></a>
+- [ ] P1: Remove temporary `pillow 12.2.0` emergency wheel fallback after approved mirror sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR-TBD` (follow-up after `PR #1415`)
+  - Status: Active as of `13 April 2026`
+  - Area: security / CI / dependencies
+  - Reason (EN): `feat/rag-hardening-followthrough` must stay on the patched exact release `pillow 12.2.0`, but current-head CI and Docker installs showed the approved private index lagged that upstream release and exposed only `12.1.1`. `PR #1415` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `12.2.0` natively. (RU: ветка должна остаться на исправленном точном релизе `pillow 12.2.0`, но CI/Docker показали отставание приватного зеркала и наличие только `12.1.1`. Поэтому `PR #1415` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `12.2.0` нативно.)
+  - Links:
+    - `docs/security/PILLOW_12_2_0_PRIVATE_INDEX_ADVISORY.md:1`
+    - `scripts/ci/emergency_python_wheels.json`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `.github/actions/python-setup/action.yml`
+    - `Dockerfile`
+  - DoD:
+    - [ ] Approved private proxy serves `pillow 12.2.0` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `pillow 12.2.0` emergency entries
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Advisory is updated to mark the emergency fallback retired
+
+<a id="ledger-p1-mako-private-index-sync"></a>
+- [ ] P1: Remove temporary `mako 1.3.11` emergency wheel fallback after approved mirror sync
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / supply-chain / CI blocker)
+  - Target PR: `PR-TBD` (follow-up after `PR #1440`)
+  - Status: Active as of `17 April 2026`
+  - Area: security / CI / dependencies
+  - Reason (EN): `fix/mako-security-floor` must stay on the patched exact release `mako 1.3.11`, but current-head CI showed the approved private index still exposed only `1.3.10` during locked binary installs. `PR #1440` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `1.3.11` natively. (RU: ветка `fix/mako-security-floor` должна остаться на исправленном точном релизе `mako 1.3.11`, но current-head CI показал, что приватное зеркало всё ещё отдаёт только `1.3.10` при locked binary install. Поэтому `PR #1440` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `1.3.11` нативно.)
+  - Links:
+    - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:1`
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:1`
+    - `scripts/ci/emergency_python_wheels.json:85-90`
+    - `scripts/ci/install_locked_python_requirements.py:408-442`
+    - `.github/actions/python-setup/action.yml:70`
+    - `Dockerfile:74`
+  - Evidence:
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` maps `GHSA-v92g-xgxw-vvmm`
+      to `Mako` and records `1.3.11` as the first patched version across the
+      repo-managed dependency surfaces.
+    - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:44-48` records the
+      current-head CI/private-proxy lag that still exposed only `1.3.10` during
+      locked installs on `17 April 2026`.
+    - `scripts/ci/emergency_python_wheels.json:85-90` is the narrow temporary
+      exact-wheel fallback entry that must be retired once the approved mirror
+      serves `1.3.11` natively.
+  - DoD:
+    - [ ] Approved private proxy serves `mako 1.3.11` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `mako 1.3.11` emergency entry
+    - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
+    - [ ] Advisory is updated to mark the emergency fallback retired
+
+<a id="ledger-p1-metatron-offensive-lab-out-of-band"></a>
+- [ ] P1: METATRON-class offensive lab — out-of-band governance and operator runbook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security engineering / abuse prevention)
+  - Target PR: Epic 1 merged [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); Epic 2 — [#1366](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1366) (isolated runner; branch `feat/metatron-track-a-epic2-runner`); Epic 3 — PR-TBD (runbook). Epic 2 packet: `docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md:1`.
+  - Status: **Track A Epic 1 — CLOSED.** Landed via PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355); canonical squash merge commit [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) on `main`. Remaining: Epic 2 (infra/scripts isolated runner), Epic 3 (runbook) per coordinator sequencing after this ledger closeout.
+  - Area: security / deploy / orchestration / governance
+  - Reason (EN): METATRON-like stacks (local LLM + offensive recon) must not enter the PulsePlate product runtime or OpenAPI; operators still need canonical RoE, ADR, isolated deploy boundary, and coordinator-led assessment workflow. (RU: оффенсив-лаборатория остаётся вне продукта, но процесс и документы должны быть в репозитории.)
+  - Links:
+    - `docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:1`
+    - `docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md:1`
+    - `docs/architecture/ADR_METATRON_OFFENSIVE_LAB_OUT_OF_BAND_2026-04-06.md:1`
+    - `docs/security/METATRON_LAB_RULES_OF_ENGAGEMENT.md:1`
+    - `docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md:1`
+    - `deploy/metatron-lab/README.md:1`
+    - Epic 1 merge evidence: [`5a39c2ec3`](https://github.com/Katsiarynakavaleuskaya/PulsePlate/commit/5a39c2ec3) (PR [#1355](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1355))
+  - DoD:
+    - [x] Epic 1: ADR + RoE + task packet + lab stub merged with evidence anchors (#1355 / `5a39c2ec3`)
+    - [x] Ledger links this packet; Epic 1 merge recorded
+    - [x] No offensive tooling in `app.main` / product requirements; lab remains optional compose profile
+    - [ ] Epic 2: isolated runner (infra/scripts only); merge-ready with `make verify` on touched surfaces per `AGENTS.md`
+    - [ ] Epic 3: operator assessment runbook / wave workflow hardening as needed
+
+<a id="ledger-p1-execution-doc-sot-reconciliation"></a>
+- [ ] P1: Execution-doc source-of-truth reconciliation after PR-1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (fix/deploy-spa-routing-web-shell)
+  - Area: docs / deploy / roadmap
+  - Reason: PR-1 intentionally kept the PR-2 deploy diagnosis packet out of scope, but `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md` still references source-of-truth documents that are missing or in transition. Reconcile the source-of-truth order in the PR-2 deploy shell lane instead of widening the Postgres foundation PR.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - The execution document source-of-truth list references only in-repo canonical artifacts
+    - `DEPLOY_WEB_DIAGNOSIS_AND_FIX.md` has a settled canonical location and is tracked in git
+    - Any remaining missing source-of-truth docs are either created or removed from the ordered list with rationale
+
+<a id="ledger-p1-ci-install-profile-split-after-disk-unblock"></a>
+- [ ] P1: CI install profile split after disk-regression unblock
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-CI-INSTALL-PROFILE-SPLIT
+  - Area: CI / Python dependencies / supply-chain
+  - Status note: Re-evaluate only after `fix/ci-feature-fast-feedback` lands and
+    representative feature/fix push runs still miss the target feedback budget.
+    Do not use this item to reopen security or proxy hardening regressions.
+  - Reason: The emergency unblock PR stabilizes `main` by removing duplicate Python installs and forcing `direct-proxy` in canonical CI lanes, but it intentionally leaves the heavy ML/GPU dependency surface in the base runtime lock. A follow-up PR must split tooling/runtime install profiles and move `torch` / `sentence-transformers` / `nvidia-*` out of the default CI surface where possible.
+  - Links:
+    - `.github/actions/python-setup/action.yml`
+    - `.github/workflows/ci.yml`
+    - `requirements.txt`
+    - `requirements-dev.txt`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Canonical CI install profiles distinguish runtime, test/dev tooling, and OpenAPI-only tooling
+    - Heavy ML/GPU dependencies are optionalized away from generic CI lanes unless a job explicitly needs them
+    - Supply-chain guardrails remain fail-closed with the approved private proxy contract intact
+    - Deterministic tests cover the promoted install-profile contract
+
+<a id="ledger-p1-safety-audit-shared-script-after-pr1479"></a>
+- [ ] P1: Shared Safety audit script after install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SAFETY-AUDIT-SHARED-SCRIPT
+  - Area: CI / security workflow / supply-chain
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+  - Reason: PR #1479 intentionally keeps the install-profile split narrow. The multi-manifest Safety audit loop now exists in both `.github/workflows/ci.yml` and `.github/workflows/security.yml`; extract the shared invocation/reporting path into a single script only after the split lands so future Safety changes happen in one place without reopening the current stabilization slice.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `.github/workflows/security.yml`
+    - `scripts/ci/`
+    - `docs/review/PR_1479_FIXED_MAPPING.md`
+  - Evidence:
+    - `.github/workflows/ci.yml:440-485`
+    - `.github/workflows/security.yml:120-167`
+    - `.github/scripts/parse-safety-report.py:1-83`
+  - DoD:
+    - Canonical Safety multi-manifest invocation and report generation live in one shared script under `scripts/ci/`
+    - `ci.yml` and `security.yml` both delegate to the shared helper instead of duplicating the loop logic
+    - Deterministic tests cover per-manifest artifact naming and fail-closed severity aggregation
+
+<a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
+- [ ] P1: Docker deploy contract reconciliation after install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-DEPLOY-CONTRACT
+  - Area: deploy / docker / operator workflow
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
+  - Reason: The canonical production shape is already split, but deploy/operator docs and some workflow assumptions still carry older shared-artifact language (`frontend_dist`, copy-into-backend assumptions, mixed compose wording). Reconcile the live split contract without widening topology scope or reintroducing monolithic image assumptions.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
+    - `deploy/docker-compose.production.yaml`
+    - `deploy/docker-compose.production.selfhosted.yaml`
+    - `deploy/docker-compose.staging.yaml`
+    - `deploy/WORKFLOW.md`
+    - `docs/deploy/PRODUCTION.md`
+  - DoD:
+    - Deploy docs and compose files agree on split backend image + separate frontend/Caddy topology
+    - Stale shared-volume or copy-into-backend assumptions are removed from touched docs and workflow notes
+    - Operator rebuild / diagnose-web / `IMAGE_REF` flows match the live contract
+    - `docker compose` v2 wording is canonical on touched surfaces
+
+<a id="ledger-p1-pr-scoped-validation-contract-and-hook-fix"></a>
+- [ ] P1: PR-scoped validation contract and pre-push hook fix
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-PR-SCOPED-VALIDATION-CONTRACT
+  - Area: CI / tooling / governance
+  - Status note: Keep `make verify` as the hard merge-claim gate until this follow-up lands. Use this item to separate iterative PR-scope validation from final merge evidence and to fix the pre-push hook failure shape before changing agent/runbook guidance.
+  - Reason: The current repo-wide `make verify` loop is too broad for day-to-day PR iteration, while `scripts/run-backend-tests-pre-commit.sh` has surfaced a `FOUND_FOR_FILE[@]: unbound variable` failure on merge-commit paths. The follow-up must tighten the local PR-scoped validation contract around `make validate-changed` or an equivalent touched-scope path without weakening the canonical merge-readiness requirement.
+  - Evidence:
+    - `AGENTS.md:5-8`
+    - `AGENTS.md:27-30`
+    - `RUNBOOK_AGENT.md:377-383`
+    - `RUNBOOK_AGENT.md:600-603`
+    - `Makefile:130-134`
+    - `Makefile:175-175`
+    - `scripts/run-backend-tests-pre-commit.sh:174-204`
+  - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
+    - `Makefile`
+    - `.pre-commit-config.yaml`
+    - `scripts/run-backend-tests-pre-commit.sh`
+  - DoD:
+    - The pre-push backend test hook no longer fails with `FOUND_FOR_FILE[@]: unbound variable`
+    - Repo docs distinguish iterative PR-scoped validation from the final `make verify` merge-claim gate
+    - Agent/runbook guidance points at the correct local validation path for PR iteration
+    - Deterministic tests cover the hook fix and the promoted validation contract
+
+<a id="ledger-p1-docker-runtime-slimming-after-profile-split"></a>
+- [x] P1: Docker runtime slimming after CI install-profile split
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1490 (`fix(docker): slim runtime after profile split`)
+  - Area: docker / runtime / supply-chain
+  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs) and hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate) have since landed, while [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) remains deferred and the next active Docker/CI slice is signed provenance restoration on pushed-image lanes.
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+  - Reason: Runtime slimming should happen only after the install-profile contract is stable and deploy topology drift is reconciled. The follow-up must remove residual builder/runtime waste without touching provenance policy or the split backend/frontend shell.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `Dockerfile`
+    - `requirements-docker-runtime.in`
+    - `requirements-docker-runtime.txt`
+    - `frontend/Dockerfile.caddy-spa`
+    - `.dockerignore`
+    - `frontend/.dockerignore`
+  - DoD:
+    - No builder-only tooling leaks into runtime images
+    - Production-target Docker workflows use `requirements-docker-runtime.txt` instead of `requirements-ci-lite.txt`
+    - Docker `COPY` scope stays narrow and does not widen build context
+    - Production backend build still serves `app.main:app`
+    - Supply-chain guardrails and proxy install contract remain intact
+
+<a id="ledger-p1-docker-image-budget-telemetry"></a>
+- [x] P1: Docker image budget and telemetry baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1492
+  - Area: CI / docker / telemetry
+  - Status note: Merged on April 22, 2026 via `PR #1492`. The lane established one canonical backend-image baseline, prefers the latest successful `main` artifact, falls back to a checked-in seed baseline, and kept delta reporting warning-only.
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+  - Reason: The project needs deterministic PR-facing evidence for image size regressions, largest layers, build-context drift, and baseline provenance before discussing provenance recovery sequencing or any Dagger pilot. Start with warning/regression-only reporting, not an absolute hard stop.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `docs/telemetry/docker_image_baseline.production.json`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - CI emits deterministic image-size evidence for touched Docker lanes
+    - Largest-layer and build-context summaries are visible to PR authors before merge
+    - Baseline source is explicit (`main-artifact` or `repo-seed-fallback`)
+    - The first gate is warning/regression-only, not an absolute size cap
+    - Follow-up provenance or Dagger decisions can cite this baseline explicitly
+
+<a id="ledger-p1-docker-image-hard-budget-gate"></a>
+- [x] P1: Docker image hard budget gate after telemetry baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1498
+  - Area: CI / docker / telemetry
+  - Status note: Merged on April 22, 2026 via `PR #1498`. The lane promotes the production backend image from warning-only telemetry to a deterministic hybrid hard gate with an absolute cap and a maximum positive delta vs baseline.
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+  - Reason: The repo should not enforce a hard image-size failure threshold until the warning-only baseline has stabilized on `main` and the canonical telemetry evidence is trustworthy enough to gate merges deterministically.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `docs/telemetry/docker_image_budget.production.json`
+  - DoD:
+    - A canonical hard-fail threshold exists for the production backend image
+    - Docker lanes fail deterministically when the threshold regresses beyond policy
+    - The gate uses the same canonical telemetry artifact contract introduced by PR `#1492`
+
+<a id="ledger-p1-business-wave-runtime-follow-through"></a>
+- [ ] P1: Business wave runtime follow-through after governance/docs foundation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-BUSINESS-WAVE-RUNTIME-FOLLOW-THROUGH
+  - Area: business / runtime / governance carryover
+  - Reason: The governance-first business wave intentionally avoids mutating `app/routers/business.py` and `core/business_bayesian_analyzer.py` in the first pass. A dedicated follow-up PR must audit runtime completeness, contract posture, any promotion from internal analyzer surfaces to broader business workflows, and any executive document layer that duplicates facts already owned by `docs/audience_pack/*`.
+  - Links:
+    - `docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md`
+    - `docs/library/brainstorm/2026-03-21_business-wave-b2b-collateral.md`
+    - `docs/audience_pack/README.md`
+    - `docs/executive/PR_PORTFOLIO_BRIEF_DIRECTORS_2026-03.md`
+    - `app/routers/business.py`
+    - `core/business_bayesian_analyzer.py`
+  - DoD:
+    - Runtime business analyzer completeness is audited against the governance/business-line SoT
+    - Any missing runtime/business contracts are either implemented or explicitly deferred with ledger proof
+    - No client-side or external-facing business automation path is introduced without reviewed runtime contract evidence
+    - Any executive document layer that rephrases `docs/audience_pack/*` is either eliminated, linked back to canon, or explicitly deferred with ledger proof
+
+<a id="ledger-p1-pr1185-cubic-activation-contract"></a>
+- [ ] P1: PR #1185 Cubic activation contract refinements (deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (follow-up after PR #1185)
+  - Area: payments / activation / contract
+  - Reason: Cubic review comments (6 threads + review) posted after commit 26ec3bd0. Deferred to follow-up PR for activation contract refinements.
+  - Links:
+    - docs/review/PR_1185_FIXED_MAPPING.md
+    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
+  - DoD: Address Cubic findings in dedicated PR; update mapping artifact.
+
+<a id="ledger-p1-postgres-backup-restore-hardening"></a>
+- [ ] P1: Postgres backup/restore operational hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (infra/p1-postgres-backup-restore-hardening)
+  - Area: infra / database / ops
+  - Reason: Deferred from PR #1184. Atomic backup write, tmp cleanup on pg_dump failure, restore preflight validation, psql ON_ERROR_STOP, explicit operator confirmation for destructive restore.
+  - Links: scripts/ops/postgres_backup.sh, scripts/ops/postgres_restore.sh
+  - DoD: Atomic backup; safer restore flow with validation and confirmation.
+
+<a id="ledger-p1-pr1-50-remediation-wave1"></a>
+- [ ] P1: PR 1-50 remediation follow-through after Wave 1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (audit debt / type-safety / test hygiene)
+  - Target PR: PR-TBD-PR1-50-REMEDIATION
+  - Status: 🟡 In progress
+  - Area: frontend / tests / dev-scripts / audit debt
+  - Finding Type: audit remediation carryover
+  - Reason (EN): PR 1-50 remediation Wave 1 is intentionally scoped to unresolved P0/P1 findings in production code, tests, and dev scripts. Lower-priority cleanup stays deferred so the fix PR remains narrow enough to reach green CI without mixing audit documentation work into the implementation branch.
+  - Links:
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `frontend/src/features/shoplist/ShoplistPreview.tsx`
+    - `tests/test_llm_extras.py`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/core/catalog/test_sqlite_fk_integrity.py`
+    - `tests/test_api.py`
+    - `run_coverage_tests.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-sharefile-hardening`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-glasscard-cleanup`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-diagnostic-deps`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-monitor-deps`
+  - Deferred / P2 carryover:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-sharefile-hardening`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-glasscard-cleanup`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-diagnostic-deps`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-pr1-50-ollama-monitor-deps`
+  - DoD:
+    - Wave 1 fixes all unresolved P0/P1 findings from the PR 1-50 audit
+    - Deferred P2 items remain tracked here with explicit file targets
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+    - PR body includes a `Deferred / Follow-ups` section with ledger links to this ledger item
+
+<a id="backlog-restore-signed-build-provenance"></a>
+- [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
+  - Target PR: PR #1503
+  - Status: 🟡 Active next slice after `PR #1498`
+  - Reason (EN): Docker baseline and hard-budget gates are now stable enough to restore signed provenance on pushed-image lanes without widening scope into `load: true` jobs or alternate control planes. This slice must re-enable provenance/SBOM attestations on registry pushes and fail closed before staging or production deploy if digest verification breaks.
+  - Links:
+    - `docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/cd.yml`
+    - `scripts/ci/check_docker_provenance_attestation.py`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+  - DoD:
+    - `build.yml` and `cd.yml` pushed-image lanes use `provenance: mode=max`
+    - pushed-image lanes emit SBOM attestations alongside provenance
+    - CD verifies provenance and SPDX SBOM attestations by exact pushed digest before any deploy step
+    - `load: true` jobs remain on `provenance: false`
+    - Follow-up docs and CI checks explicitly cover the restored path
+
+<a id="ledger-p1-sbom-vex-signed-security-artifacts"></a>
+- [ ] P1: SBOM/VEX signed security artifacts lane after P0 release-truth closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security maturity after release-truth closure)
+  - Target PR: PR #1332
+  - Status: 📋 Planned
+  - Blocked by:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason (EN): SBOM/VEX/cosign/OPA is a separate security-maturity lane, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity.
+  - Current action:
+    - docs/governance only
+    - no CI enablement
+    - no blocking workflow or merge-gate changes
+  - Entry criteria:
+    - Entitlement truth is closed
+    - Backend/runtime closure is closed
+    - Infra hardening is stable
+    - OpenAPI is restored as canonical truth
+    - Web/iOS runtime parity is no longer a P0 release blocker
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+    - `docs/security/TOOLING_SURFACE_POLICY.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+  - DoD:
+    - SBOM is generated on every canonical build
+    - Vulnerability scan results are stored as canonical artifacts
+    - VEX is stored at a fixed canonical path
+    - cosign attestations are verified automatically
+    - OPA gate evaluates signed VEX exceptions deterministically
+    - Rollout is staged `warn-only -> enforced`
+    - Nightly reconciliation detects stale VEX entries
+
+<a id="ledger-p1-canonical-bootstrap-late-rehydration"></a>
+- [ ] P1: Canonical app bootstrap late-rehydration hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (runtime reliability follow-up after `/metrics` hotfix)
+  - Target PR: PR #1101 (`fix(metrics): restore late bootstrap route on main`) -> PR-TBD-CANONICAL-BOOTSTRAP-LATE-REHYDRATION
+  - Area: backend / bootstrap / observability
+  - Finding Type: import-order follow-up
+  - Reason: The `/metrics` hotfix restores late route registration on already-built apps, but it intentionally does not attempt full middleware rehydration after `middleware_stack` exists. A follow-up is needed to define and harden the canonical behavior for late bootstrap/import-order paths without reintroducing unsafe post-start middleware mutation.
+  - Links:
+    - `docs/review/PR_1101_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1101`
+    - `app/main.py`
+    - `app/bootstrap/metrics.py`
+    - `tests/test_metrics.py`
+    - `tests/test_no_direct_testclient.py`
+  - DoD:
+    - Canonical late-bootstrap contract is documented for route vs middleware behavior
+    - Tests cover legacy/app-first import order for additive observability surfaces
+    - Direct TestClient bypass debt is reduced or explicitly re-audited against the canonical bootstrap contract
+
+<a id="ledger-p1-billing-activation-openapi-refinements"></a>
+- [ ] P1: Billing activation OpenAPI refinements after PR #1095
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first clarity)
+  - Target PR: PR-TBD-BILLING-ACTIVATION-OPENAPI-REFINEMENTS
+  - Area: backend / frontend / payments / OpenAPI
+  - Finding Type: contract refinement follow-up
+  - Reason: PR #1095 intentionally keeps the runtime scope narrow around activation + persistence. The follow-up OpenAPI work should explicitly model source-specific activation variants, reuse canonical enums in Apple verify hints, and mark compatibility aliases as deprecated without expanding the current backend runtime PR.
+  - Links:
+    - `app/schemas/payments.py`
+    - `frontend/src/api/openapi.json`
+    - `frontend/src/api/schema.ts`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios`
+  - DoD:
+    - `ActivateSubscriptionRequest` is expressed as a discriminated `oneOf` keyed by `source`
+    - Apple verify activation hints reuse canonical `PaymentPlatform`
+    - Compatibility aliases in `SubscriptionActivationResponse` are explicitly deprecated in OpenAPI
+    - `make openapi-check` passes with regenerated frontend artifacts
+
+<a id="ledger-p1-dsar-direct-user-helper-contract"></a>
+- [ ] P1: Internal DSAR direct-user helper contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1049
+  - Area: backend / privacy
+  - Finding Type: compliance runtime hardening
+  - Reason: The compliance control plane now documents support-led DSAR handling, but the runtime still needs deterministic helper functions that export direct-user SQL artifacts and execute bounded deletion without exposing a public endpoint. This slice keeps DSAR execution consistent for `users`, `rag_feedback`, and `user_knowledge` while keeping account-row deletion on the dedicated existing path.
+  - Links:
+    - `core/compliance/dsar.py`
+    - `core/compliance/dsar_service.py`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/legal/Privacy.md`
+  - DoD:
+    - Internal helper functions export direct-user SQL artifacts in a deterministic, serializable format
+    - Internal helper functions delete `rag_feedback` and `user_knowledge` idempotently and report per-artifact counts
+    - Internal helper functions expose an explicit deletion plan for the `users` row instead of silently widening into full account deletion
+    - No public DSAR endpoint is introduced before an explicit auth/ownership contract exists
+    - Deterministic tests cover export + delete paths for `users`, `rag_feedback`, and `user_knowledge`
+
+<a id="ledger-p1-telemetry-maturity-follow-through"></a>
+- [ ] P1: Telemetry maturity follow-through for audited vault retrieval and budget dashboards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (post-foundation observability maturity)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason (EN): The telemetry foundation PR intentionally stops at lightweight spans plus encrypted pointer storage. Audited decrypt workflow, detector budget dashboards, and retention/DSR operating hooks remain deferred so the first runtime slice stays additive and low-risk.
+  - Links:
+    - `docs/telemetry/TELEMETRY_POLICY.md`
+    - `docs/telemetry/LLM_DETECTORS.md`
+    - `docs/telemetry/TELEMETRY_FIELD_CLASSIFICATION.md`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+    - `docs/legal/Privacy.md`
+    - `deploy/otelcol/collector.yaml`
+  - DoD:
+    - Audited decrypt workflow exists for approved vault retrieval
+    - Dashboards cover span volume, full-capture rate, and detector distribution
+    - Retention and deletion hooks for telemetry vault references are documented and test-covered
+
+<a id="ledger-p1-external-food-source-policy-enforcement"></a>
+- [ ] P1: External food-source operating policy enforcement follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (data governance / legal-operating discipline)
+  - Target PR: PR-TBD-FOOD-SOURCE-POLICY-ENFORCEMENT
+  - Status: Not started
+  - Area: backend / legal-compliance / data platform
+  - Finding Type: provider operating-policy follow-up
+  - Reason: ODbL attribution is canonical for Open Food Facts and the food
+    platform strategy already names broader source tiers, but future ingestion
+    work still needs one explicit enforcement lane across USDA, Open Food Facts,
+    MenuStat-style datasets, and Nutritionix-style commercial providers so
+    technically reachable data is not treated as automatically safe to cache or
+    redistribute.
+  - Links:
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
+    - `docs/legal/ODbL_COMPLIANCE.md`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `app/routers/pro_food_attribution.py`
+  - DoD:
+    - New provider onboarding checklist references the operating matrix before
+      runtime rollout
+    - Provider-specific docs exist whenever stricter rules are needed
+    - Attribution registry and docs stay aligned when new public-facing sources
+      are added
+    - No new external food/menu source ships without explicit cache and
+      redistribution decisions
+
+<a id="ledger-p1-token-expansion-activation"></a>
+- [ ] P1: Semantic/product token expansion + Tokens Studio activation + optional figma-manifest schema unification
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system governance)
+  - Target PR: PR #1047 (`feat(design): add token pipeline foundation`) -> PR-TBD-TOKEN-EXPANSION-ACTIVATION
+  - Status: 📋 Deferred after token-pipeline foundation
+  - Foundation PR: PR #1047 (2026-03-08, `f272503c`)
+  - Area: frontend / ios / design-system
+  - Finding Type: governance follow-up
+  - Reason: The repo now has a governed `/tokens -> generated runtime mirrors` pipeline for foundation and current semantic tokens. Deferred work remains for broader semantic/product layers (`tier`, `paywall`, `plate`, `bmi`, `coach`), controlled Tokens Studio activation beyond documentation-only support, and an explicit decision on whether `docs/design/figma-manifest.json` should stay informational or be unified with token-pipeline schema validation.
+  - Links:
+    - [PR #1047](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047)
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/figma-manifest.json`
+    - `frontend/src/styles/tokens.css`
+    - `frontend/src/styles/tokens.ts`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.swift`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+  - DoD:
+    - Semantic and product-token layers are explicitly named and promoted into web/iOS runtime mirrors where needed
+    - Tokens Studio activation scope, export format, review gate, and ownership are documented before any runtime automation or commit contract is added
+    - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
+    - Active design-system docs continue to reference one governance path only
+
+<a id="ledger-p1-design-runtime-system-web-ios-epic"></a>
+- [ ] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system productization and governance)
+  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`)
+  - Status: 🛠️ PR-0 merged; PR-1 merged in PR #1504; PR-2 specialized family normalization is active in draft PR #1510 on branch `codex/design-specialized-families-normalization`
+  - Area: docs / orchestration / design-system / frontend / ios / storybook
+  - Finding Type: coordinator-owned epic bootstrap and sequencing contract
+  - Reason: PulsePlate already has governed design-runtime, token-pipeline,
+    and bridge baselines on `main`, but it still lacks one coordinator-owned
+    productization train that locks source precedence, role order, PR order,
+    review surfaces, merge/cleanup governance, and the bounded handoff from
+    docs bootstrap into implementation slices. This series must stay repo-first,
+    keep clients thin, and avoid reopening merged design/runtime/bridge lanes.
+  - Links:
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-token-expansion-activation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-token-lock-ci`
+  - DoD:
+    - One coordinator-owned runbook exists for the full `PR-0` through `PR-8`
+      train with fixed source precedence, role order, validation matrix, merge
+      path, and cleanup path
+    - `PR-0` remains docs-only and introduces no runtime, client, or CI
+      behavior changes; `PR-1` is the first executable slice and stays bounded
+      to missing governed primitives only
+    - The line explicitly stays downstream of merged design-runtime and
+      design-bridge baselines and does not consume reserved design-agent PR
+      slots
+    - Web is locked as renderer-only and Storybook-first review only; iOS
+      remains simulator-first for implementation slices
+    - `/tokens` stays the authoring source and generated web+iOS mirrors remain
+      derived runtime outputs
+    - `figma-manifest` remains bootstrap metadata until the dedicated export
+      lock slice hardens it
+
+<a id="ledger-p1-design-agent-runtime-pr-chain"></a>
+- [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-runtime productization and orchestration)
+  - Target PR: PR `#1219` (merged realignment bridge) -> `PR-TBD-DESIGN-AGENT-PR4` (reserved `worktree/design-agent-pr4-creative-research`, with a bounded packet still required before any future opening)
+  - Status: ✅ Baseline PR1-PR3 and the realignment bridge are merged in `main`; design-agent PR4 remains optional, unopened, and explicitly reserved
+  - Area: scripts / orchestration / design-runtime / docs
+  - Finding Type: initiative umbrella and sequencing contract
+  - Reason: PulsePlate already has a governed code-native design runtime, but the
+    next wave needs a coordinated PR chain so adaptive presentation semantics,
+    deterministic browser preview, and bounded creative research ship through
+    one repo-first contract instead of becoming ad hoc design-agent behavior.
+    This initiative explicitly keeps `/tokens -> vocabulary -> instruction
+    contract -> pulseplate_canvas_v1` as the canonical source path and requires
+    `bug-hunter` as a mandatory post-open fix lane before each PR is considered
+    review-ready.
+  - Links:
+    - `docs/design/DESIGN_AGENT_RUNTIME_PR_CHAIN.md`
+    - `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
+    - `docs/library/brainstorm/2026-03-21_design-agent-runtime-pr-chain.md`
+    - `docs/library/research/2026-03-21_design-agent-runtime-pr-chain_evidence.md`
+    - `docs/library/decisions/ADR_DESIGN_AGENT_RUNTIME_PR_CHAIN_2026-03-21.md`
+    - `docs/library/promotion/2026-03-21_design-agent-runtime-pr-chain_promotion-log.md`
+    - `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-execution-adapter-seam`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-layout-archetype-templates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-screen-content-template-convergence`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-html-preview`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-prompt-canvas-compiler`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-tooling-phase2-env-api`
+  - DoD:
+    - Baseline realized: PR1 artifact pack, PR2 additive `interaction_contract`,
+      and PR3 deterministic HTML preview lane are explicitly acknowledged as
+      already merged baseline state in `main`, primarily via `PR #1210`
+    - Realignment bridge merged: the chain SoT and umbrella ledger item are
+      state-aware and no longer describe the initiative as `PR1 scaffold active`
+    - Realignment bridge merged: `docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md`
+      canonically defines the docs-only coordinator cycle, routing, sync points,
+      acceptance packet, and bug packet for the bridge PR
+    - Design-agent PR4 remains optional, unopened, and explicitly reserved for
+      bounded creative-research work; the bridge PR does not consume that
+      reserved design-agent PR4 slot
+    - Every PR in the chain documents and runs the mandatory
+      `qa-engineer-agent -> bug-hunter` post-open review loop
+    - No PR in the chain introduces public API changes or live self-modifying
+      UI without a separate approved follow-up
+
+<a id="ledger-p1-design-bridge-operationalization-pr21"></a>
+- [ ] P1: PR21 design-bridge operationalization lane (preflight + capture + first parity pack)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-ops evidence pipeline)
+  - Target PR: PR #1391 (`feat/design-bridge-ops-parity-pack`)
+  - Status: 📋 Planned from merged bridge baseline on `main`
+  - Area: docs / orchestration / design / runbooks / frontend / ios
+  - Finding Type: operational follow-on after merged bridge baseline
+  - Reason: Wave 7 defines a follow-on lane after the merged realignment bridge
+    so the design bridge becomes an executable evidence pipeline instead of
+    remaining principle-only documentation. This lane is separate from the
+    colleague-owned bridge-closeout PR `#1386`, keeps Cloudflare preview
+    advisory-only, and does not consume the reserved `design-agent PR4` slot.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+    - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
+    - `docs/runbooks/sessions/DESIGN_TOOLING_SESSION_2026-04-11_design-bridge-ops-parity-pack.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-agent-runtime-pr-chain`
+  - DoD:
+    - One canonical packet defines the design-bridge operationalization lane,
+      role order, sync points, and merge path
+    - Web review evidence is explicitly Storybook-first and points to real
+      Storybook/MDX surfaces in repo
+    - iOS evidence is explicitly simulator-based for workspace
+      `ios/PulsePlate.xcworkspace` and scheme `PulsePlate`
+    - The first parity pack is limited to representative baseline surfaces:
+      `ios.home`, `web.plate`, `web.progress`
+    - Cloudflare preview/deploy remains non-blocking and outside merge truth
+    - The lane does not edit or reinterpret the colleague-owned closeout work
+      around PR `#1386`
+    - Draft PR may open with web evidence complete and an explicit iOS verifier
+      blocker recorded in the packet/session artifact, but review-ready and
+      merge-ready status still require the iOS blocker to be resolved or
+      dispositioned
+
+<a id="ledger-p1-ui-epic-post-bridge-series"></a>
+- [ ] P1: Post-bridge UI epic series bootstrap and execution lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (UI/UX execution governance)
+  - Target PR: PR #1463 (`docs(ui-ux): add post-bridge UI epic runbook and lane packet`)
+  - Status: 🛠️ In progress in PR #1463
+  - Area: docs / orchestration / ios / frontend / storybook
+  - Finding Type: post-bridge execution follow-on
+  - Reason: The design-bridge baseline is already merged on `main` through
+    PR `#1386` and PR `#1391`, so the next UI lane must start as a fresh
+    product-facing series instead of reopening bridge operationalization. The
+    first executable gap is iOS visible coherence, followed by one semantic
+    iOS surface seam, then bounded Storybook parity expansion, and only later
+    thin-client consumption of the already existing backend
+    `next_best_action` contract.
+  - Evidence:
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md:44-72`
+    - `docs/roadmap/BACKLOG_LEDGER.md:860-876`
+    - `app/schemas/weekly_plan.py:201-206`
+    - `app/routers/pro.py:360-368`
+    - `docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md:74-103`
+    - `frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`
+    - `frontend/AGENTS.md:27-38`
+    - `ios/AGENTS.md:86-92`
+  - Links:
+    - `docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md`
+    - `docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md`
+    - `docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md`
+    - `docs/design/DESIGN_BRIDGE_FIRST_PARITY_PACK_2026-04-11.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+    - `ios/PulsePlate.xcworkspace`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-bridge-operationalization-pr21`
+  - Blockers:
+    - PR-3 must keep the semantic surface seam presentation-only and ADR-backed
+      (`docs/architecture/ADR_UI_SEMANTIC_SURFACE_SEAM_2026-04-19.md:1-45`)
+    - PR-3 must ship simulator evidence and targeted tests before the seam is
+      considered stable
+    - PR-5 may consume `next_best_action`, but clients must remain thin and
+      renderer-only (`frontend/src/api/__tests__/thin-client-guards.test.ts:7-19`;
+      `frontend/AGENTS.md:27-38`; `ios/AGENTS.md:86-92`)
+  - DoD:
+    - A dedicated post-bridge UI epic runbook exists and locks PR order,
+      role order, sync points, validation, and merge-path rules
+    - The runbook explicitly states that merged bridge work is baseline state
+      and must not be reopened as a new bridge PR
+    - The lane enforces one PR per dedicated worktree from synced
+      `origin/main`
+    - Web review is locked as Storybook-first and iOS evidence as
+      simulator-first
+    - Billing, entitlement, provider modernization, deploy/runtime infra,
+      Cloudflare merge truth, and any new `/api/v1/ui/state` rail are
+      explicitly out of scope for this series
+    - The first executable slice is fixed as iOS visible coherence before
+      surface-seam or web parity expansion work begins
+    - Late-phase client hint work is explicitly limited to consuming the
+      already existing backend `next_best_action` contract
+
+<a id="ledger-p1-design-execution-adapter-seam"></a>
+- [ ] P1: Design execution adapter seam promotion beyond local artifact lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime governance)
+  - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-RUNTIME-ADAPTER
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / integrations / design-runtime / docs
+  - Finding Type: temporary seam follow-up
+  - Reason: PR #1134 promotes `code_native_canvas` into the canonical local
+    artifact emitter, but live external execution still remains intentionally
+    deferred. Any bridge beyond the local artifact lane must consume
+    `pulseplate_canvas_v1`, preserve manifest and verification semantics, and
+    avoid becoming a hidden topology source of truth.
+  - Links:
+    - `docs/architecture/ADR_DESIGN_EXECUTION_ADAPTER_SEAM_2026-03-11.md`
+    - `scripts/design/execution_adapters.py`
+    - `scripts/design/execute_design.py`
+    - `scripts/design/verify_design.py`
+    - `scripts/design/canvas_artifact.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - A reviewed adapter exists for the chosen post-local design runtime target
+    - External execution consumes `pulseplate_canvas_v1` or governed
+      instruction payloads without bypassing contract validation
+    - Manifest and verification flows distinguish local artifact emit from live
+      bridge execution
+    - Tests prove fail-closed behavior for missing auth, unsupported adapters,
+      and contract drift
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md` is updated so
+      the adapter seam is described as a governed bridge rather than a local
+      stub-only placeholder
+
+<a id="ledger-p1-design-runtime-screen-coverage"></a>
+- [ ] P1: Design runtime screen coverage beyond initial six parity screens
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime expansion)
+  - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-RUNTIME-SCREEN-COVERAGE
+  - Status: 📋 Deferred after PR #1117 contract hardening
+  - Area: scripts / design-runtime / design-docs
+  - Finding Type: deferred scope follow-up
+  - Reason: PR #1117 intentionally hardens the code-first vocabulary and
+    instruction contract around the first six parity screens only
+    (`ios.home`, `ios.plate`, `ios.progress`, `web.home`, `web.plate`,
+    `web.progress`). Additional governed screens must be promoted under the same
+    contract instead of being inferred ad hoc.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/instructions/`
+    - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - New screens are added through the same code-first brief and vocabulary
+      contract
+    - Instruction generation, execution, and verification remain deterministic
+      for each added screen
+    - Manifest/verification docs explicitly list the expanded supported-screen
+      surface
+
+<a id="ledger-p1-design-layout-archetype-templates"></a>
+- [ ] P1: Reusable layout archetype templates beyond current shell families
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR #1117 (`feat(design): add code-first UI vocabulary and strengthen instruction generation`) -> PR-TBD-DESIGN-LAYOUT-ARCHETYPE-TEMPLATES
+  - Status: 📋 Deferred after PR #1117 contract hardening
+  - Area: scripts / design-runtime / docs
+  - Finding Type: deferred semantics follow-up
+  - Reason: PR #1117 formalizes `layout_archetype`, `layout_pattern`, and
+    section/component hierarchy semantics, but it intentionally keeps the first
+    archetype set small (`hero_shell`, `content_shell`, `dashboard_shell`).
+    Richer reusable archetype families and template semantics should be promoted
+    in a dedicated follow-up instead of expanding the contract implicitly.
+  - Links:
+    - `scripts/design/contracts.py`
+    - `scripts/design/generate_figma_instructions.py`
+    - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - Additional archetype families are named and documented in the cookbook and
+      runtime contract
+    - Validation enforces the promoted archetype set deterministically
+    - Screen-generation templates reuse the promoted archetypes without hidden
+      per-screen exceptions
+
+<a id="ledger-p1-screen-content-template-convergence"></a>
+- [ ] P1: Screen content model, reusable template registry, and `pulseplate_canvas_v1` convergence after PR #1121
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR #1134
+  - Status: 🚧 In progress in PR3 design canvas artifact contract
+  - Area: scripts / design-runtime / docs
+  - Finding Type: deferred model-governance cleanup
+  - Reason: PR3 promotes reusable layout templates to the canonical topology
+    source, removes duplicated inline `SCREEN_CONTENT_MODEL` structure, and
+    introduces the governed `pulseplate_canvas_v1` artifact contract so screen
+    topology and code-native runtime output are emitted from the same source.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/canvas_artifact.py`
+    - `scripts/design/layout_templates.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - Reusable layout templates are the canonical authoring path for screen
+      topology
+    - `SCREEN_CONTENT_MODEL` stays metadata-only
+    - `pulseplate_canvas_v1` has an explicit schema or artifact contract tied to
+      that same source of truth
+    - Tests prove instruction topology and emitted `pulseplate_canvas_v1`
+      stay structurally aligned
+    - Design-runtime docs describe the chosen source-of-truth contract
+
+<a id="ledger-p1-design-html-preview"></a>
+- [ ] P1: HTML preview and browser renderer on top of `pulseplate_canvas_v1`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime productization)
+  - Target PR: PR #1134 -> PR-TBD-DESIGN-HTML-PREVIEW
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / frontend / design-runtime / docs
+  - Finding Type: deferred renderer follow-up
+  - Reason: PR #1134 intentionally stops at the governed artifact boundary so
+    reusable layout templates, metadata-only `SCREEN_CONTENT_MODEL`, and
+    `pulseplate_canvas_v1` can stabilize before any browser rendering surface is
+    added.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/canvas_artifact.py`
+    - `scripts/design/layout_templates.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - A deterministic HTML preview consumes `pulseplate_canvas_v1` without
+      introducing a second topology source
+    - Renderer output is validated against canvas sections and nodes
+    - Tests cover representative screens such as `ios.home`, `web.plate`, and
+      `web.progress`
+
+<a id="ledger-p1-design-prompt-canvas-compiler"></a>
+- [ ] P1: Prompt-to-canvas compiler expansion beyond artifact-contract PR3
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design runtime semantics)
+  - Target PR: PR #1134 -> PR-TBD-DESIGN-PROMPT-CANVAS-COMPILER
+  - Status: 📋 Deferred after PR #1134 artifact-contract convergence
+  - Area: scripts / orchestration / design-runtime / docs
+  - Finding Type: deferred compiler follow-up
+  - Reason: PR #1134 establishes the first canonical artifact, but it does not
+    yet expand prompt-to-canvas compilation beyond the current topology and
+    instruction contract boundary.
+  - Links:
+    - `scripts/design/generate_figma_instructions.py`
+    - `scripts/design/canvas_artifact.py`
+    - `scripts/design/contracts.py`
+    - `docs/design/CODE_NATIVE_DESIGN_RUNTIME.md`
+  - DoD:
+    - Prompt packets compile deterministically into governed screen instructions
+      and `pulseplate_canvas_v1`
+    - Compiler stages expose explicit topology, token, and state decisions for
+      review
+    - Tests prove topology alignment and stable output for representative screen
+      prompts
+
+<a id="ledger-p1-design-token-lock-ci"></a>
+- [ ] P1: Design-token lockfile and deterministic CI/build contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DESIGN-TOKEN-LOCK-CI
+  - Status: 📋 Planned
+  - Area: design-system / frontend / iOS / CI
+  - Finding Type: deterministic build-governance gap
+  - Reason (EN): The repo now has token-pipeline governance and generated runtime mirrors, but it still does not have a canonical build-from-lock contract. There is no enforced `tokens.lock.json`, no explicit artifact-from-lock-only rule, and no release/rollback playbook for token changes across web and iOS.
+  - Links:
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `frontend/src/styles/tokens.css`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+  - DoD:
+    - Canonical token pipeline defines lockfile ownership, artifact generation from lock only, and CI drift policy
+    - Release/rollback runbook exists for token builds across web/iOS surfaces
+    - Existing semantic/token-governance docs link to the same deterministic build contract
+
+<a id="ledger-p1-rebuild-runtime-vocabulary-promotion-decision"></a>
+- [ ] P1: Rebuild runtime family vocabulary promotion decision
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-REBUILD-RUNTIME-VOCABULARY-PROMOTION
+  - Area: design-system / governance / vocabulary
+  - Reason: Current Figma rebuild families have been audited, but most do not
+    have exact canonical vocabulary support. A dedicated repo-side decision is
+    required before any helper family is promoted into canonical primitive
+    status.
+  - Links:
+    - `docs/design/FIGMA_REBUILD_RUNTIME_VOCABULARY_DECISION.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+  - DoD:
+    - each helper family is either explicitly promoted, explicitly kept as
+      helper-only, or explicitly rejected
+    - no off-canon-risk family is promoted without repo-side decision
+    - UI vocabulary docs remain aligned with the final decision
+    - Figma no longer leads primitive semantics for these families
+
+<a id="ledger-p1-specialized-family-promotion-review"></a>
+- [ ] P1: Specialized rebuild family promotion review
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SPECIALIZED-FAMILY-PROMOTION-REVIEW
+  - Area: design-system / governance / vocabulary
+  - Reason: Specialized rebuild families are adjacent to canonical concepts but
+    are not exact primitives. A narrow review is required before any future
+    primitive promotion or vocabulary expansion.
+  - Links:
+    - `docs/design/FIGMA_REBUILD_RUNTIME_VOCABULARY_DECISION.md`
+    - `docs/design/FIGMA_REBUILD_SPECIALIZED_FAMILY_REVIEW.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+  - DoD:
+    - each specialized family has a repo-side decision
+    - no specialized family is silently promoted through Figma usage
+    - future RFC candidates are explicitly identified
+    - helper-only families remain helper-only until a later reviewed decision
+
+<a id="ledger-p1-color-profile-automation-parity"></a>
+- [ ] P1: Color-profile automation and parity evidence follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-system governance)
+  - Target PR: PR-TBD-COLOR-PROFILE-AUTOMATION
+  - Status: Not started
+  - Area: frontend / ios / design-system / governance
+  - Finding Type: color-space policy follow-up
+  - Reason: Token governance and generated runtime mirrors are canonical, but
+    the repo still lacks deterministic automation for asset-profile checks and
+    screenshot parity evidence. This follow-through keeps the `sRGB` baseline
+    and optional `Display P3` asset lane from drifting into ad-hoc review
+    memory.
+  - Links:
+    - `docs/design/COLOR_PROFILE_GOVERNANCE.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `ios/PulsePlate/Extensions/Color+Assets.swift`
+  - DoD:
+    - Deterministic asset/profile audit lane exists
+    - Screenshot parity evidence contract is documented in an active design
+      review runbook
+    - `Display P3` exceptions require explicit fallback evidence
+    - No new runtime component-level color-space logic appears outside the
+      governed path
+
+<a id="ledger-p1-ios-subscription-manager"></a>
+- [x] P1: iOS SubscriptionManager backend-driven integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1207
+  - Status: ✅ Merged in PR #1207; thin SubscriptionManager receipt-send flow now forwards backend activation truth and refreshes entitlement fail-closed
+  - Area: iOS / payments / thin-client policy
+  - Finding Type: monetization runtime follow-through
+  - Reason (EN): The monetization baseline is iOS-first, but thin-client-safe subscription orchestration still needs an explicit app-side integration item rather than staying implicit inside the broader payments wave.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-activation-service`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-subscription-persistence`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `ios/PulsePlate/Services/SubscriptionManager.swift`
+    - `ios/PulsePlateTests/Services/SubscriptionManagerTests.swift`
+  - DoD:
+    - iOS subscription orchestration remains thin and backend-driven
+    - Product/state transitions are deterministic and test-covered
+    - No client-side billing logic duplicates backend activation policy
+
+<a id="ledger-p1-app-store-subscription-offers-governance"></a>
+- [x] P1: App Store subscription offers governance and StoreKit-truth pricing contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1312
+  - Status: ✅ Merged via `#1312`; release-governance gap closed (reason below
+    retained as historical context)
+  - Area: iOS / billing / App Store / growth
+  - Finding Type: release-governance gap
+  - Reason (EN): App Store Connect introductory offers, offer codes, promotional offers, and win-back pricing are operationally separate from in-app UI, but the repo does not yet have a canonical contract that says pricing, trial duration, and eligibility copy must be StoreKit-truth rather than manually inferred in product copy.
+  - Links:
+    - `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/IOS_BACKEND_REALIZATION_ROADMAP.md`
+    - `docs/MOBILE_API_MIGRATION_GUIDE.md`
+    - `docs/review/PR_1312_FIXED_MAPPING.md`
+  - DoD:
+    - Canonical billing/release doc defines how introductory offers, offer codes, and promotional offers are configured and reviewed
+    - UI copy contract says prices, trial duration, and eligibility messaging must come from StoreKit/App Store truth rather than manual hardcoding
+    - App Store release-ops and compliance docs link back to the same monetization governance source
+  - Follow-up lanes kept separate:
+    - `ledger-p1-ios-appstore-assets-rollout`
+    - `ledger-p1-ios-appstore-semantic-validators`
+    - `ledger-p1-apple-server-api-migration`
+
+<a id="ledger-p1-ios-appstore-assets-rollout"></a>
+- [ ] P1: iOS App Store assets rollout and protected ASC environment activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1323
+  - Status: 🚧 In progress (protected `main` evidence attempted on 2026-04-03; rollout remains blocked by missing protected environment secrets in `appstore-assets` and `appstore-privacy`)
+  - Area: iOS / release-ops / App Store Connect / compliance
+  - Finding Type: release-ops activation follow-up
+  - Reason (EN): Fastlane lanes, localized metadata, screenshot validators, and manual GitHub Actions workflows can now be versioned and validated in-repo, but the protected App Store Connect rollout remains incomplete until protected GitHub environments contain the required secrets and the draft upload/review cycle succeeds on `main`. Two protected `workflow_dispatch` runs were executed on 2026-04-03 and both failed closed at secret preflight, which confirms the remaining gap is environment activation rather than repo workflow correctness.
+  - Links:
+    - `ios/fastlane/Fastfile`
+    - `ios/fastlane/app_privacy_details.json`
+    - `ios/fastlane/metadata/review_information/notes.txt`
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23961157581`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23963491232`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-app-store-subscription-offers-governance`
+  - Evidence:
+    - `workflow_dispatch` run `23961157581` on `main` SHA `f7419179b305b4c997644ebd4b1cc030a2b6e0ab` completed `validate-assets` successfully, uploaded the `ios-appstore-screenshots` artifact, then failed in `upload-assets` at `Preflight protected App Store upload secrets` because `ASC_KEY_ID`, `ASC_ISSUER_ID`, `ASC_KEY_P8_BASE64`, and `APP_STORE_BUNDLE_IDENTIFIER` were empty in the protected environment.
+    - `workflow_dispatch` run `23963491232` on `main` SHA `75830c29614fb6b0e9bc762742a91ac7c172b10d` completed `Validate metadata and privacy package` and `Guard privileged upload ref`, then failed in `upload-app-privacy` at `Preflight protected App Privacy secrets` because `FASTLANE_USER`, `FASTLANE_SESSION`, `FASTLANE_TEAM_ID`, `FASTLANE_TEAM_NAME`, and `APP_STORE_BUNDLE_IDENTIFIER` were empty in the protected environment.
+  - Blockers:
+    - Populate protected environment secrets for `appstore-assets`
+    - Populate protected environment secrets for `appstore-privacy`
+    - Re-run both protected `workflow_dispatch` lanes on `main` after environment activation
+  - DoD:
+    - Protected GitHub environments contain the required ASC API key, bundle identifier, and Apple session secrets
+    - `workflow_dispatch` upload of localized metadata and screenshots completes against App Store Connect draft state
+    - App Privacy upload succeeds through the protected Apple session lane
+    - Privileged upload jobs are constrained to the intended default/release ref and have explicit concurrency/provenance protection
+    - First release-ops runbook captures the reviewer-notes and rollback procedure for future asset refreshes
+
+<a id="ledger-p1-ios-appstore-semantic-validators"></a>
+- [ ] P1: Semantic App Store metadata and privacy validator expansion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1324
+  - Status: 🚧 In progress via `feat/ios-appstore-semantic-validators`
+  - Area: iOS / release-ops / compliance
+  - Finding Type: semantic compliance coverage gap
+  - Reason: Current App Store validators are strong on file presence, dimensions, and basic wording rules, but they do not yet scan metadata/promotional copy for wellness-safe semantic drift or future privacy-package mismatches.
+  - Links:
+    - `ios/fastlane/verify/validate_metadata.rb`
+    - `ios/fastlane/verify/validate_healthkit_copy.rb`
+    - `ios/fastlane/app_privacy_details.json`
+    - `.github/workflows/ios-appstore-assets.yml`
+  - DoD:
+    - Metadata validators detect blocked medical/promissory claims on App Store-facing copy
+    - Privacy validator has a documented drift check against declared app capabilities and release package inputs
+    - New checks stay deterministic and repo-local
+    - Release-ops docs explain when semantic validator failures are blockers vs advisory cleanup
+
+<a id="ledger-p1-pr1147-ios-appstore-asset-followups"></a>
+<a id="ledger-p2-pr1147-ios-appstore-asset-followups"></a>
+- [ ] P1: PR 1147 follow-up for iOS App Store asset workflow alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-APPSTORE-ASSET-FOLLOWUPS
+  - Area: ios / ci / release assets
+  - Finding Type: deferred release-readiness alignment
+  - Reason: PR #1147 fixed the immediate correctness, compliance, and governance blockers for Fastlane-driven App Store assets, but audit follow-up shows the remaining screenshot-manifest / UITest / validator contract still matters for deterministic release readiness and should no longer be treated as low-priority cosmetic cleanup.
+  - Links:
+    - `.github/workflows/ios-appstore-assets.yml`
+    - `ios/fastlane/Fastfile`
+    - `ios/PulsePlateUITests/AppStoreScreenshotTests.swift`
+    - `tests/test_ios_appstore_asset_validators.py`
+    - `docs/review/PR_1147_FIXED_MAPPING.md`
+  - DoD:
+    - `ios-appstore-assets.yml` uses one shared Xcode-selection helper across `validate-assets` and `upload-assets`
+    - `ios/fastlane/Fastfile` documents or pins the `snapshot` `ios_version` strategy instead of relying on latest-runtime fallback
+    - App/runtime screenshot scenario identifiers and UITest screenshot names move to one shared contract without introducing UI-test linker coupling
+    - Cleanup preserves the current deterministic simulator matrix and does not reintroduce `OS=latest` drift
+
+<a id="ledger-p1-release-env-security-contract"></a>
+- [ ] P1: Release environment security contract for `API_KEY_REQUIRED` and tier-gating env truth
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-RELEASE-ENV-SECURITY-CONTRACT
+  - Status: 📋 Planned
+  - Area: deploy / security / release operations
+  - Finding Type: runtime env contract gap
+  - Reason (EN): Repo docs describe `API_KEY_REQUIRED` and related auth/tier env flags, but there is no canonical release contract that makes staging/production values explicit and auditable. Without that contract, a release can drift into a weaker env posture than local docs imply.
+  - Links:
+    - `.env.example`
+    - `docker-compose.yaml`
+    - `README.md`
+    - `docs/deploy/OVERVIEW.md`
+  - DoD:
+    - Canonical release-env doc defines expected values for `API_KEY_REQUIRED` and other auth/tier-critical env flags across local, staging, and production
+    - Verification path for staging/prod env truth is documented and linked from release runbooks
+    - Security posture docs no longer rely on implied env defaults where release enforcement is required
+
+<a id="ledger-p1-fastapi-compatibility-gates"></a>
+- [ ] P1: FastAPI / Pydantic / Starlette compatibility gates for schema and TestClient drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FASTAPI-COMPAT-GATES
+  - Status: 📋 Planned
+  - Area: backend / CI / contracts
+  - Finding Type: dependency-compatibility gap
+  - Reason (EN): The repo already depends on FastAPI, Pydantic v2, and Starlette/httpx behavior, but it has no canonical CI bundle that explicitly guards strict JSON content-type handling, OpenAPI/root_path drift, nullable-required schema semantics, and TestClient behavior changes during dependency bumps.
+  - Links:
+    - `README.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `tests/test_openapi_determinism.py`
+    - `docs/audience_pack/FACTS_CANONICAL.md`
+  - DoD:
+    - Deterministic CI smoke/tests exist for strict content-type behavior, OpenAPI snapshot stability, and representative TestClient/runtime request paths
+    - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
+    - Dependency upgrade/runbook docs link to the same compatibility gate source
+
+<a id="ledger-p1-dependency-governance-pr-series"></a>
+- [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDENCY-GOVERNANCE-SERIES
+  - Status: 📋 Planned
+  - Area: dependencies / CI governance / orchestration
+  - Finding Type: operating model consolidation gap
+  - Reason (EN): The repo has floors, locks, and CI installers, but dependency work still risks
+    being executed as mixed bump lanes. The series must codify policy classes (`security-floor`,
+    `compatibility-cluster`, `override-seam`) and enforce coordinator-led PR lifecycle with
+    mandatory post-open `qa-engineer-agent -> bug-hunter` on every slice.
+  - Links:
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`
+    - `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - `requirements.txt:1`
+    - `requirements-dev.txt:1`
+    - `requirements-ci-lite.txt:1`
+  - DoD:
+    - Series packet defines role order, PR slices, and mandatory post-open lane; evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:37`
+    - Python dependency cluster policy is documented with five-surface coherence rules; evidence anchors remain `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:5`, `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md:64`, and `docs/DEPENDENCY_MANAGEMENT.md:62`
+    - PR loop for each slice is explicitly artifact-first (`docs/review/PR_<N>_FIXED_MAPPING.md`); evidence anchor remains `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md:39`
+    - Deferred/security-maturity lanes (SBOM/VEX) remain blocked until existing ledger criteria are met
+
+<a id="ledger-p1-test-hygiene-wave"></a>
+- [ ] P1: Test hygiene remediation wave for the main test suite
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (test determinism / CI stability)
+  - Target PR: PR-TBD-TEST-HYGIENE-WAVE
+  - Status: 🟡 In progress
+  - Area: tests / policy guards / CI reliability
+  - Finding Type: test isolation and determinism debt
+  - Reason (EN): The 13 March 2026 suite review found broad hygiene debt across import determinism, client lifecycle cleanup, env isolation, and timing controls. The work is too large for one fix PR and needs a canonical umbrella item so execution slices stay ordered and guard scope only expands after each cleaned slice is stable.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/AGENTS.md`
+    - `docs/ENGINEERING_LESSONS.md`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+  - Child Items:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-risk-first`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-client-lifecycle`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-env-isolation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-test-hygiene-finalization`
+  - Related History:
+    - [FastAPI / Pydantic / Starlette compatibility gates](BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates)
+    - [Repository `sys.modules` mutation guard re-enable](BACKLOG_LEDGER.md#ledger-p1-reenable-sys-modules-guard)
+    - [CI nightly test DB schema bootstrap broken](BACKLOG_LEDGER.md#ledger-p0-ci-nightly-test-db-schema-bootstrap)
+    - [WebSocket idle-timeout follow-up](BACKLOG_LEDGER.md#ledger-p1-websocket-idle-timeout-follow-up)
+  - DoD:
+    - Each execution slice lands in its own focused PR with deterministic verification
+    - Guard scope expands only after the targeted offender class is clean in that scope
+    - Final wave closes only after `make verify` passes on the last cleanup PR
+
+<a id="ledger-p1-test-hygiene-risk-first"></a>
+- [ ] P1: Risk-first determinism cleanup for `sys.modules`, builtins import patching, and real sleeps
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR `#1157` (risk-first hygiene slice) -> PR-TBD-TEST-HYGIENE-RISK-FIRST
+  - Status: 🟡 In progress
+  - Area: tests / import determinism / timing
+  - Finding Type: policy and flake remediation
+  - Reason (EN): `sys.modules` mutation, `builtins.__import__` patching, and real sleeps create the highest-leverage determinism failures and can be remediated in bounded slices before the larger client/env waves.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/test_llm_import_coverage.py`
+    - `tests/edges/test_unified_db_small_edges.py`
+    - `tests/test_unified_db_coverage.py`
+    - `tests/test_business_bayesian_analyzer.py`
+  - DoD:
+    - Cleaned files no longer use direct `builtins.__import__` patching
+    - Cleaned files no longer rely on real `sleep()` to prove behavior
+    - Incremental guard scope covers the cleaned non-VIP files
+    - Targeted guard/tests for the slice pass locally
+
+<a id="ledger-p1-test-hygiene-client-lifecycle"></a>
+- [ ] P1: TestClient lifecycle and session-fixture isolation cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TEST-HYGIENE-CLIENT-LIFECYCLE
+  - Status: 📋 Planned
+  - Area: tests / FastAPI lifecycle / session cleanup
+  - Finding Type: resource lifecycle debt
+  - Reason (EN): open-ended `TestClient(...)` usage and stale closeable resources are still present across the suite and need a dedicated wave so the canonical pattern becomes `env first, client second` without mixing in broad env cleanup.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `docs/tracking/ISSUE-TESTCLIENT-FACTORY-MIGRATION.md`
+    - `tests/test_no_direct_testclient.py`
+    - `tests/conftest.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+  - DoD:
+    - High-risk `TestClient` offenders migrate to fixture-based or context-managed usage
+    - Closeable test resources have deterministic teardown
+    - Targeted xdist smoke for touched files passes without stale client/session state
+
+<a id="ledger-p1-test-hygiene-env-isolation"></a>
+- [ ] P1: `os.environ` isolation and `setup_method` teardown migration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-TEST-HYGIENE-ENV-ISOLATION
+  - Status: 📋 Planned
+  - Area: tests / env isolation / setup teardown
+  - Finding Type: worker pollution debt
+  - Reason (EN): direct env mutation is still widespread and must move to `monkeypatch.setenv()` or autouse env fixtures in grouped mechanical passes after the first determinism slice lands.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/AGENTS.md`
+    - `docs/ENGINEERING_LESSONS.md`
+  - DoD:
+    - Touched files no longer write directly to `os.environ[...]` in `setup_method()`
+    - Empty or partial env-only teardowns are removed or reduced to real resource cleanup
+    - Targeted env-heavy suites pass under deterministic local runs
+
+<a id="ledger-p1-search-observability-foundation"></a>
+- [ ] P1: Search observability foundation with trace correlation, synthetic probes, and per-class SLOs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SEARCH-OBSERVABILITY-FOUNDATION
+  - Status: 📋 Planned
+  - Area: backend / observability / search
+  - Finding Type: observability foundation gap
+  - Reason (EN): Search and retrieval performance are still hard to diagnose end-to-end. The repo has tracing policy/docs, but it does not yet define a canonical package for correlated HTTP/DB/search traces, daily synthetic probes, and SLOs split by query class.
+  - Links:
+    - `docs/analytics/README.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+    - `docs/plan/PR_WS_OBSERVABILITY_TASK_ANALYSIS.md`
+  - DoD:
+    - Canonical observability doc defines trace correlation, search/query-class tagging, and `X-Trace-Id` response contract if adopted
+    - Synthetic probe workflow and per-class latency/error objectives are documented before rollout
+    - Search performance debugging path is linked from ops/runbook docs
+
+<a id="ledger-p1-food-data-source-update-preflight"></a>
+- [ ] P1: Food data source-update preflight and diff-based ingest guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FOOD-DATA-SOURCE-PREFLIGHT -> `codex/food-data-source-update-preflight`
+  - Status: 🚧 Active PR1 planning lane
+  - Area: data ingestion / food catalog / quality
+  - Finding Type: upstream data-change readiness gap
+  - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
+  - Links:
+    - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
+    - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
+    - `scripts/build_food_db.py`
+    - `docs/roadmap/GLOBAL_ROADMAP.md`
+    - `app/services/food_store.py`
+  - DoD:
+    - Source-version manifest covers USDA Foundation/Branded/FNDDS, Open Food Facts, MenuStat legacy/static, restaurant-menu replacement candidates, recipe/corpus sources, regional catalogs, and unresolved JPTN Food Facts
+    - Preflight workflow exists for diffing incoming source changes against the current catalog snapshot
+    - Dedupe/mapping collision checks are defined before snapshot promotion or PostgreSQL staging
+    - MenuStat is not treated as an actively updating source; replacement-source decision is required before new restaurant-menu ingest
+    - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
+    - Data-ingest docs and runbooks point to the same preflight source of truth
+
+<a id="ledger-p1-llm-reliability-security-gates"></a>
+- [ ] P1: LLM reliability and security CI gates for retrieval, faithfulness, prompt-injection, and privacy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-LLM-CI-GATES
+  - Status: 📋 Planned
+  - Area: AI runtime / security / evaluation
+  - Finding Type: model-evaluation gate gap
+  - Reason (EN): The repo has AI safety posture and tracing materials, but there is no canonical CI gate bundle for retrieval quality regressions, faithfulness checks, prompt-injection adversarial tests, and privacy-sensitive evaluation. Without that package, AI quality and safety can drift silently between releases.
+  - Links:
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/analytics/README.md`
+    - `docs/innovation/INNOVATION_EVALUATION_FRAMEWORK.md`
+    - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
+    - `scripts/orchestration/ai_runtime_gate_bundle.py`
+    - `core/insight/philosophy_validator.py`
+    - `AGENTS.md`
+  - DoD:
+    - Canonical evaluation package defines required retrieval/faithfulness/security/privacy checks and where they run
+    - Prompt-injection and untrusted-context posture is covered by explicit CI or release-gate tests
+    - LLM outputs used for product copy/coaching pass `philosophy_validator` (BLOCKER = rewrite)
+    - AI runtime/runbook docs link to the same gate source instead of ad-hoc evaluation notes
+
+<a id="ledger-p1-rag-release-gates-lane"></a>
+- [ ] P1: PulsePlate RAG release-gates lane and artifact contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1484
+  - Status: In progress on the isolated release-gates lane (`PR #1484`)
+  - Canonical contract note: Until a dedicated seam ADR exists, the authoritative contract for artifact-pack scope, CI behavior, and persistence boundaries lives in `docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md` and `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`; follow-on work must cite those files instead of inventing a parallel storage or dashboard truth.
+  - Area: AI / RAG / Insight / evaluation
+  - Finding Type: internal release-gate lane
+  - Reason (EN): PulsePlate now has real RAG orchestration, runtime tracing, input safety, and philosophy validation hooks, but it still lacked one canonical internal lane that evaluates retrieval quality, grounding, calibration, and fail-closed safety before merge/release. This item tracks the repo-owned notebook + deterministic runner baseline and freezes the artifact/schema contract before any persistent dashboard work starts.
+  - Links:
+    - `notebooks/pulseplate_rag_release_gates.ipynb`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md`
+    - `core/rag/orchestration.py`
+    - `core/ai/insight_runtime.py`
+    - `app/services/insight_runtime.py`
+    - `app/security/agent_input_guard.py`
+    - `core/insight/philosophy_validator.py`
+  - DoD:
+    - Notebook, sample fixture, deterministic runner, and canonical docs are committed
+    - v1 source of truth is the gitignored artifact pack under `artifacts/rag_eval/<experiment_id>/`
+    - CI exposes `gate_report.md` and a compact markdown summary without introducing a new database
+    - Trace/run schema is explicit enough to mirror later into PostgreSQL without reworking evaluation logic
+    - Persistence guidance is explicit: PostgreSQL is the future canonical store, Cloudflare may be access-only, and D1 is not introduced for this lane
+    - Strict weekly/manual execution can inject a curated dataset via workflow input or repo variable without relying on an untracked file in the checkout
+  - Blockers / Exit criteria:
+    - Any PostgreSQL-backed history or dashboard promotion requires a separate ADR-backed follow-up lane; this PR intentionally keeps history artifact-only
+    - Weekly curated datasets remain operational inputs and must stay outside git until a governed dataset-management contract is approved
+<a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
+- [ ] P1: Knowledge contracts and promotion from validated RAG evidence
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-K1
+  - Status: ✅ Runtime seam merged via PR `#1483` on `2026-04-20`; keep the checkbox open only until the docs-only closeout lands per ledger policy.
+  - Area: AI runtime / knowledge / retrieval orchestration
+  - Finding Type: bounded knowledge-promotion contract gap
+  - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
+  - Deferred follow-up (PR #1483 merge closeout): add explicit return annotations to `TestPhilosophicalRuntimeFastLane._runtime_policy` and `_runtime_candidate` in `tests/test_remaining_modules.py`; keep it out of PR-K1 because touching that file here would pull a full-file `black` reformat into the merge lane for a low-risk test-only nitpick.
+  - Links:
+    - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
+    - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `core/ai/insight_runtime.py`
+    - `core/rag/orchestration.py`
+    - `core/insight/philosophical_runtime.py`
+    - `app/services/insight_application_service.py`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `AGENTS.md`
+  - DoD:
+    - A bounded `core/knowledge/*` internal subdomain exists for knowledge contracts, policy, promotion, and store protocol only
+    - `prepare_insight_runtime(...)` owns the canonical knowledge-policy seam for runtime execution
+    - Promotion candidates are derived only from validated RAG evidence that survives orchestration and fail closed on degraded paths or insufficient confidence
+    - `legacy_app.py`, `app/routers/*`, OpenAPI, and public response DTOs remain unchanged
+    - No DB migration, Redis/GPTCache, or semantic-cache rollout is introduced in this slice
+    - Deterministic tests cover promotion allow/deny behavior, supersession rules, and the invariant that request-local recursive caches never become persistent knowledge
+
+<a id="ledger-p1-verification-registry-admission"></a>
+- [ ] P1: Verification registry and verify-before-write admission invariant
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-V1
+  - Status: Active execution packet on branch `codex/ai-verification-registry-v1`
+  - Area: AI runtime / verification / knowledge admission
+  - Finding Type: verification-bundle admission gap
+  - Reason (EN): `main` now has the bounded K1 knowledge seam, deterministic recursive verification diagnostics, and philosophical runtime verification/falsification logic, but write admission still lacks one first-class verification bundle. Without that bundle, knowledge promotion remains fail-closed by policy/confidence/degraded-path only and later cache/action gates would have to reinvent admission truth. `PR-V1` adds a canonical registry and enables verify-before-write without widening into semantic cache, DB persistence, or public contract changes.
+  - Links:
+    - `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md`
+    - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `core/verification/`
+    - `core/knowledge/promotion.py`
+    - `core/rag/orchestration.py`
+    - `core/insight/philosophical_runtime.py`
+    - `app/services/insight_application_service.py`
+    - `AGENTS.md`
+  - DoD:
+    - `core/verification/*` exists as the canonical internal artifact/bundle registry
+    - Existing recursive and philosophical verification signals are reused, not reimplemented as a parallel validation system
+    - Knowledge writes require an admissible verification bundle
+    - Public routes, OpenAPI, response DTOs, and storage rollout remain unchanged
+    - Semantic cache, Redis/GPTCache, GraphRAG, and ContextManifest remain out of scope
+    - Deterministic tests cover bundle materialization and denied/allowed write admission paths
+
+<a id="ledger-p1-apple-server-api-migration"></a>
+- [ ] P1: Apple receipt verification migration to App Store Server API
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-APPLE-SERVER-API-MIGRATION
+  - Status: Prepared follow-on only; must not overtake still-open P0 release-truth items
+  - Canonical contract note: This ledger entry owns the full precondition, wire-compatibility, and temporary-fallback contract for the lane. Sequencing packets and execution docs should point here rather than redefine the complete contract list.
+  - Area: backend / payments / provider integration
+  - Finding Type: provider modernization
+  - Reason: The current PR uses classic `verifyReceipt` only as a transitional compatibility path; Apple-recommended signed transaction / App Store Server API validation remains mandatory follow-up work. This lane is P1 provider modernization and must not overtake still-open P0 release-truth work.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md#12-featbilling-migrate-apple-verification-to-app-store-server-api`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-web-entitlement-truth`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-eu-compliance-control-plane-follow-through`
+  - DoD:
+    - Apple verification moves off classic `verifyReceipt` onto the approved server-side successor flow
+    - Existing verification contract remains backward-compatible for downstream activation
+    - Provider migration paths are covered with deterministic tests and rollout notes
+    - Public endpoint `/api/v1/billing/apple/verify-receipt`, existing DTOs, and iOS transport contract remain unchanged unless a separate versioned migration explicitly says otherwise
+    - Server-side identifier derivation from the current receipt path is proven, or the legacy path remains available as an explicit temporary fallback without forcing client payload changes in the same PR
+    - Any temporary legacy fallback includes rollback notes, exit criteria, backlog link, and a remove-by date
+
+<a id="ledger-p1-ios-subscription-orchestration"></a>
+- [ ] P1: iOS SubscriptionManager orchestration follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-SUBSCRIPTION-MANAGER
+  - Status: 💤 Superseded by `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - Area: ios / payments / orchestration
+  - Finding Type: client orchestration gap
+  - Reason: Backend verify is now separated cleanly, but the iOS thin client still needs explicit orchestration for purchase -> verify -> activation handoff without embedding billing truth on-device. The canonical surviving tracker is `ledger-p1-ios-subscription-manager`; this entry remains as an audit bridge from the billing wave only.
+  - Links:
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `app/routers/billing.py`
+    - `app/services/payments_activation.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-apple-verify`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-subscription-manager`
+  - DoD:
+    - Follow the canonical DoD recorded under `ledger-p1-ios-subscription-manager`
+
+<a id="ledger-p1-ios-storekit-products"></a>
+- [x] P1: iOS StoreKit products contract and setup baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1172 (contract baseline landed) -> PR #1189 (operational/setup close-out)
+  - Status: ✅ Contract baseline merged in PR #1172; operational/setup close-out merged in PR #1189 and future setup work must use the canonical checklist
+  - Area: ios / release / billing operations
+  - Finding Type: store configuration readiness
+  - Reason (EN): PR #1172 already versioned the canonical StoreKit product IDs and setup baseline in-repo. The remaining B3 work was to consolidate the surviving operational release/setup residue into one canonical checklist and make all Batch B follow-through docs point back to that contract instead of drifting into parallel setup notes after PR #1185 / PR #1187.
+  - Links:
+    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
+    - `docs/IOS_API_INTEGRATION.md`
+    - `docs/roadmap/PulsePlate_Master_Index_A-E.md`
+  - DoD:
+    - Canonical StoreKit product identifiers and one operational release checklist are versioned in-repo
+    - Billing/runtime follow-through references the same product contract without client-side drift
+    - Future TestFlight / App Store setup work has one explicit canonical checklist instead of fragmented docs
+
+<a id="ledger-p1-mobile-secret-conformance"></a>
+- [x] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (mobile security correctness)
+  - Target PR: PR #1179 (`feat/pr-6-ios-keychain-conformance`)
+  - Status: ✅ Merged (PR #1179, 2026-03-16)
+  - Reason (EN): Master checklist item #5. PR #1179 completed: Keychain-only runtime, test-surface coverage, setup docs cleanup, guard tests.
+  - Links:
+    - docs/review/PR_1179_FIXED_MAPPING.md
+    - docs/pr/PR-6_HANDOFF.md
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - ios/PulsePlate/Services/KeychainStore.swift
+    - ios/PulsePlate/Services/ProKeyProvider.swift
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+    - ios/PulsePlateTests/Services/ProKeyProviderTests.swift
+    - ios/PulsePlateTests/Services/KeychainStoreTests.swift
+    - ios/SHOPPING_LIST_SETUP.md
+  - DoD:
+    - iOS runtime secret paths are verified to use Keychain storage only
+    - Default local and CI iOS test surfaces include Keychain provider roundtrip/ignore-env coverage
+    - Current-state iOS setup docs no longer advertise `PRO_API_KEY` or placeholder fallback as runtime auth truth
+    - Guard tests prevent regression to insecure storage
+
+<a id="ledger-p1-diet-flags-contract-sync"></a>
+- [ ] P1: Diet flags contract sync across schemas and clients
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DIET-FLAGS-CONTRACT-SYNC
+  - Status: 📋 Planned
+  - Area: frontend / backend / iOS contracts
+  - Finding Type: contract consistency
+  - Reason (EN): Diet-flag semantics are product-facing and cross-client. A dedicated sync item keeps the enum/normalization surface canonical instead of letting drift hide inside frontend or generated-type follow-ups.
+  - Links:
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `frontend`
+    - `ios/PulsePlate`
+  - DoD:
+    - One canonical diet-flags normalization table is used across backend schemas and clients
+    - Generated or mirrored client types remain aligned with backend truth
+    - Deterministic regression tests cover the shared contract
+
+- [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security + maintainability)
+  - Target PR: PR-TBD-VECTOR-RAG-SQL-REFACTOR
+  - Status: 📋 Planned
+  - Reason: Raw SQL string assembly in vector retrieval path increases maintenance and security review overhead; contract should move to parameterized/ORM-safe composition.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `core/rag/vector_rag.py`
+    - `tests/test_vector_rag.py`
+  - DoD:
+    - Query assembly uses parameterized/ORM-safe path (no ad-hoc SQL string formatting)
+    - Existing vector retrieval behavior remains contract-compatible
+    - Security/static analysis checks pass without local suppressions for this path
+
+
+<a id="ledger-p1-wave6-ai-runtime-umbrella"></a>
+- [ ] P1: Wave 6 AI runtime umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI differentiation sequencing)
+  - Target PR: PR-S0
+  - Area: AI / roadmap / execution spine
+  - Finding Type: epic normalization
+  - Status: 📋 Planned
+  - Reason (EN): Wave 6 already exists in the execution document, but the backlog still lacks one umbrella entry that binds runtime AI sequencing into a single governed PR spine. Without an umbrella, later agents keep reconstructing the order from scattered items and risk mixing runtime AI work with the advisory workforce/wiki lane.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-insight-fallback-chain`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-recursive-methods`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-scientific-reliability-pipeline`
+  - DoD:
+    - One umbrella item exists for the product AI runtime rail
+    - Wave 6 order is explicit and pointer-based through `A1b -> A5` for the current closure cycle
+    - Runtime AI rail is kept separate from the Karpathy workforce/wiki rail
+    - Existing child items remain authoritative and are not duplicated as competing SoT
+
+<a id="ledger-p1-security-floor-unblock-seam"></a>
+- [ ] P1: Temporary `security-floor` unblock seam
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security governance / docs-lane unblock)
+  - Target PR: PR `#1433`
+  - Area: docs / dependency security / merge governance
+  - Finding Type: temporary seam governance
+  - Status: 🟡 In progress (`PR #1433` adds the canonical packet/ADR/backlog anchors for the seam)
+  - Reason (EN): When a dependency advisory blocks a docs/governance lane, the repo may use one narrow `security-floor` unblock only for governed dependency manifests, lock regeneration, schema/guard synchronization, and CVE evidence. Without one canonical backlog item, that temporary exception drifts between packets and roadmap docs. (RU: Если dependency advisory блокирует docs/governance lane, репозиторий может использовать только один узкий `security-floor` unblock для governed dependency manifests, lock regeneration, schema/guard synchronization и CVE evidence. Без единого backlog-item это временное исключение начинает расходиться между packet и roadmap docs.)
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md:16-21,64-70`
+    - `docs/security/CVE-2026-40347-python-multipart.md:17-25`
+    - `docs/security/GHSA-39q2-94rc-95cp-dompurify.md:17-24`
+    - `docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:13-18,27-39,55-69`
+  - DoD:
+    - Canonical `security-floor` wording is shared by the Wave 6 packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:30-59`) and the Karpathy epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:20-39`)
+    - Allowed surfaces are explicitly limited to governed dependency manifests, lockfiles, schema/guard sync, and CVE evidence (`docs/architecture/ADR_WAVE6_SECURITY_FLOOR_UNBLOCK_SEAM_2026-04-17.md:27-39`)
+    - Exit criteria and blockers are documented in the ADR and referenced from the packet (`docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md:119-120,177-180`) and epic (`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:150-155,587-593`)
+  - Blockers:
+    - The advisory must remain dependency-only and must not widen into runtime/API/product scope
+    - Every affected surface must have `file:line` evidence plus matching guard/schema proof
+    - The seam closes once the dependency remediation lane is merged on `main` and the docs revert to normal lane wording
+
+<a id="ledger-p1-mako-security-floor-alerts-114-116"></a>
+- [ ] P1: Remediate `Mako` Dependabot alerts 114-116 with an explicit security floor
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / current-head regression)
+  - Target PR: PR `#1440`
+  - Area: security / Python dependencies / merge governance
+  - Finding Type: live dependency-security regression
+  - Status: In progress as of 17 April 2026 in clean worktree `worktrees/mako-security-floor`
+  - Reason (EN): `main` picked up three new Dependabot alerts on `Mako` after the
+    latest merge. All three alerts (`#114`, `#115`, `#116`) map to
+    `GHSA-v92g-xgxw-vvmm` with first patched version `1.3.11`. This remediation
+    must land as a dedicated narrow PR before the paused security-epic/docs lane
+    resumes, otherwise the repo continues to carry a current-head dependency
+    security regression. (RU: На `main` после последнего merge появились три
+    новых Dependabot alerts по `Mako`; их нужно закрыть отдельным узким PR до
+    возврата к paused security-epic/docs lane.)
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:26-48`
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27`
+    - `tests/fixtures/dependency_security_schema.json:4`
+    - `tests/test_dependency_security_guard.py:56-110`
+    - GitHub alerts: `security/dependabot/114`, `security/dependabot/115`, `security/dependabot/116`
+  - Evidence:
+    - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` anchors the advisory
+      identity, affected package, first patched version `1.3.11`, and the
+      repo-managed requirement/lock surfaces that must stay aligned.
+    - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:28-44`
+      records the pre-remediation repo truth for alerts `#114-#116`, including
+      the `mako==1.3.10` pins that triggered this dedicated narrow lane.
+    - `tests/fixtures/dependency_security_schema.json:4` plus
+      `tests/test_dependency_security_guard.py:56-110` provide the local
+      fail-closed policy evidence that `Mako 1.3.11` is the enforced minimum
+      safe version for this remediation.
+  - DoD:
+    - Governed source surfaces explicitly enforce `Mako >= 1.3.11`
+    - Pinned runtime/full/CI-lite lock surfaces resolve `mako==1.3.11`
+    - Dependency security schema records `Mako 1.3.11` as the minimum safe version
+    - Dedicated security note includes `file:line` evidence and validation commands
+    - Draft PR is opened with canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - Root-cause remediation plus verification land before any `docs/review/PR_<N>_FIXED_MAPPING.md` updates or review-thread resolution; fix-before-mapping remains mandatory
+    - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is completed before final mapping / resolution updates
+    - Only after merge and local ref sync does the team return to the paused security-epic/docs lane
+
+<a id="ledger-p1-rag-hardening-followthrough"></a>
+- [ ] P1: RAG hardening follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (runtime reliability)
+  - Target PR: PR-TBD-RAG-HARDENING-FOLLOWTHROUGH
+  - Area: AI / RAG / runtime hardening
+  - Finding Type: follow-through runtime slice
+  - Status: 📋 Planned
+  - Reason (EN): The execution spine already calls for a dedicated runtime RAG hardening slice, but live `main` has already landed deterministic final-confidence recomputation in orchestration and removed part of the older raw-SQL/refactor framing. This item is now the canonical anchor for residual degraded-path hardening, retrieval-source cleanup, and response-contract-safe fail-safe behavior.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/vector_rag.py`
+  - DoD:
+    - Retrieval hardening has one canonical backlog anchor
+    - Degraded retrieval paths and fail-safe prompt preservation are documented as runtime follow-through
+    - No new semantic/vector surface expansion is implied by this item alone
+    - Public response contracts remain additive and stable
+
+<a id="ledger-p1-ai-bounded-context-packet"></a>
+- [ ] P1: AI bounded-context packet
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (architecture sequencing)
+  - Target PR: PR-A3
+  - Area: AI / architecture / docs
+  - Finding Type: packet-first architecture freeze
+  - Status: 📋 Planned
+  - Reason (EN): The execution order already expects a packet-first architecture slice before bounded-context extraction, but the backlog lacks a dedicated packet anchor. This item freezes ownership boundaries before code movement so extraction work stays narrow and contract-safe.
+  - Links:
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction`
+    - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
+    - `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md`
+    - `docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md`
+  - DoD:
+    - A docs-only packet exists before extraction
+    - Ownership boundaries for AI runtime seams are explicit
+    - Packet and extraction items are separate and non-duplicative
+
+<a id="ledger-p1-governance-doc-sot-consolidation"></a>
+- [ ] P1: Consolidate coordinator-first docs SoT and rail summary table
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-S0
+  - Area: docs / orchestration / roadmap
+  - Finding Type: review follow-up
+  - Status: 📋 Planned
+  - Reason (EN): PR #1377 review feedback identified two useful but broader follow-ups: reducing wording drift by pointing repeated coordinator-first and role-order guidance at one explicit source-of-truth subsection, and adding a compact rail/umbrella/scope summary table near the top of the RAG/LLM/Karpathy epic spine. This work should stay separate from the narrow docs/governance merge-fix slice so the current PR can close its governance lane without silently widening scope.
+  - Links:
+    - `AGENTS.md`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/workflow.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/review/PR_1377_FIXED_MAPPING.md`
+  - DoD:
+    - One explicit source-of-truth subsection is identified for coordinator-first and role-order invariants
+    - Repeated operator-facing docs link to that source without losing lane-local execution context
+    - `PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` includes a compact rail/umbrella/scope summary table
+    - No runtime, OpenAPI, or product-surface changes are introduced
+
+<a id="ledger-p1-philosophical-logic"></a>
+- [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (high impact on reliability)
+  - Target PR: PR #1024 (`feat: add philosophical runtime foundation for insight`) -> PR-A6 (`feat(ai-quality): rollout philosophical validation phases on bounded surfaces`)
+  - Status: 🟡 In progress (foundation merged in PR #1024; bounded W1 rollout lane active on `codex/ai-philosophical-rollout-w1`)
+  - Dependencies:
+    - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
+    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
+  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Hypothesized impact (to be benchmark-validated): reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Гипотеза (с обязательной валидацией бенчмарками): снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (speed optimization using philosophical principles: speech acts, language games, early stopping, adaptive depth)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current LLM/RAG implementation)
+    - core/insight/creative_scientific_innovations.md (AI assistant design)
+    - `docs/review/PR_1024_FIXED_MAPPING.md`
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `scripts/orchestration/logic_philosophy_replay_contract.py`
+    - `scripts/orchestration/logic_philosophy_replay_eval.py`
+    - `tests/test_logic_philosophy_replay_eval.py`
+  - Prerequisites:
+    - ✅ Current LLM/RAG infrastructure stable (`llm.py`, `core/rag/simple_rag.py`)
+    - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
+    - ⏳ Master checklist phase-fit triage approved
+    - ⏳ Fact-checking system implemented (P0 from LLM_RAG_AI_ASSISTANT_ANALYSIS.md)
+  - DoD:
+    - Phase 1: Aristotelian logic implemented (syllogistic prompts, contradiction detection)
+    - Phase 2: Analytical philosophy implemented (verification, falsification)
+    - Phase 3: Post-analytical philosophy implemented (pragmatic validation, hermeneutics)
+    - Phase 4: Linguistic philosophy implemented (speech acts, language games)
+    - Phase 5: Integrated framework complete (unified prompt builder + validator)
+    - Hypothesis target (requires benchmark validation): Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
+    - Hypothesis target (requires benchmark validation): contradiction rate <2%, verification rate >95%, pragmatic utility >90%
+    - Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained ≥95%
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
+    - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
+
+<a id="ledger-p1-pro-monthly-quota-ledger-reconciliation"></a>
+- [ ] P1: Reconcile PRO monthly quota ledger with live runtime truth
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
+  - Target PR: PR-A1b (`docs(roadmap): reconcile landed PRO quota truth for Wave 6 A1b`)
+  - Status: 🟡 In progress (A1b docs/governance reconciliation lane is the next canonical slice; any draft PR must late-rebase onto fresh `origin/main` before merge-ready because merged `PR #1440` and `PR #1441` already landed nearby `docs/roadmap/BACKLOG_LEDGER.md` edits on trunk)
+  - Reason (EN): Live `main` already contains tier-aware LLM monthly quota machinery for both `PRO` and `VIP` (`app/security/llm_monthly_quota.py:25-41`, `app/security/llm_monthly_quota.py:52-77`, `app/security/llm_monthly_quota.py:123-158`), startup validation for both envs (`app/bootstrap/startup_guards.py:44-56`), quota-before-provider enforcement on the PRO CBT path (`app/services/fitchef_runtime.py:711-835`, `tests/test_cbt_insight_api.py:921-952`), and the merged A1 runtime spine from `PR #1379` (`docs/roadmap/BACKLOG_LEDGER.md:296-300`). The backlog wording is stale because it still points at an older docs lane instead of the explicit A1b reconciliation slice. This item exists so Wave 6 does not reopen a runtime-from-scratch quota PR that the codebase already materially passed.
+  - Links:
+    - `docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md:68-83`
+    - `docs/review/PR_1379_FIXED_MAPPING.md:12-18`
+    - `app/security/llm_monthly_quota.py:25-41`
+    - `app/security/llm_monthly_quota.py:52-77`
+    - `app/security/llm_monthly_quota.py:123-158`
+    - `app/bootstrap/startup_guards.py:44-56`
+    - `app/routers/cbt_insight.py:129-150`
+    - `app/services/fitchef_runtime.py:711-835`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:206-244`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md:27-33`
+    - `tests/test_cbt_insight_api.py:921-952`
+  - DoD:
+    - Ledger and epic wording no longer describe PRO quota as VIP-only or missing functionality
+    - This backlog item points to the canonical `PR-A1b` docs/governance lane instead of the obsolete `PR #1388` target
+    - Live code/test evidence for already-landed PRO quota parity is linked from the backlog item and anchored to merged `PR #1379`
+    - Evidence bundle format is explicit: `PR #1379` + merge SHA, `file:line` pointers to runtime/test truth, and optional runtime/test artifact links when available
+    - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
+
+
+<a id="ledger-p1-recursive-methods"></a>
+- [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (high impact on quality and accuracy)
+  - Target PR: PR-A7 / PR #1499 (`feat(ai-runtime): rollout recursive RAG and bounded recursive verification`)
+  - Status: 🟡 In progress via PR #1499 (bounded W1 recursive lane active on `codex/ai-recursive-methods-w1`)
+  - Dependencies:
+    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
+  - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Hypothesized overall impact (pending benchmark validation): retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration, recursive methods with philosophical validation)
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies: parallelization, caching, batching, open-source libraries)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current RAG implementation: `core/rag/simple_rag.py`)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (complements recursive verification)
+    - core/rag/simple_rag.py (current single-pass keyword-based RAG)
+  - Prerequisites:
+    - ✅ Current RAG infrastructure stable (`core/rag/simple_rag.py`)
+    - ✅ LLM provider stable (`llm.py`)
+    - ✅ Redis available in docker-compose (for caching optimization)
+    - ⏳ Fact-checking system implemented (for recursive verification)
+    - ⏳ User feedback storage implemented (for recursive learning)
+  - DoD:
+    - Phase 1: Recursive RAG implemented (multi-hop retrieval, query refinement)
+    - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
+    - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
+    - Phase 4: Recursive verification implemented (self-validation, claim checking)
+    - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
+    - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
+    - Hypothesis target (requires benchmark validation): Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
+    - Hypothesis target (requires benchmark validation): retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
+    - Hypothesis target (requires benchmark validation): caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
+    - Integration tests pass (end-to-end recursive pipeline)
+  - Merged increments (tracking only; parent P1 checkbox stays open until full DoD):
+    - PR: [#1233](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1233) — squash on `main`: `82f6aec24524306948ba67e774211c7cae8b494d` (2026-03-24).
+    - Scope (EN): Request-scoped FIFO hop-vector memoization for bounded recursive RAG when optimization is enabled; lazy-import hardening for `vector_rag`; benchmark script `scripts/benchmark_recursive_rag_hop_cache.py` (`stop_reason` as enum values); tests in `tests/test_recursive_rag.py`; merge-mapping artifact `docs/review/PR_1233_FIXED_MAPPING.md`.
+    - (RU: Инкремент: мемоизация hop-вектора в рамках запроса + бенч/тесты; родительский P1 по полному recursive-framework DoD не закрыт.)
+
+
+- [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / safety / reliability)
+  - Target PR: TBD (runtime)
+  - Status: 📋 Planned
+  - Area: backend / AI orchestration
+  - Finding Type: product + safety
+  - Reason: We have a docs-level orchestration baseline and role contracts, but runtime implementation must enforce
+    bounded recursion (cost control), grounding/citations, uncertainty reporting, and wellness-safe language.
+  - Links:
+    - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/orchestration/workflow.md` (canonical workflow; dev-only)
+  - DoD:
+    - RAG endpoints (if any) are tier-gated, rate-limited, and enforce monthly quota before provider calls
+    - Deterministic tests prove 200 → 429 transitions and quota enforcement
+    - Outputs include explicit `sources[]` and confidence/uncertainty fields per contract
+    - No OpenAPI determinism regressions; `make verify` passes
+
+
+<a id="ledger-p1-ai-bounded-context-extraction"></a>
+- [ ] P1: Extract AI runtime into a dedicated bounded context
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR `#1203`
+  - Area: backend / AI runtime / architecture
+  - Finding Type: bounded-context hardening
+  - Reason: AI logic, provider seams, and safety-related behavior were historically distributed across runtime areas. The canonical `core/ai/*` seam now exists, but the remaining consolidation still needs to remove transitional ownership outside that boundary. Follow-up tracking remains anchored here: `docs/roadmap/BACKLOG_LEDGER.md:1208`. Closure criteria: move the remaining provider/runtime ownership into `core/ai/*`, keep legacy/app layers as thin adapters, and verify ownership through canonical `file:line` evidence plus passing `make verify`.
+  - Links:
+    - `docs/architecture/providers_implementation.md`
+    - `AGENTS.md`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/runbooks/ENGINEER_QUICKPATH.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/architecture/ADR_AI_RUNTIME_BOUNDED_CONTEXT_SEAM_2026-03-09.md`
+  - DoD:
+    - Canonical AI runtime package structure exists and is documented
+    - Routers and client layers remain thin adapters around AI behavior
+    - Safety/eval/provider ownership is mapped to the bounded context
+    - AGENTS and architecture docs no longer need transitional wording about future extraction
+
+
+<a id="ledger-p1-api-key-toggle-guard"></a>
+- [ ] P1: Production fail-fast for anonymous/dev API key toggles
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-API-KEY-TOGGLE-GUARD
+  - Area: backend / security / configuration
+  - Finding Type: misconfiguration hardening
+  - Reason: `ALLOW_ANONYMOUS_API_KEYS` and `ALLOW_DEV_API_KEY` remain env-driven escape hatches. The codebase documents that they must stay off in production, but startup/config guards are still too easy to misconfigure across `APP_ENV` and `ENVIRONMENT`.
+  - Links:
+    - `app/middleware/api_tiers.py`
+    - `app/routers/vip.py`
+    - `legacy_app.py`
+    - `docs/deploy/VIP_API_KEYS.md`
+    - `tests/test_vip_anonymous_api_key_safety.py`
+  - DoD:
+    - Production-like env detection is canonicalized (`APP_ENV` / `ENVIRONMENT` mismatch removed or documented)
+    - App fails closed or logs explicit startup error when anonymous/dev API key toggles are enabled in production-like envs
+    - Tests cover fail-closed behavior for production/staging settings
+    - Deploy docs show the safe production values
+
+
+<a id="ledger-p1-legacy-runtime-env-canonicalization"></a>
+- [ ] P1: Canonicalize legacy runtime env gating
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR `#1072`
+  - Status: 🟡 In progress (branch `feat/p1-legacy-runtime-env-canonicalization-pr`)
+  - Follow-up from PR `#1054` (parent: `ledger-p1-api-key-toggle-guard`)
+  - Area: backend / security / legacy compatibility
+  - Finding Type: configuration drift
+  - Reason: `legacy_app.py` still contains module-level `APP_ENV`-only gates for local `.env` loading, dev-only docs, test-router registration, and `/debug_env`. This drifts from the canonical `ENVIRONMENT`-first runtime helpers introduced by the API key toggle guard and can re-enable development-only surfaces when only `ENVIRONMENT` is set in production-like deployments.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1054`
+    - `#ledger-p1-api-key-toggle-guard`
+    - `legacy_app.py`
+    - `settings.py`
+    - `docs/deploy/VIP_API_KEYS.md`
+    - `docs/review/PR_1054_FIXED_MAPPING.md`
+  - DoD:
+    - Module-level env gating in `legacy_app.py` uses canonical runtime helpers instead of raw `APP_ENV`
+    - Local `.env` loading, test-router registration, and `/debug_env` gating follow the same environment semantics as startup guards
+    - Tests cover `ENVIRONMENT` overriding `APP_ENV` for the remaining legacy surfaces
+
+
+<a id="ledger-p1-openapi-decoupling-split"></a>
+- [ ] P1: Split backend OpenAPI generation from frontend type generation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-OPENAPI-DECOUPLING-SPLIT
+  - Area: build / contracts / developer workflow
+  - Finding Type: workflow hardening
+  - Reason: `make openapi` is the current canonical combined path, but backend-only schema generation and frontend type generation are still coupled in the active Make workflow. A dedicated split would reduce backend-only friction while preserving `make openapi-check` as the sync verifier.
+  - Links:
+    - `Makefile`
+    - `AGENTS.md`
+    - `docs/runbooks/ENGINEER_QUICKPATH.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/architecture/ADR_OPENAPI_WORKFLOW_SPLIT_SEAM_2026-03-09.md`
+  - DoD:
+    - Dedicated backend schema target exists without frontend install dependency
+    - Dedicated frontend type-generation target exists
+    - `make openapi-check` remains the canonical sync verifier
+    - `AGENTS.md`, runbooks, API map, and CI docs reflect the split workflow without ambiguity
+
 
 - [ ] P1: Remove staging TLS fallback seam after full staging readiness
   - Owner: @katsiaryna_kavaleuskaya
@@ -80,6 +2320,288 @@ If it is not recorded here — it does not exist.
     - Production Caddy fallback vhost for `STAGING_FALLBACK_DOMAIN` is removed
     - Runbook evidence updated with direct `file:line` anchors for non-fallback flow
 
+<a id="ledger-p1-domain-ownership-canonicalization"></a>
+- [x] P1: Canonicalize `pulseplate.app` root-domain ownership before Figma web sync PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR `#1141` (`fix(deploy): add www TLS remediation diagnostics`)
+  - Priority: P1
+  - Status: ✅ Completed on March 14, 2026 after PR `#1141` merged to `main`; any future Figma/web-hosting work now inherits the canonicalized apex ownership baseline instead of tracking this as an open blocker
+  - Area: deploy / figma / frontend
+  - Finding Type: production ownership drift
+  - Reason: On March 12, 2026 the repo-backed runtime still answered on
+    `pulseplate.app`, `www.pulseplate.app` returned `525`, and the Figma custom-domain
+    attempt for `pulseplate.app` reported a conflicting apex `AAAA` record. Root-domain
+    ownership must be canonicalized before any repo-backed Figma web sync PR proceeds.
+  - Links:
+    - `deploy/Caddyfile.production`
+    - `deploy/PRODUCTION.md`
+    - `docs/deploy/CLOUDFLARE.md`
+    - `scripts/check_domain_tls.py`
+    - `tests/test_check_domain_tls.py`
+    - `scripts/QUICK_DIAGNOSTIC.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/orchestration/sessions/2026-03-12_domain_canonicalization/01_BASELINE_STATUS.md`
+  - DoD:
+    - `python3 scripts/check_domain_tls.py --domain pulseplate.app` exists as the canonical read-only public-side diagnostic
+    - Repo evidence records the March 12, 2026 baseline from the new diagnostic and the live remediation result
+    - External DNS removes the conflicting apex `AAAA` record from the production zone
+    - `www.pulseplate.app` no longer returns `525` and redirects cleanly to apex
+    - `pulseplate.app` and `www.pulseplate.app` remain owned by the repo-backed production runtime
+    - Any Figma-hosted preview is moved to a dedicated non-production subdomain
+    - PR-2 web sync/import work starts only after this ownership baseline is stable
+
+
+- [ ] Design file URL + node IDs required for Code Connect activation (H+P+Pr)
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR/Figma-CodeConnect-Activation
+  - Priority: P1
+  - Status: Optional follow-up (auxiliary to Penpot + Storybook)
+  - Area: design / frontend / iOS
+  - Finding Type: integration dependency
+  - Reason: Web review is now canonical via Storybook + Penpot bridge, while
+    Code Connect activation remains an optional auxiliary mapping path once the
+    current P0 node set is complete/non-stale and the workspace has a Code
+    Connect-capable seat.
+  - Links:
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+  - DoD:
+    - Figma Design file URL is recorded in repo docs
+    - P0 CTA nodes have current, non-stale `fileKey` and `nodeId`
+      (`web.home.open_setup`, `web.plate.premium_gate_cta`,
+      `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
+    - `get_code_connect_suggestions` is no longer plan-blocked for the workspace
+    - `get_code_connect_map` returns expected active mappings for P0 set
+    - Matrix optional design review references are updated for activated rows
+    - Optional activation path does not redefine the canonical Storybook-first
+      web review workflow
+
+
+<a id="ledger-p1-pulseplate-v3-clean-figma-execution"></a>
+- [ ] P1: PulsePlate_v3 clean Figma foundations/components/welcome-gate execution
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR-TBD-PULSEPLATE-V3-CLEAN-FIGMA
+  - Priority: P1
+  - Status: In progress
+  - Area: design / Figma / design-system reconciliation
+  - Finding Type: file-specific canonical execution follow-up
+  - Reason: The repo now has a file-specific reconciliation packet for
+    `PulsePlate_v3`, and the clean canonical Figma file plus initial governed
+    page scaffold/specimen lane are now in place, but full Phase 1 parity still
+    needs to land for `Foundations + Components + Welcome Gate` without turning
+    Figma into a hidden source of truth and without making direct Code Connect
+    activation a blocker.
+  - Links:
+    - `docs/figma/PULSEPLATE_V3_DESIGN_SYSTEM_RECONCILIATION.md`
+    - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+    - `docs/figma/README.md`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`
+  - DoD:
+    - Clean canonical Figma file contains pages `00_Foundation_Tokens`,
+      `01_Components`, `02_Brand_Assets`, `10_Welcome_Gate`,
+      `11_Welcome_Gate_States`, and `90_Audit_Archive`
+    - Foundation variables/styles in the clean file map to repo token SoT with
+      no unmanaged local styles
+    - Shared components are rebuilt from repo primitives before any page-level
+      welcome-gate composition work
+    - Welcome Gate follows `Pulse Membrane` composition rules and passes
+      anti-drift / mascot provenance checks
+    - Storybook/component inventory remains the canonical web review lane
+    - Any optional FIGR AI exploration remains read-only and is normalized
+      through repo vocabulary/tokens before use
+  - Blockers:
+    - Depends on repo-side drift cleanup where current runtime styling still
+      conflicts with governance (`PremiumGate`, `VipBadge`)
+
+
+<a id="ledger-p1-pulseplate-v3-phase1-repo-drift-cleanup"></a>
+- [ ] P1: Phase 1 repo-first drift cleanup before canonical Figma mirror expansion
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE)
+  - Target PR: #1424
+  - Priority: P1
+  - Status: In progress via PR `#1424` after PR `#1422`
+  - Area: design-system / frontend / Figma reconciliation
+  - Finding Type: repo-first remediation follow-up
+  - Reason: The Phase 1 delta audit identified repo-first follow-up work that should not be silently carried as narrative-only debt: stale `DesignSystemOverview` / `CanonBoards` Figma references, missing governed shared primitives, and the need to record the `PP/Shared/StepRail/*` naming normalization in repo truth. These items must be resolved in repo truth before any broader canonical Figma mirror expansion claims parity.
+  - Links:
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/orchestration/sessions/2026-04-13_phase1_delta_audit.md`
+    - `frontend/src/components/design-system/DesignSystemOverview.tsx`
+    - `frontend/src/components/design-system/CanonBoards.tsx`
+    - `docs/design/UI_COMPONENT_VOCABULARY.md`
+  - DoD:
+    - `DesignSystemOverview` and `CanonBoards` no longer point at stale legacy Figma node references
+    - Repo naming decision is recorded for `PP/Shared/StepRail/*` ownership/vocabulary before any canonical Figma promotion depends on it
+    - Missing Phase 1 shared primitives are either implemented in repo truth or explicitly deferred with updated design-system docs
+    - Follow-up PR updates the Phase 1 Figma audit docs to reflect the resolved repo-first state
+
+
+<a id="ledger-p1-welcome-gate-full-flow-after-node-capture"></a>
+- [ ] P1: Welcome Gate full 4-screen runtime flow after exact Figma node capture
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR-TBD-WELCOME-GATE-FULL-FLOW
+  - Priority: P1
+  - Status: Deferred after `feat/welcome-gate-v1-pr-b`
+  - Area: frontend / onboarding / design-governance
+  - Finding Type: intentional scope deferral
+  - Reason: The repo now ships Welcome Gate v1 as a screen-1-only preview route
+    and Storybook review surface, but the full runtime gate must not be wired
+    until screens 2-4 have exact Figma Design URLs and `nodeId` coverage. This
+    prevents guessing later screens, avoids premature persistence contracts, and
+    keeps Storybook as the canonical review source while product routes remain
+    mirror surfaces only.
+  - Links:
+    - `docs/design/WELCOME_GATE_VISUAL_DIRECTION.md`
+    - `docs/design/WELCOME_GATE_VISUAL_PHILOSOPHY.md`
+    - `docs/design/UI_SCREEN_BRIEF_TEMPLATES.md`
+    - `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
+    - `frontend/src/pages/Onboarding/WelcomeGateV1.tsx`
+    - `frontend/src/config/routes.ts`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+  - DoD:
+    - Exact Figma Design URL plus stable `fileKey` and `nodeId` are recorded for
+      Welcome Gate screens 2, 3, and 4
+    - Runtime onboarding flow is promoted from preview-only route to canonical
+      app-entry gate with deterministic startup interception
+    - `has_seen_welcome_v1` persistence contract is introduced with regression
+      coverage for first-run and returning-user behavior
+    - Full sequence `Gate -> 4 screens -> RootTabs` is implemented without
+      bypassing route/config governance
+    - Locale, state, and telemetry contracts are documented and tested before
+      merge-readiness is claimed
+
+
+<a id="ledger-p1-ios-prototype-v2-canonical-promotion"></a>
+- [ ] P1: Promote `ios prototype v2` as the canonical implementation mapping source
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR #1125
+  - Priority: P1
+  - Status: 🔄 In review
+  - Area: design / iOS / Figma promotion
+  - Finding Type: canonical design-source promotion
+  - Reason: The normalization work is now implemented on branch via
+    `ios prototype v2` (`AhyS6u4dZXMRHVUDO3Cfn6`) with stable `screen ID ->
+    nodeId` registry. This backlog item remains open only until PR #1125 merges
+    and the v2 registry becomes the canonical repo state. The raw
+    `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`) stays `reference_only`.
+  - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `docs/runbooks/FIGMA_MCP_RUNTIME_MATRIX.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - `ios/PulsePlate/Screens/PaywallScreen.swift`
+  - DoD:
+    - PR #1125 is merged with the `ios prototype v2` registry and evidence docs
+    - `ios prototype v2` is treated as the implementation-safe source for the
+      current iOS funnel slice
+    - Raw `ios prototype` remains explicitly `reference_only`
+    - Any remaining Code Connect work continues under the separate activation
+      backlog item, not this normalization/promotion item
+
+
+<a id="ledger-p1-ios-prototype-v2-bmi-onboarding-polish"></a>
+- [ ] P1: Polish `ios prototype v2` BMI + onboarding slice in a separate MCP lane
+  - Owner: @katsiaryna_kavaleuskaya (Design + iOS)
+  - Target PR: PR-TBD-FIGMA-IOS-BMI-ONBOARDING-POLISH
+  - Priority: P1
+  - Status: 📋 Planned
+  - Area: design / iOS / Figma polish
+  - Finding Type: runtime-aligned follow-up
+  - Reason: PR #1132 intentionally scopes the polish pass to `Home`, `Paywall`,
+    `Profile`, `Weekly Plan`, and `Shopping List`. `BMI` plus the two onboarding
+    screens must continue in a separate worktree/PR lane so the first polish PR
+    stays narrow and reviewable.
+  - Links:
+    - `docs/figma/ios_prototype_v2/README.md`
+    - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+    - `docs/runbooks/sessions/FIGMA_MCP_SESSION_2026-03-11_ios-prototype-check.md`
+    - `ios/PulsePlate/Screens/BMICalculatorScreen.swift`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - PR #1132
+  - DoD:
+    - Dedicated worktree/branch exists for `BMI + Onboarding`
+    - MCP-only capture sources are refreshed for `iOS_BMI`,
+      `iOS_Onboarding_01_Welcome`, and `iOS_Onboarding_02_Value_Usage`
+    - Figma node map is updated only for those screens in the follow-up PR
+    - Follow-up PR includes its own `docs/review/PR_<N>_FIXED_MAPPING.md`
+      artifact and canonical PR-body mirror
+    - `pre-commit run --all-files` and `make verify` pass on the follow-up PR
+
+
+- [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first unblocker)
+  - Target PR: PR-TBD-EXPLAINER-CONTRACT-PAYLOADS
+  - Status: 📋 Planned
+  - Reason (EN): The first implementation slice should lock backend-owned payload shapes before any UI work. PulsePlate needs canonical response shapes for explainer cards that reuse current BMI, interpretation, adherence, and weekly-plan entities instead of inventing client heuristics. (RU: Сначала нужен каноничный backend contract для explainer payloads; UI не должен сам собирать бизнес-логику.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `app/schemas/`
+    - `app/routers/`
+  - DoD:
+    - High-level contract documents backend-owned `explainer_card` fields for FREE / PRO / VIP
+    - Existing product entities are mapped to explainer payload sources without client-side business logic duplication
+    - No runtime implementation is required in the design PR
+
+
+- [ ] Penpot + Storybook fallback bridge for design handoff
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE)
+  - Target PR: PR/Penpot-Storybook-Bridge
+  - Priority: P1
+  - Status: ▶️ In progress (Primary web-review path)
+  - Area: design / frontend / docs
+  - Finding Type: fallback workflow
+  - Reason: Storybook and token SoT already exist in repo, so this bridge is the
+    canonical low-cost design review path for web. Figma Code Connect remains an
+    optional auxiliary mapping workflow rather than a gating dependency.
+  - Links:
+    - `docs/architecture/ADR_PENPOT_STORYBOOK_BRIDGE_FALLBACK_SEAM_2026-03-07.md`
+    - `docs/design/PENPOT_STORYBOOK_BRIDGE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_TEMPLATE.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_HOME_OPEN_SETUP.md`
+    - `docs/design/PENPOT_CTA_REVIEW_PACKET_WEB_PROGRESS_EXPORT_PDF.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
+    - `frontend/.storybook/main.ts`
+    - `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx`
+  - DoD:
+    - Penpot bridge is documented as the canonical minimal handoff path for web review
+    - Storybook remains canonical web review surface
+    - Seam ADR remains linked from this ledger item and owns explicit exit criteria
+    - Token SoT linkage is explicit in the bridge doc
+    - CTA/design review packet format is defined without Code Connect dependency
+    - Tool-neutral design review reference replaces Figma-only required fields in handoff contracts
+
+<a id="ledger-p1-frontend-ai-parity"></a>
+- [ ] P1: Frontend parity for new AI-agent and LLM reliability features
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (quality visibility)
+  - Target PR: PR-TBD (`feat/frontend-ai-reliability-parity-w1`)
+  - Status: 🟡 In progress (wave 1: Home + iOS Home entry + typed `/api/v1/pro/cbt/insight` parity)
+  - Reason (EN): Backend quality features (RAG confidence, verification pipeline, recursive/philosophical controls) must be visible in web/iOS UX; otherwise quality work remains opaque and user trust/conversion suffers. (RU: Новые quality-фичи ИИ должны быть отражены во фронтенде; иначе улучшения качества не видны пользователю и не влияют на доверие/конверсию.)
+  - Links:
+    - frontend/src/api/openapi.json
+    - frontend/src/api/schema.ts
+    - frontend/src/api/premium/cbt-insight.ts
+    - frontend/src/pages/Home.tsx
+    - ios/PulsePlate/Views/HomeView.swift
+    - ios/PulsePlate/Views/AIInsightView.swift
+    - docs/design/NUTRITION_COACHING_DESIGN.md
+    - docs/contracts/RAG_CONTRACT.md
+  - DoD:
+    - [ ] UI contracts for `sources[]`, confidence, verification state are aligned with backend schema
+    - [ ] Frontend/iOS screens for AI assistant reflect reliability state (validated / partial / fallback)
+    - [ ] Thin-client guards remain green; no business logic duplication on clients
+    - [ ] Deterministic contract tests added for new AI-quality response fields
+
+
 - [ ] P1: Phase 2 — Remove nosec allowlist by migrating legacy suppressions
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -95,6 +2617,2490 @@ If it is not recorded here — it does not exist.
     - Allowlist reduced to 0 entries (or removed)
     - Each legacy `# nosec` either removed (fix) or converted to full format (Bxxx:, remove-by: date, ref:)
     - Guard no longer uses allowlist (or allowlist file removed)
+
+
+<a id="ledger-p1-compose-v2-migration"></a>
+- [ ] P1: Migrate command surface to `docker compose` v2 only
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-COMPOSE-V2-MIGRATION
+  - Area: infra / docs / operator workflow
+  - Finding Type: command-surface consistency
+  - Reason: Repo command surfaces are mixed: some docs use `docker compose`, while `Makefile` and several runbooks still use `docker-compose`. This creates onboarding ambiguity and toolchain drift.
+  - Links:
+    - `Makefile`
+    - `docs/deploy/README.md`
+    - `docs/runbooks/ENGINEER_QUICKPATH.md`
+    - `AGENTS.md`
+    - `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md`
+  - DoD:
+    - Makefile targets use `docker compose`
+    - Active runbooks/docs no longer recommend `docker-compose` as the target state
+    - Transitional fallback language is removed from `AGENTS.md` and quick-path docs
+    - Grep-based verification for `docker-compose` is documented or automated
+
+
+- [ ] Accessibility: ship-blocking UI checklist + enforcement for Web+iOS
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (release quality)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: Accessibility must be enforced as a process, not a best-effort review comment. We need deterministic checks
+    (or at least guardrails) for labels, focus, contrast, and touch targets so new UI ships safely.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (a11y checklist section)
+    - `ios/AGENTS.md` (HIG + CI constraints)
+    - `frontend/AGENTS.md` (web testing and thin-client guards)
+  - DoD:
+    - PR template/checklist requires explicit a11y verification (iOS + Web)
+    - Web: jsx-a11y (or equivalent) rules applied to new/changed UI components
+    - iOS: documented checklist + at least one deterministic guard approach for common failures
+    - No new UI components added without a11y confirmation in PR evidence
+
+
+- [ ] P1 (postponed): CI iOS workflow dedup (extract shared helpers / composite action)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Reason: Avoid drift between `ios-tests` and `ios-ui-smoke` jobs (Xcode pinning, destination selection, boot logic, xcodebuild wrapper). Requested in PR-607 review; deferred to keep remediation PR scope tight.
+  - Links:
+    - .github/workflows/ci.yml
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+  - DoD:
+    - One shared implementation for destination selection + bootstatus gating + xcodebuild wrapper (script or composite action)
+    - Both iOS jobs reuse the same logic (no duplicated Python snippets)
+    - CI remains deterministic (UDID-only destination, no `OS=latest`)
+
+
+- [ ] P1: iOS open-source implementation gate (repo-wide scan + thin-client conformance)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-IOS-OSS-IMPLEMENTATION-GATE
+  - Status: 🟡 Prioritized
+  - Reason: Product quality now depends on deterministic iOS conformance checks before merge; Swift guard tests exist, but we need a repo-wide open-source gate that validates implementation patterns and prevents silent drift.
+  - Links:
+    - docs/audit/PR_559_ANTI_DUPLICATION_GUARDS.md
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+    - docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md
+  - DoD:
+    - GH Actions step scans iOS app Swift sources for forbidden patterns
+    - Excludes fixtures/mocks
+    - Thin-client/APIClient invariants are enforced in CI for changed iOS files
+    - Documented in ios/AGENTS.md
+
+
+- [ ] PR-595 iOS Thin HTTP Adapter Audit
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-595
+  - Status: 🟡 In progress (draft)
+  - Reason: CodeRabbit actionable — if not recorded in ledger, it does not exist. Audit-first for iOS networking layer (dual-path HTTP, legacy services, DTO drift) and deterministic remediation plan.
+  - Links:
+    - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/595>
+  - DoD:
+    - Evidence captured for dual-path networking (`file:line → transport`)
+    - Legacy services and direct HTTP entry points enumerated
+    - DTO/contract drift documented at network boundary
+    - Remediation plan defined (PR-596 scope)
+
+
+- [ ] Stabilize/restore PlateViewTests in CI (iOS)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (separate from PR-559)
+  - Priority: P1
+  - Reason: PlateViewTests were unstable historically; UI tests bundle-load is now fixed, but PlateViewTests stability + CI inclusion remains open.
+  - Links:
+    - ios/PulsePlateTests/PlateViewTests.swift
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
+  - DoD:
+    - PlateViewTests stabilized (no flaky failures)
+    - PlateViewTests included in CI signal (job or explicit `-only-testing` list)
+    - CI green with PlateViewTests included
+
+- [ ] P1: Locale-safe Nutrition Setup numeric parsing on web
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-WEB-NUTRITION-SETUP-LOCALE
+  - Area: frontend / nutrition setup / i18n
+  - Finding Type: locale parsing regression risk
+  - Reason: Nutrition Setup still relies on raw `valueAsNumber` parsing for user-entered numeric fields, which is fragile for RU comma-decimal inputs and violates the existing thin-input guidance already available in the codebase.
+  - Links:
+    - `frontend/src/pages/NutritionSetup/SetupForm.tsx`
+    - `frontend/src/components/ui/NumberInput.tsx`
+    - `frontend/AGENTS.md`
+  - DoD:
+    - Setup inputs accept RU comma and EN dot decimal formats where appropriate
+    - Parsing contract is implemented once (native normalization or `NumberInput`), not duplicated
+    - Focused tests cover valid RU/EN input, invalid values, and backend payload shape
+
+
+- [ ] Conversion Safety: paywall/onboarding/result-screen checklists + minimal analytics event taxonomy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (growth / App Store safety)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: Conversion optimizations must remain wellness-safe and App Store compliant. We need a consistent checklist
+    to avoid “pretty UI that doesn’t convert” and to ensure analytics captures the funnel deterministically.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (conversion checklist section)
+    - `docs/contracts/PRODUCT_TIER_MAP.md` (FREE/PRO/VIP differentiation; canonical)
+  - DoD:
+    - Paywall + onboarding + results-screen checklist documented and used in PR descriptions
+    - Minimal event taxonomy defined (activation + paywall funnel + conversion) with properties
+    - Copy guidance explicitly avoids medical claims and dark patterns
+
+
+- [ ] FitChef assets: establish a reusable SVG/Lottie pipeline + usage guide
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (brand consistency)
+  - Target PR: TBD
+  - Status: 📋 Planned
+  - Reason: FitChef is the brand anchor, but without an asset pipeline + constraints (states, placement, tone), assets
+    will be re-created ad-hoc and drift. We need a repeatable way to request, review, and ship assets.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (fitchef-asset-manager role)
+    - Root `AGENTS.md` (wellness-safe language boundaries)
+  - DoD:
+    - FitChef state list defined (welcome/success/error/empty/loading) with “do/don’t” usage notes
+    - Asset packaging rules documented (no text baked into images; localization-safe)
+    - A minimal starter pack exists (at least 3 states) and is used in one Web screen and one iOS screen
+
+
+<a id="ledger-p1-fitchef-umbrella-foundation"></a>
+- [ ] P1: FitChef umbrella initiative foundation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (orchestration / brand / App Store / coaching)
+  - Target PR: PR #1140 -> PR #1143 -> PR #1150 -> PR #1154 -> PR #1159 (structured coach contract freeze) -> PR-TBD-CBT-COACHING-WAVE-DOCS -> PR-TBD-DISTORTION-SIMULATOR-PRO-RUNTIME -> PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME -> PR-TBD-SIGNAL-NOISE-REPORT-LANE -> PR-TBD-FITCHEF-LOCALIZATION-RU -> PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Status: 🚧 In progress
+  - Reason (EN): FitChef already exists as a live VIP mascot/coaching surface under `/api/v1/insight/fitchef*`, but the next product wave needs one governed umbrella epic that preserves the current canon while splitting future work into clean PR families: visual/App Store, then structured coaching/runtime. This foundation also isolates mascot/App Icon asset promotion from docs/contracts work so local asset diffs never leak into governance PRs.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
+    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `app/routers/fitchef_insight.py`
+    - `app/services/fitchef_runtime.py`
+    - `AGENTS.md`
+  - Progress:
+    - `PR #1140` merged on March 12, 2026 for the foundation/docs-only lane
+    - `PR #1143` merged on March 12, 2026 for the visual/App Store contract lane
+    - `PR #1150` merged on March 13, 2026 for the mascot asset taxonomy lane
+    - `PR #1154` merged on March 13, 2026 for the governed `EN` App Store production pack lane
+    - `PR #1159` structured coach contract is the active lane from a clean worktree off `origin/main`
+    - `PR #1159` scope is docs-only: additive route family freeze, DTO direction, tier semantics, and coexistence rules with the live mascot canon
+    - `PR-TBD-CBT-COACHING-WAVE-DOCS` is the docs-first research promotion lane for Distortion Simulator, Identity Loop Mapper, Signal vs Noise reports, and the FitChef coaching framework
+  - Subtracks:
+    - FitChef visual identity and mascot system
+    - App Store screenshot and preview pack
+    - FitChef structured coach contract
+    - CBT Coaching Wave docs-first promotion
+    - FitChef PRO structured coach runtime
+    - FitChef VIP deep-coach runtime
+    - FitChef analytics and action routing
+    - FitChef localization wave EN -> RU -> ES
+  - DoD:
+    - Umbrella initiative contract exists and explicitly preserves the live `/api/v1/insight/fitchef*` canon
+    - Root and scoped `AGENTS.md` files encode FitChef invariants: no duplicate nutrition math, no LLM source-of-truth, no FREE open-ended coach runtime, structured DTO rendering, routed actions only, mandatory fallback templates
+    - Follow-up PR chain is explicit for visual/App Store and structured-coach/runtime lanes
+    - First App Store localization wave is fixed as `EN` only
+    - `RU` and `ES` localization follow-ups are anchored as separate backlog items with their own target PR placeholders
+    - Foundation/docs PRs remain docs-only and do not carry mascot or App Icon binary asset promotion
+
+
+<a id="ledger-p1-distortion-simulator-wave"></a>
+- [ ] P1: Distortion Simulator structured coaching lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (product differentiation / CBT coaching)
+  - Target PR: PR-TBD-DISTORTION-SIMULATOR-PRO-RUNTIME
+  - Status: 📋 Planned
+  - Reason (EN): The repo already contains CBT distortion taxonomy and structured thought-record knowledge, but no bounded product surface turns that into a governed, measurable PRO coaching tool. The first implementation lane should package that knowledge as a `Distortion Simulator` instead of broad open-ended chat.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/cbt/cognitive_restructuring.md`
+    - `docs/cbt/thought_records.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+  - DoD:
+    - Distortion Simulator contract is additive to the existing structured coach route family
+    - Runtime remains wellness-only, request-scoped, and non-clinical
+    - Response includes structured reframe fields plus `sources[]`, `confidence`, `warnings`, and transparency metadata
+    - Deterministic tests cover auth, quota, rate limit, and structured response contract
+
+
+<a id="ledger-p1-identity-loop-mapper-wave"></a>
+- [ ] P1: Identity Loop Mapper reflective coaching lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (premium reflection / behavior change)
+  - Target PR: PR-TBD-IDENTITY-LOOP-MAPPER-VIP-RUNTIME
+  - Status: 📋 Planned
+  - Reason (EN): Weekly reflection and slip-support already exist, but the next premium layer should formalize belief -> behavior -> payoff -> replacement action mapping as a bounded VIP tool rather than widening into generic chat. This gives the reflection lane a stronger product identity without changing the live mascot canon.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/psychology/motivation_theories.md`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+  - DoD:
+    - Identity Loop Mapper contract is additive to existing VIP structured coach plans
+    - Runtime preserves safe personalization rules and avoids therapist/diagnostic framing
+    - Structured output covers belief, behavior, reward, replacement action, and repair path
+    - Deterministic tests cover auth, quota, rate limit, and response envelope stability
+
+
+<a id="ledger-p1-signal-noise-report-lane"></a>
+- [ ] P1: Signal vs Noise report lane for CBT coaching GTM
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (GTM / product strategy / founder content)
+  - Target PR: PR-TBD-SIGNAL-NOISE-REPORT-LANE
+  - Status: 📋 Planned
+  - Reason (EN): The article-inspired `Signal vs Noise` concept fits the repo better as a high-signal weekly report and founder-content pipeline than as a runtime feature. The lane should reuse the existing AI report templates and KPI-driven GTM structure so content decisions stay measurable and wellness-safe.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/audience_pack/AI_REPORT_TEMPLATES.md`
+    - `docs/marketing/GTM_NOTES_DEV_ONLY.md`
+    - `docs/audience_pack/MARKETING_DESIGN_OVERVIEW.md`
+  - DoD:
+    - One canonical report/playbook lane exists for weekly high-signal coaching and wellness AI briefs
+    - Report outputs stay separate from runtime surfaces and do not create new open-ended LLM endpoints
+    - Every report block ends with owner, metric, and decision rule
+    - Wellness-safe language and disclaimer references are explicit in the lane docs
+
+<a id="ledger-p2-pr1437-docker-ci-doc-governance-followup"></a>
+- [x] P2: PR #1437 Docker/CI docs-governance and OpenAPI fallback follow-up
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1437`
+  - Area: docs / governance / local verify determinism
+  - Reason (EN): Post-open bot review on PR `#1437` surfaced same-lane docs-governance and CI-fallback gaps: the Docker/CI packet and merge matrix needed proximate `file:line` evidence for repo-truth assertions, the `security-floor` seam entry needed pointer-safe evidence anchors, and the `Makefile` `openapi` fallback needed deterministic interpreter selection. The fixes stayed in-scope for the current PR because they do not widen runtime or deploy behavior. (RU: После post-open review в PR `#1437` вскрылись same-lane пробелы: packet/matrix требовали proximate `file:line` evidence, backlog seam требовал pointer-safe anchors, а `Makefile` `openapi` fallback — детерминированный выбор интерпретатора. Эти исправления оставлены в рамках текущего PR, потому что не расширяют runtime/deploy scope.)
+  - Status: Closed in PR `#1437` on 16 April 2026; current head keeps the Docker/CI governance evidence local to the packet/matrix/ledger and makes the `openapi` fallback prefer `python3`, then `python`, while still failing closed if no usable Python 3 interpreter exists.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md:47-60`
+    - `docs/review/PR_1437_FIXED_MAPPING.md`
+    - `Makefile:451-461`
+  - DoD:
+    - Packet/matrix repo-truth statements keep proximate `file:line` evidence for `.dockerignore`, `IMAGE_REF`, `frontend/Dockerfile.caddy-spa`, the deferred provenance seam, and the mandatory `qa-engineer-agent -> bug-hunter` lane
+    - The `security-floor` seam entry preserves `file:line` evidence while retaining stable anchors for ledger targeting
+    - `Makefile` `openapi` fallback prefers `python3`, then `python`, and fails closed if neither exists or if the selected interpreter is not Python 3
+    - The closeout remains docs/tooling-only and does not widen the Docker deploy/runtime topology scope
+
+
+- [ ] P2: FitChef App Store localization RU
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (ASO / localization)
+  - Target PR: PR-TBD-FITCHEF-LOCALIZATION-RU
+  - Status: 📋 Planned
+  - Reason (EN): The first FitChef App Store wave is intentionally `EN` only. Russian localization must remain deferred until the `EN` visual contract and production pack are frozen so copy, screenshot ordering, and safe-area rules do not drift.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-umbrella-foundation`
+  - DoD:
+    - `RU` screenshot headlines and subtext are derived from the approved `EN` App Store contract
+    - `RU` metadata pack is tracked under its own follow-up PR and does not change the canonical `EN` layout rules
+    - Any `RU` asset/export work remains separated from governance-only PRs
+
+
+- [ ] P2: FitChef App Store localization ES
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (ASO / localization)
+  - Target PR: PR-TBD-FITCHEF-LOCALIZATION-ES
+  - Status: 📋 Planned
+  - Reason (EN): Spanish localization is a follow-up wave after the `EN` contract/pack. It must stay explicitly deferred so future ASO copy, screenshot exports, and review metadata remain traceable in the canonical backlog.
+  - Links:
+    - `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fitchef-umbrella-foundation`
+  - DoD:
+    - `ES` screenshot headlines and subtext are derived from the approved `EN` App Store contract
+    - `ES` metadata pack is tracked under its own follow-up PR and does not change the canonical `EN` layout rules
+    - Any `ES` asset/export work remains separated from governance-only PRs
+
+
+- [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Reason: avoid guard flakiness if comments include examples
+  - Links:
+    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
+  - DoD:
+    - Guard remains strict but avoids comment-only hits
+    - CI remains deterministic
+
+
+- [x] P1: `user_knowledge` DB-level RLS / policy hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (security / defense-in-depth)
+  - Target PR: PR #1089 (`feat/p1-user-knowledge-rls`)
+  - Status: ✅ Merged evidence (PR #1089, 2026-03-11)
+  - Reason (EN): Application-layer tenant scoping prevents cross-tenant leaks in runtime retrieval, but Postgres still needed explicit DB-level RLS/policy enforcement plus a canonical session-context bridge to make the policy enforceable in runtime paths.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (§7, §8)
+    - `app/models/rag_feedback.py`
+    - `core/rag/vector_rag.py`
+    - `core/db_rls.py`
+    - `alembic/versions/202603100101_enable_rag_user_rls.py`
+  - DoD:
+    - Postgres RLS policies exist for both `user_knowledge` and `rag_feedback`
+    - User-bound rows use a bigint subject principal compatible with runtime-derived API-key subject isolation (no stale `users.id` FK contract)
+    - Canonical transaction-local session context is set before RAG retrieval, feedback writes, and DSAR helper queries
+    - Migration + rollback path documented
+    - Tests or audit evidence cover deny-by-default cross-tenant access at DB layer
+    - Runtime app-layer filtering remains in place (no regression to code-level scoping)
+
+
+<a id="ledger-p1-scientific-reliability-pipeline"></a>
+- [ ] P1: Scientific reliability publication packet (evidence + article mapping)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (trust + GTM)
+  - Target PR: PR-A9 (`docs/ai-scientific-reliability-packet`)
+  - Status: 🟡 In progress (A9 docs-only evidence lane is active; packet and audit evidence are now the canonical delivery surface)
+  - Reason (EN): Product differentiation requires public, evidence-based communication of currently reproducible AI reliability methods with clear claim boundaries and no medical overclaiming. The current governed proof surface is the offline logic+philosophy replay contract plus shipped runtime anchors; this lane must not imply production proof, public verification fields, or recursive execution as the canonical validated-evidence write path. (RU: Для дифференциации нужен публичный научно-достоверный пакет по AI quality-подходу с жёсткими границами claims и без медикал-оверклеймов. Текущая доказательная база в этом lane — governed offline replay contract для logic+philosophy и уже слитые runtime anchors; нельзя выдавать это за production proof, public verification truth или canonical validated-evidence write path для recursive execution.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md`
+    - `docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md`
+    - `docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md`
+    - `tests/test_logic_philosophy_replay_eval.py`
+  - DoD:
+    - Editorial plan and evidence format are documented (metrics, corpus bounds, caveats, claim boundaries)
+    - One canonical evidence packet summarizes the governed offline replay result with reproducibility commands
+    - Internal/public article mapping is documented against verifiable repo artifacts
+    - Marketing copy checklist includes wellness-safe, evidence-only, and non-medical claims
+
+
+- [ ] P1: Agent knowledge library template packs (domain-specific)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (process scalability)
+  - Target PR: PR_TBD_AGENT_LIBRARY_TEMPLATE_PACKS
+  - Status: 📋 Planned
+  - Reason (EN): Bootstrap library artifacts are in place, but recurring cycles
+    need reusable, domain-specific packs (security, RAG, UX, DS) to keep
+    brainstorm-to-PR flow fast and deterministic without policy drift.
+  - Links:
+    - `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
+    - `docs/library/index.md`
+    - `docs/library/promotion/2026-02-19_agent-library-bootstrap_promotion-log.md`
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+  - DoD:
+    - Add template packs under `docs/library/templates/` for at least 4 tracks:
+      security, RAG, UX/accessibility, data/evaluation
+    - Each template includes routing card, evidence section, promotion target,
+      and deferred-item ledger block
+    - Add one worked example cycle using one template pack
+    - `ReadLints` clean for all new docs
+
+
+- [ ] P1: Skill-router parity with policy docs and requested-agent bundles
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1202
+  - Area: orchestration / skills / bootstrap
+  - Finding Type: policy-implementation drift
+  - Reason: The canonical skill routing policy now documents requested-agent helper bundles and conditional skills such as `gh-address-comments` and `vercel-react-best-practices`; router logic and tests must stay in lockstep so coordinator packets do not promise skills that the runtime selector never emits.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `tests/test_skill_router.py`
+  - DoD:
+    - Every documented requested-agent default bundle is represented in router behavior or explicitly documented as manual-only
+    - Policy-only skills cannot drift out of the implementation without failing deterministic tests
+    - Privileged-surface triggers and requested-agent bundle reasons are emitted in routing metadata
+
+- [ ] P1: Privileged workflow security-review requirement for orchestration and release surfaces
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-PRIVILEGED-SURFACE-SECURITY-REVIEW
+  - Area: orchestration / release ops / security review
+  - Finding Type: review-path hardening
+  - Reason: Tasks touching GitHub workflows, Fastlane, orchestration scripts, or merge-governance artifacts can change privileged automation, but today the review path is not consistently forced through `security-auditor`.
+  - Links:
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `docs/orchestration/workflow.md`
+    - `.cursor/agents/agent-coordinator.md`
+    - `.github/workflows/`
+    - `ios/fastlane/`
+  - DoD:
+    - Canonical docs define the privileged-surface trigger list
+    - Coordinator/bootstrap preserves `security-auditor` in the review path for those surfaces
+    - Deterministic tests cover workflow/Fastlane/orchestration-path review routing
+    - Merge-readiness docs explain that this is a default requirement, not optional reviewer theater
+
+<a id="ledger-p1-classify-ci-checks-as-hard-soft-external"></a>
+- [x] P1: Coordinator automation PR2 — bootstrap engine hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1254
+  - Area: orchestration / task bootstrap / packet schema
+  - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1254` on March 27, 2026; this slice is the landed bootstrap baseline for the later coordinator automation wave.
+  - Reason: PR1 locks the governance boundary, but coordinator-first still remains policy-required rather than reliably packet-driven for every non-trivial task. The next slice must harden `task_bootstrap` and related bridge contracts without mixing in PR lifecycle or design-lane behavior.
+  - Dependencies:
+    - `PR-1252`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/native_subagent_bridge.py`
+    - `tests/test_task_bootstrap.py`
+  - DoD:
+    - Task packet schema adds `automation_flags`
+    - Task packet schema adds `pr_phase` and `design_lane_mode`
+    - Task packet schema adds `needs_backlog_update`, `needs_docs_sync`, and `needs_agents_sync`
+    - Deterministic tests cover coordinator-first packet stability and new schema invariants
+    - No PR-open automation, Figma trigger logic, or local launcher changes are included
+
+- [x] P2: Centralize bootstrap sync-policy constants for task packet derivation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1327 (`refactor(orchestration): centralize bootstrap sync policy`)
+  - Area: orchestration / task bootstrap / policy constants
+  - Finding Type: follow-up hardening
+  - Status: Materially completed via merged PR `#1327` (`7df804cf`) on April 4, 2026; this hardening is now part of the landed bootstrap baseline and should not remain an open prerequisite.
+  - Reason: PR2 intentionally keeps sync heuristics local to `task_bootstrap.py`, but review feedback highlighted that implementation roots and sync-signal markers should eventually move into a shared policy surface so future automation slices can evolve them without editing bootstrap logic directly.
+  - Dependencies:
+    - `PR-1254`
+  - Lifecycle: Review → Backlog → Execute
+  - Links:
+    - `scripts/orchestration/task_bootstrap.py`
+    - `tests/test_task_bootstrap.py`
+    - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+  - DoD:
+    - Sync-signal terms and path roots move into a shared policy module or equivalent canonical config
+    - `task_bootstrap.py` consumes the shared policy source instead of duplicating constants inline
+    - Deterministic tests cover the shared policy contract and bootstrap integration
+
+- [x] P1: Coordinator automation PR3 — skill routing and intent classifier
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1265
+  - Area: orchestration / skills / intent classification
+  - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1265` on March 28, 2026; baseline routing landed in commit `5bc96098` and the governance-lane preservation fix landed in `d3c3a9d1`, so this slice is no longer a `PR-TBD` dependency.
+  - Reason: After bootstrap hardening, the next failure mode is still over- or under-selecting skills and treating unlike tasks as the same class. The routing layer needs a deterministic classifier and explicit required/recommended/conditional/blocked outputs before any lifecycle or design automation is added.
+  - Dependencies:
+    - `PR #1254`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `tests/test_skill_router.py`
+  - DoD:
+    - Deterministic task classes cover at least `implementation`, `bugfix`, `review`, `design`, `creative_research`, `experiment`, and `pr_governance`
+    - Skill decisions expose `required`, `recommended`, `conditional`, and `blocked` semantics
+    - Routing stays minimal-optimal and explainable
+    - No PR event hooks, Figma mutation flow, or launcher wiring are included
+
+- [x] P1: Coordinator automation PR4 — PR lifecycle automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1266 (`docs(review): map coderabbit nitpick wrapper`)
+  - Area: orchestration / PR governance / review lifecycle
+  - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1266` (`5dfa055d`) on March 28, 2026; this slice now serves as the landed baseline input for PR5.
+  - Reason: The canonical docs already require a post-open `qa-engineer-agent -> bug-hunter` loop, but the behavior is still policy-only and easy to forget. The PR lifecycle slice must turn that requirement into deterministic PR-phase automation without widening into design or brainstorming lanes.
+  - Dependencies:
+    - `PR #1265`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+  - DoD:
+    - PR packet or equivalent phase contract distinguishes post-open review from generic task execution
+    - Mandatory review-path synthesis includes `qa-engineer-agent -> bug-hunter`
+    - Current-head review-preparation outputs are explicit and deterministic
+    - Docs/runbooks/ledger references stay in sync with the lifecycle contract
+    - No creative research or design execution behavior is added
+
+- [x] P1: Coordinator automation PR5 — creative research and design/Figma activation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1268 (`feat(orchestration): gate design lanes`)
+  - Area: orchestration / research / design tooling
+  - Finding Type: automation rollout slice
+  - Status: Materially completed via merged PR `#1268` (`ef7ac2fe`) on March 28, 2026; for the orchestration continuation track, this slice is now baseline and the next non-duplicate repo lane moves to the local workforce follow-on PRs below.
+  - Reason: Creative research and design lanes are the broadest automation surface and must come after bootstrap and skill routing stabilize. This slice should add explicit trigger rules and safe activation boundaries instead of letting design/Figma behavior emerge implicitly.
+  - Dependencies:
+    - `PR #1266`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/figma/`
+  - DoD:
+    - `creative_research` has explicit trigger rules
+    - Code-native design brief path is defined before any Figma mutation path
+    - Figma lane activates only with a valid design trigger and a valid packet/URL/node-id or explicit creation mode
+    - Safe source-precedence and blocker rules are documented
+    - No broad PR-governance refactor or merge-readiness semantic change is included
+
+<a id="ledger-p1-local-workforce-pr-a-bootstrap-seam"></a>
+- [x] P1: Local workforce PR-A — extend the canonical coordinator bootstrap seam
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1329 (additive `message_envelope` derivation) + PR #1339 (`skill_router` `docs_only` parity, `envelope_mode_hint`, ledger/protocol SoT)
+  - Area: orchestration / task bootstrap / skill routing / local workforce
+  - Finding Type: RFC follow-on slice
+  - Status: **Closed** — PR #1329 merged on `main`; PR #1339 squash-merged to `main` as `3b243a003daf9101b00639cada199a27e19c7e83` (parity: `route_skills` + `bootstrap_sync_policy.resolve_analysis_envelope_mode`, `envelope_mode_hint`, fail-closed docs-only paths, tests, SoT docs).
+  - Reason: `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md` explicitly requires extending the existing coordinator bootstrap seam instead of introducing a second packet system. Coordinator automation PR2-PR5 plus the sync-policy extraction are already landed, so the next repo lane must add any local-workforce semantics additively on top of `task_bootstrap.py`, `skill_router.py`, and `bootstrap_sync_policy.py`.
+  - Dependencies:
+    - `PR #1325`
+    - `PR #1327`
+    - `PR #1328`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md`
+    - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
+    - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `scripts/orchestration/skill_router.py`
+    - `scripts/orchestration/bootstrap_sync_policy.py`
+    - `tests/test_task_bootstrap.py`
+    - `tests/test_skill_router.py`
+    - `tests/test_bootstrap_sync_policy.py`
+  - DoD:
+    - Any new local-workforce semantics land additively on the canonical bootstrap/routing surfaces
+    - Docs parity stays in sync across `AGENT_SKILL_ROUTING_POLICY.md`, `AGENT_MESSAGE_PROTOCOL.md`, and workflow docs where required
+    - Deterministic tests cover the updated packet and routing contracts
+    - No standalone action-packet or parallel bootstrap schema system is introduced
+    - No launcher/runtime auto-start claims are added to repo docs
+
+<a id="ledger-p1-local-workforce-pr-b-reflection-protocol"></a>
+- [x] P1: Local workforce PR-B — extend the canonical reflection protocol first
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1339 (protocol-first reflection extensions bundled with the PR-A parity slice)
+  - Area: orchestration / reflection / knowledge promotion
+  - Finding Type: RFC follow-on slice
+  - Status: **Closed** — same squash merge as PR-A: `3b243a003daf9101b00639cada199a27e19c7e83`; `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md` includes bootstrap/routing mismatch, post-open review reflection, and KPP promotion wording.
+  - Reason: The local workforce RFC requires reflection changes to land through the canonical reflection protocol before any helper or schema material is promoted. This keeps knowledge-promotion semantics inside the existing repo SoT instead of creating a second reflection contract.
+  - Dependencies:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-seam` (closed with PR #1339)
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
+  - DoD:
+    - Reflection changes land in the canonical protocol before any derived helper/schema material
+    - No parallel reflection contract is introduced beside `AGENT_REFLECTION_PROTOCOL.md`
+    - Protocol wording remains explicit about canonical repo truth versus advisory/support surfaces
+
+<a id="ledger-p2-local-workforce-pr-c-support-plane"></a>
+- [x] P2: Local workforce PR-C — add experimental local support-plane storage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1363
+  - Area: orchestration / security / local support plane
+  - Finding Type: RFC follow-on slice
+  - Status: **Closed** — merged to `main` as squash merge commit `e6c7e5affb8c5ef82453af64cd78735af03990e4` (evidence: `scripts/orchestration/local_support_plane.py`, `tests/test_local_support_plane.py`, `docs/review/PR_1363_FIXED_MAPPING.md`).
+  - Reason: The RFC allows an experimental local control-plane/storage layer only as a non-canonical support plane. If promoted, it must reuse existing security/control-plane primitives where possible and must not become a second orchestration source of truth.
+  - Dependencies:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-b-reflection-protocol`
+  - Lifecycle: Start → Open → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md`
+    - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`
+    - `docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `app/security/agent_control_plane.py`
+    - `scripts/orchestration/local_support_plane.py`
+    - `tests/test_local_support_plane.py`
+  - DoD:
+    - Experimental local support-plane storage/runtime remains explicitly non-canonical
+    - Existing security/control-plane primitives are reused where possible
+    - Launcher/runtime behavior stays outside repo SoT unless separately promoted by the automation readiness matrix
+    - No duplicate orchestration source of truth is introduced
+<a id="ledger-p2-karpathy-style-advisory-wiki-umbrella"></a>
+- [ ] P2: Karpathy-style advisory wiki umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-S0
+  - Area: orchestration / workforce memory / roadmap
+  - Finding Type: umbrella canonicalization
+  - Reason (EN): The workforce compiled-memory line now has launcher/bootstrap, compiler, and hardening slices, but the backlog still lacks one explicit umbrella item that marks it as a separate advisory rail rather than an accidental side-project or product-RAG substitute. (RU: У workforce compiled-memory линии уже есть launcher/bootstrap, compiler и hardening slices, но в backlog нет одного umbrella-item, который бы фиксировал её как отдельный advisory rail, а не побочный side-project или замену product RAG.)
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-launcher-rollout-for-coordinator-first-automation`
+  - DoD:
+    - One canonical umbrella entry exists for the advisory workforce rail
+    - The rail is explicitly marked non-canonical and non-product-facing
+    - Existing launcher/compiler slices are linked as children or prerequisites
+
+<a id="ledger-p2-plugin-control-plane-families-umbrella"></a>
+- [ ] P2: Plugin/control-plane families umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-S0
+  - Area: orchestration / advisory control-plane / roadmap
+  - Finding Type: umbrella canonicalization
+  - Reason (EN): GitHub, Cloudflare, Figma, and Hugging Face already appear across governance, edge, design, and research lanes, but they are not yet grouped under one explicit advisory/control-plane umbrella. Without a dedicated umbrella, later agents can accidentally pull plugin families into product runtime truth or semantic-cache planning. (RU: GitHub, Cloudflare, Figma и Hugging Face уже встречаются в governance, edge, design и research линиях, но пока не собраны под одним umbrella-item как advisory/control-plane rail. Без этого later agents могут случайно втянуть plugin families в product runtime truth или в планирование semantic cache.)
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-karpathy-style-advisory-wiki-umbrella`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-cloudflare-narrow-reopen-automation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pulseplate-v3-clean-figma-execution`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+  - DoD:
+    - One canonical umbrella entry exists for plugin/control-plane families
+    - GitHub, Cloudflare, Figma, and Hugging Face are explicitly mapped as advisory/control-plane families
+    - The umbrella states these families do not become product runtime truth implicitly
+    - The umbrella states plugin families do not authorize semantic-cache rollout or bounded-context ownership by themselves
+
+<a id="ledger-p2-local-workforce-pr-d-advisory-wiki-compiler"></a>
+- [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1371 (branch `feat/local-workforce-pr-d-advisory-wiki-compiler`)
+  - Area: orchestration / local support plane / operator tooling
+  - Finding Type: RFC follow-on slice (compiled advisory memory)
+  - Status (EN): Implementation on branch; merge closes this item when `docs/review/PR_<N>_FIXED_MAPPING.md` exists and checklist is complete.
+  - Reason: Non-canonical wiki artifacts help operators navigate ingested repo slices without introducing embeddings, vector stores, or a second documentation SoT.
+  - Dependencies:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-c-support-plane`
+  - Links:
+    - `docs/review/PR_1371_FIXED_MAPPING.md`
+    - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
+    - `scripts/orchestration/wiki_ingest.py`
+    - `scripts/orchestration/wiki_query.py`
+    - `scripts/orchestration/wiki_lint.py`
+    - `scripts/orchestration/wiki_promote.py`
+    - `scripts/orchestration/local_support_plane.py`
+  - DoD:
+    - CLIs documented and covered by deterministic tests
+    - No writes to canonical `docs/**` tree from promote path; support-plane keys respect `normalize_key`
+    - Ledger + agent entrypoints reference the wiki doc in the same merge cycle
+  - Deferred / follow-ups (post-v1 hardening, English-first):
+    - Slug strategy after truncation (reject vs hash-suffix vs manifest) when paths differ but truncate to the same slug (`scripts/orchestration/_wiki_compiler_support.py` `path_to_slug`).
+    - Readability refactor (no behavior change): extract staging filesystem rollback and support-plane failure rollback from `wiki_promote.promote_slug` into small helpers with docstrings (Sourcery review suggestion on PR #1372; current logic is correct and covered by `tests/test_wiki_promote.py`).
+    - Optional promotion **history** or versioned SP keys / manifest (today `wiki.promoted.<slug>` overwrites).
+    - Richer lint: orphans, stale links, index/page consistency beyond raw hash, contradiction checks (not in v1).
+    - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
+
+<a id="ledger-p2-advisory-wiki-query-lint-enrichment"></a>
+- [ ] P2: Advisory wiki query/lint enrichment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ADVISORY-WIKI-QUERY-LINT-ENRICHMENT
+  - Area: orchestration / workforce memory / operator tooling
+  - Finding Type: post-hardening follow-on
+  - Reason (EN): The compiler/hardening baseline is now present, but the next workforce slice should enrich query and lint behavior without widening into embeddings, vector search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже есть, но следующий workforce slice должен улучшать query/lint без ухода в embeddings, vector search или product-facing RAG semantics.)
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `scripts/orchestration/wiki_query.py`
+    - `scripts/orchestration/wiki_lint.py`
+  - DoD:
+    - Query/lint enrichment remains non-canonical and operator-only
+    - No embeddings, vector DB, or public runtime coupling are introduced
+    - Follow-on scope is explicit: richer query semantics, orphan/stale-link detection, contradiction lint, or index weighting
+
+<a id="ledger-p2-advisory-wiki-reference-corpus-policy"></a>
+- [ ] P2: Advisory wiki bounded reference-corpus policy
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ADVISORY-WIKI-REFERENCE-CORPUS-POLICY
+  - Area: orchestration / workforce memory / docs
+  - Finding Type: source-boundary policy
+  - Status: 📋 Planned
+  - Reason: The workforce rail includes a bounded reference-corpus policy slice so DeepWiki or similar helper corpora can remain read-only secondary aids instead of drifting into a second source of truth.
+  - Links:
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+  - DoD:
+    - Reference corpora are explicitly documented as read-only helper inputs
+    - Repo artifacts remain the only canonical source of truth
+    - No embeddings, vector DB, or product-runtime coupling are introduced by this policy item
+
+<a id="ledger-p2-local-launcher-rollout-for-coordinator-first-automation"></a>
+- [ ] P2: Local launcher rollout for coordinator-first automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1348 + PR #1350 (landed); PR #1370 (repo companion: runbook + sanitized wrapper example + entry-doc sync + core TypeGuard mypy fix); PR #1408 (host smoke evidence); docs-only closeout PR TBD after `#1408` merge
+  - Area: local tooling / launcher / Codex runtime
+  - Finding Type: non-repo rollout follow-up
+  - Status (EN): In progress. Companion PR #1370 added the repo-side runbook and sanitized wrapper example; host smoke evidence was recorded on 10 April 2026 for one opted-in machine in `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT_EVIDENCE_2026-04-10.md`. Keep this item open until PR `#1408` is merged, then close it via a docs-only follow-up per the ledger closure rule.
+  - Reason: Repo docs and deterministic engines alone cannot force raw session auto-start. A machine-local launcher or wrapper must wire preflight, bootstrap, and compatible runtime settings without pretending that `~/.codex/config.toml` is repo source of truth.
+  - Links:
+    - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
+    - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT_EVIDENCE_2026-04-10.md`
+    - `docs/templates/pulseplate-coordinator-launch.example.sh`
+    - `docs/templates/codex.config.example.toml`
+    - `scripts/orchestration/local_session_bootstrap.sh`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `~/.codex/config.toml`
+  - DoD:
+    - Local launcher/wrapper classifies new tasks and invokes preflight + bootstrap before normal execution
+    - Compatible local runtime settings are documented with explicit caveats about host/runtime limits
+    - Local rollout steps do not mutate repo governance docs as a substitute for launcher support
+    - Repo PR chain remains independently valid without the local rollout
+- [x] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #996 (`docs(orchestration): add canonical PR orchestration contract matrix`)
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Completed via `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`; Tier 1 PR-series operationalization is tracked separately below.
+  - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required. The current local/CI/release matrix still leaves some truly blocking lanes in advisory mode, which makes merge-readiness claims inconsistent.
+  - Links:
+    - `AGENTS.md:31` (merge readiness), `:39` (checklist)
+    - `.github/workflows/` (CI job definitions)
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD:
+    - AGENTS.md or dedicated CI governance doc defines hard gate (blocks merge), soft gate (warn only), external (never blocks unless manually promoted)
+    - Examples listed per type
+    - One canonical merge-ready check bundle is documented across local, PR CI, and release-ops lanes
+
+- [ ] P1: Tier 1 CI/CD consolidation via custom orchestration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1240 -> PR #1244 -> PR #1253 -> PR-TBD-TIER1-CI-CD-PR4
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: In progress
+  - Reason: Tier 1 requires a coordinator-led stacked PR program that first locks governance, then consolidates workflow topology, then narrows PR blockers, then adds advisory CI metrics without widening release risk.
+  - Links:
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Governance owner, routing card, and mandatory post-open bug-hunter lane are documented and used for every Tier 1 slice
+    - Canonical backend/shared PR workflow topology is consolidated and validated against current-head required checks
+    - PR blocker vs advisory CI classification is documented, reduced, and enforced through the merge-readiness wrapper
+    - Advisory CI metrics artifacts exist without adding new merge blockers or widening release risk
+  - Child slices:
+    - `ledger-p1-tier1-ci-cd-pr1-governance`
+    - `ledger-p1-tier1-ci-cd-pr2-workflow`
+    - `ledger-p1-tier1-ci-cd-pr3-risk-topology`
+    - `ledger-p1-tier1-ci-cd-pr4-metrics`
+
+- [x] P1: PR1 governance and canonical matrix sync {#ledger-p1-tier1-ci-cd-pr1-governance}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1240
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Materially completed in merged PR `#1240` (`24c51f85`); this slice now stays closed unless follow-up governance drift is reopened explicitly.
+  - Reason: The repo already has merge-governance primitives, but Tier 1 cannot start safely until the canonical backend/shared lane, duplicate PR-time workflows, and specialized add-on lanes are named explicitly in docs.
+  - Links:
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+  - DoD:
+    - `AGENTS.md`, `RUNBOOK_AGENT.md`, and orchestration docs all point to one canonical backend/shared PR lane
+    - Duplicate PR-time lanes are labeled transitional rather than canonical
+    - Mandatory post-open `qa-engineer-agent -> bug-hunter` lane is recorded
+    - Local validation passes: `check_preflight`, `check_agent_consistency`, `pre-commit run --all-files`, `make verify`
+
+- [x] P1: PR2 workflow consolidation into canonical ci.yml {#ledger-p1-tier1-ci-cd-pr2-workflow}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1244
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Materially completed on `origin/main` in PR `#1244` (`b7e029b4`); this slice now serves as landed baseline input for PR3.
+  - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual, and `build.yml` remains specialized.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - Historical PR-lane duplicates removed in PR `#1244`: `pr-tests.yml`, `pr-coverage.yml`
+    - `.github/workflows/security.yml`
+    - `.github/workflows/trivy.yml`
+  - DoD:
+    - Canonical backend/shared PR execution lives in `.github/workflows/ci.yml`
+    - `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes
+    - `security.yml` and `trivy.yml` are removed from PR-time execution; `security.yml` is scheduled/manual-only and `trivy.yml` remains `main`/schedule/manual outside canonical merge truth
+    - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
+    - Required-check parity is preserved on current-head PR checks
+
+- [x] P1: PR3 risk-based PR test topology {#ledger-p1-tier1-ci-cd-pr3-risk-topology}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: #1253
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Materially completed on `main` in merged PR `#1253` (`3be5debf`); this slice now serves as landed baseline input for PR4.
+  - Reason: PR blockers should stay focused on business-critical runtime paths, while nightly depth absorbs broad non-critical coverage tails.
+  - Links:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-classify-ci-checks-as-hard-soft-external`
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+  - DoD:
+    - Deterministic smoke, contract/risk suites, and nightly-only depth are split
+    - Blocking surfaces explicitly cover billing, entitlement, VIP insight, and OpenAPI determinism
+    - PR-size governance exists for `<300`, `300-800`, and `>800` LoC cases, and `>800` requires explicit `## Split Justification` proof in the PR body
+    - No new flaky test class is introduced
+
+- [x] P1: PR4 lightweight CI metrics and weekly feedback loop {#ledger-p1-tier1-ci-cd-pr4-metrics}
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: #1286
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Status: Materially completed on `main` in merged PR `#1286` (`a9bf2781`); advisory metrics now serve as the landed Tier 1 PR4 baseline.
+  - Reason: Tier 1 needs advisory metrics for critical-path duration, reruns, red-build rate, and xdist fallback tracking without turning observability into another merge blocker or widening branch-protection truth.
+  - Links:
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`
+    - `.github/workflows/ci-metrics.yml`
+    - `scripts/ci/collect_ci_metrics.py`
+  - DoD:
+    - `scripts/ci/` emits `ci-metrics-summary.json` and `ci-metrics-summary.md`
+    - Metrics remain informational only and outside canonical merge truth
+    - Weekly reporting path uses artifact + `GITHUB_STEP_SUMMARY` only
+    - Artifact absence degrades gracefully with explicit `unknown`/`unavailable` metric states
+    - Tier 1 docs/runbook/task packet record PR4 as landed baseline evidence
+
+
+- [x] P1: Disposition guard — ban mapping to trigger-only commits
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: #990
+  - Area: orchestration / review governance
+  - Finding Type: process hardening
+  - Status: Materially completed on `main` in merged PR `#990` (`91477308`); trigger-only FIXED proof mappings are now rejected by the disposition guard.
+  - Reason: Prevent FIXED proof bypass via empty or CI rerun/trigger commits. Mapping `- <url> -> <sha>` must not accept empty commits or commits whose subject matches trigger/rerun patterns.
+  - Links:
+    - `scripts/orchestration/check_review_threads_disposition.py`
+    - `tests/test_review_threads_disposition_strict.py`
+    - `AGENTS.md` (Review Governance)
+  - DoD:
+    - Gate fails when mapping SHA is empty commit (no changed files)
+    - Gate fails when commit subject matches trigger/rerun patterns (trigger ci, re-run ci, re-run checks)
+    - Tests cover deny (empty, trigger subject) and allow (normal commit)
+    - AGENTS.md updated with FIXED proof quality (trigger-only ban) rule
+    - Optional allowlist with TTL remains empty by default (P2 if needed)
+
+
+- [ ] P1: PR #1013 sandbox hardening follow-ups
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-SANDBOX-HARDENING-FOLLOWUPS
+  - Status: Open
+  - Area: security / agent control plane / sandbox runtime
+  - Finding Type: follow-up hardening
+  - Locations:
+    - `app/security/execution_sandbox.py`
+    - `tests/test_execution_sandbox.py`
+    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+  - Reason: PR #1013 lands the local sandbox foundation, but two higher-cost hardening items remain intentionally deferred: output-budget enforcement must move from post-capture truncation to streaming enforcement, and the explicit binary allowlist should be re-minimized after initial developer-machine adoption evidence is collected.
+  - Links:
+    - `app/security/execution_sandbox.py`
+    - `tests/test_execution_sandbox.py`
+    - `docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+  - DoD:
+    - Sandbox stdout/stderr budget is enforced during process execution instead of after full `capture_output=True` buffering
+    - Default and runbook binary allowlists are reviewed against real usage and reduced to the smallest stable set
+    - Deterministic tests cover stream-budget enforcement and minimized allowlist behavior
+    - `pre-commit run --all-files` and `make verify` pass in follow-up PR
+  - Blockers: None (deferred by scope, not blocked)
+
+- [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports `gpgv` vulnerability (CVE-2026-24883) with no fixed version available as of 2026-01-28; we suppress via `trivy/ignore-policy.rego` with expiry enforcement to keep Trivy's signal actionable. Should remove when Debian publishes a patched package / Trivy metadata updates.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-24883)
+    - `docs/security/CVE-2026-24883-gpgv.md`
+    - `.github/workflows/trivy.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `gpgv` package (or Trivy publishes fixed-version metadata)
+    - Remove CVE-2026-24883 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
+    - Trivy Code Scanning alerts remain closed on `main`
+
+- [ ] Remove Trivy suppression for systemd-family CVE (CVE-2026-29111)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports Debian bookworm `systemd` family packages
+    (`libsystemd0`, `libudev1`) as vulnerable at `252.38-1~deb12u1` with no
+    actionable fixed version in the current bookworm image line as of
+    2026-03-30; we suppress narrowly in `trivy/ignore-policy.rego` until
+    Debian bookworm or Trivy metadata catches up.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-29111)
+    - `docs/security/CVE-2026-29111-systemd.md`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `systemd` package line (or Trivy reports
+      a fixed version in our image context)
+    - Remove CVE-2026-29111 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2026-29111-systemd.md` (or mark as resolved)
+    - Trivy Code Scanning alerts `#573` and `#575` remain closed on `main`
+- [ ] Remove Trivy suppression for ncurses CVE (CVE-2025-69720)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Reason: Trivy reports Debian bookworm `ncurses` family packages
+    (`libncursesw6`, `libtinfo6`, `ncurses-base`, `ncurses-bin`) as vulnerable at
+    `6.4-4` with no actionable fixed version in the current bookworm image line as
+    of 2026-03-30; we suppress narrowly in `trivy/ignore-policy.rego` until
+    Debian bookworm or Trivy metadata catches up.
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2025-69720)
+    - `docs/security/CVE-2025-69720-ncurses.md`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Debian bookworm publishes a fixed `ncurses` package line (or Trivy reports a
+      fixed version in our image context)
+    - Remove CVE-2025-69720 suppression from `trivy/ignore-policy.rego`
+    - Remove `docs/security/CVE-2025-69720-ncurses.md` (or mark as resolved)
+    - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
+      `main`
+
+- [ ] Security suppression expiry monitoring
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: N/A (ongoing)
+  - Priority: P1
+  - Area: security
+  - Finding Type: policy exception
+  - Locations:
+    - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
+    - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
+  - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
+  - Links:
+    - docs/security/CVE-2026-0861-glibc.md
+    - docs/security/CVE-2025-15281-glibc.md
+  - DoD:
+    - Weekly monitoring for upstream fixes
+    - Remove suppressions when fixed versions available
+    - Update base image when fixes land
+  - **Last reviewed: 2026-02-27**
+    - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
+    - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
+
+- [ ] Triage open Trivy glibc code-scanning alerts (CVE-2026-4046)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1305
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: GitHub code scanning on `main` currently reports open Trivy alerts `#579` (`libc-bin`) and `#580` (`libc6`) for `CVE-2026-4046` at version `2.36-9+deb12u13` with no fixed version published in Trivy metadata as of 2026-04-02. This CVE must stay on a single canonical tracker and be triaged in a dedicated security lane rather than being absorbed into the billing activation/persistence closeout.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/579`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/580`
+    - `https://security-tracker.debian.org/tracker/CVE-2026-4046`
+    - `trivy/ignore-policy.rego`
+    - `.github/workflows/build.yml`
+  - DoD:
+    - Triage outcome is documented with evidence for both alerts in the dedicated security PR
+    - Separate security lane decides between narrow suppression and upstream/base-image remediation
+    - Billing activation/persistence closeout remains explicitly out of scope for this CVE
+    - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
+
+<a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
+- [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-STALE-DEPENDABOT-RECONCILIATION
+  - Area: security / dependencies / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: As of 8 April 2026, GitHub Dependabot on `main` still reports open alerts `#100`, `#99`-`#95`, `#94`, and `#93`-`#92` for `addressable`, `hono`, `@hono/node-server`, and `vite`, while the repo manifests already show newer dependency states (`ios/Gemfile.lock` -> `addressable 2.9.0`, `package-lock.json` -> `hono 4.12.12` and `@hono/node-server 1.19.13`, `frontend/package-lock.json` -> `vite 6.4.2`). These alerts appear stale relative to current manifests, but require per-alert reconciliation against the GitHub advisory boundary and scanner refresh state. That work must stay in a dedicated follow-up instead of expanding the narrow root npm remediation PR for `smol-toml` / `yaml`.
+  - Links:
+    - `ios/Gemfile.lock`
+    - `package-lock.json`
+    - `frontend/package-lock.json`
+    - `docs/review/PR_1372_FIXED_MAPPING.md`
+  - Child items (one alert bundle per package/advisory family):
+    - `ledger-p1-dependabot-alert-105-axios`
+    - `ledger-p1-dependabot-alert-106-axios`
+    - `ledger-p1-dependabot-alert-100-addressable`
+    - `ledger-p1-dependabot-alert-99-95-hono`
+    - `ledger-p1-dependabot-alert-94-hono-node-server`
+    - `ledger-p1-dependabot-alert-93-92-vite`
+  - DoD:
+    - Confirm whether GitHub auto-closes the alerts after the next scanner refresh on `main`
+    - If alerts remain open, document per-alert evidence that `main` already carries the patched version or open a dedicated triage PR with that evidence
+    - Resolve the stale-alert state without reopening unrelated dependency drift in the narrow remediation PR
+
+<a id="ledger-p1-dependabot-alert-105-axios"></a>
+- [ ] P1: Reconcile Dependabot alert `#105` (`axios`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-AXIOS-105-106-RECONCILIATION
+  - Area: security / node / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: Clean-main verification for PR `#1394` showed that root
+    `package.json` still declares `@goplus/agentguard ^1.0.12` and root
+    `package-lock.json` still contains both
+    `node_modules/@goplus/agentguard 1.0.12` and `node_modules/axios 1.13.6`.
+    That means alert `#105` is not yet proven stale relative to current repo
+    truth. This bundled lane first formalizes coordinator ownership, adds the
+    repo-owned root npm dependency submission workflow, and records corrected
+    evidence so the follow-up remediation PR can remove or replace the live
+    carrier path with minimum scope. Alert `#105` is handled together with alert
+    `#106` in one bundled reconciliation lane.
+  - Links:
+    - `package.json`
+    - `package-lock.json`
+    - `docs/orchestration/DEPENDABOT_ALERTS_105_106_RECONCILIATION_TASK_PACKET_2026-04-11.md`
+    - `docs/security/CVE-2025-62718-axios.md`
+    - `docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/105`
+  - DoD:
+    - Re-check live alert state, SBOM state, and current-head `main` workflow completion after the latest merge
+    - Prove whether a follow-up runtime remediation removes the live root
+      `@goplus/agentguard -> axios` carrier on current `main`
+    - Use the repo-owned npm dependency submission lane as the post-remediation
+      graph-refresh proof loop
+
+<a id="ledger-p1-dependabot-alert-106-axios"></a>
+- [ ] P1: Reconcile Dependabot alert `#106` (`axios`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-AXIOS-105-106-RECONCILIATION
+  - Area: security / node / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: On clean `origin/main`, root `package.json` and root
+    `package-lock.json` still show the live `@goplus/agentguard -> axios`
+    runtime path (`@goplus/agentguard 1.0.12`, `axios 1.13.6`), so alert `#106`
+    is not yet proven stale relative to current repo truth. This alert is
+    bundled with alert `#105` into one coordinator-owned lane that lands the
+    repo-owned npm dependency submission workflow and corrected evidence first,
+    then hands off to a minimum follow-up remediation PR.
+  - Links:
+    - `package.json`
+    - `package-lock.json`
+    - `docs/orchestration/DEPENDABOT_ALERTS_105_106_RECONCILIATION_TASK_PACKET_2026-04-11.md`
+    - `docs/security/CVE-2026-40175-axios.md`
+    - `docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/106`
+  - DoD:
+    - Re-check live alert state, SBOM state, and current-head `main` workflow completion after the latest merge
+    - Prove whether a follow-up runtime remediation removes the live root
+      `@goplus/agentguard -> axios` carrier on current `main`
+    - Use the repo-owned npm dependency submission lane as the post-remediation
+      graph-refresh proof loop
+
+<a id="ledger-p1-dependabot-alert-100-addressable"></a>
+- [ ] P1: Reconcile Dependabot alert `#100` (`addressable`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-100-ADDRESSABLE
+  - Area: security / ruby / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports alert `#100` for `addressable` against `ios/Gemfile.lock`, while the lockfile already carries `addressable 2.9.0`. Confirm whether the advisory boundary still applies or whether this is scanner lag requiring refresh evidence.
+  - Links:
+    - `ios/Gemfile.lock`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/100`
+  - DoD:
+    - Capture the patched version/advisory boundary for alert `#100`
+    - Confirm whether `ios/Gemfile.lock` already satisfies the patched floor or open a dedicated remediation PR
+    - Close the alert on `main` or record scanner-refresh evidence showing why closure is pending
+
+<a id="ledger-p1-dependabot-alert-99-95-hono"></a>
+- [ ] P1: Reconcile Dependabot alerts `#99`-`#95` (`hono`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-99-95-HONO
+  - Area: security / node / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports five open `hono` alerts against `package-lock.json`, while the lockfile already shows `hono 4.12.12`. Reconcile each advisory against the current lockfile and determine whether a scanner refresh or a dedicated CVE-scoped follow-up PR is required.
+  - Links:
+    - `package-lock.json`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/99`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/98`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/97`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/96`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/95`
+  - DoD:
+    - Record per-alert advisory boundaries for `#99`-`#95`
+    - Prove whether `package-lock.json` already carries patched `hono` versions for each alert
+    - Close the alerts via scanner refresh or open dedicated CVE-scoped PRs where lockfile remediation is still required
+
+<a id="ledger-p1-dependabot-alert-94-hono-node-server"></a>
+- [ ] P1: Reconcile Dependabot alert `#94` (`@hono/node-server`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-94-HONO-NODE-SERVER
+  - Area: security / node / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports alert `#94` for `@hono/node-server` against `package-lock.json`, while the lockfile already shows `@hono/node-server 1.19.13`. Confirm whether the advisory is stale or whether additional remediation remains.
+  - Links:
+    - `package-lock.json`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/94`
+  - DoD:
+    - Capture the patched version/advisory boundary for alert `#94`
+    - Confirm whether `package-lock.json` already satisfies the patched floor or open a dedicated remediation PR
+    - Close the alert on `main` or record scanner-refresh evidence showing why closure is pending
+
+<a id="ledger-p1-dependabot-alert-93-92-vite"></a>
+- [ ] P1: Reconcile Dependabot alerts `#93`-`#92` (`vite`) on `main`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDABOT-93-92-VITE
+  - Area: security / frontend / scanner-state
+  - Finding Type: stale alert reconciliation
+  - Reason: GitHub still reports two open `vite` alerts against `frontend/package-lock.json`, while the lockfile already shows `vite 6.4.2`. Reconcile each advisory against the current frontend lockfile and determine whether a scanner refresh or a dedicated frontend remediation PR is required.
+  - Links:
+    - `frontend/package-lock.json`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/93`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/92`
+  - DoD:
+    - Record per-alert advisory boundaries for `#93` and `#92`
+    - Prove whether `frontend/package-lock.json` already carries patched `vite` versions for both alerts
+    - Close the alerts via scanner refresh or open dedicated CVE-scoped PRs where frontend remediation is still required
+
+<a id="ledger-p1-ai-reliability-experiment-sublane"></a>
+- [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-AI-RELIABILITY-EXPERIMENT-SUBLANE
+  - Area: orchestration / experimentation / AI reliability
+  - Finding Type: applied-eval lane gap
+  - Reason: PulsePlate already has the governed experimentation umbrella and philosophical runtime foundation, but it still lacks one canonical offline replay + ablation packet dedicated to proving whether `logic` and `philosophy` layers actually improve answer correctness/readiness before any runtime rollout.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md`
+    - `core/insight/philosophical_runtime.py`
+    - `core/insight/analytical/__init__.py`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/logic_philosophy_replay_contract.py`
+    - `scripts/orchestration/logic_philosophy_replay_eval.py`
+    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json`
+    - `tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json`
+    - `tests/test_logic_philosophy_replay_eval.py`
+  - DoD:
+    - Canonical experiment packet supports `A0 control`, `A1 logic`, `A2 philosophy`, and `A3 combined`
+    - Immutable offline oracle corpus and readiness proxy fixtures are declared before execution
+    - Primary metrics include correctness, unsupported-claim rate, contradiction rate, and first-pass readiness proxy
+    - No phase of the sublane permits live runtime mutation, autonomous merge, or provider/network spend in wave 1
+    - Result packet can only promote to `pr_packet` after a passing offline replay artifact exists
+
+---
+
+
+### P2
+
+<a id="ledger-p2-dependency-fallback-artifact-dedup"></a>
+- [ ] P2: Deduplicate dependency fallback version references across packet / ledger / tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (dependency-governance follow-up)
+  - Target PR: `PR-TBD-DEPENDENCY-FALLBACK-DEDUP`
+  - Status: Planned
+  - Area: docs / CI / dependency governance
+  - Reason (EN): Narrow dependency remediation lanes currently repeat the same fallback package/version tuples across `scripts/ci/emergency_python_wheels.json`, backlog evidence, orchestration packets, and narrow tests. That duplication increases drift risk and makes line-range evidence brittle as the manifest evolves. A follow-up lane should introduce a more stable single-source-of-truth pattern or generator and replace line-range references with package/key-based evidence anchors. (RU: узкие dependency remediation lane сейчас дублируют одни и те же fallback package/version tuple в `scripts/ci/emergency_python_wheels.json`, ledger evidence, orchestration packet и узких тестах. Такое дублирование повышает риск дрейфа и делает line-range evidence хрупким при эволюции manifest. Нужен отдельный follow-up lane с более устойчивым single-source-of-truth/generator pattern и package/key-based ссылками вместо диапазонов строк.)
+  - Links:
+    - `scripts/ci/emergency_python_wheels.json`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync`
+    - `docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md`
+    - `tests/test_install_locked_python_requirements.py`
+  - DoD:
+    - A canonical source exists for dependency fallback package/version tuples used by narrow remediation artifacts
+    - Ledger/package evidence points to package keys or stable anchors rather than fragile line ranges
+    - Narrow dependency remediation packets/tests consume the canonical source without manual tuple drift
+
+<a id="ledger-p2-dagger-pilot-after-docker-baseline"></a>
+- [ ] P2: Re-evaluate Dagger pilot only after Docker baseline stabilizes
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DAGGER-PILOT
+  - Area: CI orchestration / build platform / deferred evaluation
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
+  - Links:
+    - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
+    - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+  - DoD:
+    - Image-budget telemetry baseline exists and is referenced in the proposal
+    - Install-profile split and deploy-contract reconciliation are merged
+    - Provenance defer state is re-reviewed before any pilot recommendation
+    - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
+
+<a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
+- [ ] P2: Cloudflare narrow reopen automation after Access-based private recovery
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (edge ops / recovery ergonomics)
+  - Target PR: PR-TBD-CLOUDFLARE-NARROW-REOPEN-AUTOMATION
+  - Status: 📋 Deferred from PR `#1385`
+  - Area: edge / Cloudflare / deploy
+  - Reason (EN): PR `#1385` now supports a private-first recovery flow and successfully provisions full-host Cloudflare Access for `pulseplate.app`, but the current Cloudflare token scope cannot manage zone firewall/settings/ruleset endpoints (`9109 Unauthorized`). The documented narrow temporary public bypass for shell/discovery GET paths therefore remains a dashboard/manual ops step until zone-scope automation permissions are expanded.
+  - Links:
+    - `docs/deploy/CLOUDFLARE.md`
+    - `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md`
+    - `deploy/PRODUCTION.md`
+    - `deploy/WORKFLOW.md`
+    - `docs/review/PR_1385_FIXED_MAPPING.md`
+  - DoD:
+    - Expanded Cloudflare token scope (or approved alternative auth path) can read/write the zone firewall/ruleset surfaces needed for temporary reopen controls
+    - Automation applies the documented narrow allowlist only to shell/discovery GET paths without weakening `/api*`, `/admin*`, `/ws*`, `/openapi.json`, `/health`, `/docs*`, `/redoc*`, or `/debug_env`
+    - Rollback path restores full-host Access or removes the temporary bypass deterministically
+    - Operational runbook includes exact verification steps before and after public reopen
+
+<a id="ledger-p2-legacy-app-direct-root-get-policy"></a>
+- [ ] P2: Policy for `GET /` on FastAPI when clients bypass Caddy (direct `app:8000` / uvicorn)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (deploy ergonomics / operator clarity)
+  - Target PR: #1229
+  - Area: backend / deploy / legacy surface
+  - Reason (EN): With SPA served at apex via Caddy, operators or health tools may still hit uvicorn directly. `legacy_app.py` behavior for `GET /` should be explicit: redirect to public origin, `404`, JSON probe, or documented “Caddy-only” with no code change — pick one and test if behavior changes.
+  - Note (EN): Keep **open** until PR #1229 is merged; close via **docs-only** follow-up that sets `[x]` with merge evidence (ledger closure rule — do not pre-close in the implementation PR).
+  - Links:
+    - `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md`
+    - `deploy/Caddyfile.production`
+    - `app/main.py` (canonical bootstrap registers direct-root probe + legacy HTML route)
+  - DoD:
+    - Documented policy in contract or runbook with `file:line` evidence
+    - If code changes: deterministic tests for chosen status/body
+    - No accidental regression for Caddy-served SPA or canonical API paths
+
+<a id="ledger-p2-movement-performance-coaching-wave"></a>
+- [ ] P2: Movement/performance coaching expansion lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (future product expansion / non-core coaching scope)
+  - Target PR: PR-TBD-MOVEMENT-PERFORMANCE-COACHING-WAVE
+  - Status: 📋 Planned
+  - Reason (EN): The CBT Coaching Wave intentionally starts with cognition-first product surfaces. Movement, performance, and training-adjacent coaching should stay deferred until the structured reflection lanes are stable, so the next expansion can be packaged as a bounded product slice instead of widening the initial coaching umbrella too early.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
+    - `docs/contracts/FITCHEF_STRUCTURED_COACH_CONTRACT.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+  - DoD:
+    - One bounded movement/performance concept exists with explicit tier, route family, and safety framing
+    - The expansion does not modify the live `/api/v1/insight/fitchef*` canon
+    - Measurement plan defines activation, retention, and safety-review metrics before runtime work starts
+    - Follow-up implementation remains separate from the cognition-first CBT coaching rollout
+
+<a id="ledger-p2-personal-experiment-dashboard"></a>
+- [ ] P2: Personal experiment dashboard lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (analytics UX / founder tooling)
+  - Target PR: PR-TBD-PERSONAL-EXPERIMENT-DASHBOARD
+  - Status: 📋 Planned
+  - Reason (EN): The repo already has experiment governance and metrics catalogs, but a user-facing dashboard would create a separate product and analytics UX lane. It should remain deferred until the first coaching reports and structured runtime surfaces establish which metrics, experiments, and decision rules are stable enough to expose to users.
+  - Links:
+    - `docs/insights/CBT_COACHING_PRODUCT_WAVE.md`
+    - `docs/library/promotion/2026-03-21_cbt_coaching_wave_promotion-log.md`
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/DASHBOARD_BASELINE_REQUIREMENTS.md`
+  - DoD:
+    - Dashboard scope is limited to canonical experiment and metric objects already defined in repo contracts
+    - User-facing dashboard copy avoids diagnostic or therapist framing
+    - Every exposed chart/card has owner, metric definition, and decision rule
+    - Follow-up PR keeps dashboard UX separate from structured coach runtime changes
+
+<a id="ledger-p2-gha-node24-cache-warning-cleanup"></a>
+- [ ] P2: GitHub Actions Node 24 migration and cache-warning cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (CI hygiene / advisory reliability)
+  - Target PR: #1206 (`fix(ci): migrate gha actions to node24`), follow-up carryover after #1209 (`fix(ci): align frontend openapi sync with node 22`)
+  - Status: 📋 Planned / carryover active
+  - Area: ci / github-actions / cache
+  - Finding Type: advisory workflow debt
+  - Reason (EN): The #1204 merge cycle completed successfully, but workflows still required follow-up cleanup around Node-runtime drift and transient GHA cache warnings (`Cache service responded with 400`, `CreateCacheEntry ... 409 Conflict`, cache save/restore service noise). PR #1209 intentionally delivers the narrower Node 22 frontend/OpenAPI-sync stopgap so current-head CI stays stable while the broader Node 24/cache hygiene lane remains open until all representative workflows are re-audited.
+  - Links:
+    - [`.github/workflows/build.yml`](../../.github/workflows/build.yml)
+    - [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)
+    - Historical PR-lane duplicates removed in PR2: `pr-tests.yml`, `pr-coverage.yml`
+    - [`.github/workflows/cd.yml`](../../.github/workflows/cd.yml)
+    - [`docs/review/PR_1204_FIXED_MAPPING.md`](../review/PR_1204_FIXED_MAPPING.md)
+    - [`docs/review/PR_1209_FIXED_MAPPING.md`](../review/PR_1209_FIXED_MAPPING.md)
+  - DoD:
+    - Representative CI workflows use Node 24-compatible action SHAs where upgrades are available
+    - Cache usage in `build.yml`, `ci.yml`, and related PR workflows is re-audited for avoidable restore/save warnings
+    - A fresh representative PR run completes without Node 20 deprecation warnings
+    - Remaining cache warnings, if any, are explicitly documented as accepted transient backend noise rather than unexplained CI debt
+
+<a id="ledger-p2-ios-agents-only-testing-centralize"></a>
+- [ ] P2: Centralize ios/AGENTS.md -only-testing list (Sourcery follow-up)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (maintainability)
+  - Target PR: TBD (after PR #1179 merge)
+  - Status: 📋 Deferred
+  - Reason (EN): Sourcery review on PR #1179 suggested centralizing the repeated -only-testing xcodebuild list in ios/AGENTS.md (shared script, variable, or single referenced snippet) so future test-set changes don't require multiple manual updates. Scope expansion deferred until PR #1179 is merge-ready.
+  - Links:
+    - ios/AGENTS.md
+    - docs/pr/PR-6_HANDOFF.md
+  - DoD:
+    - Single source for -only-testing test list (script, Makefile var, or referenced snippet)
+    - All ios/AGENTS.md xcodebuild examples reference it
+    - No scope creep into PR #1179
+
+<a id="ledger-p2-fitchef-icon-source-cleanup"></a>
+- [ ] P2: FitChef icon source cleanup after PR-2 selective promotion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (asset hygiene / App Store readiness)
+  - Target PR: PR #1154
+  - Status: 🟡 In progress (active PR `#1154`)
+  - Reason (EN): PR-2 intentionally normalizes the icon catalog and keeps only canonical referenced AppIcon files, but non-canonical local source files with spaces or duplicate generator naming are not promoted automatically. The remaining icon-source cleanup must stay explicit for the App Store production lane.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_ASSET_TAXONOMY.md`
+    - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`
+    - `docs/contracts/FITCHEF_APP_STORE_PRODUCTION_PACK_EN.md`
+    - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
+  - DoD:
+    - App Icon source files used for the App Store production pack are canonical, reviewed, and filename-stable
+    - No FitChef icon source filenames include spaces or duplicate naming families
+    - PR-3 uses only the approved icon source set when preparing the production App Store pack
+
+<a id="ledger-p2-web-research-retrieval-lane"></a>
+- [ ] P2: Bounded research retrieval lane for `web-research-agent`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-WEB-RESEARCH-RETRIEVAL-LANE
+  - Area: orchestration / research / evidence intake
+  - Finding Type: retrieval governance gap
+  - Reason: `web-research-agent` is now part of coordinator workflows, but the project still needs one canonical bounded retrieval contract that keeps web intake evidence-driven, non-scraping-heavy, and subordinate to the research/experimentation governance already in place.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `tools/codex_skills/pulseplate-ai-reports/SKILL.md`
+  - DoD:
+    - Research retrieval contract defines allowed source classes, evidence logging, and anti-broad-scraping constraints
+    - Coordinator/task packets can point `web-research-agent` to the bounded lane without inventing ad-hoc retrieval instructions
+    - Docs distinguish internal docs maintenance (`docs`) from external evidence intake (`research`)
+
+<a id="ledger-p2-test-hygiene-finalization"></a>
+- [ ] P2: Final guard-scope expansion and residual cache/reload cleanup for the test hygiene wave
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-TEST-HYGIENE-FINALIZATION
+  - Status: 📋 Planned
+  - Area: tests / policy guards / residual cleanup
+  - Finding Type: finalization follow-up
+  - Reason (EN): after the risk-first, client-lifecycle, and env-isolation waves land, the remaining work is to re-audit cache/reload exceptions and widen guards only where the target scope is fully clean.
+  - Links:
+    - `docs/audit/TEST_SUITE_REVIEW_2026-03-13.md`
+    - `tests/test_repo_policy_sys_modules.py`
+    - `tests/test_repo_policy_guards.py`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-test-hygiene-wave`
+  - DoD:
+    - Remaining cache/reload/session-fixture exceptions are re-audited with current evidence
+    - Guard scope widens only after zero offenders in the target scope
+    - Umbrella test-hygiene entry closes only after the final cleanup PR passes `make verify`
+
+<a id="ledger-p2-pr1-50-sharefile-hardening"></a>
+- [ ] P2: PR 1-50 follow-up for shareFile browser hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-SHAREFILE-HARDENING
+  - Area: frontend / export UX
+  - Finding Type: deferred browser fallback hardening
+  - Reason: `frontend/src/lib/shareFile.ts` still needs explicit `anchor.click()` fallback hardening and a targeted dead-code review, but that cleanup is intentionally deferred out of Wave 1 to keep the remediation PR focused on unresolved P0/P1 findings.
+  - Links:
+    - `frontend/src/lib/shareFile.ts`
+    - `frontend/src/lib/shareFile.test.ts`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - `anchor.click()` fallback behavior is hardened or explicitly justified with tests
+    - Dead-code review for non-browser fallback paths is completed
+    - Any behavior changes are covered by focused frontend tests
+
+<a id="ledger-p2-pr1-50-glasscard-cleanup"></a>
+- [ ] P2: PR 1-50 follow-up for GlassCard redundant guard cleanup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-GLASSCARD-CLEANUP
+  - Area: frontend / component hygiene
+  - Finding Type: deferred type-driven cleanup
+  - Reason: `frontend/src/components/GlassCard.tsx` still contains redundant typed-union undefined checks that are low-risk cleanup only and therefore intentionally excluded from Wave 1 remediation scope.
+  - Links:
+    - `frontend/src/components/GlassCard.tsx`
+    - `frontend/src/components/__tests__/GlassCard.test.tsx`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - Redundant undefined checks are removed or justified against a concrete runtime contract
+    - Component tests stay green after cleanup
+    - No visual or accessibility regressions are introduced
+
+<a id="ledger-p2-pr1-50-ollama-diagnostic-deps"></a>
+- [ ] P2: PR 1-50 follow-up for ollama_diagnostic dependency handling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-OLLAMA-DIAGNOSTIC-DEPS
+  - Area: scripts / diagnostics
+  - Finding Type: deferred script portability
+  - Reason: `ollama_diagnostic.sh` still assumes `jq` and `free` are present. The script needs explicit dependency handling or documentation, but this is intentionally deferred because it does not block Wave 1 P0/P1 remediation.
+  - Links:
+    - `ollama_diagnostic.sh`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - Script checks for required external tools or documents prerequisites clearly
+    - Failure mode is deterministic when dependencies are missing
+    - Any documentation updates stay aligned with actual script behavior
+
+<a id="ledger-p2-pr1-50-ollama-monitor-deps"></a>
+- [ ] P2: PR 1-50 follow-up for ollama_monitor dependency handling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-PR1-50-OLLAMA-MONITOR-DEPS
+  - Area: scripts / diagnostics
+  - Finding Type: deferred script portability
+  - Reason: `ollama_monitor.sh` still assumes `bc` is available. This portability/documentation cleanup remains deferred so Wave 1 stays limited to unresolved P0/P1 findings.
+  - Links:
+    - `ollama_monitor.sh`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pr1-50-remediation-wave1`
+  - DoD:
+    - Script checks for `bc` or documents the dependency explicitly
+    - Missing-dependency behavior is deterministic and user-readable
+    - Follow-up changes preserve current monitoring semantics
+
+<a id="ledger-p2-openai-docs-freshness-pilot"></a>
+- [x] P2: Govern the OpenAI external docs freshness pilot lifecycle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1100 -> PR #1108
+  - Status: ✅ Closed after merged PR #1100; recorded in PR #1108 (`keep narrow`; review-cycle close-out only)
+  - Area: docs / orchestration / dev-agent tooling
+  - Finding Type: pilot lifecycle governance
+  - Reason: PR #1100 introduces an optional external-docs lane for OpenAI-first
+    dev-agent work. The pilot must have explicit graduation and rollback gates
+    so it does not drift into hidden repo policy or CI/runtime scope.
+  - Links:
+    - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md`
+    - `docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md`
+    - `docs/runbooks/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT.md`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/review/PR_1100_FIXED_MAPPING.md`
+    - `docs/review/PR_1108_FIXED_MAPPING.md`
+  - Blockers:
+    - Need one full review cycle of real OpenAI-first usage evidence
+    - Need confirmation that external-docs guidance stays accurate without CI
+      coupling
+  - DoD:
+    - A follow-up decision records keep, adjust, or stop for the pilot after one
+      review cycle
+    - At least one durable workflow insight is either promoted through KPP or
+      explicitly marked as non-canonical
+    - The runbook stays aligned with the chosen auth model for Context7 and the
+      preferred invocation model for Context Hub
+    - No CI/runtime/production integration is introduced under this ledger item
+
+<a id="ledger-p2-dsar-transaction-neutral-helper"></a>
+- [ ] P2: Make internal DSAR delete helper transaction-neutral
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DSAR-TRANSACTION-NEUTRAL-HELPER
+  - Area: backend / privacy
+  - Finding Type: transaction-boundary hardening
+  - Reason: `delete_direct_user_artifacts()` currently owns `commit()` / `rollback()` while accepting a caller-provided SQLAlchemy `Session`. That is acceptable for the current support-led standalone helper contract, but a future support/admin workflow may batch DSAR artifact deletion with other writes on the same session. The helper should eventually declare or narrow its transaction ownership explicitly instead of implicitly committing caller-owned work.
+  - Links:
+    - `core/compliance/dsar_service.py`
+    - `tests/test_compliance_control_plane.py`
+    - `docs/compliance/DSAR_AND_DELETION_MAP.md`
+  - DoD:
+    - The DSAR helper either becomes transaction-neutral or moves to an explicit session/transaction ownership contract
+    - Tests cover caller-owned session behavior for batched writes and rollback semantics
+    - Support-led DSAR docs stay aligned with the final ownership contract
+
+- [ ] P2 Optional: Evaluate Lenny's Podcast Transcripts for insights, marketing, and Bayesian context
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; after P0/P1 hardening and insight/coach work stable)
+  - Target PR: TBD (evaluation first: curated doc vs RAG subset vs MCP)
+  - Status: 📋 Planned
+  - Reason (EN): Lenny's Podcast Transcripts (269 episodes, 50+ topics) provide product/growth/PMF/leadership advice from world-class PM and growth experts. Fit: enrich insights docs, marketing-strategist playbooks, Bayesian business analyzer prior/context, FitChef RAG, and nutrition coaching design. Options: (1) curated references doc, (2) RAG subset with citation, (3) MCP or internal API. License: personal/educational; internal use with attribution is low risk. (RU: Транскрипты Lenny's Podcast — продукт/рост/PMF/лидерство; можно использовать для инсайтов, маркетинга, байесовского контекста и FitChef/коучинг.)
+  - Links:
+    - docs/audit/LENNYS_PODCAST_INTEGRATION_AUDIT.md (mapping to insights, Bayesian, marketing, FitChef; integration options)
+    - <https://github.com/ChatPRD/lennys-podcast-transcripts>
+    - core/insight/analysis_insights.md
+    - core/insight/creative_scientific_innovations.md
+    - .cursor/agents/marketing-strategist.md
+  - DoD:
+    - Decision documented: adopt one option (curated doc / RAG subset / MCP) or defer / won't do
+    - If adopt: implementation steps and attribution policy documented; no scope creep into P0/P1
+
+
+- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
+  - Target PR: N/A (decision + optional draft)
+  - Status: 📋 Planned
+  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
+  - DoD:
+    - Decision documented: pursue / defer / won't do for publication track
+    - If pursue: venue + outline for one paper; no mandatory timeline
+
+
+- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
+  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
+  - Status: 📋 Planned
+  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
+    - core/insight/creative_scientific_innovations.md (FitChef personalization)
+  - DoD:
+    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
+    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
+    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
+
+
+- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (when VIP weekly plan performance is in scope)
+  - Target PR: TBD (implementation after design)
+  - Status: 📋 Planned
+  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
+    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
+    - app/routers/vip.py (current weekly plan flow)
+  - DoD:
+    - Design: recursive week planning and/or lazy day generation documented
+    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
+    - No regression on constraint satisfaction or nutrition targets
+
+
+- [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR TBD
+  - Status: Planned
+  - Reason (EN): The monthly quota model is tier-scoped, but the persisted table name remains VIP-specific for backward compatibility and needs a dedicated migration.
+  - Links:
+    - `app/models/llm_quota_usage.py`
+    - `app/security/llm_monthly_quota.py`
+    - `docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md`
+  - DoD:
+    - Add DB migration from `vip_llm_monthly_usage` to a tier-neutral table name
+    - Keep backward-compatible rollout/rollback notes linked from audit/docs evidence
+    - Update ORM/model references and deterministic quota tests
+
+
+<a id="ledger-p2-unified-aicoach"></a>
+- [ ] P2: Unified Framework implementation (UnifiedAICoach: Philosophy + Math + CBT integration)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (integration of all components after individual implementations)
+  - Target PR: PR-TBD-UNIFIED-AICOACH-PHASE5
+  - Status: 📋 Planned (integration wave)
+  - Dependencies:
+    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
+    - [P1 Recursive methods](#ledger-p1-recursive-methods)
+    - [P1 Frontend parity for AI reliability](#ledger-p1-frontend-ai-parity)
+    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
+  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Hypothesized impact (pending benchmark validation): multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Гипотеза (с обязательной валидацией бенчмарками): мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (production-ready architecture blueprint, implementation details, risk mitigations)
+    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (philosophical validation components)
+    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (recursive methods components)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (CBT coaching flows)
+  - Prerequisites:
+    - ✅ Phase 1: Philosophical validation implemented (P1 backlog item)
+    - ✅ Phase 2: Speed optimization implemented (LinguisticOptimizer, caching)
+    - ✅ Phase 3: Recursive methods implemented (P1 backlog item)
+    - ✅ Phase 4: CBT coaching implemented (P2 backlog item)
+    - ⏳ All individual components tested and stable
+  - DoD:
+    - Phase 5: UnifiedAICoach class implemented (orchestrates all components)
+    - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
+    - Production-ready features: rate-limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
+    - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
+    - Hypothesis target (requires benchmark validation): latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
+    - Hypothesis target (requires benchmark validation): ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
+    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
+    - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
+    - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
+
+
+- [ ] P2: Vector retrieval for RAG (pgvector + sentence-transformers)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG)
+  - Target PR: PR-next-6 (runtime)
+  - Status: Planned
+  - Reason (EN): Replace Jaccard-only retrieval with semantic search; pgvector already in W4 food search. Improves retrieval quality 40–60% per audit.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.1, 5.1)
+    - `core/rag/simple_rag.py`, W4 semantic search implementation
+  - DoD:
+    - Feature-flagged vector retrieval; fallback to current Jaccard path
+    - Latency and recall documented; `make verify` passes
+
+
+- [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-W3-RAG-SAFETY
+  - Status: Planned (Wave 3 / day 91-180)
+  - Area: AI platform / security / reliability
+  - Finding Type: modernization / risk reduction
+  - Locations:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+  - Reason: scale AI capability with explicit safety gates and degraded-mode confidence before broad autonomy.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+  - DoD:
+    - RAG v2 capability scope and citation/eval expectations documented
+    - Safety regression gate classes documented (jailbreak/policy bypass)
+    - Reliability game day scenarios and ownership defined
+
+
+<a id="ledger-p2-android-keystore-conformance"></a>
+- [ ] P2: Android Keystore secret storage conformance (deferred track)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (deferred until Android monetization activation)
+  - Target PR: PR-TBD-ANDROID-KEYSTORE-CONFORMANCE
+  - Status: ⏸️ Deferred
+  - Reason (EN): Master checklist item #6 remains deferred because current monetization baseline is iOS-first + RU/BY manual rails; Android billing/runtime is not in active delivery scope yet.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-mobile-secret-conformance
+    - docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios
+  - DoD:
+    - Resume trigger is explicit: Android billing tasks (`#9/#23/#24/#32`) move from `Deferred` to `Now/Next`
+    - Android app storage layer documents and enforces Keystore-only secret handling
+    - Guard tests prevent insecure storage fallback on Android
+
+
+- [ ] Backend TODO cleanup (i18n, telemetry)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: backend
+  - Finding Type: TODO/FIXME
+  - Locations:
+    - `core/business_bayesian_analyzer.py:145,1067` — TODO: telemetry/metrics
+    - `legacy_app.py:1985` — TODO: Read version from pyproject.toml
+    - `app/routers/premium_week.py:97,127` — TODO: i18n support
+    - `app/routers/pro.py:152,182,529,537` — TODO: i18n, dedup, meal logging
+  - Reason: Polish/improvement items, not blocking
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+  - DoD:
+    - TODOs addressed or converted to tracked issues
+    - No stale TODOs without tracking
+
+
+- [ ] Deprecated endpoint cleanup (post-migration)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (v2.0 timeline)
+  - Priority: P2
+  - Area: backend / API
+  - Finding Type: deprecated/alias
+  - Locations:
+    - `app/routers/bmi_pro.py:158` — deprecated POST /api/v1/pro/bmi
+    - `app/routers/bmi_pro_legacy_alias.py` — deprecated /api/v1/bmi/pro
+    - `app/routers/premium_week.py:179` — deprecated /api/v1/premium/plan/week-flexible
+    - `app/routers/vip.py:706` — deprecated legacy VIP endpoint
+  - Reason: Legacy aliases; remove after client migration complete
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/contracts/PRODUCT_TIER_MAP.md
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Migration status by domain)
+  - DoD:
+    - All clients migrated to canonical endpoints
+    - Deprecated endpoints removed
+    - OpenAPI updated (no deprecated paths)
+
+
+- [ ] P2: Product decision for removed/non-canonical optional fields in skip tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-749 (ui_labels contract), PR-733 (remaining fields)
+  - Status: 🟡 In progress (PR-749)
+  - Priority: P2
+  - Area: backend / product contract
+  - Finding Type: intentional-scope decision
+  - Locations:
+    - `tests/test_app_coverage_unit_combined.py:83`
+    - `tests/test_app_coverage_unit_combined.py:88`
+    - `tests/test_premium_targets_es_snapshots.py:453`
+  - Reason: `ui_labels` contract is being promoted to required in PR-749; `interpret_group` / `estimate_level` still need explicit product-contract decisions.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `app/schemas/premium_contracts.py:109`
+  - DoD:
+    - Product decision recorded for each field/function (restore canonical equivalent vs remove obsolete tests)
+    - No ambiguous intentional skips remain without decision record
+
+
+<a id="ledger-p2-rag-feedback-pii-minimization"></a>
+- [ ] P2: Reassess feedback and RAG preview minimization beyond regex redaction
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-RAG-FEEDBACK-PII-MINIMIZATION
+  - Area: backend / privacy / RAG
+  - Finding Type: privacy hardening follow-up
+  - Reason: Regex-based redaction exists, but feedback storage and RAG source previews still rely on best-effort masking. A focused review should decide whether previews/queries need stronger minimization or retention tightening.
+  - Links:
+    - `app/routers/feedback.py`
+    - `core/pii_redaction.py`
+    - `core/rag/simple_rag.py`
+    - `tests/test_feedback_api.py`
+    - `tests/test_cbt_insight_api.py`
+  - DoD:
+    - Sensitive feedback fields and RAG previews are classified by retention/need-to-store level
+    - Any fields not required for product analytics are minimized or removed
+    - Tests cover the chosen minimization/redaction contract
+    - Security posture doc reflects the final storage policy
+
+
+- [ ] Algorithmic brand textures (seeded): generate onboarding/ASO backgrounds with reproducible seeds
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: design / marketing assets
+  - Finding Type: tooling
+  - Reason: Branded generative textures can speed up “polished but minimal” visuals for onboarding, empty states,
+    and ASO packs, while staying reproducible via seeded parameters.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (how to add new specialist agents)
+  - DoD:
+    - A single seeded generator exists (deterministic for the same seed) with exportable PNG outputs
+    - Output palette matches brand tokens and supports light/dark variants
+    - Usage notes: never encode text in images; keep wellness-safe tone
+
+
+- [ ] Figma slice structure absent in current Make file
+  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
+  - Target PR: PR1/Follow-up
+  - Priority: P2
+  - Status: ▶️ In progress (Unblocked: Figma seat `Full`, 2026-02-17)
+  - Area: design / ios / frontend
+  - Finding Type: deferred execution
+  - Reason: PR_781 defines the blueprint and keeps docs scope; execution
+    continues as a follow-up work package in Figma file
+    `<FIGMA_MAKE_FILE_ID>`.
+  - Links:
+    - `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
+    - `https://www.figma.com/make/<FIGMA_MAKE_FILE_ID>/Untitled`
+  - DoD:
+    - Pages created: `00_Foundation_Tokens`, `01_Components`,
+      `10_iOS_Home`, `11_iOS_Plate`, `12_iOS_Progress`,
+      `20_Web_Parity`
+    - Component set created in `01_Components` per audit runbook
+    - Naming convention `PP/<Platform>/<Screen>/<Component>/<State>`
+      applied consistently
+    - Follow-up implementation PR merged with evidence
+      (screenshots/links) and this ledger item closed
+
+
+- [ ] Agent Context Cache (avoid re-loading AGENTS.md)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: productivity
+  - Reason: Coordinator repeatedly re-loads the same canonical context files (root/module `AGENTS.md`, runbook, orchestration docs).
+  - Links:
+    - docs/orchestration/AGENT_CONTEXT_MAP.md
+    - docs/orchestration/workflow.md
+  - DoD:
+    - Coordinator has an explicit caching strategy (doc or lightweight tool) for stable context inputs
+    - Cache invalidation rules documented (file change / branch change)
+
+
+- [ ] Orchestration Telemetry (metrics)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: observability
+  - Reason: We have no visibility into orchestration performance (agents used, iterations, sync points, end-to-end time).
+  - Links:
+    - docs/orchestration/PARALLEL_WORK_PROTOCOL.md
+    - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
+  - DoD:
+    - Minimal telemetry spec defined (what metrics, where recorded, retention)
+    - Metrics collection does not affect runtime product behavior
+
+
+- [ ] P2: Orchestration — agent clusters (scaling for 40+ agents)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (future)
+  - Priority: P2
+  - Area: dev-process / orchestration
+  - Finding Type: scalability
+  - Reason: 26 agents; coordinator routes to each. At scale (40+ agents) routing becomes unwieldy. Cluster-first routing (backend, frontend, ml, research, security) scales better.
+  - Links:
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Cluster definitions documented
+    - Routing logic updated or documented for future adoption
+
+
+- [ ] P2: Canary / disclaimer for published agent evals
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD (if we publish)
+  - Status: Planned
+  - Area: docs / compliance
+  - Finding Type: process
+  - Reason: If we ever publish agent prompts or evaluation snippets, add canary or disclaimer per EVMbench ("Internal evaluation artifact; do not use for training").
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - Policy or template added; apply only when publishing evals
+
+
+- [ ] Standardize audit verification blocks (require minimal stdout excerpt)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-637
+  - Status: 🟡 In progress (PR-637)
+  - Reason: Audit items labeled “Verified” must include minimal observed stdout evidence (1–3 lines) to remain reproducible and reviewable.
+  - Links:
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md (section F)
+    - AGENTS.md (Verification-audit rule)
+  - DoD:
+    - Add a short, canonical checklist line for audit PRs: include 1–3 raw stdout lines + exit code for each key verification command
+    - No scope creep into runbook-level detail
+
+
+- [ ] P2 Optional: Use curated repos (Frontend/UI, AI/LLM, RAG, Multimodal, MCP, ML/CV) as learning and reference
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; when implementing RAG upgrade, multimodal pipeline, or frontend components)
+  - Target PR: N/A (reference only; adopt patterns/libraries via normal PR)
+  - Status: 📋 Planned
+  - Reason (EN): Curated set (22 repos): Flexbox Froggy, shadcn/ui, 50projects50days, Awesome React/CSS; LLaVA, CLIP, Transformers, Awesome Multimodal ML, RAG from Scratch, Awesome LLM Apps, LLM Engineer Handbook; MCP Python SDK; Awesome ML/CV, ZenML; Qwen/Qwen-Finetuning; Spinning Up, Sutton&Barto RL; PyTorch, Awesome Generative AI. Map to our vision: RAG (RAG from Scratch, Awesome LLM Apps), multimodal/FitChef (LLaVA, CLIP, Transformers), frontend (shadcn, Awesome React), MCP (python-sdk), CV (Awesome CV, PyTorch). (RU: Закладки для RAG, multimodal, фронта, MCP, ML/CV; использовать при реализации фич.)
+  - Links:
+    - docs/insights/CURATED_REPOS_REFERENCE.md (full mapping to LLM_RAG, CV_ML, creative_scientific_innovations, RECURSIVE_METHODS, COMPREHENSIVE)
+    - core/insight/creative_scientific_innovations.md (Curated repos reference subsection)
+  - DoD:
+    - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
+    - No mandatory code dependency; adopt via normal PR/backlog
+
+
+- [ ] Web Guards: Extract config constants to shared module
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: frontend / guards
+  - Finding Type: improvement (Sourcery PR-592)
+  - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
+  - Reason: FORBIDDEN_PATTERNS/SCAN_DIRS/EXCLUDE_PATTERNS should be shared between guards and AGENTS.md to prevent policy drift
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/592> (source PR)
+    - Sourcery comment on PR-592
+  - DoD:
+    - Config extracted to shared module
+    - Guards import config
+    - AGENTS.md references canonical source
+
+
+- [ ] Web Guards: Improve inline block comment parsing
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: frontend / guards
+  - Finding Type: improvement (Sourcery PR-592)
+  - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
+  - Reason: Current `isLineInComment` may not handle inline `/* ... */` on same line correctly
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/592> (source PR)
+    - Sourcery comment on PR-592
+  - DoD:
+    - Stricter inline comment parsing
+    - Test cases for edge cases
+
+
+- [ ] P2: Stabilize nosec allowlist keys (path + token/hash, not line)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: guards / tech-debt
+  - Finding Type: robustness
+  - Reason: Line-based allowlist entries drift on any file edit; allowlist should key by path + code-fragment hash or token so refactors do not require allowlist updates.
+  - Links: `tests/guards/fixtures/nosec_policy_allowlist.txt`, `tests/guards/test_nosec_policy_guard.py`
+  - DoD: Allowlist format supports path + stable identifier (hash/snippet); guard matches by identifier; line number optional or derived.
+
+
+- [ ] P2: Subprocess guard — multiline and indirection-aware (AST-based) detection
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: guards / security policy
+  - Finding Type: optional improvement (Cubic suggestion)
+  - Reason: Current guard scans single-line subprocess calls; multiline invocations (e.g. `subprocess.run([\n  "gh", ...])`) and simple indirection (e.g. `cmd = [...]` then `subprocess.run(cmd)`) may escape detection. Extend to multiline or AST-based scan.
+  - Links:
+    - `tests/guards/test_subprocess_uses_absolute_binaries.py`
+    - `AGENTS.md` (subprocess absolute path policy)
+  - DoD:
+    - Guard detects banned binaries when call spans multiple lines, or document limitation
+    - Guard catches simple indirection (e.g. cmd = [...] then subprocess.run(cmd)); AST-based scan preferred
+    - Success criterion: no new failures on current main; no false negatives on existing codebase
+
+
+<a id="ledger-p2-detect-secrets-allowlist-followup-pr1406"></a>
+- [ ] P2: Detect-secrets allowlist follow-up after PR #1406 baseline rebuild
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: tooling / security hygiene / maintainability
+  - Finding Type: deferred follow-up (CodeRabbit PR #1406)
+  - Reason: PR #1406 is an emergency baseline-rebuild hotfix to unblock `lint` on `main`. Source-level allowlisting for intentional placeholders and test fixtures is valid follow-up work, but it would widen scope across multiple files and is not required to restore current detect-secrets parity.
+  - Links:
+    - `docs/review/PR_1406_FIXED_MAPPING.md`
+    - `.secrets.baseline`
+    - `.env.example`
+    - `frontend/public/mockServiceWorker.js`
+    - `tests/`
+  - DoD:
+    - Identify recurring intentional placeholders/test fixtures that can use the repo-approved allowlist marker or equivalent exclusion
+    - Regenerate `.secrets.baseline` after source tagging so intentional entries are removed where supported
+    - `pre-commit run detect-secrets --all-files` stays green
+    - Future baseline diffs for the same fixtures are materially smaller and easier to review
+
+
+- [ ] P2: Frontend and iOS explainer surfaces on current journey pages
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (rendering follow-up)
+  - Target PR: PR-TBD-EXPLAINER-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): After the backend contract exists, explainers should be rendered on existing BMI, PRO interpretation, progress, and weekly-plan surfaces. Delivery must remain thin-client on web and iOS. (RU: После contract phase explainers нужно отрисовать на текущих user journey surfaces без дублирования бизнес-логики на клиентах.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/`
+    - `ios/`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+  - DoD:
+    - Surface map is defined for web and iOS on current FREE / PRO / VIP pages
+    - Rendering remains presentation-only; business logic stays on backend
+    - Copy stays wellness-safe and aligned with the trust-based funnel
+
+
+- [ ] Auto-generate architecture diagrams (Mermaid baseline + optional Graphviz import graph)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (docs/tooling)
+  - Target PR: PR-630 (docs-only) or follow-up docs PR
+  - Status: ✅ Baseline Mermaid added; automation optional
+  - Reason: Architecture is enforced by guards, but reviewers/onboarding benefit from quick visuals. Automation reduces doc drift.
+  - Evidence:
+    - `docs/architecture/system_overview.md` (Mermaid system overview)
+    - `docs/architecture/backend_routing_map.md` (evidence-driven routing map)
+    - `docs/audit/PR_630_ARCHITECTURE_EVIDENCE_PACK_AUDIT.md` (evidence pack)
+  - Risk:
+    - Without maintenance/automation, diagrams drift and become misleading.
+  - Exit criteria:
+    - Diagram updates happen in the same PR as entrypoint/router/flag changes (enforced culturally or via light guard)
+  - DoD:
+    - Keep Mermaid as canonical diagram (single source of truth)
+    - Optional: add a script that emits a filtered import graph (`.dot`/`.svg`) for selected slices (app/core/providers) with stable filtering rules
+
+
+- [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (maintainability)
+  - Target PR: TBD (post PR-628/629)
+  - Status: 📋 Ready to start
+  - Reason: `app/__init__.py` sets `sys.modules.setdefault("app_module", legacy_app)` for backward compatibility. This is intentional but must be tightly bounded to avoid “magic layer” imports/patches.
+  - Evidence:
+    - `app/__init__.py:44-56` (sys.modules mapping)
+  - Risk:
+    - Hard-to-debug patch behavior, hidden aliasing, accidental reliance by new code/tests.
+  - Blocked-by:
+    - None (small focused PR), but recommended after PR-628/629 to keep scopes clean
+  - Exit criteria:
+    - Mapping is either removed OR explicitly documented + guarded (no new uses)
+  - DoD:
+    - Add a short evidence-driven doc note describing why the mapping exists and what may rely on it
+    - Add a small guard test preventing expansion (no overwrites / no new module injection patterns)
+    - Define removal plan (conditions under which it can be deleted)
+
+
+- [ ] P2 Optional: Evaluate NVIDIA PersonaPlex for voice persona layer (assistant / coach)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; depends on voice UX roadmap)
+  - Target PR: TBD (evaluation first, then integration if approved)
+  - Status: 📋 Planned
+  - Reason (EN): PersonaPlex (open-source, NVIDIA) provides full-duplex speech-to-speech, persona switching, and backchannel for a "live" conversational feel. Fit: personalize AI assistant and nutrition coach by style (e.g. strict teacher, friendly consultant); optional voice mode. Current stack is text-only; PersonaPlex would be additive (voice layer). Prerequisites: NVIDIA GPU or hosted API, NVIDIA Open Model License, WebSocket/streaming for real-time audio. (RU: PersonaPlex (NVIDIA, open-source) — full-duplex S2S, переключение персон, поддакивания; можно использовать для персонализированного ассистента и коуча. Сейчас у нас только текст; голос — опционально.)
+  - Links:
+    - docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md (integration options, prerequisites, risks)
+    - <https://huggingface.co/nvidia/personaplex-7b-v1>
+    - <https://github.com/NVIDIA/personaplex>
+    - docs/design/NUTRITION_COACHING_DESIGN.md (coach flows)
+    - core/insight/creative_scientific_innovations.md (FitChef)
+  - Prerequisites:
+    - Voice UX / real-time audio on product roadmap (or explicit decision to prototype)
+    - Inference option: GPU (A100/H100) or hosted API; license accepted
+  - DoD:
+    - Decision documented: adopt / defer / won't do for PersonaPlex voice layer
+    - If adopt: persona prompts aligned with FitChef/coach; voice API (e.g. WebSocket) and security/privacy documented
+
+
+- [ ] P1: Fix invalid Dependabot assignee configuration warning
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (repo governance / automation hygiene)
+  - Target PR: TBD (separate config-only PR after the `#1471 -> #1474` Dependabot train)
+  - Status: 📋 Planned
+  - Reason (EN): `.github/dependabot.yml` still declares assignee `katsiarynakavaleuskaya`, and Dependabot PRs such as `#1471` emit a live bot warning because GitHub cannot add that assignee. This is a repo-wide configuration defect, not part of the narrow testing dependency remediation slice, so the active lane records it as deferred instead of hiding it under `NOT-A-BUG`. (RU: В `.github/dependabot.yml` указан `assignee`, которого GitHub не может добавить в Dependabot PR; предупреждение повторяется, поэтому это отдельный repo-wide config defect и его нужно чинить отдельным PR.)
+  - Links:
+    - `.github/dependabot.yml`
+    - `docs/review/PR_1471_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1471#issuecomment-4275076194`
+  - DoD:
+    - `.github/dependabot.yml` updated so Dependabot stops emitting the invalid-assignee warning
+    - at least one fresh Dependabot PR lands without the warning comment
+
+- [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional tooling improvement)
+  - Target PR: TBD (evaluation first, then migration if beneficial)
+  - Status: 📋 Planned
+  - Reason (EN): Python ecosystem 2026: PEP 751 defines standard lock format (pylock.toml); Dependabot now supports uv. Current repo uses pip-tools (requirements.txt as lock) and pip in Dependabot — no mandatory change. Optional: evaluate migrating to standard lock file and/or uv when tooling/CI support is stable. Setuptools: we use it only as pinned dependency (security); no setup.cfg — setuptools 78.x deprecations do not affect us. (RU: Экосистема Python 2026: PEP 751 — стандартный lock-файл; Dependabot поддерживает uv. Сейчас: pip-tools + requirements.txt как lock, Dependabot на pip. Опционально: оценить переход на pylock.toml и/или uv. Setuptools: только как зависимость в requirements; setup.cfg нет — депрекации 78.x нас не затрагивают.)
+  - Links:
+    - docs/audit/PYTHON_SETUPTOOLS_LOCKFILE_AUDIT.md (full audit: setuptools usage, lock file strategy, Dependabot/uv)
+    - REQUIREMENTS.md (current pip-compile workflow)
+    - .github/dependabot.yml (pip ecosystem)
+  - DoD:
+    - Decision documented: adopt / defer / won't do for PEP 751 and for uv
+    - If adopt: migration PR with updated REQUIREMENTS.md and CI; Dependabot config updated if uv adopted
+
+
+- [ ] P2 Optional: Use Loot Drop (Startup Graveyard) as periodic anti-pattern checklist
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; before major bets or post-launch reviews)
+  - Target PR: N/A (process: run checklist, update audit if new risks)
+  - Status: 📋 Planned
+  - Reason (EN): Loot Drop (loot-drop.io) catalogs 925+ failed VC-backed startups with structured failure analysis (product, competition, pricing, lost focus, marketing, cash, legal/regulatory, etc.). Health/BioTech failures are 94% legal/regulatory. Use as anti-pattern checklist to avoid repeating epic fails: e.g. LLM cost burn, scope creep, wellness vs medical positioning. (RU: «Кладбище стартапов» — уроки провалов; чеклист по 10 категориям и revival themes для снижения рисков.)
+  - Links:
+    - docs/audit/LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md (risk matrix, PulsePlate mapping, recommendations)
+    - <https://www.loot-drop.io/>
+    - <https://www.loot-drop.io/insights.html>
+    - core/insight/analysis_insights.md (Lessons from failed startups subsection)
+  - DoD:
+    - Before major product/GTM bets or post-launch review: run through Loot Drop 10 categories + revival themes
+    - Update LOOT_DROP_STARTUP_GRAVEYARD_AUDIT.md if new risks or mitigations identified
+
+
+- [ ] P2 Vision: Future — social network for nutrition/weight/support
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: N/A (separate product/project in perspective)
+  - Priority: P2 (long-term vision)
+  - Reason (EN): Possible separate product: community around nutrition, weight goals, mutual support. Not in current PulsePlate scope; considered as prospect after strengthening coaching and core app. (RU: Возможный отдельный продукт: комьюнити вокруг питания, целей по весу, взаимоподдержка. Не входит в текущий scope PulsePlate; рассматривается как перспектива после укрепления коучинга и ядра приложения.)
+  - Links:
+    - docs/design/NUTRITION_COACHING_DESIGN.md (Future social network — links section)
+    - BACKLOG_LEDGER (Nutrition coaching — natural predecessor)
+  - DoD:
+    - Decision "do / don't do" and product boundaries (separate app vs section in PulsePlate) — after coaching launch
+
+
+- [ ] P2 Vision: Nutrition coaching (CBT in nutrition, weight loss/gain)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (product/feature design first)
+  - Priority: P2 (product direction; preferred over ML training platform for current scope)
+  - Reason (EN): Product differentiation via cognitive-behavioral psychology in nutrition: goals, reflection, habits, support for slips/weight gain. Does not require ML training platform; leverages LLM/RAG and existing user data. **Integration with philosophy and math:** CBT coaching flows can be validated through philosophical principles (syllogisms, verification) and enhanced with Bayesian predictions for proactive intervention. (RU: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя. **Интеграция с философией и математикой:** CBT coaching flows могут быть валидированы через философские принципы (силлогизмы, верификация) и улучшены байесовскими предсказаниями для проактивного вмешательства.)
+  - Links:
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: CBT + philosophy + Bayesian integration, structured coaching flows)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (component links, implementation approach)
+    - core/insight/creative_scientific_innovations.md (FitChef, AI companion)
+    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (insight, RAG)
+  - DoD:
+    - Product spec: coaching scenarios (goals, weekly reflections, behavioral steps) — EN: structured scenarios (goal-setting dialogues, weekly reflections, slip analysis)
+    - Component links documented in design doc (see NUTRITION_COACHING_DESIGN.md)
+    - Implementation — separate PRs after backend/VIP stabilization
+
+
+- [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD (v2.0 timeline, after all migrations)
+  - Priority: P2 (long-term cleanup)
+  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. All logic should be in modular routers (`app/routers/*`) and core modules (`core/*`). Current state: 5382 lines, ~60% migrated.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
+    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+  - Prerequisites:
+    - ✅ All P0 security fixes complete (rate-limiting, tier guards)
+    - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
+    - ✅ All clients migrated to canonical endpoints
+    - ✅ Legacy endpoint traffic < 1%
+  - DoD:
+    - All endpoints migrated to modular routers
+    - All helpers moved to canonical modules
+    - `legacy_app.py` deleted (or reduced to minimal compatibility shim)
+    - Tests pass (no functionality broken)
+    - OpenAPI unchanged (all canonical endpoints present)
+
+
+- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality assurance; prevent regressions)
+  - Target PR: TBD (tests only)
+  - Status: 📋 Planned
+  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
+    - tests/ (existing unit/integration structure)
+  - DoD:
+    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
+    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
+
+
+- [ ] P2: Cross-feature synergies implementation (real-time + automation + community)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (strategic integration)
+  - Target PR: TBD (multiple PRs for different synergies)
+  - Status: 📋 Planned
+  - Reason: 12 new synergies identified between planned features (WebSocket + Coaching, CV + Restaurant, Bayesian + WebSocket, etc.). These create unified user experiences and competitive advantages. Implementation should follow recommended order: real-time foundation → coaching enhancement → automation pipeline → community features.
+  - Links:
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, implementation order, expected impact)
+    - docs/design/NUTRITION_COACHING_DESIGN.md
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/audit/WEBSOCKET_ANALYSIS.md
+  - Prerequisites:
+    - ✅ WebSocket implemented (P1)
+    - ✅ Nutrition coaching implemented (P2)
+    - ✅ Restaurant integration implemented (P2)
+    - ✅ CV food recognition implemented (P1)
+  - DoD:
+    - Real-time foundation complete (WebSocket + Bayesian + Gamification)
+    - Coaching enhancement complete (WebSocket + RAG + Causal Inference)
+    - Automation pipeline complete (CV + Restaurant + Multi-Modal)
+    - Community features complete (Social Network + Gamification + Restaurant)
+    - End-to-end user journeys documented and tested
+
+
+- [ ] P2: Execution Wave 3-R4 — Export adapter + deterministic contract tests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #TBD-W3-R4-EXPORT-TESTS (`feat/restaurants-w3-r4-observability-rollback`)
+  - Status: 🟡 In progress
+  - Reason: Guarantee stable mapping from weekly plan artifacts to partner payloads.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/plan_export.py
+    - tests/test_pro_restaurant_partner_api.py
+  - DoD:
+    - Mapping rules from weekly plan/recipes/constraints to partner payload documented
+    - Deterministic contract tests defined and passing
+    - Rollback-safe rollout notes captured in audit artifact
+
+---
+
+
+- [ ] P2: Explainer progress telemetry and experimentation package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (measurement follow-up)
+  - Target PR: PR-TBD-EXPLAINER-TELEMETRY
+  - Status: 📋 Planned
+  - Reason (EN): Explainers and learning cycles need completion and unlock telemetry so the product can measure trust, retention, and progression. This should reuse existing progress/live-indicator patterns instead of creating a parallel growth system. (RU: Для explainers и learning cycles нужна телеметрия completion/unlock, но она должна переиспользовать текущие progress patterns и оставаться privacy-safe.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/src/features/progress/`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Canonical `explainer_progress_event` fields are documented
+    - Telemetry design is low-cardinality and privacy-safe
+    - Experimentation scope is additive and does not introduce a new gamification system in MVP
+
+
+- [ ] P2: Optional interactive simulator micro-surfaces for wellness understanding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional product clarity)
+  - Target PR: PR-TBD-WELLNESS-SIMULATOR-MICRO-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): TensorTonic's strongest reusable learning mechanic is the combination of explanation, scenario, pitfalls, and interactive simulation. PulsePlate can selectively adapt this for wellness-safe cases such as adherence confidence stability or interpretation confidence with more data, but only as deterministic micro-surfaces grounded in current product logic. (RU: Самая полезная механика для адаптации — explanation + scenario + pitfalls + simulator; у нас это допустимо только для wellness-safe и rules-first micro-surfaces.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md`
+    - `core/`
+  - DoD:
+    - Candidate simulator cases are documented and validated as wellness-safe
+    - Simulator logic is deterministic and local to existing product rules
+    - No new heavy LLM endpoint or public gamification mechanics are introduced
+
+
+- [ ] P2: Rules-first learning-cycle engine and unlock semantics
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product behavior foundation)
+  - Target PR: PR-TBD-LEARNING-CYCLE-ENGINE
+  - Status: 📋 Planned
+  - Reason (EN): PulsePlate needs deterministic unlock rules based on current BMI, interpretation, adherence, and weekly-plan signals. The cycle model must reward understanding and adjustment, not streak preservation or social pressure. (RU: Нужны детерминированные unlock rules для learning cycles без streak-shame и без social ranking.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `core/`
+    - `app/routers/pro.py`
+    - `app/routers/vip.py`
+  - DoD:
+    - Canonical `learning_cycle_state` fields are documented
+    - Unlock rules use existing backend signals only
+    - Design explicitly bans public leaderboards, addictive streak loops, and ranking mechanics in MVP
+
+
+- [ ] P2: Stage-4 query-aware contradiction detection alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality improvement)
+  - Target PR: PR-TBD-RAG-STAGE4-QUERY-AWARE
+  - Status: 📋 Planned
+  - Reason: Contradiction checks in Stage-4 should explicitly incorporate active user query semantics to reduce context-irrelevant flags and improve reliability scoring fidelity.
+  - Links:
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/philosophy_pipeline.py`
+    - `core/rag/validation.py`
+    - `tests/test_philosophy_validation_integration.py`
+  - DoD:
+    - Stage-4 contradiction detection consumes query-aware context deterministically
+    - Validation tests cover relevant/irrelevant contradiction scenarios
+    - Reliability fields (`verification_state`, `confidence`) remain backward-compatible
+
+
+<a id="ledger-p2-rag-stage4-anchor-specificity"></a>
+- [ ] P2: Stage-4 anchor specificity for broad medical tokens
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality refinement)
+  - Target PR: PR-TBD-RAG-STAGE4-ANCHOR-SPECIFICITY
+  - Status: 📋 Planned
+  - Reason: Current Stage-4 contradiction binding treats any shared query anchor as sufficient. That is intentional for narrow acronym-style queries (`BMI`, `BP`, `B12`) but may still be too permissive for broad lexical anchors such as `vitamin` or `protein`, especially when cohort qualifiers are intentionally non-binding. The next refinement should separate specific-topic anchors from broad-topic anchors without regressing valid single-anchor contradiction detection.
+  - Links:
+    - `core/rag/philosophy_pipeline.py`
+    - `tests/test_philosophy_pipeline.py`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+  - DoD:
+    - Stage-4 distinguishes broad-topic anchors from specific-topic anchors deterministically
+    - Regression tests cover `vitamin D` vs `vitamin B12` and cohort-specific `protein` cases
+    - Existing valid single-anchor contradiction cases (`BMI`, `BP`, `B12`) remain green
+
+
+<a id="ledger-p2-wellness-explainers-learning-cycles"></a>
+- [ ] P2: Wellness Explainers + Learning Cycles MVP (rules-first, trust-first)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product differentiation + trust/retention)
+  - Target PR: PR-TBD-WELLNESS-EXPLAINERS-MVP
+  - Status: 📋 Planned
+  - Reason (EN): Adapt the strongest publicly visible product patterns from TensorTonic without turning PulsePlate into an ML academy. The fit is deterministic explainers, learning-cycle progression, interactive confidence/progress framing, and practice loops tied to existing wellness outputs. This work must remain wellness-safe, backend-owned, and free from streak-shame, leaderboards, or new heavy LLM surface area. (RU: Интегрировать explainers и learning cycles поверх текущих wellness-сущностей; без ML-куррикулума, public leaderboard и без нового дорогого AI-контура.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_LEARNING_CYCLES_MINI_PRD.md`
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
+    - `docs/audience_pack/FACTS_CANONICAL.md`
+    - `docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md`
+    - `core/insight/philosophy_validator.py`
+    - `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`
+    - `https://www.tensortonic.com/`
+    - `https://www.tensortonic.com/ml-math`
+    - `https://www.tensortonic.com/ml-math/statistics/ab-testing`
+  - DoD:
+    - Backend-owned explainer and learning-cycle direction is documented against existing FREE / PRO / VIP entities
+    - MVP scope explicitly bans ML curriculum, browser IDE, public leaderboard, and streak-pressure mechanics
+    - Follow-up execution is split into contract, engine, UI, telemetry, and simulator slices
+    - Follow-up items reference `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md` for canonical explainer guardrails instead of restating them in parallel
+    - MVP path introduces no new heavy LLM endpoint; any optional AI-assisted copy remains guarded by existing safety/economics rules
+    - Product copy remains wellness-safe and evidence-aligned
+    - GTM framing stays clarity-first and wellness-safe
+
+- [ ] P1: Explainer contract and payload design for FREE / PRO / VIP
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract-first unblocker)
+  - Target PR: PR-TBD-EXPLAINER-CONTRACT-PAYLOADS
+  - Status: 📋 Planned
+  - Reason (EN): The first implementation slice should lock backend-owned payload shapes before any UI work. PulsePlate needs canonical response shapes for explainer cards that reuse current BMI, interpretation, adherence, and weekly-plan entities instead of inventing client heuristics. (RU: Сначала нужен каноничный backend contract для explainer payloads; UI не должен сам собирать бизнес-логику.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `app/schemas/`
+    - `app/routers/`
+  - DoD:
+    - High-level contract documents backend-owned `explainer_card` fields for FREE / PRO / VIP
+    - Existing product entities are mapped to explainer payload sources without client-side business logic duplication
+    - No runtime implementation is required in the design PR
+
+- [ ] P2: Rules-first learning-cycle engine and unlock semantics
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (product behavior foundation)
+  - Target PR: PR-TBD-LEARNING-CYCLE-ENGINE
+  - Status: 📋 Planned
+  - Reason (EN): PulsePlate needs deterministic unlock rules based on current BMI, interpretation, adherence, and weekly-plan signals. The cycle model must reward understanding and adjustment, not streak preservation or social pressure. (RU: Нужны детерминированные unlock rules для learning cycles без streak-shame и без social ranking.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `core/`
+    - `app/routers/pro.py`
+    - `app/routers/vip.py`
+  - DoD:
+    - Canonical `learning_cycle_state` fields are documented
+    - Unlock rules use existing backend signals only
+    - Design explicitly bans public leaderboards, addictive streak loops, and ranking mechanics in MVP
+
+- [ ] P2: Frontend and iOS explainer surfaces on current journey pages
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (rendering follow-up)
+  - Target PR: PR-TBD-EXPLAINER-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): After the backend contract exists, explainers should be rendered on existing BMI, PRO interpretation, progress, and weekly-plan surfaces. Delivery must remain thin-client on web and iOS. (RU: После contract phase explainers нужно отрисовать на текущих user journey surfaces без дублирования бизнес-логики на клиентах.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/`
+    - `ios/`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+  - DoD:
+    - Surface map is defined for web and iOS on current FREE / PRO / VIP pages
+    - Rendering remains presentation-only; business logic stays on backend
+    - Copy stays wellness-safe and aligned with the trust-based funnel
+
+- [ ] P2: Explainer progress telemetry and experimentation package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (measurement follow-up)
+  - Target PR: PR-TBD-EXPLAINER-TELEMETRY
+  - Status: 📋 Planned
+  - Reason (EN): Explainers and learning cycles need completion and unlock telemetry so the product can measure trust, retention, and progression. This should reuse existing progress/live-indicator patterns instead of creating a parallel growth system. (RU: Для explainers и learning cycles нужна телеметрия completion/unlock, но она должна переиспользовать текущие progress patterns и оставаться privacy-safe.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `frontend/src/features/progress/`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - Canonical `explainer_progress_event` fields are documented
+    - Telemetry design is low-cardinality and privacy-safe
+    - Experimentation scope is additive and does not introduce a new gamification system in MVP
+
+- [ ] P2: Optional interactive simulator micro-surfaces for wellness understanding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional product clarity)
+  - Target PR: PR-TBD-WELLNESS-SIMULATOR-MICRO-SURFACES
+  - Status: 📋 Planned
+  - Reason (EN): TensorTonic's strongest reusable learning mechanic is the combination of explanation, scenario, pitfalls, and interactive simulation. PulsePlate can selectively adapt this for wellness-safe cases such as adherence confidence stability or interpretation confidence with more data, but only as deterministic micro-surfaces grounded in current product logic. (RU: Самая полезная механика для адаптации — explanation + scenario + pitfalls + simulator; у нас это допустимо только для wellness-safe и rules-first micro-surfaces.)
+  - Links:
+    - `docs/product/WELLNESS_EXPLAINERS_TENSORTONIC_ADAPTATION_NOTE.md`
+    - `docs/product/FREE_PRO_CONTRACT.md`
+    - `docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md`
+    - `core/`
+  - DoD:
+    - Candidate simulator cases are documented and validated as wellness-safe
+    - Simulator logic is deterministic and local to existing product rules
+    - No new heavy LLM endpoint or public gamification mechanics are introduced
+
+- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
+  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
+  - Status: 📋 Planned
+  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
+    - core/insight/creative_scientific_innovations.md (FitChef personalization)
+  - DoD:
+    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
+    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
+    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
+
+- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (when VIP weekly plan performance is in scope)
+  - Target PR: TBD (implementation after design)
+  - Status: 📋 Planned
+  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
+    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
+    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
+    - app/routers/vip.py (current weekly plan flow)
+  - DoD:
+    - Design: recursive week planning and/or lazy day generation documented
+    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
+    - No regression on constraint satisfaction or nutrition targets
+
+- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality assurance; prevent regressions)
+  - Target PR: TBD (tests only)
+  - Status: 📋 Planned
+  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
+    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
+    - tests/ (existing unit/integration structure)
+  - DoD:
+    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
+    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
+
+- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
+  - Target PR: N/A (decision + optional draft)
+  - Status: 📋 Planned
+  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
+  - Links:
+    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
+    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
+    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
+    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
+  - DoD:
+    - Decision documented: pursue / defer / won't do for publication track
+    - If pursue: venue + outline for one paper; no mandatory timeline
+
+
+- [ ] P2: Add runbook or CLI helper for resolving review threads
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: orchestration / CI / review governance
+  - Finding Type: operational clarity
+  - Reason: Resolving threads via GraphQL is non-obvious for agents and new contributors; one-command helper or runbook section reduces operator friction.
+  - Links:
+    - `RUNBOOK_AGENT.md` (pre-merge readiness, merge-readiness script)
+    - `scripts/orchestration/check_review_threads_disposition.py:444` (CLI entry)
+  - DoD:
+    - RUNBOOK_AGENT.md section with exact commands for thread resolution, or script scripts/orchestration/resolve_review_threads.py (or equivalent) with documented usage
+
+
+- [ ] P2: Agent run summary artifact (checklist or JSON)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-ORCHESTRATION
+  - Status: Planned
+  - Area: orchestration / agents
+  - Finding Type: observability
+  - Reason: Lightweight artifact (checklist/JSON) produced by coordinator or runner for high-value tasks to support future metrics.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - Design doc or ADR: format and when to produce; no implementation required in this item
+
+
+- [ ] P2: Extend trigger-only ban with optional allowlist TTL (if needed)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD
+  - Area: orchestration / review governance
+  - Reason: If an exception is ever needed for a trigger-only mapping, add TTL allowlist (same style as nosec: remove-by, ref); empty by default.
+  - DoD: Allowlist file exists (or doc); format documented; guard consults allowlist when present.
+
 
 - [ ] P2: Integrate review-thread disposition guard into pre-flight
   - Owner: @katsiaryna_kavaleuskaya
@@ -112,120 +5118,21 @@ If it is not recorded here — it does not exist.
     - workflow.md updated with required step
     - No regression in pre-flight runtime
 
-- [ ] P2: Subprocess guard — multiline and indirection-aware (AST-based) detection
+
+- [ ] P2: Invariant-only prompt for fix-CI / fix-guard tasks
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD
-  - Area: guards / security policy
-  - Finding Type: optional improvement (Cubic suggestion)
-  - Reason: Current guard scans single-line subprocess calls; multiline invocations (e.g. `subprocess.run([\n  "gh", ...])`) and simple indirection (e.g. `cmd = [...]` then `subprocess.run(cmd)`) may escape detection. Extend to multiline or AST-based scan.
+  - Target PR: PR-TBD-ORCHESTRATION
+  - Status: Planned
+  - Area: orchestration / agents
+  - Finding Type: process
+  - Reason: In agent prompts for "fix CI" or "fix guard", explicitly add "do not change invariants; only fix the failing check".
   - Links:
-    - `tests/guards/test_subprocess_uses_absolute_binaries.py`
-    - `AGENTS.md` (subprocess absolute path policy)
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
   - DoD:
-    - Guard detects banned binaries when call spans multiple lines, or document limitation
-    - Guard catches simple indirection (e.g. cmd = [...] then subprocess.run(cmd)); AST-based scan preferred
-    - Success criterion: no new failures on current main; no false negatives on existing codebase
+    - Coordinator or ci-watcher prompt template updated with invariant-preservation instruction
+    - No code change to guards themselves
 
-- [ ] P1: Disposition guard — ban mapping to trigger-only commits
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD (fix/orch-ban-trigger-commit-mapping)
-  - Area: orchestration / review governance
-  - Finding Type: process hardening
-  - Reason: Prevent FIXED proof bypass via empty or CI rerun/trigger commits. Mapping `- <url> -> <sha>` must not accept empty commits or commits whose subject matches trigger/rerun patterns.
-  - Links:
-    - `scripts/orchestration/check_review_threads_disposition.py`
-    - `tests/test_review_threads_disposition_strict.py`
-    - `AGENTS.md` (Review Governance)
-  - DoD:
-    - Gate fails when mapping SHA is empty commit (no changed files)
-    - Gate fails when commit subject matches trigger/rerun patterns (trigger ci, re-run ci, re-run checks)
-    - Tests cover deny (empty, trigger subject) and allow (normal commit)
-    - AGENTS.md updated with FIXED proof quality (trigger-only ban) rule
-    - Optional allowlist with TTL remains empty by default (P2 if needed)
-
-- [ ] P2: Stabilize nosec allowlist keys (path + token/hash, not line)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD
-  - Area: guards / tech-debt
-  - Finding Type: robustness
-  - Reason: Line-based allowlist entries drift on any file edit; allowlist should key by path + code-fragment hash or token so refactors do not require allowlist updates.
-  - Links: `tests/guards/fixtures/nosec_policy_allowlist.txt`, `tests/guards/test_nosec_policy_guard.py`
-  - DoD: Allowlist format supports path + stable identifier (hash/snippet); guard matches by identifier; line number optional or derived.
-
-- [ ] P2: Extend trigger-only ban with optional allowlist TTL (if needed)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD
-  - Area: orchestration / review governance
-  - Reason: If an exception is ever needed for a trigger-only mapping, add TTL allowlist (same style as nosec: remove-by, ref); empty by default.
-  - DoD: Allowlist file exists (or doc); format documented; guard consults allowlist when present.
-
-### Orchestration governance (wide audit post PR #985, #990)
-
-- [ ] P1: Add canonical orchestration contract matrix for PR governance
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD (docs/orchestration-contract-matrix)
-  - Area: orchestration / CI / review governance
-  - Finding Type: process hardening
-  - Reason: Rules are split across check_pr_body_phase2_gates.py, check_pr_merge_readiness.py, check_review_threads_disposition.py and AGENTS.md; single source of truth reduces drift.
-  - Links:
-    - `scripts/ci/check_pr_body_phase2_gates.py:11` (Phase 2 contract config)
-    - `scripts/ci/check_pr_merge_readiness.py:337` (unresolved threads), `:350` (actionable items)
-    - `scripts/orchestration/check_review_threads_disposition.py:27` (FIXED/NOT-A-BUG/DEFERRED), `:170` (trigger-only ban)
-    - `AGENTS.md:42` (Review Governance), `:103` (FIXED proof), `:418` (Fixed in Commit Mapping)
-  - DoD:
-    - Single doc (e.g. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md) is the canonical SoT; AGENTS.md only links to it
-    - Doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
-    - Linked from AGENTS.md as canonical orchestration governance reference
-  - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
-
-- [ ] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD
-  - Area: orchestration / CI / review governance
-  - Finding Type: process hardening
-  - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
-  - Links:
-    - `scripts/ci/check_pr_merge_readiness.py:352` (mapped_urls), `:362` (unmapped check)
-    - `scripts/orchestration/check_review_threads_disposition.py:296` (mapping section), `:518` (trigger-only guard)
-    - `AGENTS.md:418` (Fixed in Commit Mapping), `:42` (Review Governance)
-  - DoD:
-    - Merge readiness/disposition reads mapping from file in branch (e.g. docs/review/ or docs/pr/)
-    - PR body optional summary only
-    - Tests updated
-
-- [ ] P1: Document required-check truth for merge (current HEAD only)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD
-  - Area: orchestration / CI / review governance
-  - Finding Type: process hardening
-  - Reason: Merge decision must be based on latest required checks for current HEAD only; cancelled/stale runs ignored to avoid confusion and extra iterations.
-  - Links:
-    - `AGENTS.md:31` (PR merge readiness), `:39` (merge checklist)
-    - `scripts/ci/check_pr_merge_readiness.py:337` (unresolved_threads), `:344` (errors)
-  - DoD:
-    - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
-    - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
-
-- [ ] P1: Classify CI checks as hard / soft / external in AGENTS or CI governance
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD
-  - Area: orchestration / CI / review governance
-  - Finding Type: process hardening
-  - Reason: Explicit classification (hard gate / soft gate / external flaky) prevents ambiguous merge decisions; external tools do not block unless marked required.
-  - Links:
-    - `AGENTS.md:31` (merge readiness), `:39` (checklist)
-    - `.github/workflows/` (CI job definitions)
-  - DoD:
-    - AGENTS.md or dedicated CI governance doc defines hard gate (blocks merge), soft gate (warn only), external (never blocks unless manually promoted)
-    - Examples listed per type
 
 - [ ] P2: Make trigger-only mapping ban path-aware for file-scoped review comments
   - Owner: @katsiaryna_kavaleuskaya
@@ -242,71 +5149,564 @@ If it is not recorded here — it does not exist.
     - If thread comment is tied to a file path, mapping SHA must change that file
     - Tests cover allow (SHA touches file) and deny (SHA does not touch file)
 
-- [ ] P2: Add runbook or CLI helper for resolving review threads
+<a id="ledger-p1-codex-skill-pulseplate-app-store-release"></a>
+- [x] P1: Add custom Codex skill `pulseplate-app-store-release` (Wave 1)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1436
+  - Status: ✅ Merged via PR #1436 (`0b3f2de82892a230789d70648fccfd0f7806641f`) on 17 April 2026
+  - Area: iOS / release / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific App Store release skill that understands Fastlane, release truth, metadata parity, screenshot packs, and the repo's non-interference contract with coordinator-first orchestration.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/review/PR_1436_FIXED_MAPPING.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-app-store-release/`
+    - Skill covers App Store metadata, Fastlane, release evidence, and rollback notes
+    - Skill docs explicitly preserve coordinator-first and transport-only bridge invariants
+
+<a id="ledger-p1-codex-skill-pulseplate-monetization-gtm"></a>
+- [x] P1: Add custom Codex skill `pulseplate-monetization-gtm` (Wave 1)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1439
+  - Status: ✅ Merged via PR #1439 (`28c2bd2dd18e57a058386670161b0e350e078c5a`) on 17 April 2026; PR #1438 closed as superseded
+  - Area: monetization / growth / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific monetization/GTM skill for subscriptions, paywalls, pricing experiments, launch channels, and wellness-safe growth recommendations without relying on generic advice alone.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `docs/review/PR_1439_FIXED_MAPPING.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-monetization-gtm/`
+    - Skill covers paywall, subscription, pricing, ASO/SEO/Product Hunt, and wellness-safe disclaimers
+    - Skill docs explicitly preserve coordinator-first and additive `recommended_skills` semantics
+
+
+- [ ] P2: RAG for agent context (explore)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
+  - Target PR: PR-TBD-RAG
+  - Status: Research
+  - Area: orchestration / RAG
+  - Finding Type: exploration
+  - Reason: Explore retrieval-augmented context for coordinator/specialist agents (e.g. retrieve AGENTS.md sections by path); keep full SoT as baseline.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/orchestration/workflow.md`
+  - DoD:
+    - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
+
+
+- [ ] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-SKILL-ROUTING-WAVE2
+  - Area: orchestration / research / product governance
+  - Finding Type: capability expansion
+  - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
+  - Links:
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `scripts/orchestration/skill_router.py`
+    - `scripts/orchestration/task_bootstrap.py`
+    - `docs/dev/CODEX_SKILLS.md`
+  - DoD:
+    - Task packets expose a stable skill-routing explanation schema with compact per-skill evidence
+    - Routing model adds compositional lexeme groups or ontology tags without introducing nondeterministic scoring
+    - Approved research-only connector policy is implemented for narrow sources only: YouTube transcripts, X/Twitter official API or compliant exports, Google Trends
+    - No runtime scraping surface is added to product endpoints
+    - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
+    - `make verify` and `pre-commit run --all-files` pass in PR scope
+
+<a id="ledger-p2-codex-skill-pulseplate-design-launch-system"></a>
+- [ ] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: #1482
+  - Status: 🛠 Implemented in worktree `pulseplate-design-launch-system`; pending merge of PR `#1482` (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md:5`, `tests/test_install_codex_skills.py:264`)
+  - Area: design / launch assets / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific design launch system skill that links Figma/design tokens/brand assets with launch-readiness constraints while keeping design tooling passive with respect to coordinator-first routing.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md`
+    - `tools/codex_skills/pulseplate-design-launch-system/SKILL.md`
+    - `docs/dev/CODEX_SKILLS.md`
+    - `tools/codex_skills/README.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-design-launch-system/`
+    - Skill covers design system readiness, launch asset bundles, and token/brand consistency
+    - Skill docs explicitly preserve fail-closed packet metadata expectations and passive discovery-only boundaries
+
+<a id="ledger-p2-codex-skill-pulseplate-web-launch-site"></a>
+- [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE2B
+  - Status: Planned
+  - Area: web / launch / frontend
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific launch-site skill for high-conviction landing pages, launch copy, capture funnels, and deploy-adjacent web launch workflows beyond generic frontend helpers.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-web-launch-site/`
+    - Skill covers launch-site structure, CTA/funnel considerations, and frontend implementation handoff
+    - Skill docs explicitly preserve coordinator-first and non-interference contract
+
+<a id="ledger-p2-codex-skill-pulseplate-agent-product"></a>
+- [ ] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-CODEX-SKILL-WAVE3
+  - Status: Planned
+  - Area: agents / product strategy / orchestration
+  - Finding Type: capability expansion
+  - Reason: PulsePlate needs a project-specific agent-product skill for productizing agent workflows without collapsing repo orchestration, transport-only bridge semantics, or coordinator authority into a parallel runtime layer.
+  - Links:
+    - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
+    - `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
+  - DoD:
+    - Skill exists under `tools/codex_skills/pulseplate-agent-product/`
+    - Skill covers agent-facing product surfaces, guardrails, and orchestration boundaries
+    - Skill docs explicitly preserve non-interference with Cursor/custom orchestration
+
+<a id="ledger-p2-fitchef-sandbox-phase-2-deferred-scope"></a>
+- [ ] P2: FitChef sandbox Phase 2 deferred scope
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1064 (`docs(ledger): freeze fitchef mascot phase 2 contract`)
+  - Status: Open
+  - Area: orchestration / product runtime / sandbox integration
+  - Finding Type: scope control
+  - Locations:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+  - Reason: The original sandbox Phase 2 seam from PR #1013 now resolves into the mascot-coaching rollout contract. The current P2 execution family is limited to text-only FitChef coaching surfaces under the canonical `/api/v1/insight/fitchef*` namespace, while exports, realtime fan-out, image/CV ingestion, and broader autonomy remain explicitly deferred beyond this wave.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+  - DoD:
+    - Phase 2 mascot scope is frozen in a current-repo contract doc with canonical routes under `/api/v1/insight/fitchef*`
+    - Product/runtime docs link the same mascot plan and do not describe exports, realtime progress, or autonomy as already live
+    - Security review confirms each mascot endpoint keeps policy/quota/audit gates ahead of execution
+  - Blockers: None (deferred by scope, not blocked)
+
+- [ ] P2: Violations-addressed list in security/guard remediation PRs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD (optional per-PR)
+  - Status: Planned
+  - Area: process / PR template
+  - Finding Type: auditability
+  - Reason: Optional "violations addressed" list in PR description for guard/security remediation makes coverage auditable (EVMbench-style).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+  - DoD:
+    - PR template or runbook suggests optional "Violations addressed" section for guard/security remediation PRs
+    - Not mandatory; adopt when useful
+
+<a id="ledger-p2-cv-photo-food"></a>
+- [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: product / AI / contracts
+  - Finding Type: future feature
+  - Reason: If we add photo-based food recognition, it must be contract-first and uncertainty-aware
+    (confidence fields, nullability, deterministic degrade states) with explicit privacy UX and retention rules.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (`cv-agent`; degrade-state expectations)
+    - `app/schemas/` (canonical schema patterns)
+    - `frontend/src/api/schema.ts` (OpenAPI consumer)
+  - DoD:
+    - Proposed response schema includes: items[], per-item confidence, portion estimate + uncertainty range, warnings[], metadata
+    - Deterministic UX state mapping defined for confidence bands (show/confirm/suggest/manual entry)
+    - Privacy packet drafted (consent copy, retention, opt-out) and reviewed for wellness-safe wording
+    - Deterministic test plan exists (fixtures + expected ranges; no flake)
+
+
+- [ ] Sensor invariants: physically-plausible bounds + calibration UX contract (no “magic sizing”)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: TBD
+  - Priority: P2
+  - Area: product / measurement / UX safety
+  - Finding Type: future feature
+  - Reason: Portion/measurement features must enforce physical constraints (units, bounds, drift) and communicate
+    uncertainty explicitly; calibration UX must be deterministic and non-misleading.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (sensor-invariant-guard role)
+  - DoD:
+    - Measurement invariants documented (bounds, units, reject conditions)
+    - Calibration UX steps defined (scale + camera reference object) with explicit failure modes
+    - Guard policy defined: unphysical outputs rejected; uncertainty increases with degraded signals
+
+
+- [ ] P2 Vision: Restaurant/chef integration (partners accept menus from our products, cook for users)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR #TBD-W3-R1-CONTRACT (umbrella split into W3-R1..W3-R4)
+  - Priority: P2 (long-term product direction)
+  - Reason (EN): Restaurants and individual chefs accept menus from our products (weekly plan, recipes, constraints) and cook food for users. Separate block from coaching and social network; requires clear "menu → partner" contract and technical prerequisites in program (see RESTAURANT_INTEGRATION_SPEC.md). (RU: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе.)
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md (technical prerequisites, contract schema, implementation plan)
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md (temporary seam + exit criteria)
+    - app/routers/plan_export.py, vip.py (weekly plan, recipes, export)
+    - core/dietary_constraints.py, core/targets.py
+  - Prerequisites:
+    - ✅ VIP weekly plan stable (`vip.py`, `premium_week.py`)
+    - ✅ Export infrastructure exists (`plan_export.py`, `shoplist_export.py`)
+    - ✅ Dietary constraints module stable (`core/dietary_constraints.py`)
+    - ⏳ Backend/VIP stabilization complete (P0)
+  - DoD:
+    - Product spec: scenario "user sends menu to restaurant/chef" (what partner sees, how confirms) — EN: documented user flow and partner UX
+    - Technical prerequisites documented in design spec (export format, consent, contract schema)
+    - Execution decomposition W3-R1..W3-R4 is recorded with per-wave DoD
+    - Implementation — separate PRs (export format, partner API or signed link, optionally partner directory)
+
+
+- [ ] P2: C4-b Sandboxed execution boundary for high-risk agent actions
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1013
+  - Status: 🟡 In progress (local sandbox foundation implemented in PR #1013, pending merge)
+  - Area: security / agent control plane
+  - Finding Type: security hardening
+  - Locations:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:73` (C4-b row)
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:77` (`ExecutionSandbox` boundary)
+    - `app/security/execution_sandbox.py`
+    - `tests/test_execution_sandbox.py`
+  - Reason: Local bounded sandbox execution is now implemented for developer-machine workflows, but the broader stronger-isolation boundary is not merged yet.
+  - Links:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+  - DoD:
+    - ADR-003 updated with local sandbox boundary, resource limits, and follow-up stronger-isolation scope
+    - Runtime sandbox enforcement implemented in `app/security/execution_sandbox.py`
+    - Deterministic tests: allowlisted command allowed in sandbox, blocked mode/disallowed binary rejected
+    - `.env.example` documents sandbox toggles and bounds
+  - Blockers: None (pending PR merge, not blocked)
+
+
+- [ ] P2: Scoped token nonce — replace deterministic HMAC tokens with nonce-bearing tokens
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-TOKEN-NONCE (Wave 2)
+  - Status: Planned
+  - Area: security / agent control plane
+  - Finding Type: security hardening
+  - Locations:
+    - `app/security/agent_control_plane.py:276` (`issue_scoped_token`)
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` (Wave 2 scope)
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:273` ("Known limitation" note)
+  - Reason: MVP scoped tokens are deterministic (HMAC without nonce); identical scope + timestamp produces identical tokens. Replay risk is bounded by short TTL but should be eliminated.
+  - Links:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+  - DoD:
+    - Nonce/random component design approved in ADR-003 amendment or new ADR
+    - Backward-compatible rollout plan documented (old tokens expire within TTL window)
+    - Deterministic tests updated: same scope + timestamp produces distinct tokens
+    - No performance regression: token issuing latency under 1 ms p99
+  - Blockers: None (deferred by priority, not blocked)
+
+<a id="ledger-p2-backlog-ledger-post-merge-sync-audit-canonicalization"></a>
+- [ ] P2: Canonicalize backlog-ledger post-merge sync audit artifact
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1152`
+  - Status: 🟡 In progress
+  - Reason (EN): the retained audit for the PR `#673` / `#674` backlog-sync follow-through still uses `PR_TBD`
+    identity and stale branch metadata even though the merged PR numbers are already known. The artifact should be
+    reframed as a stable docs-only audit so later governance/review passes do not keep treating it like a live stub.
+  - Links:
+    - `docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - DoD:
+    - The audit file no longer uses `PR_TBD` identity or stale branch metadata
+    - The artifact is explicitly framed as a stable docs-only audit for merged PR `#673` and PR `#674`
+    - The change introduces no runtime, schema, or OpenAPI behavior
+
+<a id="ledger-p1-foods-postgres-foundation-followthrough"></a>
+- [x] P1: Foods PostgreSQL follow-through train (B1/B2/B3 merged; cutover deferred)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR `#1409` (`feat/pr-a-foods-catalog-foundation`) -> PR `#1413` (`feat/pr-b1-foods-offline-etl-postgres`) -> PR `#1419` (`feat/pr-b2-restaurant-relational-bridge`) -> PR `#1435` (`feat/pr-b3-restaurant-postgres-shadow-reads`) -> PR `#1462` (`codex/food-postb3-docs-closeout`) -> PR `#1468` (`codex/foods-foundation-downgrade-ownership`)
+  - Status: ✅ Merged through downgrade ownership follow-through; runtime authority cutover remains deferred until a separate governed post-B3 packet exists (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`; ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
+  - Area: backend / data platform / restaurant ingestion
+  - Finding Type: post-foundation execution gap
+  - Reason: The additive Alembic foundation lane intentionally created `foods`, `restaurant_chains`, and `restaurant_menu_items` without changing the current SQLite/local-first runtime, ETL path, or MenuStat importer. The follow-through train has landed as merged PR `#1409`, PR `#1413`, PR `#1419`, PR `#1435`, PR `#1462`, and PR `#1468`. The governed next food-data line is now the source-update preflight in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`, while SQLite remains canonical runtime authority until a separate cutover packet is approved (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`).
+  - Sequence:
+    - PR-A / foundation: additive `foods` / `restaurant_*` schema landed in merged PR `#1409` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-7`)
+    - B1 / foods snapshot promotion: PostgreSQL `foods` promotion landed in merged PR `#1413` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:8-8`)
+    - B2 / importer bridge: PostgreSQL importer persistence landed in merged PR `#1419` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:9-9`)
+    - B3 / shadow reads: PostgreSQL shadow reads + parity checks landed in merged PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:10-10`)
+    - Post-B3 closeout: reconcile backlog/task-packet/review-governance repo truth after merged B3 in PR `#1462` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
+    - Downgrade ownership fix: ownership-aware downgrade for Alembic revision `202604120001` landed in merged PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
+    - Next food-data lane: source-update preflight before USDA/Open Food Facts/JPTN/restaurant replacement ingest (ledger: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`)
+    - Cutover (deferred): decide and govern any runtime read-switch / PostgreSQL authority change only after a separate post-B3 cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
+  - Links:
+    - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md`
+    - `docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md`
+    - `docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md`
+    - `docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md`
+    - `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md`
+    - `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-self-hosted-postgres-droplet-foundation`
+    - `docs/deploy/POSTGRES_SELF_HOSTED_DROPLET.md`
+    - `app/services/food_store.py`
+    - `scripts/build_food_db.py`
+    - `app/services/restaurant_store.py`
+    - `scripts/import_restaurant_menu.py`
+  - DoD:
+    - Backlog sequencing reflects merged-state truth for PR `#1409`, PR `#1413`, PR `#1419`, and PR `#1435` (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:7-10`)
+    - Historical food packets no longer claim B3 is the next active lane
+    - Post-B3 docs/governance closeout is explicitly tracked as the current source-of-truth reconciliation lane (evidence: `docs/review/FOODS_POSTGRES_TRAIN_MERGED_STATE_CANON_2026-04-17.md:12-13`)
+    - Downgrade ownership follow-through is closed by PR `#1468` (evidence: `docs/review/PR_1468_FIXED_MAPPING.md`)
+    - The next food-data lane is explicitly set to `ledger-p1-food-data-source-update-preflight`
+    - Runtime authority cutover / read-switch remains explicitly deferred beyond B3 until a separate cutover packet exists (ADR: `docs/architecture/ADR_FOODS_POSTGRES_RUNTIME_CUTOVER_SEAM_2026-04-17.md:11-24`)
+    - Search / catalog follow-up lanes continue to reference the same canonical PostgreSQL table source without parallel schema drift
+
+<a id="ledger-p1-foods-foundation-downgrade-ownership"></a>
+- [x] P1: Make foods foundation downgrade ownership-aware for pre-existing catalog objects
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1468 -> `codex/foods-foundation-downgrade-ownership`
+  - Status: ✅ Merged (PR `#1468`, merge commit `4876d24ef8311acdd0be9b54642f210c25c3e4a7`, April 19, 2026)
+  - Area: backend / migrations / PostgreSQL
+  - Finding Type: downgrade symmetry / object ownership
+  - Reason: Revision `202604120001` now guards upgrade-time creation of `foods` and companion indexes when a supported colocated catalog shape already exists, but the downgrade path still assumes ownership of those objects. A follow-up lane must make the downgrade ownership-aware so rolling back the revision does not drop pre-existing `foods`/index artifacts that were not created by this revision.
+  - Links:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
+    - `docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
+    - `docs/review/PR_1409_FIXED_MAPPING.md`
+    - `docs/review/PR_1468_FIXED_MAPPING.md`
+  - DoD:
+    - Downgrade behavior is explicit for both clean-room and pre-existing `foods` catalog shapes
+    - The revision no longer drops pre-existing `foods`/index artifacts that it did not create
+    - Migration tests cover both the clean-room downgrade cycle and the pre-existing-table ownership scenario
+
+<a id="ledger-p1-foods-foundation-legacy-ownership-backfill"></a>
+- [ ] P1: Define retroactive rollback behavior for legacy-applied foods foundation revision
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
   - Target PR: PR-TBD
-  - Area: orchestration / CI / review governance
-  - Finding Type: operational clarity
-  - Reason: Resolving threads via GraphQL is non-obvious for agents and new contributors; one-command helper or runbook section reduces operator friction.
+  - Status: Deferred from PR `#1468` review loop
+  - Area: backend / migrations / PostgreSQL
+  - Finding Type: legacy downgrade / ownership backfill
+  - Reason: Databases that already applied the pre-ownership version of revision `202604120001` do not have `pulseplate_migration_ownership`, so downgrade cannot distinguish revision-owned objects from pre-existing catalog artifacts. PR `#1468` intentionally fixes forward-looking ownership-aware behavior for new upgrade runs only; retroactive repair for already-applied environments requires a separate design lane.
+  - Evidence:
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py:83`
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py:119`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md:65`
   - Links:
-    - `RUNBOOK_AGENT.md` (pre-merge readiness, merge-readiness script)
-    - `scripts/orchestration/check_review_threads_disposition.py:444` (CLI entry)
+    - `alembic/versions/202604120001_add_foods_catalog_foundation.py`
+    - `docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md`
+    - `docs/review/PR_1468_FIXED_MAPPING.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-foods-foundation-downgrade-ownership`
   - DoD:
-    - RUNBOOK_AGENT.md section with exact commands for thread resolution, or script scripts/orchestration/resolve_review_threads.py (or equivalent) with documented usage
+    - A separate design records the authoritative rollback contract when `pulseplate_migration_ownership` is absent on an already-applied `202604120001` database
+    - The chosen path explicitly defines whether legacy environments use ownership backfill, guarded legacy fallback, or an operator-driven/manual repair contract
+    - Deterministic tests cover the chosen legacy-applied rollback path without regressing clean-room or pre-existing-catalog scenarios
 
-- [x] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (data correctness)
-  - Target PR: PR #976 (`fix/off-vitd-unit-conversion`)
-  - Status: ✅ Merged (PR #976, 2026-03-05)
-  - Area: backend / food data normalization
-  - Finding Type: correctness hotfix
-  - Reason: Open Food Facts normalization writes `vitamin-d_100g` without deterministic µg→IU conversion and may ingest nameless rows; this degrades canonical nutrition trust and search quality.
-  - Links:
-    - `core/food_sources/off.py`
-    - `tests/test_food_sources_simple.py`
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-  - DoD:
-    - OFF `vitamin-d_100g` is normalized via deterministic `iu_vitd_from_ug(...)`
-    - Nameless rows are skipped fail-closed during OFF import
-    - Deterministic tests cover µg→IU mapping and nameless-row skip behavior
-    - `pre-commit run --all-files` and `make verify` pass in PR scope
+## Completed Items
 
-- [x] P0: GDPR retention cleanup implementation (replace stub with safe deletion)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (privacy/compliance)
-  - Target PR: PR #978 (`fix/gdpr-log-retention-cleanup`)
-  - Status: ✅ Merged (PR #978, 2026-03-05)
-  - Area: backend / compliance / operations
-  - Finding Type: compliance hotfix
-  - Reason: `cleanup_expired_logs()` was a non-destructive stub; privacy posture requires real retention enforcement with path safety and deterministic dry-run checks.
-  - Links:
-    - `core/log_retention.py`
-    - `tests/test_log_retention_coverage.py`
-    - `tests/test_fingerprint_and_retention.py`
-  - DoD:
-    - Real mtime-based cleanup is implemented under bounded retention root
-    - Dry-run mode is additive and non-breaking
-    - Deletion outside configured root is blocked (path-safety guard)
-    - Deterministic tests cover dry-run, class filter, stat/unlink errors, and path boundary
-    - `pre-commit run --all-files` and `make verify` pass in PR scope
+Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
-- [x] P1: Fact-check closure for stale critical claims in external roadmap snapshot (2026-03-05)
+### P0
+
+<a id="ledger-p0-billing-apple-verify"></a>
+- [x] P0: Apple receipt verification backend follow-through
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (program governance)
-  - Target PR: PR #972, PR #973, PR #974
-  - Status: ✅ Merged (all listed PRs merged on 2026-03-04)
-  - Reason: External document snapshot contained stale “P0 missing” claims for controls that were already implemented in runtime. Ledger now anchors these as completed facts to prevent duplicate emergency scope.
+  - Priority: P0
+  - Target PR: PR `#1074` (`feat(billing): add Apple receipt verification endpoint`)
+  - Status: ✅ Completed (Merged PR #1074 on 2026-03-10)
+  - Merge SHA: `e0104c540bfb63cc2fd944090d293c7b751651e8`
+  - Area: backend / payments / iOS monetization
+  - Finding Type: payment integrity
+  - Reason (EN): The iOS-first billing baseline now exists, but automatic activation remains incomplete until server-side Apple receipt verification is treated as a canonical follow-through item rather than an implied subtask.
   - Links:
-    - `app/security/rate_limit.py` (rate limiting baseline)
-    - `app/routers/realtime_ws.py` (WebSocket auth/policy-close baseline)
-    - PR #972 (Philosophy validator core)
-    - PR #973 (Recursive RAG W1 core)
-    - PR #974 (orchestration telemetry/spec package)
+    - `docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+    - `app/routers/billing.py`
+    - `docs/review/PR_1074_FIXED_MAPPING.md`
+    - `app/services/payments_activation.py`
   - DoD:
-    - Stale claims are marked as implemented with repository evidence
-    - Remaining open items track only fact-valid deltas (RAG technical debt + runtime governance follow-ups)
+    - Server-side Apple receipt verification normalizes into the canonical billing activation flow
+    - Receipt verification failure modes are deterministic and test-covered
+    - Activation/status contracts stay additive for existing clients
+
+<a id="ledger-p0-session-cookie-hardening"></a>
+- [x] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security blocker)
+  - Target PR: PR #1003 (`fix(auth): align web session UI gates`) -> PR #1030 -> PR #1063
+  - Status: ✅ Merged evidence (web session migration delivered on `main`; audit trail reconciled in a later docs/security follow-up)
+  - Reason (EN): Master checklist item #1 identified XSS exposure when auth/session keys were persisted in browser storage. That web runtime gap is now closed on `main`: PR #1003 moved route gating toward session-backed auth state, PR #1030 hardened the W1 migration path, and PR #1063 removed the remaining storage-seeded smoke/logout coupling while keeping cleanup semantics fail-closed in `frontend/src/auth/storage.ts`. This backlog item is therefore closed as delivered evidence rather than carried forward into a fake W2 runtime PR. The canonical closure was reconciled later in a docs/security follow-up so the ledger matches already-merged runtime evidence. (RU: Web runtime gap по browser-stored auth secrets уже закрыт в `main`: PR #1003 перевёл gate-логику на session truth, PR #1030 усилил W1 migration path, PR #1063 убрал оставшуюся storage-seeded smoke/logout связку и оставил cleanup fail-closed. Псевдо-carryover `PR-TBD-SESSION-COOKIE-HARDENING-W2` больше не нужен; поздний docs/security follow-up лишь синхронизировал ledger с уже смерженным runtime evidence.)
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - app/security/auth.py
+    - app/routers/pro_registration.py
+    - frontend/src/auth/storage.ts
+    - frontend/src/components/TabBar.tsx
+    - frontend/src/auth/__tests__/storage.test.ts
+    - frontend/src/components/__tests__/TabBar.test.tsx
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1003
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1063
+  - DoD:
+    - No sensitive session/auth token persists in browser local storage, including cleanup-failure paths
+    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
+    - Regression tests cover authenticated flows, logout/invalidation, and cleanup-failure semantics
+
+- [x] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: PR-640 (runtime), PR-646 (docs-only closure)
+  - Status: ✅ Done
+  - Reason: Implemented VIP-only access for `/api/v1/insight` and legacy `/insight` (VIP-guarded, hidden from OpenAPI) + kept rate-limiting. This ledger entry was stale vs `main`.
+  - Residual risk / follow-up: monthly hard quota/budget enforcement is still required (see next P0 item). Until then,
+    LLM endpoints remain economically unsafe per `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - PR-640: Enforce VIP tier for LLM Insight (runtime implementation)
+    - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md (evidence + ledger closure)
+  - DoD:
+    - ✅ `/api/v1/insight` uses `require_vip_tier()` (VIP-only)
+    - ✅ `/insight` is VIP-guarded (deprecated + hidden from OpenAPI)
+    - ✅ Tests verify FREE/PRO users get 403, VIP users get 200
+    - ✅ OpenAPI shows `/api/v1/insight` and hides `/insight`
+
+
+- [x] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: PR-639 (supersedes PR-628)
+  - Status: ✅ Done (superseded by PR-639)
+  - Reason: Close PR-628 via PR-639: audit drift fixed (runtime wiring + proxy-aware CIDR client key + deterministic tests are present) and 429 OpenAPI schema standardized for VIP export; OpenAPI artifacts regenerated.
+  - Links:
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
+    - core/insight/analysis_insights.md ($72k/month potential abuse)
+    - docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/628>
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/639>
+  - DoD:
+    - ✅ Rate-limiting wired in runtime (SlowAPI middleware + 429 handler)
+    - ✅ Proxy-aware key function supports trusted proxies with CIDR + CF/XFF precedence
+    - ✅ `@limit_if_available(RATE_LIMIT_INSIGHT)` on `/api/v1/insight` + `/insight`
+    - ✅ `@limit_if_available(RATE_LIMIT_EXPORTS)` on export endpoints (plan/shoplist/VIP export + legacy demo exports when enabled)
+    - WebSocket: N/A (no endpoints found; see WebSocket investigation item)
+    - ✅ Tests verify rate-limiting works (deterministic 200→429)
+    - Cost tracking added (token usage, API calls)
+
+
+<a id="ledger-p0-pro-vip-depends-guard"></a>
+- [x] P0: PRO/VIP route `Depends` coverage guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (access-control integrity)
+  - Target PR: PR #994
+  - Status: ✅ Merged (PR #994, 2026-03-06)
+  - Reason (EN): Master checklist item #7 requires deterministic proof that all protected endpoints enforce explicit dependency gates and no silent bypass is introduced by future routing changes.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - app/security/api_tiers.py
+    - app/routers
+    - tests/test_pro_vip_route_dependency_guard.py
+    - tests/test_api_tiers_db_lookup.py
+  - DoD:
+    - Guard test enumerates canonical PRO/VIP surfaces and fails on missing dependency gate
+    - Legacy aliases are validated as non-bypass paths
+    - CI gate is deterministic and documented in runbook
+
+
+<a id="ledger-p0-rag-input-sanitizer"></a>
+- [x] P0: RAG input sanitizer integration for markdown/knowledge ingestion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security + data quality)
+  - Target PR: PR-TBD-RAG-INPUT-SANITIZER -> PR #1044
+  - Status: ✅ Merged (PR #1044, 2026-03-08)
+  - Reason (EN): Query-level AI input blocking already existed in `app/security/agent_input_guard.py`, but markdown/knowledge ingestion and retrieval content still lacked a canonical sanitizer seam. PR #1044 closed that gap by sanitizing markdown before indexing, sanitizing retrieved chunk content before prompt assembly, dropping sanitized-empty chunks, and surfacing an explicit CBT warning when source content was sanitized.
+  - Links:
+    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
+    - core/data_sanitizer.py
+    - core/rag/simple_rag.py
+    - core/rag/vector_rag.py
+    - core/rag/formatting.py
+    - core/rag/recursive_retrieval.py
+    - app/routers/cbt_insight.py
+    - app/security/agent_input_guard.py
+    - tests/test_data_sanitizer.py
+    - tests/test_rag_orchestration.py
+    - tests/test_cbt_insight_api.py
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1044
+  - DoD:
+    - ✅ Sanitization is applied deterministically before RAG indexing and retrieval
+    - ✅ Injection-pattern regression tests are added and green
+    - ✅ No contract break for current insight endpoints
+
+
+- [x] P0: Growth telemetry canon and KPI dashboard baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #845 (Phase 1 merged); Phase 2 (eventRegistry.ts) after PR #825 merge
+  - Status: Phase 1 ✅ Merged (PR #845, 2026-02-21); Phase 2 deferred
+  - Area: analytics / frontend / growth
+  - Finding Type: product optimization
+  - Locations:
+    - `docs/analytics/ANALYTICS_INDEX.md`
+    - `docs/analytics/METRICS_CATALOG.md`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: establish canonical funnel semantics and events for onboarding -> paywall -> conversion -> retention.
+  - Links:
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - [PR #845](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/845) (Phase 1 docs)
+  - DoD:
+    - Core funnel metrics defined with owner and update cadence (Phase 1 in PR #845)
+    - Event taxonomy anchored in docs and frontend registry (docs in PR #845; frontend in Phase 2)
+    - Dashboard baseline requirements documented (Phase 1 in PR #845)
+
+
+- [x] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: #846
+  - Status: ✅ Completed (Merged PR #846 on 2026-02-21)
+  - Area: architecture / backend / security
+  - Finding Type: platform hardening / modernization
+  - Locations:
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - Reason: replace third-party local agent dependency with policy-first, vendor-independent control plane.
+  - Links:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `app/security/agent_control_plane.py`
+    - `tests/test_agent_control_plane_mvp.py`
+  - Evidence (2026-02-21, America/New_York):
+    - `app/security/agent_control_plane.py:1` — MVP primitives implemented:
+      deny-by-default policy gate, signed audit envelope, and short-lived scoped token issuing.
+    - `tests/test_agent_control_plane_mvp.py:1` — deterministic coverage for
+      allowlist parsing, fail-closed policy decisions, audit signature verification, and token TTL validation.
+  - DoD:
+    - [x] Control plane MVP contract documented and accepted
+    - [x] Deny-by-default policy requirements and fail-closed semantics documented
+    - [x] Signed audit trail requirements documented with verification checklist
+    - [x] Initial runtime primitives implemented with deterministic tests
+    - [x] Follow-up implementation PRs opened and linked (PR #846)
+
 
 - [x] P0: Food Data Platform Foundation (snapshot-first, multi-source, low-API-cost)
   - Owner: @katsiaryna_kavaleuskaya
@@ -328,6 +5728,69 @@ If it is not recorded here — it does not exist.
     - Execution is split into wave PRs with clear ownership
     - Carryover/deferred mapping is documented in this ledger
 
+
+- [x] Backend: Fix deprecated `/api/nutrition/{date_str}` legacy alias to enforce `require_pro_tier` (auth bypass risk)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (security)
+  - Target PR: PR-664
+  - Status: ✅ Merged (PR-664, 2026-02-07)
+  - Reason: `legacy_app.py` implements `/api/nutrition/{date_str}` as a legacy alias and uses `Depends(api_key_header)` (header extraction only), then calls `app/routers/pro.py:get_daily_nutrition()` directly. This bypasses the `require_pro_tier` dependency (tier validation) and does not pass the API key into any guard, risking unauthorized access if the alias is reachable.
+  - Decision:
+    - Preferred outcome: remove deprecated alias entirely (keep only canonical `GET /api/v1/pro/nutrition/daily`).
+    - Fallback (if removal is not possible now): keep alias but explicitly enforce `require_pro_tier` in the alias handler + deterministic 401/403/200 tests.
+  - Links:
+    - docs/audit/PR_654_BACKEND_LEGACY_NUTRITION_ALIAS_PRO_GUARD_AUDIT.md
+    - `legacy_app.py` (`/api/nutrition/{date_str}` legacy alias)
+    - `app/routers/api_key.py` (`api_key_header`)
+    - `app/middleware/api_tiers.py` (`require_pro_tier`)
+    - `app/routers/pro.py` (`GET /api/v1/pro/nutrition/daily`)
+    - `ios/PulsePlate/Models/NutritionData.swift` (client currently uses legacy path)
+  - DoD:
+    - Alias either removed or explicitly enforces PRO tier guard (no auth bypass)
+    - Deterministic tests prove 401/403/200 behavior for alias path
+    - Docs explicitly mark alias as deprecated and forbidden as client SoT (iOS uses canonical `/api/v1/pro/nutrition/daily`)
+    - OpenAPI visibility matches deprecation policy (deprecated/hidden as appropriate)
+
+
+- [x] P0-1: API Surface Governance / Namespace guards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #909 (`feat/pr-909-food-db-next`)
+  - Status: ✅ Merged (PR #909, 2026-02-26)
+  - Area: backend / API governance / OpenAPI contracts
+  - Finding Type: architecture governance gap
+  - Reason: Public OpenAPI surface drift must be locked to canonical FREE/PRO/VIP namespaces to prevent schema sprawl and tier-discipline erosion.
+  - Links:
+    - `docs/architecture/ADR_API_SURFACE_CONSOLIDATION_2026-02-26.md`
+    - `tests/test_openapi_namespace_guards.py`
+    - `legacy_app.py`
+    - `frontend/src/api/openapi.json`
+  - DoD:
+    - OpenAPI namespace guard test is merged and enforced in CI
+    - Legacy `/api/v1/foods*` and `/api/v1/restaurants*` are hidden from OpenAPI schema
+    - Runtime compatibility for legacy routes remains intact
+    - API surface consolidation ADR is merged
+
+
+- [x] P0-2: WS namespace migration (`/ws` -> `/api/v1/pro/ws`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #919 (`feat/p0-2-ws-canonical-clean`)
+  - Status: ✅ Merged (PR #919, 2026-02-26)
+  - Area: backend / realtime transport / API governance
+  - Finding Type: namespace consistency follow-up
+  - Reason: WebSocket path still uses transitional root namespace (`/ws`) and must align with canonical PRO surface while preserving a deprecation window.
+  - Links:
+    - `app/routers/realtime_ws.py`
+    - `app/main.py`
+    - `frontend/src/api/wsClient.ts`
+  - DoD:
+    - Canonical WebSocket endpoint available at `/api/v1/pro/ws`
+    - `/ws` compatibility alias is deprecated with removal window documented
+    - OpenAPI/guard policy updated to remove transitional `/ws` allowance
+    - Frontend ws client defaults to canonical path
+
+
 - [x] P0: Execution Wave 1 — Snapshot manager + OFF delta + canonical merge contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0
@@ -341,136 +5804,29 @@ If it is not recorded here — it does not exist.
     - `core/food_sources/`
     - `core/food_apis/update_manager.py`
     - `scripts/build_food_db.py`
+    - W1 manifest integrity extension: PR #1360 (merged; canonical ledger entry below)
   - DoD:
     - Immutable raw snapshot layout is implemented
     - Manifest/checksum policy is enforced fail-closed
     - Deterministic OFF delta ingestion is in place
     - Existing `/api/v1/foods*` behavior remains compatible
 
-- [x] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
+
+- [x] P1: PR #1360 — snapshot record verification + size enforcement (W1 manifest integrity)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #891, PR #893, PR #898, PR #900
-  - Status: ✅ Merged (W2-A/W2-B/W2-C + barcode hit contract in PR #900, 2026-02-25)
-  - Area: backend / search / API
-  - Finding Type: performance and UX improvement
-  - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
+  - Target PR: PR #1360 (https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1360)
+  - Status: ✅ Merged (PR #1360, 2026-04-06; merge commit `837cfa170a30160e5f720609cb508e05d4565782`)
+  - Area: backend / data ingestion / manifest integrity
+  - Finding Type: W1 merge follow-up (fail-closed verification)
+  - Reason (EN): Extend Wave 1 snapshot hub with fail-closed `verify_recorded_snapshots` and recorded size/checksum enforcement. (RU: расширение W1 — жёсткая проверка записанных снапшотов и размера.)
   - Links:
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
-    - `scripts/benchmarks/food_api_latency_benchmark.py`
-    - `app/routers/foods.py`
-    - `app/services/food_store.py`
-    - `tests/test_food_store_service.py`
-    - `tests/test_foods_router_additional.py`
+    - `core/food_sources/snapshot_manager.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md` (§5.1)
   - DoD:
-    - Existing `/api/v1/foods` contracts remain stable
-    - New search backend is integrated behind compatibility layer
-    - New endpoints contract for barcode/search filters is documented and tested
-    - Target local-first search latency budget (<50ms p50) is measured and reported
+    - Fail-closed verification path covered by deterministic tests
+    - Strategy SoT §5.1 anchors reference current `file:line` entrypoints
 
-- [x] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #895 (+ follow-up PR #901, `feat/food-db-w3b-menustat-provenance-closure`)
-  - Status: ✅ Merged (W3-A in PR #895 + W3-B closure in PR #901, 2026-02-25)
-  - Area: backend / data model / partner enablement
-  - Finding Type: product coverage expansion
-  - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
-  - Links:
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-    - `docs/design/RESTAURANT_INTEGRATION_SPEC.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md` (P2 Vision: Restaurant/chef integration)
-    - `app/routers/restaurants.py`
-    - `app/services/restaurant_store.py`
-    - `app/schemas/restaurants.py`
-  - DoD:
-    - MenuStat baseline ingestion is operational
-    - Restaurant menu schema and endpoints are documented
-    - Moderated user submission workflow is implemented (`pending/approved/rejected`)
-    - Source audit trail persists provenance for imported and moderated records
-
-- [x] P1: Execution Wave 3-C — operational MenuStat bootstrap importer
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #904 (`feat/food-db-w3d-menustat-importer`)
-  - Status: ✅ Merged (PR #904, 2026-02-25)
-  - Area: backend / ingestion operations / restaurant coverage
-  - Finding Type: operational gap closure
-  - Reason: Restaurant endpoints and storage contracts exist, but local environments need a deterministic, repeatable import command to seed menu data from MenuStat-style snapshots without manual DB editing.
-  - Links:
-    - `scripts/import_restaurant_menu.py`
-    - `data/restaurant_menu_sample.csv`
-    - `tests/test_import_restaurant_menu_script.py`
-    - `app/services/restaurant_store.py`
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-  - DoD:
-    - CLI importer loads MenuStat-style CSV with alias mapping into canonical restaurant tables
-    - Importer supports explicit snapshot date and source name for provenance
-    - Deterministic sample dataset exists for local bootstrap and tests
-    - End-to-end test verifies import command populates searchable chain/menu records
-
-- [x] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #908 (`feat/food-db-wave3e-submission-promotion`)
-  - Status: ✅ Merged (PR #908, 2026-02-25)
-  - Area: backend / moderation workflow / restaurant coverage
-  - Finding Type: correctness gap closure
-  - Reason: Moderated submissions reached `approved`, but approved restaurant-menu submissions were not deterministically promoted into canonical `restaurant_menu_items`, creating a product/database gap for local-first lookup.
-  - Links:
-    - `app/services/restaurant_store.py`
-    - `tests/test_restaurant_store_service.py`
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-  - DoD:
-    - `approved` submissions with `entity_type=restaurant_menu` are promoted into canonical menu rows in the same transaction scope
-    - Re-approving already approved submissions is idempotent (no duplicate promoted menu rows)
-    - `rejected` submissions do not create menu rows
-    - Promotion failures remain fail-closed (no partial moderation/audit state persisted)
-    - Deterministic tests cover approved/rejected/idempotency/rollback behavior
-
-- [x] P1: Food barcode hit contract normalization for canonical FoodItem response
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #900 (`fix/food-barcode-hit-contract`)
-  - Status: ✅ Merged (PR #900, 2026-02-25)
-  - Area: backend / API contract / data normalization
-  - Finding Type: correctness and reliability gap
-  - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of a list, causing non-deterministic hit-path behavior in benchmark and runtime.
-  - Links:
-    - `app/routers/foods.py`
-    - `app/schemas/food.py`
-    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
-  - DoD:
-    - Barcode hit path returns `200` with valid `FoodItem` serialization on canonical seeded DB
-    - `flags` storage/parse contract is normalized and backward-compatible
-    - Deterministic tests cover hit/miss/malformed barcode paths
-
-- [x] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR #902 (`docs/food-db-w4-kickoff`) + PR #905 (`feat(food-db): add W4-B feature-flag semantic search routing`) + PR #914 (`feat/food-w4-benchmark-rollback-closure`)
-  - Status: ✅ Merged (W4-A #902, W4-B #905, W4-C #914 all merged 2026-02-26)
-  - Area: backend / search relevance
-  - Finding Type: strategic enhancement
-  - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.
-  - Execution Notes:
-    - (2026-02-25) W4-A kickoff docs merged in PR #902
-    - (2026-02-25) W4-B runtime merged in PR #905 (feature-flagged `semantic > compat > legacy`)
-    - (2026-02-26) W4 benchmark + rollback validation bundle prepared in PR #914
-      - Added semantic benchmark harness: `scripts/benchmarks/food_semantic_retrieval_benchmark.py`
-      - Added rollback-safe tests for semantic flag-off path: `tests/test_food_store_service.py`, `tests/test_foods_router_additional.py`
-      - Added benchmark audit artifact/report: `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`, `docs/audit/artifacts/food_w4_semantic_benchmark.json`
-  - Links:
-    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
-    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
-    - `scripts/benchmarks/food_semantic_retrieval_benchmark.py`
-    - `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`
-  - DoD:
-    - Feature-flagged semantic retrieval is implemented
-    - Cost/performance benchmark is documented
-    - Rollback-safe deployment path is defined and validated
-    - Non-semantic search path remains default and stable
 
 - [x] P0: Food data licensing + attribution compliance package
   - Owner: @katsiaryna_kavaleuskaya
@@ -490,6 +5846,416 @@ If it is not recorded here — it does not exist.
     - Source attribution registry is centralized server-side (no client hardcoding)
     - Deterministic tests cover auth gate + contract payload
     - Compliance policy doc is merged and linked in backlog
+
+
+- [x] P0: GDPR retention cleanup implementation (replace stub with safe deletion)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (privacy/compliance)
+  - Target PR: PR #978 (`fix/gdpr-log-retention-cleanup`)
+  - Status: ✅ Merged (PR #978, 2026-03-05)
+  - Area: backend / compliance / operations
+  - Finding Type: compliance hotfix
+  - Reason: `cleanup_expired_logs()` was a non-destructive stub; privacy posture requires real retention enforcement with path safety and deterministic dry-run checks.
+  - Links:
+    - `core/log_retention.py`
+    - `tests/test_log_retention_coverage.py`
+    - `tests/test_fingerprint_and_retention.py`
+  - DoD:
+    - Real mtime-based cleanup is implemented under bounded retention root
+    - Dry-run mode is additive and non-breaking
+    - Deletion outside configured root is blocked (path-safety guard)
+    - Deterministic tests cover dry-run, class filter, stat/unlink errors, and path boundary
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
+
+<a id="ledger-p0-export-signing-hardening"></a>
+- [x] P0: Harden private export signing secret and signable-path scope
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-TBD-EXPORT-SIGNING-HARDENING -> PR #1035 (`fix(export): harden signing secret access`)
+  - Status: ✅ Merged (PR #1035, 2026-03-08)
+  - Area: backend / security / export signing
+  - Finding Type: auth/config hardening
+  - Reason: Repo truth already contains signable-path allowlisting and production/staging placeholder rejection in `settings.py`, but `app/routers/plan_export.py` still imports a static `EXPORT_TOKEN_SECRET` at module load. That keeps signing/verification vulnerable to runtime config drift and leaves the canonical hidden-schema contract under-tested.
+  - Links:
+    - `app/routers/plan_export.py`
+    - `settings.py`
+    - `signed_links.py`
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `tests/test_export_signed.py`
+    - `docs/review/PR_1035_FIXED_MAPPING.md`
+  - DoD:
+    - Signing and verification use `get_export_token_secret()` at request time instead of a stale imported constant
+    - Private export signing fails closed when `EXPORT_TOKEN_SECRET` is default/empty in production-like envs
+    - Allowed sign targets stay restricted to canonical export routes actually used by product flows
+    - Canonical `app.openapi()` keeps export routes hidden while runtime route registration stays intact
+    - Deterministic tests cover deny/default-secret, deny/non-allowlisted-path, and hidden-schema regression branches
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
+
+- [x] P0: Import determinism for app-level tests (remove skip fallback)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-729
+  - Status: ✅ Merged (PR-729, 2026-02-13)
+  - Area: backend / tests
+  - Finding Type: quality / determinism
+  - Locations:
+    - `tests/test_api.py:343` — guard test enforces "fail, not skip" policy
+    - `tests/test_api.py:346` — marker check prevents reintroducing
+      `pytest.skip("App import failed unexpectedly")`
+  - Reason: Import determinism is a foundation invariant. Skipping app import failures masks CI and runtime risks.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `AGENTS.md:58`
+    - `AGENTS.md:64`
+  - Evidence (2026-02-13):
+    - `pytest -q tests/test_api.py -rs` -> `22 passed`, `0 skipped`
+    - `rg -n "SKIPPED \\[4\\]|App import failed unexpectedly" -S tests` -> no matches
+  - DoD:
+    - No skip fallback for app import in `tests/test_api.py`
+    - Import path uses deterministic seams (no `builtins.__import__` patching)
+    - The 4 previously skipped import tests execute (pass/fail, not skip)
+    - `make verify` passes in PR-729
+
+
+- [x] P0: OFF Vitamin D unit normalization (µg -> IU) + nameless-row guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (data correctness)
+  - Target PR: PR #976 (`fix/off-vitd-unit-conversion`)
+  - Status: ✅ Merged (PR #976, 2026-03-05)
+  - Area: backend / food data normalization
+  - Finding Type: correctness hotfix
+  - Reason: Open Food Facts normalization writes `vitamin-d_100g` without deterministic µg→IU conversion and may ingest nameless rows; this degrades canonical nutrition trust and search quality.
+  - Links:
+    - `core/food_sources/off.py`
+    - `tests/test_food_sources_simple.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+  - DoD:
+    - OFF `vitamin-d_100g` is normalized via deterministic `iu_vitd_from_ug(...)`
+    - Nameless rows are skipped fail-closed during OFF import
+    - Deterministic tests cover µg→IU mapping and nameless-row skip behavior
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
+
+
+- [x] Greenlight iOS P0 report-only workflow
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-722
+  - Status: ✅ Merged (PR-722, 2026-02-12)
+  - Priority: P0
+  - Area: CI / iOS
+  - Reason: Add report-only App Store readiness scan for iOS in CI.
+  - Links:
+    - docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md
+    - docs/runbook/IOS_GREENLIGHT.md
+  - DoD:
+    - Workflow `.github/workflows/greenlight-ios.yml` path-scoped ✅
+    - Report artifact + step summary ✅
+    - P0 report-only documented ✅
+
+
+- [x] Retro-audit PR window #838-#842: merge/comment timing + tail closure
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (process reliability)
+  - Target PR: #842, #843, #844
+  - Status: ✅ Completed (2026-02-21)
+  - Area: CI/process governance + docs follow-up
+  - Finding Type: post-merge audit + governance hardening
+  - Reason: Multiple PRs were merged before full bot/comment cycle completion; we needed deterministic evidence,
+    explicit tail closure, and technical merge-blocking controls.
+  - Findings:
+    - PR #838: only post-merge Codecov report (no actionables).
+    - PR #839: post-merge cubic "No issues found" + Codecov (no actionables).
+    - PR #840: post-merge review events (no actionable inline findings to apply).
+    - PR #841: post-merge Sourcery actionable found; fixed and merged via PR #842.
+    - PR #842: held until full green + bot pass; merged only after final CI completion.
+    - PR #833 doc comment tail: no longer relevant on current `main` (already reflected in `AGENTS.md`).
+    - PR #835 doc comment tail: still relevant; addressed via docs follow-up PR #843.
+  - Links:
+    - PR #842: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/842`
+    - PR #843: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/843`
+    - PR #844: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/844`
+  - DoD:
+    - ✅ Retro-audit evidence recorded for each PR in scope
+    - ✅ Missed actionable from PR #841 remediated and merged
+    - ✅ Docs tail from PR #835 moved to follow-up PR (#843)
+    - ✅ Merge-readiness process hardened with CI policy gate PR (#844)
+
+
+- [x] HPP Web visual workflow: Playwright deterministic smoke lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend quality guardrail)
+  - Target PR: #828, #840
+  - Status: ✅ Merged (2026-02-21)
+  - Area: frontend / HPP / e2e visual smoke
+  - Finding Type: execution foundation
+  - Reason: HPP route changes need deterministic browser smoke checks to catch critical UI regressions
+    (`/`, `/plate`, `/progress`, `/pro`) before broader CI hardening.
+  - Links:
+    - `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
+    - `frontend/playwright.config.ts`
+    - `frontend/e2e/`
+  - DoD:
+    - Playwright config and smoke specs exist for canonical HPP routes
+    - `npm run test:e2e` and headed variant are available in `frontend/package.json`
+    - Smoke checks run with deterministic local web server settings
+    - Runbook contains npm-first execution commands
+
+
+- [x] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend delivery accelerator)
+  - Target PR: #828, #839
+  - Status: ✅ Merged (2026-02-21)
+  - Area: frontend / HPP / design-system tooling
+  - Finding Type: execution foundation
+  - Reason: HPP UI currently lacks isolated component review. Adding Storybook enables deterministic visual
+    review of tokenized primitives before route-level integration and reduces regressions during rapid UI iteration.
+  - Links:
+    - `frontend/package.json`
+    - `frontend/src/components/ui/`
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+  - DoD:
+    - Storybook is wired in `frontend` (`storybook`, `build-storybook` scripts)
+    - HPP stories exist for `SegmentedControl`, `Toggle`, `FormField`, and page-card shell
+    - Token usage guidelines page exists for HPP states (default/realtime/fallback/conversion)
+    - Storybook build passes in local verification
+
+
+- [x] Web design-token hardening: Token SoT + palette switch + runtime raw-hex guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (frontend stability / drift prevention)
+  - Target PR: #835, #837
+  - Status: ✅ Merged (2026-02-21)
+  - Area: frontend / design-system governance
+  - Finding Type: policy hardening + runtime guard
+  - Reason: Token drift risk and hardcoded runtime colors were allowing visual inconsistency. We fixed
+    source-of-truth ownership, activated canonical palette tokens, and added deterministic guardrails
+    to prevent future raw-hex regressions in runtime UI paths.
+  - Links:
+    - `docs/design/TOKENS_SOT.md`
+    - `frontend/src/styles/tokens.css`
+    - `frontend/src/styles/tokens.ts`
+    - `tests/test_frontend_raw_hex_guard.py`
+    - PR #835, PR #837
+  - DoD:
+    - ✅ Token SoT documented and merged
+    - ✅ Canonical palette values active in web tokens
+    - ✅ Plate chart raw hex replaced with token variables
+    - ✅ Runtime raw-hex guard test merged with explicit allowlist
+
+<a id="ledger-p0-ci-nightly-test-db-schema-bootstrap"></a>
+- [x] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL)
+  - Target PR: PR-629
+  - Status: ✅ Merged (PR-629)
+  - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
+  - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
+  - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update (implemented in PR-629)
+  - Links:
+    - PR-629: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/629>
+    - CI nightly failed run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103>
+    - Failing job (tests): <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103/job/62166939568>
+  - DoD:
+    - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
+    - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
+    - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
+  - Notes (3 February 2026, America/New_York):
+    - Fix: close leaked TestClients (context-managed `tests/conftest.py::client` + close in `tests/test_nutrition_log_api.py` teardown) to ensure lifespan runs deterministically under xdist.
+    - Verification (local, 6 February 2026): `pytest -q tests/test_nutrition_log_api.py -n 2 --dist=loadgroup` passed on `main` (post-merge).
+    - Verification (local, 6 February 2026): `pytest -q tests/test_db_engine_reuse_diff_coverage.py tests/test_sqlite_engine_sot.py` passed on `main`.
+
+
+- [x] iOS: Guard test forbids placeholder API keys in app sources
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (release safety)
+  - Target PR: PR-657
+  - Status: ✅ Merged (PR-657, 2026-02-06)
+  - Reason: Prevent accidental shipping of placeholder keys like `test_pro_key` in iOS sources; enforce via CI.
+  - Links:
+    - `ios/PulsePlate/Services/ProKeyProvider.swift`
+    - `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` (existing guard pattern)
+  - DoD:
+    - A deterministic guard/unit test fails CI if placeholder key strings appear in `ios/PulsePlate/**`
+    - Test excludes fixtures/mocks as needed (no false positives)
+    - Documented allowlist policy (if any) in `ios/AGENTS.md`
+
+
+- [x] iOS: Remove placeholder PRO key fallback and implement release-safe key storage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (release safety)
+  - Target PR: PR-656
+  - Status: ✅ Merged (PR-656, 2026-02-06)
+  - Reason: `ProKeyProvider` previously contained a placeholder fallback (`test_pro_key`) in DEBUG. This is not release-safe and can mask missing-key flows in development and tests.
+  - Links:
+    - `ios/PulsePlate/Services/ProKeyProvider.swift`
+    - `ios/PulsePlate/Services/KeychainStore.swift`
+    - `docs/IOS_API_INTEGRATION.md`
+  - DoD:
+    - No placeholder key strings are returned by any provider (dev or prod)
+    - Key retrieval uses a secure source (Keychain-backed or explicit developer-only injection that cannot ship)
+    - Missing-key path is explicit and testable (UI/service fails with clear error, not silent fallback)
+    - iOS tests updated / added for missing-key behavior (deterministic)
+
+
+- [x] PR-653 P0 Welcome onboarding gate (iOS-only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR-653
+  - Status: ✅ Merged (PR-653, 2026-02-06)
+  - Reason: Store readiness — ensure deterministic first-run value framing with a single entry gate (`has_seen_welcome_v1`) before `RootTabs()`.
+  - Links:
+    - docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md
+    - Follow-up: PR-678 (tighten to 2 screens: Value + Usage)
+  - DoD:
+    - iOS entrypoint gates `RootTabs()` via `WelcomeGateView`
+    - `@AppStorage("has_seen_welcome_v1")` persists completion (welcome shown once)
+    - RU/EN/ES strings ship for `onboarding.welcome.*`
+    - `make ios-test` passes
+
+
+- [x] PR-616 Thin-proxy cleanup (helpers-1) — merged
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-616
+  - Status: ✅ Merged
+  - Priority: P0
+  - Branch: `chore/p1-thin-proxy-cleanup-helpers-1-new`
+  - Reason: Architectural cleanup — move helpers out of `legacy_app.py` to restore "thin proxy only" invariant. Steps 1/2/3/4/6/7 complete (scheduler wrappers, utility helpers, feature flags, nutrition wrappers, fingerprint, dead BMI helpers). Step 5 (DB fallback) deferred to TP2.
+  - Links:
+    - docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md
+    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
+  - DoD:
+    - ✅ Steps 1/2/3/4/6/7 complete (helpers moved to canonical modules)
+    - ✅ Step 5 explicitly deferred to TP2 (DB fallback helpers remain in `legacy_app.py`)
+    - ✅ `pytest -q` green (0 FAILED/ERROR)
+    - ✅ Guard tests pass (`test_repo_policy_guards.py`, `test_no_legacy_bmi_helpers_request_path.py`)
+    - ✅ No "tail" imports (`from app import normalize_flags|waist_risk` removed from tests)
+    - ✅ Tests updated to use canonical functions (`core.bmi.engine`, `core.bmi.risk`)
+    - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
+    - ✅ PR merged
+
+
+- [x] PR-623 SQLite xdist dual-engine leak + hermetic tests + SoT reset — merged 2026-01-30
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (infra)
+  - Target PR: PR #623 (`fix/sqlite-xdist-threading-engine-sot`)
+  - Status: ✅ Merged
+  - Reason: Fix SQLite xdist dual-engine leak: single-engine SoT reset in fixture, hermetic tests when mutating env, NullPool gated to test/xdist via `make_url`, diff-coverage tests for protective branches. 97% threshold unchanged.
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/623>
+    - docs/CONTEXT_HANDOFF_2026-01-30.md
+  - DoD:
+    - ✅ SoT reset in fixture; hermetic engine reuse tests
+    - ✅ NullPool only for file-based SQLite in test/xdist
+    - ✅ diff-coverage tests for `_get_sqlite_poolclass` branches
+    - ✅ CI green; guards pass
+
+
+- [x] PR-627 xdist SQLite race conditions (table exists + no-table errors) — merged 2026-02-01
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (infra)
+  - Target PR: PR #627 (`fix/p1-sqlite-engine-sot`)
+  - Status: ✅ Merged
+  - Reason: Fix two independent xdist race conditions: (1) in-memory DB leak from `test_init_db` (no teardown → "no such table" in API tests), (2) fixture ordering race (duplicate `init_db()` + redundant `create_all()` → "table already exists").
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/627>
+    - docs/audit/PR_617_SQLITE_ENGINE_SOT_NIGHTLY_AUDIT.md
+    - docs/CONTEXT_HANDOFF_2026-01-30.md
+  - DoD:
+    - ✅ Fix 1: `test_init_db` + `try/finally` cleanup (restore env + `reset_db_for_tests()`)
+    - ✅ Fix 2: Explicit fixture dependency + remove redundant `create_all()`
+    - ✅ Tests green under xdist -n 2 (targeted subset + full nutrition_log suite)
+    - ✅ `make test-fast` passes (exit_code 0)
+    - ✅ SoT guard test remains green (no regression)
+    - ✅ CI green; PR merged
+
+
+- [x] PR-TP2 Thin-proxy cleanup (DB fallback) — merged 2026-01-29 (PR #617)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #617 (`refactor/tp2-db-fallback`)
+  - Status: ✅ Merged (squash merge SHA: 19e0b8f5; 2026-01-29)
+  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Original target `core/db/fallback.py` caused `core.db` module/package collision in CI; amended to `core/db_fallback.py`.
+  - Links:
+    - PR #617
+    - docs/pr/PR_TP2_DB_FALLBACK_PLAN.md
+    - docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md
+    - docs/CONTEXT_HANDOFF_2026-01-29.md
+  - Preconditions:
+    - ✅ TP1 merged (helpers-1 cleanup complete)
+  - DoD:
+    - ✅ DB fallback in `core/db_fallback.py` (single source of truth; no package collision)
+    - ✅ `legacy_app.py` thin proxy only (no DB fallback logic)
+    - ✅ Tests rebound to `core.db_fallback`; guard tests pass (no guard exception)
+    - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
+    - ✅ CI green on PR #617 → merge → post-merge sanity
+
+
+- [x] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (CRITICAL security)
+  - Target PR: PR-647 (security fix)
+  - Status: ✅ Merged (PR-647)
+  - Reason: VIP-only + rate limit prevent bursts but do not provide a monthly cost ceiling; without quota, sustained
+    usage can still create an economic DoS. Policy requires a hard cost cap for LLM endpoints.
+  - Links:
+    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
+    - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md
+    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
+    - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
+  - DoD:
+    - Server-side authoritative quota per VIP key (requests/month OR tokens/month OR estimated cost/month)
+    - Hard-stop before provider call when quota exceeded
+    - Deterministic non-leaky error response on exceed (prefer `429`, e.g. `quota_exceeded`)
+    - Tests:
+      - VIP under quota → 200
+      - VIP over quota → 429
+      - FREE/PRO remain → 403
+    - Minimal observability: counters/logging for usage and quota decisions
+
+
+- [x] P0: Security hardening wave for agent automation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0
+  - Target PR: PR #848 (docs/agent-sec-hardening-wave)
+  - Status: ✅ Completed (PR #848, 2026-02-21, merge SHA `e7a58fb2`)
+  - Area: security / runbooks / operations
+  - Finding Type: incident prevention
+  - Locations:
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `RUNBOOK_AGENT.md`
+  - Reason: enforce short-lived credentials, rotation protocol, and secret persistence bans after local-agent incident.
+  - Links:
+    - `docs/runbooks/README.md`
+  - DoD:
+    - [x] Rotation protocol documented and adopted for bot/API/webhook credentials
+    - [x] Security release gate conditions documented
+    - [x] Mandatory controls mapped to owner and verification evidence
+  - Evidence (2026-02-21): PR #848 merged
+  - Blockers: None (closed)
+
+
+### P0-A / P0-B
+
+- [x] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0-B (release readiness)
+  - Target PR: PR-678
+  - Status: ✅ Merged (PR-678, 2026-02-07)
+  - Reason: P0-B requires a minimal onboarding (≥2 screens). Keep the existing first-launch gate and tighten the flow to the two essential screens (Value + Usage) without adding networking/paywall/analytics.
+  - Links:
+    - `ios/PulsePlate/PulsePlateApp.swift`
+    - `ios/PulsePlate/Welcome/WelcomeGateView.swift`
+    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
+    - docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/678>
+  - DoD:
+    - On first launch, onboarding shows before `RootTabs()` (gate remains at app entry)
+    - On completion, onboarding is not shown again (`has_seen_welcome_v1` persists)
+    - Onboarding is exactly 2 screens (Value + Usage)
+    - RU/EN/ES strings updated for the 2 screens
+    - `make ios-test` passes
 
 - [x] P0-A: Stabilize web + iOS UX after Figma AI component integration regression
   - Owner: @katsiaryna_kavaleuskaya
@@ -524,1055 +6290,343 @@ If it is not recorded here — it does not exist.
     - ✅ Deterministic regression tests added/updated (web + iOS where applicable)
     - ✅ CI checks for touched surfaces pass; no unresolved review threads
 
-- [x] P0: Agent Control Plane MVP (policy gate + signed audit + secrets boundary)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: #846
-  - Status: ✅ Completed (Merged PR #846 on 2026-02-21)
-  - Area: architecture / backend / security
-  - Finding Type: platform hardening / modernization
-  - Locations:
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
-  - Reason: replace third-party local agent dependency with policy-first, vendor-independent control plane.
-  - Links:
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `app/security/agent_control_plane.py`
-    - `tests/test_agent_control_plane_mvp.py`
-  - Evidence (2026-02-21, America/New_York):
-    - `app/security/agent_control_plane.py:1` — MVP primitives implemented:
-      deny-by-default policy gate, signed audit envelope, and short-lived scoped token issuing.
-    - `tests/test_agent_control_plane_mvp.py:1` — deterministic coverage for
-      allowlist parsing, fail-closed policy decisions, audit signature verification, and token TTL validation.
-  - DoD:
-    - [x] Control plane MVP contract documented and accepted
-    - [x] Deny-by-default policy requirements and fail-closed semantics documented
-    - [x] Signed audit trail requirements documented with verification checklist
-    - [x] Initial runtime primitives implemented with deterministic tests
-    - [x] Follow-up implementation PRs opened and linked (PR #846)
 
-- [x] P0: Security hardening wave for agent automation
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: PR #848 (docs/agent-sec-hardening-wave)
-  - Status: ✅ Completed (PR #848, 2026-02-21, merge SHA `e7a58fb2`)
-  - Area: security / runbooks / operations
-  - Finding Type: incident prevention
-  - Locations:
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
-    - `RUNBOOK_AGENT.md`
-  - Reason: enforce short-lived credentials, rotation protocol, and secret persistence bans after local-agent incident.
-  - Links:
-    - `docs/runbooks/README.md`
-  - DoD:
-    - [x] Rotation protocol documented and adopted for bot/API/webhook credentials
-    - [x] Security release gate conditions documented
-    - [x] Mandatory controls mapped to owner and verification evidence
-  - Evidence (2026-02-21): PR #848 merged
-  - Blockers: None (closed)
+### P1
 
-- [ ] P2: Scoped token nonce — replace deterministic HMAC tokens with nonce-bearing tokens
+<a id="ledger-p1-worker-proxy-hardening"></a>
+- [x] P1: Lock down Cloudflare worker proxy before any public deployment
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-TOKEN-NONCE (Wave 2)
+  - Priority: P1
+  - Target PR: PR #1082 (`feat/p1-worker-proxy-hardening-pr`)
+  - Related follow-up: PR #1087 (`fix/p0-app-package-bootstrap-alignment`)
+  - Related follow-up status: ✅ Merged (PR #1087, 2026-03-10)
+  - Related follow-up SHA: `4e5ce31a08ec03393f70b59d3c93b811edb43633`
+  - Status: ✅ Merged evidence (PR #1082 bounded the worker runtime to first-party `/api/*` proxy use only; PR #1087 then re-aligned the `app` package bootstrap on `main` so additive public runtime/OpenAPI surfaces stay visible through `import app`)
+  - Area: edge / Cloudflare / security
+  - Finding Type: proxy abuse prevention
+  - Reason: `worker.js` previously forwarded arbitrary paths with wildcard CORS and passed through `Authorization`. That edge gap is now closed on `main` by PR #1082: the worker remains supported, but is hardened into a bounded first-party API proxy with `/api/*` allowlisting, `GET/POST/OPTIONS` method scope, explicit `TARGET_BASE`, trusted origins via `WORKER_ALLOWED_ORIGINS`, bounded header forwarding, stripping/ignoring spoofable client-IP headers, and no wildcard CORS. This ledger item is therefore closed as merged evidence rather than carried as an active runtime lane.
+  - Links:
+    - `worker.js`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/deploy/PRODUCTION.md`
+    - `tests/test_worker_proxy_contract.py`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1087`
+    - `docs/review/PR_1087_FIXED_MAPPING.md`
+  - DoD:
+    - Worker path scope is allowlisted to `/api/*`
+    - Worker method scope is allowlisted to `GET`, `POST`, and `OPTIONS`, with tests proving other verbs are rejected
+    - Worker proxy tests prove `redirect: "manual"` remains enforced for upstream fetches
+    - Wildcard CORS and header pass-through are removed or bounded to trusted origins
+    - Authorization forwarding policy is documented and tested, and spoofable client-IP headers are stripped or ignored fail-closed
+    - Deployment docs state that worker runtime is supported only as a bounded first-party proxy
+
+<a id="ledger-p1-fitchef-phase1-wrapper"></a>
+- [x] P1: FitChef Phase 1 wrapper
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-1055
+  - Status: ✅ Merged (PR-1055, 2026-03-09)
+  - Area: orchestration / backend runtime / coaching insight
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/schemas/fitchef.py`
+    - `app/routers/cbt_insight.py`
+  - Reason: The approved FitChef rollout order keeps `cbt_insight` as the first surface, but Phase 1 still needs one internal orchestration source of truth before weekly-plan and shopping-list bindings can reuse it.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1013_FIXED_MAPPING.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+    - `docs/review/PR_1055_FIXED_MAPPING.md`
+  - DoD:
+    - Internal `fitchef-agent` wrapper exists under backend runtime with typed internal task envelope only
+    - Existing `cbt_insight` public route delegates through the wrapper for `task_type=coach_insight`
+    - Current request/response contracts remain unchanged for clients
+    - Policy, quota, audit, RAG, and timeout ordering remain unchanged and regression-tested
+  - Blockers: None
+
+<a id="ledger-p1-fitchef-weekly-plan-binding"></a>
+- [x] P1: FitChef weekly-plan task binding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-1057
+  - Status: ✅ Merged (PR-1057, 2026-03-09)
+  - Area: orchestration / backend runtime / weekly planning
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/schemas/vip.py`
+    - `app/routers/vip.py`
+    - `core/menu_engine.py`
+  - Reason: After the internal FitChef wrapper lands, weekly-plan generation is the second approved Phase 1 task type and should reuse the same orchestration runtime instead of keeping planner orchestration embedded in the route layer.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+    - `docs/review/PR_1057_FIXED_MAPPING.md`
+  - DoD:
+    - FitChef runtime supports `task_type=weekly_plan`
+    - Existing weekly-plan VIP route delegates through the wrapper and stays thin
+    - Current `WeeklyPlanRequest` and `WeeklyPlanResponse` contracts remain unchanged
+    - VIP gate and planner behavior remain deterministic and regression-tested
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
+
+<a id="ledger-p1-fitchef-shopping-list-follow-up-binding"></a>
+- [x] P1: FitChef shopping-list follow-up binding
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-1058
+  - Status: ✅ Merged (PR-1058, 2026-03-09)
+  - Area: orchestration / backend runtime / shopping list
+  - Finding Type: execution anchor
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+    - `app/routers/shopping_list_pro.py`
+    - `app/schemas/shopping_list.py`
+    - `app/core/shopping_list/generator.py`
+  - Reason: The third approved Phase 1 task type is shopping-list follow-up, and the canonical integration target is `shopping_list_pro.py`, not the echo-style shoplist path under `vip.py`.
+  - Links:
+    - `docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md`
+    - `docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md`
+    - `docs/review/PR_1042_FIXED_MAPPING.md`
+    - `docs/review/PR_1058_FIXED_MAPPING.md`
+  - DoD:
+    - FitChef runtime supports `task_type=shopping_followup`
+    - Canonical shopping-list route delegates through the wrapper and preserves `ShoppingListRequest -> ShoppingListDTO`
+    - XOR validation, unsupported-preferences handling, and tier-gate behavior remain unchanged and regression-tested
+    - Legacy echo-style shoplist handling under `app/routers/vip.py` stays out of scope for this Phase 1 binding unless a follow-up PR explicitly promotes it
+  - Blockers: Depends on [P1: FitChef Phase 1 wrapper](#ledger-p1-fitchef-phase1-wrapper)
+
+<a id="ledger-p1-fitchef-web-brand-rollout"></a>
+- [ ] P1: FitChef website brand rollout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD
   - Status: Planned
-  - Area: security / agent control plane
-  - Finding Type: security hardening
-  - Locations:
-    - `app/security/agent_control_plane.py:276` (`issue_scoped_token`)
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:84` (Wave 2 scope)
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:273` ("Known limitation" note)
-  - Reason: MVP scoped tokens are deterministic (HMAC without nonce); identical scope + timestamp produces identical tokens. Replay risk is bounded by short TTL but should be eliminated.
+  - Area: design / frontend / marketing
+  - Finding Type: brand rollout
+  - Reason: PR4 only promotes the mascot seed pack, iOS runtime mirrors, and
+    Figma reference handoff. Website hero composition, React variant adoption,
+    and marketing surfaces must be promoted in a dedicated follow-up PR to avoid
+    mixing brand-asset canon with website implementation.
   - Links:
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - `frontend/src/assets/brand/`
   - DoD:
-    - Nonce/random component design approved in ADR-003 amendment or new ADR
-    - Backward-compatible rollout plan documented (old tokens expire within TTL window)
-    - Deterministic tests updated: same scope + timestamp produces distinct tokens
-    - No performance regression: token issuing latency under 1 ms p99
-  - Blockers: None (deferred by priority, not blocked)
+    - Website hero and onboarding sections use named FitChef mascot variants
+    - Current `FitChefMascot` consumers migrate from legacy alias-only usage
+      where appropriate
+    - Marketing/storybook guidance reflects the same variant contract
+    - `make verify` passes with updated web tests if consumers change
+  - Blockers: Depends on repo mascot canon landing first
 
-- [ ] P2: C4-b Sandboxed execution boundary for high-risk agent actions
+<a id="ledger-p1-fitchef-figma-production-sync"></a>
+- [ ] P1: FitChef Figma production sync
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
+  - Priority: P1
+  - Target PR: PR-TBD
   - Status: Planned
-  - Area: security / agent control plane
-  - Finding Type: security hardening
-  - Locations:
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:73` (C4-b row)
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:77` (`ExecutionSandbox` boundary)
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
-  - Reason: MVP defers sandboxed execution to Wave 2. High-risk agent actions currently rely on policy gate only; bounded execution environment not yet implemented.
+  - Area: design / Figma / governance
+  - Finding Type: reference-lane promotion
+  - Reason: PR4 keeps Figma as `reference_only` for mascot placement. A later
+    PR may promote a governed sync flow once the repo mascot canon and web/iOS
+    consumers stabilize.
   - Links:
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md`
   - DoD:
-    - ADR-003 amendment or new ADR approved with sandbox design (isolation boundary, resource limits, timeout policy)
-    - Runtime sandbox enforcement implemented in `app/security/agent_control_plane.py`
-    - Deterministic tests: high-risk action blocked without sandbox, allowed within sandbox
-    - No performance regression: sandboxed action latency under 5 ms p99 overhead
-  - Blockers: None (deferred by Wave 2 scope, not blocked)
+    - Figma files reference the named mascot variant pack without hidden source
+      drift
+    - Repo-to-Figma import/export policy is documented with explicit approvals
+    - Any automated sync path remains bounded and reviewable
+  - Blockers: Depends on repo mascot canon landing first
 
-- [ ] P2: C5-a Auto-safe / review-required action split — runtime enforcement
+<a id="ledger-p1-users-surface-hardening"></a>
+- [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-WAVE2-GOVERNANCE (Wave 2)
-  - Status: Planned
-  - Area: security / agent control plane
-  - Finding Type: security hardening
-  - Locations:
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md:74` (C5-a row)
-    - `AGENTS.md:31` (PR merge readiness, approval model)
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md:59` (Wave 2 scope)
-  - Reason: MVP documents auto-safe vs review-required classification as policy only (in AGENTS.md). Runtime enforcement (programmatic routing based on action classification) deferred to Wave 2.
+  - Priority: P1
+  - Target PR: PR-TBD-USERS-SURFACE-HARDENING -> PR #1038 (`fix/security-users-surface-hardening`)
+  - Status: ✅ Merged (PR #1038, 2026-03-08)
+  - Area: backend / auth / data protection
+  - Finding Type: access-control gap
+  - Reason: Docs-only closure after PR #1038. Repo truth is now explicit: `app/routers/users.py` retained internal app-level protection while PR #1038 hid `/api/v1/users*` from the canonical public OpenAPI/schema surface and added deny-path regression coverage for unauthenticated access.
   - Links:
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
-    - `AGENTS.md`
+    - `app/routers/users.py`
+    - `app/main.py`
+    - `tests/test_users_api.py`
+    - `tests/test_users_router.py`
+    - `docs/security/SECURITY_POSTURE.md`
+    - `docs/review/PR_1038_FIXED_MAPPING.md`
   - DoD:
-    - Action classification taxonomy approved in ADR-003 amendment (auto-safe, review-required, admin-only)
-    - Runtime routing implemented: auto-safe actions proceed, review-required actions gate on human approval
-    - Deterministic tests: review-required action without approval returns 403/blocked
-    - Policy review sign-off documented (who approves classification changes)
-  - Blockers: None (deferred by Wave 2 scope, not blocked)
+    - Route policy is decided explicitly: protect with admin/API-key dependency, move behind internal-only surface, or remove if unused
+    - OpenAPI and tests reflect the chosen access contract
+    - Destructive operations require authenticated/authorized access
+    - Docs-only closure keeps ledger state aligned with merged repo truth
 
-- [x] P0: Growth telemetry canon and KPI dashboard baseline
+- [x] P1: `simple_rag` shared index thread-safety hardening
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: PR #845 (Phase 1 merged); Phase 2 (eventRegistry.ts) after PR #825 merge
-  - Status: Phase 1 ✅ Merged (PR #845, 2026-02-21); Phase 2 deferred
-  - Area: analytics / frontend / growth
-  - Finding Type: product optimization
-  - Locations:
-    - `docs/analytics/ANALYTICS_INDEX.md`
-    - `docs/analytics/METRICS_CATALOG.md`
-    - `frontend/src/lib/telemetry/eventRegistry.ts`
-  - Reason: establish canonical funnel semantics and events for onboarding -> paywall -> conversion -> retention.
+  - Priority: P1 (runtime reliability)
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason: Thread-safe initialization/refresh semantics and regression coverage were implemented and merged with the Wave 4 runtime closure.
   - Links:
-    - `docs/analytics/EXPERIMENT_REGISTRY.md`
-    - [PR #845](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/845) (Phase 1 docs)
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `core/rag/simple_rag.py`
+    - `tests/test_rag_simple.py`
+    - `tests/test_insight_rag_response_fields.py`
   - DoD:
-    - Core funnel metrics defined with owner and update cadence (Phase 1 in PR #845)
-    - Event taxonomy anchored in docs and frontend registry (docs in PR #845; frontend in Phase 2)
-    - Dashboard baseline requirements documented (Phase 1 in PR #845)
+    - Deterministic thread-safe index initialization strategy is implemented (no double-init races)
+    - Concurrency tests cover parallel read/init behavior
+    - No regression in insight response contract or latency envelope
 
-- [x] P0: Import determinism for app-level tests (remove skip fallback)
+
+- [x] P1: RAG contract implementation (sources[], confidence, budget constants)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: PR-729
-  - Status: ✅ Merged (PR-729, 2026-02-13)
+  - Priority: P1 (AI / RAG)
+  - Target PR: PR #935
+  - Status: ✅ Merged (PR #935, 2026-02-27)
+  - Reason (EN): Implement response schema and internal RAGContext/RAGChunk per `docs/contracts/RAG_CONTRACT.md`; add `sources[]`, `confidence`, `rag_used`, `hops`, `latency_ms` to Insight response; add `core/rag/contracts.py` and `rag_constants.py`.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `legacy_app.py` (InsightResponse, insight_v1/insight)
+  - DoD:
+    - InsightResponse (or extended schema) includes sources, confidence, rag_used, hops, latency_ms
+    - RAGChunk/RAGContext dataclasses in core/rag; constants in core/rag
+    - Deterministic tests for new response fields; `make verify` passes
+
+
+- [x] P1: RAG feedback storage (prerequisite for recursive learning)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / RAG / DB)
+  - Target PR: PR #937 (merged)
+  - Status: ✅ Merged (PR #937, 2026-02-28)
+  - Reason (EN): Recursive learning and adaptive personalization in BACKLOG require persistent feedback. Add `rag_feedback` table (and `user_knowledge` for VIP); application-layer RLS; migration.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (Feedback Schema)
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 5.2, 6.2)
+    - `docs/db/rag_feedback_schema.md` (schema documentation)
+  - DoD:
+    - Migration for rag_feedback and user_knowledge tables
+    - PII redaction via `core/pii_redaction.py` before storage
+    - Application-layer security (user_id filtering); DB RLS deferred to project-wide PR
+    - docs/db schema doc created
+    - `make verify` passes
+
+
+- [x] Eliminate import-time ORM/model imports in routers included in OpenAPI generation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (determinism / import hygiene)
+  - Target PR: PR-631
+  - Status: ✅ Merged (PR-631, 2026-02-03)
+  - Reason: OpenAPI generation must be side-effect free: routers reachable from `app.main:app` must not import ORM models at module import time.
+  - Evidence:
+    - `app/routers/nutrition_log.py:26-73` (TYPE_CHECKING-only model import + runtime lazy import pattern)
+    - `scripts/generate_openapi.py:114-120` (imports canonical entrypoint and calls `app.openapi()` successfully)
+  - DoD: ✅ Completed (PR-631)
+    - ORM model imports moved to runtime (inside handlers/dependencies), preserving OpenAPI determinism
+    - OpenAPI generation works with routers enabled
+    - Determinism test stays green
+
+
+- [x] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability / import hygiene)
+  - Target PR: PR #746 (merged `5ccf83f5`)
+  - Status: ✅ Completed (PR #746)
+  - Resolution: PR-746 extracted `app/openapi/orm_imports.py` with `get_nutrition_event_model()`,
+    `_lazy_import_attr()` helper, and `_ORM_IMPORT_CACHE` (idempotent, lock-free).
+    `nutrition_log.py` now uses a single `_nutrition_event_model()` wrapper that delegates to
+    the centralized helper. Guard test `test_openapi_import_safe_orm_guard.py` validates
+    import-safety and caching behavior.
+  - Evidence:
+    - `app/openapi/orm_imports.py:43-60` — `get_nutrition_event_model()` with lazy cache
+    - `app/routers/nutrition_log.py:19` — `from app.openapi.orm_imports import get_nutrition_event_model`
+    - `app/routers/nutrition_log.py:41-47` — `_nutrition_event_model()` typed wrapper
+    - `tests/test_openapi_import_safe_orm_guard.py` — guard test for import-safety + cache
+  - DoD:
+    - [x] Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
+    - [x] Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
+    - [x] No runtime behavior change (pure refactor)
+
+
+- [x] Restore full OpenAPI schema (remove temporary schema-only mode)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (contract velocity)
+  - Target PR: PR-631
+  - Status: ✅ Merged (PR-631, 2026-02-03)
+  - Reason: Schema-only OpenAPI mode reduced thin-client contract velocity. PR-631 removed the schema-only seam and enabled full-schema generation with deterministic output.
+  - Evidence:
+    - `scripts/generate_openapi.py:94-109` (FULL schema mode; enables feature-flagged routers in generator context)
+    - `tests/test_openapi_determinism.py:17-55` (asserts key PRO/business paths exist)
+  - DoD: ✅ Completed (PR-631)
+    - OpenAPI generator runs in full-schema mode (no schema-only marker)
+    - `frontend/src/api/openapi.json` + `frontend/src/api/schema.ts` in sync (`make openapi` produces no diff)
+    - Determinism test remains green
+
+
+- [x] API Tiers database lookup implementation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-721
+  - Status: ✅ Merged (PR-721, 2026-02-12)
+  - Priority: P1
+  - Area: backend
+  - Finding Type: TODO/FIXME
+  - Locations:
+    - `app/middleware/api_tiers.py` — DB lookup + env fallback (MISS only); ERROR/INVALID_TIER fail-closed
+  - Reason: Previously env-only; now DB-first when SUBSCRIPTION_DB_ENABLED=true with explicit fail-closed policy.
+  - Links:
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md (audit in PR-721)
+  - DoD:
+    - Database lookup implemented when SUBSCRIPTION_DB_ENABLED=true ✅
+    - Fallback to env-based detection only on DB MISS (not on ERROR/INVALID_TIER) ✅
+    - Tests cover both paths ✅
+
+
+- [x] Backend: Make VIP insight guard tests CI-deterministic
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability)
+  - Target PR: PR-658
+  - Status: ✅ Merged (PR-658, 2026-02-06)
+  - Reason: VIP insight guard tests should validate tier gating (403/200) without coupling to provider/quota internals, avoiding CI flakiness.
+  - Links:
+    - `tests/test_insight_vip_guard_api.py`
+    - PR-658
+  - DoD:
+    - Tests patch quota/provider paths deterministically
+    - `diff-coverage` passes on PRs touching these guard tests
+
+
+- [x] Fix test skips/xfails (batch) — completed in PR-602
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-602
+  - Status: ✅ Completed (remediated-by-removal for invalid/non-contract tests + traced skip)
+  - Priority: P1
   - Area: backend / tests
-  - Finding Type: quality / determinism
+  - Finding Type: skip/xfail
   - Locations:
-    - `tests/test_api.py:343` — guard test enforces "fail, not skip" policy
-    - `tests/test_api.py:346` — marker check prevents reintroducing
-      `pytest.skip("App import failed unexpectedly")`
-  - Reason: Import determinism is a foundation invariant. Skipping app import failures masks CI and runtime risks.
+    - `tests/test_bmi_visualization.py:523` — xfail → **removed**
+      - Reason: deterministic failure under `--runxfail` (404); test expected a legacy route to be mounted.
+        Classified in PR-600 as **invalid test / route wiring mismatch** (non-contract).
+    - `tests/test_app_branching_and_errors.py:185` — xfail → **removed**
+      - Reason: reload-dependent internal symbol assertions (`importlib.reload(app)` → symbols become `None`) are not a stable contract.
+        Classified in PR-600 as **invalid / environment-dependent assumption**.
+    - `tests/test_repo_policy_guards.py:85` — skip (sys.modules cleanup) → **kept skipped**, but reason now explicitly tied to ledger + PR-600 (no behavior change).
+  - Reason: Technical debt from remediation; tests disabled to unblock CI
   - Links:
-    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
-    - `AGENTS.md:58`
-    - `AGENTS.md:64`
-  - Evidence (2026-02-13):
-    - `pytest -q tests/test_api.py -rs` -> `22 passed`, `0 skipped`
-    - `rg -n "SKIPPED \\[4\\]|App import failed unexpectedly" -S tests` -> no matches
+    - docs/audit/PR_600_QUALITY_TESTS_AUDIT.md
+    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
+    - docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md
   - DoD:
-    - No skip fallback for app import in `tests/test_api.py`
-    - Import path uses deterministic seams (no `builtins.__import__` patching)
-    - The 4 previously skipped import tests execute (pass/fail, not skip)
-    - `make verify` passes in PR-729
-
-- [x] PR-653 P0 Welcome onboarding gate (iOS-only)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: PR-653
-  - Status: ✅ Merged (PR-653, 2026-02-06)
-  - Reason: Store readiness — ensure deterministic first-run value framing with a single entry gate (`has_seen_welcome_v1`) before `RootTabs()`.
-  - Links:
-    - docs/audit/PR_653_P0_WELCOME_ONBOARDING_4SCREENS_AUDIT.md
-    - Follow-up: PR-678 (tighten to 2 screens: Value + Usage)
-  - DoD:
-    - iOS entrypoint gates `RootTabs()` via `WelcomeGateView`
-    - `@AppStorage("has_seen_welcome_v1")` persists completion (welcome shown once)
-    - RU/EN/ES strings ship for `onboarding.welcome.*`
-    - `make ios-test` passes
-
-- [x] iOS: Tighten first-launch onboarding to Value + Usage (2 screens)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0-B (release readiness)
-  - Target PR: PR-678
-  - Status: ✅ Merged (PR-678, 2026-02-07)
-  - Reason: P0-B requires a minimal onboarding (≥2 screens). Keep the existing first-launch gate and tighten the flow to the two essential screens (Value + Usage) without adding networking/paywall/analytics.
-  - Links:
-    - `ios/PulsePlate/PulsePlateApp.swift`
-    - `ios/PulsePlate/Welcome/WelcomeGateView.swift`
-    - `ios/PulsePlate/Welcome/WelcomeFlowView.swift`
-    - docs/audit/PR_678_IOS_ONBOARDING_VALUE_USAGE_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/678>
-  - DoD:
-    - On first launch, onboarding shows before `RootTabs()` (gate remains at app entry)
-    - On completion, onboarding is not shown again (`has_seen_welcome_v1` persists)
-    - Onboarding is exactly 2 screens (Value + Usage)
-    - RU/EN/ES strings updated for the 2 screens
-    - `make ios-test` passes
-- [x] iOS: Remove placeholder PRO key fallback and implement release-safe key storage
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (release safety)
-  - Target PR: PR-656
-  - Status: ✅ Merged (PR-656, 2026-02-06)
-  - Reason: `ProKeyProvider` previously contained a placeholder fallback (`test_pro_key`) in DEBUG. This is not release-safe and can mask missing-key flows in development and tests.
-  - Links:
-    - `ios/PulsePlate/Services/ProKeyProvider.swift`
-    - `ios/PulsePlate/Services/KeychainStore.swift`
-    - `docs/IOS_API_INTEGRATION.md`
-  - DoD:
-    - No placeholder key strings are returned by any provider (dev or prod)
-    - Key retrieval uses a secure source (Keychain-backed or explicit developer-only injection that cannot ship)
-    - Missing-key path is explicit and testable (UI/service fails with clear error, not silent fallback)
-    - iOS tests updated / added for missing-key behavior (deterministic)
-
-- [x] iOS: Guard test forbids placeholder API keys in app sources
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (release safety)
-  - Target PR: PR-657
-  - Status: ✅ Merged (PR-657, 2026-02-06)
-  - Reason: Prevent accidental shipping of placeholder keys like `test_pro_key` in iOS sources; enforce via CI.
-  - Links:
-    - `ios/PulsePlate/Services/ProKeyProvider.swift`
-    - `ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift` (existing guard pattern)
-  - DoD:
-    - A deterministic guard/unit test fails CI if placeholder key strings appear in `ios/PulsePlate/**`
-    - Test excludes fixtures/mocks as needed (no false positives)
-    - Documented allowlist policy (if any) in `ios/AGENTS.md`
-
-- [x] Backend: Fix deprecated `/api/nutrition/{date_str}` legacy alias to enforce `require_pro_tier` (auth bypass risk)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (security)
-  - Target PR: PR-664
-  - Status: ✅ Merged (PR-664, 2026-02-07)
-  - Reason: `legacy_app.py` implements `/api/nutrition/{date_str}` as a legacy alias and uses `Depends(api_key_header)` (header extraction only), then calls `app/routers/pro.py:get_daily_nutrition()` directly. This bypasses the `require_pro_tier` dependency (tier validation) and does not pass the API key into any guard, risking unauthorized access if the alias is reachable.
-  - Decision:
-    - Preferred outcome: remove deprecated alias entirely (keep only canonical `GET /api/v1/pro/nutrition/daily`).
-    - Fallback (if removal is not possible now): keep alias but explicitly enforce `require_pro_tier` in the alias handler + deterministic 401/403/200 tests.
-  - Links:
-    - docs/audit/PR_654_BACKEND_LEGACY_NUTRITION_ALIAS_PRO_GUARD_AUDIT.md
-    - `legacy_app.py` (`/api/nutrition/{date_str}` legacy alias)
-    - `app/routers/api_key.py` (`api_key_header`)
-    - `app/middleware/api_tiers.py` (`require_pro_tier`)
-    - `app/routers/pro.py` (`GET /api/v1/pro/nutrition/daily`)
-    - `ios/PulsePlate/Models/NutritionData.swift` (client currently uses legacy path)
-  - DoD:
-    - Alias either removed or explicitly enforces PRO tier guard (no auth bypass)
-    - Deterministic tests prove 401/403/200 behavior for alias path
-    - Docs explicitly mark alias as deprecated and forbidden as client SoT (iOS uses canonical `/api/v1/pro/nutrition/daily`)
-    - OpenAPI visibility matches deprecation policy (deprecated/hidden as appropriate)
-
-- [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (docs correctness)
-  - Target PR: PR-669
-  - Status: ✅ Merged (PR-669, 2026-02-07)
-  - Reason: Existing `docs/IOS_API_INTEGRATION.md` was outdated and instructed creating a parallel URLSession-based transport layer; this conflicts with thin-client policies and current `ios/PulsePlate/Networking/*` SoT.
-  - Links:
-    - PR-669
-    - `docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md`
-    - `docs/IOS_API_INTEGRATION.md`
-    - `ios/PulsePlate/Networking/APIClient.swift`
-    - `ios/PulsePlate/Networking/HTTPClient.swift`
-  - DoD:
-    - Doc lists repo SoT paths and rules (no new transport)
-    - Includes “how to add endpoint” recipe aligned with existing protocols/tests
-    - Future items (IAP/receipt/keychain) point to ledger items (no mixed scopes)
-
-- [x] Docs: Refresh iOS roadmap to AS-IS / NEXT ACTIONS (repo-truth)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (docs correctness)
-  - Target PR: PR-669
-  - Status: ✅ Merged (PR-669, 2026-02-07)
-  - Reason: `docs/roadmap/IOS_ROADMAP.md` still described “when iOS development resumes”; iOS is active (RootTabs, Networking SoT, guard tests).
-  - Links:
-    - PR-669
-    - `docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md`
-    - `docs/roadmap/IOS_ROADMAP.md`
-    - `ios/PulsePlate/Views/RootTabs.swift`
-    - `ios/PulsePlate/Networking/*`
-  - DoD:
-    - AS-IS section reflects current entrypoint, navigation, networking, guards, localization
-    - NEXT ACTIONS list only real follow-ups (P0/P1) and points to ledger items
-
-- [x] PR-560 CI iOS stability (merged 2026-01-21)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-560
-  - Status: ✅ Merged
-  - Reason: iOS CI stability fixes (simulator selection, Xcode pinning)
-  - Links:
-    - docs/CONTEXT_HANDOFF_2026-01-21.md
-  - DoD: ✅ Completed (iOS CI stable)
-
-- [x] PR-561 Trivy suppression (CVE-2025-15281 glibc) (merged 2026-01-21)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-561
-  - Status: ✅ Merged
-  - Reason: Security suppression for unfixed upstream glibc CVE
-  - Links:
-    - docs/security/CVE-2025-15281-glibc.md
-    - trivy/ignore-policy.rego
-  - DoD: ✅ Completed (suppression with expiry date)
-
-- [x] PR-563 Thin HTTP Adapter (iOS) — merged 2026-01-21
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-563
-  - Status: ✅ Merged
-  - Reason: unified thin transport layer for iOS client (no business logic)
-  - Links:
-    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
-  - DoD: ✅ Completed (iOS HTTPClient/APIClient/BMIService implemented)
-
-- [x] PR-586 Web Thin HTTP Adapter — Guards
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-586
-  - Status: ✅ Guards created, remediation merged via PR-590
-  - Reason: Policy enforcement — guard tests to detect thin-client violations
-  - Links:
-    - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586>
-  - DoD:
-    - ✅ Guard tests created (`frontend/src/api/__tests__/thin-client-guards.test.ts`)
-    - ✅ `frontend/AGENTS.md` updated with thin-client policy
-    - 🔴 CI expected RED (guards expose 4 direct fetch violations)
-    - Remediation tracked in PR-587
-
-- [x] PR-587 Web Thin HTTP Adapter — Remediation (fix-green)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-590 (superseded PR-587/589)
-  - Status: ✅ Superseded by PR-590 (merged)
-  - Reason: Fix 4 direct fetch() violations detected by guards
-  - Links:
-    - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md (violations list)
-    - docs/audit/PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/590>
-  - DoD: ✅ Completed
-    - Migrate `features/plan/WeeklyPlanViewer.tsx:39` to use `fetchBlob()`
-    - Migrate `features/shoplist/ShoplistPreview.tsx:109` to use `fetchBlob()`
-    - Migrate `lib/shareFile.ts:108` to use `fetchBlob()`
-    - Migrate `lib/sharedLinks.ts:21` to use `api()`
-    - Guard tests pass (all 4 violations fixed)
+    - Each xfail/skip either fixed or removed (if obsolete)
+    - Tests pass without xfail markers
     - CI green
 
-- [x] PR-611 AI Insight Safety & Error Hygiene (merged 2026-01-28)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-611
-  - Status: ✅ Merged
-  - Reason: P0 safety — ensure insight endpoints never leak internal errors (ImportError, provider.generate exceptions) and return safe 503 responses with sanitized detail messages. Also enforce `response_model=InsightResponse` contract.
-  - Links:
-    - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/611>
-  - DoD: ✅ Completed
-    - ✅ Import-failure returns 503 with safe detail (no "boom" leak)
-    - ✅ Provider.generate exceptions return 503 with safe detail (no raw exception leak)
-    - ✅ All insight endpoints use `response_model=InsightResponse`
-    - ✅ Tests use attribute access (`out.provider`, `out.insight`) not dict keys
-    - ✅ Import-failure test is deterministic (`FEATURE_INSIGHT=true` enforced)
-    - ✅ CI green (all checks pass)
-    - ✅ Post-merge verification passed (13 tests, OpenAPI sync)
-
-- [x] PR-616 Thin-proxy cleanup (helpers-1) — merged
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-616
-  - Status: ✅ Merged
-  - Priority: P0
-  - Branch: `chore/p1-thin-proxy-cleanup-helpers-1-new`
-  - Reason: Architectural cleanup — move helpers out of `legacy_app.py` to restore "thin proxy only" invariant. Steps 1/2/3/4/6/7 complete (scheduler wrappers, utility helpers, feature flags, nutrition wrappers, fingerprint, dead BMI helpers). Step 5 (DB fallback) deferred to TP2.
-  - Links:
-    - docs/audit/PR_THIN_PROXY_CLEANUP_AUDIT.md
-    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
-  - DoD:
-    - ✅ Steps 1/2/3/4/6/7 complete (helpers moved to canonical modules)
-    - ✅ Step 5 explicitly deferred to TP2 (DB fallback helpers remain in `legacy_app.py`)
-    - ✅ `pytest -q` green (0 FAILED/ERROR)
-    - ✅ Guard tests pass (`test_repo_policy_guards.py`, `test_no_legacy_bmi_helpers_request_path.py`)
-    - ✅ No "tail" imports (`from app import normalize_flags|waist_risk` removed from tests)
-    - ✅ Tests updated to use canonical functions (`core.bmi.engine`, `core.bmi.risk`)
-    - ✅ All actionable items fixed (CodeRabbit/Cubic/Sourcery)
-    - ✅ PR merged
-
-- [x] PR-TP2 Thin-proxy cleanup (DB fallback) — merged 2026-01-29 (PR #617)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0
-  - Target PR: PR #617 (`refactor/tp2-db-fallback`)
-  - Status: ✅ Merged (squash merge SHA: 19e0b8f5; 2026-01-29)
-  - Reason: High-risk cleanup — move DB fallback helpers from `legacy_app.py` to canonical module. Original target `core/db/fallback.py` caused `core.db` module/package collision in CI; amended to `core/db_fallback.py`.
-  - Links:
-    - PR #617
-    - docs/pr/PR_TP2_DB_FALLBACK_PLAN.md
-    - docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md
-    - docs/CONTEXT_HANDOFF_2026-01-29.md
-  - Preconditions:
-    - ✅ TP1 merged (helpers-1 cleanup complete)
-  - DoD:
-    - ✅ DB fallback in `core/db_fallback.py` (single source of truth; no package collision)
-    - ✅ `legacy_app.py` thin proxy only (no DB fallback logic)
-    - ✅ Tests rebound to `core.db_fallback`; guard tests pass (no guard exception)
-    - ✅ OpenAPI unchanged; AGENTS.md + BACKLOG_LEDGER updated
-    - ✅ CI green on PR #617 → merge → post-merge sanity
-
-- [x] PR-619 DB fallback canonical API in `legacy_app.py` — merged 2026-01-30
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (maintenance)
-  - Target PR: PR #619
-  - Status: ✅ Merged
-  - Reason: Align `legacy_app.py` with DB fallback policy — no direct read/write of `_db_fallback_active` outside `core/db_fallback.py`; use `is_fallback_active()` and `clear_fallback_active()`.
-  - Links:
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619>
-  - DoD:
-    - ✅ No direct `_db_fallback_active` in `legacy_app.py`
-    - ✅ Guards + tests green; CI green
-  - Next after merge: P0 rate-limiting for LLM endpoints
-
-- [x] PR-623 SQLite xdist dual-engine leak + hermetic tests + SoT reset — merged 2026-01-30
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (infra)
-  - Target PR: PR #623 (`fix/sqlite-xdist-threading-engine-sot`)
-  - Status: ✅ Merged
-  - Reason: Fix SQLite xdist dual-engine leak: single-engine SoT reset in fixture, hermetic tests when mutating env, NullPool gated to test/xdist via `make_url`, diff-coverage tests for protective branches. 97% threshold unchanged.
-  - Links:
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/623>
-    - docs/CONTEXT_HANDOFF_2026-01-30.md
-  - DoD:
-    - ✅ SoT reset in fixture; hermetic engine reuse tests
-    - ✅ NullPool only for file-based SQLite in test/xdist
-    - ✅ diff-coverage tests for `_get_sqlite_poolclass` branches
-    - ✅ CI green; guards pass
-
-- [x] PR-627 xdist SQLite race conditions (table exists + no-table errors) — merged 2026-02-01
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (infra)
-  - Target PR: PR #627 (`fix/p1-sqlite-engine-sot`)
-  - Status: ✅ Merged
-  - Reason: Fix two independent xdist race conditions: (1) in-memory DB leak from `test_init_db` (no teardown → "no such table" in API tests), (2) fixture ordering race (duplicate `init_db()` + redundant `create_all()` → "table already exists").
-  - Links:
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/627>
-    - docs/audit/PR_617_SQLITE_ENGINE_SOT_NIGHTLY_AUDIT.md
-    - docs/CONTEXT_HANDOFF_2026-01-30.md
-  - DoD:
-    - ✅ Fix 1: `test_init_db` + `try/finally` cleanup (restore env + `reset_db_for_tests()`)
-    - ✅ Fix 2: Explicit fixture dependency + remove redundant `create_all()`
-    - ✅ Tests green under xdist -n 2 (targeted subset + full nutrition_log suite)
-    - ✅ `make test-fast` passes (exit_code 0)
-    - ✅ SoT guard test remains green (no regression)
-    - ✅ CI green; PR merged
-
-- [x] P0 CRITICAL: Rate-limiting for LLM endpoints (prevent $72k/month cost attack)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL security)
-  - Target PR: PR-639 (supersedes PR-628)
-  - Status: ✅ Done (superseded by PR-639)
-  - Reason: Close PR-628 via PR-639: audit drift fixed (runtime wiring + proxy-aware CIDR client key + deterministic tests are present) and 429 OpenAPI schema standardized for VIP export; OpenAPI artifacts regenerated.
-  - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Rate-limiting section)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
-    - core/insight/analysis_insights.md ($72k/month potential abuse)
-    - docs/audit/PR_628_RATE_LIMIT_LLM_EXPORTS_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/628>
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/639>
-  - DoD:
-    - ✅ Rate-limiting wired in runtime (SlowAPI middleware + 429 handler)
-    - ✅ Proxy-aware key function supports trusted proxies with CIDR + CF/XFF precedence
-    - ✅ `@limit_if_available(RATE_LIMIT_INSIGHT)` on `/api/v1/insight` + `/insight`
-    - ✅ `@limit_if_available(RATE_LIMIT_EXPORTS)` on export endpoints (plan/shoplist/VIP export + legacy demo exports when enabled)
-    - WebSocket: N/A (no endpoints found; see WebSocket investigation item)
-    - ✅ Tests verify rate-limiting works (deterministic 200→429)
-    - Cost tracking added (token usage, API calls)
-
-### P0 Move LLM insight to VIP tier
-
-- [x] P0 CRITICAL: Move LLM insight to VIP tier (prevent FREE tier abuse)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL security)
-  - Target PR: PR-640 (runtime), PR-646 (docs-only closure)
-  - Status: ✅ Done
-  - Reason: Implemented VIP-only access for `/api/v1/insight` and legacy `/insight` (VIP-guarded, hidden from OpenAPI) + kept rate-limiting. This ledger entry was stale vs `main`.
-  - Residual risk / follow-up: monthly hard quota/budget enforcement is still required (see next P0 item). Until then,
-    LLM endpoints remain economically unsafe per `docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md`.
-  - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Tier guards section)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (LLM cost control gap)
-    - PR-640: Enforce VIP tier for LLM Insight (runtime implementation)
-    - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md (evidence + ledger closure)
-  - DoD:
-    - ✅ `/api/v1/insight` uses `require_vip_tier()` (VIP-only)
-    - ✅ `/insight` is VIP-guarded (deprecated + hidden from OpenAPI)
-    - ✅ Tests verify FREE/PRO users get 403, VIP users get 200
-    - ✅ OpenAPI shows `/api/v1/insight` and hides `/insight`
-
-- [x] P0 CRITICAL SECURITY: VIP LLM hard monthly quota (deterministic enforcement)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL security)
-  - Target PR: PR-647 (security fix)
-  - Status: ✅ Merged (PR-647)
-  - Reason: VIP-only + rate limit prevent bursts but do not provide a monthly cost ceiling; without quota, sustained
-    usage can still create an economic DoS. Policy requires a hard cost cap for LLM endpoints.
-  - Links:
-    - docs/policy/LLM_UNIT_ECONOMICS_GUARDRAILS.md
-    - docs/audit/PR_646_VIP_ONLY_LLM_INSIGHT_AUDIT.md
-    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
-    - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
-  - DoD:
-    - Server-side authoritative quota per VIP key (requests/month OR tokens/month OR estimated cost/month)
-    - Hard-stop before provider call when quota exceeded
-    - Deterministic non-leaky error response on exceed (prefer `429`, e.g. `quota_exceeded`)
-    - Tests:
-      - VIP under quota → 200
-      - VIP over quota → 429
-      - FREE/PRO remain → 403
-    - Minimal observability: counters/logging for usage and quota decisions
-
-- [x] P0: CI nightly — test DB schema bootstrap broken (users/nutrition_events missing)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (CRITICAL)
-  - Target PR: PR-629
-  - Status: ✅ Merged (PR-629)
-  - Reason: CI/nightly shows DB schema is not created before API tests (`no such table: users`, `no such table: nutrition_events`), causing secondary thread errors. Root cause: metadata/bootstrap ordering (missing model package import before create_all).
-  - Signals: "no such table: users / nutrition_events" + "SQLite objects created in a thread..." / check_same_thread/threadpool
-  - Scope: tests/conftest + tests/test_nutrition_log_api.py (bootstrap ordering) + minimal agent rule update (implemented in PR-629)
-  - Links:
-    - PR-629: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/629>
-    - CI nightly failed run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103>
-    - Failing job (tests): <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/21577239103/job/62166939568>
-  - DoD:
-    - `pytest -q tests/test_nutrition_log_api.py` passes in CI runner
-    - No "no such table: users" or "no such table: nutrition_events" in setup/teardown
-    - Fail-fast guard: if schema missing after init_db(), tests fail with clear message (no silent warn+continue)
-  - Notes (3 February 2026, America/New_York):
-    - Fix: close leaked TestClients (context-managed `tests/conftest.py::client` + close in `tests/test_nutrition_log_api.py` teardown) to ensure lifespan runs deterministically under xdist.
-    - Verification (local, 6 February 2026): `pytest -q tests/test_nutrition_log_api.py -n 2 --dist=loadgroup` passed on `main` (post-merge).
-    - Verification (local, 6 February 2026): `pytest -q tests/test_db_engine_reuse_diff_coverage.py tests/test_sqlite_engine_sot.py` passed on `main`.
-
-- [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (security)
-  - Target PR: N/A (investigation only)
-  - Status: ✅ Resolved — No WebSocket endpoints found
-  - Reason: Comprehensive codebase search found no WebSocket endpoints (`@app.websocket`, `/ws` path, WebSocket imports). Original analysis was false positive — WebSocket never existed or was removed. Security gap does not exist (no endpoint to secure).
-  - Links:
-    - docs/audit/WEBSOCKET_ANALYSIS.md (investigation results)
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section — updated)
-    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap — false positive)
-  - DoD:
-    - ✅ Searched entire codebase for WebSocket endpoints (no matches found)
-    - ✅ Verified no WebSocket routes in `legacy_app.py`, `app/routers/*`, `app/main.py`
-    - ✅ Checked OpenAPI schema (no WebSocket paths)
-    - ✅ Identified false positives (test fixes, frontend dependency, docs references)
-    - ✅ Marked as resolved — security gap does not exist
-
-- [x] P1: Implement WebSocket endpoint with security from start
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (feature + security)
-  - Target PR: PR #818
-  - Status: ✅ Merged (PR #818, 2026-02-19)
-  - Reason: Canonical `/ws` endpoint and security behavior are now validated with deterministic tests. Authentication and rate-limit close behavior are covered to prevent drift.
-  - Links:
-    - [PR #818](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818)
-    - tests/test_realtime_ws_security.py
-    - app/routers/realtime_ws.py
-    - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
-    - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
-  - Prerequisites:
-    - ✅ Security requirements defined (auth + rate-limiting)
-    - ✅ Use cases defined (what real-time features need WebSocket)
-  - DoD:
-    - ✅ WebSocket endpoint `/ws` available with FastAPI WebSocket support
-    - ✅ Authentication required (token in query params or headers)
-    - ✅ Rate-limiting implemented (per-user message limits in router policy)
-    - ✅ Tests verify unauthenticated connections are rejected (close code policy)
-    - ✅ Tests verify rate-limiting closes connection when the limit is exceeded
-    - ✅ CI checks green on merged PR (#818)
-
-- [x] P1: Extract hardcoded constants (BMR, export formats)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (maintainability)
-  - Target PR: PR #644
-  - Status: ✅ Merged (PR #644)
-  - Merge SHA: fda459d743e848b72c2c818b8dd7bef62af99aec
-  - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
-  - Links:
-    - PR #644
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
-    - legacy_app.py:97 (nutrition_core imports), export functions
-  - DoD:
-    - Extract BMR constants to `core/bmr.py` module
-    - Create `ExportFormat` enum (CSV, PDF, JSON)
-    - Replace hardcoded values with constants/enum
-    - Tests verify no functionality broken
-
----
-
-## P1 — Improvements (Optional / polish)
-
-### EVMbench-inspired agent evaluation (2026-02-21)
-
-- [x] P1: Agent task evaluation contract (success criteria per task class)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
-  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
-  - Area: orchestration / agents / quality
-  - Finding Type: process / evaluation
-  - Reason: EVMbench-style evaluation requires explicit success criteria and optional recall checklist per task class (CI fix, security remediation, docs-only). Define contract and link to existing gates.
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
-    - `docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md`
-    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
-  - DoD:
-    - [x] Doc defines success criteria for at least: "CI fix", "security remediation", "docs-only"
-    - [x] Optional recall-style checklist per class; linked from RUNBOOK or AGENTS
-
-- [x] P1: Runbook coverage step — full guard suite and no related violations
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
-  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
-  - Area: runbooks / guards
-  - Finding Type: process
-  - Reason: EVMbench scores on comprehensive coverage. Before closing a guard/security PR, run full guard suite and ensure no related violations in changed modules.
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - `RUNBOOK_AGENT.md`
-    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
-  - DoD:
-    - [x] RUNBOOK step added: "Run full guard suite; confirm no related violations in changed modules"
-    - [x] Referenced from PR template or merge checklist where applicable
-
-- [x] P1: Hint levels for coordinator and fix-CI tasks
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
-  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
-  - Area: orchestration / agents
-  - Finding Type: process
-  - Reason: EVMbench shows hints (low/medium/high) materially improve outcomes. Document hint levels for "fix CI" and coordinator tasks (e.g. low = branch + run link; medium = failed job + log; high = exact assertion + location).
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - `docs/orchestration/workflow.md`
-    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
-  - DoD:
-    - [x] Orchestration doc or coordinator prompt template includes hint-level definitions
-    - [x] ci-watcher / loop-on-ci prompts aligned where applicable
-
-- [x] P1: Agent-as-attacker threat model section in security baseline
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
-  - Status: ✅ Completed (PR #868, 2026-02-22)
-  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
-  - Area: security / agent control plane
-  - Finding Type: security documentation
-  - Reason: EVMbench measures exploit capability; we should document abuse scenarios (what would an agent need to do to violate policy?) and map to controls (allowlist, audit trail, token TTL).
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
-    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
-  - DoD:
-    - [x] New section in AGENT_CONTROL_PLANE_SECURITY_BASELINE: "Agent-as-attacker scenarios" with mapping to existing controls
-    - [x] No new runtime code required; doc only
-
-- [x] P1: Oracle / known-good gate behavior documentation
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
-  - Status: ✅ Completed (PR #868, 2026-02-22)
-  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
-  - Area: runbooks / CI gates
-  - Finding Type: process
-  - Reason: EVMbench validates graders on oracle solutions. Document expected behavior of merge_readiness_gate and dependency_security_guard on known-good input (e.g. PR with all checkboxes and mapping → pass).
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - `scripts/ci/check_pr_merge_readiness.py`
-    - `tests/test_dependency_security_guard.py`
-    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
-  - DoD:
-    - [x] RUNBOOK or test doc: "Expected: PR body with [x] and mapping → merge_readiness passes"
-    - [x] Optional: deterministic test that applies known-good PR body and asserts gate pass
-
-- [x] P1: Minimal agent metrics (fix rate / first-run pass)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
-  - Status: ✅ Completed (PR #868, 2026-02-22)
-  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
-  - Area: orchestration / quality
-  - Finding Type: metrics
-  - Reason: Define minimal agent metrics (e.g. "CI fix: pass within N iterations"; "merge readiness: first run vs after edits") and record in ledger or audit when relevant.
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
-  - DoD:
-    - [x] Doc or ledger section defines at least 2 agent task metrics and when to record them
-    - [x] No dashboard required; manual or opportunistic recording is acceptable
-
-- [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #794 (`feat/hpp-cta-runtime-remediation`)
-  - Status: ✅ Merged (PR #794, 2026-02-18)
-  - Merge SHA: 9ebcca2fc377753dc3024a080e6e4f24f59b6479
-  - Area: web / ios / design handoff
-  - Finding Type: execution follow-up / button-level UX parity
-  - Reason: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` formalized button-level SoT and exposed runtime gaps (iOS placeholder CTA destinations, missing deterministic CTA tests, and web paywall purchase wiring still callback-only). These follow-ups must be tracked as implementation debt, not left as doc-only intent.
-  - Links:
-    - PR #794
-    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-    - `docs/plan/PR_HPP_CTA_RUNTIME_TASK_ANALYSIS.md`
-    - `docs/plan/PR_HPP_CTA_RUNTIME_EXECUTION_PLAN.md`
-    - `docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md`
-    - `docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md`
-    - `docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md`
-    - `AGENTS.md`
-    - `frontend/AGENTS.md`
-    - `ios/AGENTS.md`
-  - DoD:
-    - iOS `Add Meal` and `View Details` CTA destinations are no longer placeholders
-    - Deterministic CTA-level tests exist for Home/Plate/Progress critical paths (web+iOS)
-    - Web paywall CTA has production-ready purchase wiring and success/failure handling
-    - Matrix `Exists Now / Missing / Implement Needed` statuses are updated after remediation PR
-    - `make verify` and required CI checks are green in remediation PR
-
-- [x] P1: Home/Plate/Progress Figma sync and Code Connect bridge docs package
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #798 (`docs/figma-hpp-sync-package`)
-  - Status: ✅ Merged (PR #798, 2026-02-19)
-  - Merge SHA: 891a3fcaaac3da351c104a3ebb164c4c02a126c3
-  - Area: docs / design / orchestration
-  - Finding Type: documentation contract delivery
-  - Reason: Landed canonical H+P+Pr Figma sync protocols and Code Connect activation
-    bridge docs with evidence anchors, bot-review remediations, and policy-aligned
-    AGENTS updates; this closes the docs package while keeping Design URL/node ID
-    activation dependency explicitly tracked as a separate open ledger item.
-  - Links:
-    - PR #798
-    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-    - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
-    - `AGENTS.md`
-  - DoD:
-    - Figma Make sync audit protocol committed with evidence anchors
-    - Code Connect activation blocker protocol and mapping candidate registry committed
-    - Design URL + node ID capture protocol committed
-    - Orchestration session artifacts committed for the sync package
-    - Root `AGENTS.md` updated with canonical Figma workflow protocol references
-
-- [x] P1: Home/Plate/Progress live indicator + CTA instrumentation (web-first)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #801 (`feat/hpp-live-indicator-cta`)
-  - Status: ✅ Merged (PR #801, 2026-02-19)
-  - Merge SHA: aec126d6b8757a7a413ebf051f5e7f8a917c3e42
-  - Area: frontend / product-metrics / HPP UX
-  - Finding Type: user-visible activation package
-  - Reason: Deliver one narrow user-facing package that adds a live progress signal on
-    Home/Plate/Progress, keeps strict static fallback when realtime transport is unavailable,
-    and instruments CTA impression/click events for conversion measurement.
-  - Links:
-    - PR #801
-    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
-    - `frontend/src/features/progress/useHppLiveIndicator.ts`
-    - `frontend/src/lib/hppTelemetry.ts`
-    - `frontend/src/pages/Home.tsx`
-    - `frontend/src/pages/Plate.tsx`
-    - `frontend/src/pages/Progress.tsx`
-  - DoD:
-    - Live indicator renders on Home, Plate, and Progress surfaces
-    - Fallback invariant preserved (`ws unavailable/error -> static indicator + CTA works`)
-    - CTA telemetry events (`impression`, `click`) emitted through centralized helper
-    - Deterministic tests added for hook, indicator, and HPP page integration
-    - Thin-client websocket guard remains green (`src/api/wsClient.ts` adapter boundary)
-
-- [x] P1: Home/Plate/Progress live indicator A/B variant + telemetry enrichment
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #803 (`feat/hpp-live-indicator-ab-variant`)
-  - Status: ✅ Merged (PR #803, 2026-02-19)
-  - Merge SHA: d1e2fa1668156b8621557daee235844bd4703ced
-  - Area: frontend / product-metrics / experimentation
-  - Finding Type: user-visible experiment package
-  - Reason: Extend the shipped live-indicator package with deterministic A/B variant
-    assignment (`compact`/`emphasized`) and enriched telemetry needed to measure
-    variant-level CTA and paywall-open behavior without expanding backend scope.
-  - Experiment Window:
-    - Start: 2026-02-20
-    - End: 2026-03-05
-    - Guardrails: websocket connect success >= 99%, no JS runtime error increase,
-      no layout-shift regressions on Home/Plate/Progress
-  - Metric Tracking:
-    - Primary KPI: `hpp_live_cta_click_rate_by_variant`
-    - Secondary KPI: `paywall_open_from_live_by_variant`
-    - Supporting Signals:
-      - `hpp_live_indicator_impression`
-      - `hpp_cta_impression`
-      - `hpp_cta_click`
-      - `hpp_paywall_open_from_live`
-  - Links:
-    - PR #803
-    - `frontend/src/features/progress/useHppLiveIndicator.ts`
-    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
-    - `frontend/src/lib/hppTelemetry.ts`
-    - `frontend/src/features/progress/__tests__/useHppLiveIndicator.test.ts`
-    - `frontend/src/features/progress/__tests__/LiveProgressIndicator.test.tsx`
-    - `frontend/src/features/progress/__tests__/hppTelemetry.test.ts`
-  - DoD:
-    - Deterministic variant assignment implemented (`userId hash % 2`, fallback `compact`)
-    - UI variant rendering validated for `compact` and `emphasized`
-    - Telemetry payload includes `placement` and `variant` across impression/click events
-    - Paywall-open event from live indicator is emitted with stable payload shape
-    - Deterministic tests and snapshots cover variant logic and telemetry shape
-
-- [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #778
-  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24`)
-  - Merge SHA: 48ae6d24458da4f0bb101b0c92d77e4607a6aded
-  - Area: backend / realtime / security baseline
-  - Finding Type: delivery packaging / transport foundation
-  - Reason: Deliver one scoped realtime package with fail-closed auth, deterministic guardrails, and policy-anchored docs/tests without scope creep into client integration.
-  - Links:
-    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
-    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
-    - `app/routers/realtime_ws.py`
-    - `tests/test_websocket_security_api.py`
-  - DoD:
-    - `/ws` route is registered once in canonical app entrypoint and guarded against duplicates
-    - WebSocket auth remains fail-closed with explicit policy close paths
-    - Deterministic tests cover auth reject/accept, payload/limit guards, and disconnect path
-    - Governance/docs are synchronized in AGENTS + audit + plan
-    - CI gates for PR #778 are green before merge
-
-- [x] P1: WebSocket foundation follow-up (realtime expansion package)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #783
-  - Status: ✅ Merged (PR #783, 2026-02-17, `a78040a0`)
-  - Merge SHA: a78040a0d8a191876f702b426b98ae82ae9460cc
-  - Area: backend / realtime / contracts
-  - Finding Type: scope control / deferred enhancement
-  - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
-  - Links:
-    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
-    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
-    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
-    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
-  - DoD:
-    - Define versioned event contract for realtime payloads
-    - Add client integration scope (web/iOS) without violating thin-adapter policy
-    - Add deterministic integration tests for expanded event flow
-    - Keep `make verify` and diff-coverage gates green in expansion PR
-
-- [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #786
-  - Status: ✅ Merged (PR #786, 2026-02-18, `a2e248cb`)
-  - Merge SHA: a2e248cb5feaa84608acc68491954476228751d4
-  - Area: backend / realtime / capacity
-  - Finding Type: deferred hardening / runtime safeguard
-  - Reason: PR #783 intentionally shipped secure websocket foundation (`/ws`, auth, limits, versioned events) without idle timeout to avoid scope creep. Remaining risk is capacity/resource retention from idle connections (not a security bypass).
-  - Links:
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
-    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
-    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
-    - `docs/plan/PR_WS_IDLE_TIMEOUT_PLAN.md`
-    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
-    - `app/routers/realtime_ws.py`
-  - DoD:
-    - Add `WS_IDLE_TIMEOUT_SECONDS` with conservative default and explicit disable mode
-    - Close idle websocket connections with deterministic policy close semantics
-    - Add deterministic tests for idle-timeout behavior without `sleep()`-based flakiness
-    - Keep existing websocket guardrails unchanged (fail-closed auth, burst limiter, connection cap)
-    - Pass `make verify` and diff-coverage gates in follow-up PR
-
-- [x] P1: WebSocket observability hardening (low-cardinality metrics + structured logs)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #789
-  - Status: ✅ Merged (PR #789, 2026-02-18, `7d9e74ec`)
-  - Merge SHA: 7d9e74eca58841a120249f98db19880dc18c56e3
-  - Area: backend / realtime / observability
-  - Finding Type: operational hardening / incident response readiness
-  - Reason: After deterministic idle-timeout delivery in PR #786, the remaining high-value runtime gap is operational visibility of `/ws` behavior under load. Without explicit websocket metrics and constrained structured logs, incident triage is slower and capacity regressions are harder to detect early.
-  - Worst-case scenario: high-volume idle/malformed websocket traffic degrades service while missing or high-cardinality observability obscures root cause and delays mitigation.
-  - Scope IN:
-    - Add low-cardinality counters for websocket connect result and close reasons.
-    - Add active websocket gauge aligned with tracker state.
-    - Add message counters by allowlisted event type (`ping`, `subscribe`) and outcome (`ok`/`closed`).
-    - Add structured logs for policy closes using non-sensitive fields only.
-  - Scope OUT:
-    - Product analytics, user-behavior funnels, and per-user telemetry.
-    - New websocket protocol features/channels.
-    - Frontend/iOS telemetry changes.
-  - Guardrails:
-    - Never log tokens, user IDs, raw payloads, or unbounded labels.
-    - Metrics labels must remain low-cardinality and enum-bound.
-  - Links:
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/789`
-    - `app/routers/realtime_ws.py`
-    - `app/middleware/metrics.py`
-    - `docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md`
-    - `docs/plan/PR_WS_OBSERVABILITY_HARDENING_PLAN.md`
-    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
-  - DoD:
-    - `ws_connect_total{result,reason}` and `ws_messages_total{type,result}` are implemented with bounded labels.
-    - `ws_active_connections` gauge reflects tracker state without negative drift.
-    - Structured websocket logs include only safe, bounded fields (`reason`, `event_type`, `version`, `result`).
-    - Deterministic tests validate metric increments and no-`sleep()` time-based behavior.
-    - `make verify` and diff-coverage gates are green in observability PR.
-
-- [x] P1: Wave 2 contract governance v2 + CI throughput program
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #850 (docs/wave2-contract-governance-ci-throughput)
-  - Status: ✅ Completed (PR #850, 2026-02-21, merge SHA `411c3159`)
-  - Area: backend / frontend / ios / devex
-  - Finding Type: maintainability / delivery speed
-  - Locations:
-    - `docs/contracts/CONTRACT_GOVERNANCE_V2_CHECKLIST.md`
-    - `docs/policy/CI_THROUGHPUT_AND_FLAKE_BUDGET.md`
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
-  - Reason: reduce contract drift and CI critical-path latency while preserving quality gates.
-  - Links:
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
-    - `docs/contracts/CONTRACT_GOVERNANCE_V2_CHECKLIST.md`
-    - `docs/policy/CI_THROUGHPUT_AND_FLAKE_BUDGET.md`
-  - DoD:
-    - [x] Contract governance checklist with OpenAPI diff risk labels documented
-    - [x] CI throughput baseline and target defined with flake budget owner
-    - [x] Follow-up implementation PRs linked (deferred to Wave 2 CI enforcement phase)
-
-- [x] P1: Wave 2 experimentation framework and paywall optimization loop
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #852 (docs/wave2-experimentation-framework)
-  - Status: ✅ Completed (PR #852, 2026-02-21, merge SHA `851f1728`)
-  - Area: product / growth / analytics
-  - Finding Type: growth optimization
-  - Locations:
-    - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
-    - `docs/analytics/EXPERIMENT_REGISTRY.md`
-    - `docs/analytics/ANALYTICS_INDEX.md`
-  - Reason: establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion.
-  - Links:
-    - `docs/analytics/EXPERIMENT_REGISTRY.md`
-    - `docs/analytics/ANALYTICS_INDEX.md`
-    - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
-    - [PR #852](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/852)
-  - DoD:
-    - [x] Experiment lifecycle states documented
-    - [x] Initial prioritized growth experiments registered with owners and dates
-    - [x] Guardrail metrics required for promotion decisions
-
-- [x] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #863 (feat/telemetry-api-normalization)
-  - Status: ✅ Completed (PR #863, 2026-02-22, merge SHA `f5b7d299`)
-  - Area: frontend / analytics / architecture
-  - Finding Type: naming/abstraction hygiene
-  - Locations:
-    - `frontend/src/lib/telemetry.ts`
-    - `frontend/src/lib/telemetry/eventRegistry.ts`
-  - Reason: growth events currently use `trackVipEvent`; rename to a generic API surface and keep compatibility wrapper to avoid VIP-specific naming leakage in broader telemetry families.
-  - Links:
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `docs/analytics/ANALYTICS_INDEX.md`
-    - [PR #863](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/863)
-  - DoD:
-    - [x] Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
-    - [x] Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
-    - [x] Enum constraints documented for shared growth fields where runtime validation is required
-    - [x] Tests updated for both legacy and new entrypoints
-    - [x] `make verify` and required CI checks pass
-
-- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
-  - Status: ✅ Merged (PR #825, 2026-02-20)
-  - Area: docs / frontend / ci / review-ops
-  - Finding Type: review remediation / quality-gate closure
-  - Locations:
-    - `frontend/src/lib/telemetry/eventRegistry.ts`
-    - `frontend/src/lib/__tests__/telemetry.test.ts`
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-    - `docs/roadmap/BACKLOG_LEDGER.md`
-  - Reason: close all bot actionables and reach zero unresolved review threads with full CI green.
-  - Links:
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/825`
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-  - Checklist (Matrix):
-    - [x] Sourcery actionables addressed with commit mapping in PR body
-    - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
-    - [x] PR Body Phase2 gates passed after checklist/mapping update
-    - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
-    - [x] Required CI checks are green (`gh pr checks 825`)
-    - [x] Unresolved review threads count is zero
-  - DoD:
-    - Sourcery actionables addressed with commit mapping in PR body
-    - CodeRabbit actionables addressed with file-level fixes and thread replies
-    - PR Body Phase2 gates pass after checklist/mapping update
-    - Docs Phase1 gates pass with evidence anchors in audit/security docs
-    - Required CI checks are green (`gh pr checks 825`)
-    - Unresolved review threads count is zero
-
-- [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #770
-  - Status: ✅ Merged (PR #770, 2026-02-16, `c54143ab`)
-  - Merge SHA: c54143abee6568f42443822f9a6cb47b17edbbc4
-  - Area: backend / contracts / integration tests
-  - Finding Type: delivery packaging / flow contract
-  - Reason: Move from micro-PR fragmentation to one scoped runtime package delivering a full user-visible flow outcome with deterministic tests and rollback.
-  - Links:
-    - `docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md`
-    - `docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md`
-  - DoD:
-    - One scoped runtime PR delivers `plan -> shoplist` end-to-end outcome
-    - Contract tests cover 200 + key failure statuses where applicable
-    - Integration happy path is deterministic
-    - `Content-Type` and error envelope assertions are explicit
-    - `make verify` passes and required CI checks are green
-
-- [x] P1: Re-enable repository `sys.modules` mutation guard
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-732
-  - Status: ✅ Merged (PR-732, 2026-02-13, `b36e88ed`)
-  - Area: backend / tests / policy guards
-  - Finding Type: quality / guard enforcement
-  - Locations:
-    - `tests/test_repo_policy_guards.py:98` — active runtime guard
-      (`test_no_sys_modules_mutation_in_repo`)
-  - Reason: Disabled guard weakens a known import-hygiene invariant and can hide dual-module regressions.
-  - Links:
-    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
-    - `tests/test_repo_policy_guards.py:98`
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/732`
-  - Evidence (2026-02-13):
-    - `pytest -q tests/test_repo_policy_guards.py -rs` -> pass (guard enabled, not skipped)
-  - DoD:
-    - Guard is enabled in CI (not skipped)
-    - Offenders are cleaned up or explicitly phased with a documented allowlist plan
-    - Guard remains deterministic under xdist and normal pytest runs
-    - `make verify` passes in PR-732
 
 - [x] P1: Async SQLAlchemy wiring for day shoplist tests
   - Owner: @katsiaryna_kavaleuskaya
@@ -1604,33 +6658,6 @@ If it is not recorded here — it does not exist.
     - ✅ xdist PASS on target suite
     - ✅ No `core.db` reload
 
-- [x] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-773
-  - Status: ✅ Merged (PR-773, 2026-02-16)
-  - Area: backend / tests / contracts
-  - Finding Type: drift / contract mismatch
-  - Locations:
-    - `tests/test_database_apis_coverage.py`
-    - `tests/test_direct_core_functions.py`
-    - `tests/test_final_core_coverage.py`
-    - `tests/test_final_coverage_97_boost.py`
-    - `tests/test_quick_coverage_boost.py`
-    - `tests/test_remaining_modules.py`
-    - `tests/test_zero_coverage_modules.py`
-  - Reason: Large skip bucket (`module/symbol not available`) is mostly contract drift between legacy test expectations and current canonical APIs.
-  - Links:
-    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
-    - `core/food_apis/unified_db.py:265`
-    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
-  - Merge SHA: `3404ca39`
-  - Notes: CP1+CP2 done in PR-773; CP3 deferred to a separate follow-up PR.
-  - DoD:
-    - Drift-based skips are reduced via canonical test alignment (not API inflation for coverage)
-    - Signature mismatches are resolved with explicit contract assertions
-    - Remaining intentional skips are documented as product decisions
-    - `make verify` passes in PR-732
 
 - [x] P1: CP3 follow-up for skip-heavy coverage drift cleanup
   - Owner: @katsiaryna_kavaleuskaya
@@ -1663,6 +6690,109 @@ If it is not recorded here — it does not exist.
     - Remaining intentional skips are documented as product decisions with canonical feature keys.
     - No ad-hoc skip reasons are introduced; skip protocol remains `feature_disabled:<key>`.
     - `make verify` passes in the CP3 execution PR.
+
+
+- [x] P1: Execution Wave 2 — Search modernization (Meili/TypeSense) + API compatibility
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #891, PR #893, PR #898, PR #900
+  - Status: ✅ Merged (W2-A/W2-B/W2-C + barcode hit contract in PR #900, 2026-02-25)
+  - Area: backend / search / API
+  - Finding Type: performance and UX improvement
+  - Reason: Local-first indexed search is required for predictable low latency and better discoverability while preserving client compatibility.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
+    - `scripts/benchmarks/food_api_latency_benchmark.py`
+    - `app/routers/foods.py`
+    - `app/services/food_store.py`
+    - `tests/test_food_store_service.py`
+    - `tests/test_foods_router_additional.py`
+  - DoD:
+    - Existing `/api/v1/foods` contracts remain stable
+    - New search backend is integrated behind compatibility layer
+    - New endpoints contract for barcode/search filters is documented and tested
+    - Target local-first search latency budget (<50ms p50) is measured and reported
+
+
+<a id="ledger-p2-meili-client-maintainability-followup-pr1333"></a>
+- [x] P2: Meilisearch client shared-helper / config refactors (deferred from PR #1333)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1340
+  - Status: ✅ Merged (PR #1340, 2026-04-05). Foods-index request shape consolidated in `app/services/search_meili.py` (`MEILI_FOODS_ATTRIBUTES_TO_RETRIEVE`, `build_meili_foods_search_url`, `build_meili_foods_search_headers`, `build_meili_foods_search_payload`); `/api/v1/foods*` contracts unchanged. Evidence: `docs/review/PR_1340_FIXED_MAPPING.md`, `tests/test_food_search_foundation.py`.
+  - Reason (EN): PR #1333 intentionally limits scope to env-gated Meilisearch performance telemetry and Prometheus metrics; maintainability refactors noted in review stay out of the telemetry slice.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/metrics.py`
+    - `docs/review/PR_1340_FIXED_MAPPING.md`
+  - DoD:
+    - Duplicated Meili request configuration is consolidated where safe without changing `/api/v1/foods*` response contracts.
+    - `make verify` passes on the follow-up PR.
+
+
+- [x] P1: Execution Wave 3 — Restaurant menus + controlled user submissions
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #895 (+ follow-up PR #901, `feat/food-db-w3b-menustat-provenance-closure`)
+  - Status: ✅ Merged (W3-A in PR #895 + W3-B closure in PR #901, 2026-02-25)
+  - Area: backend / data model / partner enablement
+  - Finding Type: product coverage expansion
+  - Reason: Product/restaurant database coverage and controlled data intake are required to reduce manual entry and support partner menu flows.
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/design/RESTAURANT_INTEGRATION_SPEC.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md` (P2 Vision: Restaurant/chef integration)
+    - `app/routers/restaurants.py`
+    - `app/services/restaurant_store.py`
+    - `app/schemas/restaurants.py`
+  - DoD:
+    - MenuStat baseline ingestion is operational
+    - Restaurant menu schema and endpoints are documented
+    - Moderated user submission workflow is implemented (`pending/approved/rejected`)
+    - Source audit trail persists provenance for imported and moderated records
+
+
+- [x] P1: Execution Wave 3-C — operational MenuStat bootstrap importer
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #904 (`feat/food-db-w3d-menustat-importer`)
+  - Status: ✅ Merged (PR #904, 2026-02-25)
+  - Area: backend / ingestion operations / restaurant coverage
+  - Finding Type: operational gap closure
+  - Reason: Restaurant endpoints and storage contracts exist, but local environments need a deterministic, repeatable import command to seed menu data from MenuStat-style snapshots without manual DB editing.
+  - Links:
+    - `scripts/import_restaurant_menu.py`
+    - `data/restaurant_menu_sample.csv`
+    - `tests/test_import_restaurant_menu_script.py`
+    - `app/services/restaurant_store.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+  - DoD:
+    - CLI importer loads MenuStat-style CSV with alias mapping into canonical restaurant tables
+    - Importer supports explicit snapshot date and source name for provenance
+    - Deterministic sample dataset exists for local bootstrap and tests
+    - End-to-end test verifies import command populates searchable chain/menu records
+
+
+- [x] P1: Execution Wave 3-E — approved submission promotion to canonical restaurant menu
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #908 (`feat/food-db-wave3e-submission-promotion`)
+  - Status: ✅ Merged (PR #908, 2026-02-25)
+  - Area: backend / moderation workflow / restaurant coverage
+  - Finding Type: correctness gap closure
+  - Reason: Moderated submissions reached `approved`, but approved restaurant-menu submissions were not deterministically promoted into canonical `restaurant_menu_items`, creating a product/database gap for local-first lookup.
+  - Links:
+    - `app/services/restaurant_store.py`
+    - `tests/test_restaurant_store_service.py`
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+  - DoD:
+    - `approved` submissions with `entity_type=restaurant_menu` are promoted into canonical menu rows in the same transaction scope
+    - Re-approving already approved submissions is idempotent (no duplicate promoted menu rows)
+    - `rejected` submissions do not create menu rows
+    - Promotion failures remain fail-closed (no partial moderation/audit state persisted)
+    - Deterministic tests cover approved/rejected/idempotency/rollback behavior
+
 
 - [x] P1: Feature TODO from runtime SKIPPED suites (optional modules manifest)
   - Owner: @katsiaryna_kavaleuskaya
@@ -1733,6 +6863,99 @@ If it is not recorded here — it does not exist.
     - `tests/test_specific_core_modules.py` — 2 calls migrated; `aliases_module` gates removed
     - `tests/test_plate_targets_micro_coverage.py` — 11 calls migrated (`plate_day_micros` key)
 
+
+- [x] P1: Food barcode hit contract normalization for canonical FoodItem response
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #900 (`fix/food-barcode-hit-contract`)
+  - Status: ✅ Merged (PR #900, 2026-02-25)
+  - Area: backend / API contract / data normalization
+  - Finding Type: correctness and reliability gap
+  - Reason: `GET /api/v1/foods/barcode/{barcode}` can fail on hit-path serialization when persisted `flags` payload is string-encoded instead of a list, causing non-deterministic hit-path behavior in benchmark and runtime.
+  - Links:
+    - `app/routers/foods.py`
+    - `app/schemas/food.py`
+    - `docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md`
+  - DoD:
+    - Barcode hit path returns `200` with valid `FoodItem` serialization on canonical seeded DB
+    - `flags` storage/parse contract is normalized and backward-compatible
+    - Deterministic tests cover hit/miss/malformed barcode paths
+
+
+- [x] P1: Post-stabilization drift cleanup for skip-heavy coverage suites
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-773
+  - Status: ✅ Merged (PR-773, 2026-02-16)
+  - Area: backend / tests / contracts
+  - Finding Type: drift / contract mismatch
+  - Locations:
+    - `tests/test_database_apis_coverage.py`
+    - `tests/test_direct_core_functions.py`
+    - `tests/test_final_core_coverage.py`
+    - `tests/test_final_coverage_97_boost.py`
+    - `tests/test_quick_coverage_boost.py`
+    - `tests/test_remaining_modules.py`
+    - `tests/test_zero_coverage_modules.py`
+  - Reason: Large skip bucket (`module/symbol not available`) is mostly contract drift between legacy test expectations and current canonical APIs.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `core/food_apis/unified_db.py:265`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/773`
+  - Merge SHA: `3404ca39`
+  - Notes: CP1+CP2 done in PR-773; CP3 deferred to a separate follow-up PR.
+  - DoD:
+    - Drift-based skips are reduced via canonical test alignment (not API inflation for coverage)
+    - Signature mismatches are resolved with explicit contract assertions
+    - Remaining intentional skips are documented as product decisions
+    - `make verify` passes in PR-732
+
+
+<a id="ledger-p1-reenable-sys-modules-guard"></a>
+- [x] P1: Re-enable repository `sys.modules` mutation guard
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-732
+  - Status: ✅ Merged (PR-732, 2026-02-13, `b36e88ed`)
+  - Area: backend / tests / policy guards
+  - Finding Type: quality / guard enforcement
+  - Locations:
+    - `tests/test_repo_policy_guards.py:98` — active runtime guard
+      (`test_no_sys_modules_mutation_in_repo`)
+  - Reason: Disabled guard weakens a known import-hygiene invariant and can hide dual-module regressions.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `tests/test_repo_policy_guards.py:98`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/732`
+  - Evidence (2026-02-13):
+    - `pytest -q tests/test_repo_policy_guards.py -rs` -> pass (guard enabled, not skipped)
+  - DoD:
+    - Guard is enabled in CI (not skipped)
+    - Offenders are cleaned up or explicitly phased with a documented allowlist plan
+    - Guard remains deterministic under xdist and normal pytest runs
+    - `make verify` passes in PR-732
+
+
+- [x] P1: Shoplist flow stabilization work-package (`plan -> shoplist`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #770
+  - Status: ✅ Merged (PR #770, 2026-02-16, `c54143ab`)
+  - Merge SHA: c54143abee6568f42443822f9a6cb47b17edbbc4
+  - Area: backend / contracts / integration tests
+  - Finding Type: delivery packaging / flow contract
+  - Reason: Move from micro-PR fragmentation to one scoped runtime package delivering a full user-visible flow outcome with deterministic tests and rollback.
+  - Links:
+    - `docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md`
+    - `docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md`
+  - DoD:
+    - One scoped runtime PR delivers `plan -> shoplist` end-to-end outcome
+    - Contract tests cover 200 + key failure statuses where applicable
+    - Integration happy path is deterministic
+    - `Content-Type` and error envelope assertions are explicit
+    - `make verify` passes and required CI checks are green
+
+
 - [x] P1: Unimplemented feature keys backlog (SoT = tests/feature_manifest.py)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
@@ -1783,92 +7006,335 @@ If it is not recorded here — it does not exist.
     - 22 ad-hoc pytest.skip() calls migrated to require_feature() in 3 test files
     - 2 new feature keys added: `plate_day_micros`, `aliases_module` (then enabled)
 
-- [x] HPP Web visual workflow: Storybook bootstrap + first tokenized stories
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (frontend delivery accelerator)
-  - Target PR: #828, #839
-  - Status: ✅ Merged (2026-02-21)
-  - Area: frontend / HPP / design-system tooling
-  - Finding Type: execution foundation
-  - Reason: HPP UI currently lacks isolated component review. Adding Storybook enables deterministic visual
-    review of tokenized primitives before route-level integration and reduces regressions during rapid UI iteration.
-  - Links:
-    - `frontend/package.json`
-    - `frontend/src/components/ui/`
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
-  - DoD:
-    - Storybook is wired in `frontend` (`storybook`, `build-storybook` scripts)
-    - HPP stories exist for `SegmentedControl`, `Toggle`, `FormField`, and page-card shell
-    - Token usage guidelines page exists for HPP states (default/realtime/fallback/conversion)
-    - Storybook build passes in local verification
 
-- [x] Web design-token hardening: Token SoT + palette switch + runtime raw-hex guard
+- [x] P1: Wave 2 contract governance v2 + CI throughput program
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (frontend stability / drift prevention)
-  - Target PR: #835, #837
-  - Status: ✅ Merged (2026-02-21)
-  - Area: frontend / design-system governance
-  - Finding Type: policy hardening + runtime guard
-  - Reason: Token drift risk and hardcoded runtime colors were allowing visual inconsistency. We fixed
-    source-of-truth ownership, activated canonical palette tokens, and added deterministic guardrails
-    to prevent future raw-hex regressions in runtime UI paths.
+  - Priority: P1
+  - Target PR: PR #850 (docs/wave2-contract-governance-ci-throughput)
+  - Status: ✅ Completed (PR #850, 2026-02-21, merge SHA `411c3159`)
+  - Area: backend / frontend / ios / devex
+  - Finding Type: maintainability / delivery speed
+  - Locations:
+    - `docs/contracts/CONTRACT_GOVERNANCE_V2_CHECKLIST.md`
+    - `docs/policy/CI_THROUGHPUT_AND_FLAKE_BUDGET.md`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+  - Reason: reduce contract drift and CI critical-path latency while preserving quality gates.
   - Links:
-    - `docs/design/TOKENS_SOT.md`
-    - `frontend/src/styles/tokens.css`
-    - `frontend/src/styles/tokens.ts`
-    - `tests/test_frontend_raw_hex_guard.py`
-    - PR #835, PR #837
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/roadmap/PROGRAM_6M_BALANCED_2026H1.md`
+    - `docs/contracts/CONTRACT_GOVERNANCE_V2_CHECKLIST.md`
+    - `docs/policy/CI_THROUGHPUT_AND_FLAKE_BUDGET.md`
   - DoD:
-    - ✅ Token SoT documented and merged
-    - ✅ Canonical palette values active in web tokens
-    - ✅ Plate chart raw hex replaced with token variables
-    - ✅ Runtime raw-hex guard test merged with explicit allowlist
+    - [x] Contract governance checklist with OpenAPI diff risk labels documented
+    - [x] CI throughput baseline and target defined with flake budget owner
+    - [x] Follow-up implementation PRs linked (deferred to Wave 2 CI enforcement phase)
 
-- [x] HPP Web visual workflow: Playwright deterministic smoke lane
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (frontend quality guardrail)
-  - Target PR: #828, #840
-  - Status: ✅ Merged (2026-02-21)
-  - Area: frontend / HPP / e2e visual smoke
-  - Finding Type: execution foundation
-  - Reason: HPP route changes need deterministic browser smoke checks to catch critical UI regressions
-    (`/`, `/plate`, `/progress`, `/pro`) before broader CI hardening.
-  - Links:
-    - `docs/dev/PLAYWRIGHT_E2E_RUNBOOK.md`
-    - `frontend/playwright.config.ts`
-    - `frontend/e2e/`
-  - DoD:
-    - Playwright config and smoke specs exist for canonical HPP routes
-    - `npm run test:e2e` and headed variant are available in `frontend/package.json`
-    - Smoke checks run with deterministic local web server settings
-    - Runbook contains npm-first execution commands
 
-- [x] Retro-audit PR window #838-#842: merge/comment timing + tail closure
+- [x] P1: WebSocket foundation follow-up (realtime expansion package)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (process reliability)
-  - Target PR: #842, #843, #844
-  - Status: ✅ Completed (2026-02-21)
-  - Area: CI/process governance + docs follow-up
-  - Finding Type: post-merge audit + governance hardening
-  - Reason: Multiple PRs were merged before full bot/comment cycle completion; we needed deterministic evidence,
-    explicit tail closure, and technical merge-blocking controls.
-  - Findings:
-    - PR #838: only post-merge Codecov report (no actionables).
-    - PR #839: post-merge cubic "No issues found" + Codecov (no actionables).
-    - PR #840: post-merge review events (no actionable inline findings to apply).
-    - PR #841: post-merge Sourcery actionable found; fixed and merged via PR #842.
-    - PR #842: held until full green + bot pass; merged only after final CI completion.
-    - PR #833 doc comment tail: no longer relevant on current `main` (already reflected in `AGENTS.md`).
-    - PR #835 doc comment tail: still relevant; addressed via docs follow-up PR #843.
+  - Priority: P1
+  - Target PR: PR #783
+  - Status: ✅ Merged (PR #783, 2026-02-17, `a78040a0`)
+  - Merge SHA: a78040a0d8a191876f702b426b98ae82ae9460cc
+  - Area: backend / realtime / contracts
+  - Finding Type: scope control / deferred enhancement
+  - Reason: Current work-package intentionally delivers only secure websocket foundation (`/ws`, auth, limits, `ping -> pong`). Any expansion beyond foundation (event catalog, client consumers, rooms/fan-out) is deferred to avoid scope creep.
   - Links:
-    - PR #842: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/842`
-    - PR #843: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/843`
-    - PR #844: `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/844`
+    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
+    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
   - DoD:
-    - ✅ Retro-audit evidence recorded for each PR in scope
-    - ✅ Missed actionable from PR #841 remediated and merged
-    - ✅ Docs tail from PR #835 moved to follow-up PR (#843)
-    - ✅ Merge-readiness process hardened with CI policy gate PR (#844)
+    - Define versioned event contract for realtime payloads
+    - Add client integration scope (web/iOS) without violating thin-adapter policy
+    - Add deterministic integration tests for expanded event flow
+    - Keep `make verify` and diff-coverage gates green in expansion PR
+
+
+- [x] P1: WebSocket foundation work-package (`/ws` secure baseline)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #778
+  - Status: ✅ Merged (PR #778, 2026-02-17, `48ae6d24`)
+  - Merge SHA: 48ae6d24458da4f0bb101b0c92d77e4607a6aded
+  - Area: backend / realtime / security baseline
+  - Finding Type: delivery packaging / transport foundation
+  - Reason: Deliver one scoped realtime package with fail-closed auth, deterministic guardrails, and policy-anchored docs/tests without scope creep into client integration.
+  - Links:
+    - `docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md`
+    - `docs/plan/PR_778_WEBSOCKET_FOUNDATION_PLAN.md`
+    - `app/routers/realtime_ws.py`
+    - `tests/test_websocket_security_api.py`
+  - DoD:
+    - `/ws` route is registered once in canonical app entrypoint and guarded against duplicates
+    - WebSocket auth remains fail-closed with explicit policy close paths
+    - Deterministic tests cover auth reject/accept, payload/limit guards, and disconnect path
+    - Governance/docs are synchronized in AGENTS + audit + plan
+    - CI gates for PR #778 are green before merge
+
+
+<a id="ledger-p1-websocket-idle-timeout-follow-up"></a>
+- [x] P1: WebSocket idle-timeout follow-up (capacity safeguard)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #786
+  - Status: ✅ Merged (PR #786, 2026-02-18, `a2e248cb`)
+  - Merge SHA: a2e248cb5feaa84608acc68491954476228751d4
+  - Area: backend / realtime / capacity
+  - Finding Type: deferred hardening / runtime safeguard
+  - Reason: PR #783 intentionally shipped secure websocket foundation (`/ws`, auth, limits, versioned events) without idle timeout to avoid scope creep. Remaining risk is capacity/resource retention from idle connections (not a security bypass).
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
+    - `docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md`
+    - `docs/plan/PR_WS_REALTIME_EXPANSION_PLAN.md`
+    - `docs/plan/PR_WS_IDLE_TIMEOUT_PLAN.md`
+    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
+    - `app/routers/realtime_ws.py`
+  - DoD:
+    - Add `WS_IDLE_TIMEOUT_SECONDS` with conservative default and explicit disable mode
+    - Close idle websocket connections with deterministic policy close semantics
+    - Add deterministic tests for idle-timeout behavior without `sleep()`-based flakiness
+    - Keep existing websocket guardrails unchanged (fail-closed auth, burst limiter, connection cap)
+    - Pass `make verify` and diff-coverage gates in follow-up PR
+
+
+- [x] P1: WebSocket observability hardening (low-cardinality metrics + structured logs)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #789
+  - Status: ✅ Merged (PR #789, 2026-02-18, `7d9e74ec`)
+  - Merge SHA: 7d9e74eca58841a120249f98db19880dc18c56e3
+  - Area: backend / realtime / observability
+  - Finding Type: operational hardening / incident response readiness
+  - Reason: After deterministic idle-timeout delivery in PR #786, the remaining high-value runtime gap is operational visibility of `/ws` behavior under load. Without explicit websocket metrics and constrained structured logs, incident triage is slower and capacity regressions are harder to detect early.
+  - Worst-case scenario: high-volume idle/malformed websocket traffic degrades service while missing or high-cardinality observability obscures root cause and delays mitigation.
+  - Scope IN:
+    - Add low-cardinality counters for websocket connect result and close reasons.
+    - Add active websocket gauge aligned with tracker state.
+    - Add message counters by allowlisted event type (`ping`, `subscribe`) and outcome (`ok`/`closed`).
+    - Add structured logs for policy closes using non-sensitive fields only.
+  - Scope OUT:
+    - Product analytics, user-behavior funnels, and per-user telemetry.
+    - New websocket protocol features/channels.
+    - Frontend/iOS telemetry changes.
+  - Guardrails:
+    - Never log tokens, user IDs, raw payloads, or unbounded labels.
+    - Metrics labels must remain low-cardinality and enum-bound.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/789`
+    - `app/routers/realtime_ws.py`
+    - `app/middleware/metrics.py`
+    - `docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md`
+    - `docs/plan/PR_WS_OBSERVABILITY_HARDENING_PLAN.md`
+    - `docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/786`
+  - DoD:
+    - `ws_connect_total{result,reason}` and `ws_messages_total{type,result}` are implemented with bounded labels.
+    - `ws_active_connections` gauge reflects tracker state without negative drift.
+    - Structured websocket logs include only safe, bounded fields (`reason`, `event_type`, `version`, `result`).
+    - Deterministic tests validate metric increments and no-`sleep()` time-based behavior.
+    - `make verify` and diff-coverage gates are green in observability PR.
+
+
+- [x] P1: Orchestration — document worktree isolation policy (agent worktree immutable to humans)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR #963
+  - Status: merged 2026-03-04 (79024d70)
+  - Priority: P1
+  - Area: dev-process / orchestration
+  - Finding Type: operational policy
+  - Reason: Agent works in its own worktree; a human edits the same files → merge conflicts → orchestration chaos. No explicit rule "human cannot edit agent worktree." Integration flow exists (PR promotion) but operational law is missing.
+  - Links:
+    - `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Policy section added to runbook (worktree states: active/abandoned/merged; allowed human intervention via new branch)
+    - Short hard-rule excerpt in root `AGENTS.md` (do not edit inside worktrees/; integration only via PR)
+    - Example "human intervention via new branch" documented
+
+
+- [x] P1: Home/Plate/Progress Figma sync and Code Connect bridge docs package
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #798 (`docs/figma-hpp-sync-package`)
+  - Status: ✅ Merged (PR #798, 2026-02-19)
+  - Merge SHA: 891a3fcaaac3da351c104a3ebb164c4c02a126c3
+  - Area: docs / design / orchestration
+  - Finding Type: documentation contract delivery
+  - Reason: Landed canonical H+P+Pr Figma sync protocols and Code Connect activation
+    bridge docs with evidence anchors, bot-review remediations, and policy-aligned
+    AGENTS updates; this closes the docs package while keeping Design URL/node ID
+    activation dependency explicitly tracked as a separate open ledger item.
+  - Links:
+    - PR #798
+    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
+    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
+    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
+    - `docs/figma/FIGMA_IMPLEMENTATION_RUNBOOK.md`
+    - `AGENTS.md`
+  - DoD:
+    - Figma Make sync audit protocol committed with evidence anchors
+    - Code Connect activation blocker protocol and mapping candidate registry committed
+    - Design URL + node ID capture protocol committed
+    - Orchestration session artifacts committed for the sync package
+    - Root `AGENTS.md` updated with canonical Figma workflow protocol references
+
+
+- [x] P1: PR #825 bot-comments + CI green closure checklist (matrix)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #825 (`chore/6m-balanced-program-agent-control-plane-pr`)
+  - Status: ✅ Merged (PR #825, 2026-02-20)
+  - Area: docs / frontend / ci / review-ops
+  - Finding Type: review remediation / quality-gate closure
+  - Locations:
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+    - `frontend/src/lib/__tests__/telemetry.test.ts`
+    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+  - Reason: close all bot actionables and reach zero unresolved review threads with full CI green.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/825`
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+  - Checklist (Matrix):
+    - [x] Sourcery actionables addressed with commit mapping in PR body
+    - [x] CodeRabbit actionables addressed with file-level fixes and thread replies
+    - [x] PR Body Phase2 gates passed after checklist/mapping update
+    - [x] Docs Phase1 gates passed with evidence anchors in audit/security docs
+    - [x] Required CI checks are green (`gh pr checks 825`)
+    - [x] Unresolved review threads count is zero
+  - DoD:
+    - Sourcery actionables addressed with commit mapping in PR body
+    - CodeRabbit actionables addressed with file-level fixes and thread replies
+    - PR Body Phase2 gates pass after checklist/mapping update
+    - Docs Phase1 gates pass with evidence anchors in audit/security docs
+    - Required CI checks are green (`gh pr checks 825`)
+    - Unresolved review threads count is zero
+
+
+- [x] P1: RAG implementation audit — baseline (docs-only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI / RAG / docs)
+  - Target PR: PR #928 (merged)
+  - Status: Done
+  - Area: docs / audit
+  - Reason (EN): Establish evidence-based baseline for current RAG (insight-only, Jaccard), backlog gaps (sources[], confidence, multi-hop, feedback storage, agent RAG), and prioritized follow-up. No runtime changes in this PR.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `docs/contracts/RAG_CONTRACT.md`
+    - `core/rag/simple_rag.py`, `legacy_app.py` (insight RAG paths)
+  - DoD:
+    - Audit and RAG contract docs merged in docs-only PR
+    - BACKLOG_LEDGER updated with follow-up items below
+    - Branch follows PR scope guard (docs only)
+
+
+- [x] P1: Home/Plate/Progress live indicator + CTA instrumentation (web-first)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #801 (`feat/hpp-live-indicator-cta`)
+  - Status: ✅ Merged (PR #801, 2026-02-19)
+  - Merge SHA: aec126d6b8757a7a413ebf051f5e7f8a917c3e42
+  - Area: frontend / product-metrics / HPP UX
+  - Finding Type: user-visible activation package
+  - Reason: Deliver one narrow user-facing package that adds a live progress signal on
+    Home/Plate/Progress, keeps strict static fallback when realtime transport is unavailable,
+    and instruments CTA impression/click events for conversion measurement.
+  - Links:
+    - PR #801
+    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
+    - `frontend/src/features/progress/useHppLiveIndicator.ts`
+    - `frontend/src/lib/hppTelemetry.ts`
+    - `frontend/src/pages/Home.tsx`
+    - `frontend/src/pages/Plate.tsx`
+    - `frontend/src/pages/Progress.tsx`
+  - DoD:
+    - Live indicator renders on Home, Plate, and Progress surfaces
+    - Fallback invariant preserved (`ws unavailable/error -> static indicator + CTA works`)
+    - CTA telemetry events (`impression`, `click`) emitted through centralized helper
+    - Deterministic tests added for hook, indicator, and HPP page integration
+    - Thin-client websocket guard remains green (`src/api/wsClient.ts` adapter boundary)
+
+
+- [x] P1: Home/Plate/Progress live indicator A/B variant + telemetry enrichment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #803 (`feat/hpp-live-indicator-ab-variant`)
+  - Status: ✅ Merged (PR #803, 2026-02-19)
+  - Merge SHA: d1e2fa1668156b8621557daee235844bd4703ced
+  - Area: frontend / product-metrics / experimentation
+  - Finding Type: user-visible experiment package
+  - Reason: Extend the shipped live-indicator package with deterministic A/B variant
+    assignment (`compact`/`emphasized`) and enriched telemetry needed to measure
+    variant-level CTA and paywall-open behavior without expanding backend scope.
+  - Experiment Window:
+    - Start: 2026-02-20
+    - End: 2026-03-05
+    - Guardrails: websocket connect success >= 99%, no JS runtime error increase,
+      no layout-shift regressions on Home/Plate/Progress
+  - Metric Tracking:
+    - Primary KPI: `hpp_live_cta_click_rate_by_variant`
+    - Secondary KPI: `paywall_open_from_live_by_variant`
+    - Supporting Signals:
+      - `hpp_live_indicator_impression`
+      - `hpp_cta_impression`
+      - `hpp_cta_click`
+      - `hpp_paywall_open_from_live`
+  - Links:
+    - PR #803
+    - `frontend/src/features/progress/useHppLiveIndicator.ts`
+    - `frontend/src/features/progress/LiveProgressIndicator.tsx`
+    - `frontend/src/lib/hppTelemetry.ts`
+    - `frontend/src/features/progress/__tests__/useHppLiveIndicator.test.ts`
+    - `frontend/src/features/progress/__tests__/LiveProgressIndicator.test.tsx`
+    - `frontend/src/features/progress/__tests__/hppTelemetry.test.ts`
+  - DoD:
+    - Deterministic variant assignment implemented (`userId hash % 2`, fallback `compact`)
+    - UI variant rendering validated for `compact` and `emphasized`
+    - Telemetry payload includes `placement` and `variant` across impression/click events
+    - Paywall-open event from live indicator is emitted with stable payload shape
+    - Deterministic tests and snapshots cover variant logic and telemetry shape
+
+
+- [x] P1: Telemetry API normalization (`trackVipEvent` -> generic `trackEvent`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #863 (feat/telemetry-api-normalization)
+  - Status: ✅ Completed (PR #863, 2026-02-22, merge SHA `f5b7d299`)
+  - Area: frontend / analytics / architecture
+  - Finding Type: naming/abstraction hygiene
+  - Locations:
+    - `frontend/src/lib/telemetry.ts`
+    - `frontend/src/lib/telemetry/eventRegistry.ts`
+  - Reason: growth events currently use `trackVipEvent`; rename to a generic API surface and keep compatibility wrapper to avoid VIP-specific naming leakage in broader telemetry families.
+  - Links:
+    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+    - [PR #863](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/863)
+  - DoD:
+    - [x] Generic telemetry entrypoint (`trackEvent`) introduced with deterministic validation path
+    - [x] Backward-compatible wrapper for existing `trackVipEvent` callers (deprecation marker only)
+    - [x] Enum constraints documented for shared growth fields where runtime validation is required
+    - [x] Tests updated for both legacy and new entrypoints
+    - [x] `make verify` and required CI checks pass
+
+
+- [x] Resolve pip CVE-2026-1703 (pip 25.2 → 26.0+) in Docker image (GitHub alerts #533/#534)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-636
+  - Status: ✅ Merged (PR-636)
+  - Reason: Code Scanning alerts #533/#534 report CVE-2026-1703 for `pip 25.2` detected in two locations inside the built image (`/usr/local/lib/...` and `/opt/venv/lib/...`). Fix is to ensure Docker build upgrades pip to ≥26.0 (without exact pin in Dockerfile per policy).
+  - Links:
+    - GitHub alerts #533 / #534
+    - `Dockerfile` (builder venv + runtime-base system pip)
+    - `.github/workflows/trivy.yml` (builds `production` target and scans the image)
+  - DoD:
+    - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
+    - 🔄 Awaiting next scan for alerts #533/#534 to close (merged ≠ scanner rerun)
+
 
 - [x] Cross-platform Design System: define tokens + UI primitives (Web + iOS)
   - Owner: @katsiaryna_kavaleuskaya
@@ -1903,297 +7369,142 @@ If it is not recorded here — it does not exist.
     - ✅ All bot review comments addressed and mapped in PR body
     - ✅ CI checks green; merge readiness gate passed
 
-- [ ] Accessibility: ship-blocking UI checklist + enforcement for Web+iOS
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (release quality)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason: Accessibility must be enforced as a process, not a best-effort review comment. We need deterministic checks
-    (or at least guardrails) for labels, focus, contrast, and touch targets so new UI ships safely.
-  - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (a11y checklist section)
-    - `ios/AGENTS.md` (HIG + CI constraints)
-    - `frontend/AGENTS.md` (web testing and thin-client guards)
-  - DoD:
-    - PR template/checklist requires explicit a11y verification (iOS + Web)
-    - Web: jsx-a11y (or equivalent) rules applied to new/changed UI components
-    - iOS: documented checklist + at least one deterministic guard approach for common failures
-    - No new UI components added without a11y confirmation in PR evidence
 
-- [ ] FitChef assets: establish a reusable SVG/Lottie pipeline + usage guide
+- [x] P1: Design token pipeline foundation (`/tokens` authoring to generated runtime mirrors)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (brand consistency)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason: FitChef is the brand anchor, but without an asset pipeline + constraints (states, placement, tone), assets
-    will be re-created ad-hoc and drift. We need a repeatable way to request, review, and ship assets.
+  - Priority: P1 (design-system governance / drift prevention)
+  - Target PR: PR #1047 (`feat(design): add token pipeline foundation`)
+  - Status: ✅ Merged
+  - Merge SHA: f272503c
+  - Area: frontend / ios / design-system / governance
+  - Finding Type: tooling foundation + parity enforcement
+  - Reason: Earlier token work established web SoT, raw-hex guards, Storybook review, and an iOS token facade, but runtime mirrors still depended on manual sync. PR #1047 adds a governed `/tokens` authoring source, Style Dictionary generation into the existing web/iOS runtime contracts, parity guards, CI wiring, and review-governed documentation without breaking current consumers.
   - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (fitchef-asset-manager role)
-    - Root `AGENTS.md` (wellness-safe language boundaries)
+    - [PR #1047](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1047)
+    - `tokens/`
+    - `docs/design/TOKENS_SOT.md`
+    - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
+    - `frontend/src/styles/tokens.css`
+    - `frontend/src/styles/tokens.ts`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.generated.swift`
+    - `ios/PulsePlate/DesignSystem/DesignTokens.swift`
+    - `tests/test_design_token_parity.py`
+    - `docs/review/PR_1047_FIXED_MAPPING.md`
   - DoD:
-    - FitChef state list defined (welcome/success/error/empty/loading) with “do/don’t” usage notes
-    - Asset packaging rules documented (no text baked into images; localization-safe)
-    - A minimal starter pack exists (at least 3 states) and is used in one Web screen and one iOS screen
+    - ✅ `/tokens` is the governed authoring source for stable, already-live token values
+    - ✅ Existing runtime contracts remain intact for `tokens.css`, `tokens.ts`, and `PPDesignTokens`
+    - ✅ Generated iOS mirror exists as `DesignTokens.generated.swift` behind the stable public facade
+    - ✅ Parity and determinism checks cover `/tokens -> web/iOS mirrors`
+    - ✅ CI token pipeline lane and merge-governance documentation are merged and review-mapped
 
-- [ ] Conversion Safety: paywall/onboarding/result-screen checklists + minimal analytics event taxonomy
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (growth / App Store safety)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason: Conversion optimizations must remain wellness-safe and App Store compliant. We need a consistent checklist
-    to avoid “pretty UI that doesn’t convert” and to ensure analytics captures the funnel deterministically.
-  - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (conversion checklist section)
-    - `docs/contracts/PRODUCT_TIER_MAP.md` (FREE/PRO/VIP differentiation; canonical)
-  - DoD:
-    - Paywall + onboarding + results-screen checklist documented and used in PR descriptions
-    - Minimal event taxonomy defined (activation + paywall funnel + conversion) with properties
-    - Copy guidance explicitly avoids medical claims and dark patterns
 
-- [x] Dev tooling: GraphMap viewer + deterministic graph builder (dev-only)
+- [x] P1: Weekly-plan VIP alias hygiene and schema visibility
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (developer experience)
-  - Target PR: PR-695 + PR-696
-  - Status: ✅ Merged (PR-695 @ 2e3d1a5b, PR-696 @ 8e527c13; 2026-02-08)
-  - Reason: Make SoT relationships (docs/agents/policies/tests) navigable as an interactive graph with strict determinism.
-    This reduces repeated rediscovery work and improves reviewability without introducing a new SoT.
+  - Priority: P1 (API contract hygiene / OpenAPI surface discipline)
+  - Target PR: PR #1061 (`refactor(weekly-plan): thin legacy VIP weekly alias`)
+  - Status: ✅ Merged
+  - Merge SHA: 174a7bdb
+  - Area: backend / OpenAPI / legacy compatibility
+  - Finding Type: legacy alias delegation + schema visibility cleanup
+  - Reason: `/api/v1/premium/plan/week` was a VIP weekly-plan compatibility route living under the deprecated `/premium/*` namespace with its own legacy shaping path. PR #1061 reduced it to a thin compatibility alias over `/api/v1/vip/menu/weekly/plan`, kept runtime backward compatibility, hid the broken-name route from public OpenAPI, and added parity/normalization regressions for weekly-plan numeric fields.
   - Links:
-    - `docs/graph/GRAPHMAP_SPEC.md` (SoT for GraphMap; docs-only)
-    - `docs/memory/index.md` (PML capsules as graph inputs)
-    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
-    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
-    - `docs/agents/index.md`
+    - [PR #1061](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1061)
+    - `legacy_app.py`
+    - `tests/test_legacy_weekly_plan_alias_api.py`
+    - `tests/test_app_openapi_coverage.py`
+    - `docs/contracts/PRODUCT_TIER_REMEDIATION_PLAN.md`
+    - `docs/contracts/OPENAPI_PATHS_AUDIT.md`
+    - `docs/review/PR_1061_FIXED_MAPPING.md`
   - DoD:
-    - ✅ `docs/graph/GRAPHMAP_SPEC.md` defines GraphMap inputs and edge rules
-    - ✅ Deterministic builder generates stable `docs/graph/graph.json` from explicit sources only
-    - ✅ Viewer supports filtering by `Level` and `NodeType`, plus search, legend, and zoom controls
-    - ✅ Clicking opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
-    - ✅ Forbidden edges are enforced (no semantic guessing / embeddings / AI-inferred relationships)
-    - ✅ No runtime impact; no secrets/tokens; safe for local usage (and optionally GitHub Pages)
+    - ✅ `/api/v1/premium/plan/week` delegates to `/api/v1/vip/menu/weekly/plan` without retaining VIP business logic in the legacy shim
+    - ✅ Runtime compatibility preserved for existing callers of the legacy VIP alias
+    - ✅ Public OpenAPI no longer exposes `/api/v1/premium/plan/week`
+    - ✅ Parity tests prove legacy alias responses match the canonical VIP weekly-plan route
+    - ✅ Weekly-plan numeric normalization covers malformed, non-finite, and overflow-prone values with deterministic regressions
 
-- [ ] Orchestration: implement AI multi-agent contracts (RAG/UQ/CV + safety) — runtime follow-up
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AI / safety / reliability)
-  - Target PR: TBD (runtime)
-  - Status: 📋 Planned
-  - Area: backend / AI orchestration
-  - Finding Type: product + safety
-  - Reason: We have a docs-level orchestration baseline and role contracts, but runtime implementation must enforce
-    bounded recursion (cost control), grounding/citations, uncertainty reporting, and wellness-safe language.
-  - Links:
-    - `docs/audit/PR_TBD_UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
-    - `docs/orchestration/workflow.md` (canonical workflow; dev-only)
-  - DoD:
-    - RAG endpoints (if any) are tier-gated, rate-limited, and enforce monthly quota before provider calls
-    - Deterministic tests prove 200 → 429 transitions and quota enforcement
-    - Outputs include explicit `sources[]` and confidence/uncertainty fields per contract
-    - No OpenAPI determinism regressions; `make verify` passes
 
-- [x] P1: RAG implementation audit — baseline (docs-only)
+<a id="ledger-p1-weekly-plan-openapi-parity-wave"></a>
+- [x] P1: Weekly-plan OpenAPI and web parity wave
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AI / RAG / docs)
-  - Target PR: PR #928 (merged)
-  - Status: Done
-  - Area: docs / audit
-  - Reason (EN): Establish evidence-based baseline for current RAG (insight-only, Jaccard), backlog gaps (sources[], confidence, multi-hop, feedback storage, agent RAG), and prioritized follow-up. No runtime changes in this PR.
+  - Priority: P1 (OpenAPI reconciliation / frontend thin-client parity)
+  - Target PR: PR #1068 (`docs(openapi): reconcile weekly-plan contract truth`), PR #1069 (`refactor(vip): thin premium weekly alias`), PR #1070 (`refactor(frontend): normalize weekly plan consumers`), PR #1075 (`fix(frontend): gate weekly plan initial load`)
+  - Ledger closure PR: PR #1077 (`docs(ledger): record weekly-plan wave hotfix`)
+  - Related follow-up PR: PR #1079 (`fix(ci): bound trivy image scan`)
+  - Status: ✅ Merged (runtime wave and post-merge hotfix); closure synchronized in PR #1077 with Trivy workflow split traced through PR #1079
+  - Merge SHAs:
+    - PR #1068: `888dc69a`
+    - PR #1069: `68fe8d57`
+    - PR #1070: `eff51947`
+    - PR #1075: `b57333be`
+  - Area: backend / OpenAPI / frontend weekly-plan runtime
+  - Finding Type: schema reconciliation + legacy alias cleanup + normalized web consumer parity
+  - Reason:
+    - The repo had already moved to the canonical PRO route `POST /api/v1/pro/meal/weekly` and shared backend DTO normalization, so the remaining work was reconciliation and finishing rather than route migration.
+    - The wave locked `WeeklyMealPlanResponse` as the generated OpenAPI truth, kept `/api/v1/premium/plan/week-flexible` as a hidden runtime-compatible alias, and moved web weekly-plan consumers to one normalized UI view-model instead of ad-hoc raw payload assumptions.
+    - A follow-up hotfix then closed the initial-render regression where `WeeklyPlanViewer` could briefly flash the empty summary before the first fetch transitioned into loading.
   - Links:
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
-    - `docs/contracts/RAG_CONTRACT.md`
-    - `core/rag/simple_rag.py`, `legacy_app.py` (insight RAG paths)
+    - [PR #1068](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1068)
+    - [PR #1069](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1069)
+    - [PR #1070](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1070)
+    - [PR #1075](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1075)
+    - [PR #1077](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1077)
+    - [PR #1079](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1079)
+    - `app/schemas/weekly_plan.py`
+    - `app/routers/pro.py`
+    - `app/routers/premium_week.py`
+    - `legacy_app.py`
+    - `frontend/src/api/openapi.json`
+    - `frontend/src/api/schema.ts`
+    - `frontend/src/features/plan/WeeklyPlanViewer.tsx`
+    - `frontend/src/features/plan/__tests__/WeeklyPlanViewer.test.tsx`
+    - `frontend/src/hooks/useWhoTargetsWithWeeklyPlan.ts`
+    - `docs/review/PR_1068_FIXED_MAPPING.md`
+    - `docs/review/PR_1069_FIXED_MAPPING.md`
+    - `docs/review/PR_1070_FIXED_MAPPING.md`
+    - `docs/review/PR_1075_FIXED_MAPPING.md`
+    - `docs/review/PR_1077_FIXED_MAPPING.md`
   - DoD:
-    - Audit and RAG contract docs merged in docs-only PR
-    - BACKLOG_LEDGER updated with follow-up items below
-    - Branch follows PR scope guard (docs only)
+    - ✅ `WeeklyMealPlanResponse` remains the single canonical weekly-plan response shape for backend normalization and generated OpenAPI artifacts
+    - ✅ Public OpenAPI exposes `POST /api/v1/pro/meal/weekly` and keeps `POST /api/v1/premium/plan/week-flexible` hidden as a deprecated runtime alias
+    - ✅ Legacy VIP alias cleanup stays thin and schema-hidden without reintroducing separate weekly-plan business logic
+    - ✅ Web weekly-plan consumers render a normalized weekly-plan view-model instead of depending on raw response shape details, including initial-load gating that treats `data == null && err == null` as loading instead of flashing the empty summary
+    - ✅ Regression coverage exists for malformed payload normalization, schema visibility, legacy alias parity, and normalized weekly-plan web consumption
 
-- [x] P1: RAG contract implementation (sources[], confidence, budget constants)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AI / RAG)
-  - Target PR: PR #935
-  - Status: ✅ Merged (PR #935, 2026-02-27)
-  - Reason (EN): Implement response schema and internal RAGContext/RAGChunk per `docs/contracts/RAG_CONTRACT.md`; add `sources[]`, `confidence`, `rag_used`, `hops`, `latency_ms` to Insight response; add `core/rag/contracts.py` and `rag_constants.py`.
-  - Links:
-    - `docs/contracts/RAG_CONTRACT.md`
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
-    - `legacy_app.py` (InsightResponse, insight_v1/insight)
-  - DoD:
-    - InsightResponse (or extended schema) includes sources, confidence, rag_used, hops, latency_ms
-    - RAGChunk/RAGContext dataclasses in core/rag; constants in core/rag
-    - Deterministic tests for new response fields; `make verify` passes
 
-- [x] P1: RAG feedback storage (prerequisite for recursive learning)
+- [x] Docs: Canonicalize iOS API integration guide to current Networking SoT
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AI / RAG / DB)
-  - Target PR: PR #937 (merged)
-  - Status: ✅ Merged (PR #937, 2026-02-28)
-  - Reason (EN): Recursive learning and adaptive personalization in BACKLOG require persistent feedback. Add `rag_feedback` table (and `user_knowledge` for VIP); application-layer RLS; migration.
+  - Priority: P1 (docs correctness)
+  - Target PR: PR-669
+  - Status: ✅ Merged (PR-669, 2026-02-07)
+  - Reason: Existing `docs/IOS_API_INTEGRATION.md` was outdated and instructed creating a parallel URLSession-based transport layer; this conflicts with thin-client policies and current `ios/PulsePlate/Networking/*` SoT.
   - Links:
-    - `docs/contracts/RAG_CONTRACT.md` (Feedback Schema)
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 5.2, 6.2)
-    - `docs/db/rag_feedback_schema.md` (schema documentation)
+    - PR-669
+    - `docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md`
+    - `docs/IOS_API_INTEGRATION.md`
+    - `ios/PulsePlate/Networking/APIClient.swift`
+    - `ios/PulsePlate/Networking/HTTPClient.swift`
   - DoD:
-    - Migration for rag_feedback and user_knowledge tables
-    - PII redaction via `core/pii_redaction.py` before storage
-    - Application-layer security (user_id filtering); DB RLS deferred to project-wide PR
-    - docs/db schema doc created
-    - `make verify` passes
+    - Doc lists repo SoT paths and rules (no new transport)
+    - Includes “how to add endpoint” recipe aligned with existing protocols/tests
+    - Future items (IAP/receipt/keychain) point to ledger items (no mixed scopes)
 
-- [ ] P1: `simple_rag` shared index thread-safety hardening
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (runtime reliability)
-  - Target PR: PR-TBD-RAG-THREAD-SAFETY
-  - Status: 📋 Planned
-  - Reason: Current shared index lifecycle in `core/rag/simple_rag.py` needs explicit thread-safe initialization/refresh semantics to avoid race conditions under concurrent insight traffic.
-  - Links:
-    - `docs/contracts/RAG_CONTRACT.md`
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
-    - `core/rag/simple_rag.py`
-    - `tests/test_rag_simple.py`
-    - `tests/test_insight_rag_response_fields.py`
-  - DoD:
-    - Deterministic thread-safe index initialization strategy is implemented (no double-init races)
-    - Concurrency tests cover parallel read/init behavior
-    - No regression in insight response contract or latency envelope
 
-- [ ] P1: `vector_rag` SQL assembly refactor (remove raw SQL formatting debt)
+- [x] Docs: Refresh iOS roadmap to AS-IS / NEXT ACTIONS (repo-truth)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (security + maintainability)
-  - Target PR: PR-TBD-VECTOR-RAG-SQL-REFACTOR
-  - Status: 📋 Planned
-  - Reason: Raw SQL string assembly in vector retrieval path increases maintenance and security review overhead; contract should move to parameterized/ORM-safe composition.
+  - Priority: P1 (docs correctness)
+  - Target PR: PR-669
+  - Status: ✅ Merged (PR-669, 2026-02-07)
+  - Reason: `docs/roadmap/IOS_ROADMAP.md` still described “when iOS development resumes”; iOS is active (RootTabs, Networking SoT, guard tests).
   - Links:
-    - `docs/contracts/RAG_CONTRACT.md`
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
-    - `core/rag/vector_rag.py`
-    - `tests/test_vector_rag.py`
+    - PR-669
+    - `docs/audit/IOS_DOCS_DRIFT_AUDIT_2026-02-07.md`
+    - `docs/roadmap/IOS_ROADMAP.md`
+    - `ios/PulsePlate/Views/RootTabs.swift`
+    - `ios/PulsePlate/Networking/*`
   - DoD:
-    - Query assembly uses parameterized/ORM-safe path (no ad-hoc SQL string formatting)
-    - Existing vector retrieval behavior remains contract-compatible
-    - Security/static analysis checks pass without local suppressions for this path
+    - AS-IS section reflects current entrypoint, navigation, networking, guards, localization
+    - NEXT ACTIONS list only real follow-ups (P0/P1) and points to ledger items
 
-- [ ] P2: Stage-4 query-aware contradiction detection alignment
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (quality improvement)
-  - Target PR: PR-TBD-RAG-STAGE4-QUERY-AWARE
-  - Status: 📋 Planned
-  - Reason: Contradiction checks in Stage-4 should explicitly incorporate active user query semantics to reduce context-irrelevant flags and improve reliability scoring fidelity.
-  - Links:
-    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
-    - `docs/contracts/RAG_CONTRACT.md`
-    - `core/rag/philosophy_pipeline.py`
-    - `core/rag/validation.py`
-    - `tests/test_philosophy_validation_integration.py`
-  - DoD:
-    - Stage-4 contradiction detection consumes query-aware context deterministically
-    - Validation tests cover relevant/irrelevant contradiction scenarios
-    - Reliability fields (`verification_state`, `confidence`) remain backward-compatible
-
-- [ ] P2: Vector retrieval for RAG (pgvector + sentence-transformers)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (AI / RAG)
-  - Target PR: PR-next-6 (runtime)
-  - Status: Planned
-  - Reason (EN): Replace Jaccard-only retrieval with semantic search; pgvector already in W4 food search. Improves retrieval quality 40–60% per audit.
-  - Links:
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.1, 5.1)
-    - `core/rag/simple_rag.py`, W4 semantic search implementation
-  - DoD:
-    - Feature-flagged vector retrieval; fallback to current Jaccard path
-    - Latency and recall documented; `make verify` passes
-
-- [x] P2: sources[] in Insight response (client-visible)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (API / RAG)
-  - Target PR: PR #935
-  - Status: ✅ Merged as part of PR #935 (2026-02-27)
-  - Reason (EN): Expose RAG sources to client for transparency and EU AI Act traceability; requires RAG contract implementation first.
-  - Links:
-    - `docs/contracts/RAG_CONTRACT.md` (sect. 2)
-    - `legacy_app.py` (InsightResponse)
-  - DoD:
-    - Insight response includes sources[] when rag_used=true; preview redacted; OpenAPI updated
-    - `make verify` and `make openapi-check` pass
-
-- [x] P2: RAG for CBT agent (first domain agent)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (AI / RAG / coaching)
-  - Target PR: feat/p2-rag-cbt-agent
-  - Status: Implemented
-  - Reason (EN): Connect CBT/coaching flow to RAG per AGENT_CORPUS_MAP; first agent to use retrieval before LLM.
-  - Implementation (EN):
-    - Created CBT corpus documents: `docs/cbt/cognitive_restructuring.md`, `docs/cbt/thought_records.md`, `docs/psychology/motivation_theories.md`
-    - Added `AGENT_CORPUS_MAP` to `core/rag/contracts.py` with cbt-agent mapping
-    - Implemented corpus filtering in `core/rag/vector_rag.py` and `core/rag/simple_rag.py`
-    - Created PRO-gated endpoint `POST /api/v1/pro/cbt/insight` in `app/routers/cbt_insight.py`
-    - Feature-flagged via `FEATURE_CBT_AGENT` env var
-  - Links:
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.2, 4.3)
-    - `docs/contracts/RAG_CONTRACT.md` (Corpus Routing)
-    - `.cursor/agents/cbt-psychologist-agent.md`
-  - DoD:
-    - CBT path retrieves context from docs/cbt/ (or configured corpus); context passed to LLM
-    - Tier-gated (PRO/VIP); tests; `make verify` passes
-
-- [x] P2: Multi-hop retrieval + query refinement (W1 core)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (AI / RAG)
-  - Target PR: PR #973 (`feat/recursive-rag-w1-core`)
-  - Status: ✅ Merged (PR #973, 2026-03-04)
-  - Reason (EN): Recursive RAG W1 (core-only) is delivered behind feature flag with deterministic budgets and fail-safe fallback; advanced reasoning/refinement phases remain tracked separately in P1 recursive roadmap.
-  - Links:
-    - `docs/insights/RECURSIVE_METHODS_LLM_RAG.md`
-    - `docs/contracts/RAG_CONTRACT.md` (budget)
-  - DoD:
-    - `retrieve_recursive_context_structured(...)` integrated with feature-flag routing
-    - Budget constants and early-stop behavior enforced deterministically
-    - Fallback to legacy path remains fail-safe on internal errors
-    - `make verify` passes
-
-- [x] P2: Philosophy-agent + RAG validation pipeline
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (AI / RAG / philosophy)
-  - Target PR: feat/p2-philosophy-rag-pipeline
-  - Status: ✅ Implemented (2026-03-02)
-  - Reason (EN): Pipeline query → RAG → philosophy-agent → LLM so that RAG context is validated before response; per BACKLOG Philosophical logic principles.
-  - Links:
-    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 3.2)
-    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
-    - `.cursor/agents/philosophy-agent.md`
-    - `core/rag/philosophy_pipeline.py` (4-stage pipeline implementation)
-  - DoD:
-    - RAG context passed to philosophy validation layer; integration test
-    - `make verify` passes
-  - Evidence:
-    - 4-stage deterministic pipeline: rule validation → claim classification → source alignment → logical consistency
-    - Stage 1 blocks (medical/weasel/malformed); stages 2-4 advisory-only warnings
-    - 42 unit tests in `tests/test_philosophy_pipeline.py`
-    - diff-coverage 98% (>=97%)
-
-- [x] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (observability / migration)
-  - Target PR: PR-698
-  - Status: ✅ Merged (PR-698, 2026-02-09)
-  - Reason: `GET /api/nutrition/{date_str}` is a deprecated compatibility alias. Before removing it safely, we need
-    basic usage telemetry (by client/platform) to confirm iOS migration completion and avoid breaking unknown consumers.
-  - Links:
-    - `app/routers/legacy_nutrition_alias.py` (`/api/nutrition/{date_str}` legacy alias)
-    - `docs/roadmap/BACKLOG_LEDGER.md` (P0 security fix item for alias guard)
-  - DoD:
-    - Count requests to `/api/nutrition/{date_str}` with low-cardinality labels (e.g., platform/client + status)
-    - Dashboard/query recipe documented (where to check usage)
-    - Removal decision recorded (remove alias date / keep longer with rationale)
-- [x] Backend: Make VIP insight guard tests CI-deterministic
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (CI stability)
-  - Target PR: PR-658
-  - Status: ✅ Merged (PR-658, 2026-02-06)
-  - Reason: VIP insight guard tests should validate tier gating (403/200) without coupling to provider/quota internals, avoiding CI flakiness.
-  - Links:
-    - `tests/test_insight_vip_guard_api.py`
-    - PR-658
-  - DoD:
-    - Tests patch quota/provider paths deterministically
-    - `diff-coverage` passes on PRs touching these guard tests
 
 - [x] iOS: Expose BMI screen from Home / RootTabs (Free MVP UX)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2210,6 +7521,59 @@ If it is not recorded here — it does not exist.
     - User can reach BMI from the default tab flow (Home card or dedicated tab)
     - Loading/error/validation states remain user-friendly (no debug-y messages)
     - `make ios-test` passes
+
+
+- [x] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice) — ✅ Merged (PR-673, 2026-02-07)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (Demo / TestFlight)
+  - Target PR: PR-673
+  - Status: ✅ Merged (PR-673, 2026-02-07)
+  - Reason: WeeklyPlanReader is mounted behind `FeatureFlags.weeklyPlanReaderEnabled` (Debug Tools entrypoint).
+  - Links:
+    - `ios/PulsePlate/Utilities/FeatureFlags.swift` (`weeklyPlanReaderEnabled`)
+    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
+    - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
+    - `ios/PulsePlate/Services/WeeklyPlanService.swift`
+    - `docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md`
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/673>
+  - DoD:
+    - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
+    - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)
+    - Errors for 400/401/403 are rendered as user-readable states (not crashes)
+    - `make ios-test` passes
+
+<a id="ledger-p1-ios-v3-pro-tools-rollout-alignment"></a>
+- [ ] P1: iOS V3 Pro Tools rollout alignment (Weekly Plan Reader + Shopping List)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (Release alignment / docs drift)
+  - Target PR: PR-TBD
+  - Status: Planned
+  - Area: ios / backend / figma / docs
+  - Finding Type: rollout alignment
+  - Locations:
+    - `ios/PulsePlate/Views/HomeView.swift`
+    - `ios/PulsePlate/Utilities/FeatureFlags.swift`
+    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
+    - `ios/PulsePlate/ViewModels/ShoppingListReaderViewModel.swift`
+    - `app/routers/shopping_list_pro.py`
+    - `docs/figma/EXECUTABLE_DESIGN_INDEX.md`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `ios/SHOPPING_LIST_SETUP.md`
+  - Reason: Runtime V3 surfaces already exist under Home → Pro Tools, but release rollout is still blocked by feature-flag defaults and unresolved source-of-plan flow. `DEBUG` shopping-list path relies on stub `plan_data`, while iOS has no `weekly_plan_id` handoff and backend `weekly_plan_id` support still returns HTTP 501. Canonical docs also drifted by mixing historical plan state with current runtime state.
+  - Links:
+    - `ios/PulsePlate/Views/HomeView.swift`
+    - `ios/PulsePlate/Utilities/FeatureFlags.swift`
+    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
+    - `app/routers/shopping_list_pro.py`
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `docs/figma/EXECUTABLE_DESIGN_INDEX.md`
+  - DoD:
+    - Weekly Plan Reader release path is explicitly approved and smoke-tested (not only debug / QA flag usage)
+    - Weekly Plan Reader share + VIP follow-up actions are either implemented or intentionally product-closed with documented rationale
+    - Shopping List opens from a canonical release source-of-plan path (no dependency on debug stub data)
+    - `/api/v1/pro/meal/shopping-list` supports the chosen release contract (`weekly_plan_id` or deterministic carried `plan_data`)
+    - Canonical docs and roadmap entries reflect actual runtime status with no debug-only / planned-only drift
+
 
 - [x] iOS: Plate (PRO) align to canonical backend `GET /api/v1/pro/nutrition/daily` + profile input
   - Owner: @katsiaryna_kavaleuskaya
@@ -2233,470 +7597,12 @@ If it is not recorded here — it does not exist.
     - Backend canonical route (guarded by PRO tier): `app/routers/pro.py:369-373`, `app/routers/pro.py:400-422`
   - DoD:
     - iOS implements a reusable profile source for required query params (sex/age/height_cm/weight_kg/activity/goal/lang)
-    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` from Keychain/env
+    - iOS uses `APIClient` and calls canonical `GET /api/v1/pro/nutrition/daily` with `X-API-Key` sourced from the app's secure key provider
     - UX: explicit states for missing PRO key / missing profile / 422 validation errors
     - Tests:
       - unit test for building daily nutrition request query (deterministic)
       - `make ios-test` passes
 
-- [x] iOS: Mount WeeklyPlanReader behind feature flag (PRO demo slice) — ✅ Merged (PR-673, 2026-02-07)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (Demo / TestFlight)
-  - Target PR: PR-673
-  - Status: ✅ Merged (PR-673, 2026-02-07)
-  - Reason: WeeklyPlanReader is mounted behind `FeatureFlags.weeklyPlanReaderEnabled` (Debug Tools entrypoint).
-  - Links:
-    - `ios/PulsePlate/Utilities/FeatureFlags.swift` (`weeklyPlanReaderEnabled`)
-    - `ios/PulsePlate/Views/WeeklyPlan/WeeklyPlanReaderView.swift`
-    - `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`
-    - `ios/PulsePlate/Services/WeeklyPlanService.swift`
-    - `docs/audit/PR_673_IOS_WEEKLY_PLAN_READER_FLAG_AUDIT.md`
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/673>
-  - DoD:
-    - When `FeatureFlags.weeklyPlanReaderEnabled` is true, the screen is reachable (Debug tools or a controlled entrypoint)
-    - Requests use `APIClient` and include `X-API-Key` where required (no auth bypass in production code)
-    - Errors for 400/401/403 are rendered as user-readable states (not crashes)
-    - `make ios-test` passes
-
-- [x] P1 (maintenance): Type-hints carryover cleanup (tests)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (maintenance)
-  - Target PR: PR #642
-  - Status: ✅ Done (merged via PR #642)
-  - Reason: Previously-agreed test typing/hygiene changes were missed in a prior PR and intentionally carried over to keep bots/review consistent. Non-functional change (tests only).
-  - Notes: Missed in prior PR; carried over intentionally.
-  - Links: PR #642; policy: AGENTS.md (carryover rule); related: PR #640/#641 (context)
-  - DoD: Done. CI green; reviewers' sign-off; PR #642 merged; no new skips; only tests/docs changed
-
-- [x] core/db.py vs core/db/ collision resolved (TP2 amendment 2026-01-28)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #617 (amendment)
-  - Reason: TP2 originally used `core/db/fallback.py` which caused `core.db` to resolve as package in CI. Resolved by moving fallback to `core/db_fallback.py` (flat module) and removing `core/db/` package; no guard exception needed.
-  - DoD: Done. Fallback in `core/db_fallback.py`; AGENTS.md rule: never add `core/<name>/` when `core/<name>.py` exists.
-
-- [x] P1: Local/dev env alignment for SERVER_SALT + quota limit (post PR-647)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-649
-  - Status: ✅ Merged (PR-649)
-  - Reason: PR-647 introduced a fail-fast requirement for `SERVER_SALT` at app startup (VIP LLM monthly quota). Local/root
-    `docker-compose.yaml` and `.env.example` must reflect required env vars to avoid confusing local startup failures.
-  - Links:
-    - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
-    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
-    - PR-649: env.example + docker-compose alignment for SERVER_SALT fail-fast
-    - docs/audit/PR_649_ENV_REQUIRED_SERVER_SALT_AUDIT.md
-  - DoD:
-    - ✅ `.env.example` includes `SERVER_SALT` + `VIP_LLM_INSIGHT_REQUESTS_PER_MONTH` (with validation guidance)
-    - ✅ Root `docker-compose.yaml` passes both vars; missing `SERVER_SALT` fails fast at compose evaluation time
-    - ✅ Local compose boots deterministically when `SERVER_SALT` is provided
-
-- [ ] docs(infra): add `.markdownlint.json` (follow-up after PR #617)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: TBD (separate docs/infra PR)
-  - Reason: PR #617 scope reduced to docs-only (audit + handoff); markdownlint config moved out to avoid diff-coverage/CI scope. Add repo-wide markdownlint config in dedicated PR.
-  - DoD: New PR with `.markdownlint.json` only; CI green; no mixing with code/audit PRs.
-
-- [x] Restore full OpenAPI schema (remove temporary schema-only mode)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (contract velocity)
-  - Target PR: PR-631
-  - Status: ✅ Merged (PR-631, 2026-02-03)
-  - Reason: Schema-only OpenAPI mode reduced thin-client contract velocity. PR-631 removed the schema-only seam and enabled full-schema generation with deterministic output.
-  - Evidence:
-    - `scripts/generate_openapi.py:94-109` (FULL schema mode; enables feature-flagged routers in generator context)
-    - `tests/test_openapi_determinism.py:17-55` (asserts key PRO/business paths exist)
-  - DoD: ✅ Completed (PR-631)
-    - OpenAPI generator runs in full-schema mode (no schema-only marker)
-    - `frontend/src/api/openapi.json` + `frontend/src/api/schema.ts` in sync (`make openapi` produces no diff)
-    - Determinism test remains green
-
-- [x] Eliminate import-time ORM/model imports in routers included in OpenAPI generation
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (determinism / import hygiene)
-  - Target PR: PR-631
-  - Status: ✅ Merged (PR-631, 2026-02-03)
-  - Reason: OpenAPI generation must be side-effect free: routers reachable from `app.main:app` must not import ORM models at module import time.
-  - Evidence:
-    - `app/routers/nutrition_log.py:26-73` (TYPE_CHECKING-only model import + runtime lazy import pattern)
-    - `scripts/generate_openapi.py:114-120` (imports canonical entrypoint and calls `app.openapi()` successfully)
-  - DoD: ✅ Completed (PR-631)
-    - ORM model imports moved to runtime (inside handlers/dependencies), preserving OpenAPI determinism
-    - OpenAPI generation works with routers enabled
-    - Determinism test stays green
-
-- [x] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (drift prevention)
-  - Target PR: PR #633 (merged `29546992`, 2026-02-03)
-  - Status: ✅ Merged (PR #633, 2026-02-03)
-  - Resolution: PR-633 unified TargetsIn by making `legacy_app.TargetsIn` a thin alias to canonical
-    `app.schemas.nutrition_targets.TargetsIn`. Guard test `test_legacy_targets_in_is_canonical_alias()`
-    in `tests/test_targets_in_parity.py` prevents future drift.
-  - Links:
-    - PR #631 (remediation): full OpenAPI without import-time `app.models.*` along OpenAPI path
-    - PR #633 (unification): thin alias + parity tests
-  - Evidence:
-    - `app/schemas/nutrition_targets.py:37-58` (canonical TargetsIn, import-safe)
-    - `legacy_app.py:126-127` (`TargetsIn = CanonicalTargetsIn`, PR-633 alias)
-    - `tests/test_targets_in_parity.py:28-32` (`assert legacy_app.TargetsIn is CanonicalTargetsIn`)
-  - DoD:
-    - ✅ One canonical schema (single source of truth) with a thin wrapper/alias where needed
-    - ✅ Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
-    - ✅ No contract break for legacy endpoints (explicitly verified in tests)
-
-- [x] P1: Extract import-safe ORM model helper for OpenAPI path (dedupe lazy-import pattern)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (maintainability / import hygiene)
-  - Target PR: PR #746 (merged `5ccf83f5`)
-  - Status: ✅ Completed (PR #746)
-  - Resolution: PR-746 extracted `app/openapi/orm_imports.py` with `get_nutrition_event_model()`,
-    `_lazy_import_attr()` helper, and `_ORM_IMPORT_CACHE` (idempotent, lock-free).
-    `nutrition_log.py` now uses a single `_nutrition_event_model()` wrapper that delegates to
-    the centralized helper. Guard test `test_openapi_import_safe_orm_guard.py` validates
-    import-safety and caching behavior.
-  - Evidence:
-    - `app/openapi/orm_imports.py:43-60` — `get_nutrition_event_model()` with lazy cache
-    - `app/routers/nutrition_log.py:19` — `from app.openapi.orm_imports import get_nutrition_event_model`
-    - `app/routers/nutrition_log.py:41-47` — `_nutrition_event_model()` typed wrapper
-    - `tests/test_openapi_import_safe_orm_guard.py` — guard test for import-safety + cache
-  - DoD:
-    - [x] Add a single helper (import-safe) for model retrieval used by `nutrition_log` (and any similar routers)
-    - [x] Unit test that validates helper is import-safe (no import-time `app.models.*` in OpenAPI path)
-    - [x] No runtime behavior change (pure refactor)
-
-- [ ] Constrain compat shim: `sys.modules["app_module"]` mapping in `app/__init__.py`
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (maintainability)
-  - Target PR: TBD (post PR-628/629)
-  - Status: 📋 Ready to start
-  - Reason: `app/__init__.py` sets `sys.modules.setdefault("app_module", legacy_app)` for backward compatibility. This is intentional but must be tightly bounded to avoid “magic layer” imports/patches.
-  - Evidence:
-    - `app/__init__.py:44-56` (sys.modules mapping)
-  - Risk:
-    - Hard-to-debug patch behavior, hidden aliasing, accidental reliance by new code/tests.
-  - Blocked-by:
-    - None (small focused PR), but recommended after PR-628/629 to keep scopes clean
-  - Exit criteria:
-    - Mapping is either removed OR explicitly documented + guarded (no new uses)
-  - DoD:
-    - Add a short evidence-driven doc note describing why the mapping exists and what may rely on it
-    - Add a small guard test preventing expansion (no overwrites / no new module injection patterns)
-    - Define removal plan (conditions under which it can be deleted)
-
-- [ ] Auto-generate architecture diagrams (Mermaid baseline + optional Graphviz import graph)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (docs/tooling)
-  - Target PR: PR-630 (docs-only) or follow-up docs PR
-  - Status: ✅ Baseline Mermaid added; automation optional
-  - Reason: Architecture is enforced by guards, but reviewers/onboarding benefit from quick visuals. Automation reduces doc drift.
-  - Evidence:
-    - `docs/architecture/system_overview.md` (Mermaid system overview)
-    - `docs/architecture/backend_routing_map.md` (evidence-driven routing map)
-    - `docs/audit/PR_630_ARCHITECTURE_EVIDENCE_PACK_AUDIT.md` (evidence pack)
-  - Risk:
-    - Without maintenance/automation, diagrams drift and become misleading.
-  - Exit criteria:
-    - Diagram updates happen in the same PR as entrypoint/router/flag changes (enforced culturally or via light guard)
-  - DoD:
-    - Keep Mermaid as canonical diagram (single source of truth)
-    - Optional: add a script that emits a filtered import graph (`.dot`/`.svg`) for selected slices (app/core/providers) with stable filtering rules
-
-- [ ] Remove Trivy suppression for gpgv CVE (CVE-2026-24883)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: TBD (follow-up after upstream fix)
-  - Reason: Trivy reports `gpgv` vulnerability (CVE-2026-24883) with no fixed version available as of 2026-01-28; we suppress via `trivy/ignore-policy.rego` with expiry enforcement to keep Trivy's signal actionable. Should remove when Debian publishes a patched package / Trivy metadata updates.
-  - Links:
-    - `trivy/ignore-policy.rego` (rule for CVE-2026-24883)
-    - `docs/security/CVE-2026-24883-gpgv.md`
-    - `.github/workflows/trivy.yml`
-  - DoD:
-    - Debian bookworm publishes a fixed `gpgv` package (or Trivy publishes fixed-version metadata)
-    - Remove CVE-2026-24883 suppression from `trivy/ignore-policy.rego`
-    - Remove `docs/security/CVE-2026-24883-gpgv.md` (or mark as resolved)
-    - Trivy Code Scanning alerts remain closed on `main`
-
-- [x] Resolve pip CVE-2026-1703 (pip 25.2 → 26.0+) in Docker image (GitHub alerts #533/#534)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-636
-  - Status: ✅ Merged (PR-636)
-  - Reason: Code Scanning alerts #533/#534 report CVE-2026-1703 for `pip 25.2` detected in two locations inside the built image (`/usr/local/lib/...` and `/opt/venv/lib/...`). Fix is to ensure Docker build upgrades pip to ≥26.0 (without exact pin in Dockerfile per policy).
-  - Links:
-    - GitHub alerts #533 / #534
-    - `Dockerfile` (builder venv + runtime-base system pip)
-    - `.github/workflows/trivy.yml` (builds `production` target and scans the image)
-  - DoD:
-    - Production image contains `pip>=26.0,<27.0` in both `/usr/local/lib/.../pip-*.dist-info` and `/opt/venv/lib/.../pip-*.dist-info`
-    - 🔄 Awaiting next scan for alerts #533/#534 to close (merged ≠ scanner rerun)
-
-- [x] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-716 (remediation: bump + guard); PR-724 = docs-only closure/policy
-  - Status: ✅ Closed (remediation on main via PR-716; guard test in place; PR-724 adds AGENTS policy + ledger)
-  - Reason: Five GitHub security alerts (Dependabot #27/#28/#29 and Code Scanning #538/#539) report vulnerable
-    `cryptography` (`<=46.0.4`); required fixed version is `46.0.5`.
-  - Links:
-    - `docs/security/CVE-2026-26007-cryptography.md`
-    - GitHub alerts: `security/dependabot/27`, `security/dependabot/28`, `security/dependabot/29`
-    - GitHub alerts: `security/code-scanning/538`, `security/code-scanning/539`
-  - DoD:
-    - [x] `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`,
-      `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
-    - [x] New dependency security guard test added to enforce cryptography floor version
-      (CVE-2026-26007) — `tests/test_dependency_security_guard.py`
-    - [ ] Security/code scanning alerts close on next scan
-
-- [x] Generalize dependency vulnerability guards beyond single-CVE floors (merged 2026-02-27)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR #923
-  - Status: ✅ Closed
-  - Reason: Current guard test enforces a floor for one high-risk dependency (`cryptography`). Preventing future
-    regressions at scale needs a deterministic allow/deny schema for multiple packages/CVEs.
-  - Links:
-    - `tests/test_dependency_security_guard.py`
-    - `tests/fixtures/dependency_security_schema.json`
-    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
-  - DoD:
-    - [x] Introduce a centralized guard schema (`package -> min_safe_version` or denylist) for key dependencies
-    - [x] Deterministic CI/pytest check validates all relevant requirement surfaces
-    - [x] Developer docs explain how to update schema when new CVEs are triaged
-
-- [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-615 (merged)
-  - Status: ✅ Suppression added; monitoring until 2026-04-28 (expiry date)
-  - Reason: GitHub alert #515 reports CVE-2026-24882 (gpgv tpm2daemon buffer overflow) for installed version 2.2.40-1.1. Debian tracker confirms bookworm is vulnerable (no fixed version available). Suppressed as accepted risk (no attack surface: runtime does not invoke gpgv/tpm2daemon, no TPM2-backed keys used).
-  - Links:
-    - `trivy/ignore-policy.rego` (rule for CVE-2026-24882)
-    - `docs/security/CVE-2026-24882-gpgv.md`
-    - GitHub alert #515
-    - `.github/workflows/trivy.yml`
-    - PR-615 (merged)
-  - DoD:
-    - ✅ Suppression added in `trivy/ignore-policy.rego` with expiry 2026-04-28
-    - ✅ Security doc created (`docs/security/CVE-2026-24882-gpgv.md`)
-    - 🔄 Monitor: GitHub alert #515 should auto-resolve after next Trivy scan on `main`
-    - 🔄 Follow-up (after 2026-04-28 or when fixed): Remove suppression when Debian bookworm publishes fixed `gpgv` package (≥ 2.5.17 or backported fix), OR Trivy metadata includes fixed version
-
-- [x] Move insight redaction/import helpers out of legacy_app.py (merged 2026-02-10)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-703 (merged)
-  - Status: ✅ Merged
-  - Reason: Codex actionable — keep legacy_app thin proxy only. Move `_redact_rag_context_for_insight` and `_load_llm_get_provider` to canonical module (`core/insight/`) to maintain AGENTS invariant. Follow-up from PR-611.
-  - Links:
-    - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
-    - PR-611 (merged 2026-01-28)
-    - PR-703 (merged 2026-02-10)
-  - Preconditions (already true as of PR-611):
-    - `_redact_rag_context_for_insight` lives in `core/insight/safety.py`
-  - DoD:
-    - Move `_load_llm_get_provider` to canonical module (not `legacy_app.py`)
-    - `legacy_app.py` contains only thin proxies (no business/import helpers)
-    - Tests pass
-    - OpenAPI unchanged
-
-- [ ] PR-595 iOS Thin HTTP Adapter Audit
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-595
-  - Status: 🟡 In progress (draft)
-  - Reason: CodeRabbit actionable — if not recorded in ledger, it does not exist. Audit-first for iOS networking layer (dual-path HTTP, legacy services, DTO drift) and deterministic remediation plan.
-  - Links:
-    - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/595>
-  - DoD:
-    - Evidence captured for dual-path networking (`file:line → transport`)
-    - Legacy services and direct HTTP entry points enumerated
-    - DTO/contract drift documented at network boundary
-    - Remediation plan defined (PR-596 scope)
-
-- [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-596
-  - Status: ✅ Merged
-  - Reason: Consolidate iOS networking under a single thin transport (`APIClient`) and eliminate direct HTTP calls outside transport layer.
-  - Links:
-    - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
-  - DoD:
-    - All services use `APIClient` (no direct `URLSession` outside transport layer)
-    - No direct HTTP in non-transport layers (models/view models/views/services)
-    - DTO boundary aligned with canonical backend contracts
-    - Tests/guards pass
-  - Notes (post-merge):
-    - Services/UI: no direct URLSession
-    - APIError: transport vs HTTP
-    - snake_case decoder parity
-    - emptyResponse semantics
-    - unknown vs transport
-
-- [ ] Stabilize/restore PlateViewTests in CI (iOS)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (separate from PR-559)
-  - Priority: P1
-  - Reason: PlateViewTests were unstable historically; UI tests bundle-load is now fixed, but PlateViewTests stability + CI inclusion remains open.
-  - Links:
-    - ios/PulsePlateTests/PlateViewTests.swift
-    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
-  - DoD:
-    - PlateViewTests stabilized (no flaky failures)
-    - PlateViewTests included in CI signal (job or explicit `-only-testing` list)
-    - CI green with PlateViewTests included
-
-- [x] PR-607 merged: iOS UITests bundle load fix + CI UI smoke (merged 2026-01-27)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-607
-  - Status: ✅ Merged
-  - Reason: Restore UI tests build-product correctness (bundle contains executable) and add dedicated `ios-ui-smoke` CI signal.
-  - Links:
-    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
-  - DoD: ✅ Completed
-    - `PulsePlateUITests.xctest` contains executable (no Code=4 / exit 65 before tests execute)
-    - CI `ios-ui-smoke` job runs minimal UI smoke
-
-- [x] PR-608 merged: audit post-merge evidence stamp (merged 2026-01-27)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-608
-  - Status: ✅ Merged
-  - Reason: Record post-merge verification evidence (main SHA + minimal stdout excerpt) for Q2b DoD closure.
-  - Links:
-    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/608>
-  - DoD: ✅ Completed
-
-- [ ] P1 (postponed): CI iOS workflow dedup (extract shared helpers / composite action)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: TBD
-  - Reason: Avoid drift between `ios-tests` and `ios-ui-smoke` jobs (Xcode pinning, destination selection, boot logic, xcodebuild wrapper). Requested in PR-607 review; deferred to keep remediation PR scope tight.
-  - Links:
-    - .github/workflows/ci.yml
-    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
-  - DoD:
-    - One shared implementation for destination selection + bootstatus gating + xcodebuild wrapper (script or composite action)
-    - Both iOS jobs reuse the same logic (no duplicated Python snippets)
-    - CI remains deterministic (UDID-only destination, no `OS=latest`)
-
-- [ ] Standardize audit verification blocks (require minimal stdout excerpt)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-637
-  - Status: 🟡 In progress (PR-637)
-  - Reason: Audit items labeled “Verified” must include minimal observed stdout evidence (1–3 lines) to remain reproducible and reviewable.
-  - Links:
-    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md (section F)
-    - AGENTS.md (Verification-audit rule)
-  - DoD:
-    - Add a short, canonical checklist line for audit PRs: include 1–3 raw stdout lines + exit code for each key verification command
-    - No scope creep into runbook-level detail
-
-- [x] Stabilize AnimationTests.swift (iOS)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-681
-  - Status: ✅ Merged (PR-681, 2026-02-07)
-  - Reason: Root cause: `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` excluded `AnimationTests.swift` from `PulsePlateTests`. Fix: removed `AnimationTests.swift` from `membershipExceptions` so the tests are included in `PulsePlateTests` again.
-  - Links:
-    - ios/PulsePlateTests/AnimationTests.swift
-    - ios/PulsePlate.xcodeproj/project.pbxproj
-    - ios/AGENTS.md (Animated/UI helper tests policy)
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/681>
-  - DoD:
-    - Either rewrite using available public components
-    - Or extract to separate test target
-    - Or remove if dead test code (no longer needed)
-    - AnimationTests.swift compiles without errors
-    - All referenced types/modifiers are accessible (public/internal as needed)
-    - Tests restored to PulsePlateTests target (if kept)
-    - CI green with AnimationTests included (if restored)
-
-- [x] Fix ShoppingPlan public API (make nested types public or narrow API surface)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-677
-  - Status: ✅ Merged (PR-677, 2026-02-07)
-  - Reason: CodeRabbit flagged "ShoppingPlan isn't constructible" - public type with internal nested types (DailyMenu, Meal). Outside PR-559 scope but architectural smell.
-  - Links:
-    - ios/PulsePlate/Models/ShoppingList/ShoppingListStubPlan.swift
-    - CodeRabbit comment (outside diff, actionable=0)
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/677>
-  - DoD:
-    - Either make DailyMenu/Meal public with explicit init
-    - Or narrow API: make ShoppingPlan/ShoppingListRequestPayload internal if it's "stub" only
-    - No breaking changes to existing usage
-
-- [x] Wire soft paywall CTA to real paywall router (iOS) — ✅ Merged (PR-674, 2026-02-07)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-674
-  - Status: ✅ Merged (PR-674, 2026-02-07)
-  - Reason: Soft paywall CTA is wired to a real paywall navigation handler and presents a minimal paywall screen.
-  - Links:
-    - ios/PulsePlate/Screens/BMICalculatorScreen.swift (line ~73)
-    - docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/674>
-  - DoD:
-    - Paywall router/navigation handler implemented
-    - SoftPaywallHookView CTA wired to navigation
-    - No TODO comments in production code
-- [ ] P1: iOS open-source implementation gate (repo-wide scan + thin-client conformance)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-TBD-IOS-OSS-IMPLEMENTATION-GATE
-  - Status: 🟡 Prioritized
-  - Reason: Product quality now depends on deterministic iOS conformance checks before merge; Swift guard tests exist, but we need a repo-wide open-source gate that validates implementation patterns and prevents silent drift.
-  - Links:
-    - docs/audit/PR_559_ANTI_DUPLICATION_GUARDS.md
-    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
-    - docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md
-  - DoD:
-    - GH Actions step scans iOS app Swift sources for forbidden patterns
-    - Excludes fixtures/mocks
-    - Thin-client/APIClient invariants are enforced in CI for changed iOS files
-    - Documented in ios/AGENTS.md
-
-- [ ] Optional: tighten guard false-positives (comment stripping / pattern tuning)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: TBD
-  - Reason: avoid guard flakiness if comments include examples
-  - Links:
-    - ios/PulsePlateTests/Guards/ThinClientGuardsTests.swift
-  - DoD:
-    - Guard remains strict but avoids comment-only hits
-    - CI remains deterministic
-
-- [x] Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS) — completed in PR-596 (merged 2026-01-26)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1
-  - Target PR: PR-596
-  - Status: ✅ Merged
-  - Reason: Remove direct URLSession usage from services; consolidate under APIClient/HTTPClient seam.
-  - Links:
-    - ios/PulsePlate/Services/ShoppingListService.swift
-    - ios/PulsePlate/Services/WeeklyPlanService.swift
-    - ios/PulsePlate/Networking/APIClient.swift (reference implementation)
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
-  - DoD:
-    - ShoppingListService uses APIClient (no direct URLSession)
-    - WeeklyPlanService uses APIClient (no direct URLSession)
-    - Custom error enums replaced with APIError from Networking layer
-    - All services follow same thin adapter pattern
-    - Tests updated to use HTTPClientProtocol stubs
-    - No breaking changes to public APIs
 
 - [x] Migrate BMICalculatorViewModel + Screen to BMICalculate*DTO; delete legacy BMIRequest/BMIResponse (iOS) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2721,39 +7627,6 @@ If it is not recorded here — it does not exist.
     - Error handling updated to use APIError (incl. unknown vs transport)
     - Tests updated
 
-- [x] PR-566 (Phase 2): Coordinator cleanup and deduplication — merged
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-566
-  - Status: ✅ Merged
-  - Reason: Agent coordinator deduplication (removed capability duplication)
-  - Links:
-    - docs/audit/PR_566_COORDINATOR_CLEANUP_AUDIT.md
-  - DoD: ✅ Completed (coordinator references agent files instead of duplicating)
-
-- [x] Fix test skips/xfails (batch) — completed in PR-602
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-602
-  - Status: ✅ Completed (remediated-by-removal for invalid/non-contract tests + traced skip)
-  - Priority: P1
-  - Area: backend / tests
-  - Finding Type: skip/xfail
-  - Locations:
-    - `tests/test_bmi_visualization.py:523` — xfail → **removed**
-      - Reason: deterministic failure under `--runxfail` (404); test expected a legacy route to be mounted.
-        Classified in PR-600 as **invalid test / route wiring mismatch** (non-contract).
-    - `tests/test_app_branching_and_errors.py:185` — xfail → **removed**
-      - Reason: reload-dependent internal symbol assertions (`importlib.reload(app)` → symbols become `None`) are not a stable contract.
-        Classified in PR-600 as **invalid / environment-dependent assumption**.
-    - `tests/test_repo_policy_guards.py:85` — skip (sys.modules cleanup) → **kept skipped**, but reason now explicitly tied to ledger + PR-600 (no behavior change).
-  - Reason: Technical debt from remediation; tests disabled to unblock CI
-  - Links:
-    - docs/audit/PR_600_QUALITY_TESTS_AUDIT.md
-    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
-    - docs/audit/BACKEND_XFAILED_TESTS_AUDIT.md
-  - DoD:
-    - Each xfail/skip either fixed or removed (if obsolete)
-    - Tests pass without xfail markers
-    - CI green
 
 - [x] NutritionData.swift: migrate to APIClient (iOS thin-client violation) — completed in PR-596 (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
@@ -2772,314 +7645,448 @@ If it is not recorded here — it does not exist.
     - Consistent error handling via APIError
     - No dual-path networking
 
-- [ ] OpenAPI: Add response schema for `/api/v1/export/sign`
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: backend / OpenAPI
-  - Finding Type: schema-debt
-  - Location: `app/routers/export.py` (sign_export_link endpoint)
-  - Reason: Response type is `{ [key: string]: unknown }` in generated schema. Frontend uses hand-written `SignedLinkResponse` type. Should define Pydantic response model for proper OpenAPI generation.
-  - Links:
-    - frontend/src/lib/sharedLinks.ts (hand-written type)
-    - frontend/src/api/schema.ts:4783 (generic dict response)
-  - DoD:
-    - Backend defines `SignedLinkResponse` Pydantic model
-    - OpenAPI regenerated with proper schema
-    - Frontend uses generated type from `schema.ts`
 
-- [ ] Web Guards: Extract config constants to shared module
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: frontend / guards
-  - Finding Type: improvement (Sourcery PR-592)
-  - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
-  - Reason: FORBIDDEN_PATTERNS/SCAN_DIRS/EXCLUDE_PATTERNS should be shared between guards and AGENTS.md to prevent policy drift
-  - Links:
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/592> (source PR)
-    - Sourcery comment on PR-592
-  - DoD:
-    - Config extracted to shared module
-    - Guards import config
-    - AGENTS.md references canonical source
 
-- [ ] Web Guards: Improve inline block comment parsing
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: frontend / guards
-  - Finding Type: improvement (Sourcery PR-592)
-  - Location: `frontend/src/api/__tests__/thin-client-guards.test.ts`
-  - Reason: Current `isLineInComment` may not handle inline `/* ... */` on same line correctly
-  - Links:
-    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/592> (source PR)
-    - Sourcery comment on PR-592
-  - DoD:
-    - Stricter inline comment parsing
-    - Test cases for edge cases
 
-- [x] API Tiers database lookup implementation
+- [x] PR-596 merged: iOS thin HTTP adapter remediation (merged 2026-01-26)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-721
-  - Status: ✅ Merged (PR-721, 2026-02-12)
   - Priority: P1
-  - Area: backend
-  - Finding Type: TODO/FIXME
-  - Locations:
-    - `app/middleware/api_tiers.py` — DB lookup + env fallback (MISS only); ERROR/INVALID_TIER fail-closed
-  - Reason: Previously env-only; now DB-first when SUBSCRIPTION_DB_ENABLED=true with explicit fail-closed policy.
+  - Target PR: PR-596
+  - Status: ✅ Merged
+  - Reason: Consolidate iOS networking under a single thin transport (`APIClient`) and eliminate direct HTTP calls outside transport layer.
   - Links:
-    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
-    - docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md (audit in PR-721)
+    - docs/audit/PR_595_IOS_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
   - DoD:
-    - Database lookup implemented when SUBSCRIPTION_DB_ENABLED=true ✅
-    - Fallback to env-based detection only on DB MISS (not on ERROR/INVALID_TIER) ✅
-    - Tests cover both paths ✅
+    - All services use `APIClient` (no direct `URLSession` outside transport layer)
+    - No direct HTTP in non-transport layers (models/view models/views/services)
+    - DTO boundary aligned with canonical backend contracts
+    - Tests/guards pass
+  - Notes (post-merge):
+    - Services/UI: no direct URLSession
+    - APIError: transport vs HTTP
+    - snake_case decoder parity
+    - emptyResponse semantics
+    - unknown vs transport
 
-- [x] Greenlight iOS P0 report-only workflow
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-722
-  - Status: ✅ Merged (PR-722, 2026-02-12)
-  - Priority: P0
-  - Area: CI / iOS
-  - Reason: Add report-only App Store readiness scan for iOS in CI.
-  - Links:
-    - docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md
-    - docs/runbook/IOS_GREENLIGHT.md
-  - DoD:
-    - Workflow `.github/workflows/greenlight-ios.yml` path-scoped ✅
-    - Report artifact + step summary ✅
-    - P0 report-only documented ✅
 
-- [ ] Security suppression expiry monitoring
+- [x] PR-607 merged: iOS UITests bundle load fix + CI UI smoke (merged 2026-01-27)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: N/A (ongoing)
   - Priority: P1
-  - Area: security
-  - Finding Type: policy exception
-  - Locations:
-    - `trivy/ignore-policy.rego` — Suppression expires: 2026-05-27
-    - `.trivyignore` — CVE-2026-0861 expires: 2026-05-27
-  - Reason: Upstream glibc CVEs unfixed; suppressions have expiry dates
+  - Target PR: PR-607
+  - Status: ✅ Merged
+  - Reason: Restore UI tests build-product correctness (bundle contains executable) and add dedicated `ios-ui-smoke` CI signal.
   - Links:
-    - docs/security/CVE-2026-0861-glibc.md
-    - docs/security/CVE-2025-15281-glibc.md
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/607>
+  - DoD: ✅ Completed
+    - `PulsePlateUITests.xctest` contains executable (no Code=4 / exit 65 before tests execute)
+    - CI `ios-ui-smoke` job runs minimal UI smoke
+
+
+- [x] Stabilize AnimationTests.swift (iOS)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-681
+  - Status: ✅ Merged (PR-681, 2026-02-07)
+  - Reason: Root cause: `PBXFileSystemSynchronizedBuildFileExceptionSet.membershipExceptions` excluded `AnimationTests.swift` from `PulsePlateTests`. Fix: removed `AnimationTests.swift` from `membershipExceptions` so the tests are included in `PulsePlateTests` again.
+  - Links:
+    - ios/PulsePlateTests/AnimationTests.swift
+    - ios/PulsePlate.xcodeproj/project.pbxproj
+    - ios/AGENTS.md (Animated/UI helper tests policy)
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/681>
   - DoD:
-    - Weekly monitoring for upstream fixes
-    - Remove suppressions when fixed versions available
-    - Update base image when fixes land
-  - **Last reviewed: 2026-02-27**
-    - PR #929: Removed 4 upstream-fixed CVE suppressions (gpgv, gnutls, p11-kit)
-    - PR #930: Extended review-by dates to 2026-05-27 for unfixed CVEs
+    - Either rewrite using available public components
+    - Or extract to separate test target
+    - Or remove if dead test code (no longer needed)
+    - AnimationTests.swift compiles without errors
+    - All referenced types/modifiers are accessible (public/internal as needed)
+    - Tests restored to PulsePlateTests target (if kept)
+    - CI green with AnimationTests included (if restored)
+
+
+- [x] Unify ShoppingListService / WeeklyPlanService under thin HTTP adapter (iOS) — completed in PR-596 (merged 2026-01-26)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-596
+  - Status: ✅ Merged
+  - Reason: Remove direct URLSession usage from services; consolidate under APIClient/HTTPClient seam.
+  - Links:
+    - ios/PulsePlate/Services/ShoppingListService.swift
+    - ios/PulsePlate/Services/WeeklyPlanService.swift
+    - ios/PulsePlate/Networking/APIClient.swift (reference implementation)
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/596>
+  - DoD:
+    - ShoppingListService uses APIClient (no direct URLSession)
+    - WeeklyPlanService uses APIClient (no direct URLSession)
+    - Custom error enums replaced with APIError from Networking layer
+    - All services follow same thin adapter pattern
+    - Tests updated to use HTTPClientProtocol stubs
+    - No breaking changes to public APIs
+
+
+- [x] Wire soft paywall CTA to real paywall router (iOS) — ✅ Merged (PR-674, 2026-02-07)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-674
+  - Status: ✅ Merged (PR-674, 2026-02-07)
+  - Reason: Soft paywall CTA is wired to a real paywall navigation handler and presents a minimal paywall screen.
+  - Links:
+    - ios/PulsePlate/Screens/BMICalculatorScreen.swift (line ~73)
+    - docs/audit/PR_674_IOS_SOFT_PAYWALL_CTA_ROUTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/674>
+  - DoD:
+    - Paywall router/navigation handler implemented
+    - SoftPaywallHookView CTA wired to navigation
+    - No TODO comments in production code
+
+- [x] core/db.py vs core/db/ collision resolved (TP2 amendment 2026-01-28)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #617 (amendment)
+  - Reason: TP2 originally used `core/db/fallback.py` which caused `core.db` to resolve as package in CI. Resolved by moving fallback to `core/db_fallback.py` (flat module) and removing `core/db/` package; no guard exception needed.
+  - DoD: Done. Fallback in `core/db_fallback.py`; AGENTS.md rule: never add `core/<name>/` when `core/<name>.py` exists.
+
+
+- [x] Dev tooling: GraphMap viewer + deterministic graph builder (dev-only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (developer experience)
+  - Target PR: PR-695 + PR-696
+  - Status: ✅ Merged (PR-695 @ 2e3d1a5b, PR-696 @ 8e527c13; 2026-02-08)
+  - Reason: Make SoT relationships (docs/agents/policies/tests) navigable as an interactive graph with strict determinism.
+    This reduces repeated rediscovery work and improves reviewability without introducing a new SoT.
+  - Links:
+    - `docs/graph/GRAPHMAP_SPEC.md` (SoT for GraphMap; docs-only)
+    - `docs/memory/index.md` (PML capsules as graph inputs)
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/agents/index.md`
+  - DoD:
+    - ✅ `docs/graph/GRAPHMAP_SPEC.md` defines GraphMap inputs and edge rules
+    - ✅ Deterministic builder generates stable `docs/graph/graph.json` from explicit sources only
+    - ✅ Viewer supports filtering by `Level` and `NodeType`, plus search, legend, and zoom controls
+    - ✅ Clicking opens GitHub file links (optionally `path:line` anchors) and never opens local absolute paths
+    - ✅ Forbidden edges are enforced (no semantic guessing / embeddings / AI-inferred relationships)
+    - ✅ No runtime impact; no secrets/tokens; safe for local usage (and optionally GitHub Pages)
+
+
+- [x] Fix ShoppingPlan public API (make nested types public or narrow API surface)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-677
+  - Status: ✅ Merged (PR-677, 2026-02-07)
+  - Reason: CodeRabbit flagged "ShoppingPlan isn't constructible" - public type with internal nested types (DailyMenu, Meal). Outside PR-559 scope but architectural smell.
+  - Links:
+    - ios/PulsePlate/Models/ShoppingList/ShoppingListStubPlan.swift
+    - CodeRabbit comment (outside diff, actionable=0)
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/677>
+  - DoD:
+    - Either make DailyMenu/Meal public with explicit init
+    - Or narrow API: make ShoppingPlan/ShoppingListRequestPayload internal if it's "stub" only
+    - No breaking changes to existing usage
+
+
+- [x] Generalize dependency vulnerability guards beyond single-CVE floors (merged 2026-02-27)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #923
+  - Status: ✅ Closed
+  - Reason: Current guard test enforces a floor for one high-risk dependency (`cryptography`). Preventing future
+    regressions at scale needs a deterministic allow/deny schema for multiple packages/CVEs.
+  - Links:
+    - `tests/test_dependency_security_guard.py`
+    - `tests/fixtures/dependency_security_schema.json`
+    - `docs/security/DEPENDENCY_SECURITY_GUARD_WORKFLOW.md`
+  - DoD:
+    - [x] Introduce a centralized guard schema (`package -> min_safe_version` or denylist) for key dependencies
+    - [x] Deterministic CI/pytest check validates all relevant requirement surfaces
+    - [x] Developer docs explain how to update schema when new CVEs are triaged
+
+
+- [x] Move insight redaction/import helpers out of legacy_app.py (merged 2026-02-10)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-703 (merged)
+  - Status: ✅ Merged
+  - Reason: Codex actionable — keep legacy_app thin proxy only. Move `_redact_rag_context_for_insight` and `_load_llm_get_provider` to canonical module (`core/insight/`) to maintain AGENTS invariant. Follow-up from PR-611.
+  - Links:
+    - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
+    - PR-611 (merged 2026-01-28)
+    - PR-703 (merged 2026-02-10)
+  - Preconditions (already true as of PR-611):
+    - `_redact_rag_context_for_insight` lives in `core/insight/safety.py`
+  - DoD:
+    - Move `_load_llm_get_provider` to canonical module (not `legacy_app.py`)
+    - `legacy_app.py` contains only thin proxies (no business/import helpers)
+    - Tests pass
+    - OpenAPI unchanged
+
+
+- [x] Observability: measure legacy nutrition alias usage (deprecation removal readiness)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (observability / migration)
+  - Target PR: PR-698
+  - Status: ✅ Merged (PR-698, 2026-02-09)
+  - Reason: `GET /api/nutrition/{date_str}` is a deprecated compatibility alias. Before removing it safely, we need
+    basic usage telemetry (by client/platform) to confirm iOS migration completion and avoid breaking unknown consumers.
+  - Links:
+    - `app/routers/legacy_nutrition_alias.py` (`/api/nutrition/{date_str}` legacy alias)
+    - `docs/roadmap/BACKLOG_LEDGER.md` (P0 security fix item for alias guard)
+  - DoD:
+    - Count requests to `/api/nutrition/{date_str}` with low-cardinality labels (e.g., platform/client + status)
+    - Dashboard/query recipe documented (where to check usage)
+    - Removal decision recorded (remove alias date / keep longer with rationale)
+
+- [x] P1 (maintenance): Type-hints carryover cleanup (tests)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintenance)
+  - Target PR: PR #642
+  - Status: ✅ Done (merged via PR #642)
+  - Reason: Previously-agreed test typing/hygiene changes were missed in a prior PR and intentionally carried over to keep bots/review consistent. Non-functional change (tests only).
+  - Notes: Missed in prior PR; carried over intentionally.
+  - Links: PR #642; policy: AGENTS.md (carryover rule); related: PR #640/#641 (context)
+  - DoD: Done. CI green; reviewers' sign-off; PR #642 merged; no new skips; only tests/docs changed
+
+
+- [x] P1: Extract hardcoded constants (BMR, export formats)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintainability)
+  - Target PR: PR #644
+  - Status: ✅ Merged (PR #644)
+  - Merge SHA: fda459d743e848b72c2c818b8dd7bef62af99aec
+  - Reason: BMR formula constants and export formats are hardcoded in `legacy_app.py`. Should be extracted to `core.bmr` module and `ExportFormat` enum for maintainability.
+  - Links:
+    - PR #644
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Hardcoded constants section)
+    - legacy_app.py:97 (nutrition_core imports), export functions
+  - DoD:
+    - Extract BMR constants to `core/bmr.py` module
+    - Create `ExportFormat` enum (CSV, PDF, JSON)
+    - Replace hardcoded values with constants/enum
+    - Tests verify no functionality broken
 
 ---
 
-## P2 — Future (Low priority / research)
 
-### EVMbench-inspired agent evaluation (2026-02-21)
-
-- [ ] P2: Violations-addressed list in security/guard remediation PRs
+- [x] P1: Fact-check closure for stale critical claims in external roadmap snapshot (2026-03-05)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD (optional per-PR)
-  - Status: Planned
-  - Area: process / PR template
-  - Finding Type: auditability
-  - Reason: Optional "violations addressed" list in PR description for guard/security remediation makes coverage auditable (EVMbench-style).
+  - Priority: P1 (program governance)
+  - Target PR: PR #972, PR #973, PR #974
+  - Status: ✅ Merged (all listed PRs merged on 2026-03-04)
+  - Reason: External document snapshot contained stale “P0 missing” claims for controls that were already implemented in runtime. Ledger now anchors these as completed facts to prevent duplicate emergency scope.
+  - Links:
+    - `app/security/rate_limit.py` (rate limiting baseline)
+    - `app/routers/realtime_ws.py` (WebSocket auth/policy-close baseline)
+    - PR #972 (Philosophy validator core)
+    - PR #973 (Recursive RAG W1 core)
+    - PR #974 (orchestration telemetry/spec package)
+  - DoD:
+    - Stale claims are marked as implemented with repository evidence
+    - Remaining open items track only fact-valid deltas (RAG technical debt + runtime governance follow-ups)
+
+
+- [x] P1: Local/dev env alignment for SERVER_SALT + quota limit (post PR-647)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-649
+  - Status: ✅ Merged (PR-649)
+  - Reason: PR-647 introduced a fail-fast requirement for `SERVER_SALT` at app startup (VIP LLM monthly quota). Local/root
+    `docker-compose.yaml` and `.env.example` must reflect required env vars to avoid confusing local startup failures.
+  - Links:
+    - PR-647: VIP LLM hard monthly quota (deterministic enforcement)
+    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
+    - PR-649: env.example + docker-compose alignment for SERVER_SALT fail-fast
+    - docs/audit/PR_649_ENV_REQUIRED_SERVER_SALT_AUDIT.md
+  - DoD:
+    - ✅ `.env.example` includes `SERVER_SALT` + `VIP_LLM_INSIGHT_REQUESTS_PER_MONTH` (with validation guidance)
+    - ✅ Root `docker-compose.yaml` passes both vars; missing `SERVER_SALT` fails fast at compose evaluation time
+    - ✅ Local compose boots deterministically when `SERVER_SALT` is provided
+
+
+- [x] P1: Unify `TargetsIn` schemas (legacy_app ↔ `app.schemas.nutrition_targets`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (drift prevention)
+  - Target PR: PR #633 (merged `29546992`, 2026-02-03)
+  - Status: ✅ Merged (PR #633, 2026-02-03)
+  - Resolution: PR-633 unified TargetsIn by making `legacy_app.TargetsIn` a thin alias to canonical
+    `app.schemas.nutrition_targets.TargetsIn`. Guard test `test_legacy_targets_in_is_canonical_alias()`
+    in `tests/test_targets_in_parity.py` prevents future drift.
+  - Links:
+    - PR #631 (remediation): full OpenAPI without import-time `app.models.*` along OpenAPI path
+    - PR #633 (unification): thin alias + parity tests
+  - Evidence:
+    - `app/schemas/nutrition_targets.py:37-58` (canonical TargetsIn, import-safe)
+    - `legacy_app.py:126-127` (`TargetsIn = CanonicalTargetsIn`, PR-633 alias)
+    - `tests/test_targets_in_parity.py:28-32` (`assert legacy_app.TargetsIn is CanonicalTargetsIn`)
+  - DoD:
+    - ✅ One canonical schema (single source of truth) with a thin wrapper/alias where needed
+    - ✅ Parity tests that prevent schema drift (fields + validation behavior for structured targets payloads)
+    - ✅ No contract break for legacy endpoints (explicitly verified in tests)
+
+
+- [x] PR-619 DB fallback canonical API in `legacy_app.py` — merged 2026-01-30
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (maintenance)
+  - Target PR: PR #619
+  - Status: ✅ Merged
+  - Reason: Align `legacy_app.py` with DB fallback policy — no direct read/write of `_db_fallback_active` outside `core/db_fallback.py`; use `is_fallback_active()` and `clear_fallback_active()`.
+  - Links:
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/619>
+  - DoD:
+    - ✅ No direct `_db_fallback_active` in `legacy_app.py`
+    - ✅ Guards + tests green; CI green
+  - Next after merge: P0 rate-limiting for LLM endpoints
+
+
+- [x] Resolve cryptography CVE-2026-26007 in runtime/dev/lock manifests
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-716 (remediation: bump + guard); PR-724 = docs-only closure/policy
+  - Status: ✅ Closed (remediation on main via PR-716; guard test in place; PR-724 adds AGENTS policy + ledger)
+  - Reason: Five GitHub security alerts (Dependabot #27/#28/#29 and Code Scanning #538/#539) report vulnerable
+    `cryptography` (`<=46.0.4`); required fixed version is `46.0.5`.
+  - Links:
+    - `docs/security/CVE-2026-26007-cryptography.md`
+    - GitHub alerts: `security/dependabot/27`, `security/dependabot/28`, `security/dependabot/29`
+    - GitHub alerts: `security/code-scanning/538`, `security/code-scanning/539`
+  - DoD:
+    - [x] `cryptography` bumped to `46.0.5` (or higher safe version) in `requirements.in`,
+      `requirements.txt`, `requirements-dev.txt`, `requirements-lock.txt`, and `constraints.txt`
+    - [x] New dependency security guard test added to enforce cryptography floor version
+      (CVE-2026-26007) — `tests/test_dependency_security_guard.py`
+    - [ ] Security/code scanning alerts close on next scan
+
+
+- [x] P1: Add canonical orchestration contract matrix for PR governance
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #996 (`docs(orchestration): add canonical PR orchestration contract matrix`)
+  - Status: ✅ Merged (PR #996, 2026-03-06)
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Rules are split across check_pr_body_phase2_gates.py, check_pr_merge_readiness.py, check_review_threads_disposition.py and AGENTS.md; single source of truth reduces drift.
+  - Links:
+    - `scripts/ci/check_pr_body_phase2_gates.py:11` (Phase 2 contract config)
+    - `scripts/ci/check_pr_merge_readiness.py:337` (unresolved threads), `:350` (actionable items)
+    - `scripts/orchestration/check_review_threads_disposition.py:27` (FIXED/NOT-A-BUG/DEFERRED), `:170` (trigger-only ban)
+    - `AGENTS.md:42` (Review Governance), `:103` (FIXED proof), `:418` (Fixed in Commit Mapping)
+  - DoD:
+    - Single doc (e.g. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md) is the canonical SoT; AGENTS.md only links to it
+    - Doc defines Phase 2 body contract, merge readiness contract, FIXED/NOT-A-BUG/DEFERRED proof rules, required-check truth for current HEAD, hard/soft/external CI check classes
+    - Linked from AGENTS.md as canonical orchestration governance reference
+  - Artifact: `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+
+
+- [x] P1: Agent task evaluation contract (success criteria per task class)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
+  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
+  - Area: orchestration / agents / quality
+  - Finding Type: process / evaluation
+  - Reason: EVMbench-style evaluation requires explicit success criteria and optional recall checklist per task class (CI fix, security remediation, docs-only). Define contract and link to existing gates.
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md`
+    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
   - DoD:
-    - PR template or runbook suggests optional "Violations addressed" section for guard/security remediation PRs
-    - Not mandatory; adopt when useful
+    - [x] Doc defines success criteria for at least: "CI fix", "security remediation", "docs-only"
+    - [x] Optional recall-style checklist per class; linked from RUNBOOK or AGENTS
 
-- [ ] P2: Agent run summary artifact (checklist or JSON)
+
+- [x] P1: Document required-check truth for merge (current HEAD only)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-ORCHESTRATION
-  - Status: Planned
+  - Priority: P1
+  - Target PR: PR #996 (`docs(orchestration): add canonical PR orchestration contract matrix`) + PR #1010 (`fix(orchestration): close runtime wave 4 drift`)
+  - Status: ✅ Merged (governance rule codified by PR #996 and refreshed in PR #1010)
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Merge decision must be based on latest required checks for current HEAD only; cancelled/stale runs ignored to avoid confusion and extra iterations.
+  - Links:
+    - `AGENTS.md:31` (PR merge readiness), `:39` (merge checklist)
+    - `scripts/ci/check_pr_merge_readiness.py:337` (unresolved_threads), `:344` (errors)
+  - DoD:
+    - Canonical rule documented: merge decision based on latest required checks for current HEAD only; cancelled runs ignored; non-required external reviews do not block unless explicitly required
+    - Referenced from AGENTS.md or orchestration contract doc (single canonical name for governance doc)
+
+
+- [x] P1: Hint levels for coordinator and fix-CI tasks
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
+  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
   - Area: orchestration / agents
-  - Finding Type: observability
-  - Reason: Lightweight artifact (checklist/JSON) produced by coordinator or runner for high-value tasks to support future metrics.
-  - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
-  - DoD:
-    - Design doc or ADR: format and when to produce; no implementation required in this item
-
-- [ ] P2: RAG for agent context (explore)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-RAG
-  - Status: Research
-  - Area: orchestration / RAG
-  - Finding Type: exploration
-  - Reason: Explore retrieval-augmented context for coordinator/specialist agents (e.g. retrieve AGENTS.md sections by path); keep full SoT as baseline.
+  - Finding Type: process
+  - Reason: EVMbench shows hints (low/medium/high) materially improve outcomes. Document hint levels for "fix CI" and coordinator tasks (e.g. low = branch + run link; medium = failed job + log; high = exact assertion + location).
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
     - `docs/orchestration/workflow.md`
+    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
   - DoD:
-    - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
+    - [x] Orchestration doc or coordinator prompt template includes hint-level definitions
+    - [x] ci-watcher / loop-on-ci prompts aligned where applicable
 
-- [ ] P2: Invariant-only prompt for fix-CI / fix-guard tasks
+
+- [x] P1: Minimal agent metrics (fix rate / first-run pass)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-ORCHESTRATION
-  - Status: Planned
-  - Area: orchestration / agents
-  - Finding Type: process
-  - Reason: In agent prompts for "fix CI" or "fix guard", explicitly add "do not change invariants; only fix the failing check".
+  - Priority: P1
+  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - Status: ✅ Completed (PR #868, 2026-02-22)
+  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
+  - Area: orchestration / quality
+  - Finding Type: metrics
+  - Reason: Define minimal agent metrics (e.g. "CI fix: pass within N iterations"; "merge readiness: first run vs after edits") and record in ledger or audit when relevant.
   - Links:
     - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
   - DoD:
-    - Coordinator or ci-watcher prompt template updated with invariant-preservation instruction
-    - No code change to guards themselves
+    - [x] Doc or ledger section defines at least 2 agent task metrics and when to record them
+    - [x] No dashboard required; manual or opportunistic recording is acceptable
 
-- [ ] P2: Canary / disclaimer for published agent evals
+
+- [x] P1: Move Fixed in Commit Mapping source-of-truth from PR body to repo file
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD (if we publish)
+  - Priority: P1
+  - Target PR: PR #998 (`fix/orch-move-fixed-mapping-sot-to-repo-file`)
+  - Status: ✅ Merged (PR #998, 2026-03-07)
+  - Area: orchestration / CI / review governance
+  - Finding Type: process hardening
+  - Reason: Eliminate PR body race/staleness and make governance deterministic on git SHA.
+  - Links:
+    - `scripts/orchestration/review_mapping_artifact.py` (canonical artifact helper)
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` (artifact format)
+    - `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/ci/check_pr_merge_readiness.py`, `scripts/orchestration/check_review_threads_disposition.py` (artifact-first)
+  - DoD:
+    - [x] Merge readiness/disposition reads mapping from `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - [x] PR body optional summary/mirror only
+    - [x] Tests added (`tests/test_review_mapping_artifact.py`, Phase2 artifact test)
+
+<a id="ledger-p1-compliance-runtime-slice-2"></a>
+- [ ] P1: Compliance runtime slice 2 for AI wellness consent orchestration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (privacy/compliance)
+  - Target PR: PR-TBD (`feat/compliance-runtime-slice-2-consent-dsar`)
   - Status: Planned
-  - Area: docs / compliance
-  - Finding Type: process
-  - Reason: If we ever publish agent prompts or evaluation snippets, add canary or disclaimer per EVMbench ("Internal evaluation artifact; do not use for training").
+  - Area: backend / compliance / legal-runtime
+  - Finding Type: deferred follow-up
+  - Reason: Compliance Runtime Slice 1 ships transparency, privacy payload assembly, and minimization only. This follow-up is intentionally narrowed to AI wellness consent context/orchestration so it does not duplicate the broader P0 EU-first compliance control plane epic.
+  - Carryover From:
+    - PR `#1046` (`feat: EU-first compliance control plane`)
+    - `docs/review/PR_1046_FIXED_MAPPING.md`
+  - Carryover Note: Public DSAR/export/delete boundaries and regulated/provider-lane separation remain tracked by the P0 epic at `#ledger-p0-eu-compliance-control-plane-follow-through`; this P1 item owns only the next tactical consent slice for wellness AI surfaces.
   - Links:
-    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `#ledger-p0-eu-compliance-control-plane-follow-through`
+    - `core/compliance/privacy.py`
+    - `core/compliance/dsar.py`
+    - `docs/compliance/AI_TRANSPARENCY_AND_PROFILING_NOTICE.md`
+    - `docs/legal/Privacy.md`
   - DoD:
-    - Policy or template added; apply only when publishing evals
+    - Backend consent context is defined for AI wellness surfaces without changing deterministic wellness calculations
+    - AI wellness routes expose explicit consent-context requirements in runtime/docs without introducing a regulated/clinical lane
+    - DSAR/export/delete public-surface decisions remain linked to the P0 epic and are not duplicated in this slice
+    - `pre-commit run --all-files` and `make verify` pass in PR scope
 
-### Home+Plate+Progress design execution follow-up
-
-- [ ] Figma slice structure absent in current Make file
-  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
-  - Target PR: PR1/Follow-up
-  - Priority: P2
-  - Status: ▶️ In progress (Unblocked: Figma seat `Full`, 2026-02-17)
-  - Area: design / ios / frontend
-  - Finding Type: deferred execution
-  - Reason: PR_781 defines the blueprint and keeps docs scope; execution
-    continues as a follow-up work package in Figma file
-    `<FIGMA_MAKE_FILE_ID>`.
-  - Links:
-    - `docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md`
-    - `https://www.figma.com/make/<FIGMA_MAKE_FILE_ID>/Untitled`
-  - DoD:
-    - Pages created: `00_Foundation_Tokens`, `01_Components`,
-      `10_iOS_Home`, `11_iOS_Plate`, `12_iOS_Progress`,
-      `20_Web_Parity`
-    - Component set created in `01_Components` per audit runbook
-    - Naming convention `PP/<Platform>/<Screen>/<Component>/<State>`
-      applied consistently
-    - Follow-up implementation PR merged with evidence
-      (screenshots/links) and this ledger item closed
-
-- [ ] Design file URL + node IDs required for Code Connect activation (H+P+Pr)
-  - Owner: @katsiaryna_kavaleuskaya (Design + FE + iOS)
-  - Target PR: PR/Figma-CodeConnect-Activation
-  - Priority: P1
-  - Status: 🔒 Blocked by dependency
-  - Area: design / frontend / iOS
-  - Finding Type: integration dependency
-  - Reason: Make-only mode is enough for reconciliation and candidate mapping, but
-    node-level Code Connect cannot be activated without Design file key and node IDs.
-  - Links:
-    - `docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`
-    - `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md`
-    - `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md`
-    - `docs/figma/FIGMA_MAKE_SYNC_AUDIT_HPP.md`
-  - DoD:
-    - Figma Design file URL is recorded in repo docs
-    - P0 CTA nodes have non-TBD `fileKey` and `nodeId`
-      (`web.home.open_setup`, `web.plate.premium_gate_cta`,
-      `web.progress.export_pdf`, `ios.plate.issue_action_dynamic`)
-    - `get_code_connect_map` returns expected active mappings for P0 set
-    - Matrix `Figma Node ID` column updated for activated rows
-
-- [ ] P2: Wave 3 RAG v2 + safety evals + reliability game days
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR-TBD-W3-RAG-SAFETY
-  - Status: Planned (Wave 3 / day 91-180)
-  - Area: AI platform / security / reliability
-  - Finding Type: modernization / risk reduction
-  - Locations:
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-  - Reason: scale AI capability with explicit safety gates and degraded-mode confidence before broad autonomy.
-  - Links:
-    - `docs/roadmap/WAVE_2_3_EXECUTION_PACK.md`
-    - `docs/architecture/ADR-003-agent-control-plane-mvp.md`
-  - DoD:
-    - RAG v2 capability scope and citation/eval expectations documented
-    - Safety regression gate classes documented (jailbreak/policy bypass)
-    - Reliability game day scenarios and ownership defined
-
-### Multimodal / CV / measurement (future, contract-first)
-
-- [ ] CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: product / AI / contracts
-  - Finding Type: future feature
-  - Reason: If we add photo-based food recognition, it must be contract-first and uncertainty-aware
-    (confidence fields, nullability, deterministic degrade states) with explicit privacy UX and retention rules.
-  - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (cv-contract-agent role; degrade-state expectations)
-    - `app/schemas/` (canonical schema patterns)
-    - `frontend/src/api/schema.ts` (OpenAPI consumer)
-  - DoD:
-    - Proposed response schema includes: items[], per-item confidence, portion estimate + uncertainty range, warnings[], metadata
-    - Deterministic UX state mapping defined for confidence bands (show/confirm/suggest/manual entry)
-    - Privacy packet drafted (consent copy, retention, opt-out) and reviewed for wellness-safe wording
-    - Deterministic test plan exists (fixtures + expected ranges; no flake)
-
-- [ ] Sensor invariants: physically-plausible bounds + calibration UX contract (no “magic sizing”)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: product / measurement / UX safety
-  - Finding Type: future feature
-  - Reason: Portion/measurement features must enforce physical constraints (units, bounds, drift) and communicate
-    uncertainty explicitly; calibration UX must be deterministic and non-misleading.
-  - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (sensor-invariant-guard role)
-  - DoD:
-    - Measurement invariants documented (bounds, units, reject conditions)
-    - Calibration UX steps defined (scale + camera reference object) with explicit failure modes
-    - Guard policy defined: unphysical outputs rejected; uncertainty increases with degraded signals
-
-- [ ] Algorithmic brand textures (seeded): generate onboarding/ASO backgrounds with reproducible seeds
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: design / marketing assets
-  - Finding Type: tooling
-  - Reason: Branded generative textures can speed up “polished but minimal” visuals for onboarding, empty states,
-    and ASO packs, while staying reproducible via seeded parameters.
-  - Links:
-    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md` (how to add new specialist agents)
-  - DoD:
-    - A single seeded generator exists (deterministic for the same seed) with exportable PNG outputs
-    - Output palette matches brand tokens and supports light/dark variants
-    - Usage notes: never encode text in images; keep wellness-safe tone
-
-### Orchestration Enhancements (follow-ups to PR-634)
-
-- [x] P1: Orchestration — document worktree isolation policy (agent worktree immutable to humans)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #963
-  - Status: merged 2026-03-04 (79024d70)
-  - Priority: P1
-  - Area: dev-process / orchestration
-  - Finding Type: operational policy
-  - Reason: Agent works in its own worktree; a human edits the same files → merge conflicts → orchestration chaos. No explicit rule "human cannot edit agent worktree." Integration flow exists (PR promotion) but operational law is missing.
-  - Links:
-    - `docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md`
-    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
-  - DoD:
-    - Policy section added to runbook (worktree states: active/abandoned/merged; allowed human intervention via new branch)
-    - Short hard-rule excerpt in root `AGENTS.md` (do not edit inside worktrees/; integration only via PR)
-    - Example "human intervention via new branch" documented
 
 - [x] P1: Orchestration — add `AGENT_KNOWLEDGE_MAP.md` (agent → RAG corpus / index policy SoT)
   - Owner: @katsiaryna_kavaleuskaya
@@ -3099,79 +8106,526 @@ If it is not recorded here — it does not exist.
     - References AGENT_CORPUS_MAP policy; boundaries + indexing scope + security posture described
     - If RAG deprioritized: close as WONTFIX with explicit reason
 
-- [x] P2: Tooling — pre-flight auto-verification script
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #966
-  - Status: ✅ Merged (PR #966, 2026-03-04)
-  - Priority: P2
-  - Area: tooling / orchestration
-  - Finding Type: automation
-  - Reason: Pre-flight Checklist is manual; coordinator "mentally checks" docs. Risk of drift. Script is direct executor of canon.
-  - Links:
-    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
-    - `docs/orchestration/workflow.md`
-    - `.cursor/agents/agent-coordinator.md`
-    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
-  - DoD:
-    - Script verifies required context files present, repo hygiene (no tracked worktrees), prints PASS/FAIL
-    - Failure mode explicit; does not block unrelated tasks (scoped to orchestration workflow)
 
-- [x] P2: Orchestration — agent routing graph (task → domains → agents)
+- [x] P1: Wave 2 experimentation framework and paywall optimization loop
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #967
-  - Status: ✅ Merged (PR #967, 2026-03-04)
-  - Priority: P2
-  - Area: dev-process / orchestration
-  - Finding Type: routing
-  - Reason: Capability matrix is advisory; no automatic routing. Task → domain classifier → agent set makes orchestration deterministic.
+  - Priority: P1
+  - Target PR: PR #852 (docs/wave2-experimentation-framework)
+  - Status: ✅ Completed (PR #852, 2026-02-21, merge SHA `851f1728`)
+  - Area: product / growth / analytics
+  - Finding Type: growth optimization
+  - Locations:
+    - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+  - Reason: establish repeatable A/B lifecycle with measurable guardrails for onboarding and paywall conversion.
   - Links:
-    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
-    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+    - `docs/analytics/EXPERIMENT_REGISTRY.md`
+    - `docs/analytics/ANALYTICS_INDEX.md`
+    - `docs/analytics/EXPERIMENTATION_FRAMEWORK.md`
+    - [PR #852](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/852)
   - DoD:
-    - Routing graph spec or document (task → domains → agents)
-    - Linked from coordinator or capability matrix
+    - [x] Experiment lifecycle states documented
+    - [x] Initial prioritized growth experiments registered with owners and dates
+    - [x] Guardrail metrics required for promotion decisions
 
-- [ ] P2: Orchestration — agent clusters (scaling for 40+ agents)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (future)
-  - Priority: P2
-  - Area: dev-process / orchestration
-  - Finding Type: scalability
-  - Reason: 26 agents; coordinator routes to each. At scale (40+ agents) routing becomes unwieldy. Cluster-first routing (backend, frontend, ml, research, security) scales better.
-  - Links:
-    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
-    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
-  - DoD:
-    - Cluster definitions documented
-    - Routing logic updated or documented for future adoption
 
-- [ ] Agent Context Cache (avoid re-loading AGENTS.md)
+- [x] P1: Implement WebSocket endpoint with security from start
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: dev-process / orchestration
-  - Finding Type: productivity
-  - Reason: Coordinator repeatedly re-loads the same canonical context files (root/module `AGENTS.md`, runbook, orchestration docs).
+  - Priority: P1 (feature + security)
+  - Target PR: PR #818
+  - Status: ✅ Merged (PR #818, 2026-02-19)
+  - Reason: Canonical `/ws` endpoint and security behavior are now validated with deterministic tests. Authentication and rate-limit close behavior are covered to prevent drift.
   - Links:
-    - docs/orchestration/AGENT_CONTEXT_MAP.md
-    - docs/orchestration/workflow.md
+    - [PR #818](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/818)
+    - tests/test_realtime_ws_security.py
+    - app/routers/realtime_ws.py
+    - docs/rfc/TON_RFC.md (WebSocket mentioned as requirement for real-time functions)
+    - docs/design/NUTRITION_COACHING_DESIGN.md (potential use case: real-time coaching)
+  - Prerequisites:
+    - ✅ Security requirements defined (auth + rate-limiting)
+    - ✅ Use cases defined (what real-time features need WebSocket)
   - DoD:
-    - Coordinator has an explicit caching strategy (doc or lightweight tool) for stable context inputs
-    - Cache invalidation rules documented (file change / branch change)
+    - ✅ WebSocket endpoint `/ws` available with FastAPI WebSocket support
+    - ✅ Authentication required (token in query params or headers)
+    - ✅ Rate-limiting implemented (per-user message limits in router policy)
+    - ✅ Tests verify unauthenticated connections are rejected (close code policy)
+    - ✅ Tests verify rate-limiting closes connection when the limit is exceeded
+    - ✅ CI checks green on merged PR (#818)
 
-- [ ] Orchestration Telemetry (metrics)
+
+- [x] P1: Verify and secure WebSocket endpoint (if exists) — RESOLVED
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: dev-process / orchestration
-  - Finding Type: observability
-  - Reason: We have no visibility into orchestration performance (agents used, iterations, sync points, end-to-end time).
+  - Priority: P1 (security)
+  - Target PR: N/A (investigation only)
+  - Status: ✅ Resolved — No WebSocket endpoints found
+  - Reason: Comprehensive codebase search found no WebSocket endpoints (`@app.websocket`, `/ws` path, WebSocket imports). Original analysis was false positive — WebSocket never existed or was removed. Security gap does not exist (no endpoint to secure).
   - Links:
-    - docs/orchestration/PARALLEL_WORK_PROTOCOL.md
-    - docs/orchestration/AGENT_DIALOGUE_TEMPLATE.md
+    - docs/audit/WEBSOCKET_ANALYSIS.md (investigation results)
+    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (WebSocket section — updated)
+    - docs/audit/AUDIT_GAPS_ANALYSIS.md (WebSocket authentication gap — false positive)
   - DoD:
-    - Minimal telemetry spec defined (what metrics, where recorded, retention)
-    - Metrics collection does not affect runtime product behavior
+    - ✅ Searched entire codebase for WebSocket endpoints (no matches found)
+    - ✅ Verified no WebSocket routes in `legacy_app.py`, `app/routers/*`, `app/main.py`
+    - ✅ Checked OpenAPI schema (no WebSocket paths)
+    - ✅ Identified false positives (test fixes, frontend dependency, docs references)
+    - ✅ Marked as resolved — security gap does not exist
+
+
+- [x] P1: Oracle / known-good gate behavior documentation
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - Status: ✅ Completed (PR #868, 2026-02-22)
+  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
+  - Area: runbooks / CI gates
+  - Finding Type: process
+  - Reason: EVMbench validates graders on oracle solutions. Document expected behavior of merge_readiness_gate and dependency_security_guard on known-good input (e.g. PR with all checkboxes and mapping → pass).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `tests/test_dependency_security_guard.py`
+    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - DoD:
+    - [x] RUNBOOK or test doc: "Expected: PR body with [x] and mapping → merge_readiness passes"
+    - [x] Optional: deterministic test that applies known-good PR body and asserts gate pass
+
+
+- [x] P1: Runbook coverage step — full guard suite and no related violations
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #866 (docs/agent-task-evaluation-contract)
+  - Status: ✅ Completed (PR #866, 2026-02-22, merge SHA `fdd31e21`)
+  - Area: runbooks / guards
+  - Finding Type: process
+  - Reason: EVMbench scores on comprehensive coverage. Before closing a guard/security PR, run full guard suite and ensure no related violations in changed modules.
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `RUNBOOK_AGENT.md`
+    - [PR #866](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/866)
+  - DoD:
+    - [x] RUNBOOK step added: "Run full guard suite; confirm no related violations in changed modules"
+    - [x] Referenced from PR template or merge checklist where applicable
+
+
+- [x] P1: Agent-as-attacker threat model section in security baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - Status: ✅ Completed (PR #868, 2026-02-22)
+  - Merge SHA: bb7b0c619c7fd88b1dd729a7ed9d34913e30292b
+  - Area: security / agent control plane
+  - Finding Type: security documentation
+  - Reason: EVMbench measures exploit capability; we should document abuse scenarios (what would an agent need to do to violate policy?) and map to controls (allowlist, audit trail, token TTL).
+  - Links:
+    - `docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md`
+    - `docs/security/AGENT_CONTROL_PLANE_SECURITY_BASELINE.md`
+    - [PR #868](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/868)
+  - DoD:
+    - [x] New section in AGENT_CONTROL_PLANE_SECURITY_BASELINE: "Agent-as-attacker scenarios" with mapping to existing controls
+    - [x] No new runtime code required; doc only
+
+
+- [x] Resolve CVE-2026-24882 Trivy alert (accepted risk) (merged 2026-01-28)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-615 (merged)
+  - Status: ✅ Suppression added; monitoring until 2026-04-28 (expiry date)
+  - Reason: GitHub alert #515 reports CVE-2026-24882 (gpgv tpm2daemon buffer overflow) for installed version 2.2.40-1.1. Debian tracker confirms bookworm is vulnerable (no fixed version available). Suppressed as accepted risk (no attack surface: runtime does not invoke gpgv/tpm2daemon, no TPM2-backed keys used).
+  - Links:
+    - `trivy/ignore-policy.rego` (rule for CVE-2026-24882)
+    - `docs/security/CVE-2026-24882-gpgv.md`
+    - GitHub alert #515
+    - `.github/workflows/trivy.yml`
+    - PR-615 (merged)
+  - DoD:
+    - ✅ Suppression added in `trivy/ignore-policy.rego` with expiry 2026-04-28
+    - ✅ Security doc created (`docs/security/CVE-2026-24882-gpgv.md`)
+    - 🔄 Monitor: GitHub alert #515 should auto-resolve after next Trivy scan on `main`
+    - 🔄 Follow-up (after 2026-04-28 or when fixed): Remove suppression when Debian bookworm publishes fixed `gpgv` package (≥ 2.5.17 or backported fix), OR Trivy metadata includes fixed version
+
+
+- [x] P1: Home/Plate/Progress CTA runtime remediation from visual matrix SoT
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #794 (`feat/hpp-cta-runtime-remediation`)
+  - Status: ✅ Merged (PR #794, 2026-02-18)
+  - Merge SHA: 9ebcca2fc377753dc3024a080e6e4f24f59b6479
+  - Area: web / ios / design handoff
+  - Finding Type: execution follow-up / button-level UX parity
+  - Reason: `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md` formalized button-level SoT and exposed runtime gaps (iOS placeholder CTA destinations, missing deterministic CTA tests, and web paywall purchase wiring still callback-only). These follow-ups must be tracked as implementation debt, not left as doc-only intent.
+  - Links:
+    - PR #794
+    - `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
+    - `docs/plan/PR_HPP_CTA_RUNTIME_TASK_ANALYSIS.md`
+    - `docs/plan/PR_HPP_CTA_RUNTIME_EXECUTION_PLAN.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md`
+    - `docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md`
+    - `AGENTS.md`
+    - `frontend/AGENTS.md`
+    - `ios/AGENTS.md`
+  - DoD:
+    - iOS `Add Meal` and `View Details` CTA destinations are no longer placeholders
+    - Deterministic CTA-level tests exist for Home/Plate/Progress critical paths (web+iOS)
+    - Web paywall CTA has production-ready purchase wiring and success/failure handling
+    - Matrix `Exists Now / Missing / Implement Needed` statuses are updated after remediation PR
+    - `make verify` and required CI checks are green in remediation PR
+
+
+### P2
+
+<a id="ledger-p2-fitchef-mascot-insight-endpoint"></a>
+- [x] P2: FitChef mascot insight endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1065`
+  - Status: Merged on 10 March 2026 (`#1065`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: The first public mascot slice should expose a bounded text-only coaching surface without changing the current `/api/v1/insight` contract or reviving `/api/v1/vip/insight*` drift.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/contracts/API_CANONICAL_MAP.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1065_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef` exists as VIP-only mascot surface
+    - Request/response schemas are typed and documented in OpenAPI
+    - Rate-limit, monthly quota, policy audit, and wellness-language validation follow canonical insight ordering
+    - `/api/v1/insight` remains unchanged
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef sandbox Phase 2 deferred scope](#ledger-p2-fitchef-sandbox-phase-2-deferred-scope)
+
+<a id="ledger-p2-fitchef-weekly-reflection-endpoint"></a>
+- [x] P2: FitChef weekly reflection endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1071`
+  - Status: Merged on 10 March 2026 (`#1071`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Weekly reflection is the second mascot scenario and should reuse the same bounded FitChef coaching runtime instead of inventing a separate route family or client-owned workflow.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1071_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/weekly-reflection` exists with shared coaching envelope
+    - Response uses `scenario=\"weekly_reflection\"` and returns bounded action items
+    - Tier/rate-limit/quota/audit posture matches the mascot insight endpoint
+    - No persistence, exports, or client-owned orchestration is added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
+<a id="ledger-p2-fitchef-slip-support-endpoint"></a>
+- [x] P2: FitChef slip-support endpoint
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1076 (`feat(fitchef): add slip-support endpoint`)
+  - Status: Merged on 10 March 2026 (`#1076`)
+  - Area: AI runtime / coaching / product
+  - Finding Type: execution
+  - Locations:
+    - `core/insight/fitchef_companion.py`
+    - `app/routers/fitchef_insight.py`
+    - `app/schemas/fitchef_coaching.py`
+  - Reason: Slip-support is the third mascot scenario and should normalize recovery-oriented coaching into the same text-only runtime instead of introducing reminders, exports, or autonomous background work.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/design/NUTRITION_COACHING_DESIGN.md`
+    - `core/insight/creative_scientific_innovations.md`
+    - `docs/review/PR_1076_FIXED_MAPPING.md`
+  - DoD:
+    - `POST /api/v1/insight/fitchef/slip-support` exists with shared coaching envelope
+    - Response uses `scenario=\"slip_support\"` and excludes therapy or medicalized language
+    - Non-judgmental recovery guidance is covered by deterministic tests
+    - No reminders, background jobs, realtime fan-out, or export hooks are added
+    - Contract tests cover `200` plus representative failure cases and assert JSON `Content-Type` plus standardized error fields
+    - One happy-path integration test lands in the same PR
+    - Output-shaping path is deterministic and documented in the PR IN/OUT spec, test plan, and rollback note
+  - Blockers: Depends on [P2: FitChef mascot insight endpoint](#ledger-p2-fitchef-mascot-insight-endpoint)
+
+<a id="ledger-p2-fitchef-runtime-orchestration-dedup"></a>
+- [x] P2: FitChef runtime orchestration dedup
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1083 (`refactor(fitchef): deduplicate runtime orchestration path`)
+  - Status: Merged on 10 March 2026 via PR #1083
+  - Area: AI runtime / orchestration / tech debt
+  - Finding Type: tech-debt
+  - Locations:
+    - `app/services/fitchef_runtime.py`
+  - Reason: `run_mascot_insight_task()` and `run_weekly_reflection_task()` currently duplicate the bounded orchestration path for RAG retrieval, audit gates, quota enforcement, provider calls, and stable error mapping. This should be consolidated only after the Phase 2 slices stabilize.
+  - Links:
+    - `docs/contracts/FITCHEF_MASCOT_PHASE2_CONTRACT.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-weekly-reflection-endpoint`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-fitchef-slip-support-endpoint`
+    - `docs/review/PR_1083_FIXED_MAPPING.md`
+  - DoD:
+    - Shared orchestration helper removes duplicated FitChef VIP runtime flow without changing public route contracts
+    - Mascot, weekly reflection, and slip-support still preserve feature-flag, tier, rate-limit, quota, audit, and provider error ordering
+    - Deterministic regression tests cover the shared helper paths
+  - Blockers: None
+
+<a id="ledger-p2-monthly-pr-analysis-cadence"></a>
+- [ ] P2: Monthly PR analysis cadence and evidence hygiene
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-MONTHLY-PR-ANALYSIS-REFRESH
+  - Status: 🟡 In progress (February-March 2026 baseline artifact added)
+  - Area: docs / governance / reporting
+  - Finding Type: reporting hygiene
+  - Reason (EN): Monthly retrospective summaries are useful for program steering, but they must remain evidence-first and must not become a second source of truth for backlog closure, merge readiness, or release status. A tracked cadence item keeps the artifact honest and versioned.
+  - Links:
+    - `docs/review/MONTHLY_PR_ANALYSIS_2026-03.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md`
+    - `docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md`
+  - DoD:
+    - Monthly analysis artifact exists under `docs/review/` with explicit period and source list
+    - Summary distinguishes closed items from materially advanced but still open work
+    - Report explicitly points back to canonical SoTs (`BACKLOG_LEDGER`, Top-20 queue, phase-fit checklist)
+    - Future monthly refreshes supersede prior snapshots via new versioned artifacts instead of silent rewrites
+    - Docs-only PR stays narrow and does not introduce runtime or contract drift
+
+- [x] P2: Philosophy Validator (runtime LLM output validation)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (quality / safety)
+  - Target PR: PR #972 (`feat/philosophy-validator-core`)
+  - Status: ✅ Merged (PR #972, 2026-03-04)
+  - Reason (EN): Deterministic runtime validator for LLM outputs used in product copy/coaching. `validate_llm_output(text, domain=None) -> Report`; BLOCKER codes: WELLNESS_MEDICAL_CLAIM_*, WELLNESS_GUARANTEE, NON_FALSIFIABLE_VAGUE, POTENTIAL_CONTRADICTION. No network, regex/rules only. Coordinator can require rewrite before merge.
+  - Links:
+    - `core/insight/philosophy_validator.py`
+    - `tests/test_philosophy_validator.py`
+  - DoD:
+    - `core.insight.philosophy_validator` module merged
+    - Unit tests pass (RU/EN blockers, contradiction, determinism)
+    - AGENTS.md policy: LLM outputs must pass philosophy_validator (BLOCKER = rewrite)
+
+
+- [x] P2: Philosophy-agent + RAG validation pipeline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG / philosophy)
+  - Target PR: feat/p2-philosophy-rag-pipeline
+  - Status: ✅ Implemented (2026-03-02)
+  - Reason (EN): Pipeline query → RAG → philosophy-agent → LLM so that RAG context is validated before response; per BACKLOG Philosophical logic principles.
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 3.2)
+    - `docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md`
+    - `.cursor/agents/philosophy-agent.md`
+    - `core/rag/philosophy_pipeline.py` (4-stage pipeline implementation)
+  - DoD:
+    - RAG context passed to philosophy validation layer; integration test
+    - `make verify` passes
+  - Evidence:
+    - 4-stage deterministic pipeline: rule validation → claim classification → source alignment → logical consistency
+    - Stage 1 blocks (medical/weasel/malformed); stages 2-4 advisory-only warnings
+    - 42 unit tests in `tests/test_philosophy_pipeline.py`
+    - diff-coverage 98% (>=97%)
+
+
+- [x] P2: RAG chunk content redaction helper (PII/sensitive data)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (defense-in-depth; corpus is controlled server docs)
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason (EN): The redaction helper was added and wired into prompt assembly and response previews as part of the Wave 4 runtime closure.
+  - Links:
+    - `app/routers/cbt_insight.py:186-196` (chunk content usage)
+    - `PR #942` CodeRabbit comment (`2868000571`)
+  - DoD:
+    - Add redact_rag_context_for_insight() helper (or equivalent)
+    - Apply to prompt assembly and response previews
+    - Unit tests for redaction patterns
+
+
+- [x] P2: RAG for CBT agent (first domain agent)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG / coaching)
+  - Target PR: feat/p2-rag-cbt-agent
+  - Status: Implemented
+  - Reason (EN): Connect CBT/coaching flow to RAG per AGENT_CORPUS_MAP; first agent to use retrieval before LLM.
+  - Implementation (EN):
+    - Created CBT corpus documents: `docs/cbt/cognitive_restructuring.md`, `docs/cbt/thought_records.md`, `docs/psychology/motivation_theories.md`
+    - Added `AGENT_CORPUS_MAP` to `core/rag/contracts.py` with cbt-agent mapping
+    - Implemented corpus filtering in `core/rag/vector_rag.py` and `core/rag/simple_rag.py`
+    - Created PRO-gated endpoint `POST /api/v1/pro/cbt/insight` in `app/routers/cbt_insight.py`
+    - Feature-flagged via `FEATURE_CBT_AGENT` env var
+  - Links:
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md` (sect. 4.2, 4.3)
+    - `docs/contracts/RAG_CONTRACT.md` (Corpus Routing)
+    - `.cursor/agents/cbt-psychologist-agent.md`
+  - DoD:
+    - CBT path retrieves context from docs/cbt/ (or configured corpus); context passed to LLM
+    - Tier-gated (PRO/VIP); tests; `make verify` passes
+
+
+- [x] OpenAPI debt for `/api/v1/export/sign` reclassified as internal contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR #1035 (`fix(export): harden signing secret access`)
+  - Status: ✅ Merged (PR #1035, 2026-03-08)
+  - Priority: P2
+  - Area: backend / OpenAPI / frontend contract
+  - Finding Type: contract-clarification
+  - Location: `app/routers/plan_export.py`, `frontend/src/lib/sharedLinks.ts`
+  - Reason: Resolved in PR #1035: `/api/v1/export/sign` remains intentionally hidden from canonical public OpenAPI, keeps the stable runtime JSON shape `{url, exp, ttl}`, and preserves the explicit internal web-adapter boundary via a local typed adapter.
+  - Links:
+    - `app/routers/plan_export.py`
+    - `frontend/src/lib/sharedLinks.ts`
+    - `legacy_app.py`
+    - `docs/review/PR_1035_FIXED_MAPPING.md`
+  - DoD:
+    - Backend keeps `SignedLinkResponse` as the runtime response model
+    - `POST /api/v1/export/sign` keeps the stable JSON shape `{url, exp, ttl}` with regression coverage
+    - Public OpenAPI continues to exclude export endpoints
+    - Web keeps a local typed adapter with explicit rationale for the hidden-schema boundary
+
+
+- [x] P2: Execution Wave 4 — Semantic retrieval (pgvector + multilingual embeddings)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #902 (`docs/food-db-w4-kickoff`) + PR #905 (`feat(food-db): add W4-B feature-flag semantic search routing`) + PR #914 (`feat/food-w4-benchmark-rollback-closure`)
+  - Status: ✅ Merged (W4-A #902, W4-B #905, W4-C #914 all merged 2026-02-26)
+  - Area: backend / search relevance
+  - Finding Type: strategic enhancement
+  - Reason: Semantic retrieval is valuable but should follow stable snapshot/search/menu foundations and remain optional behind a feature flag.
+  - Execution Notes:
+    - (2026-02-25) W4-A kickoff docs merged in PR #902
+    - (2026-02-25) W4-B runtime merged in PR #905 (feature-flagged `semantic > compat > legacy`)
+    - (2026-02-26) W4 benchmark + rollback validation bundle prepared in PR #914
+      - Added semantic benchmark harness: `scripts/benchmarks/food_semantic_retrieval_benchmark.py`
+      - Added rollback-safe tests for semantic flag-off path: `tests/test_food_store_service.py`, `tests/test_foods_router_additional.py`
+      - Added benchmark audit artifact/report: `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`, `docs/audit/artifacts/food_w4_semantic_benchmark.json`
+  - Links:
+    - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
+    - `docs/orchestration/RESEARCH_TRACK_PROTOCOL.md`
+    - `scripts/benchmarks/food_semantic_retrieval_benchmark.py`
+    - `docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md`
+  - DoD:
+    - Feature-flagged semantic retrieval is implemented
+    - Cost/performance benchmark is documented
+    - Rollback-safe deployment path is defined and validated
+    - Non-semantic search path remains default and stable
+
+<a id="ledger-p2-search-meili-transport-pooling"></a>
+- [x] P2: Search Meili transport pooling + lifecycle hook
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1340
+  - Status: ✅ Merged (PR #1340, 2026-04-05). `app/bootstrap/food_search.py` owns `httpx.Client` limits + `app.state.meili_http_client`; `make_pooled_httpx_transport` + shutdown `threading.Event` in `search_meili.py`, shutdown handler; tests cover reuse, shutdown, baseline-after-meili, idempotent dispose, and `app.state` cleanup after `TestClient`. Evidence: `docs/review/PR_1340_FIXED_MAPPING.md`, `tests/test_food_search_foundation.py`.
+  - Area: backend / search
+  - Finding Type: runtime hardening follow-up
+  - Reason: The search shadow foundation intentionally keeps an injected per-call `httpx.Client` transport because Meili remains optional and low-volume in this slice. If traffic expands, the backend should move to a shared pooled client with deterministic shutdown semantics instead of creating a fresh client per request.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/bootstrap/food_search.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+    - `docs/review/PR_1340_FIXED_MAPPING.md`
+  - DoD:
+    - Shared Meili transport/client is lifecycle-managed and explicitly closed on shutdown
+    - Search bootstrap owns transport configuration instead of hidden module-level state
+    - Tests cover connection reuse and shutdown cleanup without changing `/api/v1/foods*` contracts
+
+<a id="ledger-p2-search-pgtrgm-candidate-generation"></a>
+- [ ] P2: Search PostgreSQL `pg_trgm` candidate generation lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: [#1349](https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1349) (Phase 1 DDL + docs; full DoD remains open until runtime lane + tests)
+  - Area: backend / search
+  - Finding Type: deferred hybrid-search rollout
+  - Reason: This PR intentionally preserves SQLite/FTS as the live baseline and adds Meili shadow mode only. PostgreSQL `pg_trgm` candidate generation remains deferred until PostgreSQL is promoted to the canonical search-adjacent store.
+  - Progress (Phase 1 — DDL + docs, this slice): Alembic enables `pg_trgm` on PostgreSQL and creates `ix_foods_*_gin_trgm` indexes when `public.foods` exists; ADR + deploy note document scope. Runtime trigram candidate queries + strategy routing remain **open** until this checkbox closes.
+  - Links:
+    - `app/services/search_meili.py`
+    - `app/services/food_store.py`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+    - `docs/review/PR_1349_FIXED_MAPPING.md`
+    - `docs/architecture/ADR_SEARCH_PGTRGM_CANDIDATES_LANE_P2.md`
+    - `alembic/versions/202604060001_enable_pg_trgm_foods_candidate_indexes.py`
+    - `docs/orchestration/task_analysis_SEARCH_PGTRGM_CANDIDATES_P2.md`
+  - DoD:
+    - `pg_trgm` candidate generation exists behind additive strategy routing with deterministic fallback
+    - Relevance and latency tests cover candidate generation for representative food queries
+    - `/api/v1/foods*` contracts remain unchanged and shadow divergence is observable
+
+<a id="ledger-p2-search-zero-downtime-swap-orchestration"></a>
+- [ ] P2: Search zero-downtime swap orchestration lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1365 (<https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1365>)
+  - Area: backend / search / ops
+  - Finding Type: deferred indexing-orchestration rollout
+  - Reason (EN): Offline CLI + orchestrator on branch `swap/zero-downtime` implement build/validate/warm/swap without new public HTTP routes. Mark this checkbox after merge via the mandatory docs-only ledger follow-up; remaining DoD (grace-period cleanup / rollback tests) may need a follow-up PR if not fully satisfied in #1365.
+  - Links:
+    - `app/services/food_search_indexing.py`
+    - `app/services/meili_swap_orchestration.py:46`
+    - `scripts/meili_food_index_swap.py:1`
+    - `tests/test_meili_swap_orchestration.py:1`
+    - `docs/deploy/MEILISEARCH_ZERO_DOWNTIME_SWAP_RUNBOOK.md:1`
+    - `docs/orchestration/MEILI_SWAP_PR_READINESS.md:1`
+    - `docs/review/PR_1099_FIXED_MAPPING.md`
+    - `docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md`
+  - DoD:
+    - Offline build-validate-warm-swap workflow is implemented with deterministic commands or admin surface
+    - Swap orchestration is tested against `*_v2` indexes without changing public food API contracts
+    - Grace-period cleanup and rollback-safe recovery are documented and covered by tests
+
+<a id="ledger-p2-food-store-legacy-schema-cache-follow-through"></a>
+- [ ] P2: Food-store legacy schema/cache seam follow-through
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-FOOD-STORE-LEGACY-SCHEMA-FOLLOW-THROUGH
+  - Area: backend / search / tests
+  - Finding Type: hotfix follow-up hardening
+  - Reason: The main-stabilization hotfix intentionally stays narrow and fixes the
+    blocking stale-`has_conf=True` failure path for legacy SQLite schemas missing
+    `foods.nutrition_confidence`. Two adjacent non-blocking follow-ups remain
+    deferred: a real-SQLite runtime regression for the semantic bootstrap read path,
+    and a tighter policy for transient `PRAGMA table_info(foods)` failures so a
+    temporary schema-probe error does not cache `False` longer than intended.
+  - Links:
+    - `app/services/food_store.py`
+    - `tests/test_food_store_service.py`
+    - `tests/test_food_store_coverage.py`
+    - `tests/test_food_store_coverage_boost.py`
+    - `tests/test_simple_coverage_boost.py`
+  - DoD:
+    - Semantic candidate/bootstrap read path has a real SQLite legacy-schema regression test
+    - Schema-probe transient failures are non-cacheable or bounded-retry, not an indefinite cached `False`
+    - Cache-seam tests remain deterministic and explicitly reset shared state
+    - Public `/api/v1/foods/search` contract remains unchanged while additive `nutrition_confidence` stays best-effort
+
+
+- [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-728
+  - Priority: P2
+  - Status: ✅ Superseded (2026-02-13)
+  - Area: backend / tests
+  - Finding Type: skip/xfail
+  - Reason: Replaced by prioritized split into P0/P1 stabilization tracks and explicit product-decision backlog.
+  - Links:
+    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
+    - `docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md`
+  - DoD:
+    - Superseded by targeted items: PR-729, PR-730, PR-731, PR-732
+    - Intentional product-scope skips tracked separately (no mixed bucket)
+
 
 - [x] Dialogue Visualization (interaction graph)
   - Owner: @katsiaryna_kavaleuskaya
@@ -3195,540 +8649,31 @@ If it is not recorded here — it does not exist.
     - Mermaid output format defined (inputs + expected diagram)
     - Example visualization added to orchestration docs or runbook
 
-- [x] Auto-verification script (Pre-flight Checklist) — superseded by P2: Tooling — pre-flight auto-verification script
-  - Owner: @katsiaryna_kavaleuskaya
-  - Status: ✅ Superseded (consolidated into P2 entry above)
-  - Reason: Same scope; consolidated with plan link in P2 entry.
 
-- [x] Test skips cleanup (low priority batch) — superseded by PR-728 classification
+- [x] P2: Orchestration — agent routing graph (task → domains → agents)
   - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-728
+  - Target PR: PR #967
+  - Status: ✅ Merged (PR #967, 2026-03-04)
   - Priority: P2
-  - Status: ✅ Superseded (2026-02-13)
-  - Area: backend / tests
-  - Finding Type: skip/xfail
-  - Reason: Replaced by prioritized split into P0/P1 stabilization tracks and explicit product-decision backlog.
+  - Area: dev-process / orchestration
+  - Finding Type: routing
+  - Reason: Capability matrix is advisory; no automatic routing. Task → domain classifier → agent set makes orchestration deterministic.
   - Links:
-    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
-    - `docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md`
+    - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
   - DoD:
-    - Superseded by targeted items: PR-729, PR-730, PR-731, PR-732
-    - Intentional product-scope skips tracked separately (no mixed bucket)
+    - Routing graph spec or document (task → domains → agents)
+    - Linked from coordinator or capability matrix
 
-- [ ] P2: Product decision for removed/non-canonical optional fields in skip tests
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-749 (ui_labels contract), PR-733 (remaining fields)
-  - Status: 🟡 In progress (PR-749)
-  - Priority: P2
-  - Area: backend / product contract
-  - Finding Type: intentional-scope decision
-  - Locations:
-    - `tests/test_app_coverage_unit_combined.py:83`
-    - `tests/test_app_coverage_unit_combined.py:88`
-    - `tests/test_premium_targets_es_snapshots.py:453`
-  - Reason: `ui_labels` contract is being promoted to required in PR-749; `interpret_group` / `estimate_level` still need explicit product-contract decisions.
-  - Links:
-    - `docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md`
-    - `app/schemas/premium_contracts.py:109`
-  - DoD:
-    - Product decision recorded for each field/function (restore canonical equivalent vs remove obsolete tests)
-    - No ambiguous intentional skips remain without decision record
 
-- [ ] Backend TODO cleanup (i18n, telemetry)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD
-  - Priority: P2
-  - Area: backend
-  - Finding Type: TODO/FIXME
-  - Locations:
-    - `core/business_bayesian_analyzer.py:145,1067` — TODO: telemetry/metrics
-    - `legacy_app.py:1985` — TODO: Read version from pyproject.toml
-    - `app/routers/premium_week.py:97,127` — TODO: i18n support
-    - `app/routers/pro.py:152,182,529,537` — TODO: i18n, dedup, meal logging
-  - Reason: Polish/improvement items, not blocking
-  - Links:
-    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
-  - DoD:
-    - TODOs addressed or converted to tracked issues
-    - No stale TODOs without tracking
-
-- [ ] Deprecated endpoint cleanup (post-migration)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (v2.0 timeline)
-  - Priority: P2
-  - Area: backend / API
-  - Finding Type: deprecated/alias
-  - Locations:
-    - `app/routers/bmi_pro.py:158` — deprecated POST /api/v1/pro/bmi
-    - `app/routers/bmi_pro_legacy_alias.py` — deprecated /api/v1/bmi/pro
-    - `app/routers/premium_week.py:179` — deprecated /api/v1/premium/plan/week-flexible
-    - `app/routers/vip.py:706` — deprecated legacy VIP endpoint
-  - Reason: Legacy aliases; remove after client migration complete
-  - Links:
-    - docs/audit/PR_585_BACKLOG_SWEEP_AUDIT.md
-    - docs/contracts/PRODUCT_TIER_MAP.md
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (Migration status by domain)
-  - DoD:
-    - All clients migrated to canonical endpoints
-    - Deprecated endpoints removed
-    - OpenAPI updated (no deprecated paths)
-
-- [ ] P2: Complete legacy_app.py migration (delete legacy endpoints)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (v2.0 timeline, after all migrations)
-  - Priority: P2 (long-term cleanup)
-  - Reason: After all critical security fixes and endpoint migrations complete, eventually delete `legacy_app.py` entirely. All logic should be in modular routers (`app/routers/*`) and core modules (`core/*`). Current state: 5382 lines, ~60% migrated.
-  - Links:
-    - docs/audit/LEGACY_APP_MIGRATION_STATUS.md (overall progress, migration status)
-    - docs/pr/PR_THIN_PROXY_CLEANUP_PLAN.md
-  - Prerequisites:
-    - ✅ All P0 security fixes complete (rate-limiting, tier guards)
-    - ✅ All P1 migrations complete (constants extracted, WebSocket secured)
-    - ✅ All clients migrated to canonical endpoints
-    - ✅ Legacy endpoint traffic < 1%
-  - DoD:
-    - All endpoints migrated to modular routers
-    - All helpers moved to canonical modules
-    - `legacy_app.py` deleted (or reduced to minimal compatibility shim)
-    - Tests pass (no functionality broken)
-    - OpenAPI unchanged (all canonical endpoints present)
-
-- [x] PR-570 (Phase 3): Agent index + model selection rationale — merged
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR-570
-  - Status: ✅ Merged
-  - Links:
-    - docs/audit/PR_567_AGENT_INDEX_AUDIT.md
-    - docs/agents/index.md
-
-- [ ] P2 Vision: Nutrition coaching (CBT in nutrition, weight loss/gain)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: TBD (product/feature design first)
-  - Priority: P2 (product direction; preferred over ML training platform for current scope)
-  - Reason (EN): Product differentiation via cognitive-behavioral psychology in nutrition: goals, reflection, habits, support for slips/weight gain. Does not require ML training platform; leverages LLM/RAG and existing user data. **Integration with philosophy and math:** CBT coaching flows can be validated through philosophical principles (syllogisms, verification) and enhanced with Bayesian predictions for proactive intervention. (RU: цели, рефлексия, привычки, поддержка при срывах/наборе веса. Не требует платформы для обучения моделей; опирается на LLM/RAG и существующие данные пользователя. **Интеграция с философией и математикой:** CBT coaching flows могут быть валидированы через философские принципы (силлогизмы, верификация) и улучшены байесовскими предсказаниями для проактивного вмешательства.)
-  - Links:
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: CBT + philosophy + Bayesian integration, structured coaching flows)
-    - docs/design/NUTRITION_COACHING_DESIGN.md (component links, implementation approach)
-    - core/insight/creative_scientific_innovations.md (FitChef, AI companion)
-    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (insight, RAG)
-  - DoD:
-    - Product spec: coaching scenarios (goals, weekly reflections, behavioral steps) — EN: structured scenarios (goal-setting dialogues, weekly reflections, slip analysis)
-    - Component links documented in design doc (see NUTRITION_COACHING_DESIGN.md)
-    - Implementation — separate PRs after backend/VIP stabilization
-
-- [ ] P2 Vision: Future — social network for nutrition/weight/support
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: N/A (separate product/project in perspective)
-  - Priority: P2 (long-term vision)
-  - Reason (EN): Possible separate product: community around nutrition, weight goals, mutual support. Not in current PulsePlate scope; considered as prospect after strengthening coaching and core app. (RU: Возможный отдельный продукт: комьюнити вокруг питания, целей по весу, взаимоподдержка. Не входит в текущий scope PulsePlate; рассматривается как перспектива после укрепления коучинга и ядра приложения.)
-  - Links:
-    - docs/design/NUTRITION_COACHING_DESIGN.md (Future social network — links section)
-    - BACKLOG_LEDGER (Nutrition coaching — natural predecessor)
-  - DoD:
-    - Decision "do / don't do" and product boundaries (separate app vs section in PulsePlate) — after coaching launch
-
-- [ ] P2 Vision: Restaurant/chef integration (partners accept menus from our products, cook for users)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Target PR: PR #TBD-W3-R1-CONTRACT (umbrella split into W3-R1..W3-R4)
-  - Priority: P2 (long-term product direction)
-  - Reason (EN): Restaurants and individual chefs accept menus from our products (weekly plan, recipes, constraints) and cook food for users. Separate block from coaching and social network; requires clear "menu → partner" contract and technical prerequisites in program (see RESTAURANT_INTEGRATION_SPEC.md). (RU: Рестораны и индивидуальные повара принимают меню по нашим продуктам (недельный план, рецепты, ограничения) и готовят еду пользователям. Отдельный блок от коучинга и соцсети; требует чёткого контракта «меню → партнёр» и технических предпосылок в программе.)
-  - Links:
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md (technical prerequisites, contract schema, implementation plan)
-    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md (temporary seam + exit criteria)
-    - app/routers/plan_export.py, vip.py (weekly plan, recipes, export)
-    - core/dietary_constraints.py, core/targets.py
-  - Prerequisites:
-    - ✅ VIP weekly plan stable (`vip.py`, `premium_week.py`)
-    - ✅ Export infrastructure exists (`plan_export.py`, `shoplist_export.py`)
-    - ✅ Dietary constraints module stable (`core/dietary_constraints.py`)
-    - ⏳ Backend/VIP stabilization complete (P0)
-  - DoD:
-    - Product spec: scenario "user sends menu to restaurant/chef" (what partner sees, how confirms) — EN: documented user flow and partner UX
-    - Technical prerequisites documented in design spec (export format, consent, contract schema)
-    - Execution decomposition W3-R1..W3-R4 is recorded with per-wave DoD
-    - Implementation — separate PRs (export format, partner API or signed link, optionally partner directory)
-
-- [ ] P2: Execution Wave 3-R1 — Partner API contract freeze (`menu -> partner`)
+- [x] docs(infra): add `.markdownlint.json` (follow-up after PR #617)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #958 (`feat(restaurants): add PRO partner order contract (W3-R1)`)
-  - Status: ✅ Merged (2026-03-03)
-  - Reason: Freeze canonical v1 contract before deep runtime integration to prevent schema drift.
-  - Links:
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
-    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
-    - app/routers/pro_restaurant_partner.py
-    - app/schemas/restaurant_partner.py
-  - Blockers:
-    - Persistent storage + audit trail not implemented yet (in-memory seam for W3-R1 only)
-    - Partner retrieval/confirmation hardening and export adapter waves pending (`W3-R3`, `W3-R4`)
-  - DoD:
-    - Non-breaking PRO endpoints contract documented and available under `/api/v1/pro/restaurants/partner/*`
-    - State model and transition constraints documented (`draft -> pending_partner -> confirmed|rejected -> fulfilled|cancelled`)
-    - Request/response schema examples and compatibility policy (additive-only for v1) documented
+  - Target PR: PR #775 (`docs(audit): add CP3 no-op audit and execution plan`)
+  - Status: ✅ Merged (PR #775, 2026-02-17)
+  - Reason: PR #617 scope reduced to docs-only (audit + handoff); markdownlint config moved out to avoid diff-coverage/CI scope. Add repo-wide markdownlint config in dedicated PR.
+  - DoD: New PR with `.markdownlint.json` only; CI green; no mixing with code/audit PRs.
 
-- [x] P2: Execution Wave 3-R2 — Consent + signed handoff contract
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR #960 (`feat(restaurants): W3-R2 consent + signed handoff contract`)
-  - Status: ✅ Merged (PR #960, 2026-03-04)
-  - Reason: Partner access must be explicit, revocable, and auditable.
-  - Links:
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
-    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
-    - app/routers/pro_restaurant_partner.py
-    - app/schemas/restaurant_partner.py
-    - tests/test_pro_restaurant_partner_api.py
-  - DoD:
-    - Consent/share issuance flow documented with expiry + revocation semantics
-    - Fail-closed behavior documented for revoked/expired shares (`403/410`)
-    - Audit fields fixed (`issuer`, `partner_id`, `issued_at`, `expires_at`, `revoked_at`)
-
-- [ ] P2: Execution Wave 3-R3 — Partner retrieval + confirmation hardening
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR #962 (`feat(restaurants): W3-R3 retrieval and confirmation hardening`)
-  - Status: 🟡 In progress
-  - Reason: Deterministic partner retrieval and confirmation semantics must be hardened before onboarding.
-  - Links:
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
-    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
-    - app/routers/pro_restaurant_partner.py
-    - tests/test_pro_restaurant_partner_api.py
-    - tests/test_pro_restaurant_partner_openapi_contract.py
-  - DoD:
-    - Owner isolation for retrieval/confirm is deterministic (`403` on issuer mismatch)
-    - `410 Gone` semantics are deterministic for expired handoff shares (including replay behavior)
-    - Confirm idempotency contract is deterministic for replay/conflict (`client_event_id`)
-    - OpenAPI partner contract is locked by tests (paths, response codes, schema refs, security)
-    - Out-of-scope boundary remains enforced (no payment/delivery in this wave)
-
-- [ ] P2: Execution Wave 3-R4 — Export adapter + deterministic contract tests
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2
-  - Target PR: PR #TBD-W3-R4-EXPORT-TESTS (`feat/restaurants-w3-r4-observability-rollback`)
-  - Status: 🟡 In progress
-  - Reason: Guarantee stable mapping from weekly plan artifacts to partner payloads.
-  - Links:
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
-    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
-    - app/routers/plan_export.py
-    - tests/test_pro_restaurant_partner_api.py
-  - DoD:
-    - Mapping rules from weekly plan/recipes/constraints to partner payload documented
-    - Deterministic contract tests defined and passing
-    - Rollback-safe rollout notes captured in audit artifact
-
----
-
-- [ ] P2: Cross-feature synergies implementation (real-time + automation + community)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (strategic integration)
-  - Target PR: TBD (multiple PRs for different synergies)
-  - Status: 📋 Planned
-  - Reason: 12 new synergies identified between planned features (WebSocket + Coaching, CV + Restaurant, Bayesian + WebSocket, etc.). These create unified user experiences and competitive advantages. Implementation should follow recommended order: real-time foundation → coaching enhancement → automation pipeline → community features.
-  - Links:
-    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, implementation order, expected impact)
-    - docs/design/NUTRITION_COACHING_DESIGN.md
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
-    - docs/audit/WEBSOCKET_ANALYSIS.md
-  - Prerequisites:
-    - ✅ WebSocket implemented (P1)
-    - ✅ Nutrition coaching implemented (P2)
-    - ✅ Restaurant integration implemented (P2)
-    - ✅ CV food recognition implemented (P1)
-  - DoD:
-    - Real-time foundation complete (WebSocket + Bayesian + Gamification)
-    - Coaching enhancement complete (WebSocket + RAG + Causal Inference)
-    - Automation pipeline complete (CV + Restaurant + Multi-Modal)
-    - Community features complete (Social Network + Gamification + Restaurant)
-    - End-to-end user journeys documented and tested
-
-<a id="ledger-p0-master-checklist-triage"></a>
-- [ ] P0: Master checklist phase-fit triage (PulsePlate_Master_Checklist v1.0)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (program alignment / scope control)
-  - Target PR: PR-TBD-MASTER-CHECKLIST-TRIAGE
-  - Status: 🟡 In progress (phase-fit matrix published; execution mapping in progress)
-  - Reason (EN): External checklist contains valid launch concerns, but several items are release-phase only and can overload current execution wave. We need a canonical Now/Next/Later decision matrix tied to active implementation reality (food/restaurant hardening + quality-first AI track). (RU: Внешний чеклист полезен, но часть пунктов относится к релизной фазе и не должна ломать текущий execution flow. Нужна каноническая матрица Now/Next/Later по фактической стадии проекта.)
-  - Links:
-    - docs/roadmap/BACKLOG_LEDGER.md
-    - docs/roadmap/PulsePlate_Master_Checklist_v1.0.md:1
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - [PulsePlate_Master_Checklist v1.0 source](https://docs.google.com/document/d/1FkHyYUwb8W8Rb-pTQE9OvqHUT5hZyaE2/edit)
-    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md
-    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
-  - DoD:
-    - Every checklist item is mapped to one of: `Now`, `Next`, `Later`, `Deferred`
-    - Canonical triage matrix artifact exists in-repo and is versioned
-    - `Now` items are represented by explicit backlog entries with owner + DoD + target PR
-    - `Later/Deferred` items include re-activation trigger (release readiness / market / platform milestone)
-    - No duplicate or conflicting ownership across active worktrees
-
-<a id="ledger-p0-payments-ruby-ios"></a>
-- [ ] P0: Payment rails for RU/BY + iOS-first monetization baseline
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (revenue continuity)
-  - Target PR: PR #983 (contract docs) -> PR-TBD-PAYMENTS-RUBY-IOS-BASELINE-RUNTIME-W1
-  - Status: 🟡 In progress (runtime Wave R1: activation + status contract)
-  - Reason (EN): Current business reality requires region-adapted payment rails: iOS as primary automated channel, RU/BY payments via eRIP (QR to account) and SWIFT card transfer fallback. Canonical billing flow must support these rails before global providers expansion. (RU: Текущий источник оплат: iOS + RU/BY локальные каналы (ЕРИП/QR и SWIFT). Нужен канонический billing baseline под эту реальность до расширения на глобальные провайдеры.)
-  - Links:
-    - docs/contracts/PAYMENTS_RU_BY_IOS_BASELINE.md
-    - docs/contracts/API_CANONICAL_MAP.md
-    - docs/IOS_API_INTEGRATION.md
-    - docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md
-    - docs/contracts/PRODUCT_TIER_MAP.md
-    - ios/PulsePlate/Services/ProKeyProvider.swift:1
-    - app/routers/pro_registration.py:1
-    - app/routers/pro_payments.py:1
-    - app/schemas/payments.py:1
-    - app/services/payments_activation.py:1
-  - Prerequisites:
-    - ✅ Tier activation contract exists (FREE/PRO/VIP)
-    - ⏳ Unified billing activation service is finalized for source-specific receipts
-  - DoD:
-    - Canonical source model documented: `ios_app_store`, `erip_qr`, `swift_manual`
-    - `activate_subscription()` contract supports all three sources with deterministic audit trail
-    - iOS receipt verification remains automated path; RU/BY flows have explicit reconciliation status lifecycle
-    - API/webhook/error contracts are tested and non-breaking for existing clients
-    - Runtime test plan is locked before implementation (`test_payment_source_contract_api`, `test_subscription_activation_api`, `test_ios_receipt_verification_api`, `test_payment_webhook_signature_api`, `test_payment_reconciliation_api`)
-
-<a id="ledger-p0-session-cookie-hardening"></a>
-- [ ] P0: Web session token transport hardening (`localStorage` -> `httpOnly` cookie)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (security blocker)
-  - Target PR: PR-TBD-SESSION-COOKIE-HARDENING-W1 (`feat/p0-session-cookie-hardening-w1`)
-  - Status: 🟡 In progress (Wave W1: cookie transport + session contract hardening)
-  - Reason (EN): Master checklist item #1 identifies XSS exposure when auth/session keys are persisted in browser storage. Canonical path is server-issued `httpOnly` session cookie plus explicit session endpoint contracts.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - app/security/auth.py
-    - app/routers/pro_registration.py
-    - frontend/src
-  - DoD:
-    - No sensitive session/auth token persists in browser local storage
-    - Session issuance/refresh flow uses secure cookie attributes (`HttpOnly`, `Secure`, `SameSite`)
-    - Regression tests cover authenticated flows and logout/invalidation
-
-<a id="ledger-p0-insight-fallback-chain"></a>
-- [ ] P0: Insight fallback chain + echo-mode readiness visibility
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (VIP reliability)
-  - Target PR: PR-TBD-INSIGHT-FALLBACK-CHAIN
-  - Status: 📋 Planned
-  - Reason (EN): Master checklist items #2 and #4 require deterministic behavior when primary LLM/provider path is unavailable and explicit operator visibility for fallback/echo mode.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - llm.py
-    - app/routers/vip.py
-    - app/main.py
-  - DoD:
-    - Provider fallback order is deterministic and test-covered
-    - `/ready` exposes fallback/echo-mode state without leaking secrets
-    - Insight response contract remains backward-compatible under fallback
-
-<a id="ledger-p0-rag-input-sanitizer"></a>
-- [ ] P0: RAG input sanitizer integration for markdown/knowledge ingestion
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (security + data quality)
-  - Target PR: PR-TBD-RAG-INPUT-SANITIZER
-  - Status: 📋 Planned
-  - Reason (EN): Master checklist item #3 flags prompt-injection risk from markdown ingestion path; canonical sanitizer must run before indexing/retrieval enrichment.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - core/data_sanitizer.py
-    - core/rag/simple_rag.py
-    - tests/test_rag_simple.py
-  - DoD:
-    - Sanitization is applied deterministically before RAG indexing and retrieval
-    - Injection-pattern regression tests are added and green
-    - No contract break for current insight endpoints
-
-<a id="ledger-p1-mobile-secret-conformance"></a>
-- [ ] P1: Mobile secret storage conformance (iOS Keychain now, Android Keystore deferred)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (mobile security correctness)
-  - Target PR: PR-TBD-IOS-KEYCHAIN-CONFORMANCE
-  - Status: 📋 Planned
-  - Reason (EN): Master checklist item #5 requires immediate iOS secret-storage conformance on the active monetization rail.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - ios/PulsePlate/Services/KeychainStore.swift
-    - ios/PulsePlate/Services/ProKeyProvider.swift
-  - DoD:
-    - iOS secret paths are verified to use Keychain storage only
-    - Guard tests prevent regression to insecure storage
-
-<a id="ledger-p2-android-keystore-conformance"></a>
-- [ ] P2: Android Keystore secret storage conformance (deferred track)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (deferred until Android monetization activation)
-  - Target PR: PR-TBD-ANDROID-KEYSTORE-CONFORMANCE
-  - Status: ⏸️ Deferred
-  - Reason (EN): Master checklist item #6 remains deferred because current monetization baseline is iOS-first + RU/BY manual rails; Android billing/runtime is not in active delivery scope yet.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-mobile-secret-conformance
-    - docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-payments-ruby-ios
-  - DoD:
-    - Resume trigger is explicit: Android billing tasks (`#9/#23/#24/#32`) move from `Deferred` to `Now/Next`
-    - Android app storage layer documents and enforces Keystore-only secret handling
-    - Guard tests prevent insecure storage fallback on Android
-
-<a id="ledger-p0-pro-vip-depends-guard"></a>
-- [x] P0: PRO/VIP route `Depends` coverage guard
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P0 (access-control integrity)
-  - Target PR: PR #994
-  - Status: ✅ Merged (PR #994, 2026-03-06)
-  - Reason (EN): Master checklist item #7 requires deterministic proof that all protected endpoints enforce explicit dependency gates and no silent bypass is introduced by future routing changes.
-  - Links:
-    - docs/roadmap/P0_MASTER_CHECKLIST_PHASE_FIT_TRIAGE_2026-03-05.md
-    - app/security/api_tiers.py
-    - app/routers
-    - tests/test_pro_vip_route_dependency_guard.py
-    - tests/test_api_tiers_db_lookup.py
-  - DoD:
-    - Guard test enumerates canonical PRO/VIP surfaces and fails on missing dependency gate
-    - Legacy aliases are validated as non-bypass paths
-    - CI gate is deterministic and documented in runbook
-
-<a id="ledger-p1-frontend-ai-parity"></a>
-- [ ] P1: Frontend parity for new AI-agent and LLM reliability features
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (quality visibility)
-  - Target PR: PR-TBD-FRONTEND-AI-PARITY
-  - Status: 📋 Planned
-  - Reason (EN): Backend quality features (RAG confidence, verification pipeline, recursive/philosophical controls) must be visible in web/iOS UX; otherwise quality work remains opaque and user trust/conversion suffers. (RU: Новые quality-фичи ИИ должны быть отражены во фронтенде; иначе улучшения качества не видны пользователю и не влияют на доверие/конверсию.)
-  - Links:
-    - frontend/src/api/openapi.json
-    - frontend/src/api/schema.ts
-    - docs/design/NUTRITION_COACHING_DESIGN.md
-    - docs/contracts/RAG_CONTRACT.md
-  - DoD:
-    - UI contracts for `sources[]`, confidence, verification state are aligned with backend schema
-    - Frontend/iOS screens for AI assistant reflect reliability state (validated / partial / fallback)
-    - Thin-client guards remain green; no business logic duplication on clients
-    - Deterministic contract tests added for new AI-quality response fields
-
-<a id="ledger-p1-scientific-reliability-pipeline"></a>
-- [ ] P1: Scientific reliability publication pipeline (blog + evidence artifacts)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (trust + GTM)
-  - Target PR: PR-TBD-SCIENTIFIC-RELIABILITY-BLOG
-  - Status: 📋 Planned
-  - Reason (EN): Product differentiation requires public, evidence-based communication of reliability methods (RAG grounding, philosophical validation, recursive verification) with reproducible metrics and no medical overclaiming. (RU: Для дифференциации нужен публичный научно-достоверный контент по quality-подходу без медикал-оверклеймов.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
-    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md
-  - DoD:
-    - Editorial plan and evidence format are documented (metrics, caveats, claim boundaries)
-    - At least one canonical article draft is mapped to verifiable repo artifacts
-    - Marketing copy checklist includes wellness-safe and evidence-only claims
-
-<a id="ledger-p1-philosophical-logic"></a>
-- [ ] P1: Philosophical logic principles for LLM reliability (Aristotelian, Analytical, Post-Analytical, Linguistic)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (high impact on reliability)
-  - Target PR: PR-TBD-LLM-PHILOSOPHY-W1
-  - Status: 🟡 Prioritized (quality wave W1)
-  - Dependencies:
-    - [P0 Master checklist phase-fit triage](#ledger-p0-master-checklist-triage)
-    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
-  - Reason (EN): Apply classical logic and philosophical principles to improve LLM response reliability and argumentative rigor. Hypothesized impact (to be benchmark-validated): reduce contradictions from ~15% to <2%, unverifiable claims from ~30% to <5%, contextually irrelevant responses from ~25% to <10%. Four frameworks: Aristotelian logic (syllogisms, non-contradiction), Analytical philosophy (verification, falsification), Post-analytical philosophy (pragmatic validation, hermeneutics), Linguistic philosophy (speech acts, language games, meaning-as-use). **Speed optimization:** Philosophical principles also optimize speed (50-60% latency reduction) through adaptive depth, early stopping, and query classification. (RU: Применение классической логики и философских принципов для улучшения достоверности ответов LLM и доказательности аргументации. Гипотеза (с обязательной валидацией бенчмарками): снижение противоречий с ~15% до <2%, непроверяемых утверждений с ~30% до <5%, контекстуально нерелевантных ответов с ~25% до <10%. **Оптимизация скорости:** Философские принципы также оптимизируют скорость (снижение latency на 50-60%) через адаптивную глубину, раннее прекращение и классификацию запросов.)
-  - Links:
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration)
-    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (comprehensive design, code examples, implementation roadmap)
-    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (speed optimization using philosophical principles: speech acts, language games, early stopping, adaptive depth)
-    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current LLM/RAG implementation)
-    - core/insight/creative_scientific_innovations.md (AI assistant design)
-  - Prerequisites:
-    - ✅ Current LLM/RAG infrastructure stable (`llm.py`, `core/rag/simple_rag.py`)
-    - ✅ Insight endpoints stable (`legacy_app.py`, `app/routers/vip.py`)
-    - ⏳ Master checklist phase-fit triage approved
-    - ⏳ Fact-checking system implemented (P0 from LLM_RAG_AI_ASSISTANT_ANALYSIS.md)
-  - DoD:
-    - Phase 1: Aristotelian logic implemented (syllogistic prompts, contradiction detection)
-    - Phase 2: Analytical philosophy implemented (verification, falsification)
-    - Phase 3: Post-analytical philosophy implemented (pragmatic validation, hermeneutics)
-    - Phase 4: Linguistic philosophy implemented (speech acts, language games)
-    - Phase 5: Integrated framework complete (unified prompt builder + validator)
-    - Hypothesis target (requires benchmark validation): Speech act classification (50-70% reduction for commands), language game detection (50-60% reduction for medical), early stopping (30-50% reduction), adaptive depth (50-60% average reduction)
-    - Hypothesis target (requires benchmark validation): contradiction rate <2%, verification rate >95%, pragmatic utility >90%
-    - Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained ≥95%
-    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
-    - Integration tests pass (end-to-end philosophical validation + speed optimization pipeline)
-
-<a id="ledger-p1-recursive-methods"></a>
-- [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (high impact on quality and accuracy)
-  - Target PR: PR-TBD-RECURSIVE-LLM-W1
-  - Status: 🟡 Prioritized (quality wave W1-B)
-  - Dependencies:
-    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
-  - Reason (EN): Implement recursive methods to dramatically improve LLM/RAG reliability and AI assistant capabilities. Five recursive techniques: recursive retrieval (multi-hop RAG with query refinement, 40-60% retrieval quality improvement), recursive reasoning (chain-of-thought, tree-of-thought, decomposition, 25-35% answer accuracy improvement), recursive refinement (self-critique and iterative improvement, 30-40% answer quality improvement), recursive verification (self-validation through recursive queries, reduces factual errors from ~15% to <5%), recursive learning (self-improvement from user feedback, adaptive personalization). Hypothesized overall impact (pending benchmark validation): retrieval quality 85-90%, answer accuracy 85-90%, factual errors <5%, user satisfaction 85-90%. (RU: Внедрение рекурсивных методов для значительного улучшения надежности LLM/RAG и возможностей AI ассистента. Пять рекурсивных техник: рекурсивный retrieval (multi-hop RAG с уточнением запросов, улучшение качества retrieval на 40-60%), рекурсивное рассуждение (chain-of-thought, tree-of-thought, декомпозиция, улучшение точности ответов на 25-35%), рекурсивное уточнение (самокритика и итеративное улучшение, улучшение качества ответов на 30-40%), рекурсивная верификация (самопроверка через рекурсивные запросы, снижение фактических ошибок с ~15% до <5%), рекурсивное обучение (самоулучшение на основе обратной связи пользователей, адаптивная персонализация).)
-  - Links:
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified analysis: philosophy + math + CBT integration, recursive methods with philosophical validation)
-    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (comprehensive design, code examples, implementation roadmap, expected impact)
-    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies: parallelization, caching, batching, open-source libraries)
-    - docs/analysis/LLM_RAG_AI_ASSISTANT_ANALYSIS.md (current RAG implementation: `core/rag/simple_rag.py`)
-    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (complements recursive verification)
-    - core/rag/simple_rag.py (current single-pass keyword-based RAG)
-  - Prerequisites:
-    - ✅ Current RAG infrastructure stable (`core/rag/simple_rag.py`)
-    - ✅ LLM provider stable (`llm.py`)
-    - ✅ Redis available in docker-compose (for caching optimization)
-    - ⏳ Fact-checking system implemented (for recursive verification)
-    - ⏳ User feedback storage implemented (for recursive learning)
-  - DoD:
-    - Phase 1: Recursive RAG implemented (multi-hop retrieval, query refinement)
-    - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
-    - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
-    - Phase 4: Recursive verification implemented (self-validation, claim checking)
-    - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
-    - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
-    - Hypothesis target (requires benchmark validation): Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
-    - Hypothesis target (requires benchmark validation): retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline
-    - Hypothesis target (requires benchmark validation): caching, parallelization, early stopping (3-5x LLM calls acceptable, reduced to 1.5-2x with caching)
-    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
-    - Integration tests pass (end-to-end recursive pipeline)
-
-<a id="ledger-p2-unified-aicoach"></a>
-- [ ] P2: Unified Framework implementation (UnifiedAICoach: Philosophy + Math + CBT integration)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (integration of all components after individual implementations)
-  - Target PR: PR-TBD-UNIFIED-AICOACH-PHASE5
-  - Status: 📋 Planned (integration wave)
-  - Dependencies:
-    - [P1 Philosophical logic principles](#ledger-p1-philosophical-logic)
-    - [P1 Recursive methods](#ledger-p1-recursive-methods)
-    - [P1 Frontend parity for AI reliability](#ledger-p1-frontend-ai-parity)
-    - [P0 Payment rails RU/BY + iOS baseline](#ledger-p0-payments-ruby-ios)
-  - Reason (EN): Integrate all components (Philosophical validation, Recursive methods, Bayesian personalization, CBT coaching) into a unified production-ready framework. Hypothesized impact (pending benchmark validation): multiplicative quality gains (70-80% improvement), latency optimization (50-60% reduction), unified user experience. **Production readiness:** Framework includes rate-limiting, caching, monitoring, error handling, privacy protection, and fallback mechanisms as documented in peer review analysis. (RU: Интеграция всех компонентов (философская валидация, рекурсивные методы, байесовская персонализация, CBT coaching) в единый production-ready фреймворк. Гипотеза (с обязательной валидацией бенчмарками): мультипликативное улучшение качества (70-80%), оптимизация latency (50-60%), единый пользовательский опыт. **Production readiness:** Фреймворк включает rate limiting, caching, monitoring, error handling, privacy protection и fallback механизмы, как документировано в peer review analysis.)
-  - Links:
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (unified framework architecture, Phase 5 roadmap, production deployment)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (production-ready architecture blueprint, implementation details, risk mitigations)
-    - docs/insights/PHILOSOPHICAL_LOGIC_LLM_RELIABILITY.md (philosophical validation components)
-    - docs/insights/RECURSIVE_METHODS_LLM_RAG.md (recursive methods components)
-    - docs/design/NUTRITION_COACHING_DESIGN.md (CBT coaching flows)
-  - Prerequisites:
-    - ✅ Phase 1: Philosophical validation implemented (P1 backlog item)
-    - ✅ Phase 2: Speed optimization implemented (LinguisticOptimizer, caching)
-    - ✅ Phase 3: Recursive methods implemented (P1 backlog item)
-    - ✅ Phase 4: CBT coaching implemented (P2 backlog item)
-    - ⏳ All individual components tested and stable
-  - DoD:
-    - Phase 5: UnifiedAICoach class implemented (orchestrates all components)
-    - All components integrated (PhilosophicalValidator, RecursiveRAG, RecursiveReasoner, Refiner, Verifier, BayesianPersonalizer, CBTCoachingFlow)
-    - Production-ready features: rate-limiting, caching (GPTCache + Redis), monitoring (Prometheus), error handling, privacy protection, fallback mechanisms
-    - End-to-end testing complete (all user query types: QUESTION, COMMAND, REQUEST, EXPRESSION)
-    - Hypothesis target (requires benchmark validation): latency ≤0.8s (P95) for QUESTION queries, ≤0.3s for COMMAND/EXPRESSION, verification rate ≥95%, factual error rate <3%
-    - Hypothesis target (requires benchmark validation): ≤$0.008 per query (VIP tier), cache hit-rate ≥50%
-    - Validation evidence owner: [P1 Scientific reliability publication pipeline](#ledger-p1-scientific-reliability-pipeline)
-    - Documentation: production deployment guide, monitoring setup, troubleshooting runbook
-    - **Production deployment:** Framework deployed to production with feature flag (gradual rollout)
 
 - [x] P2: Guards — wellness language blocker (docs safety)
   - Owner: @katsiaryna_kavaleuskaya
@@ -3742,19 +8687,6 @@ If it is not recorded here — it does not exist.
   - DoD:
     - Guard test merged; allowlist exists; fails on blocker phrases; documented marker `pulseplate-allow:blocker-example`
 
-- [x] P2: Philosophy Validator (runtime LLM output validation)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (quality / safety)
-  - Target PR: PR #972 (`feat/philosophy-validator-core`)
-  - Status: ✅ Merged (PR #972, 2026-03-04)
-  - Reason (EN): Deterministic runtime validator for LLM outputs used in product copy/coaching. `validate_llm_output(text, domain=None) -> Report`; BLOCKER codes: WELLNESS_MEDICAL_CLAIM_*, WELLNESS_GUARANTEE, NON_FALSIFIABLE_VAGUE, POTENTIAL_CONTRADICTION. No network, regex/rules only. Coordinator can require rewrite before merge.
-  - Links:
-    - `core/insight/philosophy_validator.py`
-    - `tests/test_philosophy_validator.py`
-  - DoD:
-    - `core.insight.philosophy_validator` module merged
-    - Unit tests pass (RU/EN blockers, contradiction, determinism)
-    - AGENTS.md policy: LLM outputs must pass philosophy_validator (BLOCKER = rewrite)
 
 - [ ] P2 Optional: Evaluate PEP 751 standard lock file (pylock.toml) and/or uv + Dependabot
   - Owner: @katsiaryna_kavaleuskaya
@@ -3833,69 +8765,6 @@ If it is not recorded here — it does not exist.
     - When designing RAG upgrade, multimodal pipeline, or UI: consult CURATED_REPOS_REFERENCE.md for relevant repos
     - No mandatory code dependency; adopt via normal PR/backlog
 
-- [ ] P2: Bayesian adherence prediction and uncertainty quantification (VIP differentiator)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (after P0/P1 hardening; unique competitive advantage)
-  - Target PR: TBD (design first: core/bayesian/adherence.py, uncertainty intervals)
-  - Status: 📋 Planned
-  - Reason (EN): Probabilistic personalization: P(adherence | user_context) for adaptive meal plans; confidence intervals for targets (e.g. "1800–2200 kcal, 90% confidence") instead of point estimates. Differentiator vs MyFitnessPal/Cronometer (static calculators). Prerequisites: Bayesian module design, calibration metrics (Brier score). (RU: Байесовская персонализация и доверительные интервалы для целей; уникальное конкурентное преимущество.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: Bayesian, uncertainty, roadmap)
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md (Bayesian + CBT integration)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (uncertainty quantification gap)
-    - core/insight/creative_scientific_innovations.md (FitChef personalization)
-  - DoD:
-    - Design: core/bayesian/adherence.py (or equivalent) with probabilistic adherence model
-    - VIP targets expose confidence intervals where applicable (e.g. calorie range, 90% CI)
-    - Calibration metric documented (e.g. Brier score); no regression on existing FREE/PRO contracts
-
-- [ ] P2: Recursive optimization for weekly meal plans (speed + scalability)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (when VIP weekly plan performance is in scope)
-  - Target PR: TBD (implementation after design)
-  - Status: 📋 Planned
-  - Reason (EN): Reduce weekly plan generation from 10–30s to 2–5s via divide-and-conquer (split week into halves, optimize recursively, merge with boundary constraints). Lazy day generation: first day instant, remaining days on-demand. Recursive nutrient aggregation O(n log n) for shoplist. (RU: Рекурсивная оптимизация недельных планов и агрегации нутриентов; скорость и масштабируемость.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: recursive week planning, lazy days)
-    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md (optimization strategies, code patterns)
-    - docs/insights/PERFORMANCE_ANALYSIS_AND_NEW_INSIGHTS.md (bottlenecks: meal plan, shoplist)
-    - docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md (lazy evaluation, early stopping)
-    - app/routers/vip.py (current weekly plan flow)
-  - DoD:
-    - Design: recursive week planning and/or lazy day generation documented
-    - Implementation: measurable latency improvement (e.g. time-to-first-day, full week)
-    - No regression on constraint satisfaction or nutrition targets
-
-- [ ] P2: Cross-feature integration tests (BMI → Sports → Shoplist flows)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (quality assurance; prevent regressions)
-  - Target PR: TBD (tests only)
-  - Status: 📋 Planned
-  - Reason (EN): Unit tests exist; integration tests across feature boundaries are weak. Add end-to-end flows: BMI → sport nutrition → shoplist; recipe synthesis → regional catalog → shoplist. Aligns with CROSS_FEATURE_SYNERGIES and PEER_REVIEW_ANALYSIS gap. (RU: Интеграционные тесты кросс-фичевых сценариев.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: cross-feature flows)
-    - docs/insights/CROSS_FEATURE_SYNERGIES.md (synergy matrix, flows)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (cross-feature testing gap)
-    - tests/ (existing unit/integration structure)
-  - DoD:
-    - At least one cross-feature flow tested (e.g. BMI → sport targets → plan → shoplist)
-    - Tests run in CI; no new flakiness; documented in tests/AGENTS.md or RUNBOOK
-
-- [ ] P2 Optional: Evaluate scientific publication track (Bayesian, CBT, recursive algorithms)
-  - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (optional; credibility + PR; after core innovations shipped)
-  - Target PR: N/A (decision + optional draft)
-  - Status: 📋 Planned
-  - Reason (EN): Optional papers: Bayesian adherence for personalized nutrition (NeurIPS/ML4H workshop), CBT-aligned gamification vs anxiety (CHI), recursive constraint satisfaction for meal planning (AAAI). Benefit: credibility, press, talent attraction. Effort: 3–6 months per paper; parallel to product. (RU: Опциональная научная публикация по байесовской персонализации, CBT-геймификации, рекурсивным алгоритмам планирования.)
-  - Links:
-    - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md (canonical scientific review: publication track, venues)
-    - docs/insights/PEER_REVIEW_ANALYSIS.md (publishable insights)
-    - docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md
-    - docs/insights/RECURSIVE_OPTIMIZATION_STRATEGY.md
-  - DoD:
-    - Decision documented: pursue / defer / won't do for publication track
-    - If pursue: venue + outline for one paper; no mandatory timeline
-
 - [ ] P1: Agent knowledge library template packs (domain-specific)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (process scalability)
@@ -3918,51 +8787,1132 @@ If it is not recorded here — it does not exist.
     - Add one worked example cycle using one template pack
     - `ReadLints` clean for all new docs
 
-- [ ] P1: PRO monthly quota for LLM endpoints (parity with VIP)
+<a id="ledger-p1-agent-experimentation-lane"></a>
+- [x] P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P1 (AGENTS.md requires monthly quota before any LLM provider call)
-  - Target PR: TBD (infrastructure extension from PR-647 VIP quota)
-  - Status: 📋 Planned
-  - Reason (EN): PR-942 CBT insight endpoint added rate limiting but monthly quota enforcement exists only for VIP tier (PR-647). PRO-tier LLM endpoints (CBT insight, future agents) need equivalent quota infrastructure. Currently AGENTS.md mandates "All LLM endpoints MUST enforce server-side monthly hard quota before any provider call" but only VIP has implementation.
+  - Priority: P1 (process scalability + bounded AI optimization)
+  - Target PR: PR #1073 -> PR #1081 -> PR #1088 -> PR #1096 -> PR #1092 -> PR #1102 -> PR #1107
+  - Status: ✅ Completed on 2026-03-11 (`a00bba2f`; PR `#1107`) with the original PR1-PR6 chain fully merged; PR `#1114` then reused the same governed lane for the next applied verification-first reliability cycle without reopening the epic
+  - Reason (EN): PulsePlate now has coordinator-first workflow, KPP promotion, reflection, research track, telemetry rollups, and deterministic benchmark artifacts, but it still lacks one canonical protocol for `autoresearch`-style experiment loops. We need a governed experimentation lane so future optimization cycles can be bounded, auditable, and KPP-only instead of becoming ad-hoc autonomous mutation. (RU: Нужен единый канон для агентных циклов экспериментов, чтобы оптимизация не превращалась в неконтролируемую автомутацию репозитория.)
   - Links:
-    - app/security/llm_monthly_quota.py (VIP-only implementation)
-    - docs/audit/PR_647_VIP_LLM_MONTHLY_QUOTA_AUDIT.md
-    - app/routers/cbt_insight.py (PRO endpoint without monthly quota)
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/workflow.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
   - DoD:
-    - Extend llm_monthly_quota.py to support PRO tier (separate table or unified with tier column)
-    - CBT insight endpoint calls quota check before provider.generate()
-    - Deterministic tests for PRO quota enforcement
+    - PR1 governance SoT is merged and linked from the canonical orchestration docs
+    - PR2 bootstrap tooling, PR3 runner MVP, PR4 promotion/telemetry, PR5 CV eval lane, and PR6 first applied reliability optimization all have explicit backlog entries
+    - No phase of the lane permits hidden memory, autonomous merge, or mutation of immutable evaluation oracles
+    - Sequencing stays explicit: PR1 governance -> PR2 tooling -> PR3 runner -> PR4 promotion -> PR5 CV -> PR6 reliability optimization
 
-- [ ] P2: RAG chunk content redaction helper (PII/sensitive data)
+<a id="ledger-p1-agent-experiment-bootstrap"></a>
+- [x] P1: PR2 deterministic experiment bootstrap tooling
   - Owner: @katsiaryna_kavaleuskaya
-  - Priority: P2 (defense-in-depth; corpus is controlled server docs)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CodeRabbit flagged that chunk.content is used directly in prompts and response previews (cbt_insight.py:186-196). For controlled corpus (docs/cbt/, docs/psychology/) this is low risk, but a redaction helper would provide defense-in-depth for future corpora that may contain user-generated or sensitive content.
+  - Priority: P1 (dependency for the experimentation lane)
+  - Target PR: PR #1081
+  - Status: ✅ Merged on 2026-03-10 (`fd7a1626`)
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+  - Reason (EN): After governance lands, the lane needs a deterministic bootstrap artifact for experiment IDs, mutable surfaces, immutable oracle lists, budgets, and routing so candidate loops can start from a structured packet instead of prompt-only instructions.
   - Links:
-    - app/routers/cbt_insight.py:186-196 (chunk content usage)
-    - PR #942 CodeRabbit comment (2868000571)
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_contract.py`
   - DoD:
-    - Add redact_rag_context_for_insight() helper (or equivalent)
-    - Apply to prompt assembly and response previews
-    - Unit tests for redaction patterns
+    - Local experiment packet bootstrap tooling exists with deterministic JSON output
+    - Packet schema covers mutable surface, immutable oracles, budgets, metrics, and promotion target
+    - Outputs live under gitignored local artifacts only
+    - Tooling does not mutate runtime code or public contracts
 
-- [ ] P2: CorpusNotIndexedError - wire up or remove
+<a id="ledger-p1-agent-experiment-runner"></a>
+- [x] P1: PR3 experiment runner MVP for bounded candidate loops
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency for first applied optimization)
+  - Target PR: PR #1088
+  - Related follow-up: PR #1096 (`fix(app): restore bootstrap patchability on main`)
+  - Related follow-up status: ✅ Merged (PR #1096, 2026-03-11)
+  - Related follow-up SHA: `ddfee576e0d2b53d3a24e08ee58080a6c73cb75d`
+  - Status: ✅ Merged with hotfix traceability (PR `#1088` delivered the bounded experiment runner MVP; PR `#1096` then remediated the post-merge `app` bootstrap/patchability regression on `main` without widening scope into FitChef, sandbox, or design lanes)
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR2 deterministic experiment bootstrap tooling](#ledger-p1-agent-experiment-bootstrap)
+  - Reason (EN): The experimentation lane needs a bounded runner that applies candidate changes only to allowlisted surfaces, evaluates them against immutable oracles, and discards regressions without touching merge/readiness flows.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `scripts/orchestration/experiment_contract.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
+  - DoD:
+    - Runner uses isolated execution and never mutates a dirty shared worktree
+    - Runner enforces budgets and failure classes from the experimentation protocol
+    - Immutable oracle mutation is rejected fail-closed
+    - Runner outputs candidate result artifacts, not autonomous merge-ready commits
+
+<a id="ledger-p1-agent-experiment-promotion"></a>
+- [x] P1: PR4 experiment promotion and telemetry integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (governance closure for experiment outputs)
+  - Target PR: PR #1092
+  - Status: ✅ Merged on 2026-03-11 (`e0771be5`)
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): Winning candidates need one governed promotion path into PR packets, audits, guards, ledger items, or memory capsules, and telemetry needs experiment-aware fields so orchestration learning remains artifact-based and observable.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
+    - `scripts/orchestration/agent_run_summary.py`
+    - `scripts/orchestration/telemetry_rollup.py`
+  - DoD:
+    - Promotion tooling enforces exactly one durable destination per winning experiment
+    - Telemetry rollups understand experiment identifiers and failure/promotion classes
+    - Deferred experiment outcomes are ledgered immediately
+    - No hidden-memory path bypasses KPP promotion
+
+<a id="ledger-p1-agent-experiment-cv-lane"></a>
+- [x] P1: PR5 CV experimentation and evaluation lane (docs/eval only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (future multimodal track, no runtime integration yet)
+  - Target PR: #1102
+  - Status: ✅ Merged on 2026-03-11 (`55783414`; PR `#1102`)
+  - Follow-up: Canonical ledger closeout normalization is implemented in PR `#1120` (this docs-only follow-up) and becomes canonical on merge.
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [CV (photo → food): contract schema + uncertainty/degrade UX states + privacy packet](#ledger-p2-cv-photo-food)
+  - Reason (EN): Computer vision needs the same packetized experimentation contract as LLM/RAG work, but limited to offline evaluation, uncertainty, privacy packets, and deterministic degrade behavior before any runtime photo feature is attempted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md`
+    - `.cursor/agents/cv-agent.md`
+    - `.cursor/agents/data-scientist-agent.md`
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md`
+  - DoD:
+    - CV experiment packet fields cover dataset, uncertainty bands, privacy constraints, and degrade states
+    - CV lane remains docs/eval only with no image-retention runtime behavior
+    - Coordinator routing for CV experiments is explicit and bounded
+    - Deterministic acceptance criteria are documented
+
+<a id="ledger-p1-agent-experiment-first-reliability-pr"></a>
+- [x] P1: PR6 first applied LLM/RAG reliability optimization via governed lane
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (first practical output of the experimentation lane)
+  - Target PR: PR #1107
+  - Status: ✅ Merged on 2026-03-11 (`a00bba2f`)
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+    - [P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)](#ledger-p1-recursive-methods)
+  - Reason (EN): The first applied experiment-generated change should target `LLM/RAG reliability`, using current deterministic benchmark and test oracles to validate one bounded optimization before broader autonomous tooling is trusted.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `scripts/orchestration/experiment_bootstrap.py`
+    - `scripts/orchestration/experiment_runner.py`
+    - `tests/test_experiment_bootstrap.py`
+    - `tests/test_experiment_runner.py`
+  - DoD:
+    - One bounded reliability candidate is generated through the governed lane
+    - Candidate improvement is accepted by immutable oracles and documented with evidence
+    - Result is promoted through a normal human-reviewed PR
+    - No storage-cost or CV scope is mixed into this first applied optimization
+
+<a id="ledger-p1-reliability-v2-verification-pr"></a>
+- [x] P1: PR7 verification-first Reliability V2 applied orchestration cycle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (factual trust uplift on the merged experimentation lane)
+  - Target PR: PR #1114
+  - Status: ✅ Merged on 2026-03-11 (`57770899`)
+  - Dependencies:
+    - [P1 Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR6 first applied LLM/RAG reliability optimization via governed lane](#ledger-p1-agent-experiment-first-reliability-pr)
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+  - Reason (EN): After the first applied reliability change proved the governed lane end to end, the next applied slice needed a verification-first runtime policy that raises factual trust for RAG-backed insight generation while preserving the public `InsightResponse` shape and bounded provider cost.
+  - Links:
+    - `core/insight/philosophical_runtime.py`
+    - `core/rag/orchestration.py`
+    - `tests/test_philosophical_runtime.py`
+    - `tests/test_rag_orchestration.py`
+    - `tests/test_recursive_rag.py`
+    - `tests/test_insight_rag_response_fields.py`
+    - `docs/review/PR_1114_FIXED_MAPPING.md`
+  - DoD:
+    - Verification-first gating prefers accepted RAG-backed answers with `verification_rate >= 0.7`
+    - Low-verification factual/deep outputs trigger at most one bounded rewrite before a conservative fallback
+    - Recursive and non-recursive paths preserve the current response contract and deterministic reason codes
+    - The applied runtime change is validated by deterministic local oracles and merged through normal human-reviewed PR governance
+
+<a id="ledger-p1-creative-research-eval-lane"></a>
+- [x] P1: Creative research eval lane under governed experimentation epic
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (research moat, bounded discovery workflow)
+  - Target PR: PR `#1106` -> PR `#1112` -> PR `#1118` -> PR `#1124`
+  - Status: ✅ Completed in merged PRs `#1106`, `#1112`, `#1118`, and `#1124` on March 11, 2026
+  - Dependencies:
+    - [P1: Governed agent experimentation lane (PR1-PR6 orchestration epic)](#ledger-p1-agent-experimentation-lane)
+    - [P1: PR4 experiment promotion and telemetry integration](#ledger-p1-agent-experiment-promotion)
+  - Reason (EN): PulsePlate needs one governed `creative_research` sub-lane for divergence -> convergence -> verification -> promotion cycles, but it must remain inside the existing experimentation umbrella instead of becoming a second orchestration constitution. The lane should strengthen the Research / Differentiation contour, stay human-gated, and avoid public runtime exposure in wave 1.
+  - Links:
+    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md`
+    - `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
+    - `docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md`
+    - `docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md`
+    - `scripts/orchestration/creative_research_eval.py`
+    - `scripts/orchestration/creative_research_eval_contract.py`
+    - `tests/test_creative_research_eval.py`
+    - `tests/test_creative_research_eval_contract.py`
+    - `docs/review/PR_1112_FIXED_MAPPING.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
+    - `app/routers/creative_research_internal.py`
+    - `app/services/creative_research_runtime.py`
+    - `app/schemas/creative_research.py`
+    - `core/creative_research.py`
+    - `tests/test_creative_research_pilot_api.py`
+  - DoD:
+    - PR-A lands docs-only protocol and routing/evaluation/handoff visibility for `creative_research`
+    - PR-B adds offline eval harness, deterministic judge contracts, negative controls, and no runtime integration
+    - PR-C remains internal-only, feature-flagged, hidden from public OpenAPI, and introduces no new heavy LLM endpoint on the core path
+    - The lane preserves no hidden memory, no autonomous merge, no immutable-oracle mutation, and quota-before-call for any future provider-backed pilot
+
+<a id="ledger-p2-creative-research-domain-typing"></a>
+- [x] P2: Tighten creative research core domain typing
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1124`
+  - Status: ✅ Completed in merged PR `#1124` on March 11, 2026
+  - Reason (EN): `core/creative_research.py` is the shared SoT for the creative
+    research lane, but it still exposes `Any` and `dict[str, Any]` at validated
+    boundaries. Tighten the domain contract with explicit typed structures
+    without widening PR-C beyond the bounded internal pilot scope.
+  - Links:
+    - `core/creative_research.py`
+    - `app/schemas/creative_research.py`
+    - `docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md`
+    - `docs/review/PR_1118_FIXED_MAPPING.md`
+    - `docs/review/PR_1124_FIXED_MAPPING.md`
+  - DoD:
+    - Replace `Any` at the public core creative-research validation boundary
+      with `object` plus explicit typed domain structures
+    - Keep app/schema adapters aligned with the typed core contract
+    - Preserve deterministic creative-research eval and pilot tests
+
+<a id="ledger-p2-sdl-audit-canonicalization-cleanup"></a>
+- [x] P2: Canonicalize SDL audit artifact and reference path
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1131`
+  - Status: ✅ Completed in merged PR `#1131` on March 12, 2026
+  - Reason (EN): the governed creative-research lane is already merged, but the SDL rationale artifact still uses
+    `PR_TBD` identity and stale branch metadata while live orchestration docs reference it as a canonical rationale source.
+    The placeholder artifact must be converted into a stable docs-only audit and all references must be repaired without
+    widening scope into unrelated orchestration cleanup.
+  - Links:
+    - `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
+    - `docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+  - DoD:
+    - The SDL audit no longer uses `PR_TBD` or stale branch lineage in its document metadata
+    - The SDL audit is explicitly framed as a dev-only rationale artifact subordinate to the experimentation umbrella
+    - All canonical references point to the non-placeholder SDL audit path
+    - The change remains docs-only and introduces no runtime, schema, or OpenAPI behavior
+
+<a id="ledger-p2-uol-audit-canonicalization-cleanup"></a>
+- [x] P2: Canonicalize universal orchestration audit artifact and reference path
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1137`
+  - Status: ✅ Completed in merged PR `#1137` on March 12, 2026
+  - Reason (EN): the orchestration baseline audit still uses `PR_TBD` identity and a stale branch/file path, while live docs
+    and graph artifacts still point to that historical placeholder. The artifact must be renamed and reframed as a rationale
+    layer aligned to current workflow and experimentation authorities.
+    The ledger keeps the concrete PR number here to preserve canonical traceability from backlog item -> PR -> merge closeout.
+  - Links:
+    - `docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md`
+    - `docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md`
+    - `docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md`
+    - `docs/graph/graph.json`
+  - DoD:
+    - The universal orchestration audit no longer uses `PR_TBD` identity or stale branch metadata
+    - Live docs and graph references point to the non-placeholder audit path
+    - The audit is explicitly framed as a rationale artifact subordinate to the workflow and experimentation SoTs
+    - The change introduces no runtime, schema, or OpenAPI behavior
+
+<a id="ledger-p2-pr1118-governance-closeout"></a>
+- [x] P2: PR #1118 governance closeout for review-thread mapping and final merge-readiness pass
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1118`
+  - Status: ✅ Completed in merged PR `#1118` on March 11, 2026
+  - Reason (EN): PR `#1118` intentionally postpones final artifact closeout until
+    the remaining review dispositions settle; the canonical mapping artifact,
+    discussion-thread pass markers, and final merge-readiness / wait-window
+    evidence still need one synchronized closeout pass.
+  - Links:
+    - `docs/review/PR_1118_FIXED_MAPPING.md`
+    - `scripts/orchestration/review_mapping_artifact.py`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+  - DoD:
+    - All remaining PR `#1118` review threads have explicit dispositions
+    - The two `Discussion Thread Pass` checkboxes are checked in the canonical
+      mapping artifact
+    - Final merge-readiness / wait-window evidence is recorded before merge
+
+<a id="ledger-p2-phase2-body-artifact-sync"></a>
+- [x] P2: Eliminate PR body and mapping artifact phase2 drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1139 (`fix/pr12-phase2-artifact-sync`)
+  - Area: orchestration / CI governance
+  - Reason: PR5 closeout exposed a hidden governance fragility: `check_pr_body_phase2_gates.py` requires both the canonical mapping artifact and the PR body mirror to carry checked discussion/mapping markers plus at least one mapping entry, which creates avoidable double-maintenance drift during late review cycles.
+  - Status: ✅ Merged via PR #1139 on 12 March 2026 (`ff834517548bfb5bc4d59cb67f9f42da2db09cf7`)
+  - Links:
+    - `scripts/ci/check_pr_body_phase2_gates.py`
+    - `scripts/orchestration/check_merge_ready.py`
+    - `scripts/orchestration/review_mapping_artifact.py`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+    - `docs/review/PR_1139_FIXED_MAPPING.md`
+    - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Phase2 artifact is the merge-blocking SoT when `pr_number` is available
+    - PR body mirror is optional and no longer creates late-cycle mapping duplication failures
+    - The mirror helper validates the canonical artifact before rendering a PR-body block
+    - CI guidance explicitly distinguishes canonical SoT vs human-readable mirror
+
+<a id="ledger-p2-pr1298-doc-governance-followup"></a>
+- [ ] P2: PR #1298 docs/governance follow-up for audit evidence dedup and PR1-PR4 SoT labeling
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DOCS-GOVERNANCE-PR1298-FOLLOWUP
+  - Area: docs / governance
+  - Reason (EN): Post-open bot review on PR `#1298` surfaced two valid but non-blocking documentation refinements: the PR4 audit packet repeats some `file:line` evidence anchors inline and in evidence lists, and the PR1-PR4 sequencing narrative is mirrored across several docs without one clearly labeled canonical source note. Both improvements are outside the narrow entitlement-routing closeout scope and should land in a separate docs-only follow-up.
+  - Status: Deferred from PR `#1298` on 2 April 2026; current closeout lane keeps the runtime/authz scope narrow and records the follow-up explicitly instead of widening the packet late.
+  - Links:
+    - `docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/roadmap/PulsePlate_P0_P1_Execution_Document_2026-03-30.md`
+    - `docs/review/PR_1298_FIXED_MAPPING.md`
+  - DoD:
+    - The follow-up chooses and labels one canonical PR1-PR4 sequence source across the closeout packet docs
+    - Repeated audit evidence anchors are reduced without weakening `file:line` proof requirements
+    - The resulting docs-only change does not alter runtime authz, OpenAPI, or billing behavior
+
+<a id="ledger-p2-clean-clone-dependency-parity"></a>
+- [x] P2: Restore deterministic clean-clone dependency parity for local verify
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1127 (`fix/pr10-clean-clone-dependency-parity`)
+  - Area: tooling / developer-experience
+  - Reason: Final PR5 local `make verify` failed in the clean clone because `.venv` was missing locked `opentelemetry-*` packages required by `tests/test_genai_tracing.py`, even though `requirements.txt` already declared them. This is an environment parity gap, not a code regression, but it weakens merge confidence.
+  - Status: ✅ Merged via PR #1127 on 12 March 2026 (`09f600ff0db47f6ef1e3e9ba00f0368959b16488`)
+  - Links:
+    - `Makefile`
+    - `requirements.txt`
+    - `tests/test_genai_tracing.py`
+    - `tests/test_genai_tracing_config.py`
+  - DoD:
+    - Fresh clean clones can run `make verify` after one documented bootstrap path with no missing locked dependencies
+    - Local setup docs mention the canonical venv refresh command when lockfile drift is suspected
+    - At least one deterministic check guards against silently incomplete clean-clone environments
+
+<a id="ledger-p2-gh-checks-current-head-filter"></a>
+- [x] P2: Filter superseded GitHub check noise in merge triage
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1129 (`fix/pr11-gh-checks-current-head-filter`)
+  - Area: orchestration / GitHub governance
+  - Reason: PR5 merge triage repeatedly showed stale failed `test-pr` and `coverage-pr` lines from superseded runs in `gh pr checks`, even after the current head became `CLEAN`. This creates false negatives and slows final merge decisions.
+  - Kickoff: PR10 closeout completed on 12 March 2026; PR11 branch created from synced `main` after PR #1127 merge.
+  - Status: ✅ Merged via PR #1129 on 12 March 2026 (`4cc4786d87897897428db6ad4a0bb924f25f0bd2`)
+  - Links:
+    - `scripts/ci/check_pr_merge_readiness.py`
+    - `scripts/ci/check_current_head_pr_checks.py`
+    - `scripts/orchestration/check_merge_ready.py`
+    - `RUNBOOK_AGENT.md`
+  - DoD:
+    - Repo guidance or helper tooling can distinguish current-head required checks from superseded historical failures
+    - Merge triage output clearly labels stale runs as non-blocking when canonical readiness already passed
+    - Final merge checklist references the filtered current-head view
+
+<a id="ledger-p2-pr5-ledger-closeout-docs-only"></a>
+- [x] P2: Normalize PR5 ledger closeout via docs-only follow-up PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR `#1120`
+  - Area: orchestration / ledger governance
+  - Reason: `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md` requires a docs-only follow-up PR when a merged PR closes a ledger item. PR5 closeout was captured during the mixed-scope PR6 kickoff sequence, so it needs a narrow docs-only normalization PR instead of widening PR6 further.
+  - Links:
+    - `docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md`
+    - `docs/review/PR_1102_FIXED_MAPPING.md`
+  - Status: ✅ Implemented in PR `#1120` (this docs-only follow-up); canonical closeout takes effect on merge.
+  - DoD:
+    - A docs-only follow-up PR updates the PR5 ledger closeout in canonical form
+    - The follow-up PR references PR `#1102` and this deferred remediation item
+    - No runtime or tooling files are mixed into that normalization PR
+
+- [x] P2: First-class CV routing domain in orchestration graph
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1149 (`fix/pr13-cv-routing-domain`)
+  - Area: orchestration / routing
+  - Reason: PR5 keeps `ml` as the graph-level domain for CV experiments. If future work needs `cv-agent` as graph-primary rather than advisory, `AGENT_ROUTING_GRAPH.md`, `AGENT_CAPABILITY_MATRIX.md`, `AGENT_CONTEXT_MAP.md`, and routing/tooling tests must be updated together.
+  - Status: ✅ Merged via PR #1149 on 13 March 2026 (`9572039eea56f6337d26a35eebe8fb069fedf128`)
+  - Links:
+    - `docs/orchestration/AGENT_ROUTING_GRAPH.md`
+    - `.cursor/agents/cv-agent.md`
+    - `docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md`
+  - DoD:
+    - Routing graph defines a canonical `cv` domain or explicit equivalent
+    - Capability/context docs match the graph
+    - Bootstrap/routing tests cover graph-primary CV routing deterministically
+
+- [ ] P2: Canonical client ownership for future CV degrade UX
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR_TBD_CV_DEGRADE_UX_OWNERSHIP
+  - Area: orchestration / ios / frontend
+  - Reason: PR5 documents degrade states for future runtime/client work, but it intentionally does not invent a new canonical iOS/web execution owner. That ownership must be made explicit before any client-visible CV UX is implemented.
+  - Links:
+    - `docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md`
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `.cursor/agents/agent-coordinator.md`
+  - DoD:
+    - Future CV client work has an explicit canonical implementation owner
+    - Routing and context docs no longer imply conflicting iOS/frontend ownership
+    - Backlog item references the first runtime/client CV PR that consumes degrade states
+
+<a id="ledger-p1-design-tooling-phase2-env-api"></a>
+- [ ] P1: Phase 2 env/API automation for Notion, Airweave, and Penpot
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design-tooling scalability after governance baseline)
+  - Target PR: TBD (post-governance automation stream)
+  - Status: 📋 Planned
+  - Reason (EN): Phase 1 establishes governed runbooks and source precedence for
+    Figma, Notion, Airweave, and Penpot, but non-Figma tools remain
+    `HITL/browser-first`. A separate phase is needed to design scoped env/API
+    automation, session evidence, and security review without creating a second
+    source of truth. (RU: Вторая фаза нужна для безопасной env/API-автоматизации
+    Notion, Airweave и Penpot после фиксации governance-базиса.)
+  - Links:
+    - `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md`
+    - `docs/runbooks/NOTION_STRUCTURED_MEMORY_GOVERNANCE.md`
+    - `docs/runbooks/AIRWEAVE_RESEARCH_INGESTION_LANE.md`
+    - `docs/runbooks/PENPOT_SECONDARY_DESIGN_LANE.md`
+    - `docs/memory/kpp_knowledge_promotion_pipeline.md`
+  - DoD:
+    - Define scoped auth model for each tool (`browser-only` vs `env/API`)
+    - Add evidence requirements for write operations and promotions
+    - Confirm no secondary tool bypasses git SoT or Figma canonical mappings
+    - Update coordinator/runbook docs with approved automation paths only
+
+- [ ] P2: Rename legacy `vip_llm_monthly_usage` table to tier-neutral name
+- [x] PR-608 merged: audit post-merge evidence stamp (merged 2026-01-27)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-608
+  - Status: ✅ Merged
+  - Reason: Record post-merge verification evidence (main SHA + minimal stdout excerpt) for Q2b DoD closure.
+  - Links:
+    - docs/audit/PR_Q2B_IOS_UITESTS_BUNDLE_LOAD_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/608>
+  - DoD: ✅ Completed
+
+
+- [x] P2: CorpusNotIndexedError - wire up or remove
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (minor cleanup)
-  - Target PR: TBD
-  - Status: 📋 Planned
-  - Reason (EN): CorpusNotIndexedError is defined and exported in core/rag/contracts.py but never raised in production code. Either wire it up in simple_rag.py/vector_rag.py where corpus-not-found warnings are logged, or remove the unused exception to avoid confusion.
+  - Target PR: PR #1010
+  - Status: Done (merged in PR #1010)
+  - Reason (EN): The dead exception export was removed and regression coverage landed in the merged Wave 4 closure PR.
   - Links:
-    - core/rag/contracts.py:25-30 (exception definition)
-    - core/rag/simple_rag.py, core/rag/vector_rag.py (warning paths)
+    - `core/rag/contracts.py`
+    - `core/rag/__init__.py`
+    - `tests/test_rag_contract_surface.py`
     - PR #942 CodeRabbit comment (2868000574)
+  - Evidence:
+    - `core/rag/contracts.py:1` — contract surface no longer defines `CorpusNotIndexedError`.
+    - `core/rag/__init__.py:1` — package surface no longer re-exports the dead symbol.
+    - `tests/test_rag_contract_surface.py:10` — regression tests assert the dead export stays removed.
   - DoD:
-    - Either: raise CorpusNotIndexedError where appropriate and handle in callers
-    - Or: remove exception class and update tests
+    - [x] Remove the dead exception class/export and update regression tests
 
 ---
 
-**Last updated:** 2026-03-05 (fact-valid hotfix deltas + RAG quality status sync)
+- [x] P2: Execution Wave 3-R2 — Consent + signed handoff contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #960 (`feat(restaurants): W3-R2 consent + signed handoff contract`)
+  - Status: ✅ Merged (PR #960, 2026-03-04)
+  - Reason: Partner access must be explicit, revocable, and auditable.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/pro_restaurant_partner.py
+    - app/schemas/restaurant_partner.py
+    - tests/test_pro_restaurant_partner_api.py
+  - DoD:
+    - Consent/share issuance flow documented with expiry + revocation semantics
+    - Fail-closed behavior documented for revoked/expired shares (`403/410`)
+    - Audit fields fixed (`issuer`, `partner_id`, `issued_at`, `expires_at`, `revoked_at`)
+
+
+- [x] P2: Multi-hop retrieval + query refinement (W1 core)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (AI / RAG)
+  - Target PR: PR #973 (`feat/recursive-rag-w1-core`)
+  - Status: ✅ Merged (PR #973, 2026-03-04)
+  - Reason (EN): Recursive RAG W1 (core-only) is delivered behind feature flag with deterministic budgets and fail-safe fallback; advanced reasoning/refinement phases remain tracked separately in P1 recursive roadmap.
+  - Links:
+    - `docs/insights/RECURSIVE_METHODS_LLM_RAG.md`
+    - `docs/contracts/RAG_CONTRACT.md` (budget)
+  - DoD:
+    - `retrieve_recursive_context_structured(...)` integrated with feature-flag routing
+    - Budget constants and early-stop behavior enforced deterministically
+    - Fallback to legacy path remains fail-safe on internal errors
+    - `make verify` passes
+
+
+- [x] P2: sources[] in Insight response (client-visible)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (API / RAG)
+  - Target PR: PR #935
+  - Status: ✅ Merged as part of PR #935 (2026-02-27)
+  - Reason (EN): Expose RAG sources to client for transparency and EU AI Act traceability; requires RAG contract implementation first.
+  - Links:
+    - `docs/contracts/RAG_CONTRACT.md` (sect. 2)
+    - `legacy_app.py` (InsightResponse)
+  - DoD:
+    - Insight response includes sources[] when rag_used=true; preview redacted; OpenAPI updated
+    - `make verify` and `make openapi-check` pass
+
+
+<a id="ledger-pr998-orch2-carryover"></a>
+- [x] P2: Carry over PR #998 orchestration-2.0 review wave to PR #1000
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #1000 (`feat/agent-orchestration-2-0`)
+  - Status: Done (carryover comments re-evaluated and dispositioned in merged PR #1000)
+  - Area: orchestration / review governance / scope management
+  - Finding Type: carryover after scope cleanup
+  - Reason: PR #998 was force-cleaned back to the artifact-first governance scope. Cubic comments posted on 2026-03-06 against orchestration-runtime expansion files remain valid review input, but that code now lives in PR #1000 rather than PR #998.
+  - Links:
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1000`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/998#pullrequestreview-3906532584`
+    - `docs/review/PR_1000_FIXED_MAPPING.md`
+  - DoD:
+    - Carryover cubic comments from PR #998 are re-evaluated against PR #1000 scope
+    - Relevant fixes or explicit dispositions are recorded on PR #1000
+    - PR #998 remains limited to canonical Fixed Mapping SoT work
+
+- [x] P2: Execution Wave 3-R1 — Partner API contract freeze (`menu -> partner`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #958 (`feat(restaurants): add PRO partner order contract (W3-R1)`)
+  - Status: ✅ Merged (PR #958, 2026-03-03)
+  - Reason: Freeze canonical v1 contract before deep runtime integration to prevent schema drift.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/pro_restaurant_partner.py
+    - app/schemas/restaurant_partner.py
+  - Blockers:
+    - Persistent storage + audit trail not implemented yet (in-memory seam for W3-R1 only)
+    - Partner retrieval/confirmation hardening and export adapter waves pending (`W3-R3`, `W3-R4`)
+  - DoD:
+    - Non-breaking PRO endpoints contract documented and available under `/api/v1/pro/restaurants/partner/*`
+    - State model and transition constraints documented (`draft -> pending_partner -> confirmed|rejected -> fulfilled|cancelled`)
+    - Request/response schema examples and compatibility policy (additive-only for v1) documented
+
+
+- [x] P2: Execution Wave 3-R3 — Partner retrieval + confirmation hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR #962 (`feat(restaurants): W3-R3 retrieval and confirmation hardening`)
+  - Status: ✅ Merged (PR #962, 2026-03-04)
+  - Reason: Deterministic partner retrieval and confirmation semantics must be hardened before onboarding.
+  - Links:
+    - docs/design/RESTAURANT_INTEGRATION_SPEC.md
+    - docs/architecture/ADR_RESTAURANT_PARTNER_CONTRACT_SEAM_2026-03-03.md
+    - app/routers/pro_restaurant_partner.py
+    - tests/test_pro_restaurant_partner_api.py
+    - tests/test_pro_restaurant_partner_openapi_contract.py
+  - DoD:
+    - Owner isolation for retrieval/confirm is deterministic (`403` on issuer mismatch)
+    - `410 Gone` semantics are deterministic for expired handoff shares (including replay behavior)
+    - Confirm idempotency contract is deterministic for replay/conflict (`client_event_id`)
+    - OpenAPI partner contract is locked by tests (paths, response codes, schema refs, security)
+    - Out-of-scope boundary remains enforced (no payment/delivery in this wave)
+
+
+- [x] P2: Tooling — pre-flight auto-verification script
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR #966
+  - Status: ✅ Merged (PR #966, 2026-03-04)
+  - Priority: P2
+  - Area: tooling / orchestration
+  - Finding Type: automation
+  - Reason: Pre-flight Checklist is manual; coordinator "mentally checks" docs. Risk of drift. Script is direct executor of canon.
+  - Links:
+    - `docs/orchestration/AGENT_CONTEXT_MAP.md`
+    - `docs/orchestration/workflow.md`
+    - `.cursor/agents/agent-coordinator.md`
+    - `docs/plan/ORCHESTRATION_IMPROVEMENTS_PLAN_2026.md`
+  - DoD:
+    - Script verifies required context files present, repo hygiene (no tracked worktrees), prints PASS/FAIL
+    - Failure mode explicit; does not block unrelated tasks (scoped to orchestration workflow)
+
+
+### Other
+
+- [x] PR-560 CI iOS stability (merged 2026-01-21)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-560
+  - Status: ✅ Merged
+  - Reason: iOS CI stability fixes (simulator selection, Xcode pinning)
+  - Links:
+    - docs/CONTEXT_HANDOFF_2026-01-21.md
+  - DoD: ✅ Completed (iOS CI stable)
+
+
+- [x] PR-563 Thin HTTP Adapter (iOS) — merged 2026-01-21
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-563
+  - Status: ✅ Merged
+  - Reason: unified thin transport layer for iOS client (no business logic)
+  - Links:
+    - docs/audit/PR_562_THIN_CLIENT_HTTP_ADAPTER_AUDIT_TEMPLATE.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/563>
+  - DoD: ✅ Completed (iOS HTTPClient/APIClient/BMIService implemented)
+
+
+- [x] Auto-verification script (Pre-flight Checklist) — superseded by P2: Tooling — pre-flight auto-verification script
+  - Owner: @katsiaryna_kavaleuskaya
+  - Status: ✅ Superseded (consolidated into P2 entry above)
+  - Reason: Same scope; consolidated with plan link in P2 entry.
+
+
+- [x] PR-566 (Phase 2): Coordinator cleanup and deduplication — merged
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-566
+  - Status: ✅ Merged
+  - Reason: Agent coordinator deduplication (removed capability duplication)
+  - Links:
+    - docs/audit/PR_566_COORDINATOR_CLEANUP_AUDIT.md
+  - DoD: ✅ Completed (coordinator references agent files instead of duplicating)
+
+
+- [x] PR-611 AI Insight Safety & Error Hygiene (merged 2026-01-28)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-611
+  - Status: ✅ Merged
+  - Reason: P0 safety — ensure insight endpoints never leak internal errors (ImportError, provider.generate exceptions) and return safe 503 responses with sanitized detail messages. Also enforce `response_model=InsightResponse` contract.
+  - Links:
+    - docs/audit/PR_611_INSIGHT_SAFETY_ERROR_HYGIENE_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/611>
+  - DoD: ✅ Completed
+    - ✅ Import-failure returns 503 with safe detail (no "boom" leak)
+    - ✅ Provider.generate exceptions return 503 with safe detail (no raw exception leak)
+    - ✅ All insight endpoints use `response_model=InsightResponse`
+    - ✅ Tests use attribute access (`out.provider`, `out.insight`) not dict keys
+    - ✅ Import-failure test is deterministic (`FEATURE_INSIGHT=true` enforced)
+    - ✅ CI green (all checks pass)
+    - ✅ Post-merge verification passed (13 tests, OpenAPI sync)
+
+
+- [x] PR-570 (Phase 3): Agent index + model selection rationale — merged
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-570
+  - Status: ✅ Merged
+  - Links:
+    - docs/audit/PR_567_AGENT_INDEX_AUDIT.md
+    - docs/agents/index.md
+
+
+- [x] PR-561 Trivy suppression (CVE-2025-15281 glibc) (merged 2026-01-21)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-561
+  - Status: ✅ Merged
+  - Reason: Security suppression for unfixed upstream glibc CVE
+  - Links:
+    - docs/security/CVE-2025-15281-glibc.md
+    - trivy/ignore-policy.rego
+  - DoD: ✅ Completed (suppression with expiry date)
+
+
+- [x] PR-586 Web Thin HTTP Adapter — Guards
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-586
+  - Status: ✅ Guards created, remediation merged via PR-590
+  - Reason: Policy enforcement — guard tests to detect thin-client violations
+  - Links:
+    - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/586>
+  - DoD:
+    - ✅ Guard tests created (`frontend/src/api/__tests__/thin-client-guards.test.ts`)
+    - ✅ `frontend/AGENTS.md` updated with thin-client policy
+    - 🔴 CI expected RED (guards expose 4 direct fetch violations)
+    - Remediation tracked in PR-587
+
+
+- [x] PR-587 Web Thin HTTP Adapter — Remediation (fix-green)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Target PR: PR-590 (superseded PR-587/589)
+  - Status: ✅ Superseded by PR-590 (merged)
+  - Reason: Fix 4 direct fetch() violations detected by guards
+  - Links:
+    - docs/audit/PR_586_WEB_THIN_HTTP_ADAPTER_AUDIT.md (violations list)
+    - docs/audit/PR_587_WEB_THIN_HTTP_ADAPTER_REMEDIATION_AUDIT.md
+    - <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/590>
+  - DoD: ✅ Completed
+    - Migrate `features/plan/WeeklyPlanViewer.tsx:39` to use `fetchBlob()`
+    - Migrate `features/shoplist/ShoplistPreview.tsx:109` to use `fetchBlob()`
+    - Migrate `lib/shareFile.ts:108` to use `fetchBlob()`
+    - Migrate `lib/sharedLinks.ts:21` to use `api()`
+    - Guard tests pass (all 4 violations fixed)
+    - CI green
+
+
+- [ ] P2: Judgment protocol evidence-anchor hardening
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: `JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md` and `EVIDENCE_RECONCILIATION_PROTOCOL.md` need fuller `file:line` evidence anchors plus explicit exit-criteria references for the temporary dev-only seam, so protocol claims remain audit-traceable as the judgment lane evolves.
+  - Links:
+    - docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md
+    - docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md
+    - docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md
+  - DoD:
+    - Add `file:line` anchors for dev-only status, coordinator-first authority, role ownership, and shared contract values
+    - Link explicit exit-criteria artifacts for the temporary dev-only seam
+    - Re-run docs/governance checks with updated canonical references
+
+
+- [ ] P2: Stage-4 numeric context disambiguator expansion
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: Stage-4 numeric contradiction suppression still uses a narrowly curated context-term set; broader unit/cohort disambiguators should be evaluated in a bounded follow-up so common measurement-context pairs do not overfire without weakening true contradiction detection.
+  - Links:
+    - core/rag/philosophy_pipeline.py
+    - tests/test_philosophy_pipeline.py
+  - DoD:
+    - Audit additional unit/context tokens against false-positive contradiction cases
+    - Add deterministic regression tests for approved new disambiguators
+    - Keep contradiction detection green on existing cohort and metric-specific guards
+
+
+- [ ] P1: Query-specified cohort anchors in stage-4 contradiction checks
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD
+  - Status: Planned
+  - Reason: Stage-4 contradiction suppression currently treats audience/cadence terms as non-binding query stopwords by default, which can hide off-topic or conflicting evidence when the user explicitly asks for a specific cohort such as men, women, adults, or per-meal guidance.
+  - Links:
+    - core/rag/philosophy_pipeline.py
+    - tests/test_philosophy_pipeline.py
+  - DoD:
+    - Re-evaluate query-anchor handling for cohort/cadence terms without regressing existing false-positive suppression
+    - Add deterministic men/women and adult/child regression tests for query-bound contradiction handling
+    - Keep current multi-topic and unit-disambiguation protections green
+
+- [ ] P1: Canonical judgment-lane routing source for bootstrap packets
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1200 (`feat(orchestration): canonicalize bootstrap judgment routing`)
+  - Status: In review
+  - Reason: PR #1200 removes the bootstrap-local judgment trigger vocabulary, moves activation metadata into the canonical routing graph loader, and keeps the item open only until current-head CI and review governance fully close.
+  - Links:
+    - scripts/orchestration/task_bootstrap.py
+    - scripts/orchestration/route_with_telemetry.py
+    - scripts/orchestration/routing_graph_loader.py
+    - docs/orchestration/AGENT_ROUTING_GRAPH.md
+    - tests/test_task_bootstrap.py
+  - DoD:
+    - Bootstrap derives judgment-lane activation from a shared routing/config source instead of hardcoded trigger terms
+    - Routing graph, loader, and bootstrap tests cover the same activation path deterministically
+    - Task bootstrap remains read-only and emits decisions/JSON output without mutating routing docs
+
+
+<a id="ledger-p1-fitchef-judgment-offline-eval"></a>
+- [ ] P1: FitChef-first judgment offline eval contract and replay pack
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1208 (`feat: add fitchef judgment offline eval`) -> PR #1211 (`feat(orchestration): add FitChef judgment offline eval contract`)
+  - Status: Baseline merged on March 21, 2026; bounded PR-B closeout lane in progress in `feat/fitchef-judgment-prb-offline-eval`
+  - Dependencies:
+    - [P1: Creative research eval lane under governed experimentation epic](#ledger-p1-creative-research-eval-lane)
+  - Reason: FitChef needs a deterministic offline judgment-eval seam before any bounded runtime adoption, with replayable safety fixtures, byte-stable decision contracts, and additive packet compatibility. This keeps the judgment lane inside governed experimentation instead of introducing provider/network behavior on the public FitChef path.
+  - Links:
+    - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
+    - `docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md`
+    - `docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md`
+    - `docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md`
+    - `docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md`
+    - `core/judgment.py`
+    - `core/judgment_eval.py`
+    - `core/insight/philosophy_validator.py`
+    - `scripts/orchestration/judgment_eval_contract.py`
+    - `tests/fixtures/orchestration/fitchef_judgment_replay/replay_cases.json`
+    - `tests/test_judgment_core.py`
+    - `tests/test_judgment_eval_contract.py`
+    - `tests/test_fitchef_judgment_replay.py`
+    - `tests/test_task_bootstrap.py`
+  - DoD:
+    - `JUDGMENT_EVAL_CONTRACT.md` freezes deterministic replay input/output shapes, scoring axes, hard-fail outcomes, and byte-stable replay expectations
+    - `core/judgment_eval.py` and `scripts/orchestration/judgment_eval_contract.py` stay provider-free, network-free, and runtime-branch-free
+    - FitChef replay fixtures cover cravings, guilt after dessert, skipped meals, travel disruption, social-event drift, all-or-nothing reset, self-punishment request, diagnosis bait, and crisis-adjacent distress
+    - Continuity replay fixtures cover visible-context carry-forward, slip-support continuity, weak-context safe degradation, and fabricated-memory blocking without widening public/runtime schemas
+    - Creative-research scientific fields remain additive and missing-field outcomes downgrade to `defer` or `discard` without parser failure
+    - Packet-contract regressions prove `decision_contract`, `judgment_budget`, and `result_adjudication` remain additive and backward-compatible
+    - Local gates pass: `make verify` and `pre-commit run --all-files`
+
+
+<a id="ledger-p1-nightly-full-tests-node22-parity"></a>
+- [ ] P1: Nightly Full Tests Node 22 parity and release-gate selector alignment
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability / release safety)
+  - Target PR: PR `#1226` (`fix/nightly-full-tests-node22-parity`)
+  - Status: In progress as of March 22, 2026
+  - Reason: `Nightly Full Tests` failed on `main` after PR `#1209` moved OpenAPI/frontend flows to Node `22.22.1`, because `.github/workflows/nightly-tests.yml` still relied on the runner default Node `20.20.1`. Production release gating in `.github/workflows/cd.yml` also drifted to the legacy `nightly.yml` selector instead of the canonical `Nightly Full Tests` workflow.
+  - Links:
+    - `docs/ci/triage_nightly_2026-03-22.md`
+    - `.github/workflows/nightly-tests.yml`
+    - `.github/workflows/cd.yml`
+    - `.nvmrc`
+    - `frontend/package.json`
+    - `scripts/frontend_npm.sh`
+    - `tests/test_openapi_determinism.py`
+    - Failed run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23395469933>
+    - Failed job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/23395469933/job/68057604027>
+    - Regression introducer: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1209>
+  - DoD:
+    - `Nightly Full Tests` provisions Node from `.nvmrc` and installs frontend dependencies before pytest
+    - `pytest -q tests/test_openapi_determinism.py` passes under the nightly workflow contract
+    - `cd.yml` production gate queries `nightly-tests.yml` / `Nightly Full Tests`
+    - `make verify` and `pre-commit run --all-files` pass on the fix branch
+    - Manual `Nightly Full Tests` dispatch on `main` passes after merge and before the next release tag
+  - Deferred hardening follow-up:
+    - Evaluate `npm ci --ignore-scripts` or split frontend bootstrap into a
+      narrower least-privileged nightly job once the parity fix is shipped.
+    - Evaluate extracting the Node/frontend bootstrap into a shared workflow or
+      composite action so `ci.yml` and `nightly-tests.yml` do not drift again.
+
+
+<a id="ledger-p1-main-ci-xdist-worker-stability"></a>
+- [ ] P1: Main CI xdist worker stability on Python 3.12 full suite
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability / merge-signal integrity)
+  - Target PR: PR #1494 (`codex/fix-ci-xdist-worker-stability`) -> PR #1501 (`codex/main-ci-py312-root-cause-plus-uuid117`) -> containment PR (`codex/main-py312-containment`) -> active timeout root-cause lane (`codex/main-ci-py312-timeout-root-cause`)
+  - Status: PR #1494 and PR #1501 landed partial mitigations by April 23, 2026, but live main run `24811914187` still cancelled `test-main (3.12, 60)` after the coverage step reached the 60-minute containment window. PR #1505 containment disabled xdist for Python 3.12, but main run `24849990678` still had `test-main (3.12, 60)` running inside the coverage step after `2026-04-23T19:04:22Z`. Main run `24854923154` then failed the same job with `Segmentation fault (core dumped)` at roughly 20% under the sequential no-xdist coverage command. The active root-cause lane is `codex/main-ci-py312-timeout-root-cause`.
+  - Reason: the `main`-branch `CI` full-suite lane continues to surface
+    user-reported `"[gw1] node down: Not properly terminated"` instability in
+    the xdist-backed `test-main` path. Current lane evidence shows
+    `test-main (3.11, 60)` and `test-main (3.13, 90)` finishing normally while
+    `test-main (3.12, 60)` cancels after the test step reaches its timeout.
+    PR #1494 reduced worker pressure and PR #1501 split serial tests out of
+    the 3.12 xdist cohort, but the remaining 3.12 parallel segment still lacks
+    a live green main signal. PR #1505 disabled xdist for Python 3.12 only;
+    the active follow-up keeps xdist disabled but uses isolated process-level
+    shards to recover the `60` minute budget without changing the required
+    check identity or weakening pytest/coverage failure semantics.
+  - Links:
+    - `docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md`
+    - `docs/orchestration/MAINLINE_CI_XDIST_ROOT_CAUSE_AND_UUID117_PACKET_2026-04-23.md`
+    - `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md`
+    - `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
+    - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
+    - `scripts/ci/run_py312_main_shards.py`
+    - `.github/workflows/nightly.yml`
+    - `pyproject.toml`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+    - `tests/test_database_apis_coverage.py`
+    - User-reported signature: `[gw1] node down: Not properly terminated`
+    - Current main run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555>
+    - `test-main (3.12, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483372336>
+    - Later late-zone reproduction with timeout tail: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24799632664/job/72578492861>
+    - Live gate run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187>
+    - Cancelled `test-main (3.12, 60)` gate job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187/job/72651217023>
+    - Sequential no-xdist segfault job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24854923154/job/72765173124>
+    - Healthy comparator `test-main (3.11, 60)` job: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483386535>
+    - Green nightly reference: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24760590280>
+  - DoD:
+    - `test-main` keeps the same job identity and required-check topology
+    - `3.12` runs the full `-m "not slow"` test cohort through isolated
+      no-xdist process shards while `3.11` stays parallel and `3.13` keeps its
+      existing sequential fallback
+    - PRs that change the main-CI Python 3.12 runner/workflow contract run the
+      same `test-main` matrix as a scoped diagnostic proof path before merge
+    - A regression test freezes the workflow contract
+    - `pre-commit run --all-files`, `make validate-changed`, and branch/current-head
+      `CI` pass on the remediation branch
+    - Post-open `qa-engineer-agent -> bug-hunter` review pass is complete
+
+
+<a id="ledger-p2-py312-xdist-root-cause-hardening"></a>
+- [ ] P2: Python 3.12 xdist root-cause hardening after containment
+  - Owner: CI/QA
+  - Priority: P2 (CI hardening after required-check containment)
+  - Target PR: `codex/main-ci-py312-timeout-root-cause`
+  - Status: Active as of April 23, 2026. Pointer entry for the active root-cause lane; the detailed chronology remains in `#ledger-p1-main-ci-xdist-worker-stability`.
+  - Reason: PR #1505 containment is not the final root-cause fix. This follow-up tracks bounded evidence for any future pytest-xdist restoration after the deterministic no-xdist shard runner proves the required `test-main (3.12, 60)` budget.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `tests/AGENTS.md`
+    - `tests/test_ci_workflow_pr_size_governance_contract.py`
+    - `docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md`
+    - `docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md`
+    - Active timeout lane: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/tree/codex/main-ci-py312-timeout-root-cause>
+    - Historical worker-node failure: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24771474555/job/72483372336>
+    - Containment gate run: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24811914187>
+  - DoD:
+    - Add deterministic evidence or instrumentation for the Python 3.12 main timeout mode
+    - Keep 3.12 pytest-xdist disabled until a later bounded audit identifies the minimal xdist-hostile test group or runtime fixture pattern
+    - Prove the isolated no-xdist shard runner preserves coverage/JUnit artifacts and fails closed on shard failures
+    - Restore Python 3.12 parallelism only if the same current-head CI proves no worker-node termination or timeout
+    - Keep required job identity and matrix topology unchanged unless a separate architecture review approves a contract change
+
+
+<a id="ledger-p1-dependabot-uuid-storybook-carrier"></a>
+- [ ] P1: Remove Storybook carrier for Dependabot alert `#117` (`uuid`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / narrow frontend tooling remediation)
+  - Target PR: follow-up lane `codex/main-ci-py312-root-cause-plus-uuid117`
+  - Status: In progress as of April 23, 2026
+  - Reason: Dependabot alert `#117` remains open against
+    `frontend/package-lock.json` because Storybook 8's
+    `@storybook/addon-actions` still pulls `uuid@9`, while the patched floor is
+    `uuid@14.0.0`. A forced `uuid@14` override is not safe here because the
+    current Storybook carrier still expects the older CommonJS package shape.
+    The narrow remediation is to stop pulling the `addon-actions` carrier while
+    preserving the rest of the review-only Storybook surface.
+  - Links:
+    - `frontend/.storybook/main.ts`
+    - `frontend/.storybook/preview.ts`
+    - `frontend/package.json`
+    - `frontend/package-lock.json`
+    - GitHub alert: `security/dependabot/117`
+    - Advisory: `GHSA-w5hq-g745-h8pq`
+  - DoD:
+    - `frontend/package-lock.json` no longer resolves `uuid@9` through the
+      Storybook addon carrier
+    - Storybook build passes after the narrow addon split
+    - frontend build passes after the lockfile refresh
+    - no Storybook major migration or unrelated frontend runtime churn is
+      introduced in the same PR
+
+
+<a id="ledger-p1-remove-pygments-pip-audit-ignore"></a>
+- [ ] P1: Remove temporary Pygments pip-audit ignore when patched release exists
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / pre-push unblock follow-up)
+  - Target PR: #1282
+  - Status: In progress in PR #1282 after the public GHSA flipped to
+    `first_patched_version: 2.20.0` on 30 March 2026
+  - See ADR: `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
+  - Reason: `pip-audit` previously needed a documented temporary
+    `--ignore-vuln` exception because `GHSA-5239-wwwm-4pmq` had no patched
+    `Pygments` release. The public advisory now exposes `2.20.0` as the safe
+    floor, so the branch must retire the seam and pin the patched release
+    across the tracked requirement surfaces before merge.
+  - Links:
+    - GitHub alerts: `security/dependabot/80`, `security/dependabot/81`
+    - GitHub advisory: `https://github.com/advisories/GHSA-5239-wwwm-4pmq`
+    - `docs/architecture/ADR_PIP_AUDIT_PYGMENTS_SUPPRESSION_SEAM_2026-03-25.md`
+    - `.pre-commit-config.yaml`
+    - `docs/security/GHSA-5239-wwwm-4pmq-pygments.md`
+    - `requirements-ci-lite.txt`
+    - `requirements-test.txt`
+    - `requirements.txt`
+    - `requirements-dev.txt`
+    - `requirements-lock.txt`
+  - Blockers / Exit criteria:
+    - Merge PR #1282 with the patched `Pygments` pins and seam removal
+    - CI guard must confirm the live advisory state and reject any attempt to
+      reintroduce the ignore or a stale pin below `2.20.0`
+    - ADR exit criteria must remain satisfied after merge
+  - DoD:
+    - A patched `Pygments` release exists and is pinned across the tracked lock surfaces
+    - `.pre-commit-config.yaml` no longer carries `--ignore-vuln GHSA-5239-wwwm-4pmq`
+    - `pip-audit` passes without the temporary exception
+    - ADR exit criteria are satisfied and the seam is retired
+    - The security note is updated or closed with final remediation evidence
+
+<a id="ledger-p1-bump-pillow-prepush-baseline"></a>
+- [ ] P1: Bump Pillow to clear pre-push pip-audit baseline
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / pre-push unblock follow-up)
+  - Target PR: PR #1421
+  - Status: In progress on PR #1421 as of 14 April 2026
+  - Reason: opening the Codex skills alignment draft PR is currently blocked by
+    a repo-wide pre-push `pip-audit` failure on `pillow==12.1.1`
+    (`GHSA-whj4-6x5x-4v2j`, fixed in `12.2.0`). The blocker is unrelated to the
+    skills-alignment diff, but must be tracked explicitly before using
+    `git push --no-verify` to publish the draft PR branch.
+  - Links:
+    - `requirements.txt`
+    - `requirements-lock.txt`
+    - `requirements-ci-lite.txt`
+    - `.pre-commit-config.yaml`
+    - `git push` pre-push hook output on branch `feat/codex-skills-alignment-passive`
+  - DoD:
+    - `requirements.txt`, `requirements-lock.txt`, and `requirements-ci-lite.txt`
+      pin a patched Pillow release
+    - `pre-commit run --hook-stage pre-push pip-audit --all-files` passes
+    - the temporary `--no-verify` exception is no longer needed for this branch class
+
+<a id="ledger-p1-unyank-numpy-runtime-pin"></a>
+- [ ] P1: Replace yanked numpy runtime pin with a non-yanked release
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency hygiene / install reliability)
+  - Target PR: separate narrow dependency follow-up after `#1236`
+  - Status: Opened on 25 March 2026
+  - Reason: `requirements.txt` still pins `numpy==2.4.0`, which is yanked and
+    causes installation warnings. This was flagged during PR `#1236` review but
+    stays out of scope for the security-unblock lane because that PR is limited
+    to `requests` remediation plus the documented temporary `Pygments`
+    exception.
+  - Links:
+    - `requirements.txt`
+    - `docs/review/PR_1236_FIXED_MAPPING.md`
+  - DoD:
+    - `numpy` is pinned to a non-yanked compatible release across affected lock surfaces
+    - dependency/install warnings for the yanked runtime pin are eliminated
+    - `pre-commit run --all-files` and `make verify` pass after the bump
+
+<a id="ledger-p1-python-supply-chain-mirror-quarantine"></a>
+- [ ] P1: Python package mirror and quarantine lane for hermetic CI/Docker installs
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (supply-chain hardening)
+  - Target PR: `PR #1251`
+  - Status: In progress on 26 March 2026
+  - Reason: Repo-local hardening now fails closed on `PULSEPLATE_PYTHON_INDEX_URL` for shared install paths, but closure still depends on an approved internal mirror or promoted artifact store with quarantine review being provisioned in CI. Required provisioning blocker: `PULSEPLATE_PYTHON_INDEX_URL`; optional compatibility blocker only if the proxy needs it: `PULSEPLATE_PYTHON_TRUSTED_HOST`.
+  - Links:
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `scripts/ci/check_python_startup_hooks.py`
+    - `docs/security/LITELLM_SUPPLY_CHAIN_RESPONSE_RUNBOOK.md`
+    - `docs/DEPENDENCY_MANAGEMENT.md`
+    - `.github/actions/python-setup/action.yml`
+    - `.github/workflows/ci.yml`
+  - DoD:
+    - CI and Docker install from an approved internal mirror or promoted artifact source by default
+    - public-index resolution is removed from normal shared CI/bootstrap paths
+    - quarantine/promotion review exists for new Python artifacts before they reach shared runners
+    - `make verify` and canonical CI continue to pass after the mirror cutover
+
+<a id="ledger-p1-extract-litellm-hardening-followup-pr"></a>
+- [ ] P1: Extract LiteLLM supply-chain hardening into a standalone PR
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (recovery and scope hygiene)
+  - Target PR: PR #1243
+  - Status: Opened on 26 March 2026
+  - Reason: The existing LiteLLM hardening work was built on top of a mixed local tree that sat on a merged security branch and collided with unrelated governance drift. The hardening itself is still valid, but it must be preserved and reopened as an isolated PR with only the LiteLLM bucket.
+  - Links:
+    - `docs/security/LITELLM_SUPPLY_CHAIN_RESPONSE_RUNBOOK.md`
+    - `scripts/ci/install_locked_python_requirements.py`
+    - `scripts/ci/check_python_startup_hooks.py`
+  - DoD:
+    - a fresh branch from `origin/main` contains only the LiteLLM hardening bucket
+    - unrelated orchestration, Figma, and governance drift is excluded
+    - `pre-commit run --all-files` and `make verify` pass on the extracted branch
+    - the PR description states that the change is prevention hardening, not proof of compromise
+    - post-open review uses `qa-engineer-agent -> bug-hunter`
+
+<a id="ledger-p1-py313-main-ci-stall-root-cause"></a>
+- [ ] P1: Root-cause Python 3.13 CI slowdown and retire timeout stopgap
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (CI stability / main-branch readiness)
+  - Target PR: PR-TBD-PY313-CI-STALL-ROOT-CAUSE
+  - Status: Opened on 11 April 2026
+  - Status note: The feature/fix push feedback split is being handled in
+    `fix/ci-feature-fast-feedback`. Do not close this item when that PR lands;
+    the remaining `test-main (3.13)` root cause and timeout-stopgap retirement
+    stay tracked here until canonical `main` evidence is green without the
+    temporary 90-minute buffer.
+  - Reason: Current-head feature and `main` CI runs both show a pathological
+    Python 3.13 slowdown in canonical `CI`. `test-feature (3.13)` reached the
+    60-minute job timeout in run `24266451930`, and earlier `main` evidence
+    showed `test-main (3.13)` materially outliving `3.11` and `3.12`. The
+    immediate mitigation is a py3.13-scoped timeout increase plus deterministic
+    duration diagnostics in `.github/workflows/ci.yml`, but the underlying
+    cause remains unresolved and must be isolated before the stopgap can be
+    removed.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `RUNBOOK_AGENT.md`
+    - `docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/24266451930/job/70862392048`
+  - DoD:
+    - a representative current-head feature or `main` run shows Python 3.13
+      tests completing without unexplained pathological slowdown
+    - the slowest Python 3.13 tests or setup segment are identified from
+      deterministic diagnostics
+    - the py3.13-specific timeout increase is either justified with documented
+      evidence or removed
+    - canonical `CI` returns to stable green without manual rerun dependence
+    - any remaining workflow debt is documented explicitly rather than hidden
+      inside the stopgap
+
+<a id="ledger-p2-canonical-ci-shard-map-redesign"></a>
+- [ ] P2: Redesign shard map before any canonical CI shard rollout
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (test topology hardening)
+  - Target PR: PR-TBD-CI-SHARD-MAP-REDESIGN
+  - Status: Opened on 12 April 2026
+  - Reason: Existing shard patterns are not exhaustive enough for canonical CI
+    truth and would silently omit a large portion of the test surface if
+    promoted directly.
+  - Links:
+    - `pytest_sharding.py`
+    - `.github/workflows/ci.yml`
+  - DoD:
+    - every shard selection rule is coverage-audited against the current test
+      inventory
+    - shard topology has deterministic completeness guards
+    - no shard rollout reaches canonical CI without an explicit completeness
+      proof
+
+<a id="ledger-p2-ci-contract-risk-helper-extraction"></a>
+- [ ] P2: Centralize duplicated contract/risk suite map before next CI topology pass
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (CI maintainability / workflow drift prevention)
+  - Target PR: PR-TBD-CI-CONTRACT-RISK-HELPER
+  - Status: Opened on 12 April 2026
+  - Status note: `fix/ci-feature-fast-feedback` intentionally keeps the duplicated
+    workflow-local suite map so the merge-conflict + fail-closed stabilization
+    stays small. Do not reopen PR 1405 for this refactor.
+  - Reason: `.github/workflows/ci.yml` currently carries two copies of the
+    `CONTRACT_RISK_GROUPS` -> pytest-target expansion logic across `test-pr`
+    and `test-feature`. This is acceptable for the current fast-feedback
+    stabilization, but it creates future drift risk and should be replaced by a
+    single shared helper before the next CI topology change.
+  - Links:
+    - `.github/workflows/ci.yml`
+    - `scripts/ci/ci_risk_profile.py`
+    - `docs/review/PR_1405_FIXED_MAPPING.md`
+  - DoD:
+    - one canonical helper expands `CONTRACT_RISK_GROUPS` into a deterministic,
+      sorted pytest target list
+    - `test-pr` and `test-feature` consume the same helper instead of duplicating
+      the group map in YAML
+    - unknown groups still fail closed with a non-zero exit
+    - empty selections remain an explicit no-op with stable logs
+    - workflow contract tests cover the shared helper wiring end to end
+
+**Last updated:** 2026-04-24 (food data source-update preflight PR1)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->

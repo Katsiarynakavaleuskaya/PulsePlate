@@ -21,7 +21,7 @@ from app.security.web_session import WEB_SESSION_COOKIE_NAME, issue_web_session
 def _session_cookie_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """Set deterministic env for cookie signing and local cookie policy."""
 
-    monkeypatch.setenv("SERVER_SALT", "test-server-salt")
+    monkeypatch.setenv("SERVER_SALT", "StrongServerSaltForTests123456789!")
     monkeypatch.setenv("APP_ENV", "local")
     monkeypatch.setenv("DEBUG", "true")
 

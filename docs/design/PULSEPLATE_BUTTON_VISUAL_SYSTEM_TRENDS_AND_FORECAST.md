@@ -148,7 +148,7 @@ Every CTA component in this scope must define:
 
 State set for all rows: `default, hover/pressed, focus-visible, disabled/locked, loading, error`.
 
-| Platform | Screen | Button/CTA ID | Placement Zone | UX Intent | Variant A (V1) | Variant B (V2) | Variant C (V3) | Recommended Variant | State Set | Icon Rule | Sora Prompt IDs | Figma Node ID/TBD | Implement Note |
+| Platform | Screen | Button/CTA ID | Placement Zone | UX Intent | Variant A (V1) | Variant B (V2) | Variant C (V3) | Recommended Variant | State Set | Icon Rule | Sora Prompt IDs | Design Review Reference/TBD | Implement Note |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Web | Home | `web.home.open_setup` | `W_HOME_QA_GRID` | Start setup flow fast | Solid primary CTA with calm trust contrast | Soft-glass elevated tile CTA | Precision outline quick-action CTA | V1 | All mandatory states | Setup/support icon, no medical glyph | `SORA_BTN_web_home_open_setup_V1_default_V1` + same contract for V2/V3 and all states | TBD | Keep as primary Home CTA, test parity across desktop/mobile |
 | Web | Home | `web.home.open_plate` | `W_HOME_QA_GRID` | Navigate to Plate (auth-aware) | Solid secondary-primary bridge CTA | Soft-glass gated CTA with subtle lock affordance | Precision outline navigation CTA | V3 | All mandatory states | Plate icon must stay readable at 24 px | `SORA_BTN_web_home_open_plate_V3_default_V1` + full state contract | TBD | Add clearer locked/redirect visual affordance |
@@ -182,7 +182,7 @@ State set for all rows: `default, hover/pressed, focus-visible, disabled/locked,
 | P0 | Add deterministic CTA-state QA for dynamic issue actions (Plate/Progress iOS) | Dynamic labels need state-consistent visuals | iOS + QA | Same PR wave as runtime couplings |
 | P1 | Roll out V1/V2/V3 harmonization across all 23 CTA IDs in Figma component sets | Prevent drift between screens/platforms | Creative + Sora + Figma coordinator | Figma component sync PR |
 | P1 | Materialize row-level Sora prompt outputs from prompt IDs in this document | Ensure deterministic prompt handoff | Sora prompt engineer | Prompt ops PR |
-| P2 | Backfill all `Figma Node ID` cells after component freeze | Complete design-to-code traceability | Design + FE + iOS | Node traceability PR |
+| P2 | Backfill all `Design Review Reference` cells after component freeze | Complete tool-neutral design-to-code traceability | Design + FE + iOS | Design traceability PR |
 | P2 | Capture screenshot parity snapshots per CTA state family | Improve review reproducibility | QA + Coordinator | Visual QA hardening PR |
 
 ## 10) Security + Safety Notes

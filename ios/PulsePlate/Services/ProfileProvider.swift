@@ -1,5 +1,9 @@
 import Foundation
 
+enum AppStorageKeys {
+    static let appLanguage = "AppLanguage"
+}
+
 // MARK: - PRO Nutrition Profile (Plate /daily)
 //
 // RU: Единый источник query-параметров профиля для PRO endpoints (Plate).
@@ -58,8 +62,6 @@ public struct DefaultProfileProvider: ProfileProviding, Sendable {
         static let activity = "pro_profile_activity"
         static let goal = "pro_profile_goal"
 
-        // Shared with LocalizationManager
-        static let appLanguage = "AppLanguage"
     }
 
     private let userDefaults: UserDefaults
@@ -69,7 +71,7 @@ public struct DefaultProfileProvider: ProfileProviding, Sendable {
     }
 
     public func languageCode() -> String {
-        let raw = (userDefaults.string(forKey: Keys.appLanguage) ?? "en").lowercased()
+        let raw = (userDefaults.string(forKey: AppStorageKeys.appLanguage) ?? "en").lowercased()
         // Backend currently supports these language codes.
         switch raw {
         case "en", "ru", "es":

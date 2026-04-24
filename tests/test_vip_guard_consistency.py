@@ -15,6 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.middleware.api_tiers import TEST_KEY_PRO, TEST_KEY_VIP
+from tests.helpers.fitchef_runtime_helpers import make_mock_run_weekly_plan_task
 
 
 @pytest.fixture
@@ -176,17 +177,10 @@ def test_vip_guard_post_allows_vip_and_returns_2xx(
     """
     # Mock internal calls for endpoints that require them
     if path == "/api/v1/vip/menu/weekly/plan":
-        # Conditional mock: only return success for expected function name
-        def mock_safe_call(func_name: str, **kwargs: Any) -> dict[str, Any]:
-            if func_name == "make_weekly_menu":
-                return {"status": "success", "menu": {"days": []}}
-            return {
-                "status": "error",
-                "code": "unexpected_call",
-                "message": "unexpected adapter call",
-            }
-
-        monkeypatch.setattr("app.routers.vip._safe_call_with_adapter", mock_safe_call)
+        monkeypatch.setattr(
+            "app.services.fitchef_runtime.run_weekly_plan_task",
+            make_mock_run_weekly_plan_task(),
+        )
     elif path == "/api/v1/vip/shoplist/weekly":
         # Mock all three functions in the chain
         monkeypatch.setattr("app.routers.vip.aggregate_ingredients", lambda req: [])

@@ -632,6 +632,10 @@ Circular progress ring overlay.
 
 Figma Component Set: `PP/Web/DataViz/ProgressCharts`
 
+Note: this section describes the target design language for a future chart-rich
+progress surface. Current shipped web runtime does not render fabricated charts;
+it uses a trusted empty state until real progress data exists.
+
 Three chart types in a stacked layout.
 
 **LineChart (Weight/BMI Trends):**
@@ -1292,7 +1296,10 @@ All buttons must have these states designed in Figma:
 | Loading | Spinner icon, 70% opacity, no pointer events | Async operation in progress |
 | Error | Red border, error text below (if applicable) | Failed operation |
 
-**Figma Node ID status:** All CTAs currently `TBD` - to be assigned when Figma Design URLs become available. See `docs/figma/orchestration/sessions/2026-02-18_figma_sync_hpp/03_SYNTHESIS_DECISION.md:9` for blocker status.
+**Figma Node ID status:** `blocked_by_node_id_capture` (`missing_node_id`) +
+`blocked_by_plan` (Design URL exists, node IDs pending refresh, Code Connect
+seat unavailable). See `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md` and
+`docs/figma/FIGMA_CODE_CONNECT_BRIDGE_HPP.md`.
 
 ---
 
@@ -1489,7 +1496,7 @@ Status claims below are target/roadmap assessments based on codebase analysis; f
 | **GlassCard** | Implemented | Implemented | - |
 | **TabBar/Navigation** | Implemented | Implemented | - |
 | **PlateChart** | Implemented | Implemented (PlateSegments) | - |
-| **ProgressCharts** | Implemented (mock data) | Skeleton only | P0-A |
+| **ProgressCharts** | Trusted empty state in release path; chart-rich design remains target-only | Skeleton only | P0-A |
 | **PremiumGate** | Implemented | N/A (StoreKit paywall) | - |
 | **SoftPaywallHook** | Implemented | Implemented | - |
 | **BeforeAfter Modal** | Implemented | N/A | - |

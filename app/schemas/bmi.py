@@ -16,6 +16,7 @@ from typing import Final, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from core.i18n import Language
+from app.schemas.intervention import NextBestAction
 
 RiskLevel = Literal["low", "moderate", "high"]
 
@@ -522,6 +523,11 @@ class BMICalculateResponse(BaseModel):
     soft_paywall: SoftPaywallHook | None = Field(
         default=None,
         description="Optional soft paywall hook for PRO tier upsell (wellness positioning only).",
+    )
+
+    next_best_action: NextBestAction | None = Field(
+        default=None,
+        description="Optional backend-authored next-step hint for planning progression.",
     )
 
 

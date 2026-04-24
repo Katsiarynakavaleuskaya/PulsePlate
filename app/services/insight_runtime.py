@@ -1,0 +1,235 @@
+"""App-layer tracing adapters for the insight runtime.
+
+RU: App-layer адаптеры для insight runtime, чтобы tracing не жил в core/ и legacy_app.py.
+EN: App-layer adapters for the insight runtime so tracing stays out of core/ and legacy_app.py.
+"""
+
+from __future__ import annotations
+
+import inspect
+import os
+from typing import Any
+
+import core.rag.orchestration as rag_orchestration
+
+from app.telemetry.genai import (
+    chain_span,
+    finalize_llm_span,
+    llm_span,
+    retrieval_span,
+    set_attributes,
+)
+from app.utils.feature_flags import (
+    _is_truthy,
+    is_philosophy_linguistic_enabled,
+    is_philosophy_phase12_enabled,
+    is_philosophy_pragmatic_enabled,
+    is_philosophy_router_enabled,
+    is_philosophy_validation_enabled,
+    is_recursive_rag_enabled,
+    is_recursive_rag_optimization_enabled,
+)
+from core.ai.insight_runtime import RecursiveRolloutPolicy
+from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
+
+
+class TracedInsightProvider:
+    """Wrap insight provider calls with LLM spans in the app layer."""
+
+    def __init__(self, provider: Any, *, user_tier: str, route: str) -> None:
+        self._provider = provider
+        self._user_tier = user_tier
+        self._route = route
+        self.name = str(getattr(provider, "name", "unknown"))
+
+    async def generate(self, text: str) -> str:
+        """Execute provider.generate with a traced LLM span."""
+
+        with llm_span(
+            provider_name=self.name,
+            user_tier=self._user_tier,
+            route=self._route,
+            prompt_text=text,
+        ) as span:
+            result = self._provider.generate(text)
+            if inspect.isawaitable(result):
+                result = await result
+            if not isinstance(result, str):
+                raise TypeError("Insight provider must return a string response")
+            actual_provider_name = str(
+                getattr(self._provider, "active_provider_name", self.name),
+            )
+            set_attributes(
+                span,
+                **{
+                    "gen_ai.provider.name": actual_provider_name,
+                },
+            )
+            if actual_provider_name != self.name:
+                self.name = actual_provider_name
+            finalize_llm_span(span, result)
+            return result
+
+
+def insight_feature_flag_state(
+    *,
+    use_rag: bool | None = None,
+    recursive_rollout_policy: RecursiveRolloutPolicy | None = None,
+) -> dict[str, bool]:
+    """Return deterministic feature-flag snapshot for insight tracing."""
+
+    if use_rag is not None:
+        rag_enabled = use_rag
+    elif recursive_rollout_policy is not None:
+        rag_enabled = recursive_rollout_policy.use_rag
+    else:
+        rag_enabled = _is_truthy(os.getenv("FEATURE_RAG", "false"))
+    recursive_enabled = (
+        is_recursive_rag_enabled()
+        if recursive_rollout_policy is None
+        else recursive_rollout_policy.recursive_path_enabled
+    )
+    recursive_optimization_enabled = (
+        is_recursive_rag_optimization_enabled()
+        if recursive_rollout_policy is None
+        else recursive_rollout_policy.optimization_path_enabled
+    )
+
+    return {
+        "insight": _is_truthy(os.getenv("FEATURE_INSIGHT", "false")),
+        "philosophy_router": is_philosophy_router_enabled(),
+        "philosophy_phase12": is_philosophy_phase12_enabled(),
+        "philosophy_linguistic": is_philosophy_linguistic_enabled(),
+        "philosophy_pragmatic": is_philosophy_pragmatic_enabled(),
+        "philosophy_validation": is_philosophy_validation_enabled(),
+        "rag": rag_enabled,
+        "rag_recursive": recursive_enabled,
+        "rag_recursive_optimization": recursive_optimization_enabled,
+        "rag_vector": _is_truthy(os.getenv("FEATURE_RAG_VECTOR", "false")),
+    }
+
+
+async def _traced_retrieve_and_validate_rag(
+    prompt_input: str,
+    *,
+    max_chunks: int,
+    philo_validation_enabled: bool,
+    recursive_rollout_policy: RecursiveRolloutPolicy,
+    subject_id: int | None,
+    knowledge_policy: Any,
+    user_tier: str,
+    route_path: str,
+) -> Any:
+    """Wrap RAG retrieval in a deterministic retriever span."""
+
+    with retrieval_span(
+        user_tier=user_tier,
+        route=route_path,
+        max_chunks=max_chunks,
+    ) as span:
+        rag_result = await rag_orchestration.retrieve_and_validate_rag(
+            prompt_input,
+            max_chunks=max_chunks,
+            philo_validation_enabled=philo_validation_enabled,
+            recursive_rag_enabled=recursive_rollout_policy.recursive_path_enabled,
+            optimization_enabled=recursive_rollout_policy.optimization_path_enabled,
+            recursive_optimization_hints=(
+                recursive_rollout_policy.optimization_hints
+                if recursive_rollout_policy.optimization_path_enabled
+                else None
+            ),
+            subject_id=subject_id,
+            knowledge_policy=knowledge_policy,
+        )
+        set_attributes(span, **{"pulseplate.rag.hops": rag_result.hops})
+        return rag_result
+
+
+async def generate_traced_insight(
+    *,
+    runtime: Any,
+    text: str,
+    lang: str | None,
+    provider: Any,
+    use_rag: bool,
+    philo_validation_enabled: bool,
+    recursive_rag_enabled: bool,
+    route_path: str,
+    route_type: str,
+    user_tier: str,
+    subject_id: int | None,
+    knowledge_policy: Any,
+    recursive_rag_optimization_enabled: bool = False,
+    rollout_policy: PhilosophyRolloutPolicy | None = None,
+    recursive_rollout_policy: RecursiveRolloutPolicy | None = None,
+    philosophy_router_enabled: bool = False,
+    philosophy_phase12_enabled: bool = False,
+    philosophy_linguistic_enabled: bool = False,
+    philosophy_pragmatic_enabled: bool = False,
+) -> Any:
+    """Run philosophical insight generation with app-layer tracing only."""
+
+    traced_provider = TracedInsightProvider(
+        provider,
+        user_tier=user_tier,
+        route=route_path,
+    )
+    resolved_recursive_rollout_policy = recursive_rollout_policy or RecursiveRolloutPolicy(
+        use_rag=use_rag,
+        recursive_rag_enabled=recursive_rag_enabled,
+        recursive_rag_optimization_enabled=recursive_rag_optimization_enabled,
+    )
+
+    async def _rag_retriever(
+        prompt_input: str,
+        *,
+        max_chunks: int,
+        philo_validation_enabled: bool,
+        recursive_rag_enabled: bool,
+        subject_id: int | None,
+        knowledge_policy: Any = None,
+    ) -> Any:
+        return await _traced_retrieve_and_validate_rag(
+            prompt_input,
+            max_chunks=max_chunks,
+            philo_validation_enabled=philo_validation_enabled,
+            recursive_rollout_policy=resolved_recursive_rollout_policy,
+            subject_id=subject_id,
+            knowledge_policy=knowledge_policy,
+            user_tier=user_tier,
+            route_path=route_path,
+        )
+
+    with chain_span(
+        "insight chain",
+        user_tier=user_tier,
+        route=route_path,
+        route_type=route_type,
+        feature_flags=insight_feature_flag_state(
+            use_rag=use_rag,
+            recursive_rollout_policy=resolved_recursive_rollout_policy,
+        ),
+    ):
+        return await runtime.generate_insight(
+            text=text,
+            lang=lang,
+            provider=traced_provider,
+            use_rag=use_rag,
+            philo_validation_enabled=philo_validation_enabled,
+            recursive_rag_enabled=resolved_recursive_rollout_policy.recursive_path_enabled,
+            subject_id=subject_id,
+            rollout_policy=rollout_policy,
+            philosophy_router_enabled=philosophy_router_enabled,
+            philosophy_phase12_enabled=philosophy_phase12_enabled,
+            philosophy_linguistic_enabled=philosophy_linguistic_enabled,
+            philosophy_pragmatic_enabled=philosophy_pragmatic_enabled,
+            knowledge_policy=knowledge_policy,
+            rag_retriever=_rag_retriever,
+        )
+
+
+__all__ = [
+    "TracedInsightProvider",
+    "generate_traced_insight",
+    "insight_feature_flag_state",
+]

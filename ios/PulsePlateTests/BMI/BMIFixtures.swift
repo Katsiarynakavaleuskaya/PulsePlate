@@ -41,7 +41,14 @@ enum BMIFixtures {
             "marker": {"value": 22.86}
           },
           "interpretation_v1": null,
-          "soft_paywall": null
+          "soft_paywall": null,
+          "next_best_action": {
+            "type": "unlock_targets",
+            "recommended_surface": "pro_targets",
+            "recommended_tier": "PRO",
+            "trigger_reason": "post_bmi",
+            "why_now": "post_bmi_baseline_body_metrics"
+          }
         }
         """.data(using: .utf8)!
     }
@@ -58,6 +65,7 @@ enum BMIFixtures {
           "waist_risk": null,
           "notes": [],
           "age_band": "adult",
+          "next_best_action": null,
           "visualization": null,
           "interpretation_v1": null,
           "soft_paywall": null

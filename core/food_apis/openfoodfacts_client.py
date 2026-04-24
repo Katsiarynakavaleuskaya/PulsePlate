@@ -15,11 +15,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from dataclasses import dataclass
-from typing import Any
+from dataclasses import dataclass, field
+from typing import Any, Mapping
 
 import httpx
 
+from ..off_nutrition import NutritionInput, resolve_nutrition
 from ._testing import is_test_runtime
 from ..test_guards import EXTERNAL_HTTP_BLOCKED_IN_TESTS_MESSAGE
 
@@ -50,6 +51,10 @@ class OFFFoodItem:
     packaging: list[str]
     image_url: str | None
     last_modified_t: int  # Unix timestamp
+    nutrition_inputs: list[dict[str, object]] = field(default_factory=list)
+    nutrition_provenance: dict[str, str] = field(default_factory=dict)
+    nutrition_nutrient_confidence: dict[str, float] = field(default_factory=dict)
+    nutrition_confidence: float = 0.0
 
     def to_menu_engine_format(self) -> dict[str, Any]:
         """Convert to menu_engine format.
@@ -65,6 +70,10 @@ class OFFFoodItem:
             "availability_regions": self.countries,
             "source": "Open Food Facts",
             "source_id": self.code,
+            "nutrition_inputs": self.nutrition_inputs,
+            "nutrition_provenance": self.nutrition_provenance,
+            "nutrition_nutrient_confidence": self.nutrition_nutrient_confidence,
+            "nutrition_confidence": self.nutrition_confidence,
         }
 
     def _generate_tags(self) -> list[str]:
@@ -260,12 +269,28 @@ class OFFClient:
 
             # Parse nutrients
             nutrients_raw = product_data.get("nutriments", {})
-            nutrients_per_100g = {}
+            if not isinstance(nutrients_raw, Mapping):
+                raise TypeError("nutriments must be a mapping")
+            mapped_nutrients: dict[str, float] = {}
 
             for off_nutrient, standard_name in self.nutrient_mapping.items():
                 value = nutrients_raw.get(off_nutrient)
                 if value is not None and isinstance(value, (int, float)):
-                    nutrients_per_100g[standard_name] = float(value)
+                    mapped_nutrients[standard_name] = float(value)
+
+            nutrition_input = NutritionInput(
+                source="estimate",
+                nutrients=mapped_nutrients,
+                record_id=code,
+                version_ref=str(product_data.get("last_modified_t") or ""),
+                raw_payload={
+                    key: value
+                    for key, value in nutrients_raw.items()
+                    if value is None or isinstance(value, (int, float, str))
+                },
+            )
+            resolution = resolve_nutrition(inputs=[nutrition_input])
+            nutrients_per_100g = dict(resolution.nutrients)
 
             # Parse categories
             categories_raw = product_data.get("categories", "")
@@ -311,6 +336,10 @@ class OFFClient:
                 packaging=packaging,
                 image_url=product_data.get("image_url"),
                 last_modified_t=product_data.get("last_modified_t", 0),
+                nutrition_inputs=[entry.to_dict() for entry in resolution.raw_inputs],
+                nutrition_provenance=dict(resolution.provenance),
+                nutrition_nutrient_confidence=dict(resolution.nutrient_confidence),
+                nutrition_confidence=resolution.confidence,
             )
 
         except Exception as e:

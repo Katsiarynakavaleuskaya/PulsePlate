@@ -11,7 +11,7 @@ Please migrate to /api/v1/pro/* endpoints.
 
 import logging
 from threading import Event
-from typing import Any, Dict, List, Literal, Optional, Union, cast
+from typing import Any, Dict, List, Literal, Optional, TypeAlias, Union, cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -19,6 +19,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.middleware.api_tiers import require_pro_tier
 from app.schemas.nutrition_targets import TargetsIn
+from app.schemas.weekly_plan import (
+    WeeklyMealPlanResponse,
+    require_weekly_plan_payload_shape,
+    normalize_weekly_plan_payload,
+)
+from app.services.intervention_trigger_engine import build_weekly_plan_next_action
 from app.services.weekly_plan.pipeline import run_weekly_pipeline_guarded
 
 from core.food_db_new import FoodDB
@@ -85,14 +91,7 @@ class PremiumWeekPlanRequest(BaseModel):
     model_config = ConfigDict(title="PremiumWeekPlanRequest")
 
 
-class PremiumWeekPlanResponse(BaseModel):
-    model_config = ConfigDict(title="PremiumWeekPlanResponse")
-
-    daily_menus: List[Dict[str, Any]]
-    weekly_coverage: Dict[str, float]
-    shopping_list: Dict[str, float]
-    total_cost: float
-    adherence_score: float
+PremiumWeekPlanResponse: TypeAlias = WeeklyMealPlanResponse
 
 
 def _missing_profile_detail(field: str) -> str:
@@ -275,7 +274,9 @@ async def generate_week_plan(
 
     # Wrap PremiumWeekPlanResponse constructor to match postprocess_fn signature
     def _postprocess_week(week: dict[str, Any]) -> PremiumWeekPlanResponse:
-        return PremiumWeekPlanResponse(**week)
+        validated_week = require_weekly_plan_payload_shape(week)
+        normalized_week = normalize_weekly_plan_payload(validated_week)
+        return PremiumWeekPlanResponse(**normalized_week)
 
     result = run_weekly_pipeline_guarded(
         generation_fn=build_week,
@@ -311,6 +312,10 @@ async def generate_week_plan(
         # IMPORTANT: bypass response_model validation
         return JSONResponse(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, content=result)
 
-    if not isinstance(result, PremiumWeekPlanResponse):
+    if not isinstance(result, WeeklyMealPlanResponse):
         raise TypeError(f"Expected PremiumWeekPlanResponse, got {type(result).__name__}")
+
+    result.next_best_action = build_weekly_plan_next_action(
+        daily_menu_count=len(result.daily_menus)
+    )
     return result

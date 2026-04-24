@@ -17,6 +17,7 @@ def test_test_router_module_reload_covers_router_declaration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Reload module to ensure router declaration lines are executed under coverage."""
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.setenv("ENABLE_TEST_ROUTES", "1")
 
@@ -30,6 +31,7 @@ def test_test_router_staging_without_enable_flag_is_blocked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Cover staging hardening branch: ENABLE_TEST_ROUTES must be set."""
+    monkeypatch.delenv("ENVIRONMENT", raising=False)
     monkeypatch.setenv("APP_ENV", "staging")
     monkeypatch.delenv("ENABLE_TEST_ROUTES", raising=False)
 

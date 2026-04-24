@@ -27,16 +27,31 @@ import hashlib
 import logging
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from enum import Enum
+from collections.abc import Callable
 from typing import Optional
 
 from fastapi import Depends, HTTPException, Request, Security, status
-from sqlalchemy import text
 
 from app.routers.api_key import api_key_header
+from app.schemas.payments import (
+    SubscriptionStatus as PersistedSubscriptionStatus,
+    SubscriptionTier as PersistedSubscriptionTier,
+)
 from app.security.web_session import WEB_SESSION_COOKIE_NAME, verify_web_session
 
 from app.utils.feature_flags import is_vip_module_enabled
+from core.billing_policy import (
+    is_legacy_manual_compat_row,
+    manual_monthly_entitlement_expires_at,
+)
+from settings import (
+    get_runtime_env_name,
+    is_explicit_developer_env,
+    is_production_like_env,
+    is_truthy_env_var,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,13 +108,8 @@ TEST_KEY_VIP = "test_vip_key"  # nosec B105: deterministic non-production test k
 
 # Environment configuration
 VIP_MODULE_ENABLED = is_vip_module_enabled()
-ALLOW_ANONYMOUS_API_KEYS = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-    "true",
-    "1",
-    "yes",
-    "on",
-)
-# Note: SUBSCRIPTION_DB_ENABLED is checked dynamically in code to support testing
+# Note: SUBSCRIPTION_DB_ENABLED and ALLOW_ANONYMOUS_API_KEYS are checked dynamically in code
+# to support testing and avoid import-time config freeze.
 
 
 def _is_subscription_db_enabled() -> bool:
@@ -116,6 +126,15 @@ def _tier_allows_access(tier: SubscriptionTier, required_tier: SubscriptionTier)
     return True
 
 
+def tier_allows_access(tier: SubscriptionTier, required_tier: SubscriptionTier) -> bool:
+    """Public wrapper for stable tier-compatibility checks.
+
+    RU: Публичная обёртка для проверки совместимости tier access.
+    EN: Public wrapper for tier-compatibility checks.
+    """
+    return _tier_allows_access(tier, required_tier)
+
+
 def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     """Convert DB/env tier string to SubscriptionTier enum safely."""
     normalized = raw_tier.strip().upper()
@@ -124,21 +143,108 @@ def _parse_tier_value(raw_tier: str) -> SubscriptionTier | None:
     return None
 
 
+def _parse_persisted_subscription_tier(raw_tier: object) -> SubscriptionTier | None:
+    """Convert persisted billing tier string into authz tier enum."""
+
+    if not isinstance(raw_tier, str):
+        return None
+    normalized = raw_tier.strip().lower()
+    try:
+        persisted_tier = PersistedSubscriptionTier(normalized)
+    except ValueError:
+        return None
+
+    return {
+        PersistedSubscriptionTier.free: SubscriptionTier.FREE,
+        PersistedSubscriptionTier.pro: SubscriptionTier.PRO,
+        PersistedSubscriptionTier.vip: SubscriptionTier.VIP,
+    }[persisted_tier]
+
+
+def _parse_persisted_subscription_status(
+    raw_status: object,
+) -> PersistedSubscriptionStatus | None:
+    """Convert persisted billing status string into canonical status enum."""
+
+    if not isinstance(raw_status, str):
+        return None
+    normalized = raw_status.strip().lower()
+    try:
+        return PersistedSubscriptionStatus(normalized)
+    except ValueError:
+        return None
+
+
+def _normalize_utc_datetime(value: object) -> datetime | None:
+    """Normalize naive/aware datetimes to UTC for deterministic expiry checks."""
+
+    if value is None:
+        return None
+    if not isinstance(value, datetime):
+        raise TypeError(f"expires_at must be datetime | None, got {type(value)!r}")
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def _tier_rank(tier: SubscriptionTier) -> int:
+    """Return deterministic rank for effective paid-tier resolution."""
+
+    return {
+        SubscriptionTier.FREE: 0,
+        SubscriptionTier.PRO: 1,
+        SubscriptionTier.VIP: 2,
+    }[tier]
+
+
+def _compat_paid_expires_at(
+    subscription: object,
+    expires_at: datetime | None,
+    *,
+    now: datetime,
+) -> datetime | None:
+    """Derive bounded expiry for legacy manual paid rows that predate persisted expiry."""
+
+    if expires_at is not None:
+        return expires_at
+    source = getattr(subscription, "source", None)
+    if source not in {"erip_qr", "swift_manual"}:
+        return None
+    activated_at = _normalize_utc_datetime(getattr(subscription, "activated_at", None))
+    if activated_at is None:
+        return None
+    if activated_at > now:
+        return None
+    created_at = _normalize_utc_datetime(getattr(subscription, "created_at", None))
+    if created_at is None:
+        return None
+    if not is_legacy_manual_compat_row(created_at=created_at):
+        return None
+    return manual_monthly_entitlement_expires_at(activated_at=activated_at)
+
+
 def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
-    """Try to resolve API key tier from DB with explicit outcome.
+    """Try to resolve API key tier from persisted subscriptions with explicit outcome.
 
-    RU: Пытается определить tier из БД и возвращает статус lookup.
-    EN: Attempts to resolve tier from DB and returns structured status.
+    RU: Пытается определить entitlement из persisted subscriptions и возвращает статус lookup.
+    EN: Attempts to resolve entitlement from persisted subscriptions and returns structured status.
+
+    Protected paid routes must derive access only from this persisted backend truth
+    when SUBSCRIPTION_DB_ENABLED=true. Client-declared tier, activation hints, and
+    manual billing entry events are never entitlement authority.
     """
-    query = text("SELECT tier FROM api_keys WHERE api_key = :api_key LIMIT 1")
-
     try:
         from core.db import get_session_factory
+        from app.services import subscriptions as subscriptions_store
 
+        user_id = derive_subject_id_from_api_key(api_key)
         session_factory = get_session_factory()
         session = session_factory()
         try:
-            raw_tier = session.execute(query, {"api_key": api_key}).scalar_one_or_none()
+            subscriptions = subscriptions_store.list_subscriptions_for_user(
+                session=session,
+                user_id=user_id,
+            )
         finally:
             session.close()
     except Exception:
@@ -149,17 +255,58 @@ def _lookup_tier_from_db(api_key: str) -> DBLookupResult:
         )
         return DBLookupResult(status=DBLookupStatus.ERROR)
 
-    if raw_tier is None:
+    if not subscriptions:
         return DBLookupResult(status=DBLookupStatus.MISS)
 
-    parsed_tier = _parse_tier_value(str(raw_tier))
-    if parsed_tier is None:
+    now = datetime.now(timezone.utc)
+    saw_valid_state = False
+    saw_invalid_state = False
+    effective_tier = SubscriptionTier.FREE
+
+    for subscription in subscriptions:
+        parsed_tier = _parse_persisted_subscription_tier(getattr(subscription, "tier", None))
+        parsed_status = _parse_persisted_subscription_status(getattr(subscription, "status", None))
+        if parsed_tier is None or parsed_status is None:
+            saw_invalid_state = True
+            continue
+
+        saw_valid_state = True
+        if parsed_status is not PersistedSubscriptionStatus.active:
+            continue
+
+        raw_expires_at = getattr(subscription, "expires_at", None)
+        try:
+            expires_at = _normalize_utc_datetime(raw_expires_at)
+        except TypeError:
+            saw_invalid_state = True
+            continue
+        try:
+            expires_at = _compat_paid_expires_at(subscription, expires_at, now=now)
+        except TypeError:
+            saw_invalid_state = True
+            continue
+        if parsed_tier is not SubscriptionTier.FREE and expires_at is None:
+            saw_invalid_state = True
+            continue
+        if expires_at is not None and expires_at <= now:
+            continue
+
+        if _tier_rank(parsed_tier) > _tier_rank(effective_tier):
+            effective_tier = parsed_tier
+
+    if saw_invalid_state:
         logger.warning(
-            "Subscription DB lookup returned unknown tier value; denying env fallback",
+            "Subscription DB lookup returned invalid persisted entitlement state; denying access",
             extra={"component": "api_tiers", "db_lookup_status": DBLookupStatus.INVALID_TIER.value},
         )
         return DBLookupResult(status=DBLookupStatus.INVALID_TIER)
-    return DBLookupResult(status=DBLookupStatus.HIT, tier=parsed_tier)
+
+    if saw_valid_state:
+        return DBLookupResult(status=DBLookupStatus.HIT, tier=effective_tier)
+
+    # RU: Защитный хвост для типизатора; неожиданный непустой, но нейтральный набор трактуем как MISS.
+    # EN: Defensive tail for the type checker; treat any unexpected neutral non-empty set as MISS.
+    return DBLookupResult(status=DBLookupStatus.MISS)
 
 
 def _resolve_tier_from_env(
@@ -185,17 +332,23 @@ def _resolve_tier_from_env(
     return None
 
 
+def resolve_tier_from_env(api_key: str, *, allow_test_keys: bool = True) -> SubscriptionTier | None:
+    """Public wrapper for env-backed tier resolution.
+
+    RU: Публичная обёртка для env-backed tier resolution.
+    EN: Public wrapper for env-backed tier resolution.
+    """
+    return _resolve_tier_from_env(api_key, allow_test_keys=allow_test_keys)
+
+
 def _is_production_environment() -> tuple[bool, str]:
     """Determine if we're in production mode.
 
     Returns:
         tuple[bool, str]: (is_production, app_env)
     """
-    app_env = os.getenv("APP_ENV", "local").lower()
-    debug_mode = os.getenv("DEBUG", "true").lower() in ("true", "1", "yes", "on")
-    # Production if env is production/staging AND debug is off
-    is_production = (app_env in ("production", "prod", "staging")) and (not debug_mode)
-    return is_production, app_env
+    app_env = get_runtime_env_name()
+    return is_production_like_env(), app_env
 
 
 def _resolve_authorized_api_key_tier(
@@ -206,30 +359,33 @@ def _resolve_authorized_api_key_tier(
     """Resolve authorized tier in a single pass, else None."""
 
     is_production, app_env = _is_production_environment()
+    in_developer_env = is_explicit_developer_env()
+    allow_developer_api_keys = in_developer_env and is_truthy_env_var("ALLOW_DEV_API_KEY", "true")
 
     if _is_subscription_db_enabled():
+        # RU: В DB-backed режиме только persisted entitlement state имеет право
+        # открывать protected paid routes.
+        # EN: In DB-backed mode, only persisted entitlement state may unlock
+        # protected paid routes.
         db_lookup = _lookup_tier_from_db(api_key)
         if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
             if _tier_allows_access(db_lookup.tier, required_tier):
                 return db_lookup.tier
             return None
-        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
-            return None
+        return None
 
-    resolved_env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    resolved_env_tier = _resolve_tier_from_env(
+        api_key,
+        allow_test_keys=allow_developer_api_keys,
+    )
     if resolved_env_tier is not None:
         if _tier_allows_access(resolved_env_tier, required_tier):
             return resolved_env_tier
         return None
 
     # In non-production mode with anonymous access enabled, allow any key.
-    if not is_production:
-        allow_anonymous = os.getenv("ALLOW_ANONYMOUS_API_KEYS", "false").lower() in (
-            "true",
-            "1",
-            "yes",
-            "on",
-        )
+    if in_developer_env and not is_production:
+        allow_anonymous = is_truthy_env_var("ALLOW_ANONYMOUS_API_KEYS", "false")
         if allow_anonymous:
             logger.warning(
                 "Anonymous API key accepted in %s mode for tier %s",
@@ -484,6 +640,64 @@ def require_vip_tier(
     return context.api_key
 
 
+def _require_valid_api_key_for_tier(
+    x_api_key: Optional[str],
+    *,
+    required_tier: SubscriptionTier,
+) -> str:
+    """Validate a header API key against the requested tier."""
+    if x_api_key is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required",
+        )
+
+    normalized_api_key = x_api_key.strip()
+    if not normalized_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="API key required",
+        )
+
+    resolved_tier = _resolve_authorized_api_key_tier(
+        normalized_api_key,
+        required_tier=required_tier,
+    )
+    if resolved_tier is None:
+        detail = "Invalid API key"
+        if required_tier != SubscriptionTier.FREE:
+            detail = f"API key does not have {required_tier.value} tier access"
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=detail,
+        )
+
+    return normalized_api_key
+
+
+def require_valid_api_key(
+    *,
+    required_tier: SubscriptionTier = SubscriptionTier.FREE,
+) -> Callable[[Optional[str]], str]:
+    """Build a header-only API-key dependency for the requested tier.
+
+    PRO/VIP route guards must keep using `require_pro_tier` / `require_vip_tier`,
+    which preserve their dedicated cookie fallback and tier-specific response
+    semantics. This factory prevents `required_tier` from becoming a public
+    request parameter on routes that depend on it.
+    """
+
+    def dependency(
+        x_api_key: Optional[str] = Security(api_key_header),
+    ) -> str:
+        return _require_valid_api_key_for_tier(
+            x_api_key,
+            required_tier=required_tier,
+        )
+
+    return dependency
+
+
 def get_subscription_tier(api_key: str) -> SubscriptionTier:
     """Get subscription tier for API key.
 
@@ -501,15 +715,20 @@ def get_subscription_tier(api_key: str) -> SubscriptionTier:
         In development mode, test keys return their respective tiers.
     """
     is_production, _ = _is_production_environment()
+    allow_developer_api_keys = is_explicit_developer_env() and is_truthy_env_var(
+        "ALLOW_DEV_API_KEY", "true"
+    )
 
     if _is_subscription_db_enabled():
         db_lookup = _lookup_tier_from_db(api_key)
         if db_lookup.status == DBLookupStatus.HIT and db_lookup.tier is not None:
             return db_lookup.tier
-        if db_lookup.status in (DBLookupStatus.ERROR, DBLookupStatus.INVALID_TIER):
-            return SubscriptionTier.FREE
+        return SubscriptionTier.FREE
 
-    env_tier = _resolve_tier_from_env(api_key, allow_test_keys=not is_production)
+    env_tier = _resolve_tier_from_env(
+        api_key,
+        allow_test_keys=allow_developer_api_keys and not is_production,
+    )
     return env_tier if env_tier is not None else SubscriptionTier.FREE
 
 
@@ -523,7 +742,7 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
         api_key: Validated API key
 
     Returns:
-        int: Deterministic positive integer subject_id (fits in int64)
+        int: Deterministic positive integer subject_id (fits in PostgreSQL bigint)
 
     Note:
         This is a temporary solution until proper user authentication is implemented.
@@ -538,8 +757,10 @@ def derive_subject_id_from_api_key(api_key: str) -> int:
     digest = hashlib.sha256(
         api_key.encode("utf-8")
     ).digest()  # lgtm[py/weak-sensitive-data-hashing]
-    # Take first 8 bytes, convert to int, mask to positive int64
-    return int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF
+    # Use a positive signed bigint-compatible range to minimize collision risk.
+    # RU: Используем диапазон signed bigint, чтобы не сжимать principal до int4
+    # и не повышать риск коллизий между tenant/user subject_id.
+    return (int.from_bytes(digest[:8], "big") & 0x7FFF_FFFF_FFFF_FFFF) or 1
 
 
 @dataclass(frozen=True)

@@ -2,14 +2,19 @@
 
 from app.models.events import JSONEncodedDict, NutritionEvent
 from app.models.llm_quota_usage import VipLlmMonthlyUsage
+from app.models.paywall_analytics import PaywallExposureLedger
 from app.models.plans import DayPlan, WeeklyPlan
 from app.models.rag_feedback import RAGFeedback, UserKnowledge
+from app.models.subscriptions import Subscription, SubscriptionActivationAudit
 
 __all__ = [
     "DayPlan",
     "JSONEncodedDict",
     "NutritionEvent",
+    "PaywallExposureLedger",
     "RAGFeedback",
+    "Subscription",
+    "SubscriptionActivationAudit",
     "UserKnowledge",
     "VipLlmMonthlyUsage",
     "WeeklyPlan",

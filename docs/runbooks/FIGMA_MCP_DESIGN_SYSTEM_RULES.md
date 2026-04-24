@@ -15,39 +15,31 @@ Use this with:
 
 ### Source of truth
 
-- Type-safe tokens: `frontend/src/styles/tokens.ts`
-- Runtime CSS variables: `frontend/src/styles/tokens.css`
-- Tailwind mapping to legacy aliases: `frontend/tailwind.config.ts`
+- Repo token authoring source: `/tokens`
+- Design-intent lane: `Figma Design` with optional `Tokens Studio` support
+  inside the same lane
+- Web runtime token SoT: `frontend/src/styles/tokens.css`
+- Typed runtime mirror/helper: `frontend/src/styles/tokens.ts`
+- Tailwind mapping consumer: `frontend/tailwind.config.ts`
+- Governance docs:
+  - `docs/design/TOKENS_SOT.md`
+  - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
 
 ### Token structure
 
-- Typed object exports (`colors`, `spacing`, `typography`, `borderRadius`, etc.)
-- CSS custom properties (`--color-*`, `--spacing-*`, `--font-*`)
-- Semantic tokens (`--color-primary`, `--color-surface`, `--color-text`)
-- Legacy aliases kept for compatibility (`--pp-*`)
-
-```ts
-// frontend/src/styles/tokens.ts
-export const colors = {
-  navy: { 50: "#f0f4f8", 900: "#102a43" },
-  blue: { 500: "#3b82f6", 600: "#2563eb" },
-  semantic: { success: "#22c55e", warning: "#f59e0b" },
-} as const;
-```
-
-```css
-/* frontend/src/styles/tokens.css */
-:root {
-  --color-primary: var(--color-blue-600);
-  --color-surface: var(--color-navy-50);
-  --color-text: var(--color-navy-900);
-  --pp-primary: var(--color-primary); /* compatibility alias */
-}
-```
+- CSS custom properties in `tokens.css` are the deployed web token contract.
+- `tokens.ts` mirrors the same groups for TypeScript consumers
+  (`colors`, `spacing`, `typography`, `borderRadius`, etc.).
+- Semantic tokens live in runtime CSS first (`--color-primary`,
+  `--color-surface`, `--color-text`, status tokens).
+- Legacy aliases (`--pp-*`) remain compatibility bridges only.
 
 ### Transformation systems
 
-- No separate token build pipeline found.
+- PulsePlate uses a governed promotion pipeline:
+  `Figma` -> optional `Tokens Studio` authoring support -> `/tokens` ->
+  generated runtime mirrors -> Storybook/tests/platform validation.
+- There is no autonomous export job that overrides repo runtime artifacts.
 - Mapping is done by importing CSS variables and extending Tailwind theme.
 
 ## 2) Component Library
@@ -67,16 +59,13 @@ export const colors = {
 
 ### Documentation and Storybook
 
-- Storybook is configured in `frontend/.storybook/` and is the canonical web
-  preview surface for design-system review (`frontend/.storybook/main.ts:4-6`,
-  `frontend/package.json:8-12`).
-- Primary stories live under `frontend/src/**/*.stories.tsx` and
-  `frontend/src/**/*.mdx` (`frontend/src/components/design-system/DesignSystemOverview.stories.tsx:4-12`,
-  `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx:3-32`).
-- Component behavior is still validated through Vitest + RTL tests under
-  `__tests__/`, but visual review should be Storybook-first
-  (`frontend/src/components/design-system/__tests__/DesignSystemOverview.test.tsx:5-16`,
-  `frontend/src/components/brand/__tests__/BrandAssets.test.tsx:5-30`).
+- Storybook is configured in `frontend/package.json`.
+- Current review surfaces include stories under `frontend/src/components/ui/`
+  and `frontend/src/stories/HppTokenGuidelines.mdx`.
+- Storybook is the implementation review/documentation lane, not the token
+  authoring lane or runtime SoT.
+- Component behavior is still validated primarily through Vitest + RTL tests
+  under `__tests__/`.
 
 ## 3) Frameworks and Libraries
 
@@ -105,8 +94,6 @@ export const colors = {
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build",
     "test": "vitest"
   }
 }
@@ -118,8 +105,8 @@ export const colors = {
 
 - Static/public mocks under `frontend/public/`
 - Canonical brand assets live in `frontend/src/assets/brand/`
-  (`frontend/src/components/brand/PulsePlateLogo.tsx:1-2`,
-  `frontend/src/components/brand/FitChefMascot.tsx:1-2`)
+- FitChef mascot canon and variant naming live in
+  `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
 - SVGs are commonly inline in TSX or icon components
 
 ### Optimization
@@ -192,21 +179,21 @@ import "./index.css";
 ## Figma MCP Translation Rules (Project-Specific)
 
 1. Start from `get_design_context`, not assumptions.
-2. Map Figma colors/spacing to semantic tokens first (`--color-*`).
+2. Map Figma colors/spacing into the `/tokens` authoring tree first, regenerate
+   `frontend/src/styles/tokens.css`, and update `tokens.ts` only if TS
+   consumers need the typed mirror.
 3. Reuse existing primitives in `frontend/src/components/ui/` before creating
    new ones.
 4. Keep business logic unchanged in design-only passes.
 5. Validate with targeted tests and `npm run build`.
-6. Use Storybook as the default visual verification surface for web
-   design-system work (`frontend/.storybook/main.ts:4-6`,
-   `frontend/src/components/brand/PulsePlateLogo.stories.tsx:5-21`).
-7. If runtime/file type does not support screenshots, proceed with context +
+6. If runtime/file type does not support screenshot, proceed with context +
    metadata and document the limitation.
 
 ## Quick Validation Checklist
 
 - [ ] Layout hierarchy matches Figma node intent
-- [ ] Colors map to project tokens (no random hardcoded palette)
+- [ ] Colors map to runtime token SoT (`tokens.css`) with no random hardcoded palette
+- [ ] Typed mirror (`tokens.ts`) is aligned when a TS consumer depends on the changed token
 - [ ] Touch targets are at least 44px where interactive
 - [ ] Existing routes/state/analytics contracts remain intact
 - [ ] Related tests pass + frontend build succeeds

@@ -1,15 +1,15 @@
 <!-- markdownlint-disable MD013 -->
 # Figma Code Connect Mapping Candidates (H+P+Pr)
 
-**Date:** February 19, 2026
+**Date:** March 7, 2026
 **Scope:** 23 CTA IDs from `docs/design/PULSEPLATE_BUTTON_ACTION_PROMPT_MATRIX.md`
-**Context version:** 2026-02-19 / commit `5d05beae`
+**Context version:** 2026-03-07 / commit `dff20399`
 
-Status policy for this revision: rows stay `blocked_by_design_url` when the Design file key is missing; once the Design URL exists but node IDs are missing, use `blocked_by_node_id_capture` (`missing_node_id`); rows with verified node capture are marked `validated`.
+Status policy for this revision: rows stay `blocked_by_design_url` when the Design file key is missing; once the Design URL exists but node IDs are missing, use `blocked_by_node_id_capture` (`missing_node_id`); rows with previously captured but no longer resolvable node IDs are `stale`; rows with verified current node capture are marked `validated`.
 
 | Button/CTA ID | Platform | Screen | Existing Site Surface (file:line) | Candidate Component/Entry | Code Connect Label | Design File Key | Node ID | Status | Gap/Refactor Needed | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `web.home.open_setup` | Web | Home | `frontend/src/pages/Home.tsx:34` | Inline `Link` in Home quick actions (`to="/setup"`) | React | `umcCk7TtO760DJ3N6M7mvh` | `1:72` | validated | Extract reusable quick-action CTA component for stable mapping | FE |
+| `web.home.open_setup` | Web | Home | `frontend/src/pages/Home.tsx:34` | Inline `Link` in Home quick actions (`to="/setup"`) | React | `umcCk7TtO760DJ3N6M7mvh` | `1:72` (stale) | stale | Re-capture current CTA node; 2026-03-07 MCP reports `1:72` invalid | FE |
 | `web.home.open_plate` | Web | Home | `frontend/src/pages/Home.tsx:37` | Inline `Link` in Home quick actions (`to="/plate"`) | React | TBD | TBD | blocked_by_design_url | Add lock-aware variant style and extract component | FE |
 | `web.home.open_progress` | Web | Home | `frontend/src/pages/Home.tsx:40` | Inline `Link` in Home quick actions (`to="/progress"`) | React | TBD | TBD | blocked_by_design_url | Consolidate auth-required CTA visual contract | FE |
 | `web.home.open_pro` | Web | Home | `frontend/src/pages/Home.tsx:43` | Inline `Link` in Home quick actions (`to="/pro"`) | React | TBD | TBD | blocked_by_design_url | Align with paywall CTA hierarchy and shared component | FE |
@@ -37,14 +37,16 @@ Status policy for this revision: rows stay `blocked_by_design_url` when the Desi
 
 - Mapping coverage is complete for all 23 CTA IDs in H+P+Pr scope (evidence: `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md:12`).
 - Candidate rows intentionally avoid fake node IDs (evidence: `docs/figma/FIGMA_CODE_CONNECT_MAPPING_CANDIDATES_HPP.md:13`).
-- 2026-02-19 browser capture validated `web.home.open_setup` as `1:72` in file `umcCk7TtO760DJ3N6M7mvh`; `Find (All pages)` returned no results for `web.plate.premium_gate_cta`, `web.progress.export_pdf`, `ios.plate.issue_action_dynamic` (evidence: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:72`, `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:77`).
-- Clear note: For `web.plate.premium_gate_cta`, `web.progress.export_pdf`, and `ios.plate.issue_action_dynamic`, the Design URL exists but node IDs are missing in the design file (evidence: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:79`).
-- Activation starts after missing node IDs are added in Design and capture is completed (evidence: `docs/figma/FIGMA_DESIGN_URL_NODEID_CAPTURE_HPP.md:83`).
+- Design file key `umcCk7TtO760DJ3N6M7mvh` is current; MCP `get_metadata(nodeId=\"96:33\")` resolves the spec/index frame, which confirms Design access but not CTA-level capture.
+- Prior browser capture for `web.home.open_setup` (`1:72`) is now stale; MCP `get_metadata(nodeId=\"1:72\")` returns `invalid`.
+- `web.plate.premium_gate_cta`, `web.progress.export_pdf`, and `ios.plate.issue_action_dynamic` still lack node capture in the Design file.
+- Workspace-level activation remains blocked because `get_code_connect_suggestions(...)` currently requires a Developer seat in an Organization or Enterprise plan.
 
 ## Next action for designer
 
-Provide node IDs (selection URLs) in Design file `umcCk7TtO760DJ3N6M7mvh` for:
+Provide current node IDs (selection URLs) in Design file `umcCk7TtO760DJ3N6M7mvh` for:
 
+- `web.home.open_setup`
 - `web.plate.premium_gate_cta`
 - `web.progress.export_pdf`
 - `ios.plate.issue_action_dynamic`

@@ -1,0 +1,551 @@
+# Figma MCP Session Evidence
+
+## Session Metadata
+
+- Date: 2026-03-11
+- Operator: Codex agent + user session
+- Branch: `worktree/figma-ios-proto-pr`
+- Local source root: `worktrees/figma_ios_proto_pr`
+- Target Figma source URL: existing file discovery (`existingFile`) + Design file verification
+- Target node/frame:
+  - Design spec root: `umcCk7TtO760DJ3N6M7mvh` / `96:33`
+  - Raw iOS prototype root: `hr71gseIO7EY0SnHFXMVs9` / `0:1`
+
+## Preconditions Check
+
+- `FIGMA_OAUTH_TOKEN` present: yes (authenticated `whoami` response)
+- Token length check passed: not logged in this evidence file (security-safe policy)
+- Figma MCP server visible in runtime: yes
+- Figma tools callable: yes
+
+## Execution
+
+### Request 1 (identity/auth)
+
+- Tool: `mcp__figma__whoami`
+- Result:
+  - email: `[redacted personal email]`
+  - handle: `[redacted personal identity]`
+  - workspace: `[redacted workspace identity]` (`pro`, seat `Full`)
+
+### Request 2 (Design file metadata)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=umcCk7TtO760DJ3N6M7mvh`
+  - `nodeId=96:33`
+- Result:
+  - success
+  - returned Design spec/index frame metadata
+  - confirms Figma Design file access is live in this runtime
+
+### Request 3 (Code Connect capability check)
+
+- Tool: `mcp__figma__get_code_connect_suggestions`
+- Arguments:
+  - `fileKey=umcCk7TtO760DJ3N6M7mvh`
+  - `nodeId=96:33`
+- Result:
+  - blocked
+  - response: `You need a Developer seat in an Organization or Enterprise plan to access Code Connect. Contact a Figma admin to upgrade.`
+  - debug UUID: `a5ea7af3-2aea-44bc-8bf4-6ffad206ff47`
+
+### Request 4 (design push discovery)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - discovery mode (no `outputMode`)
+- Result:
+  - success
+  - returned `newFile`, `existingFile`, and `clipboard`
+  - returned recent `existingFile` candidates:
+    - `ios prototype` (`hr71gseIO7EY0SnHFXMVs9`)
+    - `PulsePlate Design System` (`umcCk7TtO760DJ3N6M7mvh`)
+
+### Request 5 (raw iOS prototype intake)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=hr71gseIO7EY0SnHFXMVs9`
+  - `nodeId=0:1`
+- Result:
+  - success
+  - file root is `Page 1`
+  - top frame is `2:2` (`Container`, `375x812`)
+  - visible content is a welcome/onboarding screen with:
+    - `Пропустить`
+    - `Добро пожаловать в PulsePlate`
+    - `Продолжить`
+
+### Request 6 (raw iOS prototype screenshot)
+
+- Tool: `mcp__figma__get_screenshot`
+- Arguments:
+  - `fileKey=hr71gseIO7EY0SnHFXMVs9`
+  - `nodeId=0:1`
+- Result:
+  - success
+  - screenshot confirms the prototype currently contains at least one imported onboarding screen
+
+## Validation
+
+- MCP auth status: pass
+- Figma Design metadata fetch: pass
+- Design push discovery: pass
+- Raw iOS prototype discovery: pass
+- Code Connect activation: blocked by workspace seat/plan
+
+## Raw Evidence
+
+- Call: `whoami`
+  - Output: authenticated workspace payload returned
+  - Exit: success
+
+- Call: `get_metadata(fileKey="umcCk7TtO760DJ3N6M7mvh", nodeId="96:33")`
+  - Output: Design spec/index frame metadata returned
+  - Exit: success
+
+- Call: `get_code_connect_suggestions(fileKey="umcCk7TtO760DJ3N6M7mvh", nodeId="96:33")`
+  - Output: plan/seat block message returned
+  - Exit: blocked by workspace capability
+
+- Call: `generate_figma_design()`
+  - Output: discovery payload returned `newFile`, `existingFile`, `clipboard`
+  - Exit: success
+
+- Call: `get_metadata(fileKey="hr71gseIO7EY0SnHFXMVs9", nodeId="0:1")`
+  - Output: root onboarding metadata returned
+  - Exit: success
+
+## Known Limits / Next Action
+
+- Code Connect remains blocked until the workspace has a Developer seat in an
+  Organization or Enterprise plan.
+- The raw `ios prototype` file is useful as intake/reference, but it is not yet
+  a stable implementation source:
+  - screen captures may be duplicated when long scrolling pages were imported
+  - node-stable screen/frame boundaries are not yet registered in repo docs
+- Next action:
+  - normalize the raw iOS prototype into one stable frame per screen
+  - record current `fileKey` + `nodeId` pairs for the iOS onboarding/paywall flow
+  - keep the prototype file `reference_only` until normalization is complete
+
+## Security Check
+
+- Token value leaked: no
+- Sensitive data in logs/comments: no
+
+## Follow-ups
+
+- Update runtime matrix with current 2026-03-11 capability evidence
+- Add backlog item for raw iOS prototype normalization
+- Do not claim Code Connect activation until both seat/plan and node capture blockers are cleared
+
+---
+
+## Follow-up Execution: `ios prototype v2`
+
+## Session Metadata
+
+- Date: 2026-03-12
+- Operator: Codex agent + user session
+- Branch: `worktree/figma-ios-proto-pr`
+- Local capture source root:
+  - `docs/figma/ios_prototype_v2/`
+- New Figma file:
+  - file name: `ios prototype v2`
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - URL: `https://www.figma.com/design/AhyS6u4dZXMRHVUDO3Cfn6`
+
+## Source Precedence Used
+
+1. `PulsePlate Design System` as visual/system source of truth
+2. raw `ios prototype` as mood/composition base
+3. web prototype and button matrix as CTA completeness reference
+
+## Execution
+
+### Request 7 (new standalone file)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=newFile`
+  - `planKey=team::1545433342866560049`
+  - `fileName=ios prototype v2`
+- Result:
+  - success
+  - generated first-page capture pipeline
+  - completed file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+
+### Request 8 (first screen capture)
+
+- Source URL:
+  - `http://127.0.0.1:4173/onboarding-welcome.html`
+- Capture selector:
+  - `.screen`
+- Result:
+  - success
+  - created top-level frame `1:2`
+
+### Request 9 (second screen capture)
+
+- Source URL:
+  - `http://127.0.0.1:4173/onboarding-value-usage.html`
+- Capture selector:
+  - `.screen`
+- Result:
+  - success
+  - created top-level frame `3:2`
+
+### Request 10 (third screen capture)
+
+- Source URL:
+  - `http://127.0.0.1:4173/home.html`
+- Capture selector:
+  - `.screen`
+- Result:
+  - success
+  - created top-level frame `4:2`
+
+### Request 11 (fourth screen capture)
+
+- Source URL:
+  - `http://127.0.0.1:4173/paywall-pro-vip.html`
+- Capture selector:
+  - `.screen`
+- Result:
+  - success
+  - created top-level frame `2:2`
+
+### Request 12 (metadata verification)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Result:
+  - success
+  - confirmed four top-level frames in one page
+  - no duplicated scroll-import slices
+
+### Request 13 (screenshot verification)
+
+- Tool: `mcp__figma__get_screenshot`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+  - `nodeId=4:2`
+- Result:
+  - success
+  - screenshot verifies onboarding, value, paywall, and home screens exist in one clean v2 file
+
+---
+
+# Follow-up Execution: BMI + Onboarding Polish Refresh
+
+## Session Metadata
+
+- Date: 2026-03-12
+- Operator: Codex agent + user session
+- Branch: `worktree/figma-ios-bmi-onboarding-polish`
+- Local capture source root:
+  - `docs/figma/ios_prototype_v2/`
+- Existing Figma file:
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - URL: `https://www.figma.com/design/AhyS6u4dZXMRHVUDO3Cfn6`
+
+## Scope
+
+- refresh `iOS_Onboarding_01_Welcome`
+- refresh `iOS_Onboarding_02_Value_Usage`
+- refresh `iOS_BMI`
+
+## Execution
+
+### Request 14 (BMI slice local polish)
+
+- Local source updates:
+  - `docs/figma/ios_prototype_v2/onboarding-welcome.html`
+  - `docs/figma/ios_prototype_v2/onboarding-value-usage.html`
+  - `docs/figma/ios_prototype_v2/bmi.html`
+  - `docs/figma/ios_prototype_v2/styles.css`
+- Result:
+  - onboarding copy aligned to runtime localization keys
+  - FitChef label restored as supporting brand element
+  - BMI surface moved from generic editable rows to form/picker anatomy closer to `BMICalculatorScreen`
+  - optional BMI hook now mirrors backend default title/body/CTA contract
+
+### Request 15 (existing-file recapture: BMI)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Source URL:
+  - `http://127.0.0.1:4174/bmi.html`
+- Result:
+  - success
+  - created refreshed BMI frame `21:2`
+
+### Request 16 (existing-file recapture: value/usage onboarding)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-value-usage.html`
+- Result:
+  - success
+  - created refreshed onboarding value/usage frame `22:2`
+
+### Request 17 (existing-file recapture: welcome onboarding)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=0:1`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-welcome.html`
+- Result:
+  - success
+  - created refreshed onboarding welcome frame `23:2`
+
+### Request 18 (metadata verification)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=21:2`
+  - `nodeId=22:2`
+  - `nodeId=23:2`
+- Result:
+  - success
+  - verified canonical refreshed nodes for BMI + onboarding slice
+
+### Request 19 (screenshot verification)
+
+- Tool: `mcp__figma__get_screenshot`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=21:2`
+  - `nodeId=22:2`
+  - `nodeId=23:2`
+- Result:
+  - success
+  - visual sanity-check passed for the refreshed slice
+
+## Notes
+
+- Previous node IDs for the same three screens (`1:2`, `3:2`, `8:2`,
+  `23:2`, `22:2`, `21:2`) remain historical evidence only.
+- Shared capture script remains in HTML per MCP guidance for re-capture safety.
+- The current canonical `screen ID -> nodeId` map lives in:
+  - `docs/figma/ios_prototype_v2/README.md`
+  - `docs/figma/FIGMA_IOS_PROTOTYPE_V2_RECONCILIATION.md`
+
+## Structural QA
+
+- One stable frame per screen: pass
+- Standalone new file instead of adding to raw prototype: pass
+- Required home quick actions present:
+  - `BMI Calculator`
+  - `Profile Setup`
+  - `Open Plate`
+- Required pro-tools present:
+  - `Недельный план`
+  - `Список покупок`
+- PRO + VIP comparison on paywall: pass
+- FitChef support-brand label on home: pass
+- Weekly plan / diet menu surface present: pass
+- Shopping list surface present: pass
+- BMI surface present: pass
+- Profile surface present: pass
+- Duplicate long-scroll capture artifacts: not observed in v2 metadata/screenshot review
+
+## Known Limits
+
+- Figma MCP HTML capture imported frame names as `Main Content (...)` rather than the exact canonical screen IDs.
+- To keep the file implementation-safe anyway, this session records a stable canonical screen map:
+  - canonical screen ID -> `nodeId` -> imported frame name
+- Code Connect remains blocked by workspace seat/plan and was not used.
+
+## Implementation Status
+
+- `ios prototype v2` can now be treated as the current implementation reference for the first core-funnel slice.
+- `ios prototype v2` now includes the first feature-depth follow-up surfaces for:
+  - weekly plan / diet menu
+  - shopping list
+- `ios prototype v2` now also covers primary feature-entry surfaces:
+  - BMI
+  - Profile
+- raw `ios prototype` remains `reference_only`.
+
+## Readiness Follow-up
+
+- A dedicated future-seat activation checklist now exists in:
+  `docs/figma/FIGMA_IOS_PROTOTYPE_V2_CODE_CONNECT_READINESS.md`
+- Activation source stays pinned to:
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - node IDs: `25:2`, `20:2`, `11:2`, `17:2`, `18:2`, `15:2`, `13:2`, `24:2`
+- Code Connect is still not active in this session because the workspace remains
+  blocked by seat/plan.
+
+## Follow-up Execution: BMI + Onboarding Polish Refresh (Round 2)
+
+### Request 20 (existing-file recapture: onboarding value/usage)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-value-usage.html`
+- Result:
+  - success
+  - created refreshed onboarding value/usage frame `20:2`
+
+### Request 21 (existing-file recapture: BMI)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+- Source URL:
+  - `http://127.0.0.1:4174/bmi.html`
+- Result:
+  - success
+  - created refreshed BMI frame `24:2`
+
+### Request 22 (existing-file recapture: welcome onboarding)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+- Source URL:
+  - `http://127.0.0.1:4174/onboarding-welcome.html`
+- Result:
+  - success
+  - created refreshed onboarding welcome frame `25:2`
+
+### Request 23 (metadata verification)
+
+- Tool: `mcp__figma__get_metadata`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=20:2`
+  - `nodeId=24:2`
+  - `nodeId=25:2`
+- Result:
+  - success
+  - verified the latest canonical refreshed nodes for BMI + onboarding slice
+
+### Request 24 (screenshot verification)
+
+- Tool: `mcp__figma__get_screenshot`
+- Arguments:
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - `nodeId=20:2`
+  - `nodeId=24:2`
+  - `nodeId=25:2`
+- Result:
+  - success
+  - visual sanity-check passed for the current refreshed slice
+
+---
+
+# Follow-up Execution: Plate + Progress Parity
+
+## Session Metadata
+
+- Date: 2026-03-12
+- Operator: Codex agent + user session
+- Branch: `worktree/figma-ios-plate-progress-parity`
+- Local capture source root:
+  - `docs/figma/ios_prototype_v2/`
+- Existing Figma file:
+  - file key: `AhyS6u4dZXMRHVUDO3Cfn6`
+  - URL: `https://www.figma.com/design/AhyS6u4dZXMRHVUDO3Cfn6`
+
+## Scope
+
+- add `iOS_Plate`
+- add `iOS_Progress`
+- keep the slice main-state only
+
+## Execution
+
+### Request 25 (local capture sources)
+
+- Local source updates:
+  - `docs/figma/ios_prototype_v2/plate.html`
+  - `docs/figma/ios_prototype_v2/progress.html`
+  - `docs/figma/ios_prototype_v2/styles.css`
+  - `docs/figma/ios_prototype_v2/index.html`
+- Result:
+  - added Plate and Progress capture sources in the shared iOS v2 lane
+  - kept `Add Meal` and `View Details` inside the main Plate surface only
+  - kept Plate/Progress recovery inside the main screen with one runtime-selected
+    primary action instead of extra empty / issue artboards
+
+### Request 26 (existing-file capture: Plate)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/plate.html`
+- Result:
+  - initial capture succeeded into exploratory node `26:2`
+  - screenshot validation showed MCP flattening of gradient-heavy primitives
+
+### Request 27 (existing-file capture: Progress)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/progress.html`
+- Result:
+  - success
+  - canonical top-level frame `29:2`
+
+### Request 28 (Plate recapture pass)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/plate.html`
+- Result:
+  - recaptured Plate after replacing unsupported gradient-heavy orbit primitives
+  - intermediate node `30:2` remained evidence-only
+
+### Request 29 (Plate final recapture)
+
+- Tool: `mcp__figma__generate_figma_design`
+- Arguments:
+  - `outputMode=existingFile`
+  - `fileKey=AhyS6u4dZXMRHVUDO3Cfn6`
+  - source URL `http://127.0.0.1:4175/plate.html`
+- Result:
+  - final canonical Plate node `31:2`
+  - heading/badge typography aligned to capture-safe width on the final pass
+
+### Request 30 (metadata and screenshot verification)
+
+- Tools:
+  - `mcp__figma__get_metadata(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="0:1")`
+  - `mcp__figma__get_screenshot(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="31:2")`
+  - `mcp__figma__get_screenshot(fileKey="AhyS6u4dZXMRHVUDO3Cfn6", nodeId="29:2")`
+- Result:
+  - success
+  - canonical mapping confirmed:
+    - `iOS_Plate -> 31:2`
+    - `iOS_Progress -> 29:2`
+  - screenshots confirm both screens now preserve the intended main-state layout
+    without duplicated scroll artifacts

@@ -1,0 +1,139 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate Selective Graph Eval Record",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "surface",
+    "question",
+    "reference_answer",
+    "graph_context",
+    "expected_claims",
+    "reasoning_expectation"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "surface": {
+      "type": "string",
+      "enum": [
+        "corpus_level_nutrition_summarization",
+        "multi_hop_contraindication_reasoning",
+        "plan_explainability"
+      ]
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reference_answer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "graph_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "nodes",
+        "edges"
+      ],
+      "properties": {
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "type",
+              "label"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "minLength": 1
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "foods",
+                  "nutrients",
+                  "conditions",
+                  "restrictions",
+                  "meal_templates",
+                  "guideline_concepts"
+                ]
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        },
+        "edges": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source",
+              "relation",
+              "target"
+            ],
+            "properties": {
+              "source": {
+                "type": "string",
+                "minLength": 1
+              },
+              "relation": {
+                "type": "string",
+                "enum": [
+                  "contains",
+                  "rich_in",
+                  "contraindicated_for",
+                  "recommended_for",
+                  "substitutable_with"
+                ]
+              },
+              "target": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "expected_claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "reasoning_expectation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "global_summary",
+            "multi_hop",
+            "comparative_explanation"
+          ]
+        }
+      }
+    }
+  }
+}

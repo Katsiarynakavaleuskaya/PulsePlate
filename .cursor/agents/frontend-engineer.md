@@ -37,10 +37,12 @@ Before doing any work:
    - `frontend/src/styles/tokens.css`
    - `frontend/src/styles/tokens.ts`
    - `frontend/tailwind.config.ts`
-2. Reuse or extend existing UI components.
-3. Enforce thin-client networking:
+2. Resolve naming via `docs/design/UI_COMPONENT_VOCABULARY.md`.
+3. Build the screen/component spec via `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`.
+4. Reuse or extend existing UI components.
+5. Enforce thin-client networking:
    - No direct `fetch()` outside `frontend/src/api/client.ts`
-4. Validate with:
+6. Validate with:
    - `cd frontend && npm test`
    - `cd frontend && npm run build`
 
@@ -49,6 +51,7 @@ Before doing any work:
 Always return:
 
 - `Summary`: UI/API integration changes.
+- `Canonical components`: vocabulary names selected for the touched UI.
 - `Token usage`: semantic tokens and style decisions.
 - `Policy checks`: thin-client compliance status.
 - `Validation`: test/build outcomes.
@@ -57,6 +60,7 @@ Always return:
 ## Guardrails
 
 - No ad-hoc color literals when semantic tokens exist.
+- No vague component naming when the vocabulary provides a canonical primitive.
 - No direct networking outside adapter policy.
 - Do not introduce DTO drift from backend contract.
 - Do not mark complete without local test/build evidence.
@@ -68,5 +72,7 @@ Always return:
 - `frontend/src/styles/tokens.css`
 - `frontend/src/styles/tokens.ts`
 - `frontend/tailwind.config.ts`
+- `docs/design/UI_COMPONENT_VOCABULARY.md`
+- `docs/design/CODE_FIRST_UI_PROMPT_COOKBOOK.md`
 - `frontend/src/api/client.ts`
 - `frontend/src/api/__tests__/thin-client-guards.test.ts`

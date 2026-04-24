@@ -1,10 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-from typing import Any, Mapping, Protocol, Sequence
+import logging
+import os
+from typing import Any, Mapping, Protocol, Sequence, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
+from app.http_error_details import (
+    INVALID_SUBMISSION_DETAIL,
+    INVALID_SUBMISSION_TRANSITION_DETAIL,
+)
 from app.schemas.restaurants import (
     RestaurantHit,
     RestaurantMenuItem,
@@ -12,10 +18,13 @@ from app.schemas.restaurants import (
     RestaurantSubmissionCreate,
     SubmissionReviewRequest,
 )
-from app.services import restaurant_store
+from app.services import restaurant_postgres_read, restaurant_shadow_parity, restaurant_store
 
 router = APIRouter(tags=["restaurants"])
 moderation_router = APIRouter(tags=["restaurants"])
+logger = logging.getLogger(__name__)
+FEATURE_RESTAURANT_POSTGRES_SHADOW_READS = "FEATURE_RESTAURANT_POSTGRES_SHADOW_READS"
+RESTAURANT_POSTGRES_SHADOW_READS_URL = "RESTAURANT_POSTGRES_SHADOW_READS_URL"
 
 
 class RestaurantStore(Protocol):
@@ -48,10 +57,16 @@ class _RestaurantStoreCompat:
     def search_restaurants(
         self, query: str, limit: int, offset: int
     ) -> Sequence[Mapping[str, Any]]:
-        return restaurant_store.search_restaurants(query=query, limit=limit, offset=offset)
+        return cast(
+            Sequence[Mapping[str, Any]],
+            restaurant_store.search_restaurants(query=query, limit=limit, offset=offset),
+        )
 
     def get_restaurant_menu(self, chain_id: str, limit: int) -> Sequence[Mapping[str, Any]]:
-        return restaurant_store.get_restaurant_menu(chain_id=chain_id, limit=limit)
+        return cast(
+            Sequence[Mapping[str, Any]],
+            restaurant_store.get_restaurant_menu(chain_id=chain_id, limit=limit),
+        )
 
     def create_submission(
         self,
@@ -62,28 +77,144 @@ class _RestaurantStoreCompat:
         off_url: str | None,
         entity_type: str,
     ) -> Mapping[str, Any]:
-        return restaurant_store.create_submission(
-            canonical_name=canonical_name,
-            payload=payload,
-            barcode=barcode,
-            off_url=off_url,
-            entity_type=entity_type,
+        return cast(
+            Mapping[str, Any],
+            restaurant_store.create_submission(
+                canonical_name=canonical_name,
+                payload=payload,
+                barcode=barcode,
+                off_url=off_url,
+                entity_type=entity_type,
+            ),
         )
 
     def get_submission(self, submission_id: str) -> Mapping[str, Any] | None:
-        return restaurant_store.get_submission(submission_id)
+        return cast(Mapping[str, Any] | None, restaurant_store.get_submission(submission_id))
 
     def review_submission(
         self, submission_id: str, *, status: str, reviewer_notes: str | None
     ) -> Mapping[str, Any] | None:
-        return restaurant_store.review_submission(
-            submission_id,
-            status=status,
-            reviewer_notes=reviewer_notes,
+        return cast(
+            Mapping[str, Any] | None,
+            restaurant_store.review_submission(
+                submission_id,
+                status=status,
+                reviewer_notes=reviewer_notes,
+            ),
         )
 
 
-_STORE: RestaurantStore = _RestaurantStoreCompat()
+def _shadow_reads_enabled() -> bool:
+    """RU: Shadow lane включается только явным env flag. EN: Shadow lane needs explicit env flag."""
+
+    raw_value = os.getenv(FEATURE_RESTAURANT_POSTGRES_SHADOW_READS, "false")
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _shadow_reads_pg_url() -> str | None:
+    """RU: Override URL можно задать отдельно, иначе берём DATABASE_URL.
+
+    EN: Use dedicated override when provided, otherwise fall back to DATABASE_URL.
+    """
+
+    override_url = os.getenv(RESTAURANT_POSTGRES_SHADOW_READS_URL)
+    if override_url:
+        return override_url
+    database_url = os.getenv("DATABASE_URL")
+    return database_url or None
+
+
+def _log_shadow_read_mismatch(
+    operation: str, parity: restaurant_shadow_parity.ParityResult
+) -> None:
+    logger.warning(
+        "restaurant PostgreSQL shadow-read mismatch for %s: sqlite=%s postgres=%s reasons=%s",
+        operation,
+        parity.sqlite_count,
+        parity.postgres_count,
+        "; ".join(parity.mismatch_reasons) or "unknown mismatch",
+    )
+
+
+class _RestaurantStoreShadowCompat(_RestaurantStoreCompat):
+    """SQLite-authoritative adapter with optional PostgreSQL shadow reads."""
+
+    def search_restaurants(
+        self, query: str, limit: int, offset: int
+    ) -> Sequence[Mapping[str, Any]]:
+        sqlite_rows = list(super().search_restaurants(query, limit, offset))
+        self._run_search_shadow(query=query, limit=limit, offset=offset, sqlite_rows=sqlite_rows)
+        return sqlite_rows
+
+    def get_restaurant_menu(self, chain_id: str, limit: int) -> Sequence[Mapping[str, Any]]:
+        sqlite_rows = list(super().get_restaurant_menu(chain_id, limit))
+        self._run_menu_shadow(chain_id=chain_id, limit=limit, sqlite_rows=sqlite_rows)
+        return sqlite_rows
+
+    def _run_search_shadow(
+        self,
+        *,
+        query: str,
+        limit: int,
+        offset: int,
+        sqlite_rows: list[Mapping[str, Any]],
+    ) -> None:
+        if not _shadow_reads_enabled():
+            return
+        pg_url = _shadow_reads_pg_url()
+        if not pg_url:
+            logger.warning(
+                "restaurant PostgreSQL shadow reads enabled for search without a PostgreSQL URL"
+            )
+            return
+        try:
+            pg_rows = restaurant_postgres_read.search_restaurants_pg(
+                pg_url=pg_url,
+                query=query,
+                limit=limit,
+                offset=offset,
+            )
+            parity = restaurant_shadow_parity.compare_restaurant_hits(sqlite_rows, pg_rows)
+            if not parity.match:
+                _log_shadow_read_mismatch("search_restaurants", parity)
+        except Exception:
+            logger.warning(
+                "restaurant PostgreSQL shadow search failed; keeping SQLite canonical response",
+                exc_info=True,
+            )
+
+    def _run_menu_shadow(
+        self,
+        *,
+        chain_id: str,
+        limit: int,
+        sqlite_rows: list[Mapping[str, Any]],
+    ) -> None:
+        if not _shadow_reads_enabled():
+            return
+        pg_url = _shadow_reads_pg_url()
+        if not pg_url:
+            logger.warning(
+                "restaurant PostgreSQL shadow reads enabled for menu without a PostgreSQL URL"
+            )
+            return
+        try:
+            pg_rows = restaurant_postgres_read.get_restaurant_menu_pg(
+                pg_url=pg_url,
+                chain_id=chain_id,
+                limit=limit,
+            )
+            parity = restaurant_shadow_parity.compare_restaurant_menu(sqlite_rows, pg_rows)
+            if not parity.match:
+                _log_shadow_read_mismatch("get_restaurant_menu", parity)
+        except Exception:
+            logger.warning(
+                "restaurant PostgreSQL shadow menu read failed; keeping SQLite canonical response",
+                exc_info=True,
+            )
+
+
+_STORE: RestaurantStore = _RestaurantStoreShadowCompat()
 
 
 def get_restaurant_store() -> RestaurantStore:
@@ -147,7 +278,8 @@ def create_restaurant_submission(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=INVALID_SUBMISSION_DETAIL,
         ) from exc
     result: RestaurantSubmission = RestaurantSubmission.model_validate(created)
     return result
@@ -189,7 +321,8 @@ def review_restaurant_submission(
         )
     except ValueError as exc:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=INVALID_SUBMISSION_TRANSITION_DETAIL,
         ) from exc
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Submission not found")

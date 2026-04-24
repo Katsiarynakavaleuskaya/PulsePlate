@@ -1,0 +1,55 @@
+# PR 1332 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036116764 -> 48f0022b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036117132 -> 48f0022b
+Disposition: FIXED
+Commit: 48f0022b
+Evidence: `docs/review/PR_1332_FIXED_MAPPING.md:4`, `docs/review/PR_1332_FIXED_MAPPING.md:5`, `docs/review/PR_1332_FIXED_MAPPING.md:8`
+Reason: The first artifact-fix commit flipped the required discussion checkboxes and restored the canonical no-actionable bullet format expected by the Phase2 guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119278 -> da49f82f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119281 -> da49f82f
+Disposition: FIXED
+Commit: da49f82f
+Evidence: `docs/review/PR_1332_FIXED_MAPPING.md:4`, `docs/review/PR_1332_FIXED_MAPPING.md:5`, `docs/review/PR_1332_FIXED_MAPPING.md:8`
+Reason: The later artifact-normalization commit recorded the disposition blocks required by the Phase2 mapping guard, giving these cubic threads a valid post-comment proof commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036117134
+Disposition: NOT-A-BUG
+Evidence: `RUNBOOK_AGENT.md:140`, `RUNBOOK_AGENT.md:141`
+Reason: `Pre-commit green` is intentionally tracked as complete on the current merge cycle because this lane reruns `pre-commit run --all-files` before push; the repository validator does not require that line to remain unchecked.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036139160 -> 0ef8247e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#pullrequestreview-4058910404 -> 0ef8247e
+Disposition: FIXED
+Commit: 0ef8247e
+Evidence: `RUNBOOK_AGENT.md:140`, `RUNBOOK_AGENT.md:141`
+Reason: cubic identified a valid stale-proof issue in the artifact. This follow-up commit replaces the self-referential line citation with the canonical merge-ready blocking bundle proof and records the late cubic aggregate review against the same fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#discussion_r3036119273 -> ca065fe9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#pullrequestreview-4058893902 -> ca065fe9
+Disposition: FIXED
+Commit: ca065fe9
+Evidence: `AGENTS.md:1093`, `AGENTS.md:1094`
+Reason: Added the direct backlog-anchor link and the explicit signed-build-provenance prerequisite/foundation so the deferred lane no longer reads as if it can start immediately after P0 closure alone.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#pullrequestreview-4058894872
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1332_FIXED_MAPPING.md:8`, `docs/review/PR_1332_FIXED_MAPPING.md:18`
+Reason: The CodeRabbit review summary only aggregates the thread-level findings dispositioned in this artifact; no independent unresolved item remains after the FIXED and NOT-A-BUG records below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1332#pullrequestreview-4058896355
+Disposition: NOT-A-BUG
+Evidence: `AGENTS.md:1093`, `docs/review/PR_1332_FIXED_MAPPING.md:8`, `docs/review/PR_1332_FIXED_MAPPING.md:24`
+Reason: The cubic overall review is fully covered by the concrete thread-level dispositions recorded here; there is no separate unresolved action beyond those mapped comments.
+
+## Merge Readiness
+- [ ] All required checks pass
+- [ ] No unresolved review threads (resolve on GitHub after push)
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [x] Pre-commit green

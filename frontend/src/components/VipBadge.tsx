@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import clsx from 'clsx';
 import { useTranslation } from 'react-i18next';
 import { useVipModule } from '../lib/useFeatureFlag';
 import { useTelemetry } from '../lib/useTelemetry';
+import { Badge } from './ui';
 
 export interface VipBadgeProps {
   size?: 'sm' | 'md' | 'lg';
@@ -10,18 +10,11 @@ export interface VipBadgeProps {
   component?: string; // For telemetry tracking
 }
 
-// Move class objects to module scope to avoid allocations on every render
-const sizeClasses = {
-  sm: 'px-1.5 py-0.5 text-xs',
-  md: 'px-2 py-1 text-xs',
-  lg: 'px-3 py-1.5 text-sm'
-};
-
-const variantClasses = {
-  default: 'bg-gradient-to-r from-purple-500 to-pink-500 text-white',
-  outline: 'border border-purple-500 text-purple-600 dark:text-purple-400',
-  subtle: 'bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200'
-};
+const variantToSharedVariant = {
+  default: 'solid',
+  outline: 'outline',
+  subtle: 'subtle',
+} as const;
 
 /**
  * VIP Badge component
@@ -48,15 +41,14 @@ export const VipBadge: React.FC<VipBadgeProps> = ({ size = 'md', variant = 'defa
   }
 
   return (
-    <span
-      className={clsx(
-        'inline-flex items-center font-medium rounded-full',
-        sizeClasses[size],
-        variantClasses[variant]
-      )}
+    <Badge
+      data-testid="vip-badge"
       aria-label={t('vip.badgeAria')}
+      size={size}
+      tone="premium"
+      variant={variantToSharedVariant[variant]}
     >
       {t('vip.badge')}
-    </span>
+    </Badge>
   );
 };

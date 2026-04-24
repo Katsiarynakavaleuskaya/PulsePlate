@@ -1,0 +1,10 @@
+# Reviewed VS Code recommendations for PulsePlate repo surfaces.
+charliermarsh.ruff
+ms-azuretools.vscode-docker
+ms-python.black-formatter
+ms-python.debugpy
+ms-python.flake8
+ms-python.isort
+ms-python.python
+ms-python.vscode-pylance
+Webnative.webnative

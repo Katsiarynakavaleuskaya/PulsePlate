@@ -1,24 +1,53 @@
 /* @vitest-environment jsdom */
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import PremiumGate from "../PremiumGate";
 // Initialize i18n so t() resolves labels
 import "../../i18n";
 // Import test setup for jest-dom matchers
 import "../../test/setup";
-import { vi, describe, test, expect } from "vitest";
+import { vi, describe, test, expect, beforeEach } from "vitest";
+
+const telemetryTrack = vi.hoisted(() => ({
+  gateInteracted: vi.fn(),
+  upgradeClicked: vi.fn(),
+  paywallDismissed: vi.fn(),
+  moduleViewed: vi.fn(),
+  featureClicked: vi.fn(),
+  paywallViewed: vi.fn(),
+  badgeViewed: vi.fn(),
+}));
+
+const beforeAfterPropsSpy = vi.hoisted(() => vi.fn());
+
+const { gateInteracted, upgradeClicked, paywallDismissed } = telemetryTrack;
+
+vi.mock("../../lib/useTelemetry", () => ({
+  useTelemetry: () => ({
+    track: telemetryTrack,
+    isEnabled: true,
+    isVip: false,
+  }),
+}));
 
 vi.mock("../Paywall/BeforeAfter", () => {
   return {
-    default: ({ onClose }: { onClose: () => void }) => (
-      <div role="dialog">
+    default: (props: { onClose: () => void; source?: string; triggerReason?: string }) => {
+      beforeAfterPropsSpy(props);
+      return (
+        <div role="dialog">
         Mocked Paywall
-        <button onClick={onClose}>Close</button>
-      </div>
-    ),
+        <button onClick={props.onClose}>Close</button>
+        </div>
+      );
+    },
   };
 });
 
 describe("PremiumGate", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
   test("shows children directly when premium", () => {
     render(
       <PremiumGate isPremium={true}>
@@ -39,8 +68,58 @@ describe("PremiumGate", () => {
     expect(screen.getAllByTestId("content")[0]).toBeInTheDocument();
 
     const unlock = screen.getByRole("button", { name: /continue/i });
+    expect(unlock).toHaveAttribute("aria-haspopup", "dialog");
+    expect(unlock.className).toContain("min-h-11");
+    expect(unlock.className).toContain("bg-[var(--pp-primary)]");
+    expect(unlock.className).toContain("text-[var(--color-primary-foreground)]");
     fireEvent.click(unlock);
 
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  test("preview has no aria-label (sr-only copy + inert handle context); telemetry and focus restore on close", async () => {
+    render(
+      <PremiumGate isPremium={false} source="plate_test">
+        <div data-testid="content">Gated content</div>
+      </PremiumGate>
+    );
+
+    const preview = screen.getByTestId("content").parentElement;
+    expect(preview).not.toHaveAttribute("aria-label");
+
+    const unlock = screen.getByRole("button", { name: /continue/i });
+    fireEvent.click(unlock);
+
+    expect(gateInteracted).toHaveBeenCalledWith("premium_preview", "click");
+    expect(upgradeClicked).toHaveBeenCalledWith("plate_test", "premium_preview_gate");
+
+    fireEvent.click(screen.getByText("Close"));
+
+    expect(paywallDismissed).toHaveBeenCalledWith("plate_test", "close_button");
+    await waitFor(() => {
+      expect(document.activeElement).toBe(unlock);
+    });
+  });
+
+  test("forwards planning trigger reason to the paywall seam when provided", () => {
+    render(
+      <PremiumGate
+        isPremium={false}
+        source="plate_page"
+        paywallSource="pro_daily_plate"
+        triggerReason="targets_ready"
+      >
+        <div data-testid="content">Gated content</div>
+      </PremiumGate>
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /continue/i }));
+
+    expect(beforeAfterPropsSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source: "pro_daily_plate",
+        triggerReason: "targets_ready",
+      })
+    );
   });
 });

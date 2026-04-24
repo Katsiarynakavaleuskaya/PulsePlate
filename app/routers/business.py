@@ -7,7 +7,7 @@ from anyio import to_thread
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
-from app.routers.api_key import api_key_header
+from app.routers.api_key import require_app_api_key
 from core.business_bayesian_analyzer import BusinessBayesianAnalyzer
 from core.i18n import normalize_lang, t
 
@@ -83,13 +83,14 @@ def _localized_error(locale: Optional[str], key: str) -> str:
         Localized error message
     """
     lang = normalize_lang(locale)
-    return t(lang, key)
+    message: str = t(lang, key)
+    return message
 
 
 @router.post("/analyze", response_model=list[BusinessAnalysisResponse])
 async def analyze_business_code(
     request: BusinessAnalysisRequest,
-    _api_key: str = Depends(api_key_header),
+    _api_key: str = Depends(require_app_api_key),
 ) -> list[BusinessAnalysisResponse]:
     """
     Analyze code from a business perspective.

@@ -19,6 +19,10 @@ type SignedLinkResponse = {
   ttl?: number;
   exp?: number;
 };
+// RU: `/api/v1/export/sign` намеренно скрыт из public OpenAPI, поэтому web держит
+// локальный внутренний контракт вместо generated public-schema type.
+// EN: `/api/v1/export/sign` is intentionally hidden from public OpenAPI, so the
+// web client keeps a local internal contract instead of a generated public-schema type.
 
 export async function requestSignedLink(
   path: string,

@@ -1,0 +1,40 @@
+{
+  "locale": "en-US",
+  "promotion_policy": "canonical-main-assets-only",
+  "app_icon": {
+    "primary_source_path": "ios/icon_luxury_1024.png",
+    "catalog_marketing_icon_path": "ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png",
+    "catalog_contents_path": "ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json"
+  },
+  "mascot_assets": [
+    {
+      "asset_key": "FitChef",
+      "catalog_path": "ios/PulsePlate/Assets.xcassets/FitChef.imageset/Contents.json"
+    },
+    {
+      "asset_key": "FitChefOnboardingWelcome",
+      "catalog_path": "ios/PulsePlate/Assets.xcassets/FitChefOnboardingWelcome.imageset/Contents.json"
+    },
+    {
+      "asset_key": "FitChefThinking",
+      "catalog_path": "ios/PulsePlate/Assets.xcassets/FitChefThinking.imageset/Contents.json"
+    },
+    {
+      "asset_key": "FitChefWink",
+      "catalog_path": "ios/PulsePlate/Assets.xcassets/FitChefWink.imageset/Contents.json"
+    },
+    {
+      "asset_key": "FitChefSurprised",
+      "catalog_path": "ios/PulsePlate/Assets.xcassets/FitChefSurprised.imageset/Contents.json"
+    },
+    {
+      "asset_key": "FitChefSleepy",
+      "catalog_path": "ios/PulsePlate/Assets.xcassets/FitChefSleepy.imageset/Contents.json"
+    }
+  ],
+  "decision_log": [
+    "PR-3 does not promote dirty local root assets blindly.",
+    "The approved EN production pack references the canonical source set already present on main after PR-2.",
+    "Any future binary refresh must land through a dedicated reviewed PR against the same canonical asset keys."
+  ]
+}

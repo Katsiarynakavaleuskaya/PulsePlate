@@ -45,17 +45,17 @@ class TestComprehensiveCoverage:
         """Test debug_env endpoint with deterministic response."""
         # Mock environment variables to ensure consistent response
         monkeypatch.setenv("FEATURE_INSIGHT", "true")
-        monkeypatch.setenv("LLM_PROVIDER", "grok")
-        monkeypatch.setenv("GROK_MODEL", "grok-1")
-        monkeypatch.setenv("GROK_ENDPOINT", "https://api.x.ai/v1/chat/completions")
+        monkeypatch.setenv("LLM_PROVIDER", "perplexity")
+        monkeypatch.setenv("PERPLEXITY_MODEL", "sonar")
+        monkeypatch.setenv("PERPLEXITY_ENDPOINT", "https://api.perplexity.ai/v1")
 
         response = self.client.get("/debug_env")
         assert response.status_code == 200
         data = response.json()
         assert "FEATURE_INSIGHT" in data
         assert "LLM_PROVIDER" in data
-        assert "GROK_MODEL" in data
-        assert "GROK_ENDPOINT" in data
+        assert "PERPLEXITY_MODEL" in data
+        assert "PERPLEXITY_ENDPOINT" in data
         assert "insight_enabled" in data
 
     def test_database_status_endpoint_success(self, monkeypatch: pytest.MonkeyPatch) -> None:

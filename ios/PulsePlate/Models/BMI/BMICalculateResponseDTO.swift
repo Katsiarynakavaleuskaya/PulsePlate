@@ -25,6 +25,7 @@ public struct BMICalculateResponseDTO: Decodable, Sendable {
     public let visualization: BMIScaleV1DTO?
     public let interpretationV1: BMIInterpretationV1DTO?
     public let softPaywall: SoftPaywallHookDTO?
+    public let nextBestAction: NextBestActionDTO?
 
     enum CodingKeys: String, CodingKey {
         case bmi
@@ -39,5 +40,6 @@ public struct BMICalculateResponseDTO: Decodable, Sendable {
         case visualization
         case interpretationV1 = "interpretation_v1"
         case softPaywall = "soft_paywall"
+        case nextBestAction = "next_best_action"
     }
 }

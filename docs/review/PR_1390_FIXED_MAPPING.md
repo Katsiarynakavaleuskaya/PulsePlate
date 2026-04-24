@@ -1,0 +1,67 @@
+# PR 1390 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+Disposition: NOT-A-BUG
+Evidence: `.github/workflows/ci.yml:811`, `.github/workflows/ci.yml:939`, `docs/roadmap/BACKLOG_LEDGER.md:8732`
+Reason: Sourcery's DRY extraction and `::notice::` prefix suggestions are advisory, but this PR is intentionally a narrow stopgap stabilization lane. Keeping the timing diagnostics inline inside the canonical `CI` workflow is consistent with the current scope, while root-cause retirement remains tracked in `ledger-p1-py313-main-ci-stall-root-cause`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093556786
+
+Disposition: FIXED
+Commit: 25c9f7c4e
+Evidence: `.github/workflows/ci.yml:818`, `.github/workflows/ci.yml:828`, `.github/workflows/ci.yml:946`, `.github/workflows/ci.yml:956`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067777676 -> 25c9f7c4e
+
+Disposition: FIXED
+Commit: 43ee565af
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md` now replaces the ambiguous placeholder with explicit dispositions, records the post-open reviewer lane evidence, and removes the stale note that contradicted the checklist state for `bug-hunter`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093557955 -> 43ee565af
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067777677 -> 43ee565af
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067777678 -> 43ee565af
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093558245 -> 43ee565af
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067778134 -> 43ee565af
+
+Disposition: FIXED
+Commit: dff54de3e
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:11`, `docs/review/PR_1390_FIXED_MAPPING.md:13`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093609339 -> dff54de3e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067846377 -> dff54de3e
+
+Disposition: FIXED
+Commit: 30d87dfc9
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:11`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093614475 -> 30d87dfc9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3067853149 -> 30d87dfc9
+
+Disposition: FIXED
+Commit: 585614781
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:45`, `docs/review/PR_1390_FIXED_MAPPING.md:52`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093732799 -> 585614781
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#discussion_r3068008378 -> 585614781
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1390_FIXED_MAPPING.md:10`, `docs/review/PR_1390_FIXED_MAPPING.md:38`, `docs/review/PR_1390_FIXED_MAPPING.md:42`
+Reason: This CodeRabbit review is a duplicate summary of the already-closed suggestion to add a `discussion_r...` URL to the NOT-A-BUG proof. Re-introducing `discussion_r3067846377` into the NOT-A-BUG block would recreate the same mixed-disposition conflict that was fixed in `30d87dfc9`, because that discussion URL is already mapped under the separate FIXED disposition for the earlier thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1390#pullrequestreview-4093738726
+
+## Merge Readiness
+
+- [ ] All required checks pass (current head)
+- [ ] No unresolved review threads (re-check before merge)
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] Pre-commit green on latest push
+- [ ] `make verify` green where required for merge
+- [ ] Mandatory post-open **qa-engineer-agent** pass completed (current diff re-review kept scope limited to CI timeout stabilization plus canonical governance artifacts)
+- [ ] Mandatory post-open **bug-hunter** pass completed (one actionable failure-safe timestamp defect was found in the workflow lane and fixed in `25c9f7c4e`; no second blocker surfaced on the remaining narrow diff)
+- [ ] **dev-operator** scoped review completed (current-head CI/wrapper triage confirms this lane is stopgap stabilization, not the root-cause retirement slice)
+- [ ] **backend-engineer** scoped review completed (`Mencius`)
+- [ ] **security-auditor** scoped review completed (`Boole`)
+
+## Notes
+
+This PR is the temporary py313 CI stabilization lane, not the retirement/root-cause fix. Narrative lock for this artifact: an older py313 sequential-only CI contract amplified a pre-existing expensive Node subprocess hot path in `app/security/goplus_agentguard_bridge.py`; `#1384` made the local Node scanner the active runtime/test seam on `main`; `#1387` is the root-fix lane; `#1390` remains the stopgap stabilization lane. `tests/conftest.py` already sets `TESTING=true` during `pytest_configure()`, so current evidence does not support opening a separate CI env follow-up just to export `TESTING=true`.

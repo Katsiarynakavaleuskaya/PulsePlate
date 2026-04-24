@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>iOS Progress</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+  </head>
+  <body>
+    <main class="screen">
+      <div class="status-bar">
+        <span>9:41</span>
+        <span>PulsePlate iOS v2</span>
+      </div>
+
+      <div class="top-row">
+        <span class="screen-label">iOS_Progress</span>
+        <span class="status-summary-label">Daily completion</span>
+      </div>
+
+      <section class="glass-card">
+        <p class="eyebrow">Progress</p>
+        <h1 class="headline">Progress</h1>
+        <p class="subheadline">
+          Экран показывает общий completion и сегментный баланс как quiet daily
+          review, а recovery остаётся частью той же поверхности.
+        </p>
+        <div class="summary-strip">
+          <span class="summary-pill success">68% overall</span>
+          <span class="summary-pill">Segment chart</span>
+          <span class="summary-pill">Today list</span>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Overall completion</h2>
+          <span class="row-badge green">Live state</span>
+        </div>
+        <div class="progress-summary-card">
+          <div>
+            <span class="metric-label">Overall completion</span>
+            <strong class="metric-hero">68%</strong>
+          </div>
+          <div class="summary-progress-track">
+            <span class="summary-progress-fill"></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Segment progress</h2>
+          <span class="top-link compact">Chart</span>
+        </div>
+        <div class="chart-card">
+          <div class="chart-bars" role="img" aria-label="Segment progress chart">
+            <div class="chart-bar">
+              <span class="chart-column vegetables"></span>
+              <strong>Veg</strong>
+            </div>
+            <div class="chart-bar">
+              <span class="chart-column protein"></span>
+              <strong>Prot</strong>
+            </div>
+            <div class="chart-bar">
+              <span class="chart-column carbs"></span>
+              <strong>Carbs</strong>
+            </div>
+            <div class="chart-bar">
+              <span class="chart-column fats"></span>
+              <strong>Fats</strong>
+            </div>
+          </div>
+          <p class="screen-footer-note">
+            Main-state chart stays visual and readable without breaking into a
+            separate analytics surface.
+          </p>
+        </div>
+      </section>
+
+      <section class="glass-card">
+        <div class="section-heading-row">
+          <h2>Today</h2>
+          <span class="top-link compact">List</span>
+        </div>
+        <div class="metric-list">
+          <div class="metric-list-row">
+            <span class="metric-dot vegetables"></span>
+            <strong>Vegetables</strong>
+            <span>3.2 / 4.0</span>
+          </div>
+          <div class="metric-list-row">
+            <span class="metric-dot protein"></span>
+            <strong>Protein</strong>
+            <span>1.8 / 2.0</span>
+          </div>
+          <div class="metric-list-row">
+            <span class="metric-dot carbs"></span>
+            <strong>Carbs</strong>
+            <span>1.2 / 1.5</span>
+          </div>
+          <div class="metric-list-row">
+            <span class="metric-dot fats"></span>
+            <strong>Fats</strong>
+            <span>0.6 / 0.8</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="glass-card muted-card">
+        <h2>Embedded recovery</h2>
+        <p class="section-copy">
+          Если данных ещё нет или API вернул issue, main surface показывает
+          аккуратный recovery block с одним runtime-selected CTA, без отдельного
+          empty-state экрана.
+        </p>
+        <div class="single-action-row compact-actions">
+          <button class="primary-button" type="button">Retry</button>
+        </div>
+        <p class="screen-footer-note">
+          Для transport/API issue этот CTA становится `Retry`, а для profile
+          gating переключается на `Open profile`.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

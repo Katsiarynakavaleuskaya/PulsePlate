@@ -1,0 +1,47 @@
+# PR 1030 — Fixed in Commit Mapping
+<!-- markdownlint-disable MD034 -->
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: c06810c9
+Evidence: `frontend/src/auth/storage.ts:9`, `frontend/src/auth/storage.ts:31`, `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/auth/__tests__/storage.test.ts:97`, `frontend/src/components/__tests__/TabBar.test.tsx:207`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912022299 -> c06810c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902419512 -> c06810c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902421449 -> c06810c9
+
+Disposition: FIXED
+Commit: afd3df7a
+Evidence: `frontend/src/auth/__tests__/storage.test.ts:80`, `frontend/src/components/__tests__/TabBar.test.tsx:207`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902421447 -> afd3df7a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912023708 -> afd3df7a
+
+Disposition: FIXED
+Commit: 48336b21
+Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/storage.ts:37`, `frontend/src/auth/__tests__/storage.test.ts:83`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902466296 -> 48336b21
+
+Disposition: FIXED
+Commit: a027c2fa
+Evidence: `frontend/src/auth/storage.ts:31`, `frontend/src/auth/__tests__/storage.test.ts:83`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902462165 -> a027c2fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2902466294 -> a027c2fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912061840 -> a027c2fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3912064752 -> a027c2fa
+
+Disposition: FIXED
+Commit: fa6fe1c2
+Evidence: `frontend/src/auth/storage.ts:8`, `frontend/src/auth/storage.ts:34`, `frontend/src/auth/storage.ts:42`, `frontend/src/auth/__tests__/storage.test.ts:107`, `frontend/src/auth/__tests__/storage.test.ts:114`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#discussion_r2905162666 -> fa6fe1c2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1030#pullrequestreview-3915106530 -> fa6fe1c2
+
+## Merge Readiness
+- [x] Local hard gates passed (`make verify`)
+- [ ] Full GitHub current-head required checks passed
+- [ ] No unresolved review threads remain
+- [ ] No actionable bot comments remain
+- [x] PR body mirrors canonical artifact
+- [ ] Review wait-window completed

@@ -3,7 +3,7 @@ Targeted tests for core.db_fallback DB fallback logic to reach 97% coverage.
 
 Covers _attempt_db_fallback function branches:
 - Production in-memory fallback rejection
-- Production persistent fallback with/without ALLOW_DB_PERSISTENT_FALLBACK
+- Production persistent fallback rejection
 - Non-production fallback paths
 """
 
@@ -63,11 +63,11 @@ class TestAppDBFallback97:
     def test_attempt_db_fallback_production_no_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Production rejects fallback when ALLOW_DB_PERSISTENT_FALLBACK not set."""
+        """Production rejects persistent SQLite fallback without legacy override."""
         from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./fallback.db")
-        # Ensure ALLOW_DB_PERSISTENT_FALLBACK is NOT set
+        # Ensure the legacy override is not set.
         monkeypatch.delenv("ALLOW_DB_PERSISTENT_FALLBACK", raising=False)
 
         mock_err = Exception("Primary DB failed")
@@ -80,10 +80,10 @@ class TestAppDBFallback97:
                 truthy=self.TRUTHY,
             )
 
-    def test_attempt_db_fallback_production_persistent_allowed(
+    def test_attempt_db_fallback_production_persistent_rejected_even_with_override(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Production allows persistent fallback when explicitly enabled."""
+        """Production-like env rejects persistent SQLite even with legacy override."""
         from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./prod_fallback.db")
@@ -91,51 +91,35 @@ class TestAppDBFallback97:
 
         mock_err = Exception("Primary DB failed")
 
-        # Mock SQLAlchemy engine creation to avoid actual DB operations
-        with (
-            patch("core.db_fallback.create_engine") as mock_create_engine,
-            patch("core.models.Base") as mock_base,
-            patch("core.db.SessionLocal") as mock_session,
-        ):
-            mock_engine = MagicMock()
-            mock_create_engine.return_value = mock_engine
-            mock_base.metadata.create_all = MagicMock()
-            mock_session.configure = MagicMock()
+        with patch("core.db_fallback.create_engine") as mock_create_engine:
+            with pytest.raises(Exception, match="Primary DB failed"):
+                _attempt_db_fallback(
+                    env_name="production",
+                    is_production=True,
+                    db_err=mock_err,
+                    truthy=self.TRUTHY,
+                )
 
-            # Should not raise
-            _attempt_db_fallback(
-                env_name="production",
-                is_production=True,
-                db_err=mock_err,
-                truthy=self.TRUTHY,
-            )
-
-            # Verify fallback was attempted
-            mock_create_engine.assert_called_once()
-            assert "sqlite:///./prod_fallback.db" in str(mock_create_engine.call_args)
+            mock_create_engine.assert_not_called()
 
     def test_attempt_db_fallback_production_persistent_logs(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Cover db_fallback line 87: production persistent path logger.warning."""
+        """Production-like persistent SQLite path logs fail-closed guidance."""
         from core.db_fallback import _attempt_db_fallback
 
         monkeypatch.setenv("DB_FALLBACK_URL", "sqlite:///./prod_fallback.db")
         monkeypatch.setenv("ALLOW_DB_PERSISTENT_FALLBACK", "1")
         mock_err = Exception("Primary DB failed")
-        with (
-            patch("core.db_fallback.create_engine") as mock_create_engine,
-            patch("core.models.Base"),
-            patch("core.db.SessionLocal"),
-        ):
-            mock_create_engine.return_value = MagicMock()
+
+        with pytest.raises(Exception, match="Primary DB failed"):
             _attempt_db_fallback(
                 env_name="production",
                 is_production=True,
                 db_err=mock_err,
                 truthy=self.TRUTHY,
             )
-        assert "attempting persistent fallback" in caplog.text
+        assert "not an accepted production or staging baseline" in caplog.text
 
     def test_attempt_db_fallback_nonproduction_inmemory_allowed(
         self, monkeypatch: pytest.MonkeyPatch
@@ -224,6 +208,25 @@ class TestAppDBFallback97:
         fallback_mod.reset_fallback_state()
         assert fallback_mod.is_fallback_active() is False
 
+    @pytest.mark.parametrize(
+        ("database_url", "expected"),
+        [
+            ("", "<empty-db-url>"),
+            ("sqlite:///./fallback.db", "sqlite:///<redacted>"),
+            (
+                "postgresql+psycopg://db.example.invalid:5432/pulseplate",
+                "<redacted-db-url>",
+            ),
+        ],
+    )
+    def test_redact_database_url_masks_non_memory_values(
+        self, database_url: str, expected: str
+    ) -> None:
+        """Helper must redact empty, file SQLite, and external DSNs consistently."""
+        from core.db_fallback import _redact_database_url
+
+        assert _redact_database_url(database_url) == expected
+
     def test_attempt_db_fallback_fallback_init_fails(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Fallback DB initialization failure re-raises original error."""
         from core.db_fallback import _attempt_db_fallback
@@ -241,13 +244,10 @@ class TestAppDBFallback97:
                     truthy=self.TRUTHY,
                 )
 
-    def test_check_production_constraints_inmemory_raises(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        """Cover _check_production_constraints in-memory branch (lines 76-83)."""
+    def test_check_production_constraints_inmemory_raises(self) -> None:
+        """Production constraints fail closed for in-memory fallback."""
         from core.db_fallback import _check_production_constraints
 
-        monkeypatch.setenv("ALLOW_DB_PERSISTENT_FALLBACK", "1")
         db_err = ValueError("test")
         with pytest.raises(ValueError, match="test"):
             _check_production_constraints(
@@ -258,19 +258,19 @@ class TestAppDBFallback97:
             )
 
     def test_check_production_constraints_persistent_logs(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+        self, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Cover _check_production_constraints persistent URL path (line 87)."""
+        """Production constraints reject persistent SQLite fallback too."""
         from core.db_fallback import _check_production_constraints
 
-        monkeypatch.setenv("ALLOW_DB_PERSISTENT_FALLBACK", "1")
-        _check_production_constraints(
-            env_name="production",
-            fallback_url="sqlite:///./fallback.db",
-            truthy=self.TRUTHY,
-            db_err=Exception("x"),
-        )
-        assert "attempting persistent fallback" in caplog.text
+        with pytest.raises(Exception, match="x"):
+            _check_production_constraints(
+                env_name="production",
+                fallback_url="sqlite:///./fallback.db",
+                truthy=self.TRUTHY,
+                db_err=Exception("x"),
+            )
+        assert "canonical Postgres DATABASE_URL" in caplog.text
 
     def test_configure_session_bindings_sessionlocal_none(
         self, monkeypatch: pytest.MonkeyPatch

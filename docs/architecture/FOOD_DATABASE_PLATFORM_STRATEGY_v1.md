@@ -26,7 +26,8 @@ Primary outcomes:
 Implemented foundation already exists:
 
 - source integration: USDA + Open Food Facts (`core/food_apis/unified_db.py:152`, `core/food_apis/update_manager.py:134`, `core/food_apis/scheduler.py:28`, `core/food_sources/usda.py:20`, `core/food_sources/off.py:19`)
-- merge layer: `core/food_merge.py:50`
+- merge layer: `core/food_merge.py:50` (multi-record catalog merge via `core/off_nutrition/resolver.py:66`)
+- live unified search merge (MVP): when `prefer_source="usda"`, `UnifiedFoodDatabase.search_food` enriches the top USDA hit with the best Open Food Facts match using the same resolver priority as catalog merge (`core/food_apis/unified_db.py:318`, `core/off_nutrition/bridge.py:17`, `core/off_nutrition/resolver.py:15`)
 - build/export flow: `scripts/build_food_db.py:62`
 - existing API surface: `/api/v1/foods`, `/api/v1/foods/search`, `/api/v1/foods/{food_id}` (`app/routers/foods.py:29`, `app/routers/foods.py:53`, `app/routers/foods.py:66`)
 
@@ -37,7 +38,7 @@ Validation criteria for this as-is claim:
 Known gap:
 
 - no fully governed snapshot lifecycle and source-tier rollout model
-- no canonical confidence/provenance policy as an explicit SoT
+- confidence/provenance for unified rows is implemented in resolver + wire rebuild, but snapshot/canonical-store policy remains to be fully governed end-to-end
 - limited restaurant/menu coverage
 - no controlled submission pipeline for unknown products
 
@@ -59,8 +60,9 @@ Known gap:
 |------|--------|------|---------------|
 | Tier 1 | USDA | scientific baseline | full snapshot quarterly |
 | Tier 1 | Open Food Facts | barcode + branded coverage | weekly delta sync + periodic full refresh |
-| Tier 2 | MenuStat | restaurant menu baseline | annual snapshot |
-| Tier 2 | Nutritionix | chain/menu enrichment | monthly scoped snapshot + constrained fallback API |
+| Tier 2 | MenuStat | legacy/static restaurant baseline | replacement gate before new ingest |
+| Tier 2 | restaurant-menu replacement source | chain/menu enrichment | license/cache/rollback review first |
+| Tier 2 | recipe templates / recipe corpora | recipe synthesis and meal planning | repo-owned templates first; external corpora require source review |
 | Tier 3 | regional catalogs (EU/RF/EAEU where legal) | local-market coverage | source-dependent periodic import |
 | Tier 4 | live fallback APIs | miss resolution only | called only when local miss occurs |
 
@@ -69,6 +71,8 @@ Policy rule:
 - local search/lookup first
 - external API only on miss and only after local cache check
 - successful external result is normalized and cached into canonical store
+- MenuStat-style import remains a compatibility format, not proof that
+  MenuStat itself is still an updating source.
 
 ---
 
@@ -84,6 +88,33 @@ Required metadata per snapshot:
 - record count
 - file size
 - manifest entry with immutable path
+
+PR1 source-update preflight adds one more gate before bulk ingest: every
+incoming source must declare whether it is a current source, a legacy/static
+baseline, a commercial/contract-dependent provider, or an unresolved source.
+Enforcement anchor: the PR1 preflight contract requires top-level manifest field
+`source_classification` with allowed values `current`, `legacy_static`,
+`commercial_contract`, or `unresolved`; later tooling must validate that field
+before ingest using the PR1 packet's canonical criteria.
+This is a PR1 contract, not current runtime enforcement: follow-up tooling must
+add validation before ingest, because `core/food_sources/snapshot_manager.py`
+and `core/food_apis/raw_snapshot_gate.py` do not validate
+`source_classification` yet.
+
+Implementation anchors (W1, repo paths on default branch):
+
+- PR1 source-classification contract:
+  `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md#food-data-source-update-preflight-current-packet`
+- Snapshot manifest hub + fail-closed revalidation (size/checksum): `core/food_sources/snapshot_manager.py:91` (`SnapshotManager`), `:258` (`verify_recorded_snapshots`)
+- OFF deterministic delta/full source: `core/food_sources/off_delta.py:54` (`OpenFoodFactsDeltaSource`)
+- OFF export selection (cache/snapshot inputs): `core/food_apis/update_manager.py:261` (`_find_off_export_file`); scheduler entry for OFF updates: `:352` (`update_database` → `_update_off_database`)
+- Food DB build pipeline: `scripts/build_food_db.py:64` (`FoodDatabaseBuilder`), `:454` (`main`)
+- Raw OFF snapshot sync (facade): `core/food_apis/snapshot_sync.py:28` (`sync_openfoodfacts_snapshot`)
+- Build-time OFF raw manifest gate: `core/food_apis/raw_snapshot_gate.py:18` (`validate_off_raw_manifest_gate`)
+- CLI — sync raw snapshots: `scripts/sync_food_snapshots.py:25` (`main`)
+- Builder flag — fail-closed raw verify before build: `scripts/build_food_db.py:458` (`--validate-raw-snapshots`)
+
+Ledger cross-check: W1 execution + PR #1360 merge (`837cfa170a30160e5f720609cb508e05d4565782`) for `verify_recorded_snapshots` / manifest integrity — see `docs/roadmap/BACKLOG_LEDGER.md` (PR #1360 entry).
 
 ### 5.2 Canonical entity contract
 
@@ -103,6 +134,10 @@ Every canonical record update must preserve:
 - source record ID
 - snapshot date
 - raw payload reference for audit/debug
+
+### 5.4 Live USDA + OFF nutrition merge (MVP, no new HTTP routes)
+
+When the unified DB runs with USDA as the preferred source and both USDA and OFF clients are available, the first USDA result is merged with the top OFF search hit for the same query string. Field-level values follow `DEFAULT_SOURCE_PRIORITY` in `core/off_nutrition/resolver.py:15` (for example `usda` wins over `estimate` for the same nutrient key). Complementary nutrients present only in OFF are retained with `estimate` provenance. Implementation: `UnifiedFoodItem.from_usda_and_off_merge` in `core/food_apis/unified_db.py`, wire rebuild via `nutrition_inputs_from_unified_wire` in `core/off_nutrition/bridge.py`. This does not add or change public HTTP routes; it only affects internal unified search results used by menu-engine-style helpers.
 
 ---
 
@@ -225,4 +260,4 @@ This strategy is aligned with:
 - `docs/design/RESTAURANT_INTEGRATION_SPEC.md` (partner-facing menu contract direction)
 - `docs/roadmap/BACKLOG_LEDGER.md` (execution backlog and PR tracking)
 
-This document is a planning SoT and does not change runtime behavior.
+This document is the planning SoT for the food data program; runtime behavior evolves in the referenced modules—when behavior changes, anchors here must be updated in the same PR.

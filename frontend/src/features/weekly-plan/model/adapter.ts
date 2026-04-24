@@ -1,204 +1,198 @@
 /**
- * Weekly Plan Adapter
+ * Weekly plan adapter.
  *
- * Normalizes raw API response into safe, type-strict view model.
- * Prevents contract drift by providing sensible defaults for missing/malformed data.
+ * Normalizes canonical API payloads into a stable UI view model.
  */
 
-import type { RawWeekPlanResponse, WeekPlanVM, DayMenu, Meal } from './types';
+import type { RawDayMenu, RawMeal, RawWeekPlanResponse, WeekPlanVM, DayMenu, Meal } from './types';
 
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+const BLOCKED_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
-/**
- * Clamp number to range
- */
-function clamp(n: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, n));
+interface NormalizationState {
+  incomplete: boolean;
 }
 
-/**
- * Safely extract coverage percentage (0-300%)
- */
-function safeCoverage(value: unknown): number {
-  return clamp(safeNumber(value, 0), 0, 300);
+function markIncomplete(state: NormalizationState): void {
+  state.incomplete = true;
 }
 
-/**
- * Safely extract number from unknown value
- */
-function safeNumber(value: unknown, fallback = 0): number {
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function safeRequiredNumber(value: unknown, fallback: number, state: NormalizationState): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return value;
   }
+
+  markIncomplete(state);
   return fallback;
 }
 
-/**
- * Safely extract string from unknown value
- */
-function safeString(value: unknown, fallback = ''): string {
+function safeNullableNumber(value: unknown, state: NormalizationState): number | null {
+  if (value == null) {
+    return null;
+  }
+
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value;
+  }
+
+  markIncomplete(state);
+  return null;
+}
+
+function safeString(value: unknown, fallback: string, state: NormalizationState): string {
   if (typeof value === 'string') {
     return value;
   }
+
+  markIncomplete(state);
   return fallback;
 }
 
-/**
- * Log contract drift warning in development
- */
-function logContractDrift(context: string, details?: string): void {
-  if (import.meta.env.DEV) {
-    const message = details
-      ? `[WeekPlan Adapter] ${context}: ${details}`
-      : `[WeekPlan Adapter] ${context}`;
-    console.warn(message);
+function normalizeNumericMap(raw: unknown, state: NormalizationState): Record<string, number> {
+  if (!isObjectRecord(raw)) {
+    markIncomplete(state);
+    return {};
   }
-}
 
-/**
- * Normalize a single meal from raw data
- */
-function normalizeMeal(raw: Record<string, unknown>): Meal {
-  const recipes = Array.isArray(raw.recipes)
-    ? raw.recipes
-        .filter(
-          (r): r is Record<string, unknown> =>
-            r != null && typeof r === 'object' && !Array.isArray(r)
-        )
-        .map((r) => ({
-          id: safeString(r.id, 'unknown'),
-          name: safeString(r.name, 'Unnamed Recipe'),
-          portions: Math.max(1, Math.trunc(safeNumber(r.portions, 1))),
-        }))
-    : [];
-
-  const totals = raw.totals as Record<string, unknown> | undefined;
-
-  return {
-    meal_type: safeString(raw.meal_type, 'meal'),
-    recipes,
-    totals: {
-      kcal: safeNumber(totals?.kcal),
-      protein_g: safeNumber(totals?.protein_g),
-      fat_g: safeNumber(totals?.fat_g),
-      carbs_g: safeNumber(totals?.carbs_g),
-      fiber_g: safeNumber(totals?.fiber_g),
-    },
-  };
-}
-
-/**
- * Normalize a single day menu from raw data
- */
-function normalizeDayMenu(raw: Record<string, unknown>, index: number): DayMenu {
-  const dayNumber = Math.min(7, Math.max(1, Math.trunc(safeNumber(raw.day, index + 1))));
-  const meals = Array.isArray(raw.meals)
-    ? raw.meals
-        .filter((m): m is Record<string, unknown> => m != null && typeof m === 'object' && !Array.isArray(m))
-        .map(normalizeMeal)
-    : [];
-
-  // Calculate daily totals from meals if not provided
-  const dailyTotals = raw.daily_totals as Record<string, unknown> | undefined;
-  const calculatedTotals = meals.reduce(
-    (acc, meal) => ({
-      kcal: acc.kcal + (meal.totals.kcal || 0),
-      protein_g: acc.protein_g + (meal.totals.protein_g || 0),
-      fat_g: acc.fat_g + (meal.totals.fat_g || 0),
-      carbs_g: acc.carbs_g + (meal.totals.carbs_g || 0),
-      fiber_g: acc.fiber_g + (meal.totals.fiber_g || 0),
-    }),
-    { kcal: 0, protein_g: 0, fat_g: 0, carbs_g: 0, fiber_g: 0 }
-  );
-
-  return {
-    day: dayNumber,
-    dayName: DAY_NAMES[dayNumber - 1],
-    meals,
-    daily_totals: {
-      kcal: safeNumber(dailyTotals?.kcal, calculatedTotals.kcal),
-      protein_g: safeNumber(dailyTotals?.protein_g, calculatedTotals.protein_g),
-      fat_g: safeNumber(dailyTotals?.fat_g, calculatedTotals.fat_g),
-      carbs_g: safeNumber(dailyTotals?.carbs_g, calculatedTotals.carbs_g),
-      fiber_g: safeNumber(dailyTotals?.fiber_g, calculatedTotals.fiber_g),
-    },
-  };
-}
-
-/**
- * Normalize weekly coverage data
- */
-function normalizeWeeklyCoverage(raw: Record<string, unknown>): WeekPlanVM['weekly_coverage'] {
-  const blockedKeys = new Set(['__proto__', 'constructor', 'prototype']);
-  const extras: Record<string, number> = Object.create(null);
-
+  const normalized: Record<string, number> = Object.create(null);
   for (const [key, value] of Object.entries(raw)) {
-    if (key === 'protein' || key === 'iron' || key === 'vitamin_c' || key === 'calcium') continue;
-    if (blockedKeys.has(key)) continue;
-    extras[key] = safeCoverage(value);
+    if (BLOCKED_OBJECT_KEYS.has(key)) {
+      markIncomplete(state);
+      continue;
+    }
+
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      normalized[key] = value;
+    } else {
+      markIncomplete(state);
+    }
   }
 
+  return normalized;
+}
+
+function normalizeTips(raw: unknown, state: NormalizationState): string[] {
+  if (!Array.isArray(raw)) {
+    markIncomplete(state);
+    return [];
+  }
+
+  const normalized: string[] = [];
+  raw.forEach((tip) => {
+    if (typeof tip === 'string') {
+      normalized.push(tip);
+    } else {
+      markIncomplete(state);
+    }
+  });
+  return normalized;
+}
+
+function normalizeMeal(raw: unknown, state: NormalizationState): Meal {
+  const payload = isObjectRecord(raw) ? raw : {};
+  if (!isObjectRecord(raw)) {
+    markIncomplete(state);
+  }
+
+  const title = safeString(payload.title, 'Untitled meal', state);
+  const titleTranslated = safeString(payload.title_translated, title, state);
+
   return {
-    protein: safeCoverage(raw.protein),
-    iron: safeCoverage(raw.iron),
-    vitamin_c: safeCoverage(raw.vitamin_c),
-    calcium: safeCoverage(raw.calcium),
-    ...extras,
+    title,
+    title_translated: titleTranslated,
+    kcal: safeRequiredNumber(payload.kcal, 0, state),
+    price_est: safeNullableNumber(payload.price_est, state),
+    grams: normalizeNumericMap(payload.grams, state),
+    macros: normalizeNumericMap(payload.macros, state),
+    micros: normalizeNumericMap(payload.micros, state),
   };
 }
 
-/**
- * Normalize raw API response into view model
- *
- * @param raw - Raw API response
- * @returns Normalized view model safe for UI consumption
- */
+function normalizeDayMenu(raw: unknown, index: number, state: NormalizationState): DayMenu {
+  const day = index + 1;
+  const payload: Partial<RawDayMenu> = isObjectRecord(raw) ? raw : {};
+  if (!isObjectRecord(raw)) {
+    markIncomplete(state);
+  }
+
+  const meals = Array.isArray(payload.meals)
+    ? payload.meals
+        .filter((meal): meal is RawMeal => {
+          const isValid = isObjectRecord(meal);
+          if (!isValid) {
+            markIncomplete(state);
+          }
+          return isValid;
+        })
+        .map((meal) => normalizeMeal(meal, state))
+    : (markIncomplete(state), []);
+
+  return {
+    day,
+    dayName: DAY_NAMES[index] ?? `Day ${day}`,
+    meals,
+    kcal: safeRequiredNumber(payload.kcal, 0, state),
+    macros: normalizeNumericMap(payload.macros, state),
+    micros: normalizeNumericMap(payload.micros, state),
+    coverage: normalizeNumericMap(payload.coverage, state),
+    tips: normalizeTips(payload.tips, state),
+    total_cost: safeRequiredNumber(payload.total_cost, 0, state),
+  };
+}
+
+function normalizeWeeklyCoverage(
+  raw: RawWeekPlanResponse['weekly_coverage'],
+  state: NormalizationState
+): WeekPlanVM['weekly_coverage'] {
+  return normalizeNumericMap(raw, state);
+}
+
 export function normalizeWeekPlan(raw: RawWeekPlanResponse): WeekPlanVM {
-  let hasIncompleteData = false;
+  const state: NormalizationState = { incomplete: false };
+  if (!isObjectRecord(raw)) {
+    markIncomplete(state);
+    return {
+      days: [],
+      weekly_coverage: {},
+      shopping_list: {},
+      metrics: {
+        total_cost: 0,
+        adherence_score: 0,
+      },
+      meta: {
+        total_days: 0,
+        has_incomplete_data: state.incomplete,
+      },
+    };
+  }
 
-  // Normalize days
   const days = Array.isArray(raw.daily_menus)
-    ? raw.daily_menus.map((menu, index) => {
-        if (!menu || typeof menu !== 'object' || Array.isArray(menu)) {
-          hasIncompleteData = true;
-          logContractDrift('Incomplete data detected', `day ${index + 1}: invalid menu object`);
-          return normalizeDayMenu({}, index);
+    ? raw.daily_menus.flatMap((menu, index) => {
+        if (!isObjectRecord(menu)) {
+          markIncomplete(state);
+          return [];
         }
-        return normalizeDayMenu(menu, index);
+
+        return [normalizeDayMenu(menu, index, state)];
       })
-    : (() => {
-        if (raw.daily_menus !== undefined) {
-          hasIncompleteData = true;
-          logContractDrift('Invalid daily_menus', 'expected array, using empty');
-        }
-        return [];
-      })();
-
-  // Log contract drift summary
-  if (hasIncompleteData) {
-    logContractDrift('API response contains incomplete or malformed data');
-  }
-
-  // Normalize coverage
-  let weekly_coverage: WeekPlanVM['weekly_coverage'];
-  if (raw.weekly_coverage && typeof raw.weekly_coverage === 'object') {
-    weekly_coverage = normalizeWeeklyCoverage(raw.weekly_coverage);
-  } else {
-    hasIncompleteData = true;
-    logContractDrift('Missing weekly_coverage', 'using default values');
-    weekly_coverage = { protein: 0, iron: 0, vitamin_c: 0, calcium: 0 };
-  }
+    : (markIncomplete(state), []);
+  const shoppingList = normalizeNumericMap(raw.shopping_list, state);
 
   return {
     days,
-    weekly_coverage,
+    weekly_coverage: normalizeWeeklyCoverage(raw.weekly_coverage, state),
+    shopping_list: shoppingList,
     metrics: {
-      total_cost: safeNumber(raw.total_cost, 0),
-      adherence_score: Math.min(1, Math.max(0, safeNumber(raw.adherence_score, 0))),
+      total_cost: safeRequiredNumber(raw.total_cost, 0, state),
+      adherence_score: safeRequiredNumber(raw.adherence_score, 0, state),
     },
     meta: {
       total_days: days.length,
-      has_incomplete_data: hasIncompleteData,
+      has_incomplete_data: state.incomplete,
     },
   };
 }

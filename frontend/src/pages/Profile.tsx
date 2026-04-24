@@ -1,9 +1,23 @@
 import { Link } from 'react-router-dom';
-import { getStoredApiKey } from '../auth/storage';
 import { pageCardStyle } from '../components/ui/pageCardStyle';
+import { useAuth } from '../lib/auth';
+
+const CANONICAL_PRIVACY_URL = 'https://pulseplate.app/privacy';
+const CANONICAL_TERMS_URL = 'https://pulseplate.app/terms';
 
 export default function Profile() {
-  const hasApiKey = getStoredApiKey() !== null;
+  const { isAuthenticated, isLoading } = useAuth();
+  const connectionLabel = isLoading ? 'Checking' : isAuthenticated ? 'Connected' : 'Missing';
+  const connectionTone = isLoading
+    ? 'bg-[var(--color-text-muted)] text-white'
+    : isAuthenticated
+      ? 'bg-[var(--color-success)] text-white'
+      : 'bg-[var(--color-error)] text-white';
+  const apiKeyActionLabel = isLoading
+    ? 'Checking Session'
+    : isAuthenticated
+      ? 'Update API Key'
+      : 'Configure API Key';
 
   return (
     <main className="flex min-h-screen flex-col bg-[var(--color-bg)]">
@@ -45,12 +59,8 @@ export default function Profile() {
                     Required for personalized guidance
                   </p>
                 </div>
-                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
-                  hasApiKey
-                    ? 'bg-[var(--color-success)] text-white'
-                    : 'bg-[var(--color-error)] text-white'
-                }`}>
-                  {hasApiKey ? 'Connected' : 'Missing'}
+                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${connectionTone}`}>
+                  {connectionLabel}
                 </span>
               </div>
             </div>
@@ -76,7 +86,7 @@ export default function Profile() {
               to="/enter-key"
               className="block w-full rounded-xl bg-[var(--color-primary)] px-6 py-4 text-center font-semibold text-[var(--color-primary-foreground)] transition-all hover:shadow-md hover:opacity-95 active:scale-95"
             >
-              {hasApiKey ? 'Update API Key' : 'Configure API Key'}
+              {apiKeyActionLabel}
             </Link>
           </div>
 
@@ -104,6 +114,36 @@ export default function Profile() {
               <p className="mt-4 text-xs text-[var(--color-text-muted)]">
                 Version 1.0 • Made with care for your wellness journey
               </p>
+            </div>
+          </section>
+
+          <section className="mt-6 overflow-hidden rounded-xl" style={pageCardStyle}>
+            <div className="p-6">
+              <h3 className="text-base font-semibold text-[var(--color-text)]">
+                Legal
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-[var(--color-text-muted)]">
+                Review the current privacy and terms publications before using paid or personalized
+                wellness features.
+              </p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <a
+                  href={CANONICAL_PRIVACY_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-sm font-semibold text-[var(--color-text)] transition-all hover:bg-[var(--color-surface)] hover:shadow-sm"
+                >
+                  Privacy Policy
+                </a>
+                <a
+                  href={CANONICAL_TERMS_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3 text-sm font-semibold text-[var(--color-text)] transition-all hover:bg-[var(--color-surface)] hover:shadow-sm"
+                >
+                  Terms of Use
+                </a>
+              </div>
             </div>
           </section>
         </div>

@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """
-Guard: resolved review threads must have explicit Disposition records in PR body.
+Guard: resolved review threads must have explicit Disposition records in canonical artifact.
 
 Strict mode: every resolved thread must be listed under **Fixed in Commit Mapping**
-with Disposition (FIXED | NOT-A-BUG | DEFERRED) and proof (Commit / Evidence / Backlog).
+in docs/review/PR_<N>_FIXED_MAPPING.md with Disposition (FIXED | NOT-A-BUG | DEFERRED)
+and proof (Commit / Evidence / Backlog).
 
-Requires: GitHub CLI `gh` authenticated. **Canonical token: GH_TOKEN.** In CI use --require-auth and
-export GH_TOKEN from secrets.GITHUB_TOKEN. GITHUB_TOKEN alone is not sufficient — gh reads GH_TOKEN.
-Preflight: when --require-auth or CI=true, script requires GH_TOKEN and exits 1 with diagnostic before
-any GraphQL; no mapping/resolve attempts without valid auth.
+Auth modes:
+- Local default: advisory; without usable `gh` auth the script may SKIP (exit 0).
+- Local strict: pass --require-auth and export GH_TOKEN before any GraphQL.
+- CI strict: CI=true requires GH_TOKEN before any GraphQL.
+
+Canonical GraphQL token: GH_TOKEN. GITHUB_TOKEN alone does not satisfy the strict
+disposition preflight, although other PR gates may still use it for REST/API access.
 """
 
 from __future__ import annotations
@@ -22,12 +26,24 @@ import subprocess  # nosec B404: fixed gh CLI only (remove-by: 2026-04-30, ref: 
 import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.orchestration.review_mapping_artifact import (
+    extract_fixed_mapping_section as _artifact_extract_fixed_mapping,
+    read_mapping_artifact,
+)
 
 DISPOSITION_RE = re.compile(r"Disposition:\s*(FIXED|NOT-A-BUG|DEFERRED)", re.IGNORECASE)
-PROOF_RE = re.compile(r"(Commit:|Evidence:|Backlog:)", re.IGNORECASE)
-# Match Fixed in Commit Mapping heading; section content extracted by level-aware parse (Cubic: avoid stop at ####)
-_FIXED_MAPPING_HEADING_RE = re.compile(r"(?im)^(#+)\s*Fixed in Commit Mapping\s*$")
+_LINE_RE_FLAGS = re.IGNORECASE | re.MULTILINE
+COMMIT_RE = re.compile(r"^Commit:\s*(.*)$", _LINE_RE_FLAGS)
+EVIDENCE_RE = re.compile(r"^Evidence:\s*(.+)$", _LINE_RE_FLAGS)
+BACKLOG_RE = re.compile(r"^Backlog:\s*(.+)$", _LINE_RE_FLAGS)
+REASON_RE = re.compile(r"^Reason:\s*(.+)$", _LINE_RE_FLAGS)
 
 
 @dataclass(frozen=True)
@@ -44,6 +60,8 @@ _GIT_TIMEOUT_SEC = 15
 
 # Mapping line: "- https://... -> sha" or "- https://...#anchor -> sha"
 _MAPPING_LINE_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*([a-f0-9]{7,40})\b", re.IGNORECASE)
+# Relaxed: match mapping-like lines to validate SHA (catches "- url -> notasha")
+_MAPPING_LINE_RELAXED_RE = re.compile(r"^\s*-\s*(https://[^\s]+)\s*->\s*(\S+)", re.IGNORECASE)
 
 
 def _gh_path() -> str:
@@ -59,7 +77,7 @@ def _run(cmd: list[str]) -> str:
     argv = list(cmd)
     if argv and argv[0] == "gh":
         argv = [_gh_path()] + argv[1:]
-    result = subprocess.run(  # nosec B603 — argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
         argv,
         capture_output=True,
         text=True,
@@ -106,7 +124,7 @@ def _git_commit_time_iso(commit_sha: str) -> str:
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for commit-after-comment guard")
-    result = subprocess.run(  # nosec B603 — git_path from which(); commit_sha validated by _GIT_SHA_RE (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: git_path from which(); commit_sha validated by _GIT_SHA_RE (remove-by: 2026-04-30, ref: PR-985)
         [git_path, "show", "-s", "--format=%cI", commit_sha.strip()],
         capture_output=True,
         text=True,
@@ -131,7 +149,7 @@ def _git_commit_subject(commit_sha: str) -> str:
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
-    result = subprocess.run(  # nosec B603 — fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
         [git_path, "show", "-s", "--format=%s", sha],
         capture_output=True,
         text=True,
@@ -153,7 +171,7 @@ def _git_changed_files(commit_sha: str) -> list[str]:
     git_path = shutil.which("git")
     if not git_path:
         raise RuntimeError("git not found in PATH; required for trigger-only mapping guard")
-    result = subprocess.run(  # nosec B603 — fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: fixed argv, sha validated (remove-by: 2026-04-30, ref: PR-985)
         [git_path, "show", "--name-only", "--pretty=format:", sha],
         capture_output=True,
         text=True,
@@ -199,17 +217,175 @@ def _check_trigger_only_mapping(
 
 def _parse_mapping_section(section: str) -> dict[str, str]:
     """
-    Parse Fixed in Commit Mapping section: lines like "- https://... -> sha".
-    Returns dict mapping full URL -> sha only (thread-specific; no base URL to avoid one URL satisfying multiple threads).
+    Parse Fixed in Commit Mapping section into thread-specific URL -> sha mappings.
+
+    Supports both:
+    - explicit mapping lines: "- https://... -> sha"
+    - inline FIXED blocks with "Commit: <sha>"
     """
     mapping: dict[str, str] = {}
-    for line in section.splitlines():
-        m = _MAPPING_LINE_RE.search(line)
-        if not m:
+    for block in _iter_disposition_blocks(section):
+        mapping.update(_block_mapping_entries(block))
+        if _block_disposition(block) != "FIXED":
             continue
-        url_part, sha = m.group(1).strip(), m.group(2)
-        mapping[url_part] = sha
+        commit_value = _block_commit_value(block) or ""
+        if not _GIT_SHA_RE.match(commit_value):
+            continue
+        for thread_url in _block_thread_urls(block):
+            mapping.setdefault(thread_url, commit_value)
     return mapping
+
+
+def _iter_disposition_blocks(section: str) -> list[str]:
+    """Split mapping section into contiguous non-empty disposition blocks."""
+
+    blocks: list[str] = []
+    current: list[str] = []
+    for raw_line in section.splitlines():
+        line = raw_line.rstrip()
+        if not line.strip():
+            if current:
+                blocks.append("\n".join(current))
+                current = []
+            continue
+        current.append(line)
+    if current:
+        blocks.append("\n".join(current))
+    return blocks
+
+
+def _url_in_block(block: str, url: str) -> bool:
+    """True when a block contains the exact thread URL."""
+
+    url_pattern = re.escape(url) + r"(?![0-9a-zA-Z])"
+    return any(re.search(url_pattern, line) for line in block.splitlines())
+
+
+def _block_has_disposition_and_proof(block: str) -> bool:
+    """True when a block carries the disposition-specific proof markers."""
+
+    disposition = _block_disposition(block)
+    if disposition == "FIXED":
+        return bool(_block_commit_value(block) is not None and EVIDENCE_RE.search(block))
+    if disposition == "NOT-A-BUG":
+        return bool(EVIDENCE_RE.search(block) and REASON_RE.search(block))
+    if disposition == "DEFERRED":
+        return bool(BACKLOG_RE.search(block))
+    return False
+
+
+def _is_mapping_only_block(block: str) -> bool:
+    """True for URL mapping blocks without their own detail headers."""
+
+    detail_prefixes = ("Disposition:", "Commit:", "Evidence:", "Backlog:")
+    lines = [line.strip() for line in block.splitlines() if line.strip()]
+    if not lines:
+        return False
+    if any(line.startswith(detail_prefixes) for line in lines):
+        return False
+    return all(line.startswith("- http") for line in lines)
+
+
+def _block_commit_value(block: str) -> str | None:
+    """Return the normalized Commit value from a block, if present."""
+
+    for raw_line in block.splitlines():
+        match = COMMIT_RE.search(raw_line.strip())
+        if match:
+            return match.group(1).strip()
+    return None
+
+
+def _block_mapping_entries(block: str) -> dict[str, str]:
+    """Parse mapping entries from a single block only."""
+
+    mapping: dict[str, str] = {}
+    for line in block.splitlines():
+        match = _MAPPING_LINE_RE.search(line.strip())
+        if not match:
+            continue
+        mapping[match.group(1).strip()] = match.group(2)
+    return mapping
+
+
+def _block_thread_urls(block: str) -> list[str]:
+    """Extract thread-specific GitHub URLs referenced by bullet lines in a block."""
+
+    urls: list[str] = []
+    url_re = re.compile(
+        r"^\s*-\s*(https://github\.com/[^/\s]+/[^/\s]+/pull/\d+#(?:discussion_r\d+|pullrequestreview-\d+))\b"
+    )
+    for line in block.splitlines():
+        match = url_re.search(line.strip())
+        if match:
+            urls.append(match.group(1).strip())
+    return urls
+
+
+def _block_disposition(block: str) -> str | None:
+    """Return normalized disposition for a contiguous block, if present."""
+
+    for line in block.splitlines():
+        match = DISPOSITION_RE.search(line.strip())
+        if match:
+            return match.group(1).upper()
+    return None
+
+
+def _validate_fixed_commit_blocks(section: str) -> list[str]:
+    """Return validation errors for FIXED blocks with invalid Commit proof."""
+
+    errors: list[str] = []
+    blocks = _iter_disposition_blocks(section)
+    for index, block in enumerate(blocks):
+        if _block_disposition(block) != "FIXED":
+            continue
+        value = _block_commit_value(block)
+        if value is None:
+            errors.append(
+                "FIXED block missing Commit proof "
+                "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+            continue
+        if not value:
+            errors.append(
+                "Invalid Commit value in FIXED block: empty "
+                "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+            continue
+        if _GIT_SHA_RE.match(value):
+            continue
+        if value.lower() != "see mapping entries below":
+            errors.append(
+                f"Invalid Commit value in FIXED block: {value!r} "
+                "(must be 7–40 hex chars or 'see mapping entries below')"
+            )
+            continue
+        if index + 1 >= len(blocks) or not _is_mapping_only_block(blocks[index + 1]):
+            errors.append(
+                "FIXED block uses 'Commit: see mapping entries below' but has no "
+                "following mapping block with '- <thread_url> -> <sha>' entries"
+            )
+            continue
+        mapping_entries = _block_mapping_entries(blocks[index + 1])
+        if not mapping_entries:
+            errors.append(
+                "FIXED block uses 'Commit: see mapping entries below' but the "
+                "following mapping block has no valid SHA mappings"
+            )
+            continue
+        missing_urls = [
+            thread_url
+            for thread_url in _block_thread_urls(block)
+            if thread_url not in mapping_entries
+        ]
+        if missing_urls:
+            missing_display = ", ".join(missing_urls)
+            errors.append(
+                "FIXED block uses 'Commit: see mapping entries below' but the "
+                f"following mapping block is missing SHA mappings for: {missing_display}"
+            )
+    return errors
 
 
 def _check_commit_after_comment(
@@ -250,7 +426,11 @@ def _check_commit_after_comment(
     return violations
 
 
-def _get_pr_number() -> int:
+def _get_pr_number(pr_number: int | None = None) -> int:
+    if pr_number is not None:
+        if pr_number <= 0:
+            raise RuntimeError(f"Invalid PR number: {pr_number!r} (must be > 0)")
+        return pr_number
     out = _run(["gh", "pr", "view", "--json", "number", "-q", ".number"])
     out = out.strip()
     if not out.isdigit():
@@ -258,14 +438,10 @@ def _get_pr_number() -> int:
     return int(out)
 
 
-def _get_pr_body() -> str:
-    return _run(["gh", "pr", "view", "--json", "body", "-q", ".body"])
-
-
 def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     # Sourcery: no dynamic argv — pass body via stdin (static argv only)
     body = json.dumps({"query": query, "variables": variables})
-    result = subprocess.run(  # nosec B603 — argv static; body via stdin only (remove-by: 2026-04-30, ref: PR-985)
+    result = subprocess.run(  # nosec B603: argv static; body via stdin only (remove-by: 2026-04-30, ref: PR-985)
         [_gh_path(), "api", "graphql", "--input", "-"],
         input=body,
         capture_output=True,
@@ -277,7 +453,7 @@ def _graphql(query: str, variables: dict[str, Any]) -> dict[str, Any]:
     data = json.loads(result.stdout)
     if "errors" in data:
         raise RuntimeError(f"GraphQL errors: {data['errors']}")
-    return data["data"]
+    return cast(dict[str, Any], data["data"])
 
 
 def _get_owner_repo() -> tuple[str, str]:
@@ -288,40 +464,35 @@ def _get_owner_repo() -> tuple[str, str]:
     return owner, name
 
 
-def _extract_fixed_mapping_section(body: str) -> str:
-    """
-    Extract content under Fixed in Commit Mapping. Stops at next heading of same or higher level
-    (so #### inside section does not end extraction; Cubic P2).
-    """
-    match = _FIXED_MAPPING_HEADING_RE.search(body)
-    if not match:
-        return ""
-    level = len(match.group(1))
-    start = match.end()
-    lines = body[start:].splitlines()
-    content_lines: list[str] = []
-    for line in lines:
-        m = re.match(r"^\s*(#+)\s", line)
-        if m and len(m.group(1)) <= level:
-            break
-        content_lines.append(line)
-    return "\n".join(content_lines).strip()
-
-
 def _find_disposition_block_in_section(section: str, url: str) -> bool:
     """
     Thread-specific URL (full URL with anchor) must appear in section with Disposition + proof
-    (Commit/Evidence/Backlog) nearby (±12 lines). Scan only lines containing this thread URL
-    so one mapping does not satisfy multiple threads (CodeRabbit/Sourcery/Cubic).
+    (Commit/Evidence/Backlog) inside the same contiguous block separated by blank lines.
+    Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs discussion_r10).
     """
-    lines = section.splitlines()
-    for i, line in enumerate(lines):
-        if url in line:
-            start = max(0, i - 12)
-            end = min(len(lines), i + 13)
-            window = "\n".join(lines[start:end])
-            if DISPOSITION_RE.search(window) and PROOF_RE.search(window):
-                return True
+    blocks = _iter_disposition_blocks(section)
+    for index, block in enumerate(blocks):
+        if not _url_in_block(block, url):
+            continue
+        if _block_has_disposition_and_proof(block):
+            if (
+                _block_disposition(block) == "FIXED"
+                and (_block_commit_value(block) or "").lower() == "see mapping entries below"
+            ):
+                next_block = blocks[index + 1] if index + 1 < len(blocks) else ""
+                return _is_mapping_only_block(next_block) and bool(
+                    _block_mapping_entries(next_block).get(url)
+                )
+            return True
+        if index == 0 or not _is_mapping_only_block(block):
+            continue
+        previous = blocks[index - 1]
+        if (
+            _block_has_disposition_and_proof(previous)
+            and (_block_commit_value(previous) or "").lower() == "see mapping entries below"
+            and _block_mapping_entries(block).get(url)
+        ):
+            return True
     return False
 
 
@@ -378,19 +549,16 @@ def _collect_resolved_threads(pr_number: int) -> list[ResolvedThreadRef]:
 
 
 def _has_gh_auth() -> bool:
-    """True if gh CLI can use a token (env vars or gh auth login)."""
-    if (os.environ.get("GH_TOKEN") or os.environ.get("GITHUB_TOKEN") or "").strip():
-        return True
-    # Sourcery/B607: use resolved path only; argv is static
+    """True if gh CLI auth is actually usable for API calls."""
     try:
-        result = subprocess.run(  # nosec B603 — argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-04-30, ref: PR-985)
+        result = subprocess.run(  # nosec B603: argv [_gh_path(), "auth", "status"]; no user input (remove-by: 2026-04-30, ref: PR-985)
             [_gh_path(), "auth", "status"],
             capture_output=True,
             text=True,
             timeout=5,
         )
         return result.returncode == 0
-    except RuntimeError:
+    except (OSError, RuntimeError, subprocess.TimeoutExpired):
         return False
 
 
@@ -403,8 +571,9 @@ def _env_diagnostic() -> str:
 
 def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
     """
-    When require_auth or CI: require GH_TOKEN and optional gh auth status. Exit 1 with
-    diagnostic and fix commands before any GraphQL. Single source of token: GH_TOKEN.
+    In local strict mode (--require-auth) or CI: require GH_TOKEN and gh auth status.
+    Exit 1 with diagnostic and fix commands before any GraphQL. Single source of
+    strict GraphQL auth: GH_TOKEN.
     """
     if not require_auth and not in_ci:
         return
@@ -425,12 +594,19 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
     except RuntimeError:
         print("ERROR: gh CLI not found in PATH; required when GH_TOKEN is set.")
         sys.exit(1)
-    result = subprocess.run(  # nosec B603 — argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
-        argv,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
+    try:
+        result = subprocess.run(  # nosec B603: argv from _gh_path()+static; no user input (remove-by: 2026-04-30, ref: PR-985)
+            argv,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        print("ERROR: GH_TOKEN is set but gh auth status failed during strict preflight.")
+        print(f"       Env: {_env_diagnostic()}")
+        print(f"       Cause: {exc}")
+        print("  gh auth status  # run manually to see reason")
+        sys.exit(1)
     if result.returncode != 0:
         print("ERROR: GH_TOKEN is set but gh auth status failed. Fix env before running GraphQL.")
         print(f"       Env: {_env_diagnostic()}")
@@ -441,12 +617,20 @@ def _require_gh_token_preflight(require_auth: bool, in_ci: bool) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Check resolved review threads have disposition in PR body."
+        description="Check resolved review threads have disposition in canonical artifact."
+    )
+    parser.add_argument(
+        "--pr-number",
+        type=int,
+        help="Explicit PR number for local/agent runs (otherwise use gh pr view on current branch).",
     )
     parser.add_argument(
         "--require-auth",
         action="store_true",
-        help="In CI: fail if GH_TOKEN not set. Otherwise without auth we SKIP (exit 0).",
+        help=(
+            "Escalate local advisory mode to strict auth. Without this flag, local runs may "
+            "SKIP (exit 0) when gh auth is unavailable; CI is always strict."
+        ),
     )
     args = parser.parse_args()
 
@@ -456,17 +640,45 @@ def main() -> None:
         _require_gh_token_preflight(args.require_auth, in_ci)
     else:
         if not _has_gh_auth():
-            print("SKIP: no gh auth (set GH_TOKEN or run gh auth login for full check).")
+            print("SKIP: no usable gh auth for advisory local run.")
+            print(
+                "      This is not merge-readiness evidence. "
+                "For strict parity use --require-auth with GH_TOKEN, or run gh auth login."
+            )
             sys.exit(0)
 
-    pr_number = _get_pr_number()
-    body = _get_pr_body()
-    section = _extract_fixed_mapping_section(body)
+    pr_number = _get_pr_number(args.pr_number)
+    try:
+        artifact_text = read_mapping_artifact(pr_number)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}")
+        sys.exit(1)
+    section = _artifact_extract_fixed_mapping(artifact_text)
 
     if not section:
-        print("ERROR: Missing 'Fixed in Commit Mapping' section in PR body.")
+        print(
+            f"ERROR: Missing '## Fixed in Commit Mapping' section in canonical artifact "
+            f"docs/review/PR_{pr_number}_FIXED_MAPPING.md"
+        )
         sys.exit(1)
 
+    # Reject invalid FIXED mappings: validate raw section for any "- url -> X" lines
+    for line in section.splitlines():
+        m = _MAPPING_LINE_RELAXED_RE.search(line.strip())
+        if m:
+            url_part, sha_part = m.group(1), m.group(2).strip()
+            if not _GIT_SHA_RE.match(sha_part):
+                print(
+                    f"ERROR: Invalid FIXED mapping in artifact: {url_part} -> {sha_part!r} "
+                    "(SHA must be 7–40 hex chars)"
+                )
+                sys.exit(1)
+
+    fixed_block_errors = _validate_fixed_commit_blocks(section)
+    if fixed_block_errors:
+        for error in fixed_block_errors:
+            print(f"ERROR: {error}")
+        sys.exit(1)
     resolved_threads = _collect_resolved_threads(pr_number)
 
     if not resolved_threads:
@@ -477,7 +689,8 @@ def main() -> None:
     missing_disposition: list[str] = []
 
     for t in resolved_threads:
-        if t.url not in section:
+        # Use exact URL match to avoid substring false positives (e.g. discussion_r1 vs r10)
+        if not re.search(re.escape(t.url) + r"(?![0-9a-zA-Z])", section):
             missing_refs.append(t.url)
             continue
         if not _find_disposition_block_in_section(section, t.url):

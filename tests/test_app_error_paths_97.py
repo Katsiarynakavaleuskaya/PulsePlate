@@ -9,9 +9,11 @@ Focuses on:
 """
 
 import asyncio
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import pytest
+
+from tests.helpers.fast_update_stubs import patch_background_update_scheduler_targets
 
 
 class TestAppErrorPaths97:
@@ -49,38 +51,39 @@ class TestAppErrorPaths97:
         finally:
             app._test_scheduler_override = original_override
 
-    def test_start_background_updates_no_running_loop(self) -> None:
+    def test_start_background_updates_no_running_loop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Test start_background_updates when no event loop is running (sync path)."""
         import app
 
-        # Mock the async scheduler function to avoid actual background tasks
-        with patch.object(
-            app, "_scheduler_start_background_updates", new=AsyncMock()
-        ) as mock_start:
-            # Ensure no loop is running
-            try:
-                asyncio.get_running_loop()
-                pytest.skip("Event loop already running, can't test sync path")
-            except RuntimeError:
-                pass
+        mock_start = AsyncMock()
+        patch_background_update_scheduler_targets(monkeypatch, start=mock_start)
 
-            app.start_background_updates(update_interval_hours=1)
-            # asyncio.run was called internally
-            mock_start.assert_called_once()
+        try:
+            asyncio.get_running_loop()
+            pytest.skip("Event loop already running, can't test sync path")
+        except RuntimeError:
+            pass
 
-    def test_stop_background_updates_no_running_loop(self) -> None:
+        app.start_background_updates(update_interval_hours=1)
+        mock_start.assert_called_once()
+
+    def test_stop_background_updates_no_running_loop(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test stop_background_updates when no event loop is running (sync path)."""
         import app
 
-        with patch.object(app, "_scheduler_stop_background_updates", new=AsyncMock()) as mock_stop:
-            try:
-                asyncio.get_running_loop()
-                pytest.skip("Event loop already running, can't test sync path")
-            except RuntimeError:
-                pass
+        mock_stop = AsyncMock()
+        patch_background_update_scheduler_targets(monkeypatch, stop=mock_stop)
 
-            app.stop_background_updates()
-            mock_stop.assert_called_once()
+        try:
+            asyncio.get_running_loop()
+            pytest.skip("Event loop already running, can't test sync path")
+        except RuntimeError:
+            pass
+
+        app.stop_background_updates()
+        mock_stop.assert_called_once()
 
     def test_resolve_app_callable_fallback(self) -> None:
         """Test _resolve_app_callable when attribute not found, returns default."""

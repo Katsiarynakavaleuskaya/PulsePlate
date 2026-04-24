@@ -1,0 +1,13 @@
+scheme("PulsePlate")
+project("./PulsePlate.xcodeproj")
+output_directory("./fastlane/screenshots")
+clear_previous_screenshots(true)
+erase_simulator(true)
+number_of_retries(1)
+stop_after_first_error(true)
+skip_open_summary(true)
+
+# RU: Выбор device и locale остаётся в Fastfile, чтобы CI мог сузить PR-проверку
+# EN: Device and locale selection stay in Fastfile so CI can narrow PR validation
+# RU: без ослабления release-grade multi-locale capture.
+# EN: without weakening release-grade multi-locale capture.

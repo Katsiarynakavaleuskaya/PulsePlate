@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable import PulsePlate
 
 
 final class ThinClientGuardsTests: XCTestCase {
@@ -8,12 +9,7 @@ final class ThinClientGuardsTests: XCTestCase {
 
         // Scan whole app source tree; exclude tests/fixtures/mocks.
         let includeDir = "ios/PulsePlate"
-        let excludeSubpaths = [
-            "/PulsePlateTests/",
-            "/Tests/",
-            "/Fixtures/",
-            "/Mocks/"
-        ]
+        let excludeSubpaths = guardedSourceExcludeSubpaths()
 
         let swiftFiles = try collectSwiftFiles(
             root: root,
@@ -98,12 +94,7 @@ final class ThinClientGuardsTests: XCTestCase {
 
         // Scan whole app source tree; exclude tests/fixtures/mocks.
         let includeDir = "ios/PulsePlate"
-        let excludeSubpaths = [
-            "/PulsePlateTests/",
-            "/Tests/",
-            "/Fixtures/",
-            "/Mocks/"
-        ]
+        let excludeSubpaths = guardedSourceExcludeSubpaths()
 
         let textFiles = try collectTextFiles(
             root: root,
@@ -150,12 +141,427 @@ final class ThinClientGuardsTests: XCTestCase {
 
             Fix:
             - Remove placeholder keys from iOS sources.
-            - Provide keys via env (DEBUG) or Keychain storage, never hardcoded.
+            - Use Keychain-backed providers or explicit test injection seams, never hardcoded values.
 
             Hits:
             \(hits.joined(separator: "\n"))
             """
         )
+    }
+
+    func test_noSensitiveSecretsPersistedOutsideKeychain() throws {
+        let root = try repoRoot(from: #filePath)
+
+        let includeDir = "ios/PulsePlate"
+        let excludeSubpaths = guardedSourceExcludeSubpaths()
+
+        let swiftFiles = try collectTextFiles(
+            root: root,
+            includeDirs: [includeDir],
+            excludeSubpaths: excludeSubpaths,
+            allowedExtensions: Set(["swift"])
+        ).sorted { $0.path < $1.path }
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        var hits: [String] = []
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            hits.append(contentsOf: try secretStorageGuardHits(
+                in: content,
+                sourceLabel: relativePath(file, root: root)
+            ))
+        }
+
+        hits.sort()
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: sensitive keys are persisted outside Keychain.
+
+            Fix:
+            - Store secrets only via Keychain-backed helpers.
+            - Do not persist API keys/tokens/secrets/passwords with AppStorage or UserDefaults.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_noRuntimeSecretEnvFallbackInAppSources() throws {
+        let root = try repoRoot(from: #filePath)
+
+        let swiftFiles = try collectTextFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: guardedSourceExcludeSubpaths(),
+            allowedExtensions: Set(["swift"])
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        var hits: [String] = []
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            hits.append(contentsOf: try secretEnvFallbackHits(
+                in: content,
+                sourceLabel: relativePath(file, root: root)
+            ))
+        }
+
+        hits.sort()
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: runtime secret env fallback detected in iOS app sources.
+
+            Fix:
+            - Use Keychain-backed providers for runtime secrets.
+            - Keep dev/test injection explicit at call sites, not via ProcessInfo env fallback.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_secretEnvFallbackGuardMatchesProcessInfoSecretLookup() throws {
+        let snippet = """
+        if let key = ProcessInfo.processInfo.environment["PRO_API_KEY"], !key.isEmpty {
+            return key
+        }
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretEnvFallbackGuardMatchesAliasedProcessInfoEnvironment() throws {
+        let snippet = """
+        let env = ProcessInfo.processInfo.environment
+        if let key = env["PRO_API_KEY"], !key.isEmpty {
+            return key
+        }
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretEnvFallbackGuardMatchesPrivateAliasedProcessInfoEnvironment() throws {
+        let snippet = """
+        final class SecretHolder {
+            private let env = ProcessInfo.processInfo.environment
+
+            func key() -> String? {
+                self.env["PRO_API_KEY"]
+            }
+        }
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretEnvFallbackGuardDoesNotMatchNonSecretEnvLookups() throws {
+        let snippet = """
+        let baseURL = ProcessInfo.processInfo.environment["API_BASE_URL"]
+        let lang = ProcessInfo.processInfo.environment["APP_LANGUAGE"]
+        """
+
+        let hits = try secretEnvFallbackHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertTrue(hits.isEmpty)
+    }
+
+    func test_secretStorageGuardMatchesIndirectKeyForms() throws {
+        let forbiddenRegex = try secretStorageForbiddenRegexes(userDefaultsAliases: ["defaults", "cache"])
+
+        let appStorageSnippet = """
+        @AppStorage(StorageKeys.proToken) private var cachedToken: String = ""
+        """
+        let userDefaultsSnippet = """
+        let defaults = UserDefaults(suiteName: "group.dev")
+        defaults?.set(token, forKey: StorageKeys.pro.secretKey)
+        """
+
+        let appStorageHits = try secretStorageGuardHits(
+            in: appStorageSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+        let userDefaultsHits = try secretStorageGuardHits(
+            in: userDefaultsSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+
+        XCTAssertFalse(appStorageHits.isEmpty)
+        XCTAssertFalse(userDefaultsHits.isEmpty)
+    }
+
+    func test_secretStorageGuardMatchesAliasedUserDefaultsVariables() throws {
+        let snippet = """
+        private let store: UserDefaults
+
+        func cache(_ token: String) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretStorageGuardMatchesUserDefaultsParameters() throws {
+        let snippet = """
+        func cache(token: String, using store: UserDefaults) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+
+        func clear(_ store: UserDefaults) {
+            store.set("", forKey: StorageKeys.pro.secretKey)
+        }
+
+        func update(token: String, inout store: UserDefaults) {
+            store.set(token, forKey: StorageKeys.pro.secretKey)
+        }
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: snippet,
+            sourceLabel: "snippet.swift"
+        )
+
+        XCTAssertFalse(hits.isEmpty)
+    }
+
+    func test_secretStorageGuardDoesNotMatchNonUserDefaultsStorage() throws {
+        let forbiddenRegex = try secretStorageForbiddenRegexes()
+
+        let nonUserDefaultsSnippet = """
+        let secureStore = SomeOtherStore()
+        secureStore.set(token, forKey: StorageKeys.pro.secretKey)
+        """
+
+        let hits = try secretStorageGuardHits(
+            in: nonUserDefaultsSnippet,
+            sourceLabel: "snippet.swift",
+            forbiddenRegex: forbiddenRegex
+        )
+
+        XCTAssertTrue(hits.isEmpty)
+    }
+
+    func test_subscriptionFlowFilesDoNotUseDirectURLSession() throws {
+        let root = try repoRoot(from: #filePath)
+        let guardedFiles = [
+            "ios/PulsePlate/Services/SubscriptionManager.swift",
+            "ios/PulsePlate/Services/SubscriptionBillingService.swift",
+            "ios/PulsePlate/Screens/PaywallScreen.swift"
+        ]
+
+        var hits: [String] = []
+        for relativeFile in guardedFiles {
+            let fileURL = root.appendingPathComponent(relativeFile)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                hits.append("\(relativeFile): missing guarded file")
+                continue
+            }
+            let content = try String(contentsOf: fileURL, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            if scanContent.contains("URLSession") {
+                hits.append(relativeFile)
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: direct URLSession usage or missing guarded files detected in subscription flow files.
+
+            Fix:
+            - Route billing transport through APIClient / HTTPClient only.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_subscriptionFlowFilesDoNotReintroduceLocalPaidTruthFlags() throws {
+        let root = try repoRoot(from: #filePath)
+        let guardedFiles = [
+            "ios/PulsePlate/Models/StoreKitManager.swift",
+            "ios/PulsePlate/Services/SubscriptionManager.swift",
+            "ios/PulsePlate/Screens/PaywallScreen.swift"
+        ]
+        let forbiddenFlags = ["isPremium", "isPro", "isVip", "hasPaidAccess"]
+
+        var hits: [String] = []
+        for relativeFile in guardedFiles {
+            let fileURL = root.appendingPathComponent(relativeFile)
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                hits.append("\(relativeFile): missing guarded file")
+                continue
+            }
+            let content = try String(contentsOf: fileURL, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for forbiddenFlag in forbiddenFlags where containsToken(forbiddenFlag, in: scanContent) {
+                hits.append("\(relativeFile): \(forbiddenFlag)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: local paid-truth flags detected in subscription flow files.
+
+            Fix:
+            - Publish backend entitlement state instead of local tier booleans.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_noHardcodedStoreKitProductIDsOutsideCatalog() throws {
+        let root = try repoRoot(from: #filePath)
+        let swiftFiles = try collectSwiftFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: [
+                "ios/PulsePlate/Models/StoreKitProductCatalog.swift"
+            ]
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        var hits: [String] = []
+
+        let productIDRegex = try NSRegularExpression(
+            pattern: #"\bcom\.pulseplate\.premium\.[A-Za-z0-9._-]+\b"#,
+            options: [.caseInsensitive]
+        )
+
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+            for match in productIDRegex.matches(in: scanContent, options: [], range: range) {
+                guard let idRange = Range(match.range, in: scanContent) else { continue }
+                let productID = String(scanContent[idRange])
+                hits.append("\(relativePath(file, root: root)): \(productID)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: hardcoded StoreKit product IDs detected outside the canonical catalog.
+
+            Fix:
+            - Keep runtime product IDs only in StoreKitProductCatalog.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_noManualPriceOrTrialCopyUsedAsRuntimeTruth() throws {
+        let root = try repoRoot(from: #filePath)
+        let swiftFiles = try collectSwiftFiles(
+            root: root,
+            includeDirs: ["ios/PulsePlate"],
+            excludeSubpaths: guardedSourceExcludeSubpaths()
+        )
+
+        XCTAssertFalse(swiftFiles.isEmpty, "Guard scan found 0 Swift files. Check paths.")
+
+        let forbiddenFragments = [
+            "free trial",
+            "introductory offer",
+            "intro offer",
+            "trial eligible",
+            "See price in App Store"
+        ]
+
+        var hits: [String] = []
+        for file in swiftFiles {
+            let content = try String(contentsOf: file, encoding: .utf8)
+            let scanContent = stripSwiftComments(from: content)
+            for fragment in forbiddenFragments where scanContent.localizedCaseInsensitiveContains(fragment) {
+                hits.append("\(relativePath(file, root: root)): \(fragment)")
+            }
+        }
+
+        XCTAssertTrue(
+            hits.isEmpty,
+            """
+            ThinClientGuards failed: manual pricing / trial runtime copy detected in app sources.
+
+            Fix:
+            - Keep pricing, trial, and eligibility truth in StoreKit / App Store policy layers, not runtime strings.
+
+            Hits:
+            \(hits.joined(separator: "\n"))
+            """
+        )
+    }
+
+    func test_storeKitContractDocMatchesSwiftCatalog() throws {
+        let root = try repoRoot(from: #filePath)
+        let contractURL = root.appendingPathComponent(
+            "docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md"
+        )
+
+        XCTAssertTrue(
+            FileManager.default.fileExists(atPath: contractURL.path),
+            "Canonical StoreKit contract doc is missing."
+        )
+
+        let content = try String(contentsOf: contractURL, encoding: .utf8)
+        let contractIDs = try extractCanonicalStoreKitProductIDs(from: content)
+        let codeIDs = StoreKitProductCatalog.allowedProductIDs
+
+        XCTAssertFalse(contractIDs.isEmpty, "Canonical StoreKit contract has no product IDs.")
+        XCTAssertEqual(
+            Set(contractIDs).count,
+            contractIDs.count,
+            "Duplicate IDs found in canonical StoreKit contract doc."
+        )
+        XCTAssertEqual(
+            Set(codeIDs).count,
+            codeIDs.count,
+            "Duplicate IDs found in StoreKitProductCatalog."
+        )
+        XCTAssertEqual(contractIDs, codeIDs, "Contract IDs must match StoreKitProductCatalog IDs and order.")
     }
 
     func test_fixturesContainBackendThresholds() throws {
@@ -168,6 +574,16 @@ final class ThinClientGuardsTests: XCTestCase {
     private func relativePath(_ url: URL, root: URL) -> String {
         url.path.replacingOccurrences(of: root.path + "/", with: "")
     }
+}
+
+private func containsToken(_ token: String, in content: String) -> Bool {
+    let pattern = "(?<![A-Za-z0-9_])\(NSRegularExpression.escapedPattern(for: token))(?![A-Za-z0-9_])"
+    guard let regex = try? NSRegularExpression(pattern: pattern) else {
+        return false
+    }
+
+    let range = NSRange(content.startIndex..<content.endIndex, in: content)
+    return regex.firstMatch(in: content, range: range) != nil
 }
 
 // MARK: - Helpers
@@ -233,7 +649,223 @@ private func collectTextFiles(
         }
     }
 
-    return results
+    return results.sorted { $0.path < $1.path }
+}
+
+private func extractCanonicalStoreKitProductIDs(from content: String) throws -> [String] {
+    let regex = try NSRegularExpression(
+        pattern: #"\|\s*`(com\.pulseplate\.[A-Za-z0-9._-]+)`\s*\|"#,
+        options: [.caseInsensitive]
+    )
+
+    let nsRange = NSRange(content.startIndex..<content.endIndex, in: content)
+    let matches = regex.matches(in: content, options: [], range: nsRange)
+
+    return matches.compactMap { match in
+        guard match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: content)
+        else {
+            return nil
+        }
+        return String(content[range])
+    }
+}
+
+private func guardedSourceExcludeSubpaths() -> [String] {
+    [
+        "/PulsePlateTests/",
+        "/Tests/",
+        "/Fixtures/",
+        "/Mocks/",
+    ]
+}
+
+private func secretStorageForbiddenRegexes(
+    userDefaultsAliases: Set<String> = []
+) throws -> [(String, NSRegularExpression)] {
+    let aliasAlternation = userDefaultsAliasAlternation(userDefaultsAliases)
+
+    return [
+        (
+            "appstorage-secret-key",
+            try NSRegularExpression(
+                pattern: #"@AppStorage\(\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)\s*\)"#,
+                options: [.caseInsensitive]
+            )
+        ),
+        (
+            "userdefaults-secret-key",
+            try NSRegularExpression(
+                pattern: #"\b(?:UserDefaults(?:\s*\([^)]*\)|(?:\.\w+)*)"# + aliasAlternation + #")\b[\s\S]{0,120}?forKey:\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)"#,
+                options: [.caseInsensitive]
+            )
+        ),
+    ]
+}
+
+private func secretStorageGuardHits(
+    in content: String,
+    sourceLabel: String,
+    forbiddenRegex: [(String, NSRegularExpression)]? = nil
+) throws -> [String] {
+    let scanContent = stripSwiftComments(from: content)
+    let regexes = try forbiddenRegex ?? secretStorageForbiddenRegexes(
+        userDefaultsAliases: extractUserDefaultsAliases(from: scanContent)
+    )
+    let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+    var hits: [String] = []
+
+    for (name, regex) in regexes {
+        let matches = regex.matches(in: scanContent, options: [], range: range)
+        for match in matches {
+            let location = lineAndSnippet(for: match.range, in: scanContent)
+            hits.append(
+                "\(sourceLabel):\(location.line): forbidden regex '\(name)' -> \(location.snippet)"
+            )
+        }
+    }
+
+    return hits
+}
+
+private func secretEnvFallbackHits(
+    in content: String,
+    sourceLabel: String,
+    forbiddenRegex: [(String, NSRegularExpression)]? = nil
+) throws -> [String] {
+    let scanContent = stripSwiftComments(from: content)
+    let regexes = try forbiddenRegex ?? secretEnvFallbackRegexes(
+        environmentAliases: extractProcessInfoEnvironmentAliases(from: scanContent)
+    )
+    let range = NSRange(scanContent.startIndex..<scanContent.endIndex, in: scanContent)
+    var hits: [String] = []
+
+    for (name, regex) in regexes {
+        let matches = regex.matches(in: scanContent, options: [], range: range)
+        for match in matches {
+            let location = lineAndSnippet(for: match.range, in: scanContent)
+            hits.append(
+                "\(sourceLabel):\(location.line): forbidden regex '\(name)' -> \(location.snippet)"
+            )
+        }
+    }
+
+    return hits
+}
+
+private func extractProcessInfoEnvironmentAliases(from content: String) -> Set<String> {
+    let patterns = [
+        #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*\[[^\]]+\])?\s*=\s*ProcessInfo\.processInfo\.environment\b"#,
+    ]
+    var aliases: Set<String> = []
+    let searchRange = NSRange(content.startIndex..<content.endIndex, in: content)
+
+    for pattern in patterns {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            continue
+        }
+        for match in regex.matches(in: content, options: [], range: searchRange) {
+            guard
+                match.numberOfRanges > 1,
+                let aliasRange = Range(match.range(at: 1), in: content)
+            else {
+                continue
+            }
+            aliases.insert(String(content[aliasRange]))
+        }
+    }
+
+    return aliases
+}
+
+private func secretEnvFallbackRegexes(
+    environmentAliases: Set<String> = []
+) throws -> [(String, NSRegularExpression)] {
+    let aliasAlternation = environmentAliasAlternation(environmentAliases)
+
+    return [
+        (
+            "processinfo-secret-env",
+            try NSRegularExpression(
+                pattern: #"\b(?:ProcessInfo\.processInfo\.environment"# + aliasAlternation + #")\s*\[\s*(?:"[^"]*(api[_-]?key|token|secret|password)[^"]*"|[A-Za-z_][A-Za-z0-9_\.]*(?:api[_-]?key|token|secret|password)[A-Za-z0-9_\.]*)\s*\]"#,
+                options: [.caseInsensitive]
+            )
+        ),
+    ]
+}
+
+private func extractUserDefaultsAliases(from content: String) -> Set<String> {
+    let patterns = [
+        #"\b(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?::\s*UserDefaults(?:\?)?)?(?:\s*=\s*UserDefaults(?:\s*\([^)]*\)|(?:\.\w+)*))"#,
+        #"\b(?:private|fileprivate|internal|public|open)?\s*(?:lazy\s+)?(?:let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*UserDefaults(?:\?)?\b"#,
+        #"(?:\(|,)\s*(?:(?:[A-Za-z_][A-Za-z0-9_]*|_)\s+)?(?:inout\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:\s*UserDefaults(?:\?)?\b"#,
+    ]
+    var aliases: Set<String> = []
+    let searchRange = NSRange(content.startIndex..<content.endIndex, in: content)
+
+    for pattern in patterns {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            continue
+        }
+        for match in regex.matches(in: content, options: [], range: searchRange) {
+            guard
+                match.numberOfRanges > 1,
+                let aliasRange = Range(match.range(at: 1), in: content)
+            else {
+                continue
+            }
+            aliases.insert(String(content[aliasRange]))
+        }
+    }
+
+    return aliases
+}
+
+private func environmentAliasAlternation(_ aliases: Set<String>) -> String {
+    guard !aliases.isEmpty else {
+        return ""
+    }
+
+    let escapedAliases = aliases
+        .sorted()
+        .map(NSRegularExpression.escapedPattern(for:))
+        .joined(separator: "|")
+
+    return "|(?:(?:self\\.)?(?:\(escapedAliases)))"
+}
+
+private func userDefaultsAliasAlternation(_ aliases: Set<String>) -> String {
+    guard !aliases.isEmpty else {
+        return ""
+    }
+
+    let escapedAliases = aliases
+        .sorted()
+        .map(NSRegularExpression.escapedPattern(for:))
+        .joined(separator: "|")
+
+    return "|(?:\(escapedAliases))"
+}
+
+private func lineAndSnippet(for range: NSRange, in content: String) -> (line: Int, snippet: String) {
+    guard
+        let swiftRange = Range(range, in: content)
+    else {
+        return (line: 1, snippet: "<unavailable>")
+    }
+
+    let prefix = content[..<swiftRange.lowerBound]
+    let line = prefix.reduce(into: 1) { partial, character in
+        if character == "\n" {
+            partial += 1
+        }
+    }
+
+    let snippet = content[swiftRange]
+        .replacingOccurrences(of: "\n", with: " ")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+
+    return (line: line, snippet: snippet)
 }
 
 private func stripSwiftComments(from source: String) -> String {

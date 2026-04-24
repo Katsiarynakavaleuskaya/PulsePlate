@@ -43,8 +43,8 @@ def _patch_insight_success(monkeypatch: pytest.MonkeyPatch) -> None:
         lambda: (lambda: FakeLLMProvider()),
         raising=True,
     )
-    # Keep llm.get_provider patched as a secondary safety net.
-    monkeypatch.setattr(llm, "get_provider", lambda: FakeLLMProvider(), raising=True)
+    # Keep llm.get_insight_provider patched as a secondary safety net.
+    monkeypatch.setattr(llm, "get_insight_provider", lambda: FakeLLMProvider(), raising=True)
 
 
 def test_insight_v1_requires_vip_tier(
@@ -120,7 +120,7 @@ def test_core_llm_provider_loader_resolves_llm_get_provider(
 ) -> None:
     """Guard: canonical loader must stay lazy and patchable.
 
-    We patch `llm.get_provider` first, then assert the loader returns the patched symbol.
+    We patch `llm.get_insight_provider` first, then assert the loader returns the patched symbol.
     This ensures `core.insight.llm_provider_loader.load_llm_get_provider()` is executed (diff-cover)
     without relying on endpoint behavior.
     """
@@ -129,7 +129,7 @@ def test_core_llm_provider_loader_resolves_llm_get_provider(
     def _sentinel_get_provider() -> object:
         return object()
 
-    monkeypatch.setattr(llm, "get_provider", _sentinel_get_provider, raising=True)
+    monkeypatch.setattr(llm, "get_insight_provider", _sentinel_get_provider, raising=True)
 
     # IMPORTANT: resolve at runtime to avoid stale symbol refs after purge/reload under xdist.
     loader_mod = resolve_module("core.insight.llm_provider_loader")

@@ -1,4 +1,32 @@
-import { Button, Input, Toggle } from '../ui';
+import { useState } from 'react';
+import type { ChangeEvent, ReactElement } from 'react';
+import {
+  Alert,
+  Badge,
+  Button,
+  Checkbox,
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuItems,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Hero,
+  Input,
+  ProgressIndicator,
+  RadioGroup,
+  RadioGroupOption,
+  Select,
+  StatsCard,
+  Stepper,
+  Tabs,
+  TabsList,
+  TabsPanel,
+  TabsPanels,
+  TabsTrigger,
+  Textarea,
+  Toggle,
+  Tooltip,
+} from '../ui';
 import { forbiddenDirections, governanceLocks, platformScreens } from './data';
 import { PanelShell } from './shared';
 
@@ -7,26 +35,41 @@ interface ComponentShowcasePanelProps {
   onNotificationsChange: (enabled: boolean) => void;
 }
 
+type FavoriteMeal = 'breakfast' | 'lunch' | 'dinner';
+type CoachingTone = 'calm' | 'motivated';
+
+function isFavoriteMeal(value: string): value is FavoriteMeal {
+  return value === 'breakfast' || value === 'lunch' || value === 'dinner';
+}
+
+function isCoachingTone(value: string): value is CoachingTone {
+  return value === 'calm' || value === 'motivated';
+}
+
 export function ComponentShowcasePanel({
   notificationsEnabled,
   onNotificationsChange,
-}: ComponentShowcasePanelProps) {
+}: ComponentShowcasePanelProps): ReactElement {
+  const [favoriteMeal, setFavoriteMeal] = useState<FavoriteMeal>('lunch');
+  const [coachingTone, setCoachingTone] = useState<CoachingTone>('calm');
+  const [consentChecked, setConsentChecked] = useState<boolean>(true);
+
   return (
     <PanelShell title="Shared Components" subtitle="Current primitives shown in Storybook-first review flow">
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 xl:grid-cols-3">
         <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
           <Button className="w-full rounded-full bg-[var(--pp-blue)] px-6 py-3 text-white shadow-[0_16px_40px_rgba(51,159,255,0.22)]">
             Start Setup
           </Button>
           <Button
-            variant="secondary"
             className="w-full rounded-full border-white/12 bg-white/[0.04] px-6 py-3 text-white hover:bg-white/[0.08]"
+            variant="secondary"
           >
             View Progress
           </Button>
           <Button
-            variant="destructive"
             className="w-full rounded-full px-6 py-3"
+            variant="destructive"
           >
             Critical Alert State
           </Button>
@@ -52,12 +95,165 @@ export function ComponentShowcasePanel({
             </p>
           </div>
         </div>
+        <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <Select
+            aria-label="Favorite meal slot"
+            className="rounded-2xl border-white/10 bg-white/[0.04] px-4 py-3 text-white"
+            options={[
+              { value: 'breakfast', label: 'Breakfast' },
+              { value: 'lunch', label: 'Lunch' },
+              { value: 'dinner', label: 'Dinner' },
+            ]}
+            value={favoriteMeal}
+            onChange={(event: ChangeEvent<HTMLSelectElement>): void => {
+              const nextValue = event.target.value;
+              if (isFavoriteMeal(nextValue)) {
+                setFavoriteMeal(nextValue);
+              }
+            }}
+          />
+          <Textarea
+            aria-label="Planning notes"
+            className="rounded-2xl border-white/10 bg-white/[0.04] text-white placeholder:text-white/35"
+            defaultValue="Plan two protein-forward meals and keep the shopping list quiet."
+          />
+          <label className="flex items-start gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-white">
+            <Checkbox
+              checked={consentChecked}
+              className="mt-0.5"
+              onChange={(event: ChangeEvent<HTMLInputElement>): void => setConsentChecked(event.target.checked)}
+            />
+            <span className="space-y-1">
+              <span className="block text-sm font-medium text-white">Email me the weekly planning summary</span>
+              <span className="block text-sm text-white/60">Keep reminders helpful and non-clinical.</span>
+            </span>
+          </label>
+        </div>
+        <div className="space-y-3 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <RadioGroup legend="Coaching tone">
+            <RadioGroupOption
+              checked={coachingTone === 'calm'}
+              description="Minimal, confident guidance"
+              label="Calm"
+              name="coaching-tone"
+              value="calm"
+              onChange={(event: ChangeEvent<HTMLInputElement>): void => {
+                const nextValue = event.target.value;
+                if (isCoachingTone(nextValue)) {
+                  setCoachingTone(nextValue);
+                }
+              }}
+            />
+            <RadioGroupOption
+              checked={coachingTone === 'motivated'}
+              description="Slightly more energetic feedback"
+              label="Motivated"
+              name="coaching-tone"
+              value="motivated"
+              onChange={(event: ChangeEvent<HTMLInputElement>): void => {
+                const nextValue = event.target.value;
+                if (isCoachingTone(nextValue)) {
+                  setCoachingTone(nextValue);
+                }
+              }}
+            />
+          </RadioGroup>
+          <Alert title="Weekly plan synced" tone="success">
+            Review lanes now show the governed primitives instead of route-specific one-off controls.
+          </Alert>
+          <div className="flex flex-wrap items-center gap-3">
+            <DropdownMenu>
+              <DropdownMenuTrigger>More actions</DropdownMenuTrigger>
+              <DropdownMenuItems>
+                <DropdownMenuItem>Duplicate template</DropdownMenuItem>
+                <DropdownMenuItem>Share with partner</DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem destructive>Remove template</DropdownMenuItem>
+              </DropdownMenuItems>
+            </DropdownMenu>
+            <Tooltip content="Tooltips stay supportive and never replace required guidance.">
+              <Button size="sm" variant="ghost">
+                Why this matters
+              </Button>
+            </Tooltip>
+          </div>
+        </div>
+      </div>
+      <div className="mt-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+        <Tabs>
+          <TabsList>
+            <TabsTrigger>Overview</TabsTrigger>
+            <TabsTrigger>States</TabsTrigger>
+            <TabsTrigger disabled>Implementation Notes</TabsTrigger>
+          </TabsList>
+          <TabsPanels>
+            <TabsPanel>
+              <p className="text-sm text-white/72">Shared primitives are now visible in the governed review lane.</p>
+            </TabsPanel>
+            <TabsPanel>
+              <p className="text-sm text-white/72">Focus, disabled, error, and long-copy states are part of the component contract.</p>
+            </TabsPanel>
+            <TabsPanel>
+              <p className="text-sm text-white/72">Reserved for follow-on normalization slices.</p>
+            </TabsPanel>
+          </TabsPanels>
+        </Tabs>
+      </div>
+      <div className="mt-4 grid gap-4 xl:grid-cols-2">
+        <div className="space-y-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <p className="text-sm font-semibold text-white">Normalized families</p>
+          <div className="flex flex-wrap gap-3">
+            <Badge tone="premium">VIP</Badge>
+            <Badge tone="success" variant="subtle">Synced</Badge>
+            <Badge tone="warning" variant="outline">Needs review</Badge>
+          </div>
+          <ProgressIndicator
+            action={<Button size="sm">Open progress</Button>}
+            description="Shared progress anatomy now sits under the existing live adapter."
+            label="Live updates on"
+            state="live"
+            timestampLabel="7:00 PM"
+            variant="emphasized"
+          />
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatsCard align="center" label="Goal" value="1850" unit="kcal/day" />
+            <StatsCard align="center" label="Protein" value="120" unit="g/day" />
+            <StatsCard align="center" label="Water" value="2.5" unit="L/day" />
+          </div>
+          <Stepper
+            ariaLabel="Setup progress"
+            currentStep={1}
+            progressLabel="Step 2 of 2"
+            steps={[
+              { id: 'profile', label: 'Profile', description: 'Nutrition inputs' },
+              { id: 'results', label: 'Results', description: 'Review targets' },
+            ]}
+          />
+        </div>
+        <div className="space-y-4 rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+          <p className="text-sm font-semibold text-white">Shared hero shell</p>
+          <Hero
+            chips={
+              <>
+                <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+                  Session Connected
+                </span>
+                <span className="rounded-full bg-white/[0.08] px-4 py-2 text-xs font-semibold text-white/88">
+                  Premium Active
+                </span>
+              </>
+            }
+            description="The route keeps its product logic while the governed hero shell stays reusable."
+            eyebrow="Calm control panel"
+            title="PulsePlate Home"
+          />
+        </div>
       </div>
     </PanelShell>
   );
 }
 
-export function PlatformInventoryPanel() {
+export function PlatformInventoryPanel(): ReactElement {
   return (
     <PanelShell title="Platform Inventory" subtitle="Current design-system coverage across surfaces">
       <div className="grid gap-4 lg:grid-cols-3">
@@ -93,7 +289,7 @@ export function PlatformInventoryPanel() {
   );
 }
 
-export function GovernancePanel() {
+export function GovernancePanel(): ReactElement {
   return (
     <PanelShell title="Governance" subtitle="Anti-drift constraints and immutable locks">
       <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
