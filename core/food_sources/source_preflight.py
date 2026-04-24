@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 SourceClassification = Literal[
@@ -123,16 +123,10 @@ def _require_string_tuple(data: dict[str, object], key: str, context: str) -> tu
 
 def _parse_classification(value: str, context: str) -> SourceClassification:
     """Validate and return a source classification literal."""
-    if value == "current":
-        return "current"
-    if value == "legacy_static":
-        return "legacy_static"
-    if value == "commercial_contract":
-        return "commercial_contract"
-    if value == "unresolved":
-        return "unresolved"
-    allowed = ", ".join(ALLOWED_SOURCE_CLASSIFICATIONS)
-    raise _schema_error(context, f"source_classification must be one of: {allowed}")
+    if value not in ALLOWED_SOURCE_CLASSIFICATIONS:
+        allowed = ", ".join(ALLOWED_SOURCE_CLASSIFICATIONS)
+        raise _schema_error(context, f"source_classification must be one of: {allowed}")
+    return cast(SourceClassification, value)
 
 
 def _validate_url(value: str, context: str) -> str:

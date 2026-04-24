@@ -18,8 +18,8 @@ threads on GitHub.
 
 ## Implementation Evidence
 
-Commit: 7d656bb3df98b3f2acbac6a587b1d2835008ef02
-Evidence: `tests/test_payment_source_contract_api.py:13`; `tests/test_payment_source_contract_api.py:68`; `core/food_sources/source_preflight.py:124`.
+Commit: 50a02aec1
+Evidence: `tests/test_payment_source_contract_api.py:13`; `tests/test_payment_source_contract_api.py:68`.
 Reason: Main CI run `24911580731` failed in jobs `72954280558` and `72954280584`
 because stale `legacy_app.get_api_key` dependency override keys could survive
 inside the shared `app.main.app` test singleton during long shard execution,
@@ -28,13 +28,11 @@ the expected `401`.
 
 ## Validation Evidence
 
-- `python3 scripts/orchestration/check_preflight.py --path core/food_sources/source_preflight.py --path tests/test_payment_source_contract_api.py --path tests/conftest.py` — PASS
+- `python3 scripts/orchestration/check_preflight.py --path tests/test_payment_source_contract_api.py --path tests/conftest.py` — pending rerun after rebase.
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
-- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement` — PASS (`12 passed`)
-- `.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null app core` — PASS
-- `pre-commit run --all-files` — PASS
-- `make validate-changed` — PASS
-- Pre-push hooks — PASS: changed-file mypy, pip-audit, backend tests, full-repo bandit, docker build test
+- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement` — pending rerun after rebase.
+- `pre-commit run --all-files` — pending rerun after rebase.
+- `make validate-changed` — pending rerun after rebase.
 
 Local `make verify` note: attempted before PR open. It passed `verify-env`,
 `lint`, `typecheck`, and `test-fast`, then was externally terminated during the
@@ -49,15 +47,15 @@ Merge-readiness contract:
 - [ ] Mandatory wait-window satisfied (final check pass completed, then waited >=1 review cycle after latest bot/review activity)
   Evidence: pending post-open review cycle.
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending current-head CI for commit `7d656bb3df98b3f2acbac6a587b1d2835008ef02`.
+  Evidence: pending current-head CI for the next pushed head.
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending current-head CI.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: pending post-open review cycle.
 - [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: no actionable review comments were present when this artifact was created.
-- [x] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed before push.
+- [ ] Pre-commit green on latest pushed head
+  Evidence: pending rerun after rebase.
 - [ ] `make verify` green on latest pushed head
   Evidence: not satisfied locally; see Validation Evidence note.
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
