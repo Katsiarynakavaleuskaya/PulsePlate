@@ -9,9 +9,9 @@ Date: 2026-04-23
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- Status: Draft PR opened for current-head GitHub CI proof. CodeRabbit
-  actionables from 2026-04-23 were fixed and mapped below.
-- Current implementation commit: `853694874`.
+- Status: Current-head GitHub CI proof completed for commit `b3edd4ff`;
+  required post-proof review cycle is still pending.
+- Current implementation commit: `b3edd4ff`.
 
 ## Fixed in Commit Mapping
 
@@ -41,20 +41,24 @@ Evidence: CodeRabbit actionables fixed in workflow, runner, packet, and tests.
   `run_main_ci_diagnostic` routing so PRs changing the main-CI Python 3.12
   runner/workflow contract execute the `test-main` matrix before merge.
 - CodeRabbit review `4165580559` fixed by `853694874`.
+- Current-head CI run `24859466516` on commit `b3edd4ff` passed:
+  `test-main (3.12, 60)` in `37m42s`, `test-main (3.11, 60)` in `6m58s`,
+  `test-main (3.13, 90)` in `1h21m9s`, `coverage-pr` in `13s`, and
+  `diff-coverage` in `55s`.
 
 ## Deferred Follow-up
 
-- `make verify` is deferred while PR #1511 is draft because the governing
-  failure mode is the full main-suite Python 3.12 runtime budget. Current-head
-  GitHub CI is the heavy signal for this lane.
+- `make verify` is deferred because the governing failure mode is the full
+  main-suite Python 3.12 runtime budget. Current-head GitHub CI is the heavy
+  signal for this lane.
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-py312-xdist-root-cause-hardening`
   remains the follow-up anchor for any future pytest-xdist restoration audit.
 
 ## Merge Readiness
 
-- [ ] Current-head `test-main (3.12, 60)` completes without timeout.
-- [ ] Current-head `test-main (3.12, 60)` has no xdist worker-node termination.
-- [ ] `test-main (3.11, 60)` and `test-main (3.13, 90)` do not regress.
+- [x] Current-head `test-main (3.12, 60)` completes without timeout.
+- [x] Current-head `test-main (3.12, 60)` has no xdist worker-node termination.
+- [x] `test-main (3.11, 60)` and `test-main (3.13, 90)` do not regress.
 - [ ] CodeRabbit, Sourcery, and Cubic actionables are mapped or explicitly
   marked no-actionable.
 - [ ] Final check pass completed after latest bot/review activity.
