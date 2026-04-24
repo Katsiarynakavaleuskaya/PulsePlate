@@ -21,13 +21,13 @@ threads on GitHub.
   Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:11`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140666395 -> 1a3190db8
   Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:23`.
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:47`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140673719 -> 1a3190db8
   Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:40`.
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:53`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#discussion_r3140673720 -> 1a3190db8
   Disposition: FIXED
-  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:74`; `docs/review/PR_1525_FIXED_MAPPING.md:76`; `docs/review/PR_1525_FIXED_MAPPING.md:80`.
+  Evidence: `docs/review/PR_1525_FIXED_MAPPING.md:86`; `docs/review/PR_1525_FIXED_MAPPING.md:88`; `docs/review/PR_1525_FIXED_MAPPING.md:92`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1525#pullrequestreview-4173846236 -> 1a3190db8
   Disposition: FIXED
   Evidence: `tests/test_payment_source_contract_api.py:72`; `tests/test_payment_source_contract_api.py:111`.
@@ -61,7 +61,7 @@ the expected `401`.
 
 - `python3 scripts/orchestration/check_preflight.py --path tests/test_payment_source_contract_api.py --path tests/conftest.py` — PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
-- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement tests/test_food_source_preflight.py` — PASS (`21 passed`)
+- `.venv/bin/pytest -q tests/test_payment_source_contract_api.py tests/test_paid_route_guards.py::test_manual_ru_by_entry_routes_remain_callable_before_entitlement` — PASS (`12 passed`)
 - `make validate-changed` — PASS
 - `pre-commit run --all-files` — PASS
 
