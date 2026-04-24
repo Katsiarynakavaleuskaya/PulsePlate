@@ -5,6 +5,20 @@
 product-AI lane
 **Mode:** planning packet
 
+## Snapshot immutability
+
+The `2026-04-23` date in this packet name and in the local replay artifact path
+is intentional. It marks an immutable evidence snapshot for the `PR-A9` slice,
+not a rolling document name. Future evidence refreshes must create a new dated
+packet or an explicit superseding follow-up instead of silently rewriting this
+snapshot.
+
+The canonical exact replay table, guardrail result, and reproducibility command
+block live in
+`docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md`.
+This planning packet may summarize those results, but it must not become a
+second source of truth for replay metrics or commands.
+
 ## Purpose
 
 Freeze one narrow Wave 6 follow-up slice after merged `PR-A8` that turns the
@@ -129,29 +143,26 @@ Rules:
 - public article publication itself
 - semantic-cache or recursive-learning follow-up work
 
-## Replay evidence snapshot
+## Replay evidence summary
 
-Replay contract bounds:
+Canonical source:
+`docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md`.
+
+Replay contract bounds, copied here only as a scope summary:
 
 - mode: `offline_replay_ablation`
 - replay corpus: `n=3` cases
 - known-good controls: `n=3`
 - `network_budget=0`
 
-Current reproduced result:
-
-| Arm | correctness_pass_rate | unsupported_claim_rate | contradiction_rate | first_pass_readiness_proxy | usefulness_floor_rate |
-| --- | --- | --- | --- | --- | --- |
-| `A3_combined` | `1.0` | `0.0` | `0.0` | `1.0` | `1.0` |
-| `A1_logic` | `0.0` | `0.0` | `0.0` | `0.0` | `1.0` |
-| `A2_philosophy` | `0.0` | `0.0` | `0.0` | `0.0` | `0.0` |
-| `A0_control` | `0.0` | `1.0` | `0.3333` | `0.0` | `0.0` |
-
-Guardrails:
+Current reproduced guardrail summary:
 
 - `winner_arm=A3_combined`
 - `promotion_ready=true`
 - `guardrails.known_good_false_positive_rate=0.0`
+
+Use the audit packet for exact per-arm rates and the command block that
+regenerates the local replay artifact.
 
 ## Publishable claims
 
@@ -207,24 +218,12 @@ Guardrails:
 This PR does not publish the external article itself; it only freezes the
 mapping from internal evidence to future public-safe themes.
 
-## Reproducibility commands
-
-```bash
-python3 scripts/orchestration/check_preflight.py
-python3 scripts/orchestration/check_agent_consistency.py
-. .venv/bin/activate && pytest -q tests/test_logic_philosophy_replay_eval.py
-. .venv/bin/activate && python3 scripts/orchestration/logic_philosophy_replay_eval.py \
-  --cases tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json \
-  --negative-controls tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json \
-  --output logic-philosophy/a9-2026-04-23.json
-```
-
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `. .venv/bin/activate && pytest -q tests/test_logic_philosophy_replay_eval.py`
-- `. .venv/bin/activate && python3 scripts/orchestration/logic_philosophy_replay_eval.py --cases tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json --negative-controls tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json`
+- replay CLI command from the canonical audit packet
 - `pre-commit run --all-files`
 - `make verify` before any merge-ready claim
 

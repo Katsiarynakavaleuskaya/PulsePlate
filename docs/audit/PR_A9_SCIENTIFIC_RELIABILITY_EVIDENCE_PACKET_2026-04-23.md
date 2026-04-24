@@ -4,6 +4,19 @@
 **Status:** docs-only evidence packet
 **Scope:** Wave 6 AI reliability publication evidence only
 
+## Snapshot Immutability
+
+The `2026-04-23` date in this file name and in the replay output path is part
+of the evidence identity for `PR-A9`. Treat this document as an immutable
+snapshot for that dated slice. Future refreshes must create a new dated packet
+or an explicit superseding follow-up; they should not silently roll this file
+forward.
+
+This audit packet is the canonical source for the exact replay metrics,
+guardrail result, and reproducibility commands for `PR-A9`. Planning and
+roadmap documents may link here, but they should not duplicate the full replay
+table or command block.
+
 ## Summary
 
 Current `main` now carries enough governed replay/eval infrastructure to
