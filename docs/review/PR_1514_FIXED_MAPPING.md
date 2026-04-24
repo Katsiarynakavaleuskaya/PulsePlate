@@ -33,12 +33,11 @@ Merge-readiness contract:
 - [ ] After latest bot/review activity, perform a final check and wait at least
       one review cycle before merging
 - [x] `pre-commit run --all-files` green on latest local head
-- [ ] `make verify` green on latest pushed head
-      Local proof: `make verify` passed `verify-env`, `lint`, `typecheck`, and
-      `test-fast`, then was externally terminated during the long
-      coverage/diff-cover sweep with `make: *** [diff-cov] Terminated: 15`.
-      Do not mark merge-ready until full `make verify` completes or accepted
-      current-head required CI evidence replaces the local long-run signal.
+- [x] `make verify` green on latest local head before this evidence update
+      Local proof: `make verify` passed `verify-env`, `lint`, `typecheck`,
+      `test-fast`, full coverage run, `coverage xml`, and `diff-cover >=97`.
+      Final output reported that diff coverage met requirements and all
+      checks passed.
 
 Local proof note: `python3 scripts/orchestration/check_preflight.py`,
 `python3 scripts/orchestration/check_agent_consistency.py`,
