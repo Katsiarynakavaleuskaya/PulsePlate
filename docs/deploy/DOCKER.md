@@ -13,8 +13,11 @@ Docker runtime contract.
 - Runtime slimming merged via `PR #1490` on April 22, 2026.
 - Telemetry baseline landed via `PR #1492` on April 22, 2026.
 - Hard-budget enforcement landed via `PR #1498` on April 22, 2026.
-- The current Docker/CI slice restores signed provenance and SPDX SBOM
-  attestations on pushed-image lanes and verifies both before deploy.
+- Signed provenance and SPDX SBOM attestation verification landed via `PR #1503`.
+- Shared Safety audit extraction landed via `PR #1515`.
+- The current Docker/CI/Security slice consolidates duplicate production-image
+  build paths and reuses exact image references or digests where workflow
+  boundaries allow deterministic reuse.
 
 ## Runtime manifest policy
 
@@ -43,16 +46,20 @@ the project still needs one canonical baseline so PR authors can see image-size
 drift, largest layers, and build-context evidence before merge.
 
 Telemetry and the hard-budget gate established deterministic image-size
-evidence, but deployable image trust still depended on the temporary CD
-workaround that kept pushed-image attestations disabled.
-
-This wave restores signed provenance on pushed-image lanes only:
+evidence. Signed provenance restoration then restored deployable image trust on
+pushed-image lanes only:
 
 - keep the current hard-budget contract unchanged
 - restore `provenance: mode=max` on pushed-image lanes in `build.yml` and `cd.yml`
 - emit SPDX SBOM attestations on the same pushed-image lanes
 - verify both provenance and SBOM by exact digest before staging or production deploy
-- Dagger and Shared Safety remain deferred
+
+With runtime, budget, provenance, and Shared Safety slices landed, the active
+Docker/CI cost issue is duplicate production-image builds. `build.yml`,
+`docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml` currently build
+the same `target: production` image for overlapping evidence. This wave
+consolidates that path without changing the base image, requirements profile,
+hard-budget policy, or attestation contract.
 
 ## Baseline source rule
 
@@ -200,13 +207,18 @@ Do not widen this rollback into Shared Safety, Dagger, or frontend/Caddy changes
 
 Explicitly deferred after this PR:
 
-- `P1: Shared Safety audit script after install-profile split`
-  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
-  Remove-by: 2026-06-15
-  Rollback: keep Safety invocation duplicated in the existing workflows until the shared extraction lands.
-  Exit criteria: a follow-up PR extracts the shared Safety invocation/reporting path without reopening install-profile split scope.
 - Dagger or any alternate control-plane work
   Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-dagger-pilot-after-docker-baseline`
   Remove-by: 2026-07-15
   Rollback: keep the current GitHub Actions-based Docker control plane as the only supported path.
-  Exit criteria: telemetry baseline, hard-budget, and provenance slices are closed and a separate evaluation packet re-approves any Dagger pilot.
+  Exit criteria: telemetry baseline, hard-budget, provenance, and build-path consolidation slices are closed and a separate evaluation packet re-approves any Dagger pilot.
+- Docker base-image change or API-core dependency-profile slimming
+  Backlog: future ledger item after build-path consolidation
+  Remove-by: 2026-07-15
+  Rollback: keep `python:3.13.6-slim-bookworm` and `requirements-docker-runtime.txt` as the canonical backend runtime path.
+  Exit criteria: consolidated CI evidence shows remaining image size/cost pressure is dependency-profile or base-image driven.
+- SBOM/VEX signed security-artifact maturity lane
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-sbom-vex-signed-security-artifacts`
+  Remove-by: 2026-08-15
+  Rollback: keep the landed GitHub-native provenance/SBOM attestation verification as the only blocking Docker security artifact gate.
+  Exit criteria: release-truth blockers are closed and a dedicated packet approves SBOM/VEX/cosign/OPA rollout.

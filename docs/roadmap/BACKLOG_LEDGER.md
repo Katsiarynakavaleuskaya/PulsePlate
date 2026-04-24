@@ -537,11 +537,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover the promoted install-profile contract
 
 <a id="ledger-p1-safety-audit-shared-script-after-pr1479"></a>
-- [ ] P1: Shared Safety audit script after install-profile split
+- [x] P1: Shared Safety audit script after install-profile split
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-SAFETY-AUDIT-SHARED-SCRIPT
+  - Target PR: PR #1515 (`codex/shared-safety-audit-script`)
   - Area: CI / security workflow / supply-chain
+  - Status note: Merged via `PR #1515`. The canonical Safety multi-manifest audit now lives in `scripts/ci/run_safety_audit.py`, while `.github/workflows/ci.yml` and `.github/workflows/security.yml` delegate to the helper and keep the existing `safety-*` artifact contract.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
   - Reason: PR #1479 intentionally keeps the install-profile split narrow. The multi-manifest Safety audit loop now exists in both `.github/workflows/ci.yml` and `.github/workflows/security.yml`; extract the shared invocation/reporting path into a single script only after the split lands so future Safety changes happen in one place without reopening the current stabilization slice.
@@ -617,7 +618,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1490 (`fix(docker): slim runtime after profile split`)
   - Area: docker / runtime / supply-chain
-  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs) and hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate) have since landed, while [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) remains deferred and the next active Docker/CI slice is signed provenance restoration on pushed-image lanes.
+  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs), hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate), signed provenance restoration, and [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) have since landed. The next active Docker/CI slice is [Docker workflow build-path consolidation and image digest reuse](#ledger-p1-docker-workflow-build-path-consolidation).
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
@@ -761,11 +762,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR body includes a `Deferred / Follow-ups` section with ledger links to this ledger item
 
 <a id="backlog-restore-signed-build-provenance"></a>
-- [ ] P1: Restore signed build provenance after cache/buildx workaround is removed
+- [x] P1: Restore signed build provenance after cache/buildx workaround is removed
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (supply-chain maturity after tooling-surface guard baseline)
   - Target PR: PR #1503
-  - Status: 🟡 Active next slice after `PR #1498`
+  - Status: Landed via `PR #1503`; provenance/SBOM attestations are restored for pushed-image lanes and verified before deploy.
   - Reason (EN): Docker baseline and hard-budget gates are now stable enough to restore signed provenance on pushed-image lanes without widening scope into `load: true` jobs or alternate control planes. This slice must re-enable provenance/SBOM attestations on registry pushes and fail closed before staging or production deploy if digest verification breaks.
   - Links:
     - `docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md`
@@ -781,6 +782,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `load: true` jobs remain on `provenance: false`
     - Follow-up docs and CI checks explicitly cover the restored path
 
+<a id="ledger-p1-docker-workflow-build-path-consolidation"></a>
+- [ ] P1: Docker workflow build-path consolidation and image digest reuse
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-BUILD-PATH-CONSOLIDATION
+  - Area: CI / docker / security scan / operator workflow
+  - Status: Active next Docker/CI/Security slice after `PR #1515`
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
+    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
+  - Reason: Docker production image work is now functionally correct but CI still rebuilds the same `target: production` image across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. Consolidating the build path and reusing an exact image digest should reduce CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture.
+  - Links:
+    - `docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md`
+    - `.github/workflows/build.yml`
+    - `.github/workflows/docker-image.yml`
+    - `.github/workflows/trivy.yml`
+    - `.github/workflows/docker-openapi-smoke.yml`
+    - `scripts/ci/docker_image_telemetry.py`
+    - `scripts/ci/check_docker_image_budget.py`
+  - DoD:
+    - One canonical production-image build path owns telemetry, budget evidence, test/local validation, and GHCR publish semantics.
+    - Follow-on Docker scan/smoke lanes consume the produced image reference or digest where GitHub Actions boundaries allow reuse, instead of silently rebuilding divergent images.
+    - Existing artifact names and hard-budget/provenance evidence stay stable for reviewers and operators.
+    - `slim-bookworm`, `.dockerignore`, non-root runtime, healthcheck, and current runtime requirements profile remain unchanged.
+    - Dagger, Docker base-image changes, requirements-profile split, and SBOM/VEX maturity work remain out of scope.
+
 <a id="ledger-p1-sbom-vex-signed-security-artifacts"></a>
 - [ ] P1: SBOM/VEX signed security artifacts lane after P0 release-truth closure
   - Owner: @katsiaryna_kavaleuskaya
@@ -789,8 +817,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: 📋 Planned
   - Blocked by:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
-    - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  - Reason (EN): SBOM/VEX/cosign/OPA is a separate security-maturity lane, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity.
+    - release-truth closure criteria listed below
+  - Reason (EN): SBOM/VEX/cosign/OPA is a separate security-maturity lane. Provenance is now restored, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity.
   - Current action:
     - docs/governance only
     - no CI enablement

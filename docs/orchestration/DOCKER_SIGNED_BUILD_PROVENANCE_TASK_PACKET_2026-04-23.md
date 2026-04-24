@@ -1,6 +1,6 @@
 # Docker Signed Build Provenance Task Packet — 2026-04-23
 
-Status: Active PR-7 slice in the Docker / CI discipline series
+Status: Completed PR-7 slice in the Docker / CI discipline series
 
 ## Summary
 
@@ -13,6 +13,7 @@ attestations before any staging or production deploy continues.
 
 - Branch: `codex/docker-restore-signed-build-provenance`
 - Worktree: `worktrees/docker-signed-provenance-pr7`
+- Merged PR: `#1503`
 
 ## Mandatory role order
 

@@ -1,6 +1,6 @@
 # Shared Safety Audit Script Task Packet - 2026-04-24
 
-Status: Active PR-8 slice in the Docker / CI / Security discipline series
+Status: Completed PR-8 slice in the Docker / CI / Security discipline series
 
 ## Summary
 
@@ -12,7 +12,7 @@ Security workflows into one shared helper under `scripts/ci/`.
 
 - Branch: `codex/shared-safety-audit-script`
 - Worktree: `worktrees/shared-safety-audit-pr8`
-- Draft PR: `#1515`
+- Merged PR: `#1515`
 
 ## Mandatory role order
 
