@@ -201,16 +201,17 @@ For this docs-only closeout PR:
 1. `agent-coordinator`
 2. `creative-designer`
 3. `frontend-engineer` advisory only
-4. `architecture-specialist`
-5. mandatory post-open `qa-engineer-agent -> bug-hunter`
+4. `cursor-specialist-agent` advisory only
+5. `architecture-specialist`
+6. mandatory post-open `qa-engineer-agent -> bug-hunter`
 
 ## Validation
 
 Required local checks:
 
 ```bash
-a python3 scripts/orchestration/check_preflight.py
-a python3 scripts/orchestration/check_agent_consistency.py
+python3 scripts/orchestration/check_preflight.py
+python3 scripts/orchestration/check_agent_consistency.py
 pre-commit run --all-files
 ```
 
@@ -233,9 +234,9 @@ requires it. Do not claim merge readiness without current-head CI and
 * Figma page decisions are recorded with node IDs.
 * `25` and `26` are recorded as `DIVERGENT`.
 * `27` is recorded as the classification source for the presentation board.
-* `28` is recorded as presentation-only.
-* `29` is recorded as visual companions only.
-* `01_Components` records that no new extraction pass opens from this cycle.
+* Presentation-only: `28` recorded.
+* Visual companions: `29` recorded.
+* `01_Components` notes: no new extraction pass opens this cycle.
 * No runtime code changed.
 * No token or generated mirror changed.
 * Review mapping artifact exists after PR number assignment.
