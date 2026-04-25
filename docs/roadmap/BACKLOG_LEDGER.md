@@ -811,7 +811,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Docker runtime base-image and API dependency-profile slimming
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
+  - Target PR: PR #1530
   - Area: CI / docker / dependency profile / runtime cost
   - Status: Active
   - Transition note: 2026-04-25 — Opened as immediate follow-up after PR #1526 and build-path consolidation telemetry stabilisation.
