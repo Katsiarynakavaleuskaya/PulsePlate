@@ -19,6 +19,12 @@ Evidence: PR body contains the repo-canonical `### Fixed in Commit Mapping` mirr
 Reason: CodeRabbit expected a top-level PR-body `## Fixed in Commit Mapping` heading, but the repo merge contract uses nested PR-body mirror heading `### Fixed in Commit Mapping` while the canonical artifact owns the top-level heading.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#discussion_r3141974605
 
+Disposition: FIXED
+Commit: ac4e7834b
+Evidence: Merge-readiness checklist entries in this artifact remain unchecked until the final merge cycle.
+Reason: Applies CodeRabbit's fixed-mapping readiness checklist guidance without changing dependency remediation behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#discussion_r3142007873 -> ac4e7834b
+
 ## Post-Open Role Review
 
 - `qa-engineer-agent`: PASS. Reviewed the dependency-security acceptance scope,
@@ -71,7 +77,7 @@ Merge-readiness contract:
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: CodeRabbit thread mapped above; pending final GitHub thread state.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: CodeRabbit thread `discussion_r3141974605` mapped as NOT-A-BUG.
+  Evidence: CodeRabbit threads `discussion_r3141974605` and `discussion_r3142007873` are mapped above.
 - [ ] Pre-commit green on latest pushed implementation head
   Evidence: `pre-commit run --all-files` passed; push pre-push hooks passed.
 - [ ] `make verify` green on latest implementation head
