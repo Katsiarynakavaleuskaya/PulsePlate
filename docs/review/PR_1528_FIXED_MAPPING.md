@@ -43,7 +43,7 @@ Reason: Adds repo-backed Figma governance evidence for
 - `python3 scripts/orchestration/check_agent_consistency.py` — OK
 - `git diff --cached --check` — PASS
 - `pre-commit run --all-files` — PASS
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` — PASS
+- `make validate-changed VENV_PYTHON=.venv/bin/python` — PASS
 - Commit hooks — PASS
 - Push hooks — PASS
 - Targeted frontend Vitest command not run directly in this isolated worktree:

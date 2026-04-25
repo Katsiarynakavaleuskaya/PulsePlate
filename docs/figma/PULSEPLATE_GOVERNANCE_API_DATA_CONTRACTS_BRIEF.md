@@ -45,13 +45,13 @@ runtime authority.
 
 ## Forbidden Claims
 
-- Do not show or mention `/login` for this board.
-- Do not show or mention `fetchBinary`.
+- Exclude `/login` from this board.
+- Avoid referencing `fetchBinary`.
 - Do not claim Zod runtime validation.
-- Do not show or mention `/api/proxy`.
-- Do not show or mention `SessionExpiredModal`.
+- Omit `/api/proxy`.
+- Leave out `SessionExpiredModal`.
 - Do not imply external URL `401/403` clears local key state or redirects.
-- Do not bake text, fake labels, endpoint strings, or code snippets into the
+- Keep text, fake labels, endpoint strings, and code snippets out of the
   icon image.
 
 ## Figma Text Updates
