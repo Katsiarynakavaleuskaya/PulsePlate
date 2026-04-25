@@ -14,7 +14,10 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: PR body contains the repo-canonical `### Fixed in Commit Mapping` mirror under `## Discussion Thread Pass`; this artifact contains `## Fixed in Commit Mapping`; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1529` passes.
+Reason: CodeRabbit expected a top-level PR-body `## Fixed in Commit Mapping` heading, but the repo merge contract uses nested PR-body mirror heading `### Fixed in Commit Mapping` while the canonical artifact owns the top-level heading.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#discussion_r3141974605
 
 ## Post-Open Role Review
 
@@ -60,15 +63,15 @@ Merge-readiness contract:
 `AGENTS.md`; `RUNBOOK_AGENT.md`; `docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md`.
 
 - [ ] Mandatory wait-window satisfied
-  Evidence: pending current-head bot/review activity.
+  Evidence: pending current-head CI after CodeRabbit disposition mapping.
 - [ ] Current-head CI is green for PR branch head
-  Evidence: pending current-head CI.
+  Evidence: pending current-head CI after CodeRabbit disposition mapping.
 - [ ] Required checks complete with no pending jobs
-  Evidence: pending current-head CI.
+  Evidence: pending current-head CI after CodeRabbit disposition mapping.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: no review threads existed at artifact creation; pending final review pass.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: pending CodeRabbit/Sourcery/Cubic review cycle.
+  Evidence: CodeRabbit thread mapped above; pending final GitHub thread state.
+- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: CodeRabbit thread `discussion_r3141974605` mapped as NOT-A-BUG.
 - [x] Pre-commit green on latest pushed implementation head
   Evidence: `pre-commit run --all-files` passed; push pre-push hooks passed.
 - [x] `make verify` green on latest implementation head
