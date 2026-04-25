@@ -9,7 +9,10 @@ Canonical review-governance artifact for this PR. Current state:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1531#discussion_r3142204507 -> b201a81a7c93c333a6e4477efd1ba440bb16dd70
+Disposition: FIXED
+Commit: b201a81a7c93c333a6e4477efd1ba440bb16dd70
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight` now includes active PR4 tracking in the same food-data source entry, matching this PR's scope.
 
 ## Post-Open Role Review
 

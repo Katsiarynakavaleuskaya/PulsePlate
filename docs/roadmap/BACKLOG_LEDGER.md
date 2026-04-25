@@ -1730,7 +1730,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DATA-SOURCE-CATALOG-PR3 -> `codex/food-data-source-catalog-pr3`
+  - Target PR: PR-TBD-FOOD-DATA-SOURCE-CATALOG-PR3 -> `codex/food-data-source-catalog-pr3`; PR4 collision-policy -> `codex/food-data-dedupe-collision-policy`
   - Status: 🚧 Active PR4 collision-policy lane following PR3; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR3 source catalog lane is in progress
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
