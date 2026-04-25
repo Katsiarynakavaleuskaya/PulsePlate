@@ -4,17 +4,12 @@
 
 Canonical review-governance artifact for this PR. Current state:
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- 2e19ad134 -> `core/food_sources/source_preflight.py`
-- 2e19ad134 -> `tests/test_food_source_preflight.py`
-- 2e19ad134 -> `tests/fixtures/food_source_preflight/*.json`
-- 2e19ad134 -> `docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md`
-- 2e19ad134 -> `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md`
-- 2e19ad134 -> `docs/roadmap/BACKLOG_LEDGER.md`
+- No actionable review comments
 
 ## Post-Open Role Review
 
