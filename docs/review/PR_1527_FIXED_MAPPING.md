@@ -9,14 +9,14 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
-- Status: Draft PR opened; review threads and bot comments are pending
-  post-open review.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Status: No actionable review comments were present during the QA
+  post-open pass; new review threads must still be dispositioned here.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads are dispositioned yet.
+- No actionable review comments
 
 ## Manual Review Substitute
 
