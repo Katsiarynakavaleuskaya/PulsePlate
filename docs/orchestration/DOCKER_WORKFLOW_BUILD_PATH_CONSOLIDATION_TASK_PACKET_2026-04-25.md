@@ -6,14 +6,14 @@ Status: Active PR-9 slice in the Docker / CI / Security discipline series
 
 After Docker runtime slimming, telemetry, hard-budget enforcement, signed
 provenance, and Shared Safety extraction landed, this slice reduces CI cost and
-drift by consolidating duplicate production-image build paths and reusing exact
-image references or digests where the GitHub Actions workflow boundaries allow
-safe reuse.
+drift by consolidating duplicate production-image build paths and folding
+PR-time smoke validation into the canonical loaded-image build path where the
+GitHub Actions workflow boundaries allow safe reuse.
 
-The first implementation target is the duplicated `target: production` backend
-image build across `build.yml`, `docker-image.yml`, `trivy.yml`, and
-`docker-openapi-smoke.yml`. The lane must preserve the existing runtime,
-security, budget, and attestation contracts while removing redundant work.
+The implementation target is the duplicated `target: production` backend image
+build across `build.yml`, `docker-image.yml`, `trivy.yml`, and
+`docker-openapi-smoke.yml`. This lane preserves the existing runtime, security,
+budget, and attestation contracts while removing redundant PR-time builds.
 
 ## Branch / worktree
 
@@ -36,12 +36,12 @@ No ad hoc role stack may replace this order.
 ## Scope
 
 - reconcile backlog/docs drift after `PR #1503` and `PR #1515`
-- keep the active slice on Docker workflow build-path consolidation / digest reuse
+- keep the active slice on Docker workflow build-path consolidation / loaded-image smoke reuse
 - consolidate duplicate production-image build work without changing runtime
   dependency profiles
 - preserve Docker telemetry and hard-budget evidence contracts
 - preserve pushed-image provenance/SBOM attestation contracts
-- prefer exact image digest reuse over rebuilding where GitHub Actions
+- prefer loaded-image smoke reuse over rebuilding where GitHub Actions
   boundaries make that deterministic
 
 ## Non-goals
@@ -57,10 +57,10 @@ No ad hoc role stack may replace this order.
 ## Acceptance criteria
 
 - `build.yml` remains the canonical production-image build/publish path
-- follow-on Docker validation lanes reuse the produced image reference or digest
-  where feasible instead of rebuilding an equivalent `target: production` image
-- telemetry, hard-budget, Trivy, and OpenAPI smoke evidence remain available to
-  PR authors and operators
+- Docker OpenAPI smoke checks run inside the canonical `build.yml` loaded-image
+  validation path instead of rebuilding an equivalent `target: production` image
+- telemetry, hard-budget, and OpenAPI smoke evidence remain available to PR
+  authors and operators, while Trivy image-security evidence remains scheduled/manual
 - workflow-contract tests document the promoted build/reuse contract
 - docs keep Dagger deferred and SBOM/VEX blocked by release-truth criteria
 

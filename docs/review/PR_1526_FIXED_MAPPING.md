@@ -14,7 +14,7 @@ Record every actionable human/bot disposition here before resolving threads on G
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments.
+- No actionable review comments
 
 ## Merge Readiness
 

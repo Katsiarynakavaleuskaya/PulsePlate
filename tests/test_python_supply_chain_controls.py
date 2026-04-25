@@ -21,8 +21,6 @@ LOCKED_INSTALL_WORKFLOW_PATHS: tuple[str, ...] = (
 )
 PROXY_WORKFLOW_ENV_PATHS: tuple[str, ...] = LOCKED_INSTALL_WORKFLOW_PATHS + (
     ".github/workflows/build.yml",
-    ".github/workflows/docker-image.yml",
-    ".github/workflows/docker-openapi-smoke.yml",
     ".github/workflows/trivy.yml",
     ".github/workflows/cd.yml",
 )
@@ -248,15 +246,11 @@ def test_canonical_ci_and_docker_use_supply_chain_guardrails() -> None:
     build_workflow_text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(
         encoding="utf-8"
     )
-    docker_image_workflow_text = (
-        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
-    ).read_text(encoding="utf-8")
     trivy_workflow_text = (REPO_ROOT / ".github" / "workflows" / "trivy.yml").read_text(
         encoding="utf-8"
     )
     for workflow_text in (
         build_workflow_text,
-        docker_image_workflow_text,
         trivy_workflow_text,
     ):
         assert "Docker image telemetry collection failed; reporting remains advisory-only." not in (
@@ -478,14 +472,6 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     cd_workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "cd.yml").read_text(encoding="utf-8")
     )
-    docker_image_workflow = yaml.safe_load(
-        (REPO_ROOT / ".github" / "workflows" / "docker-image.yml").read_text(encoding="utf-8")
-    )
-    docker_smoke_workflow = yaml.safe_load(
-        (REPO_ROOT / ".github" / "workflows" / "docker-openapi-smoke.yml").read_text(
-            encoding="utf-8"
-        )
-    )
     build_workflow = yaml.safe_load(
         (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(encoding="utf-8")
     )
@@ -500,12 +486,6 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
                 return step["with"]["build-args"]
         raise AssertionError(f"Missing workflow step: {job_name}.{step_name}")
 
-    docker_image_build_args = _build_args_for_step(
-        docker_image_workflow, "build", "Build the Docker image"
-    )
-    docker_smoke_build_args = _build_args_for_step(
-        docker_smoke_workflow, "smoke", "Build Docker image"
-    )
     local_build_args = _build_args_for_step(
         build_workflow, "build", "Build Docker image (local, for tests)"
     )
@@ -523,8 +503,6 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
     )
 
     expected_arg = "PULSEPLATE_REQUIREMENTS_FILE=requirements-docker-runtime.txt"
-    assert expected_arg in docker_image_build_args
-    assert expected_arg in docker_smoke_build_args
     assert expected_arg in local_build_args
     assert expected_arg in publish_build_args
     assert expected_arg in cd_staging_build_args
@@ -535,8 +513,6 @@ def test_production_target_docker_workflows_use_runtime_requirements_profile() -
 def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
     workflow_paths = (
         ".github/workflows/build.yml",
-        ".github/workflows/docker-image.yml",
-        ".github/workflows/docker-openapi-smoke.yml",
         ".github/workflows/trivy.yml",
     )
 
@@ -617,16 +593,12 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     build_workflow_text = (REPO_ROOT / ".github" / "workflows" / "build.yml").read_text(
         encoding="utf-8"
     )
-    docker_image_workflow_text = (
-        REPO_ROOT / ".github" / "workflows" / "docker-image.yml"
-    ).read_text(encoding="utf-8")
     trivy_workflow_text = (REPO_ROOT / ".github" / "workflows" / "trivy.yml").read_text(
         encoding="utf-8"
     )
 
     for workflow_text in (
         build_workflow_text,
-        docker_image_workflow_text,
         trivy_workflow_text,
     ):
         assert "docker-runtime-dependency-surface.json" in workflow_text
@@ -645,11 +617,9 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         assert "workflow remains advisory-only" not in workflow_text
 
     build_workflow = _load_workflow(".github/workflows/build.yml")
-    docker_image_workflow = _load_workflow(".github/workflows/docker-image.yml")
     trivy_workflow = _load_workflow(".github/workflows/trivy.yml")
 
     build_job_permissions = build_workflow["jobs"]["build"]["permissions"]
-    docker_image_permissions = docker_image_workflow["permissions"]
     trivy_job_permissions = trivy_workflow["jobs"]["build"]["permissions"]
     producer_artifact_name = _workflow_step_by_name(
         ".github/workflows/build.yml",
@@ -668,11 +638,6 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         "build",
         "Resolve Docker image telemetry baseline",
     )["run"]
-    docker_image_resolve_step = _workflow_step_by_name(
-        ".github/workflows/docker-image.yml",
-        "build",
-        "Resolve Docker image telemetry baseline",
-    )["run"]
     trivy_resolve_step = _workflow_step_by_name(
         ".github/workflows/trivy.yml",
         "build",
@@ -680,11 +645,6 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     )["run"]
     build_budget_step = _workflow_step_by_name(
         ".github/workflows/build.yml",
-        "build",
-        "Enforce Docker image budget",
-    )
-    docker_image_budget_step = _workflow_step_by_name(
-        ".github/workflows/docker-image.yml",
         "build",
         "Enforce Docker image budget",
     )
@@ -698,39 +658,27 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
         "build",
         "Fail build job when Docker budget check failed",
     )
-    docker_image_fail_budget_step = _workflow_step_by_name(
-        ".github/workflows/docker-image.yml",
-        "build",
-        "Fail docker-image job when Docker budget check failed",
-    )
     trivy_fail_budget_step = _workflow_step_by_name(
         ".github/workflows/trivy.yml",
         "build",
         "Fail trivy job when Docker budget check failed",
     )
     build_step_names = _workflow_step_names(".github/workflows/build.yml", "build")
-    docker_image_step_names = _workflow_step_names(".github/workflows/docker-image.yml", "build")
     trivy_step_names = _workflow_step_names(".github/workflows/trivy.yml", "build")
 
     assert build_job_permissions["actions"] == "read"
     assert build_job_permissions["contents"] == "read"
-    assert docker_image_permissions["actions"] == "read"
-    assert docker_image_permissions["contents"] == "read"
     assert trivy_job_permissions["actions"] == "read"
     assert trivy_job_permissions["contents"] == "read"
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in build_workflow_text
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in build_workflow_text
-    assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in docker_image_workflow_text
-    assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in docker_image_workflow_text
     assert "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in trivy_workflow_text
     assert "GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}" in trivy_workflow_text
     assert producer_artifact_name == "docker-image-telemetry-build"
     assert producer_artifact_paths.splitlines().count("docker-image-telemetry.json") == 1
     assert f"--artifact-name {producer_artifact_name}" in build_resolve_step
-    assert f"--artifact-name {producer_artifact_name}" in docker_image_resolve_step
     assert f"--artifact-name {producer_artifact_name}" in trivy_resolve_step
     assert "--workflow build.yml" in build_resolve_step
-    assert "--workflow build.yml" in docker_image_resolve_step
     assert "--workflow build.yml" in trivy_resolve_step
     assert (
         "--budget-json docs/telemetry/docker_image_budget.production.json"
@@ -738,29 +686,17 @@ def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
     )
     assert (
         "--budget-json docs/telemetry/docker_image_budget.production.json"
-        in docker_image_budget_step["run"]
-    )
-    assert (
-        "--budget-json docs/telemetry/docker_image_budget.production.json"
         in trivy_budget_step["run"]
     )
     assert build_budget_step["continue-on-error"] is True
-    assert docker_image_budget_step["continue-on-error"] is True
     assert trivy_budget_step["continue-on-error"] is True
     assert build_fail_budget_step["if"] == "${{ steps.docker_image_budget.outcome == 'failure' }}"
-    assert (
-        docker_image_fail_budget_step["if"]
-        == "${{ steps.docker_image_budget.outcome == 'failure' }}"
-    )
     assert trivy_fail_budget_step["if"] == "${{ steps.docker_image_budget.outcome == 'failure' }}"
     assert build_step_names.index("Enforce Docker image budget") < build_step_names.index(
         "Test Docker image"
     )
     assert build_step_names.index("Test Docker image") < build_step_names.index(
         "Fail build job when Docker budget check failed"
-    )
-    assert docker_image_step_names.index("Enforce Docker image budget") < (
-        docker_image_step_names.index("Fail docker-image job when Docker budget check failed")
     )
     assert trivy_step_names.index("Enforce Docker image budget") < trivy_step_names.index(
         "Run Trivy vulnerability scanner"

@@ -618,7 +618,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1490 (`fix(docker): slim runtime after profile split`)
   - Area: docker / runtime / supply-chain
-  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs), hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate), signed provenance restoration, and [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) have since landed. The next active Docker/CI slice is [Docker workflow build-path consolidation and image digest reuse](#ledger-p1-docker-workflow-build-path-consolidation).
+  - Status note: Merged on April 22, 2026 via `PR #1490`. Production-target Docker builds now use `requirements-docker-runtime.txt`; telemetry baseline ([Docker image budget and telemetry baseline](#ledger-p1-docker-image-budget-telemetry); DoD: measured baseline artifact and docs), hard-budget follow-up ([Docker image hard budget gate after telemetry baseline](#ledger-p1-docker-image-hard-budget-gate); DoD: fail-closed budget gate), signed provenance restoration, and [Shared Safety audit extraction](#ledger-p1-safety-audit-shared-script-after-pr1479) have since landed. The next active Docker/CI slice is [Docker workflow build-path consolidation and loaded-image smoke reuse](#ledger-p1-docker-workflow-build-path-consolidation).
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
@@ -783,7 +783,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow-up docs and CI checks explicitly cover the restored path
 
 <a id="ledger-p1-docker-workflow-build-path-consolidation"></a>
-- [ ] P1: Docker workflow build-path consolidation and image digest reuse
+- [ ] P1: Docker workflow build-path consolidation and loaded-image smoke reuse
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1526 (`codex/docker-build-path-consolidation`)
@@ -793,18 +793,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
     - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
-  - Reason: Docker production image work is now functionally correct but CI still rebuilds the same `target: production` image across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. Consolidating the build path and reusing an exact image digest should reduce CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture.
+  - Reason: Docker production image work is now functionally correct but CI still rebuilt the same `target: production` image across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. This PR consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` as a scheduled/manual image-security lane, reducing CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture.
   - Links:
     - `docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md`
     - `.github/workflows/build.yml`
-    - `.github/workflows/docker-image.yml`
     - `.github/workflows/trivy.yml`
-    - `.github/workflows/docker-openapi-smoke.yml`
     - `scripts/ci/docker_image_telemetry.py`
     - `scripts/ci/check_docker_image_budget.py`
   - DoD:
     - One canonical production-image build path owns telemetry, budget evidence, test/local validation, and GHCR publish semantics.
-    - Follow-on Docker scan/smoke lanes consume the produced image reference or digest where GitHub Actions boundaries allow reuse, instead of silently rebuilding divergent images.
+    - Follow-on Docker smoke checks are folded into the produced local image validation path, while the image-security lane stays scheduled/manual instead of silently rebuilding divergent PR images.
     - Existing artifact names and hard-budget/provenance evidence stay stable for reviewers and operators.
     - `slim-bookworm`, `.dockerignore`, non-root runtime, healthcheck, and current runtime requirements profile remain unchanged.
     - Dagger, Docker base-image changes, requirements-profile split, and SBOM/VEX maturity work remain out of scope.
@@ -3462,7 +3460,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / CI / review governance
   - Finding Type: process hardening
   - Status: Materially completed on `origin/main` in PR `#1244` (`b7e029b4`); this slice now serves as landed baseline input for PR3.
-  - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a non-PR image-security lane on `main`/schedule/manual, and `build.yml` remains specialized.
+  - Reason: Backend/shared PR execution is now canonicalized in `ci.yml`; `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes, `security.yml` moved to a scheduled/manual audit lane, `trivy.yml` remains a scheduled/manual non-PR image-security lane, and `build.yml` remains specialized.
   - Links:
     - `.github/workflows/ci.yml`
     - Historical PR-lane duplicates removed in PR `#1244`: `pr-tests.yml`, `pr-coverage.yml`
@@ -3471,7 +3469,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - Canonical backend/shared PR execution lives in `.github/workflows/ci.yml`
     - `pr-tests.yml` and `pr-coverage.yml` are no longer active PR lanes
-    - `security.yml` and `trivy.yml` are removed from PR-time execution; `security.yml` is scheduled/manual-only and `trivy.yml` remains `main`/schedule/manual outside canonical merge truth
+    - `security.yml` and `trivy.yml` are removed from PR-time execution; both remain scheduled/manual outside canonical merge truth
     - `build.yml`, frontend-only lanes, and nightly/release lanes stay isolated
     - Required-check parity is preserved on current-head PR checks
 

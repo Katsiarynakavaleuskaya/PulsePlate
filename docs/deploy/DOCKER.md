@@ -16,8 +16,8 @@ Docker runtime contract.
 - Signed provenance and SPDX SBOM attestation verification landed via `PR #1503`.
 - Shared Safety audit extraction landed via `PR #1515`.
 - The current Docker/CI/Security slice consolidates duplicate production-image
-  build paths and reuses exact image references or digests where workflow
-  boundaries allow deterministic reuse.
+  build paths and folds PR-time smoke validation into the canonical loaded-image
+  build path where workflow boundaries allow deterministic reuse.
 
 ## Runtime manifest policy
 
@@ -55,15 +55,17 @@ pushed-image lanes only:
 - verify both provenance and SBOM by exact digest before staging or production deploy
 
 With runtime, budget, provenance, and Shared Safety slices landed, the active
-Docker/CI cost issue is duplicate production-image builds. `build.yml`,
-`docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml` currently build
-the same `target: production` image for overlapping evidence. This wave
-consolidates that path without changing the base image, requirements profile,
-hard-budget policy, or attestation contract.
+Docker/CI cost issue was duplicate production-image builds. `build.yml` now owns
+the canonical PR-time production image validation path: runtime dependency
+surface, telemetry, hard budget, container health, and OpenAPI compatibility
+smoke checks run against the same loaded `target: production` image. The
+scheduled/manual `trivy.yml` lane remains out-of-band image-security evidence,
+and pushed-image provenance/SBOM contracts remain isolated to publish/deploy
+paths.
 
 ## Baseline source rule
 
-All three Docker telemetry lanes use one canonical backend baseline:
+Docker telemetry uses one canonical backend baseline:
 
 1. latest successful `main` artifact from `build.yml`
 2. checked-in seed fallback at `docs/telemetry/docker_image_baseline.production.json`
