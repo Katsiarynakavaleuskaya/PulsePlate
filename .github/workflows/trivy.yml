@@ -10,8 +10,6 @@ env:
   PULSEPLATE_PYTHON_TRUSTED_HOST: ${{ secrets.PULSEPLATE_PYTHON_TRUSTED_HOST || vars.PULSEPLATE_PYTHON_TRUSTED_HOST }}
 
 on:
-  push:
-    branches: [ "main" ]
   schedule:
     - cron: '16 15 * * 6'
   workflow_dispatch:

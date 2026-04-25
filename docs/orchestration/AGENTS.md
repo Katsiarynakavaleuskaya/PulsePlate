@@ -64,9 +64,11 @@ Scope: `docs/orchestration/**`
     - root `.dockerignore` remains a strict allowlist unless a narrower documented correction is required
     - production topology stays split: backend image via `IMAGE_REF`, frontend/Caddy via `frontend/Dockerfile.caddy-spa`
     - signed provenance restoration is active only for pushed-image lanes; `load: true` jobs stay on `provenance: false`
-    - no Dagger or alternate control-plane pilot before image-budget telemetry, hard-budget, and provenance lanes stabilize
+    - build-path consolidation may reduce duplicate GitHub Actions image builds but must not change the Docker base image or requirements profile
+    - no Dagger or alternate control-plane pilot before image-budget telemetry, hard-budget, provenance, and build-path consolidation lanes stabilize
   - canonical packet:
     - [`docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`](./DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md)
+    - [`docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md`](./DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md)
 - For the METATRON Track A lane (offensive lab **out-of-band**; no product runtime):
   - primary: `agent-coordinator`
   - reviewers: `security-auditor`, `bug-hunter`, `architecture-specialist`
