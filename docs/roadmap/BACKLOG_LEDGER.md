@@ -2034,6 +2034,42 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is completed before final mapping / resolution updates
     - Only after merge and local ref sync does the team return to the paused security-epic/docs lane
 
+<a id="ledger-p1-pip-unsafe-pin-alerts-118-119"></a>
+- [ ] P1: Remediate `pip` Dependabot alerts 118-119 by removing unsafe pins
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (dependency security / current-head regression)
+  - Target PR: PR-TBD-PIP-UNSAFE-PIN-REMEDIATION
+  - Area: security / Python dependencies / merge governance
+  - Finding Type: live dependency-security regression
+  - Status: In progress as of 25 April 2026 in clean worktree `worktrees/pip-unsafe-pin-remediation`
+  - Reason (EN): `main` has two open Dependabot alerts on unsafe `pip` lock
+    entries. Both alerts (`#118`, `#119`) map to `GHSA-58qw-9mgm-455v` /
+    `CVE-2026-3219` with vulnerable range `<=26.0.1` and no patched version
+    reported by GitHub on 2026-04-25. The correct narrow remediation is to
+    remove the vulnerable unsafe `pip` pins from committed lock surfaces and
+    block reintroduction through the dependency security schema, without broad
+    lock regeneration or unrelated dependency churn.
+  - Links:
+    - `docs/orchestration/DEPENDABOT_ALERTS_118_119_PIP_REMEDIATION_TASK_PACKET_2026-04-25.md`
+    - `docs/security/GHSA-58qw-9mgm-455v-pip.md`
+    - `tests/fixtures/dependency_security_schema.json`
+    - GitHub alerts: `security/dependabot/118`, `security/dependabot/119`
+  - Evidence:
+    - `requirements-dev.txt` no longer pins `pip==26.0`
+    - `requirements-lock.txt` no longer pins `pip==26.0.1`
+    - `tests/fixtures/dependency_security_schema.json` blocks `pip<=26.0.1`
+  - DoD:
+    - Vulnerable unsafe `pip` pins are absent from `requirements-dev.txt` and
+      `requirements-lock.txt`
+    - Dependency security schema blocks `pip<=26.0.1`
+    - Dedicated security note includes alert identity, no-patched-version
+      rationale, evidence, and validation commands
+    - Draft PR is opened with canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
+    - Mandatory post-open review pass `qa-engineer-agent -> bug-hunter` is
+      completed before final mapping / resolution updates
+    - Only after merge and local ref sync does the team clean up this lane's
+      worktree, branch, caches, and temporary artifacts
+
 <a id="ledger-p1-rag-hardening-followthrough"></a>
 - [ ] P1: RAG hardening follow-through
   - Owner: @katsiaryna_kavaleuskaya

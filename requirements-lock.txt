@@ -543,10 +543,6 @@ zipp==3.23.0
     #   importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-pip==26.0.1
-    # via
-    #   pip-api
-    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
