@@ -17,12 +17,14 @@ threads on GitHub.
 Disposition: NOT-A-BUG
 Evidence: PR body contains the repo-canonical `### Fixed in Commit Mapping` mirror under `## Discussion Thread Pass`; this artifact contains `## Fixed in Commit Mapping`; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1529` passes.
 Reason: CodeRabbit expected a top-level PR-body `## Fixed in Commit Mapping` heading, but the repo merge contract uses nested PR-body mirror heading `### Fixed in Commit Mapping` while the canonical artifact owns the top-level heading.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#pullrequestreview-4175574032
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#discussion_r3141974605
 
 Disposition: FIXED
 Commit: ac4e7834b
 Evidence: Merge-readiness checklist entries in this artifact remain unchecked until the final merge cycle.
 Reason: Applies CodeRabbit's fixed-mapping readiness checklist guidance without changing dependency remediation behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#pullrequestreview-4175603247 -> ac4e7834b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1529#discussion_r3142007873 -> ac4e7834b
 
 ## Post-Open Role Review
