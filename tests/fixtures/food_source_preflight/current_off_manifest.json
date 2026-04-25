@@ -5,6 +5,11 @@
     "record_count": 100,
     "size_bytes": 2048
   },
+  "collision_policy": {
+    "dedupe_fields": ["code"],
+    "mapping_fields": ["code", "product_name"],
+    "collision_resolution": "reject"
+  },
   "retrieved_on": "2026-04-24",
   "schema": {
     "fields": [
