@@ -11,12 +11,25 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Status: No actionable review comments were present during the QA
-  post-open pass; new review threads must still be dispositioned here.
+- Status: CodeRabbit's post-ready nitpick was fixed; Sourcery/Cubic left no
+  actionable code blockers.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: d31a5bc2c2f589ba127e19d0b9dc2d2e7a89ab2f
+Evidence: frontend/src/components/__tests__/TabBar.test.tsx uses fake timers and DISABLED_TAB_FEEDBACK_MS for disabled-tab feedback; targeted shell tests passed with 29 tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1527#pullrequestreview-4175430891 -> d31a5bc2c2f589ba127e19d0b9dc2d2e7a89ab2f
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a weekly rate-limit condition rather than a code finding; no Sourcery inline review comments were present.
+Reason: External rate-limit notice is not actionable for PR-4 code.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1527#pullrequestreview-4175428633
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit walkthrough comment included an advisory Docstring Coverage warning; frontend shell helpers are covered by local tests and no repo frontend docstring-coverage gate exists.
+Reason: Advisory external checklist warning without a repository-enforced frontend docstring coverage gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1527#issuecomment-4318698717
 
 ## Manual Review Substitute
 
@@ -55,6 +68,8 @@
 - `cd frontend && npm run build` — PASS
 - `make validate-changed` — PASS (`No Python files changed on the current
   branch`)
+- `cd frontend && npm test -- --run src/__tests__/App.test.tsx src/components/__tests__/TabBar.test.tsx src/components/__tests__/TabBar.helpers.test.ts`
+  — PASS after CodeRabbit timer nitpick fix (`29 passed`)
 - `cd frontend && npm test -- --run src/api/__tests__/thin-client-guards.test.ts`
   — PASS (`3 passed`)
 - `cd frontend && npm test -- --run src/config/__tests__/routes.design-preview.test.ts src/__tests__/App.test.tsx src/components/__tests__/TabBar.test.tsx src/components/__tests__/TabBar.helpers.test.ts src/api/__tests__/thin-client-guards.test.ts`
@@ -70,11 +85,6 @@
 
 ## Merge Readiness
 
-Pending.
-
-Blocking follow-up before any merge-ready claim:
-- wait for current-head CI on the latest SHA
-- complete CodeRabbit/Sourcery/Cubic review disposition checks after PR exits
-  draft
-- align this artifact with the PR body mirror
-- `python3 scripts/orchestration/check_merge_ready.py --pr-number 1527 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` must pass
+Pending latest current-head CI and strict merge-readiness wrapper after this
+mapping update. Full local `make verify` remains operator-deferred under the
+documented machine-heavy exception; GitHub current-head CI is the heavy signal.
