@@ -813,7 +813,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
   - Area: CI / docker / dependency profile / runtime cost
-  - Status: Deferred until PR #1526 lands and the consolidated build-path telemetry is stable.
+  - Status: Active
+  - Transition note: 2026-04-25 — Opened as immediate follow-up after PR #1526 and build-path consolidation telemetry stabilisation.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-workflow-build-path-consolidation`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
