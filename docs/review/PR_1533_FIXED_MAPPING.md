@@ -13,6 +13,10 @@
   Disposition: FIXED
   Commit: f71c16e54
   Evidence: docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_FIGMA_SYNC_CLOSEOUT_2026-04-25.md:201
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1533#pullrequestreview-4175929189
+  Disposition: FIXED
+  Commit: f71c16e54
+  Evidence: docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_FIGMA_SYNC_CLOSEOUT_2026-04-25.md:201-239
 
 ## Merge Readiness
 - [ ] Required checks PASS with no pending required jobs
