@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, act } from '@testing-library/react';
 
 // Mock functions declared before mocks (hoisting-safe)
 const mockUseAuth = vi.fn();
@@ -55,6 +55,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 import TabBar from '../TabBar';
+import { DISABLED_TAB_FEEDBACK_MS } from '../TabBar.helpers';
 
 const renderTabBar = (isAuthenticated: boolean = false) => {
   mockUseAuth.mockReturnValue({ isAuthenticated });
@@ -68,6 +69,7 @@ describe('TabBar', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     cleanup();
   });
 
@@ -110,6 +112,7 @@ describe('TabBar', () => {
     });
 
     it('shows click feedback for disabled tabs', async () => {
+      vi.useFakeTimers();
       renderTabBar(false);
 
       const plateTab = screen.getByRole('tab', { name: /plate/i });
@@ -124,12 +127,15 @@ describe('TabBar', () => {
       expect(screen.getByTestId('tab-disabled-feedback')).toBeInTheDocument();
       expect(plateTab).toHaveAttribute('data-feedback', 'pressed');
 
-      // Wait for animation to reset after 300ms
-      await waitFor(() => {
-        expect(plateTab).toHaveClass('scale-100');
-        expect(plateTab).toHaveAttribute('data-feedback', 'idle');
-        expect(screen.queryByTestId('tab-disabled-feedback')).not.toBeInTheDocument();
-      }, { timeout: 400 });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(DISABLED_TAB_FEEDBACK_MS);
+      });
+
+      expect(plateTab).toHaveClass('scale-100');
+      expect(plateTab).toHaveAttribute('data-feedback', 'idle');
+      expect(screen.queryByTestId('tab-disabled-feedback')).not.toBeInTheDocument();
+
+      vi.useRealTimers();
     });
 
     it('shows accessible labels for disabled tabs', () => {
