@@ -121,13 +121,14 @@ describe('TabBar', () => {
       expect(plateTab).toHaveClass('scale-95');
 
       // Check for pulse overlay
-      const pulseOverlay = plateTab?.querySelector('.bg-primary\\/20');
-      expect(pulseOverlay).toBeInTheDocument();
+      expect(screen.getByTestId('tab-disabled-feedback')).toBeInTheDocument();
+      expect(plateTab).toHaveAttribute('data-feedback', 'pressed');
 
       // Wait for animation to reset after 300ms
       await waitFor(() => {
         expect(plateTab).toHaveClass('scale-100');
-        expect(plateTab?.querySelector('.bg-primary\\/20')).not.toBeInTheDocument();
+        expect(plateTab).toHaveAttribute('data-feedback', 'idle');
+        expect(screen.queryByTestId('tab-disabled-feedback')).not.toBeInTheDocument();
       }, { timeout: 400 });
     });
 
@@ -164,8 +165,8 @@ describe('TabBar', () => {
 
       // The indicator bar should be present for the "Home" tab (default active route)
       const homeTab = screen.getByRole('tab', { name: /home/i });
-      const indicatorBar = homeTab?.querySelector('div.bg-primary.rounded-full');
-      expect(indicatorBar).toBeInTheDocument();
+      expect(homeTab).toHaveAttribute('data-state', 'active');
+      expect(screen.getByTestId('tab-active-indicator')).toBeInTheDocument();
     });
 
     it('shows hover effects for available tabs', () => {
@@ -175,6 +176,7 @@ describe('TabBar', () => {
 
       expect(homeTab).toHaveClass('hover:scale-105');
       expect(homeTab).toHaveClass('transition-all');
+      expect(homeTab).toHaveClass('text-[var(--color-primary)]');
     });
   });
 
@@ -222,6 +224,8 @@ describe('TabBar', () => {
       // Should have 6 tabs total: Home, Profile, Plate, Progress, VIP Feature, Another VIP
       const tabBar = screen.getByRole('tablist');
       expect(tabBar).toHaveClass('grid-cols-6');
+      expect(tabBar).toHaveClass('bg-[var(--pp-navy)]');
+      expect(tabBar).toHaveClass('border-[color:var(--color-border)]');
     });
   });
 });

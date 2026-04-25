@@ -126,6 +126,8 @@ describe('App', () => {
   it('shows tab bar when route does not hide it', () => {
     render(<App />);
 
+    expect(screen.getByTestId('app-shell')).toHaveClass('bg-[var(--pp-navy)]');
+    expect(screen.getByTestId('app-shell')).toHaveClass('pb-[var(--spacing-touch-large)]');
     expect(screen.getByTestId('tab-bar')).toBeInTheDocument();
   });
 
@@ -135,6 +137,8 @@ describe('App', () => {
     render(<App />);
 
     expect(screen.getByTestId('design-system-page')).toBeInTheDocument();
+    expect(screen.getByTestId('app-shell')).toHaveClass('bg-[var(--pp-navy)]');
+    expect(screen.getByTestId('app-shell')).not.toHaveClass('pb-[var(--spacing-touch-large)]');
     expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
     expect(screen.queryByTestId('require-key')).not.toBeInTheDocument();
   });
