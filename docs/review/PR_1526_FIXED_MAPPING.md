@@ -36,8 +36,8 @@ Merge-readiness contract:
   Evidence: `pre-commit run --all-files`, commit hooks, and pre-push hooks passed for `4406fc0bb` (`ci(docker): consolidate validation path`).
 - [ ] Heavy full-suite signal accepted from GitHub current-head checks
   Evidence: local `make verify` intentionally deferred under the operator-approved machine-heavy exception for this CI/tooling lane.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: pending after coherent implementation.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+  Evidence: `qa-engineer-agent` completed a conditional pass with no required file changes; `bug-hunter` completed a false-green review on `9b213dfe0` with no workflow/test code edits required.
 
 ## Deferred / Follow-ups
 
