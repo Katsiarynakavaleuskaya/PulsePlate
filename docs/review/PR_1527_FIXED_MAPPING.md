@@ -21,6 +21,11 @@ Commit: d31a5bc2c2f589ba127e19d0b9dc2d2e7a89ab2f
 Evidence: frontend/src/components/__tests__/TabBar.test.tsx uses fake timers and DISABLED_TAB_FEEDBACK_MS for disabled-tab feedback; targeted shell tests passed with 29 tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1527#pullrequestreview-4175430891 -> d31a5bc2c2f589ba127e19d0b9dc2d2e7a89ab2f
 
+Disposition: FIXED
+Commit: dbd69e607ead98b2e04c710245af7a966df087c4
+Evidence: frontend/src/components/__tests__/TabBar.test.tsx now relies on afterEach timer teardown and removes the redundant in-test vi.useRealTimers call; targeted shell tests passed with 29 tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1527#pullrequestreview-4175451817 -> dbd69e607ead98b2e04c710245af7a966df087c4
+
 Disposition: NOT-A-BUG
 Evidence: Sourcery reported a weekly rate-limit condition rather than a code finding; no Sourcery inline review comments were present.
 Reason: External rate-limit notice is not actionable for PR-4 code.
