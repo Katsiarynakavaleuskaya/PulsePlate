@@ -251,6 +251,34 @@ def _validate_catalog_entry_policy(entry: SourceCatalogEntry, context: str) -> N
             context,
             "commercial_contract sources require commercial_contract_required license review",
         )
+    if entry.source_classification == "current" and not entry.active_update_source:
+        raise _catalog_error(context, "current sources must be active update sources")
+    if entry.source_classification == "commercial_contract" and not entry.active_update_source:
+        raise _catalog_error(
+            context,
+            "commercial_contract sources must be active update sources",
+        )
+    if entry.source_classification == "unresolved" and entry.active_update_source:
+        raise _catalog_error(
+            context,
+            "unresolved sources cannot be active update sources",
+        )
+    if entry.source_classification == "legacy_static" and entry.replacement_for is not None:
+        raise _catalog_error(
+            context,
+            "legacy_static sources cannot declare replacement_for",
+        )
+    if entry.replacement_for is not None:
+        if entry.replacement_required:
+            raise _catalog_error(
+                context,
+                "sources with replacement_for must set replacement_required to false",
+            )
+    if entry.replacement_for == entry.source:
+        raise _catalog_error(
+            context,
+            "a source cannot be a replacement candidate for itself",
+        )
     if entry.source == "menustat":
         if entry.source_classification != "legacy_static":
             raise _catalog_error(context, "menustat must remain legacy_static")
@@ -258,6 +286,34 @@ def _validate_catalog_entry_policy(entry: SourceCatalogEntry, context: str) -> N
             raise _catalog_error(context, "menustat cannot be an active update source")
         if not entry.replacement_required:
             raise _catalog_error(context, "menustat requires a replacement decision")
+
+
+def _validate_catalog_replacement_graph(
+    entries: tuple[SourceCatalogEntry, ...], context: str
+) -> None:
+    replacement_edges: dict[str, str] = {}
+    for entry in entries:
+        if entry.replacement_for is not None:
+            replacement_edges[entry.source] = entry.replacement_for
+
+    state: dict[str, int] = {}
+
+    def _dfs(node: str) -> None:
+        node_state = state.get(node)
+        if node_state == 1:
+            raise _catalog_error(context, f"replacement_for cycle detected near {node!r}")
+        if node_state == 2:
+            return
+
+        state[node] = 1
+        next_node = replacement_edges.get(node)
+        if next_node is not None:
+            _dfs(next_node)
+        state[node] = 2
+
+    for source in replacement_edges:
+        if source not in state:
+            _dfs(source)
 
 
 def parse_source_catalog(payload: object, *, context: str = "<catalog>") -> SourceCatalog:
@@ -308,6 +364,8 @@ def _validate_catalog_policy(entries: tuple[SourceCatalogEntry, ...], context: s
         raise _catalog_error(
             context, f"replacement_for target missing: {', '.join(missing_targets)}"
         )
+
+    _validate_catalog_replacement_graph(entries, context)
 
     if "menustat" in entry_names and not any(
         entry.source != "menustat" and entry.replacement_for == "menustat" for entry in entries
