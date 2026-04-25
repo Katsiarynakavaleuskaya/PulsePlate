@@ -134,8 +134,6 @@ describe('TabBar', () => {
       expect(plateTab).toHaveClass('scale-100');
       expect(plateTab).toHaveAttribute('data-feedback', 'idle');
       expect(screen.queryByTestId('tab-disabled-feedback')).not.toBeInTheDocument();
-
-      vi.useRealTimers();
     });
 
     it('shows accessible labels for disabled tabs', () => {
