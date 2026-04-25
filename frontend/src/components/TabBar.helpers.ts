@@ -20,7 +20,7 @@ export const ACTIVE_TAB_CLASS =
 export const DISABLED_TAB_BASE_CLASS =
   `${TAB_ITEM_BASE_CLASS} cursor-not-allowed`;
 export const DISABLED_TAB_LABEL_CLASS =
-  'text-[var(--color-text-muted)] opacity-30 font-medium relative z-10';
+  'text-[var(--color-text-muted)] opacity-[0.32] font-medium relative z-10';
 export const DISABLED_TAB_OVERLAY_CLASS =
   'absolute inset-0 flex items-center justify-center bg-[var(--pp-navy)]/80 rounded-[var(--radius-lg)] backdrop-blur-sm';
 export const DISABLED_TAB_ICON_CLASS =
