@@ -70,13 +70,13 @@ Merge-readiness contract:
   Evidence: pending current-head CI after CodeRabbit disposition mapping.
 - [ ] All review threads resolved on GitHub after disposition updates
   Evidence: CodeRabbit thread mapped above; pending final GitHub thread state.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: CodeRabbit thread `discussion_r3141974605` mapped as NOT-A-BUG.
-- [x] Pre-commit green on latest pushed implementation head
+- [ ] Pre-commit green on latest pushed implementation head
   Evidence: `pre-commit run --all-files` passed; push pre-push hooks passed.
-- [x] `make verify` green on latest implementation head
+- [ ] `make verify` green on latest implementation head
   Evidence: `make verify` completed successfully before PR open.
-- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence: post-open role review recorded above.
 
 ## Deferred / Follow-ups
