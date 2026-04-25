@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
@@ -8,6 +10,29 @@ import pytest
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
+
+DependencyOverride = tuple[Callable[..., object], Callable[..., object]]
+
+
+def _pop_app_get_api_key_overrides(app: FastAPI) -> list[DependencyOverride]:
+    """Remove all app-level get_api_key overrides, including stale reload keys."""
+    removed: list[DependencyOverride] = []
+    for dependency in list(app.dependency_overrides):
+        if (
+            getattr(dependency, "__name__", None) == "get_api_key"
+            and getattr(dependency, "__module__", None) == "legacy_app"
+        ):
+            removed.append((dependency, app.dependency_overrides.pop(dependency)))
+    return removed
+
+
+def _restore_dependency_overrides(
+    app: FastAPI,
+    overrides: list[DependencyOverride],
+) -> None:
+    """Restore dependency overrides removed for an isolated auth test."""
+    for dependency, override in overrides:
+        app.dependency_overrides[dependency] = override
 
 
 def test_manual_intent_rejects_invalid_transport_key_behaviorally(
@@ -43,17 +68,15 @@ def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_over
     pro_headers: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import app as app_module
-
-    original_override = app.dependency_overrides.pop(app_module.get_api_key, None)
-    monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("APP_ENV", "test")
-    monkeypatch.setenv("DEBUG", "false")
-    monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
-    monkeypatch.setenv("PRO_API_KEYS", pro_headers["X-API-Key"])
-
+    original_overrides = _pop_app_get_api_key_overrides(app)
     try:
+        monkeypatch.setenv("SUBSCRIPTION_DB_ENABLED", "true")
+        monkeypatch.setenv("ENVIRONMENT", "test")
+        monkeypatch.setenv("APP_ENV", "test")
+        monkeypatch.setenv("DEBUG", "false")
+        monkeypatch.setenv("ALLOW_DEV_API_KEY", "false")
+        monkeypatch.setenv("PRO_API_KEYS", pro_headers["X-API-Key"])
+
         with TestClient(app) as isolated_client:
             response = isolated_client.post(
                 "/api/v1/pro/payments/ru-by/manual-intent",
@@ -69,8 +92,7 @@ def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_over
             )
             session_response = isolated_client.get("/api/v1/pro/session", headers=pro_headers)
     finally:
-        if original_override is not None:
-            app.dependency_overrides[app_module.get_api_key] = original_override
+        _restore_dependency_overrides(app, original_overrides)
 
     assert response.status_code == 401, response.text
     assert response.json()["detail"] == "API key required for billing verification"
@@ -84,11 +106,11 @@ def test_manual_intent_rejects_transport_key_when_app_validator_is_missing(
 ) -> None:
     import app as app_module
 
-    original_get_api_key = app_module.get_api_key
-    original_override = app.dependency_overrides.pop(original_get_api_key, None)
-    monkeypatch.setattr(app_module, "get_api_key", None)
+    original_overrides = _pop_app_get_api_key_overrides(app)
 
     try:
+        monkeypatch.setattr(app_module, "get_api_key", None)
+
         with TestClient(app) as isolated_client:
             response = isolated_client.post(
                 "/api/v1/pro/payments/ru-by/manual-intent",
@@ -103,8 +125,7 @@ def test_manual_intent_rejects_transport_key_when_app_validator_is_missing(
                 },
             )
     finally:
-        if original_override is not None:
-            app.dependency_overrides[original_get_api_key] = original_override
+        _restore_dependency_overrides(app, original_overrides)
 
     assert response.status_code == 401, response.text
     assert response.json()["detail"] == "API key required for billing verification"
