@@ -807,6 +807,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `slim-bookworm`, `.dockerignore`, non-root runtime, healthcheck, and current runtime requirements profile remain unchanged.
     - Dagger, Docker base-image changes, requirements-profile split, and SBOM/VEX maturity work remain out of scope.
 
+<a id="ledger-p1-docker-runtime-slimming-after-build-path-consolidation"></a>
+- [ ] P1: Docker runtime base-image and API dependency-profile slimming
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DOCKER-RUNTIME-SLIMMING
+  - Area: CI / docker / dependency profile / runtime cost
+  - Status: Deferred until PR #1526 lands and the consolidated build-path telemetry is stable.
+  - Depends on:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-workflow-build-path-consolidation`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
+  - Reason: Base-image changes and API-core dependency-profile slimming are separate runtime-risk work. PR #1526 intentionally keeps `python:3.13.6-slim-bookworm` and `requirements-docker-runtime.txt` unchanged while consolidating duplicate production-image CI paths. Revisit slimming only after current-head telemetry shows the remaining image-size or cost pressure is caused by the base image or dependency profile rather than duplicate workflow builds.
+  - Links:
+    - `docs/deploy/DOCKER.md`
+    - `Dockerfile`
+    - `.github/workflows/build.yml`
+    - `requirements-docker-runtime.txt`
+    - `docs/telemetry/docker_image_budget.production.json`
+  - DoD:
+    - Consolidated PR #1526 Docker telemetry baseline is available for comparison.
+    - Candidate base-image or dependency-profile changes have explicit rollback instructions.
+    - Runtime route smoke, OpenAPI contract checks, image budget, and security scan evidence pass on the proposed image.
+    - Dependency-profile changes are split from workflow consolidation and do not weaken the pinned install or startup-hook contracts.
+
 <a id="ledger-p1-sbom-vex-signed-security-artifacts"></a>
 - [ ] P1: SBOM/VEX signed security artifacts lane after P0 release-truth closure
   - Owner: @katsiaryna_kavaleuskaya

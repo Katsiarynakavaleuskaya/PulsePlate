@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fastapi.testclient import TestClient
 import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +73,30 @@ def test_build_workflow_owns_docker_validation_contract() -> None:
     assert "openapi.json" in run_script
     assert "/api/v1/bmi" in run_script
     assert "/api/v1/bodyfat" in run_script
+
+
+def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
+    """Docker entrypoint serves app.main while preserving bodyfat compatibility."""
+    from app.main import app
+
+    client = TestClient(app)
+    openapi_paths = client.get("/openapi.json").json()["paths"]
+
+    assert "/api/v1/bodyfat" not in openapi_paths
+    response = client.post(
+        "/api/v1/bodyfat",
+        json={
+            "gender": "male",
+            "age": 30,
+            "waist_cm": 80.0,
+            "neck_cm": 38.0,
+            "height_m": 1.75,
+            "weight_kg": 75.0,
+        },
+    )
+
+    assert response.status_code == 200
+    assert {"labels", "lang", "median", "methods"} <= response.json().keys()
 
 
 def test_trivy_workflow_is_out_of_band_image_security_lane() -> None:

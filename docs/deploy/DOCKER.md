@@ -215,7 +215,7 @@ Explicitly deferred after this PR:
   Rollback: keep the current GitHub Actions-based Docker control plane as the only supported path.
   Exit criteria: telemetry baseline, hard-budget, provenance, and build-path consolidation slices are closed and a separate evaluation packet re-approves any Dagger pilot.
 - Docker base-image change or API-core dependency-profile slimming
-  Backlog: future ledger item after build-path consolidation
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-runtime-slimming-after-build-path-consolidation`
   Remove-by: 2026-07-15
   Rollback: keep `python:3.13.6-slim-bookworm` and `requirements-docker-runtime.txt` as the canonical backend runtime path.
   Exit criteria: consolidated CI evidence shows remaining image size/cost pressure is dependency-profile or base-image driven.
