@@ -38,6 +38,15 @@ Record every actionable human/bot disposition here before resolving threads on G
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1526#pullrequestreview-4175400759 -> 3f16ba258da14e6526b5304ccf4e53001cee4ef5
   Disposition: FIXED
   Evidence: This CodeRabbit review summary contained the three active test-contract comments mapped above plus the already-addressed mapping evidence comment.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1526#pullrequestreview-4175405610 -> 687b0d21a4f3fb81d33f19ef2bd1170124ceb24e
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1526_FIXED_MAPPING.md` now replaces stale seed-time thread evidence with current mapped-thread evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1526#discussion_r3141794105 -> 687b0d21a4f3fb81d33f19ef2bd1170124ceb24e
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1526_FIXED_MAPPING.md` now leaves the final merge-readiness checklist items unchecked until the final merge cycle while preserving the existing evidence text.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1526#pullrequestreview-4175411572 -> 687b0d21a4f3fb81d33f19ef2bd1170124ceb24e
+  Disposition: FIXED
+  Evidence: This CodeRabbit review summary contained the final merge-readiness checklist and stale-evidence comments mapped above.
 
 ## Merge Readiness
 
@@ -56,7 +65,7 @@ Merge-readiness contract:
   GitHub thread-resolution status is tracked against those dispositions during
   the final merge cycle.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: CodeRabbit comments `discussion_r3141715407`, `discussion_r3141715409`, `discussion_r3141780565`, `discussion_r3141780570`, `discussion_r3141780571`, `discussion_r3141780573`, and review summaries `pullrequestreview-4175343676` and `pullrequestreview-4175400759` are mapped above with FIXED dispositions and commit evidence.
+  Evidence: CodeRabbit comments `discussion_r3141715407`, `discussion_r3141715409`, `discussion_r3141780565`, `discussion_r3141780570`, `discussion_r3141780571`, `discussion_r3141780573`, `discussion_r3141794105`, and review summaries `pullrequestreview-4175343676`, `pullrequestreview-4175400759`, `pullrequestreview-4175405610`, and `pullrequestreview-4175411572` are mapped above with FIXED dispositions and commit evidence.
 - [ ] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files`, commit hooks, and pre-push hooks passed for `4406fc0bb` (`ci(docker): consolidate validation path`).
 - [ ] Heavy full-suite signal accepted from GitHub current-head checks
