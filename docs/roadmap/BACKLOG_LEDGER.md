@@ -2038,7 +2038,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Remediate `pip` Dependabot alerts 118-119 by removing unsafe pins
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (dependency security / current-head regression)
-  - Target PR: PR-TBD-PIP-UNSAFE-PIN-REMEDIATION
+  - Target PR: PR `#1529`
   - Area: security / Python dependencies / merge governance
   - Finding Type: live dependency-security regression
   - Status: In progress as of 25 April 2026 in clean worktree `worktrees/pip-unsafe-pin-remediation`
@@ -2052,6 +2052,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/orchestration/DEPENDABOT_ALERTS_118_119_PIP_REMEDIATION_TASK_PACKET_2026-04-25.md`
     - `docs/security/GHSA-58qw-9mgm-455v-pip.md`
+    - `docs/review/PR_1529_FIXED_MAPPING.md`
     - `tests/fixtures/dependency_security_schema.json`
     - GitHub alerts: `security/dependabot/118`, `security/dependabot/119`
   - Evidence:

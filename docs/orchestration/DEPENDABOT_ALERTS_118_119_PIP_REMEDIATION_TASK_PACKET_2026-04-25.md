@@ -11,6 +11,7 @@
 - **First patched version:** none reported by GitHub on 2026-04-25
 - **Worktree:** `worktrees/pip-unsafe-pin-remediation`
 - **Branch:** `fix/pip-unsafe-pin-alerts-118-119`
+- **PR:** `#1529`
 - **Planned PR title:** `fix(deps): remove vulnerable pip unsafe pins`
 - **Lane mode:** single coordinator-owned dependency-security remediation PR
 
@@ -38,6 +39,7 @@ python3 scripts/orchestration/task_bootstrap.py \
 ```
 
 Coordinator packet id: `1584d02b68fe`.
+Post-open coordinator packet id: `426d62b2f1ba`.
 
 ## Current-Head Truth
 
@@ -127,7 +129,7 @@ Rules:
 - `docs/security/GHSA-58qw-9mgm-455v-pip.md`
 - `docs/orchestration/DEPENDABOT_ALERTS_118_119_PIP_REMEDIATION_TASK_PACKET_2026-04-25.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
-- `docs/review/PR_<N>_FIXED_MAPPING.md`
+- `docs/review/PR_1529_FIXED_MAPPING.md`
 
 ## Acceptance Criteria
 
