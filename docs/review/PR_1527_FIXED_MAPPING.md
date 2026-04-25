@@ -32,9 +32,17 @@
   - `architecture-specialist` reported no architecture blockers after targeted
     tests and build
 
-## Mandatory Bug-Hunter Pass
+## Mandatory QA And Bug-Hunter Pass
 
-- Status: Pending post-open `qa-engineer-agent -> bug-hunter` lane.
+- `qa-engineer-agent`: PASS
+  - Commits: `f524a7455`, `89cb777e8`
+  - Evidence: fixed thin-client guard opacity false positive, satisfied PR body
+    Phase2 gates, synced PR body mirror, and reran local validation.
+- `bug-hunter`: PASS
+  - Reviewed head: `89cb777e8`
+  - Evidence: no concrete PR-4 code blocker found in route rendering, auth
+    gating, disabled tab feedback, VIP filtering, thin-client guard,
+    token-class false-positive handling, or scope boundaries.
 
 ## Validation Evidence
 
@@ -47,6 +55,11 @@
 - `cd frontend && npm run build` — PASS
 - `make validate-changed` — PASS (`No Python files changed on the current
   branch`)
+- `cd frontend && npm test -- --run src/api/__tests__/thin-client-guards.test.ts`
+  — PASS (`3 passed`)
+- `cd frontend && npm test -- --run src/config/__tests__/routes.design-preview.test.ts src/__tests__/App.test.tsx src/components/__tests__/TabBar.test.tsx src/components/__tests__/TabBar.helpers.test.ts src/api/__tests__/thin-client-guards.test.ts`
+  — PASS (`35 passed`)
+- `cd frontend && npm test -- --run` — PASS (`711 passed`, `1 skipped`)
 - `pre-commit run --all-files` — PASS
 - pre-push hooks — PASS
 - `cd frontend && npm run build-storybook` — not run; no Storybook surfaces or
@@ -60,9 +73,8 @@
 Pending.
 
 Blocking follow-up before any merge-ready claim:
-- push the mapping/packet update commit and wait for current-head CI on the new
-  SHA
-- complete CodeRabbit/Sourcery/Cubic review disposition checks
-- complete mandatory post-open `qa-engineer-agent -> bug-hunter` pass
+- wait for current-head CI on the latest SHA
+- complete CodeRabbit/Sourcery/Cubic review disposition checks after PR exits
+  draft
 - align this artifact with the PR body mirror
 - `python3 scripts/orchestration/check_merge_ready.py --pr-number 1527 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` must pass
