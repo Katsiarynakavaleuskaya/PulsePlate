@@ -99,6 +99,21 @@ Required source entry fields:
 - `JPTN Food Facts` remains `unresolved` until provider identity, license,
   schema, and retrieval contract are clarified.
 
+## Lineage Validation Policy
+
+- Replacement edges are now validated as a directed acyclic graph (DAG):
+  `replacement_for` may point only to existing source names, never to itself, and
+  may not form cycles.
+- If `replacement_for` is present:
+  - `replacement_required` must be `false`.
+  - `active_update_source` must match the source family policy defined in this
+    catalog (`current` and `commercial_contract` are active by default; legacy
+    and unresolved sources remain non-active).
+- `legacy_static` entries may not declare `replacement_for` unless they are
+  explicit baseline placeholders in their own follow-up lanes.
+- `unresolved` and `legacy_static` entries are fail-closed for runtime cutover
+  and ingest readiness contracts.
+
 ## Validation Plan
 
 - `python3 scripts/orchestration/check_preflight.py`

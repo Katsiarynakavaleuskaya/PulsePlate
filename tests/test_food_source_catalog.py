@@ -162,23 +162,65 @@ def test_food_source_catalog_rejects_commercial_non_contract_review() -> None:
         parse_source_catalog(payload)
 
 
-def test_food_source_catalog_rejects_self_replacing_menustat() -> None:
+def test_food_source_catalog_rejects_replacement_self_loop() -> None:
     payload = _catalog_payload()
     sources = copy.deepcopy(payload["sources"])
     assert isinstance(sources, list)
-    filtered_sources: list[object] = []
     for source in sources:
         if not isinstance(source, dict):
-            filtered_sources.append(source)
             continue
-        if source.get("replacement_for") == "menustat":
-            continue
-        if source.get("source") == "menustat":
-            source["replacement_for"] = "menustat"
-        filtered_sources.append(source)
-    payload["sources"] = filtered_sources
+        if source.get("source") == "nutritionix":
+            source["replacement_for"] = "nutritionix"
+    payload["sources"] = sources
 
-    with pytest.raises(SourceCatalogError, match="replacement candidate"):
+    with pytest.raises(SourceCatalogError, match="replacement candidate for itself"):
+        parse_source_catalog(payload)
+
+
+def test_food_source_catalog_rejects_replacement_cycle() -> None:
+    payload = _catalog_payload()
+    sources = copy.deepcopy(payload["sources"])
+    assert isinstance(sources, list)
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        if source.get("source") == "nutritionix":
+            source["replacement_for"] = "fatsecret_platform"
+        if source.get("source") == "fatsecret_platform":
+            source["replacement_for"] = "nutritionix"
+    payload["sources"] = sources
+
+    with pytest.raises(SourceCatalogError, match="replacement_for cycle detected"):
+        parse_source_catalog(payload)
+
+
+def test_food_source_catalog_rejects_invalid_replacement_classification() -> None:
+    payload = _catalog_payload()
+    sources = copy.deepcopy(payload["sources"])
+    assert isinstance(sources, list)
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        if source.get("source") == "nutritionix":
+            source["source_classification"] = "legacy_static"
+    payload["sources"] = sources
+
+    with pytest.raises(SourceCatalogError, match="legacy_static sources cannot"):
+        parse_source_catalog(payload)
+
+
+def test_food_source_catalog_rejects_missing_replacement_target() -> None:
+    payload = _catalog_payload()
+    sources = copy.deepcopy(payload["sources"])
+    assert isinstance(sources, list)
+    for source in sources:
+        if not isinstance(source, dict):
+            continue
+        if source.get("source") == "nutritionix":
+            source["replacement_for"] = "non_existent_source"
+    payload["sources"] = sources
+
+    with pytest.raises(SourceCatalogError, match="replacement_for target missing"):
         parse_source_catalog(payload)
 
 
