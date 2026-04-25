@@ -52,14 +52,16 @@ Merge-readiness contract:
 - [ ] Required checks complete (no pending jobs)
   Evidence: pending current-head GitHub checks after mapping artifact push.
 - [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: no review threads existed when this artifact was seeded.
-- [x] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+  Evidence: CodeRabbit review threads are mapped in `## Fixed in Commit Mapping`;
+  GitHub thread-resolution status is tracked against those dispositions during
+  the final merge cycle.
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: CodeRabbit comments `discussion_r3141715407`, `discussion_r3141715409`, `discussion_r3141780565`, `discussion_r3141780570`, `discussion_r3141780571`, `discussion_r3141780573`, and review summaries `pullrequestreview-4175343676` and `pullrequestreview-4175400759` are mapped above with FIXED dispositions and commit evidence.
-- [x] Pre-commit green on latest pushed head
+- [ ] Pre-commit green on latest pushed head
   Evidence: `pre-commit run --all-files`, commit hooks, and pre-push hooks passed for `4406fc0bb` (`ci(docker): consolidate validation path`).
 - [ ] Heavy full-suite signal accepted from GitHub current-head checks
   Evidence: local `make verify` intentionally deferred under the operator-approved machine-heavy exception for this CI/tooling lane.
-- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
+- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
   Evidence: `qa-engineer-agent` completed a conditional pass with no required file changes; `bug-hunter` completed a false-green review on `9b213dfe0` with no workflow/test code edits required.
 
 ## Deferred / Follow-ups
