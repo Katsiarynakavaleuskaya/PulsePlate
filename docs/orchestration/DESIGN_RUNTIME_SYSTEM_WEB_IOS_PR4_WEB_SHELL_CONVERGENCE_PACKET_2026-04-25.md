@@ -3,10 +3,10 @@
 **Version:** 2026-04-25 (`America/New_York`)
 **Epic Slug:** `epic/design-runtime-system-web-ios-v1`
 **Slice:** `PR-4`
-**PR:** `TBD`
+**PR:** `#1527`
 **Worktree:** `worktrees/design-runtime-system-pr4`
 **Branch:** `codex/frontend-product-shell-convergence`
-**PR Phase:** `pre_open`
+**PR Phase:** `post_open_review`
 **Design Lane Mode:** `execution`
 **Title:** `feat(frontend): converge web shell onto governed tokens`
 
