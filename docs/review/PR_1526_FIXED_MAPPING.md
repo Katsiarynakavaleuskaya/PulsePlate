@@ -32,8 +32,8 @@ Merge-readiness contract:
   Evidence: no review threads existed when this artifact was seeded.
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
   Evidence: no bot comments existed when this artifact was seeded.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed before the initial PR push; rerun required before merge claim.
+- [x] Pre-commit green on latest pushed head
+  Evidence: `pre-commit run --all-files`, commit hooks, and pre-push hooks passed for `4406fc0bb` (`ci(docker): consolidate validation path`).
 - [ ] Heavy full-suite signal accepted from GitHub current-head checks
   Evidence: local `make verify` intentionally deferred under the operator-approved machine-heavy exception for this CI/tooling lane.
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
