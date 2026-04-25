@@ -72,7 +72,10 @@ def test_build_workflow_owns_docker_validation_contract() -> None:
     assert isinstance(run_script, str)
     assert "openapi.json" in run_script
     assert "/api/v1/bmi" in run_script
-    assert "/api/v1/bodyfat" in run_script
+    assert (
+        'assert "/api/v1/bodyfat" not in paths, '
+        '"/api/v1/bodyfat must not leak into canonical OpenAPI"'
+    ) in run_script
 
 
 def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
@@ -80,7 +83,9 @@ def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
     from app.main import app
 
     client = TestClient(app)
-    openapi_paths = client.get("/openapi.json").json()["paths"]
+    openapi_response = client.get("/openapi.json")
+    assert openapi_response.headers.get("content-type", "").startswith("application/json")
+    openapi_paths = openapi_response.json()["paths"]
 
     assert "/api/v1/bodyfat" not in openapi_paths
     response = client.post(
@@ -96,6 +101,7 @@ def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
     )
 
     assert response.status_code == 200
+    assert response.headers.get("content-type", "").startswith("application/json")
     assert {"labels", "lang", "median", "methods"} <= response.json().keys()
 
 
@@ -105,5 +111,7 @@ def test_trivy_workflow_is_out_of_band_image_security_lane() -> None:
     on_section = workflow.get("on", workflow.get(True))
     assert isinstance(on_section, dict)
     assert "push" not in on_section
+    assert "pull_request" not in on_section
+    assert "pull_request_target" not in on_section
     assert "schedule" in on_section
     assert "workflow_dispatch" in on_section
