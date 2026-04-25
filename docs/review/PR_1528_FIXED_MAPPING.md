@@ -15,10 +15,15 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1528#discussion_r3141957212 -> 70439c7dc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1528#discussion_r3141957212 -> 7fc982034
+Disposition: FIXED
+Commit: `7fc982034`
+Evidence: `docs/review/PR_1528_FIXED_MAPPING.md:46`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1528#pullrequestreview-4175554463 -> 70439c7dc
 Disposition: FIXED
 Commit: `70439c7dc`
-Evidence: `docs/review/PR_1528_FIXED_MAPPING.md:46`; `docs/figma/PULSEPLATE_GOVERNANCE_API_DATA_CONTRACTS_BRIEF.md:48`.
+Evidence: `docs/figma/PULSEPLATE_GOVERNANCE_API_DATA_CONTRACTS_BRIEF.md:48`.
 
 ## Post-Open Role Review
 
