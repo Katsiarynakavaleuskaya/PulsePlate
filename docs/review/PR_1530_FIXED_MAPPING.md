@@ -12,7 +12,11 @@ Opened as a coordinator lane follow-up after PR #1526.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 3c692f8a9
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:814`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1530#discussion_r3142131296 -> 3c692f8a9
 
 ## Post-Open Role Review
 
