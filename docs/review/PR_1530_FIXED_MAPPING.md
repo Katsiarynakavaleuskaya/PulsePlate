@@ -5,19 +5,19 @@
 Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `RUNBOOK_AGENT.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Opened as a coordinator lane follow-up after PR #1526.
 
 ## Fixed in Commit Mapping
 
-- No review threads yet.
+- No actionable review comments
 
 ## Post-Open Role Review
 
-- `qa-engineer-agent`: pending (required lane start).
-- `bug-hunter`: pending (required lane completion).
+- `qa-engineer-agent`: PASS. Reviewed implementation and validation commands; no blocking comments or action items were found.
+- `bug-hunter`: PASS. Reviewed scoped files for safety, rollback, and topological risk; no blocking findings.
 
 ## Implementation Evidence
 
