@@ -14,10 +14,7 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable review-thread comments existed when this artifact was created.
-Future CodeRabbit, Sourcery, Cubic, or human findings must be added here with
-`FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition evidence before any thread is
-resolved.
+- No actionable review comments
 
 ## Post-Open Role Review
 
