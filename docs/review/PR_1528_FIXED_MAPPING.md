@@ -7,7 +7,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
 - [x] Discussion-thread pass completed
-- [x] Fixed in commit mapping initialized
+- [x] Fixed in commit mapping completed
 
 This artifact was created immediately after the draft PR was opened per repo
 governance. Record every actionable human/bot disposition here before resolving
@@ -15,18 +15,20 @@ threads on GitHub.
 
 ## Fixed in Commit Mapping
 
-No actionable human or bot review threads exist at artifact creation time.
-
-Disposition: NOT-A-BUG
-Evidence: PR body `Summary by Sourcery` section contains an informational
-summary only and no requested code or documentation change.
-Reason: Sourcery generated a summary of the docs-only governance brief and did
-not identify an actionable issue.
+- No actionable review comments
 
 ## Post-Open Role Review
 
-- `qa-engineer-agent`: pending post-open pass.
-- `bug-hunter`: pending post-open pass.
+- `qa-engineer-agent`: completed.
+  Result: docs-only/runtime boundary OK; merge-ready blocked until the mapping
+  fix is committed/pushed and live PR Body Phase2 gates pass.
+- `bug-hunter`: completed.
+  Result: no runtime-code, forbidden-claim, or validation-honesty blocker; PR
+  remains blocked until current-head Phase2 gates pass after push.
+
+Sourcery generated an informational reviewer guide for the docs-only governance
+brief and did not identify an actionable issue. CodeRabbit skipped review while
+the PR was draft.
 
 ## Implementation Evidence
 
@@ -68,7 +70,7 @@ Merge-readiness contract:
 - [ ] Applicable local narrow gates green on latest pushed head
   Evidence: rerun required after this artifact commit.
 - [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass completed
-  Evidence: pending.
+  Evidence: completed during post-open review on 2026-04-25.
 
 ## Deferred / Follow-ups
 
