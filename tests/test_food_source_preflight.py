@@ -30,6 +30,9 @@ def test_load_source_manifest_accepts_current_source_classification() -> None:
     assert manifest.source_classification == "current"
     assert manifest.artifact.checksum_sha256 == "a" * 64
     assert manifest.schema.primary_keys == ("code",)
+    assert manifest.collision_policy.dedupe_fields == ("code",)
+    assert manifest.collision_policy.mapping_fields == ("code", "product_name")
+    assert manifest.collision_policy.collision_resolution == "reject"
 
 
 def test_load_source_manifest_accepts_legacy_static_menustat() -> None:
@@ -38,6 +41,7 @@ def test_load_source_manifest_accepts_legacy_static_menustat() -> None:
     assert manifest.source == "menustat"
     assert manifest.source_classification == "legacy_static"
     assert manifest.source_version == "2022"
+    assert manifest.collision_policy.collision_resolution == "quarantine"
 
 
 def test_load_source_manifest_rejects_invalid_source_classification() -> None:
@@ -68,6 +72,37 @@ def test_load_source_manifest_rejects_primary_key_outside_schema(tmp_path: Path)
     )
 
     with pytest.raises(SourceManifestError, match="primary_keys missing from fields"):
+        load_source_manifest(manifest_path)
+
+
+def test_load_source_manifest_rejects_collision_fields_outside_schema(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "bad_collision.json"
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "artifact": {
+                    "checksum_sha256": "e" * 64,
+                    "path": "raw/off/faulty.csv",
+                    "record_count": 1,
+                    "size_bytes": 1,
+                },
+                "collision_policy": {
+                    "dedupe_fields": ["missing_pk"],
+                    "mapping_fields": ["missing_pk"],
+                    "collision_resolution": "reject",
+                },
+                "retrieved_on": "2026-04-24",
+                "schema": {"fields": ["code"], "primary_keys": ["code"]},
+                "source": "open_food_facts",
+                "source_classification": "current",
+                "source_url": "https://world.openfoodfacts.org/data",
+                "source_version": "2026-04-24",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(SourceManifestError, match="must reference schema fields"):
         load_source_manifest(manifest_path)
 
 
@@ -130,6 +165,11 @@ def test_build_source_preflight_report_diff_contract() -> None:
     }
     assert report["schema"] == {"added": ["quantity"], "removed": ["brands"]}
     assert report["primary_keys"] == {"added": [], "removed": []}
+    assert report["collision_policy"] == {
+        "dedupe_fields": {"added": [], "removed": []},
+        "mapping_fields": {"added": [], "removed": []},
+        "collision_resolution": {"changed": False, "current": "reject", "incoming": "reject"},
+    }
 
 
 def test_build_source_preflight_report_surfaces_validation_errors() -> None:
@@ -142,6 +182,19 @@ def test_build_source_preflight_report_surfaces_validation_errors() -> None:
     assert report["runtime_cutover"] is False
     assert report["dry_run"] is True
     assert "source_classification must be one of" in str(report["validation_errors"])
+
+
+def test_build_source_preflight_report_surfaces_collision_policy_drift() -> None:
+    report = build_source_preflight_report(
+        _fixture("current_off_manifest.json"),
+        _fixture("collision_policy_drift_manifest.json"),
+    )
+
+    assert report["collision_policy"] == {
+        "dedupe_fields": {"added": ["product_name"], "removed": []},
+        "mapping_fields": {"added": [], "removed": ["product_name"]},
+        "collision_resolution": {"changed": True, "current": "reject", "incoming": "quarantine"},
+    }
 
 
 def test_food_source_preflight_cli_is_file_only_and_json(

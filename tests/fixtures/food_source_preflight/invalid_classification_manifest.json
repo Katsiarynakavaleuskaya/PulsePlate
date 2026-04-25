@@ -5,6 +5,11 @@
     "record_count": 0,
     "size_bytes": 0
   },
+  "collision_policy": {
+    "dedupe_fields": ["id"],
+    "mapping_fields": ["id"],
+    "collision_resolution": "reject"
+  },
   "retrieved_on": "2026-04-24",
   "schema": {
     "fields": [

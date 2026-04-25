@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 SourceClassification = Literal[
@@ -22,11 +22,18 @@ SourceClassification = Literal[
     "unresolved",
 ]
 
+CollisionResolution = Literal["reject", "quarantine", "skip"]
+
 ALLOWED_SOURCE_CLASSIFICATIONS: tuple[SourceClassification, ...] = (
     "current",
     "legacy_static",
     "commercial_contract",
     "unresolved",
+)
+ALLOWED_COLLISION_RESOLUTIONS: tuple[CollisionResolution, ...] = (
+    "reject",
+    "quarantine",
+    "skip",
 )
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
@@ -56,6 +63,15 @@ class SourceSchema:
 
 
 @dataclass(frozen=True)
+class SourceCollisionPolicy:
+    """Collision and dedupe contract for incoming source snapshots."""
+
+    dedupe_fields: tuple[str, ...]
+    mapping_fields: tuple[str, ...]
+    collision_resolution: CollisionResolution
+
+
+@dataclass(frozen=True)
 class SourceManifest:
     """Strict PR2 source manifest contract."""
 
@@ -66,6 +82,7 @@ class SourceManifest:
     retrieved_on: date
     artifact: SourceArtifact
     schema: SourceSchema
+    collision_policy: SourceCollisionPolicy
 
 
 def _schema_error(context: str, detail: str) -> SourceManifestError:
@@ -174,6 +191,54 @@ def _parse_schema(value: object, context: str) -> SourceSchema:
     return SourceSchema(fields=fields, primary_keys=primary_keys)
 
 
+def _parse_collision_policy(
+    value: object,
+    schema: SourceSchema,
+    context: str,
+) -> SourceCollisionPolicy:
+    """Parse immutable dedupe/mapping collision policy."""
+    collision = _require_mapping(value, f"{context}.collision_policy")
+    dedupe_fields = _require_string_tuple(
+        collision,
+        "dedupe_fields",
+        f"{context}.collision_policy",
+    )
+    mapping_fields = _require_string_tuple(
+        collision,
+        "mapping_fields",
+        f"{context}.collision_policy",
+    )
+    resolution = _require_string(collision, "collision_resolution", f"{context}.collision_policy")
+    if resolution not in ALLOWED_COLLISION_RESOLUTIONS:
+        raise _schema_error(
+            f"{context}.collision_policy",
+            "collision_resolution must be one of: reject, quarantine, skip",
+        )
+
+    allowed_fields = set(schema.fields)
+    out_of_schema_dedupe = sorted(set(dedupe_fields) - allowed_fields)
+    if out_of_schema_dedupe:
+        joined = ", ".join(out_of_schema_dedupe)
+        raise _schema_error(
+            f"{context}.collision_policy",
+            f"dedupe_fields must reference schema fields: {joined}",
+        )
+
+    out_of_schema_mapping = sorted(set(mapping_fields) - allowed_fields)
+    if out_of_schema_mapping:
+        joined = ", ".join(out_of_schema_mapping)
+        raise _schema_error(
+            f"{context}.collision_policy",
+            f"mapping_fields must reference schema fields: {joined}",
+        )
+
+    return SourceCollisionPolicy(
+        dedupe_fields=dedupe_fields,
+        mapping_fields=mapping_fields,
+        collision_resolution=cast(CollisionResolution, resolution),
+    )
+
+
 def parse_source_manifest(payload: object, *, context: str = "<manifest>") -> SourceManifest:
     """Parse and validate a source preflight manifest payload."""
     data = _require_mapping(payload, context)
@@ -182,6 +247,7 @@ def parse_source_manifest(payload: object, *, context: str = "<manifest>") -> So
         context,
     )
     source_url = _validate_url(_require_string(data, "source_url", context), context)
+    schema = _parse_schema(data.get("schema"), context)
     return SourceManifest(
         source=_require_string(data, "source", context),
         source_classification=classification,
@@ -189,7 +255,12 @@ def parse_source_manifest(payload: object, *, context: str = "<manifest>") -> So
         source_url=source_url,
         retrieved_on=_parse_iso_date(_require_string(data, "retrieved_on", context), context),
         artifact=_parse_artifact(data.get("artifact"), context),
-        schema=_parse_schema(data.get("schema"), context),
+        schema=schema,
+        collision_policy=_parse_collision_policy(
+            value=data.get("collision_policy"),
+            schema=schema,
+            context=context,
+        ),
     )
 
 
@@ -251,6 +322,18 @@ def build_source_diff_report(
 
     schema_delta = _set_delta(current.schema.fields, incoming.schema.fields)
     primary_key_delta = _set_delta(current.schema.primary_keys, incoming.schema.primary_keys)
+    dedupe_delta = _set_delta(
+        current.collision_policy.dedupe_fields,
+        incoming.collision_policy.dedupe_fields,
+    )
+    mapping_delta = _set_delta(
+        current.collision_policy.mapping_fields,
+        incoming.collision_policy.mapping_fields,
+    )
+    collision_resolution_delta = _string_delta(
+        current.collision_policy.collision_resolution,
+        incoming.collision_policy.collision_resolution,
+    )
 
     return {
         "success": not errors,
@@ -275,6 +358,11 @@ def build_source_diff_report(
         ),
         "schema": schema_delta,
         "primary_keys": primary_key_delta,
+        "collision_policy": {
+            "dedupe_fields": dedupe_delta,
+            "mapping_fields": mapping_delta,
+            "collision_resolution": collision_resolution_delta,
+        },
         "validation_errors": errors,
     }
 

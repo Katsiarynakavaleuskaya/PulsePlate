@@ -5,6 +5,18 @@
     "record_count": 42,
     "size_bytes": 1024
   },
+  "collision_policy": {
+    "dedupe_fields": [
+      "restaurant",
+      "item_name"
+    ],
+    "mapping_fields": [
+      "restaurant",
+      "item_name",
+      "year"
+    ],
+    "collision_resolution": "quarantine"
+  },
   "retrieved_on": "2026-04-24",
   "schema": {
     "fields": [

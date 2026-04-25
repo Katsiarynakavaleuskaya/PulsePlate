@@ -1,0 +1,30 @@
+{
+  "artifact": {
+    "checksum_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+    "path": "raw/off/2026-04-26/products.csv.gz",
+    "record_count": 130,
+    "size_bytes": 8192
+  },
+  "collision_policy": {
+    "dedupe_fields": ["code", "product_name"],
+    "mapping_fields": ["code"],
+    "collision_resolution": "quarantine"
+  },
+  "retrieved_on": "2026-04-26",
+  "schema": {
+    "fields": [
+      "code",
+      "product_name",
+      "quantity",
+      "brands"
+    ],
+    "primary_keys": [
+      "code",
+      "product_name"
+    ]
+  },
+  "source": "open_food_facts",
+  "source_classification": "current",
+  "source_url": "https://world.openfoodfacts.org/data",
+  "source_version": "2026-04-26"
+}
