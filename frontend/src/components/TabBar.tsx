@@ -4,7 +4,19 @@ import { useTranslation } from "react-i18next";
 import { tabRoutes } from "../config/routes";
 import { useState, useEffect, useRef } from "react";
 import { useVipModule } from "../lib/useFeatureFlag";
-import { getGridColsClass } from "./TabBar.helpers";
+import {
+  ACTIVE_INDICATOR_CLASS,
+  ACTIVE_TAB_CLASS,
+  AVAILABLE_TAB_CLASS,
+  DISABLED_TAB_BASE_CLASS,
+  DISABLED_TAB_FEEDBACK_CLASS,
+  DISABLED_TAB_FEEDBACK_MS,
+  DISABLED_TAB_ICON_CLASS,
+  DISABLED_TAB_LABEL_CLASS,
+  DISABLED_TAB_OVERLAY_CLASS,
+  getTabBarClass,
+} from "./TabBar.helpers";
+import { LockKeyhole } from "lucide-react";
 
 export default function TabBar() {
   const { pathname } = useLocation();
@@ -33,7 +45,7 @@ export default function TabBar() {
     timeoutRef.current = setTimeout(() => {
       setClickedDisabled(null);
       timeoutRef.current = null;
-    }, 300);
+    }, DISABLED_TAB_FEEDBACK_MS);
   };
 
   // Calculate number of visible tabs for dynamic grid
@@ -45,7 +57,8 @@ export default function TabBar() {
     <nav
       role="tablist"
       aria-label="Main tabs"
-      className={`fixed bottom-0 inset-x-0 grid ${getGridColsClass(visibleTabsCount)} border-t border-muted/30 bg-navy`}
+      className={getTabBarClass(visibleTabsCount)}
+      data-ui="navigation/tab-bar"
     >
       {visibleTabs.map(({ path: to, label, requiresAuth }) => {
         const isActive = Boolean(matchPath({ path: to, end: to === "/" }, pathname));
@@ -56,9 +69,10 @@ export default function TabBar() {
           return (
             <div
               key={to}
-              className={`relative py-3 text-center cursor-not-allowed transition-all duration-200 ${
+              className={`${DISABLED_TAB_BASE_CLASS} ${
                 isClicked ? 'scale-95' : 'scale-100'
               }`}
+              data-feedback={isClicked ? "pressed" : "idle"}
               onClick={() => handleDisabledClick(to)}
               role="tab"
               aria-disabled="true"
@@ -66,30 +80,21 @@ export default function TabBar() {
               title={t("auth.requiresSecureSession")}
             >
               {/* Lock overlay */}
-              <div className="absolute inset-0 flex items-center justify-center bg-navy/80 rounded-lg backdrop-blur-sm">
-                <svg
-                  className="w-4 h-4 text-muted/70"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                  />
-                </svg>
+              <div className={DISABLED_TAB_OVERLAY_CLASS}>
+                <LockKeyhole aria-hidden="true" className={DISABLED_TAB_ICON_CLASS} />
               </div>
 
               {/* Label with reduced opacity */}
-              <span className="text-muted/30 font-medium relative z-10">
+              <span className={DISABLED_TAB_LABEL_CLASS}>
                 {label}
               </span>
 
               {/* Pulse effect on click */}
               {isClicked && (
-                <div className="absolute inset-0 bg-primary/20 rounded-lg animate-pulse" />
+                <div
+                  className={DISABLED_TAB_FEEDBACK_CLASS}
+                  data-testid="tab-disabled-feedback"
+                />
               )}
             </div>
           );
@@ -102,15 +107,17 @@ export default function TabBar() {
             end={to === "/"}
             role="tab"
             aria-selected={isActive}
-            className={`relative py-3 text-center transition-all duration-200 hover:scale-105 ${
-              isActive ? "text-primary font-medium" : "text-muted"
-            }`}
+            className={isActive ? ACTIVE_TAB_CLASS : AVAILABLE_TAB_CLASS}
+            data-state={isActive ? "active" : "inactive"}
           >
             {label}
 
             {/* Active indicator */}
             {isActive && (
-              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-8 h-0.5 bg-primary rounded-full" />
+              <div
+                className={ACTIVE_INDICATOR_CLASS}
+                data-testid="tab-active-indicator"
+              />
             )}
           </NavLink>
         );

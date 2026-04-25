@@ -6,6 +6,7 @@ import { RequireKey } from "./auth/RequireKey";
 import { SettingsProvider } from "./lib/settings";
 import { routes } from "./config/routes";
 import NotFound from "./components/NotFound";
+import { getAppShellClass } from "./components/TabBar.helpers";
 
 function AppContent() {
   const location = useLocation();
@@ -38,11 +39,7 @@ function AppContent() {
   };
 
   return (
-    <div
-      className={
-        showTabBar ? "min-h-dvh bg-navy text-text pb-14" : "min-h-dvh bg-navy text-text"
-      }
-    >
+    <div className={getAppShellClass(showTabBar)} data-testid="app-shell">
       <Routes>
         {routes.map(renderRoute)}
       </Routes>

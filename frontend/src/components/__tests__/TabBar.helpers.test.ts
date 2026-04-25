@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { getGridColsClass } from '../TabBar.helpers';
+import {
+  ACTIVE_TAB_CLASS,
+  AVAILABLE_TAB_CLASS,
+  DISABLED_TAB_BASE_CLASS,
+  getAppShellClass,
+  getGridColsClass,
+  getTabBarClass,
+} from '../TabBar.helpers';
 
 describe('TabBar.helpers', () => {
   describe('getGridColsClass', () => {
@@ -19,6 +26,33 @@ describe('TabBar.helpers', () => {
       it(`maps ${input} -> ${expected}`, () => {
         expect(getGridColsClass(input)).toBe(expected);
       });
+    });
+  });
+
+  describe('getAppShellClass', () => {
+    it('uses runtime token classes and reserves tab bar space only when needed', () => {
+      expect(getAppShellClass(true)).toContain('bg-[var(--pp-navy)]');
+      expect(getAppShellClass(true)).toContain('text-[var(--pp-text)]');
+      expect(getAppShellClass(true)).toContain('pb-[var(--spacing-touch-large)]');
+      expect(getAppShellClass(false)).not.toContain('pb-[var(--spacing-touch-large)]');
+    });
+  });
+
+  describe('getTabBarClass', () => {
+    it('composes navigation/tab-bar class with runtime token classes', () => {
+      const className = getTabBarClass(4);
+
+      expect(className).toContain('grid-cols-4');
+      expect(className).toContain('bg-[var(--pp-navy)]');
+      expect(className).toContain('border-[color:var(--color-border)]');
+    });
+  });
+
+  describe('tab item state classes', () => {
+    it('uses runtime token classes for active available and disabled states', () => {
+      expect(ACTIVE_TAB_CLASS).toContain('text-[var(--color-primary)]');
+      expect(AVAILABLE_TAB_CLASS).toContain('text-[var(--color-text-muted)]');
+      expect(DISABLED_TAB_BASE_CLASS).toContain('cursor-not-allowed');
     });
   });
 });
