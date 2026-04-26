@@ -23,7 +23,7 @@ requests>=2.33.0  # Security floor for GHSA-gc5v-m9x4-r6x2 across dev tooling su
 pillow>=12.2.0  # Security floor for GHSA-whj4-6x5x-4v2j across dev tooling surfaces
 python-multipart>=0.0.26,<1.0.0  # Security floor for GHSA-mj87-hwqh-73pj across dev tooling surfaces
 mako>=1.3.11,<2.0.0  # Security floor for GHSA-v92g-xgxw-vvmm across dev tooling surfaces
-pre-commit~=4.6.0
+pre-commit~=4.5.1
 pip-tools~=7.5.3
 detect-secrets~=1.5.0
 mypy==1.20.2
