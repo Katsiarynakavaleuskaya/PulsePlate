@@ -19,6 +19,7 @@ Evidence: `trivy/ignore-policy.rego`
 Evidence: `docs/security/CVE-2026-41989-libgcrypt20.md`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177351787 -> 300a9c345
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177348529 -> 300a9c345
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027974 -> 300a9c345
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027978 -> 300a9c345
 
