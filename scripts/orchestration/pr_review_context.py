@@ -8,6 +8,7 @@ import json
 import re
 import os
 import shutil
+import shlex
 import subprocess  # nosec B404: fixed command execution only, bounded to internal helper paths (remove-by: 2026-12-31, ref: ledger-p2-pulseplate-pr-review-context-collector)
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -53,11 +54,11 @@ def _run_command(
         args,
         cwd=str(cwd),
         text=True,
-        check=check,
+        check=False,
         capture_output=True,
     )
     if check and completed.returncode != 0:
-        raise RuntimeError(f"Command failed ({" ".join(args)}): {completed.stderr.strip()}")
+        raise RuntimeError(f"Command failed ({shlex.join(args)}): {completed.stderr.strip()}")
     return completed
 
 

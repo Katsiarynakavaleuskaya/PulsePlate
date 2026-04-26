@@ -3932,8 +3932,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Add read-only context collector for PulsePlate PR review skill
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review automation follow-up)
-  - Target PR: PR-TBD-PULSEPLATE-PR-REVIEW-CONTEXT-COLLECTOR
-  - Status: Opened on 24 April 2026
+  - Target PR: PR #1539 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md`, docs/review/PR_1539_FIXED_MAPPING.md)
+  - Status: Open (closeout in docs-only follow-up PR)
   - Area: orchestration / PR review / Codex skills
   - Reason: PR1 intentionally keeps `pulseplate-pr-review` passive and documentation/router-only. A separate follow-up should add a read-only collector for changed files, diff stats, scoped `AGENTS.md`, PR metadata, fixed-mapping state, and relevant test suggestions after the skill contract is merged and reviewed.
   - Links:
