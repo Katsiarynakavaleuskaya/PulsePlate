@@ -9,7 +9,7 @@ Date: 2026-04-26
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review comments were raised.
+Actionable bot comments are mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -22,6 +22,11 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177348529 -> 300a9c345
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027974 -> 300a9c345
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027978 -> 300a9c345
+
+Disposition: FIXED
+Commit: 93cbdbe85
+Evidence: `trivy/ignore-policy.rego`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177366702 -> 93cbdbe85
 
 ## Initial Evidence
 
