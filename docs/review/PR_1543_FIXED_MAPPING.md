@@ -13,7 +13,15 @@ No actionable review comments were raised.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1543#discussion_r3144107355
+Disposition: FIXED
+Commit: 858a470d1
+Evidence: scripts/orchestration/pr_review_context.py:56
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1543#discussion_r3144110255
+Disposition: FIXED
+Commit: 858a470d1
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3910
 
 ## Initial Evidence
 
