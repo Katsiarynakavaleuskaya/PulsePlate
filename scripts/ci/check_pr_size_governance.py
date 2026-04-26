@@ -13,6 +13,10 @@ import subprocess  # nosec B404: subprocess is required for bounded local git di
 import sys
 import re
 import shutil
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NORMAL_MAX_LOC = 299
@@ -29,6 +33,41 @@ SPLIT_JUSTIFICATION_TEMPLATE_PLACEHOLDERS = {
     "what invariant, contract, or rollout constraint requires one pr:",
     "what follow-up prs remain after this large change:",
 }
+
+
+def _fetch_pr_body_from_api(pr_number: int, repo_full_name: str) -> str:
+    """Fetch PR body from GitHub API with optional token fallback.
+
+    Local CI execution should prefer payload body, but event payloads can omit this field
+    after certain synchronization/edit events. API fallback preserves deterministic size
+    governance checks without changing gate semantics.
+    """
+
+    token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    if not token:
+        return ""
+
+    owner, repo = repo_full_name.split("/", maxsplit=1)
+    request = urllib.request.Request(
+        f"https://api.github.com/repos/{urllib.parse.quote(owner)}/{urllib.parse.quote(repo)}/pulls/{pr_number}",
+        headers={
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/vnd.github+json",
+            "X-GitHub-Api-Version": "2022-11-28",
+            "User-Agent": "pulseplate-size-governance",
+        },
+    )
+
+    with urllib.request.urlopen(  # nosec B310: fallback PR body fetch is read-only API access for size governance; remove-by: 2026-10-31, ref: PR3-risk-topology
+        request,
+        timeout=10,
+    ) as response:
+        payload = response.read().decode("utf-8")
+    pull_request = json.loads(payload)
+    if not isinstance(pull_request, dict):
+        return ""
+    body = pull_request.get("body")
+    return body if isinstance(body, str) else ""
 
 
 def parse_numstat_output(numstat_output: str) -> tuple[int, int]:
@@ -171,7 +210,22 @@ def extract_pr_body(event_path: Path) -> str:
     if not isinstance(pull_request, dict):
         return ""
     body = pull_request.get("body")
-    return body if isinstance(body, str) else ""
+    if isinstance(body, str):
+        return body
+
+    repository = payload.get("repository")
+    repo_full_name = repository.get("full_name") if isinstance(repository, dict) else None
+    if not isinstance(repo_full_name, str) or "/" not in repo_full_name:
+        return ""
+
+    number = pull_request.get("number")
+    if not isinstance(number, int):
+        return ""
+
+    try:
+        return _fetch_pr_body_from_api(number, repo_full_name)
+    except (ValueError, KeyError, urllib.error.URLError):
+        return ""
 
 
 def _read_flag_value(argv: list[str], index: int, flag: str) -> str:

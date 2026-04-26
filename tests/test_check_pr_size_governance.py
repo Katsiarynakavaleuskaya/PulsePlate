@@ -116,6 +116,43 @@ def test_extract_pr_body_reads_github_event_payload(tmp_path: Path) -> None:
     assert size_gate.extract_pr_body(event_path) == "## Split Justification\nRequired."
 
 
+def test_extract_pr_body_falls_back_to_api_for_missing_body(tmp_path: Path, monkeypatch) -> None:
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps(
+            {
+                "repository": {"full_name": "owner/repo"},
+                "pull_request": {"number": 123},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("GITHUB_TOKEN", "test-token")
+
+    class FakeResponse:
+        def __init__(self, payload: str) -> None:
+            self._payload = payload.encode("utf-8")
+
+        def read(self) -> bytes:
+            return self._payload
+
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, exc_type, exc, tb) -> None:  # pragma: no cover
+            return None
+
+    def fake_urlopen(request, timeout=10):  # pragma: no cover
+        assert request.full_url == "https://api.github.com/repos/owner/repo/pulls/123"
+        assert request.headers["Authorization"] == "Bearer test-token"
+        return FakeResponse('{"body": "## Split Justification\\nFrom api."}')
+
+    monkeypatch.setattr(size_gate.urllib.request, "urlopen", fake_urlopen)
+
+    assert size_gate.extract_pr_body(event_path) == "## Split Justification\nFrom api."
+
+
 @pytest.mark.parametrize(
     ("argv", "message"),
     [
