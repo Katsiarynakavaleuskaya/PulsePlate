@@ -23,6 +23,11 @@ Disposition: FIXED
 Commit: 858a470d1
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:3910
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1543#issuecomment-4322899591
+Disposition: FIXED
+Commit: 858a470d1
+Evidence: docs/review/PR_1543_FIXED_MAPPING.md:8
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
