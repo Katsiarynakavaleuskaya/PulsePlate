@@ -103,6 +103,7 @@ greenlet==3.3.2
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
+    #   sqlalchemy
 h11==0.16.0
     # via
     #   -c requirements.txt
@@ -267,6 +268,7 @@ pydantic-core==2.41.5
     #   pydantic
 pygments==2.20.0
     # via
+    #   -c requirements.txt
     #   diff-cover
     #   pytest
     #   rich
