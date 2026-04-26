@@ -3681,6 +3681,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Trivy Code Scanning alerts #572, #574, #576, and #577 remain closed on
       `main`
 
+- [ ] Remove Trivy suppression for libgcrypt20 CVE-2026-41989
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Status: Open
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: `build.yml:publish` on `main` currently reports open Trivy alert `#586` on
+    `libgcrypt20` at version `1.10.1-3` with no published fixed-version metadata
+    as of 2026-04-26. This CVE is addressed by targeted suppression in
+    `trivy/ignore-policy.rego` while monitoring upstream/base-image progress.
+  - Links:
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/586
+    - docs/security/CVE-2026-41989-libgcrypt20.md
+    - trivy/ignore-policy.rego
+    - .github/workflows/build.yml
+  - DoD:
+    - Debian or Trivy metadata publishes a fixed `libgcrypt20` package context
+    - Remove suppression rule from `trivy/ignore-policy.rego`
+    - Mark `docs/security/CVE-2026-41989-libgcrypt20.md` resolved or remove after fix
+    - Trivy Code Scanning alert `#586` remains closed on `main`
+
 - [ ] Security suppression expiry monitoring
   - Owner: @katsiaryna_kavaleuskaya
   - Target PR: N/A (ongoing)

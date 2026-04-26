@@ -126,6 +126,45 @@ ignore if {
 	cve_2026_27171_pkgid_match
 }
 
+# CVE-2026-41989 (libgcrypt20) - no fixed release for observed Debian package at triage time
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Trivy security scan reports libgcrypt20 fixed-version unknown for `1.10.1-3` in base image; no repository-level remediation path exists right now.
+# Monitor: https://avd.aquasec.com/nvd/cve-2026-41989
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-41989
+# Documented in: docs/security/CVE-2026-41989-libgcrypt20.md
+# Removal condition: Remove when Debian publishes fixed libgcrypt20 package / Trivy metadata gains fixed version for this package context
+
+cve_2026_41989_libgcrypt20_version := "1.10.1-3"
+
+cve_2026_41989_image_reference_match if {
+	# Scope by image reference when available in Trivy input.
+	# Fallback remains broad when the field is absent.
+	startswith(input.Image, "ghcr.io/katsiarynakavaleuskaya/pulseplate")
+}
+
+cve_2026_41989_image_reference_match if {
+	not input.Image
+}
+
+cve_2026_41989_distro_match if {
+	# Scope by distro when available in Trivy input.
+	# Fallback remains broad when distro field is absent.
+	input.Distro == "debian"
+}
+
+cve_2026_41989_distro_match if {
+	not input.Distro
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-41989"
+	input.PkgName == "libgcrypt20"
+	input.InstalledVersion == cve_2026_41989_libgcrypt20_version
+	cve_2026_41989_image_reference_match
+	cve_2026_41989_distro_match
+	startswith(input.PkgID, sprintf("libgcrypt20@%s", [cve_2026_41989_libgcrypt20_version]))
+}
+
 # CVE-2025-14831 (gnutls) - base image not yet updated to fixed version
 # Review-by: 2026-05-27 (check if base image updated to deb12u6)
 # Rationale: Fix available in 3.7.9-2+deb12u6 but base image still has deb12u5
