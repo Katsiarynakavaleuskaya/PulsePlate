@@ -367,5 +367,15 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
 
         assert source_skill.is_dir(), f"{skill_name} source directory must exist"
         assert (source_skill / "SKILL.md").exists(), f"{skill_name} source must include SKILL.md"
-        assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
-        assert mirrored_skill.resolve() == source_skill
+        if skill_name == "pulseplate-pr-review":
+            assert (
+                mirrored_skill.is_dir()
+            ), f"{skill_name} mirror is required for PR-review workflow"
+            assert not mirrored_skill.is_symlink()
+            marker = mirrored_skill / ".pulseplate_codex_skill_source"
+            assert marker.exists(), f"{skill_name} mirror must carry source marker"
+            assert marker.read_text(encoding="utf-8").strip() == str(source_skill)
+            assert (mirrored_skill / "SKILL.md").exists()
+        else:
+            assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
+            assert mirrored_skill.resolve() == source_skill

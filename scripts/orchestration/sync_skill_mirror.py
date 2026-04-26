@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Synchronize a PulsePlate Codex skill into the .agents mirror directory."""
+
+from __future__ import annotations
+
+import argparse
+import shutil
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_SOURCE_ROOT = REPO_ROOT / "tools" / "codex_skills"
+DEFAULT_MIRROR_ROOT = REPO_ROOT / ".agents" / "skills"
+SOURCE_MARKER = ".pulseplate_codex_skill_source"
+
+
+def _ensure_skill_available(source_root: Path, skill_name: str) -> Path:
+    skill_path = source_root / skill_name
+    if not skill_path.is_dir():
+        raise FileNotFoundError(f"Skill source folder not found: {skill_path}")
+    if not (skill_path / "SKILL.md").is_file():
+        raise FileNotFoundError("Skill source is invalid: missing SKILL.md at " f"{skill_path}")
+    return skill_path
+
+
+def _clear_existing_path(path: Path) -> None:
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+        return
+    if path.is_dir():
+        shutil.rmtree(path)
+
+
+def _copy_with_marker(source: Path, destination: Path) -> None:
+    shutil.copytree(source, destination)
+    (destination / SOURCE_MARKER).write_text(f"{source}\n", encoding="utf-8")
+
+
+def sync_skill_mirror(
+    *,
+    skill_name: str,
+    source_root: Path,
+    mirror_root: Path,
+    force: bool,
+) -> None:
+    """Copy a skill from `source_root` into `mirror_root` and overwrite if `force`."""
+
+    source_root = source_root.resolve()
+    mirror_root = mirror_root.resolve()
+
+    source = _ensure_skill_available(source_root, skill_name)
+    destination = mirror_root / skill_name
+
+    if destination.exists() or destination.is_symlink():
+        if not force:
+            raise RuntimeError("Destination exists; use --force to replace: " f"{destination}")
+        _clear_existing_path(destination)
+
+    mirror_root.mkdir(parents=True, exist_ok=True)
+    _copy_with_marker(source, destination)
+
+
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Sync one skill from tools/codex_skills into .agents/skills."
+    )
+    parser.add_argument(
+        "--name",
+        required=True,
+        help="Skill directory name in tools/codex_skills, e.g. pulseplate-pr-review",
+    )
+    parser.add_argument(
+        "--source-root",
+        default=str(DEFAULT_SOURCE_ROOT),
+        help="Path to skill source root (default: repo/tools/codex_skills)",
+    )
+    parser.add_argument(
+        "--mirror-root",
+        default=str(DEFAULT_MIRROR_ROOT),
+        help="Path for discovered skill mirror (default: .agents/skills)",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Replace existing destination before syncing",
+    )
+
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = _parse_args()
+    try:
+        sync_skill_mirror(
+            skill_name=args.name,
+            source_root=Path(args.source_root),
+            mirror_root=Path(args.mirror_root),
+            force=args.force,
+        )
+    except (FileNotFoundError, RuntimeError, PermissionError) as exc:
+        print(f"ERROR: {exc}")
+        return 1
+
+    destination = Path(args.mirror_root) / args.name
+    print(f"Synced {args.name} -> {destination}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
