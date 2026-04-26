@@ -57,7 +57,7 @@ def _run_command(
         capture_output=True,
     )
     if check and completed.returncode != 0:
-        raise RuntimeError(f"Command failed ({" ".join(args)}): {completed.stderr.strip()}")
+        raise RuntimeError(f"Command failed ({' '.join(args)}): {completed.stderr.strip()}")
     return completed
 
 
