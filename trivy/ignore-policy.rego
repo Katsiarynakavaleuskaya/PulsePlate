@@ -139,7 +139,6 @@ cve_2026_41989_libgcrypt20_version := "1.10.1-3"
 cve_2026_41989_image_reference_match if {
 	# Scope by image reference when available in Trivy input.
 	# Fallback remains broad when the field is absent.
-	input.Image
 	startswith(input.Image, "ghcr.io/katsiarynakavaleuskaya/pulseplate")
 }
 
@@ -150,7 +149,6 @@ cve_2026_41989_image_reference_match if {
 cve_2026_41989_distro_match if {
 	# Scope by distro when available in Trivy input.
 	# Fallback remains broad when distro field is absent.
-	input.Distro
 	input.Distro == "debian"
 }
 
