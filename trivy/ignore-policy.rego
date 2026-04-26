@@ -136,10 +136,34 @@ ignore if {
 
 cve_2026_41989_libgcrypt20_version := "1.10.1-3"
 
+cve_2026_41989_image_reference_match if {
+	# Scope by image reference when available in Trivy input.
+	# Fallback remains broad when the field is absent.
+	input.Image
+	startswith(input.Image, "ghcr.io/katsiarynakavaleuskaya/pulseplate")
+}
+
+cve_2026_41989_image_reference_match if {
+	not input.Image
+}
+
+cve_2026_41989_distro_match if {
+	# Scope by distro when available in Trivy input.
+	# Fallback remains broad when distro field is absent.
+	input.Distro
+	input.Distro == "debian"
+}
+
+cve_2026_41989_distro_match if {
+	not input.Distro
+}
+
 ignore if {
 	input.VulnerabilityID == "CVE-2026-41989"
 	input.PkgName == "libgcrypt20"
 	input.InstalledVersion == cve_2026_41989_libgcrypt20_version
+	cve_2026_41989_image_reference_match
+	cve_2026_41989_distro_match
 	startswith(input.PkgID, sprintf("libgcrypt20@%s", [cve_2026_41989_libgcrypt20_version]))
 }
 

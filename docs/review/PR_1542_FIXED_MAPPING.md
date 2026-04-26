@@ -13,10 +13,14 @@ No actionable review comments were raised.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/586
-- Evidence: `trivy/ignore-policy.rego`
-- Evidence: `docs/security/CVE-2026-41989-libgcrypt20.md`
-- Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
+Disposition: FIXED
+Commit: a4d92885d
+Evidence: `trivy/ignore-policy.rego`
+Evidence: `docs/security/CVE-2026-41989-libgcrypt20.md`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177348529 -> a4d92885d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027974 -> a4d92885d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027978 -> a4d92885d
 
 ## Initial Evidence
 
