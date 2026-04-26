@@ -22,7 +22,7 @@ No actionable review comments were raised.
     - `requirements-dev.txt`: `pre-commit==4.6.0` → `pre-commit==4.5.1`
     - `requirements-ci-lite.txt`: `pre-commit==4.6.0` → `pre-commit==4.5.1`
     - `requirements-all.txt`: `pre-commit>=4.6.0` → `pre-commit>=4.5.1`
-  - Commit: `3774016b4`
+  - Commit: `58ed702f0`
 - Evidence: `gh pr checks 1536` failure logs (installation conflict for pre-commit 4.6.0), then `make validate-changed`/`make test-fast` pass in lane commit.
 
 ## Initial Evidence
