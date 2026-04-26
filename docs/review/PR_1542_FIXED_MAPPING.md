@@ -14,13 +14,13 @@ No actionable review comments were raised.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: a4d92885d
+Commit: 300a9c345
 Evidence: `trivy/ignore-policy.rego`
 Evidence: `docs/security/CVE-2026-41989-libgcrypt20.md`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177348529 -> a4d92885d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027974 -> a4d92885d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027978 -> a4d92885d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#pullrequestreview-4177351787 -> 300a9c345
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027974 -> 300a9c345
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1542#discussion_r3144027978 -> 300a9c345
 
 ## Initial Evidence
 
