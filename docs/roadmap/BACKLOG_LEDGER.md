@@ -3299,13 +3299,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Protocol wording remains explicit about canonical repo truth versus advisory/support surfaces
 
 <a id="ledger-p1-tier4-scientific-creative-cell-pr0"></a>
-- [ ] P1: Tier 4 scientific / creative cell — PR0 governance packet + skill_router hooks (org tier only)
+- [x] P1: Tier 4 scientific / creative cell — PR0 governance packet + skill_router hooks (org tier only)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1548
+  - Merge commit: `6a001b340821b797573f10a19d63f363b72df898` (to `main`, 2026-04-27)
   - Area: orchestration / local workforce / research lane semantics
   - Finding Type: governance + deterministic routing (no new `task_classification` label; Tier 4 maps to `creative_research` / `experiment` per `AGENT_SKILL_ROUTING_POLICY.md` §2a)
-  - Status: 🟡 In progress — draft PR #1548; canonical PR0 packet, `docs/orchestration/AGENTS.md` Tier 4 lane, `skill_router` cues + tests; no runtime or API contract changes.
+  - Status: 🟢 Closed — merged via PR #1548; canonical PR0 packet, `docs/orchestration/AGENTS.md` Tier 4 lane, `skill_router` cues + tests; no OpenAPI or autonomous-merge behavior in scope.
   - Reason (EN): Local workforce design packet §8 defers Tier 4 until the reliability cell is stable; this slice records the execution contract (phased roles, mandatory `qa-engineer-agent -> bug-hunter`) and tightens bootstrap-adjacent routing for Tier 4 wording and `TIER4_*` orchestration docs without inventing an eighth classifier label.
   - Dependencies:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-seam` (closed)
