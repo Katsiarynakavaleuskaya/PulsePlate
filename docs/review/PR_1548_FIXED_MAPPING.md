@@ -31,6 +31,21 @@ Disposition: FIXED
 Commit: bb7419bab
 Evidence: scripts/orchestration/skill_router.py:30
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150261547
+Disposition: FIXED
+Commit: 99dc0a5ae
+Evidence: docs/orchestration/AGENTS.md:65 (cursor-specialist-agent: `.cursor/**` only)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150261561
+Disposition: FIXED
+Commit: 99dc0a5ae
+Evidence: docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:13 (Tier 1 packet/runbook links)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#pullrequestreview-4184278708
+Disposition: FIXED
+Commit: 99dc0a5ae
+Evidence: docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:98, docs/roadmap/BACKLOG_LEDGER.md:3318 (CodeRabbit summary: Tier 4 routing policy text + ledger link)
+
 ## Initial Evidence
 
 - Canonical Tier 4 phased pass / commands: [`docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md`](../orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md)

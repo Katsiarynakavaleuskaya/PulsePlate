@@ -95,6 +95,8 @@ Tie-break precedence is canonical and must stay explicit:
 6. `bugfix`
 7. `implementation`
 
+**Tier 4 org cell (governance docs) → `creative_research` (deterministic):** The coordinator skill router treats Tier 4 scientific/creative *organizational* work as existing labels only. Documents under path prefix `docs/orchestration/TIER4_` and coordinator task text that matches Tier 4 keywords (`tier 4`, `tier4`, `scientific creative cell`, `hypothesis`, `falsifiable`, etc.) together with `domain: orchestration` evidence contribute to selecting `creative_research` per the tie-break above. **Evidence / implementation:** `scripts/orchestration/skill_router.py` (Tier 4 path prefix and keyword list), `tests/test_skill_router.py` (Tier 4 classification cases). This does not add a new classifier label; Tier 4 is naming in workforce docs over §2a labels. See also `docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md`.
+
 ### 2b. Routing Bucket Semantics
 
 - `required`: non-optional skills for the classified lane. `pulseplate-workflow`

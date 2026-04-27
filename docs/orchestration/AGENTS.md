@@ -62,7 +62,7 @@ Scope: `docs/orchestration/**`
     - phase E — AI product / architecture: `ai-app-architect`, `ai-innovation-specialist`
     - phase F — optional advisory trends: `ai-trend-reporter`
     - phase G — code when in scope: `backend-engineer`, `ml-engineer-agent`
-    - optional: `cursor-specialist-agent` (`.cursor/**` / skills), `designer-artist-agent` (visual runbook artifacts)
+    - optional: `cursor-specialist-agent` (only when `.cursor/**` edits), `designer-artist-agent` (visual runbook artifacts)
   - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
   - invariants:
     - no new `task_classification` label; Tier 4 is an organizational name over existing `creative_research` / `experiment` labels per `AGENT_SKILL_ROUTING_POLICY.md` §2a

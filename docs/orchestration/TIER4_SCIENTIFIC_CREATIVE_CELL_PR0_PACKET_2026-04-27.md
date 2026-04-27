@@ -10,7 +10,7 @@ Establish a **repo-canonical** execution contract for the **Tier 4 — scientifi
 
 ## Preconditions
 
-- **Reliability cell (Tier 1 org sense) stable:** Tier 1 CI/CD consolidation wave is materially landed; merge governance and canonical backend/shared lane are documented. PR0 does not reopen Tier 1 scope.
+- **Reliability cell (Tier 1 org sense) stable:** Tier 1 CI/CD consolidation wave is materially landed; merge governance and canonical backend/shared lane are documented (canonical packet + runbook: [`TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md), [`TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)). PR0 does not reopen Tier 1 scope.
 - **Design packet reference:** [`PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`](./PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md) §8 — Tier 4 introduces *Scientific Insight* and *Creative Concept* roles only after the reliability cell is stable; this PR documents that linkage and defers autonomous execution.
 
 ## Mapping to canonical task classes
