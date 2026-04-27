@@ -9,7 +9,11 @@ Date: 2026-04-27
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1546#pullrequestreview-4181890326
+
+Disposition: NOT-A-BUG
+Evidence: tests/test_install_locked_python_requirements.py
+Reason: The ruff and mypy assertions intentionally differ because `requirements-lock.txt` currently pins `ruff` but does not pin `mypy`; parametrizing now would blur this explicit policy distinction and reduce clarity for lock-surface governance.
 
 ## Initial Evidence
 - `pre-commit run --all-files` (PASS)
