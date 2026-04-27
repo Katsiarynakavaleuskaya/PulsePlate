@@ -846,6 +846,17 @@ Design token governance policy is defined in `docs/sora/SORA_STYLE_QA_CHECKLIST.
 (section `Web Token Governance`) and is authoritative for token SoT, migration stages,
 and raw-hex allowlist rules.
 
+### Figma runtime-set promotion policy
+
+Figma RuntimeSets are visual review artifacts until a repo PR promotes the corresponding API or component contract.
+
+Hard rules:
+
+- Do not treat a Figma-only variant as canonical runtime behavior.
+- Do not add a new primitive family because a Figma runtime card exists.
+- Any Figma variant not supported by repo code must be labeled as design-intent or tracked in `docs/roadmap/BACKLOG_LEDGER.md`.
+- Repo runtime artifacts and generated token mirrors remain the source of truth for implementation parity (see `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`).
+
 ## Thin HTTP Adapter Policy (Hard Rule)
 
 **Invariant:** Clients (iOS/Web) must be **thin adapters only** — zero business logic, only transport/contract/UX.
