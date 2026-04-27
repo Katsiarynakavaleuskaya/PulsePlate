@@ -41,6 +41,16 @@ Disposition: NOT-A-BUG
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` Links under `#ledger-p1-design-button-runtime-code-parity` include `Button.test.tsx`, `Button.stories.tsx`, and this mapping file.
 Reason: Improves ledger traceability only.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#pullrequestreview-4184700202
+Disposition: NOT-A-BUG
+Evidence: Sourcery review; dispositioned per inline threads `#discussion_r3150653542`, `#discussion_r3150653558` above.
+Reason: Merge-readiness gate requires the aggregate review URL mapped; thread-level NOT-A-BUG rows are the proof.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#pullrequestreview-4184707709
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit review; dispositioned per inline threads `#discussion_r3150659894`–`#discussion_r3150659926` above.
+Reason: Merge-readiness gate requires the aggregate review URL mapped; thread-level NOT-A-BUG rows are the proof.
+
 ## Scope (PR-1552)
 
 - `frontend/src/components/ui/Button.tsx` — RuntimeSet parity: `success` / `warning` variants, `loading` / `loadingLabel`, `destructive` as sole danger mapping.
