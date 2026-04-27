@@ -4,10 +4,18 @@
 
 ## Summary
 
-Figma runtime visual pass completed for Button, Input, FormField and listed runtime rebuild sections.
+Figma runtime visual pass completed for Button, Input, FormField and the additional **visual review surfaces** listed below (Figma compositions; not all are promoted repo primitives).
 The repository remains the source of truth. Figma RuntimeSets are design-review artifacts unless a repo PR promotes the matching API or component contract.
 
 Token and runtime precedence align with `docs/design/TOKEN_PIPELINE_GOVERNANCE.md` (repo code and runtime artifacts are final SoT; Figma is design-intent lane).
+
+## Figma source anchors (this audit)
+
+For traceability without blocking on node-id capture in this governance PR:
+
+- **Figma file:** `PulsePlate_v3_Canonical_Foundations_Welcome_Gate`
+- **Page:** `01_Components`
+- **Primary reviewed RuntimeSets:** `PP/Shared/Button/RuntimeSet`, `PP/Shared/Input/RuntimeSet`, `PP/Shared/FormField/RuntimeSet`
 
 ## Evidence anchors (repo contracts)
 
@@ -38,10 +46,10 @@ Variants:
 
 Code parity:
 
-- `primary`, `secondary`, `ghost`, `destructive` map to current `Button.tsx` (`frontend/src/components/ui/Button.tsx:3-20`).
-- `success` and `warning` are design-intent only until `Button.tsx` supports them.
-- `danger` should be reconciled with code naming `destructive`.
-- `loading` is design-intent only until the Button API supports a loading state.
+- Figma tones **`primary`**, **`secondary`**, and **`ghost`** align by name with `ButtonVariant` in `Button.tsx` (`frontend/src/components/ui/Button.tsx:3-20`).
+- Figma **`tone=danger`** is a **naming-alignment gap** against repo **`destructive`**: same destructive intent lane, different token names until a parity PR reconciles labels or adds an explicit alias contract.
+- **`success`** and **`warning`** are design-intent only until `Button.tsx` supports them.
+- **`loading`** is design-intent only until the Button API supports a loading state.
 
 ### PP/Shared/Input/RuntimeSet
 
@@ -83,9 +91,12 @@ Variants:
 
 Code parity:
 
-- FormField remains a design-review surface unless backed by the current repo component contract.
+- This PR **did not audit** a dedicated repo `FormField` component API or OpenAPI contract; only the Figma RuntimeSet was reviewed visually.
+- FormField remains a **design-review surface** unless a future repo PR backs it with an explicit component contract and tests.
 
-## Runtime rebuild sections reviewed
+## Visual review surfaces (Figma)
+
+The following are **Figma compositions / review surfaces** checked during the same session. A visual PASS here does **not** imply each item is a shipped production primitive or has a 1:1 repo component.
 
 Visual PASS recorded for:
 
