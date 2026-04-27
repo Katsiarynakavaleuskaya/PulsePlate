@@ -12,7 +12,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 from urllib.parse import urlparse
 
 SourceClassification = Literal[
@@ -235,7 +235,7 @@ def _parse_collision_policy(
     return SourceCollisionPolicy(
         dedupe_fields=dedupe_fields,
         mapping_fields=mapping_fields,
-        collision_resolution=cast(CollisionResolution, resolution),
+        collision_resolution=resolution,
     )
 
 

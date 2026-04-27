@@ -291,8 +291,18 @@ unlink_skills() {
     if [[ -d "${dest_dir}" && -f "${dest_dir}/SKILL.md" ]]; then
       if [[ -f "${dest_dir}/${COPY_MARKER_FILE}" ]]; then
         local marker_source
+        local marker_canon
+        local src_canon
         marker_source="$(cat "${dest_dir}/${COPY_MARKER_FILE}")"
-        if [[ "$(canonical_path "${marker_source}")" == "$(canonical_path "${src_dir}")" ]]; then
+        if ! marker_canon="$(canonical_path "${marker_source}")"; then
+          echo "Skip copied skill for ${skill_name}: stale marker path missing ${marker_source}" >&2
+          continue
+        fi
+        if ! src_canon="$(canonical_path "${src_dir}")"; then
+          echo "Skip copied skill for ${skill_name}: source path missing ${src_dir}" >&2
+          continue
+        fi
+        if [[ "${marker_canon}" == "${src_canon}" ]]; then
           rm -rf "${dest_dir}"
           echo "Removed copied skill: ${skill_name}"
         else
