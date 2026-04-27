@@ -26,6 +26,8 @@ from scripts.orchestration.design_lane_contract import (
 from scripts.orchestration.requested_agents import normalize_requested_agents
 
 ROUTING_POLICY_VERSION = "2026-03-27"
+# Tier 4 org cell packets: `docs/orchestration/TIER4_*.md` (single SoT string for routing + path matching).
+TIER4_DOC_PREFIX = "docs/orchestration/TIER4_"
 SELECTION_MODE = "deterministic-weighted"
 ROUTING_EXPLANATION_SCHEMA_VERSION = "1.0"
 RESEARCH_CONNECTOR_POLICY_VERSION = "2026-04-18"
@@ -413,7 +415,7 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
             "docs/reports/",
             "docs/insights/",
             "docs/audience_pack/",
-            "docs/orchestration/TIER4_",
+            TIER4_DOC_PREFIX,
         ),
         keywords=(
             "weekly",
@@ -1376,12 +1378,11 @@ def _match_path_prefixes(
     ]
     # Tier 4 PR0 packets are files `docs/orchestration/TIER4_*.md`, not directories; `_has_prefix`
     # only matches directory continuation (`prefix/...`).
-    tier4_doc_prefix = "docs/orchestration/TIER4_"
-    if tier4_doc_prefix in prefixes:
+    if TIER4_DOC_PREFIX in prefixes:
         for path in normalized_paths:
-            if path.startswith(tier4_doc_prefix):
-                if tier4_doc_prefix not in matched:
-                    matched.append(tier4_doc_prefix)
+            if path.startswith(TIER4_DOC_PREFIX):
+                if TIER4_DOC_PREFIX not in matched:
+                    matched.append(TIER4_DOC_PREFIX)
                 break
     return matched
 

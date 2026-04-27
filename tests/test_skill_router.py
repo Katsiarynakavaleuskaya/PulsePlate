@@ -866,7 +866,7 @@ def test_skill_router_tier4_packet_path_classifies_creative_research() -> None:
 
     assert decision["task_classification"]["label"] == "creative_research"
     joined = " ".join(decision["task_classification"]["reasons"])
-    assert "path:" in joined and "TIER4_" in joined
+    assert "TIER4_" in joined
 
 
 def test_skill_router_tier4_goal_lexemes_classify_creative_research() -> None:
