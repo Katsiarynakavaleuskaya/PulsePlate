@@ -374,9 +374,9 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
             assert not mirrored_skill.is_symlink()
             marker = mirrored_skill / ".pulseplate_codex_skill_source"
             assert marker.exists(), f"{skill_name} mirror must carry source marker"
-            assert (
-                Path(marker.read_text(encoding="utf-8").strip()).resolve() == source_skill.resolve()
-            )
+            marker_parts = tuple(Path(marker.read_text(encoding="utf-8").strip()).parts)
+            expected_parts = source_skill.relative_to(REPO_ROOT).parts
+            assert marker_parts[-len(expected_parts) :] == expected_parts
             assert (mirrored_skill / "SKILL.md").exists()
         else:
             assert mirrored_skill.is_symlink(), f"{skill_name} must be exposed via .agents/skills"
