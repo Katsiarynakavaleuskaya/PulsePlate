@@ -1,6 +1,7 @@
 exclude_dirs:
   - tests
   - tests_strict
+  - worktrees
   - .claude
   - cache
   - test_cache
