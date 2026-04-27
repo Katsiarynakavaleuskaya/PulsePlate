@@ -19,7 +19,7 @@ For traceability without blocking on node-id capture in this governance PR:
 
 ## Evidence anchors (repo contracts)
 
-- Web `Button` API: `frontend/src/components/ui/Button.tsx:3-4` (`ButtonVariant`, `ButtonSize`).
+- Web `Button` API: `frontend/src/components/ui/Button.tsx:3-5` (`ButtonVariant` including success/warning, `ButtonSize`); loading props `frontend/src/components/ui/Button.tsx:11-13`.
 - Web `Input`: `frontend/src/components/ui/Input.tsx:4-24` (generic `HTMLInputElement` wrapper; no dedicated size/accessory/loading API).
 
 ## Visual PASS
@@ -46,10 +46,9 @@ Variants:
 
 Code parity:
 
-- Figma tones **`primary`**, **`secondary`**, and **`ghost`** align by name with `ButtonVariant` in `Button.tsx` (`frontend/src/components/ui/Button.tsx:3-20`).
-- Figma **`tone=danger`** is a **naming-alignment gap** against repo **`destructive`**: same destructive intent lane, different token names until a parity PR reconciles labels or adds an explicit alias contract.
-- **`success`** and **`warning`** are design-intent only until `Button.tsx` supports them.
-- **`loading`** is design-intent only until the Button API supports a loading state.
+- Figma tones **`primary`**, **`secondary`**, **`ghost`**, **`success`**, and **`warning`** align by name with `ButtonVariant` in `Button.tsx` (`frontend/src/components/ui/Button.tsx:3-5`, `frontend/src/components/ui/Button.tsx:15-26`).
+- Figma **`tone=danger`** maps to repo **`variant="destructive"`** only (no `danger` prop alias); destructive styling remains `frontend/src/components/ui/Button.tsx:20-21`.
+- **`loading`** is implemented as optional `loading` / `loadingLabel` with `aria-busy`, disabled while loading, and safe prop spread order (`frontend/src/components/ui/Button.tsx:74-86`).
 
 ### PP/Shared/Input/RuntimeSet
 
