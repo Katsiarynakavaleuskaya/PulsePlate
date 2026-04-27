@@ -1369,14 +1369,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing semantic/token-governance docs link to the same deterministic build contract
 
 <a id="ledger-p1-design-button-runtime-code-parity"></a>
-- [x] P1: Button RuntimeSet code parity (Figma vs `Button.tsx`)
+- [ ] P1: Button RuntimeSet code parity (Figma vs `Button.tsx`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1552
-  - Status: Closed by PR #1552 when merged
+  - Status: OPEN — implementation on branch `feat/button-runtime-set-code-parity`; checkbox flips at merge close-out or docs-only ledger PR if preferred
   - Area: design-system / frontend / governance
   - Finding Type: Figma runtime audit follow-up (2026-04-27)
-  - Reason (EN): The Figma Button RuntimeSet includes success, warning, danger, and loading states. `Button.tsx` now supports `primary`, `secondary`, `ghost`, `destructive`, `success`, and `warning` with sizes `sm` / `md` / `lg`, plus optional `loading` / `loadingLabel` (`frontend/src/components/ui/Button.tsx:3-5`, `frontend/src/components/ui/Button.tsx:11-13`).
+  - Reason (EN): The Figma Button RuntimeSet includes success, warning, danger, and loading states. `Button.tsx` now supports `primary`, `secondary`, `ghost`, `destructive`, `success`, and `warning` with sizes `sm` / `md` / `lg`, plus optional `loading` / `loadingLabel` (`frontend/src/components/ui/Button.tsx:3-4`, `frontend/src/components/ui/Button.tsx:10-11`).
   - Links:
     - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
     - `frontend/src/components/ui/Button.tsx`
