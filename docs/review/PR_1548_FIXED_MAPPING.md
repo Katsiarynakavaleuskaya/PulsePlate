@@ -15,6 +15,7 @@ Date: 2026-04-27
 
 ## Initial Evidence
 
+- Canonical Tier 4 phased pass / commands: [`docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md`](../orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md)
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
 - `python3 scripts/orchestration/check_agent_consistency.py` (PASS)
 - `pre-commit run --all-files` (PASS)

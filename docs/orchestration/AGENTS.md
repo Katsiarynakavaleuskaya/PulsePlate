@@ -70,6 +70,8 @@ Scope: `docs/orchestration/**`
     - brainstorm and web intake follow `RESEARCH_BRAINSTORMING_PROTOCOL.md` / `RESEARCH_TRACK_PROTOCOL.md`; eval work follows `AGENT_EXPERIMENTATION_PROTOCOL.md`
   - canonical packet:
     - [`docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md`](./TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md)
+  - PR #1548 execution record (phased verification):
+    - [`docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md`](./TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md)
   - workforce design reference:
     - [`docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`](./PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md) §8 Tier 4
 - For the Docker / CI discipline PR series:

@@ -69,6 +69,10 @@ Optional: `cursor-specialist-agent` when `.cursor/**` or Codex skill surfaces ch
 - `docs/orchestration/AGENTS.md` Tier 4 lane block.
 - Ledger anchor + router/tests as specified in the PR body.
 
+## Execution record
+
+Phased agent-pass and verification evidence for PR #1548 (no synthetic logs): [`TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md`](./TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md).
+
 ## Deferred / follow-ups
 
 - Tier 4 PR1+ slices (optional launcher hooks, additional eval harnesses) must open as separate backlog-backed PRs with their own packets.
