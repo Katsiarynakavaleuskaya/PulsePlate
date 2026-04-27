@@ -1368,6 +1368,43 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Release/rollback runbook exists for token builds across web/iOS surfaces
     - Existing semantic/token-governance docs link to the same deterministic build contract
 
+<a id="ledger-p1-design-button-runtime-code-parity"></a>
+- [ ] P1: Button RuntimeSet code parity (Figma vs `Button.tsx`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DESIGN-BUTTON-RUNTIME-PARITY
+  - Status: OPEN
+  - Area: design-system / frontend / governance
+  - Finding Type: Figma runtime audit follow-up (2026-04-27)
+  - Reason (EN): The Figma Button RuntimeSet includes success, warning, danger, and loading states. Current `Button.tsx` supports `primary`, `secondary`, `ghost`, and `destructive` with sizes `sm` / `md` / `lg` only (`frontend/src/components/ui/Button.tsx:3-4`).
+  - Links:
+    - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
+    - `frontend/src/components/ui/Button.tsx`
+  - DoD:
+    - Decide whether success/warning become Button variants or remain composed product patterns
+    - Reconcile danger vs destructive naming
+    - Add loading state only if the product API needs it
+    - Update `Button.tsx`, tests/stories/docs in a dedicated PR
+
+<a id="ledger-p1-design-input-runtime-code-parity"></a>
+- [ ] P1: Input RuntimeSet code parity (Figma vs `Input.tsx`)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DESIGN-INPUT-RUNTIME-PARITY
+  - Status: OPEN
+  - Area: design-system / frontend / governance
+  - Finding Type: Figma runtime audit follow-up (2026-04-27)
+  - Reason (EN): The Figma Input RuntimeSet includes size, number/search/secret, small default, filled/error/disabled, and prep notes for unit/loading/prefix/suffix/clear action. Current `Input.tsx` is a generic HTML input wrapper without explicit size or accessory API (`frontend/src/components/ui/Input.tsx:4-24`).
+  - Links:
+    - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
+    - `frontend/src/components/ui/Input.tsx`
+  - DoD:
+    - Decide which Input variants are canonical component API vs usage examples
+    - Decide size API
+    - Decide unit/prefix/suffix/clear-action API
+    - Decide loading state handling
+    - Update `Input.tsx`, tests/stories/docs in a dedicated PR
+
 <a id="ledger-p1-rebuild-runtime-vocabulary-promotion-decision"></a>
 - [ ] P1: Rebuild runtime family vocabulary promotion decision
   - Owner: @katsiaryna_kavaleuskaya
