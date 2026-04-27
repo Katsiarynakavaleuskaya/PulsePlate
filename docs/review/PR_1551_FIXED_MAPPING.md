@@ -12,9 +12,14 @@ Date: 2026-04-28
 ## Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md:1
+Evidence: docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md:22; docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md:23; docs/roadmap/BACKLOG_LEDGER.md:1379; docs/roadmap/BACKLOG_LEDGER.md:1397 (CodeRabbit/Sourcery items are advisory doc-clarity and backlog DoD wording; scope stays docs-only audit + parity anchors without runtime promotion.)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1551#pullrequestreview-4184548678
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1551#discussion_r3150532667
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1551#discussion_r3150532670
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1551#discussion_r3150532675
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1551#discussion_r3150532678
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1551#pullrequestreview-4184564803
 
 ## Initial Evidence
 
