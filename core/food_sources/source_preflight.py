@@ -214,6 +214,12 @@ def _parse_collision_policy(
             f"{context}.collision_policy",
             "collision_resolution must be one of: reject, quarantine, skip",
         )
+    if resolution == "reject":
+        collision_resolution: CollisionResolution = "reject"
+    elif resolution == "quarantine":
+        collision_resolution = "quarantine"
+    else:
+        collision_resolution = "skip"
 
     allowed_fields = set(schema.fields)
     out_of_schema_dedupe = sorted(set(dedupe_fields) - allowed_fields)
@@ -235,7 +241,7 @@ def _parse_collision_policy(
     return SourceCollisionPolicy(
         dedupe_fields=dedupe_fields,
         mapping_fields=mapping_fields,
-        collision_resolution=resolution,
+        collision_resolution=collision_resolution,
     )
 
 
