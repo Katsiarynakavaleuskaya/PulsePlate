@@ -6,14 +6,40 @@ Date: 2026-04-28
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed (update after review bots / humans)
-- [ ] Fixed in commit mapping completed (update after dispositions)
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-<!-- Populate after review with Disposition (FIXED / NOT-A-BUG / DEFERRED), evidence, and thread URLs per `AGENTS.md` review governance. -->
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150653542
+Disposition: NOT-A-BUG
+Evidence: `frontend/src/components/ui/__tests__/Button.test.tsx` adds `does not set aria-busy when not loading` for idle-state accessibility coverage.
+Reason: Optional Sourcery regression test; no change to public `Button` contract beyond documented RuntimeSet parity work.
 
-_(No review threads yet — placeholder for post-open bot/human comments.)_
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150653558
+Disposition: NOT-A-BUG
+Evidence: `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md:22` (`loading props in …`).
+Reason: Documentation grammar only.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150659894
+Disposition: NOT-A-BUG
+Evidence: `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md` Follow-ups section marks Button RuntimeSet parity resolved for PR #1552.
+Reason: Removes stale reconcile wording; no runtime change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150659900
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1552_FIXED_MAPPING.md:5` (`Date: 2026-04-28`).
+Reason: Matches operator session calendar; no evidence the suggested 2026-04-27 date is required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150659918
+Disposition: NOT-A-BUG
+Evidence: `scripts/orchestration/review_mapping_artifact.py` Phase2 checkbox contract (`## Discussion Thread Pass`, `## Fixed in Commit Mapping`).
+Reason: Artifact layout brought in line with canonical validator; no product runtime change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150659926
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` Links under `#ledger-p1-design-button-runtime-code-parity` include `Button.test.tsx`, `Button.stories.tsx`, and this mapping file.
+Reason: Improves ledger traceability only.
 
 ## Scope (PR-1552)
 

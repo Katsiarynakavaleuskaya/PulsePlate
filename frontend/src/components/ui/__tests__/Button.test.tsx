@@ -54,6 +54,12 @@ describe('Button', () => {
     expect(button).not.toHaveTextContent('Submit');
   });
 
+  it('does not set aria-busy when not loading', () => {
+    render(<Button>Submit</Button>);
+    const button = screen.getByRole('button', { name: 'Submit' });
+    expect(button).not.toHaveAttribute('aria-busy');
+  });
+
   it('uses custom loadingLabel', () => {
     render(
       <Button loading loadingLabel="Syncing…">

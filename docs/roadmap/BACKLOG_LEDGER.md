@@ -1380,6 +1380,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
     - `frontend/src/components/ui/Button.tsx`
+    - `frontend/src/components/ui/__tests__/Button.test.tsx`
+    - `frontend/src/components/ui/Button.stories.tsx`
+    - `docs/review/PR_1552_FIXED_MAPPING.md`
   - DoD:
     - `success` and `warning` are first-class `ButtonVariant` values backed by existing `--color-success` / `--color-warning` tokens (no `tokens.css` edits in PR #1552).
     - Figma `tone=danger` maps only to `variant="destructive"` (documented in audit; no `danger` alias).

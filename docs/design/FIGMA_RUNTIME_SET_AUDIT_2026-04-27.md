@@ -19,7 +19,7 @@ For traceability without blocking on node-id capture in this governance PR:
 
 ## Evidence anchors (repo contracts)
 
-- Web `Button` API: `frontend/src/components/ui/Button.tsx:3-4` (`ButtonVariant` including success/warning, `ButtonSize`); loading props `frontend/src/components/ui/Button.tsx:10-11`.
+- Web `Button` API: `frontend/src/components/ui/Button.tsx:3-4` (`ButtonVariant` including success/warning, `ButtonSize`); loading props in `frontend/src/components/ui/Button.tsx:10-11`.
 - Web `Input`: `frontend/src/components/ui/Input.tsx:4-24` (generic `HTMLInputElement` wrapper; no dedicated size/accessory/loading API).
 
 ## Visual PASS
@@ -141,5 +141,5 @@ Related backlog:
 
 ## Follow-ups
 
-- Button code parity PR: reconcile success/warning/danger/loading with `Button.tsx`.
+- Button RuntimeSet parity: **resolved in PR #1552** (`Button.tsx`, Vitest, Storybook, audit anchors above).
 - Input code parity PR: decide size/unit/loading/prefix/suffix/clear-action API.
