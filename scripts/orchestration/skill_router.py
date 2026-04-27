@@ -1380,7 +1380,12 @@ def _match_path_prefixes(
     # only matches directory continuation (`prefix/...`).
     if TIER4_DOC_PREFIX in prefixes:
         for path in normalized_paths:
-            if path.startswith(TIER4_DOC_PREFIX):
+            base = os.path.basename(path)
+            if (
+                path.startswith(TIER4_DOC_PREFIX)
+                and base.startswith("TIER4_")
+                and base.endswith(".md")
+            ):
                 if TIER4_DOC_PREFIX not in matched:
                     matched.append(TIER4_DOC_PREFIX)
                 break

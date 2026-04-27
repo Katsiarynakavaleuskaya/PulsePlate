@@ -17,6 +17,8 @@ from scripts.orchestration.skill_router import (
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
     TASK_CLASSIFICATION_RULES,
+    TIER4_DOC_PREFIX,
+    _match_path_prefixes,
     flatten_recommended_skills,
     route_skills,
     select_recommended_skills,
@@ -850,6 +852,19 @@ def test_task_classifier_keeps_generic_market_wellness_language_out_of_creative_
     )
 
     assert decision["task_classification"]["label"] != "creative_research"
+
+
+def test_match_path_prefixes_tier4_requires_tier4_md_basename() -> None:
+    """Tier 4 packet contract is `docs/orchestration/TIER4_*.md`; other prefixes must not match."""
+
+    prefixes = (TIER4_DOC_PREFIX,)
+    assert TIER4_DOC_PREFIX in _match_path_prefixes(
+        prefixes, ["docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md"]
+    )
+    assert TIER4_DOC_PREFIX not in _match_path_prefixes(
+        prefixes, ["docs/orchestration/TIER4_BACKUP.txt"]
+    )
+    assert TIER4_DOC_PREFIX not in _match_path_prefixes(prefixes, ["docs/orchestration/OTHER.md"])
 
 
 def test_skill_router_tier4_packet_path_classifies_creative_research() -> None:

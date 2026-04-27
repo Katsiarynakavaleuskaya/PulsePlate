@@ -28,7 +28,7 @@ How should PulsePlate route Tier 4 coordinator tasks deterministically so that `
 
 ## Success criteria
 
-1. Scoped [`docs/orchestration/AGENTS.md`](./AGENTS.md) lists primary agent, phased execution order, mandatory post-open `qa-engineer-agent -> bug-hunter`, and links to this packet.
+1. Scoped [`docs/orchestration/AGENTS.md`](./AGENTS.md) lists primary agent, mandatory post-open `qa-engineer-agent -> bug-hunter`, lane invariants, and a canonical link to this packet (field-level phased order stays in this packet, not duplicated in the chain doc).
 2. [`skill_router.py`](../../scripts/orchestration/skill_router.py) scores Tier 4 wording and `docs/orchestration/TIER4_*` paths toward `creative_research` (or `experiment` when eval semantics dominate) with deterministic tests.
 3. [`BACKLOG_LEDGER.md`](../roadmap/BACKLOG_LEDGER.md) records the epic slice with Owner, Priority, Target PR, Reason, Links, DoD.
 4. No OpenAPI, no app runtime behavior changes, no autonomous merge or thread-resolution claims.
