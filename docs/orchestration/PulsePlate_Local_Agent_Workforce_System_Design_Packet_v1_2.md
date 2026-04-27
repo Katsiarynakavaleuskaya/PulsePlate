@@ -248,6 +248,8 @@ These roles may execute bounded implementation work in isolated worktrees.
 
 Introduce Tier 4 only after the reliability cell is stable.
 
+**Canonical PR0 packet (repo execution contract):** [`TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md`](./TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md) — maps Tier 4 work to existing `creative_research` / `experiment` task classes, phased role order, and mandatory `qa-engineer-agent -> bug-hunter` post-open review.
+
 ---
 
 ## 9. Human-in-the-loop rules

@@ -852,6 +852,36 @@ def test_task_classifier_keeps_generic_market_wellness_language_out_of_creative_
     assert decision["task_classification"]["label"] != "creative_research"
 
 
+def test_skill_router_tier4_packet_path_classifies_creative_research() -> None:
+    """Tier 4 PR0 orchestration docs must score `creative_research` (org lane, not a new label)."""
+
+    decision = route_skills(
+        goal="Land Tier 4 scientific creative cell governance packet and AGENTS lane",
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+        ],
+        domain="orchestration",
+    )
+
+    assert decision["task_classification"]["label"] == "creative_research"
+    joined = " ".join(decision["task_classification"]["reasons"])
+    assert "path:" in joined and "TIER4_" in joined
+
+
+def test_skill_router_tier4_goal_lexemes_classify_creative_research() -> None:
+    """Lexical Tier 4 / hypothesis cues without TIER4_* paths must still reach `creative_research` minimum."""
+
+    decision = route_skills(
+        goal="Coordinator: Tier 4 scientific cell — draft falsifiable hypothesis for wellness GTM brief",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+        domain="orchestration",
+    )
+
+    assert decision["task_classification"]["label"] == "creative_research"
+
+
 def test_skill_router_selects_create_pr_for_explicit_pr_intent() -> None:
     """Explicit PR-prep tasks should cross the dedicated create-pr threshold."""
 

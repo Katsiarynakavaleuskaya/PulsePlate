@@ -52,6 +52,26 @@ Scope: `docs/orchestration/**`
   - canonical packet/runbook:
     - [`docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md`](./TIER1_CI_CD_TASK_PACKET_2026-03-26.md)
     - [`docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md`](./TIER1_CI_CD_PR_SERIES_RUNBOOK.md)
+- For the Tier 4 scientific / creative cell lane (org tier; maps to `creative_research` / `experiment` classifiers only):
+  - primary: `agent-coordinator`
+  - execution order (phased — declare explicit phases in the task packet; do not flatten into one parallel stack):
+    - phase A — scope: `agent-coordinator`
+    - phase B — when `scripts/orchestration/**` or CI governance paths change: `security-auditor`
+    - phase C — scientific framing: `epistemology-discovery-agent`, `data-scientist-agent`, `rag-systems-agent`, `logic-agent`, `philosophy-agent`
+    - phase D — wellness-safe copy: `nutritionist-agent`, `cbt-psychologist-agent`, `bayesian-uq-agent`
+    - phase E — AI product / architecture: `ai-app-architect`, `ai-innovation-specialist`
+    - phase F — optional advisory trends: `ai-trend-reporter`
+    - phase G — code when in scope: `backend-engineer`, `ml-engineer-agent`
+    - optional: `cursor-specialist-agent` (`.cursor/**` / skills), `designer-artist-agent` (visual runbook artifacts)
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter`
+  - invariants:
+    - no new `task_classification` label; Tier 4 is an organizational name over existing `creative_research` / `experiment` labels per `AGENT_SKILL_ROUTING_POLICY.md` §2a
+    - no runtime autonomy, no autonomous merge, no merge-readiness claims from skills alone
+    - brainstorm and web intake follow `RESEARCH_BRAINSTORMING_PROTOCOL.md` / `RESEARCH_TRACK_PROTOCOL.md`; eval work follows `AGENT_EXPERIMENTATION_PROTOCOL.md`
+  - canonical packet:
+    - [`docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md`](./TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md)
+  - workforce design reference:
+    - [`docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md`](./PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md) §8 Tier 4
 - For the Docker / CI discipline PR series:
   - primary: `agent-coordinator`
   - execution order:

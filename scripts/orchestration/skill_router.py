@@ -401,8 +401,20 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
     ),
     TaskClassificationRule(
         label="creative_research",
-        domain_weights={"research": 3, "business": 2, "wellness": 2},
-        path_prefixes=("docs/reports/", "docs/insights/", "docs/audience_pack/"),
+        domain_weights={
+            "research": 3,
+            "business": 2,
+            "wellness": 2,
+            # Tier 4 org cell docs live under orchestration; path_prefix `docs/orchestration/TIER4_`
+            # plus domain orchestration must reach creative_research minimum score (4).
+            "orchestration": 1,
+        },
+        path_prefixes=(
+            "docs/reports/",
+            "docs/insights/",
+            "docs/audience_pack/",
+            "docs/orchestration/TIER4_",
+        ),
         keywords=(
             "weekly",
             "monthly",
@@ -413,6 +425,16 @@ TASK_CLASSIFICATION_RULES: tuple[TaskClassificationRule, ...] = (
             "gtm",
             "aso",
             "seo",
+            # Tier 4 (scientific / creative cell) — org naming only; classifier stays `creative_research`.
+            "tier 4",
+            "tier4",
+            "scientific cell",
+            "creative cell",
+            "scientific creative cell",
+            "hypothesis",
+            "falsifiable",
+            "falsifiability",
+            "knowledge promotion",
         ),
     ),
     TaskClassificationRule(
@@ -1349,9 +1371,19 @@ def _match_path_prefixes(
 ) -> list[str]:
     """Return matched normalized prefixes for the provided repo-relative paths."""
 
-    return [
+    matched = [
         prefix for prefix in prefixes if any(_has_prefix(path, prefix) for path in normalized_paths)
     ]
+    # Tier 4 PR0 packets are files `docs/orchestration/TIER4_*.md`, not directories; `_has_prefix`
+    # only matches directory continuation (`prefix/...`).
+    tier4_doc_prefix = "docs/orchestration/TIER4_"
+    if tier4_doc_prefix in prefixes:
+        for path in normalized_paths:
+            if path.startswith(tier4_doc_prefix):
+                if tier4_doc_prefix not in matched:
+                    matched.append(tier4_doc_prefix)
+                break
+    return matched
 
 
 def _score_rule(
