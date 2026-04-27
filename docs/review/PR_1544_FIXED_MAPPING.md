@@ -23,17 +23,17 @@ Reason: `unlink_skills` now guards canonical path resolution failures before com
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#discussion_r3146875221 -> bb8c9d3af
 
 Disposition: FIXED
-Commit: bb8c9d3af
-Evidence: core/food_sources/source_preflight.py:235-239.
-Reason: Removed a redundant cast warning path by returning `collision_resolution` directly from the validated Literal, restoring `make typecheck` pass under this PR.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#discussion_r3146869212 -> bb8c9d3af
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#pullrequestreview-4180427280 -> bb8c9d3af
+Commit: 6a4dfd325
+Evidence: core/food_sources/source_preflight.py:235-249.
+Reason: `collision_resolution` is normalized through explicit `Literal`-safe branching after validation, and no longer passes a raw `str` into the typed policy constructor.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#discussion_r3146869212 -> 6a4dfd325
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#pullrequestreview-4180427280 -> 6a4dfd325
 
 Disposition: FIXED
-Commit: bb8c9d3af
-Evidence: `make typecheck` passes locally after `bb8c9d3af`; `tests/test_install_codex_skills.py` remains aligned.
-Reason: The earlier CodeRabbit process gate issue was resolved by the above code-level fixes that remove pre-existing blockages.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#pullrequestreview-4180433907 -> bb8c9d3af
+Commit: 6a4dfd325
+Evidence: `make typecheck` passes locally after `6a4dfd325`; `tests/test_install_codex_skills.py` remains aligned.
+Reason: The earlier CodeRabbit process-gate issue was resolved by the code-level fixes in `scripts/install_codex_skills.sh` and `core/food_sources/source_preflight.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1544#pullrequestreview-4180433907 -> 6a4dfd325
 
 ## Initial Evidence
 
@@ -49,3 +49,5 @@ Reason: The earlier CodeRabbit process gate issue was resolved by the above code
 ## Initial Implementation Commits
 
 - `bb8c9d3af` - `fix: harden skill unlink and collision resolution typing`
+- `c8cbb2615` - `docs(review): map actionable bot findings for PR 1544`
+- `6a4dfd325` - `fix: tighten collision resolution typing`
