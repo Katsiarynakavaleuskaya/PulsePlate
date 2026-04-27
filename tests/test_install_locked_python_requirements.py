@@ -110,6 +110,17 @@ def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None
     assert ("ruff", expected_version) in _exact_requirement_pairs(requirements_lock_txt)
 
 
+def test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces() -> None:
+    manifest = _repo_emergency_manifest()
+    expected_version = _manifest_artifact_version(manifest, "mypy")
+
+    requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
+    requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+
+    assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_in)
+    assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
+
+
 def test_compatible_release_version_accepts_environment_markers() -> None:
     contents = 'ruff~=0.15.11 ; python_version >= "3.13"\n'
 

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-04-19",
-  "expires_at": "2026-05-17",
-  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "generated_at": "2026-04-27",
+  "expires_at": "2026-05-27",
+  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, mypy (cp313 manylinux), sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -80,6 +80,13 @@
       "filename": "hypothesis-6.152.1-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/5d/83/860fb3075e00b0fc19a22a2301bc3c96f00437558c3911bdd0a3573a4a53/hypothesis-6.152.1-py3-none-any.whl",
       "sha256": "40a3619d9e0cb97b018857c7986f75cf5de2e5ec0fa8a0b172d00747758f749e"
+    },
+    {
+      "package": "mypy",
+      "version": "1.20.2",
+      "filename": "mypy-1.20.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "url": "https://files.pythonhosted.org/packages/a1/32/4c49da27a606167391ff0c39aa955707a00edc500572e562f7c36c08a71f/mypy-1.20.2-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+      "sha256": "bb9c2fa06887e21d6a3a868762acb82aec34e2c6fd0174064f27c93ede68ad15"
     },
     {
       "package": "mako",
