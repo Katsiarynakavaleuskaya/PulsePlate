@@ -3946,6 +3946,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - tests cover branch diff, scoped `AGENTS.md` discovery, missing PR metadata, and fixed-mapping absence
     - the collector remains advisory and does not post GitHub comments, resolve threads, or claim merge readiness
 
+<a id="ledger-p2-rag-release-gates-runtime-warnings-dedup"></a>
+- [ ] P2: Deduplicate `EvalRuntimeState.warnings` in RAG release-gates runner
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (eval observability / operator noise)
+  - Target PR: `PR-TBD-RAG-RELEASE-GATES-WARNINGS-DEDUP`
+  - Status: Open (deferred from RAG weekly small-fixture advisory lane)
+  - Area: evals / RAG release gates / observability
+  - Reason (EN): `_record_strict_violation` appends every message to `state.warnings` without dedupe while `strict_violations` dedupes when fallbacks are disallowed; multi-row evals and repeated `build_metrics_summary` calls can duplicate identical warning lines. Operators and tooling should see one row per unique finding. (RU: повторяющиеся строки в `runtime_warnings` при многократных событиях — шум; нужен дедуп как у `strict_violations` или append-if-not-seen.)
+  - Links:
+    - `scripts/evals/run_rag_release_gates.py` (`_record_strict_violation`, `build_metrics_summary` advisory warning)
+  - DoD:
+    - Duplicate identical warning strings are not appended N times for the same eval run
+    - Deterministic test proves dedupe behavior for repeated `_record_strict_violation` with the same message
+    - `metrics_summary["runtime_warnings"]` contract documented if consumers rely on uniqueness
+
 <a id="ledger-p2-dependency-fallback-artifact-dedup"></a>
 - [ ] P2: Deduplicate dependency fallback version references across packet / ledger / tests
   - Owner: @katsiaryna_kavaleuskaya
