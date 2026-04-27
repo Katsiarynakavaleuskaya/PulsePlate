@@ -33,7 +33,7 @@ Reason: Matches operator session calendar; no evidence the suggested 2026-04-27 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150659918
 Disposition: NOT-A-BUG
-Evidence: `scripts/orchestration/review_mapping_artifact.py` Phase2 checkbox contract (`## Discussion Thread Pass`, `## Fixed in Commit Mapping`).
+Evidence: `scripts/orchestration/review_mapping_artifact.py` Phase 2 checkbox contract (`## Discussion Thread Pass`, `## Fixed in Commit Mapping`).
 Reason: Artifact layout brought in line with canonical validator; no product runtime change.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150659926
