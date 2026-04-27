@@ -46,6 +46,26 @@ Disposition: FIXED
 Commit: 5dbd4057c
 Evidence: docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:98, docs/roadmap/BACKLOG_LEDGER.md:3318 (CodeRabbit summary: Tier 4 routing policy text + ledger link)
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150288046
+Disposition: FIXED
+Commit: c2681edee
+Evidence: scripts/orchestration/skill_router.py:1381 (Tier4 fallback: basename `TIER4_*.md` only)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150312534
+Disposition: FIXED
+Commit: c2681edee
+Evidence: docs/orchestration/AGENTS.md:55, docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:31 (trim chain-doc duplication; phased contract in packet)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#pullrequestreview-4184306977
+Disposition: FIXED
+Commit: c2681edee
+Evidence: scripts/orchestration/skill_router.py:1381
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#pullrequestreview-4184334407
+Disposition: FIXED
+Commit: c2681edee
+Evidence: docs/orchestration/AGENTS.md:55
+
 ## Initial Evidence
 
 - Canonical Tier 4 phased pass / commands: [`docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md`](../orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md)
