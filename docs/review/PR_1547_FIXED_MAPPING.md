@@ -9,7 +9,11 @@ Date: 2026-04-27
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1547#pullrequestreview-4183550480
+
+Disposition: NOT-A-BUG
+Evidence: scripts/evals/run_rag_release_gates.py:1731
+Reason: Sourcery review is an auto-generated summary of the already-landed implementation (calibration threshold fix, small-fixture advisory, docs, tests); no additional code change required beyond the PR commits.
 
 ## Initial Evidence
 - `pre-commit run --all-files` (PASS)
