@@ -6,12 +6,12 @@ Date: 2026-04-27
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed (pending bot/human review)
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-_(No dispositioned review threads yet. Append rows as threads resolve per `AGENTS.md` merge governance.)_
+- No actionable review comments
 
 ## Initial Evidence
 
