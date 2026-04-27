@@ -3298,6 +3298,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No parallel reflection contract is introduced beside `AGENT_REFLECTION_PROTOCOL.md`
     - Protocol wording remains explicit about canonical repo truth versus advisory/support surfaces
 
+<a id="ledger-p1-tier4-scientific-creative-cell-pr0"></a>
+- [ ] P1: Tier 4 scientific / creative cell — PR0 governance packet + skill_router hooks (org tier only)
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1548
+  - Area: orchestration / local workforce / research lane semantics
+  - Finding Type: governance + deterministic routing (no new `task_classification` label; Tier 4 maps to `creative_research` / `experiment` per `AGENT_SKILL_ROUTING_POLICY.md` §2a)
+  - Status: 🟡 In progress — draft PR #1548; canonical PR0 packet, `docs/orchestration/AGENTS.md` Tier 4 lane, `skill_router` cues + tests; no runtime or API contract changes.
+  - Reason (EN): Local workforce design packet §8 defers Tier 4 until the reliability cell is stable; this slice records the execution contract (phased roles, mandatory `qa-engineer-agent -> bug-hunter`) and tightens bootstrap-adjacent routing for Tier 4 wording and `TIER4_*` orchestration docs without inventing an eighth classifier label.
+  - Dependencies:
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-local-workforce-pr-a-bootstrap-seam` (closed)
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-tier1-ci-cd-pr4-metrics` (reliability lane baseline; cite in PR body per packet precondition)
+  - Lifecycle: Start → Open (draft) → Push → Review → Merge
+  - Links:
+    - `docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md`
+    - `docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md` §8 Tier 4
+    - `docs/orchestration/AGENTS.md` (Tier 4 lane)
+    - `docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md` (PR #1548 execution / phased verification)
+    - `scripts/orchestration/skill_router.py`
+    - `tests/test_skill_router.py`
+    - `docs/review/PR_1548_FIXED_MAPPING.md`
+  - DoD:
+    - PR0 packet + workforce packet cross-link + orchestration `AGENTS.md` lane are merged
+    - `skill_router` scores `creative_research` for Tier 4 packet paths / stated goals without a new label; deterministic tests cover the cues
+    - No OpenAPI / runtime / autonomous-merge behavior changes
+    - Post-open `qa-engineer-agent -> bug-hunter` executed for the PR; evidence: `docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md`; `docs/review/PR_1548_FIXED_MAPPING.md` maintained per merge governance
+
 <a id="ledger-p2-local-workforce-pr-c-support-plane"></a>
 - [x] P2: Local workforce PR-C — add experimental local support-plane storage
   - Owner: @katsiaryna_kavaleuskaya

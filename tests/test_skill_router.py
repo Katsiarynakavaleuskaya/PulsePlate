@@ -17,6 +17,8 @@ from scripts.orchestration.skill_router import (
     REQUESTED_AGENT_SKILL_BUNDLES,
     ROUTING_POLICY_VERSION,
     TASK_CLASSIFICATION_RULES,
+    TIER4_DOC_PREFIX,
+    _match_path_prefixes,
     flatten_recommended_skills,
     route_skills,
     select_recommended_skills,
@@ -850,6 +852,49 @@ def test_task_classifier_keeps_generic_market_wellness_language_out_of_creative_
     )
 
     assert decision["task_classification"]["label"] != "creative_research"
+
+
+def test_match_path_prefixes_tier4_requires_tier4_md_basename() -> None:
+    """Tier 4 packet contract is `docs/orchestration/TIER4_*.md`; other prefixes must not match."""
+
+    prefixes = (TIER4_DOC_PREFIX,)
+    assert TIER4_DOC_PREFIX in _match_path_prefixes(
+        prefixes, ["docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md"]
+    )
+    assert TIER4_DOC_PREFIX not in _match_path_prefixes(
+        prefixes, ["docs/orchestration/TIER4_BACKUP.txt"]
+    )
+    assert TIER4_DOC_PREFIX not in _match_path_prefixes(prefixes, ["docs/orchestration/OTHER.md"])
+
+
+def test_skill_router_tier4_packet_path_classifies_creative_research() -> None:
+    """Tier 4 PR0 orchestration docs must score `creative_research` (org lane, not a new label)."""
+
+    decision = route_skills(
+        goal="Land Tier 4 scientific creative cell governance packet and AGENTS lane",
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+        ],
+        domain="orchestration",
+    )
+
+    assert decision["task_classification"]["label"] == "creative_research"
+    joined = " ".join(decision["task_classification"]["reasons"])
+    assert "TIER4_" in joined
+
+
+def test_skill_router_tier4_goal_lexemes_classify_creative_research() -> None:
+    """Lexical Tier 4 / hypothesis cues without TIER4_* paths must still reach `creative_research` minimum."""
+
+    decision = route_skills(
+        goal="Coordinator: Tier 4 scientific cell — draft falsifiable hypothesis for wellness GTM brief",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/AGENT_MESSAGE_PROTOCOL.md"],
+        domain="orchestration",
+    )
+
+    assert decision["task_classification"]["label"] == "creative_research"
 
 
 def test_skill_router_selects_create_pr_for_explicit_pr_intent() -> None:
