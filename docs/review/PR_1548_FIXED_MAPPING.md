@@ -11,7 +11,25 @@ Date: 2026-04-27
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150232475
+Disposition: FIXED
+Commit: bb7419bab
+Evidence: scripts/orchestration/skill_router.py:30
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150232483
+Disposition: FIXED
+Commit: bb7419bab
+Evidence: tests/test_skill_router.py:869
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#discussion_r3150232494
+Disposition: FIXED
+Commit: bb7419bab
+Evidence: docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:27
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1548#pullrequestreview-4184248689
+Disposition: FIXED
+Commit: bb7419bab
+Evidence: scripts/orchestration/skill_router.py:30
 
 ## Initial Evidence
 
