@@ -32,7 +32,7 @@ Sequential synthesis (roles **1 → 8**). Role **1** executed in parent chat (`a
 | 1 | agent-coordinator | GO — scope lock IN/OUT; forbidden surfaces respected; handoff to architecture. |
 | 2 | architecture-specialist | GO — `Button` stays thin presentation primitive; repo SoT; `destructive` only for Figma danger; `loading`/`loadingLabel`/`disabled`/`aria-busy` semantics aligned; audit anchors corrected vs `Button.tsx` line count (see FIGMA_RUNTIME_SET_AUDIT edit). |
 | 3 | frontend-engineer | GO — Tailwind `[var(--token)]` pattern matches existing UI; `buttonClasses` export unchanged signature extension via exhaustive `variantClasses`; Storybook `HPP/Button` matches sibling stories (`satisfies Meta`). |
-| 4 | creative-designer | GO — read-only: `--color-success` / `--color-warning` align audit narrative vs RuntimeSet PASS (design-system-specialist lane); no Figma writes; no `tokens.css` edits. |
+| 4 | designer-artist-agent | GO — read-only: `--color-success` / `--color-warning` align audit narrative vs RuntimeSet PASS; no Figma writes; no `tokens.css` edits. |
 | 5 | qa-engineer-agent | GO — Vitest covers destructive regression, variants/sizes, loading/`aria-busy`, `disabled={false}` under loading; optional props preserve backward compat. |
 | 6 | security-auditor | GO — `isDisabled = disabled \|\| loading`; `{...props}` before explicit `disabled`/`aria-busy`/`className`/`type` prevents overriding locked semantics from rest spread for duplicate-submit posture (note: `disabled`/`loading` stripped from rest via destructure). |
 | 7 | bug-hunter | GO — no regression signal on primary/md defaults or destructive token classes; `buttonClasses` matrix exhaustive for `ButtonVariant`. |
