@@ -310,6 +310,177 @@ def test_apply_calibration_keeps_guard_blocks_intact() -> None:
     assert traces[1]["post_hoc_calibrated_confidence"] is not None
 
 
+def test_apply_calibration_ships_moderate_per_trace_support_above_claim_threshold() -> None:
+    """Per-trace support_precision must use SUPPORT_ENTAILMENT (0.5), not gate_b3 aggregate (0.8)."""
+
+    traces = [
+        {
+            "routing_decision": "pending_calibration",
+            "confidence": 0.95,
+            "faithfulness_metrics": {
+                "evidence_exact_match": True,
+                "support_precision": 0.55,
+                "mean_nli_entailment": 0.9,
+            },
+            "philosophy_output_validation": {"ok": True},
+            "human_label_if_any": 1,
+        },
+        {
+            "routing_decision": "pending_calibration",
+            "confidence": 0.95,
+            "faithfulness_metrics": {
+                "evidence_exact_match": True,
+                "support_precision": 0.55,
+                "mean_nli_entailment": 0.9,
+            },
+            "philosophy_output_validation": {"ok": True},
+            "human_label_if_any": 1,
+        },
+    ]
+
+    apply_calibration(traces)
+
+    assert traces[0]["routing_decision"] == "ship_candidate"
+    assert traces[1]["routing_decision"] == "ship_candidate"
+
+
+def test_canonical_small_fixture_advisory_preserves_raw_gate_checks_on_weekly_shape(
+    tmp_path: Path,
+) -> None:
+    """Weekly uses n=5 on pulseplate_rag_eval_sample.jsonl; raw A/B/C2 may fail but release PASS."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="weekly_n5_advisory")
+    traces = [
+        _make_trace(
+            f"q{i}",
+            routing_decision="escalate",
+            recall_at_effective_k=0.0,
+            evidence_exact_match=False,
+            mean_nli_entailment=0.0,
+            support_precision=0.0,
+        )
+        for i in range(5)
+    ]
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["small_fixture_metric_gates_advisory"] is True
+    raw = metrics_summary["small_fixture_raw_gate_checks"]
+    assert raw["gate_a_recall_at_effective_k"] is False
+    assert raw["gate_c2_escalation_corridor"] is False
+    for key in (
+        "gate_a_recall_at_effective_k",
+        "gate_b1_evidence_exact_match",
+        "gate_b2_mean_nli_entailment",
+        "gate_b3_support_precision",
+        "gate_c2_escalation_corridor",
+    ):
+        assert gate_checks[key] is True
+    assert gate_checks["gate_c1_ece"] is True
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is True
+    assert release_decision == "PASS"
+    assert "small_fixture_metric_gates_advisory" in "\n".join(state.warnings)
+
+
+def test_small_fixture_advisory_gate_d1_stays_strict_with_strict_violations(
+    tmp_path: Path,
+) -> None:
+    """Advisory must not mask runtime strict violations when runtime fallbacks are disallowed."""
+
+    state = _make_release_gate_state(
+        tmp_path,
+        experiment_id="advisory_d1_strict",
+        allow_runtime_fallbacks=False,
+    )
+    state.strict_violations.append("test_strict_violation")
+    traces = [_make_trace("q1", routing_decision="ship_candidate")]
+    _, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert gate_checks["gate_d1_no_runtime_mode_fallbacks"] is False
+    assert release_decision == "NO-GO"
+
+
+def test_small_fixture_advisory_gate_c1_stays_strict_on_high_ece(tmp_path: Path) -> None:
+    """Advisory must not override calibration gate_c1."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="advisory_c1_strict")
+    traces = [_make_trace("q1")]
+    metrics_summary, gate_checks, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.99},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["small_fixture_metric_gates_advisory"] is True
+    assert gate_checks["gate_c1_ece"] is False
+    assert release_decision == "NO-GO"
+
+
+def test_small_fixture_advisory_not_triggered_when_trace_count_exceeds_cap(
+    tmp_path: Path,
+) -> None:
+    """Above SMALL_FIXTURE_NUMERIC_GATES_ADVISORY_MAX_N, canonical filename must not enable advisory."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="n17_no_advisory")
+    traces = []
+    for i in range(17):
+        routing = "escalate" if i < 3 else "ship_candidate"
+        traces.append(_make_trace(f"q{i}", routing_decision=routing))
+    metrics_summary, _, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["small_fixture_metric_gates_advisory"] is False
+    assert release_decision == "PASS"
+
+
+def test_small_fixture_advisory_not_applied_for_non_canonical_dataset_name(
+    tmp_path: Path,
+) -> None:
+    """Advisory lane must apply only to the canonical sample filename."""
+
+    state = _make_release_gate_state(tmp_path, experiment_id="non_canonical_dataset")
+    traces = [
+        _make_trace(
+            f"q{i}",
+            routing_decision="escalate",
+            recall_at_effective_k=0.0,
+            evidence_exact_match=False,
+            mean_nli_entailment=0.0,
+            support_precision=0.0,
+        )
+        for i in range(5)
+    ]
+    metrics_summary, _, release_decision = runner.build_metrics_summary(
+        state,
+        traces,
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/custom_eval_sample.jsonl",
+    )
+
+    assert metrics_summary["small_fixture_metric_gates_advisory"] is False
+    assert "small_fixture_raw_gate_checks" not in metrics_summary
+    assert release_decision == "NO-GO"
+
+
 def test_expected_calibration_error_keeps_last_bin_bounded() -> None:
     """The terminal ECE bin must not double-count probabilities from lower bins."""
 

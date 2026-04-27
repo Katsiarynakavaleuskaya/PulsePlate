@@ -80,6 +80,17 @@ Properties:
 - can fall back to the cheap deterministic path for exploratory local runs
 - canonical weekly/manual CI should add `--disallow-dataset-fallback --disallow-runtime-fallbacks --require-pass`
 
+### Canonical small-fixture advisory (weekly default input)
+
+When the dataset basename is `pulseplate_rag_eval_sample.jsonl` and the evaluated trace count is at most 16 (constant `SMALL_FIXTURE_NUMERIC_GATES_ADVISORY_MAX_N` in `scripts/evals/run_rag_release_gates.py`):
+
+- Gates `gate_a_recall_at_effective_k`, `gate_b1_evidence_exact_match`, `gate_b2_mean_nli_entailment`, `gate_b3_support_precision`, and `gate_c2_escalation_corridor` are **advisory-only** (reported as PASS in `gate_checks` so `--require-pass` can succeed on the committed tiny fixture).
+- Raw pass/fail for those gates before the override is stored in `metrics_summary.json` under `small_fixture_raw_gate_checks`.
+- `gate_c1_ece` and `gate_d1_no_runtime_mode_fallbacks` stay **strict** (calibration and runtime-fallback hygiene).
+- In `metrics_summary.json`, `threshold_results[].passed` reflects **post-advisory** `gate_checks` (so A/B/C2 rows may show `passed: true` while `small_fixture_raw_gate_checks` records the raw outcome). Automated consumers should use `small_fixture_metric_gates_advisory` plus `small_fixture_raw_gate_checks` when present.
+
+Rationale: aggregate retrieval and faithfulness thresholds, and the escalation-rate corridor, are not statistically meaningful on a handful of rows; the weekly lane still exercises real `pulseplate` / `pulseplate_runtime` imports and fail-closed strict flags.
+
 ## Dataset Contract
 
 Environment variable:
