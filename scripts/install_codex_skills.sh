@@ -42,6 +42,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 COPY_MARKER_FILE=".pulseplate_codex_skill_source"
 
+canonical_path() {
+  local path=$1
+
+  if [[ -d "${path}" ]]; then
+    (cd "${path}" && pwd -P)
+  else
+    return 1
+  fi
+}
+
 AGENTS_HOME_DEFAULT="${AGENTS_HOME:-${HOME}/.agents}"
 CODEX_HOME_DEFAULT="${CODEX_HOME:-${HOME}/.codex}"
 DEFAULT_DEST_ROOT="${AGENTS_HOME_DEFAULT}/skills"
@@ -247,8 +257,10 @@ install_skills() {
     fi
 
     if [[ "${install_mode}" == "copy" ]]; then
+      local canonical_src_dir
       cp -R "${src_dir}" "${dest_dir}"
-      printf '%s\n' "${src_dir}" > "${dest_dir}/${COPY_MARKER_FILE}"
+      canonical_src_dir="$(canonical_path "${src_dir}")"
+      printf '%s\n' "${canonical_src_dir}" > "${dest_dir}/${COPY_MARKER_FILE}"
       echo "Copied: ${skill_name}"
     else
       ln -s "${src_dir}" "${dest_dir}"
@@ -279,8 +291,18 @@ unlink_skills() {
     if [[ -d "${dest_dir}" && -f "${dest_dir}/SKILL.md" ]]; then
       if [[ -f "${dest_dir}/${COPY_MARKER_FILE}" ]]; then
         local marker_source
+        local marker_canon
+        local src_canon
         marker_source="$(cat "${dest_dir}/${COPY_MARKER_FILE}")"
-        if [[ "${marker_source}" == "${src_dir}" ]]; then
+        if ! marker_canon="$(canonical_path "${marker_source}")"; then
+          echo "Skip copied skill for ${skill_name}: stale marker path missing ${marker_source}" >&2
+          continue
+        fi
+        if ! src_canon="$(canonical_path "${src_dir}")"; then
+          echo "Skip copied skill for ${skill_name}: source path missing ${src_dir}" >&2
+          continue
+        fi
+        if [[ "${marker_canon}" == "${src_canon}" ]]; then
           rm -rf "${dest_dir}"
           echo "Removed copied skill: ${skill_name}"
         else

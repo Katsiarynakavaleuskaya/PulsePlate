@@ -49,8 +49,10 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
-        run: |
-          python scripts/ci/install_locked_python_requirements.py --python-executable python --constraints-file constraints.txt --install-dev
+        uses: ./.github/actions/python-setup
+        with:
+          python-version: '3.13.6'
+          requirements-profile: 'ci-test'
 
       - name: Install root Node dependencies
         uses: ./.github/actions/npm-ci-with-retry
