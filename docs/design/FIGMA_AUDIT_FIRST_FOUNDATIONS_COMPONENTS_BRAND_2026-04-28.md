@@ -11,7 +11,8 @@ Scope: `00_Foundation_Tokens` (`6:2`), `01_Components` (`6:3`), `02_Brand_Assets
 - `target_surface`: `design_system_readiness`
 - `task_mode`: `verify`
 - `figma_lane_tool`: `figma_native`
-- Role order requested: `agent-coordinator`, `creative-designer`, `frontend-engineer`, `qa-engineer-agent`
+- Role order requested: `agent-coordinator`, `creative-designer`, `frontend-engineer`, `qa-engineer-agent -> bug-hunter`
+- Mandatory post-open lane: `qa-engineer-agent -> bug-hunter` is required for this design runtime system web+iOS series to prevent orchestration drift.
 
 ## Repo source of truth
 
