@@ -51,14 +51,15 @@ Figma source: `2JDwOByQIbcPgp93FDzHii` node `1473:2`
 | fitchef-candidate-024 | CANDIDATE | portrait | partial | none | low | low | blocked_gtm | blocked_runtime | needs-rework | Maps to `FITCHEF_PORTRAIT_LAUGHING_V1`; over-playful tone for storefront. |
 | fitchef-candidate-025 | CANDIDATE | portrait | pass | none | low | low | aso_supporting_hold | no_runtime_promotion | keep candidate | Maps to `FITCHEF_PORTRAIT_NEUTRAL_V1`; hold in candidate lane for this intake pass. |
 | fitchef-candidate-026 | CANDIDATE | portrait | partial | none | low | low | social_ready | no_runtime_promotion | keep candidate | Maps to `FITCHEF_PORTRAIT_PROUD_V1`; style consistency pass still needed. |
-| fitchef-candidate-027 | REFERENCE-ONLY | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_SLEEPY_V1`; explicitly reference-only batch slot. |
-| fitchef-candidate-028 | REFERENCE-ONLY | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_SURPRISED_V1`; archive-only lane. |
-| fitchef-candidate-029 | REFERENCE-ONLY | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_THINKING_V1`; archive-only lane. |
-| fitchef-candidate-030 | APPROVED-SEED-ALIAS | portrait | pass | none | low | low | approved_seed | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_WINK_V1`; alias of existing wink seed only, not a seventh runtime-aligned seed or new promotion. |
+| fitchef-candidate-027 | CANDIDATE | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_SLEEPY_V1`; archive posture only, but board status remains candidate. |
+| fitchef-candidate-028 | CANDIDATE | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_SURPRISED_V1`; archive posture only, but board status remains candidate. |
+| fitchef-candidate-029 | CANDIDATE | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_THINKING_V1`; archive posture only, but board status remains candidate. |
+| fitchef-candidate-030 | CANDIDATE | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_WINK_V1`; duplicate wink concept only, not a seventh approved seed or new promotion. |
 
 ## Review outcome
 
 - All 30 intake assets now have disposition coverage.
+- The status column preserves the live board distribution: `6 APPROVED-SEED`, `21 CANDIDATE`, `3 REFERENCE-ONLY`, `0 NEEDS-REWORK`.
 - Embedded-text and localization risk are explicitly captured per row.
 - Marketing-use vs runtime-use separation is explicit per row.
 - Runtime promotion remains blocked in this docs-only lane.
