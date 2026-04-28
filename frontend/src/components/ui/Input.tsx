@@ -59,13 +59,19 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
 ) {
   const isInvalid = hasInvalidState(ariaInvalid, invalid);
   const isDisabled = Boolean(disabled) || loading;
+  const ariaInvalidValue =
+    !isInvalid
+      ? undefined
+      : ariaInvalid === 'grammar' || ariaInvalid === 'spelling'
+        ? ariaInvalid
+        : true;
 
   return (
     <input
       ref={ref}
       {...props}
       aria-busy={loading ? true : undefined}
-      aria-invalid={isInvalid || undefined}
+      aria-invalid={ariaInvalidValue}
       className={inputClasses({
         size,
         invalid: isInvalid,

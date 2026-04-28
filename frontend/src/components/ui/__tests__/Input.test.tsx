@@ -55,7 +55,7 @@ describe('Input', () => {
 
     const input = screen.getByRole('textbox', { name: 'Notes' });
 
-    expect(input).toHaveAttribute('aria-invalid', 'true');
+    expect(input).toHaveAttribute('aria-invalid', 'grammar');
     expect(input).toHaveClass('border-[var(--color-error)]');
   });
 

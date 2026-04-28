@@ -1405,7 +1405,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `frontend/src/components/ui/Input.stories.tsx`
     - `docs/review/PR_1553_FIXED_MAPPING.md`
   - DoD:
-    - Core Input parity (`size`, `invalid`, `loading`, native `type`) is implemented and covered by tests/stories in PR #1553
+    - `size` supports `sm|md|lg` and maps to expected runtime classes in `frontend/src/components/ui/Input.tsx`.
+    - `invalid` enforces error styling and `aria-invalid` semantics (including explicit token preservation for `grammar|spelling`).
+    - `loading` sets `aria-busy` and deterministically enforces disabled-while-loading behavior.
+    - Native `type` passthrough remains supported for `text`, `number`, `search`, `password` (runtime "secret" maps to native `password`).
+    - Focused Vitest coverage for these behaviors exists in `frontend/src/components/ui/__tests__/Input.test.tsx` and passes in CI.
+    - Storybook coverage for these behaviors exists in `frontend/src/components/ui/Input.stories.tsx` and passes `build-storybook`.
     - Accessory shell API (`unit`, `prefix`, `suffix`, `clear-action`) stays deferred to a dedicated PR
 
 <a id="ledger-p1-design-input-accessory-shell-parity"></a>
