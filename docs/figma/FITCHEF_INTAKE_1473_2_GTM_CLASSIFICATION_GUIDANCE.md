@@ -3,9 +3,9 @@
 **Status:** `Reference only` (docs lane; no asset or runtime promotion)
 **Scope:** `FitChef Mascot Asset Inventory — Intake 2026-04-28`
 **Figma:** file `2JDwOByQIbcPgp93FDzHii`, node `1473:2`
-**Source counts (sticker QA on board):** `6` `APPROVED-SEED` · `20` `CANDIDATE` · `3` `REFERENCE-ONLY` · `1` `NEEDS-REWORK` (see `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:50`)
+**Source counts (sticker QA on board):** `6` `APPROVED-SEED` · `21` `CANDIDATE` · `3` `REFERENCE-ONLY` · `0` `NEEDS-REWORK` (see `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:50`)
 
-This document assigns **marketing_use** and **runtime_use** posture per repo key `fitchef-candidate-001`…`030`. Row order **`001–006`** map to the six **APPROVED-SEED** assets named in `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`. Rows **`007–026`** correspond to the **20** `CANDIDATE` frames in **gallery sort order left-to-right, top-to-bottom** on `1473:2` (reconcile visually in Figma before locking ASO picks). Rows **`027–029`** map to **`REFERENCE-ONLY`**. Row **`030`** maps to **`NEEDS-REWORK`**.
+This document assigns **marketing_use** and **runtime_use** posture per repo key `fitchef-candidate-001`…`030`. Row order **`001–006`** map to the six **APPROVED-SEED** assets named in `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`. The live Figma board `1473:2` is the status source for the named card layers: `FITCHEF_MARKETING_FITNESS_MOTIVATION_V1`, `FITCHEF_MARKETING_NUTRITION_EDUCATION_V1`, and `FITCHEF_ONBOARDING_PROFILE_SETUP_V1` are `REFERENCE-ONLY`; there is no current `NEEDS-REWORK` slot.
 
 ---
 
@@ -28,7 +28,7 @@ Use these enums in spreadsheets, backlog notes, or future promotion PRs. They ar
 | Value | Meaning |
 | --- | --- |
 | `canon_aligned` | Asset already has a named file in `docs/design/FITCHEF_MASCOT_ASSET_CANON.md` / `frontend/src/assets/brand/`; runtime mirror may exist in iOS catalog. No **new** promotion from this intake doc. |
-| `no_runtime_promotion` | Default for all **CANDIDATE / REFERENCE-ONLY / NEEDS-REWORK** on `1473:2` until a separate PR promotes a governed export per `AGENTS.md` / canon rules. |
+| `no_runtime_promotion` | Default for all **CANDIDATE / REFERENCE-ONLY** on `1473:2` until a separate PR promotes a governed export per `AGENTS.md` / canon rules. |
 | `blocked_runtime` | Must not ship in app UI: typically fake metrics UI, diagnostic framing, or unreleased screens presented as live. |
 
 ### Automatic flags (overlay any row)
@@ -77,7 +77,7 @@ Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRA
 | fitchef-candidate-027 | REFERENCE-ONLY #1 | reference_archive | no_runtime_promotion | Board label dictates archive use; internal/Figma-aligned messaging only—not App Store carousel. |
 | fitchef-candidate-028 | REFERENCE-ONLY #2 | reference_archive | no_runtime_promotion | Same as #027; no paid promotion asserting product truth without redesign. |
 | fitchef-candidate-029 | REFERENCE-ONLY #3 | reference_archive | no_runtime_promotion | Same as #027–028; training / partner deck only. |
-| fitchef-candidate-030 | NEEDS-REWORK | blocked_gtm | blocked_runtime | Do not ship in marketing or runtime until rework lands; expect medical/fake-UI/text fixes in Figma export. |
+| fitchef-candidate-030 | APPROVED-SEED: `FITCHEF_PORTRAIT_WINK_V1` | approved_seed | canon_aligned | Live board marks this card `APPROVED-SEED`; treat as the repo-backed wink seed, not a new runtime promotion. |
 
 ¹ **Supersedable:** If the frame at that index is clearly mascot-only with no hazardous copy, operator may raise one tier (e.g. `aso_supporting_hold` → `social_ready`). If scan finds English/medical/guarantee/fake UI, apply **Automatic flags** and lower tier.
 ² **High-churn slots:** If your Figma sort places a safe mascot-only frame at #19 or #24, swap classification with the nearest `social_ready` neighbor after documented QA.
@@ -92,7 +92,7 @@ Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRA
 | **App Store screenshot (supporting / later shots)** | `fitchef-candidate-009`, `011`, `014`, `017`, `020`, `025` **if** QA upgrades from `aso_supporting_hold` to cleared state | All require localized, non-guarantee headlines. |
 | **Social-only (organic + paid)** | `007`, `008`, `010`, `012`, `015`, `016`, `021`, `023`, `026` when `social_ready` holds after scan | Prefer Stories/Reels/short carousel; disclose illustrative composites if mock UI appears. |
 | **Reference-only (internal / partner / training)** | `013`, `018`, `022`, **`027`–`029`** | Reference boards; not for consumer ASO shelf without rework PR. |
-| **Hold / rework before any public use** | `019`, `024`, **`030`** + any row bumped by **Automatic flags** | Blocklisted until caption or pixels prove wellness-safe parity. |
+| **Hold / rework before any public use** | `019`, `024` + any row bumped by **Automatic flags** | Blocklisted until caption or pixels prove wellness-safe parity. |
 
 ---
 

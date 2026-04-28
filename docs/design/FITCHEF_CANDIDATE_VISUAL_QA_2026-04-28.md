@@ -54,7 +54,7 @@ Figma source: `2JDwOByQIbcPgp93FDzHii` node `1473:2`
 | fitchef-candidate-027 | REFERENCE-ONLY | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_SLEEPY_V1`; explicitly reference-only batch slot. |
 | fitchef-candidate-028 | REFERENCE-ONLY | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_SURPRISED_V1`; archive-only lane. |
 | fitchef-candidate-029 | REFERENCE-ONLY | portrait | pass | none | low | low | reference_archive | no_runtime_promotion | reference-only | Maps to `FITCHEF_PORTRAIT_THINKING_V1`; archive-only lane. |
-| fitchef-candidate-030 | NEEDS-REWORK | portrait | pass | none | low | low | blocked_gtm | blocked_runtime | needs-rework | Maps to `FITCHEF_PORTRAIT_WINK_V1`; intake marks this slot as mandatory rework. |
+| fitchef-candidate-030 | APPROVED-SEED | portrait | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_PORTRAIT_WINK_V1`; live Figma board marks this as the repo-backed wink seed, not a rework slot. |
 
 ## Review outcome
 
