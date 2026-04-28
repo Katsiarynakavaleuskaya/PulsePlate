@@ -11,7 +11,22 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 08b465a93
+Evidence: docs/review/PR_1560_FIXED_MAPPING.md uses the required checked discussion-pass markers enforced by review_mapping_artifact.py.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#discussion_r3156449223 -> 08b465a93
+
+Disposition: FIXED
+Commit: 13615e272
+Evidence: tests/test_pr_review_report.py now asserts the rendered calibration case label, posting gate, and false-positive controls; scripts/orchestration/pr_review_report.py uses a specific large-diff signal and top-level FALSE_POSITIVE_CONTROLS.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#discussion_r3156440269 -> 13615e272
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#pullrequestreview-4191535825 -> 13615e272
+
+Disposition: FIXED
+Commit: 13615e272
+Evidence: docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md hyphenates side-effect-free; scripts/orchestration/pr_review_report.py renders false-positive controls in Markdown.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#discussion_r3156449219 -> 13615e272
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#pullrequestreview-4191546077 -> 13615e272
 
 ## Initial Evidence
 
