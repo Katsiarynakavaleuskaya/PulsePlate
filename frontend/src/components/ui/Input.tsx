@@ -45,7 +45,16 @@ export function inputClasses({
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { className = '', size = 'md', invalid, loading = false, fullWidth = true, disabled, 'aria-invalid': ariaInvalid, ...props },
+  {
+    className = '',
+    size = 'md',
+    invalid,
+    loading = false,
+    fullWidth = true,
+    disabled,
+    'aria-invalid': ariaInvalid,
+    ...props
+  },
   ref
 ) {
   const isInvalid = hasInvalidState(ariaInvalid, invalid);
