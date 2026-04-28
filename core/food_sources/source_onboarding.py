@@ -7,6 +7,7 @@ EN: File-only external food/menu source onboarding gate before ingest.
 
 from __future__ import annotations
 
+from collections import Counter
 import json
 import re
 from dataclasses import dataclass
@@ -107,6 +108,14 @@ ALLOWED_COMMERCIAL_RISKS: tuple[CommercialRisk, ...] = (
 
 _ONBOARDING_SCHEMA_RE = re.compile(r"^food-source-onboarding\.v\d+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_SAFETY_FLAG_TEMPLATE: dict[str, bool] = {
+    "runtime_cutover": False,
+    "digitalocean_postgres_load": False,
+    "bulk_ingest": False,
+    "file_only": True,
+    "network_allowed": False,
+    "db_writes_allowed": False,
+}
 
 
 class SourceOnboardingError(ValueError):
@@ -184,6 +193,10 @@ def _require_bool(data: dict[str, object], key: str, context: str) -> bool:
     if not isinstance(value, bool):
         raise _onboarding_error(context, f"'{key}' must be a boolean")
     return value
+
+
+def _require_safety_flags(data: dict[str, object], context: str) -> dict[str, bool]:
+    return {key: _require_bool(data, key, context) for key in _SAFETY_FLAG_TEMPLATE}
 
 
 def _parse_date(value: str, context: str) -> date:
@@ -309,7 +322,9 @@ def _validate_exact_catalog_coverage(
 ) -> None:
     catalog_sources = [entry.source for entry in catalog.sources]
     onboarding_sources = [entry.source for entry in entries]
-    duplicates = sorted({name for name in onboarding_sources if onboarding_sources.count(name) > 1})
+    duplicates = sorted(
+        source for source, count in Counter(onboarding_sources).items() if count > 1
+    )
     if duplicates:
         raise _onboarding_error(context, f"duplicate sources: {', '.join(duplicates)}")
 
@@ -505,20 +520,8 @@ def parse_source_onboarding(
             f"generated_on must match catalog.generated_on ({catalog.generated_on.isoformat()})",
         )
 
-    runtime_cutover = _require_bool(data, "runtime_cutover", context)
-    digitalocean_postgres_load = _require_bool(data, "digitalocean_postgres_load", context)
-    bulk_ingest = _require_bool(data, "bulk_ingest", context)
-    file_only = _require_bool(data, "file_only", context)
-    network_allowed = _require_bool(data, "network_allowed", context)
-    db_writes_allowed = _require_bool(data, "db_writes_allowed", context)
-    if (
-        runtime_cutover
-        or digitalocean_postgres_load
-        or bulk_ingest
-        or not file_only
-        or network_allowed
-        or db_writes_allowed
-    ):
+    safety_flags = _require_safety_flags(data, context)
+    if safety_flags != _SAFETY_FLAG_TEMPLATE:
         raise _onboarding_error(
             context,
             "runtime_cutover, digitalocean_postgres_load, bulk_ingest, "
@@ -540,12 +543,12 @@ def parse_source_onboarding(
         schema_version=schema_version,
         generated_on=generated_on,
         catalog_ref=catalog_ref,
-        runtime_cutover=runtime_cutover,
-        digitalocean_postgres_load=digitalocean_postgres_load,
-        bulk_ingest=bulk_ingest,
-        file_only=file_only,
-        network_allowed=network_allowed,
-        db_writes_allowed=db_writes_allowed,
+        runtime_cutover=safety_flags["runtime_cutover"],
+        digitalocean_postgres_load=safety_flags["digitalocean_postgres_load"],
+        bulk_ingest=safety_flags["bulk_ingest"],
+        file_only=safety_flags["file_only"],
+        network_allowed=safety_flags["network_allowed"],
+        db_writes_allowed=safety_flags["db_writes_allowed"],
         sources=entries,
     )
 
@@ -608,24 +611,14 @@ def build_source_onboarding_report(
         return {
             "success": False,
             "dry_run": True,
-            "runtime_cutover": False,
-            "digitalocean_postgres_load": False,
-            "bulk_ingest": False,
-            "file_only": True,
-            "network_allowed": False,
-            "db_writes_allowed": False,
+            **_SAFETY_FLAG_TEMPLATE,
             "validation_errors": errors,
         }
 
     return {
         "success": True,
         "dry_run": True,
-        "runtime_cutover": False,
-        "digitalocean_postgres_load": False,
-        "bulk_ingest": False,
-        "file_only": True,
-        "network_allowed": False,
-        "db_writes_allowed": False,
+        **_SAFETY_FLAG_TEMPLATE,
         "catalog_ref": onboarding.catalog_ref,
         "source_count": len(onboarding.sources),
         "blocked_sources": sorted(
