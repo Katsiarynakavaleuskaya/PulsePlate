@@ -30,6 +30,31 @@ Evidence: `pre-commit run --all-files` and commit hooks passed with the Bandit-c
 Reason: The review-level readability/centralization notes are valid advisory feedback, but this lane is scoped to retiring the command-surface seam without introducing a new shared shell helper contract.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#pullrequestreview-4192679623
 
+Disposition: FIXED
+Commit: 4be5029d3
+Evidence: `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md:24` now includes concrete closure evidence anchors for the Compose v2 migration.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157478893 -> 4be5029d3
+
+Disposition: FIXED
+Commit: 4be5029d3
+Evidence: `docs/review/PR_1567_FIXED_MAPPING.md:67` records portable `VENV_PYTHON=<venv-python>` gate evidence instead of a machine-local absolute path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157478897 -> 4be5029d3
+
+Disposition: FIXED
+Commit: 4be5029d3
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2788` replaces the placeholder target with PR #1567.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157478900 -> 4be5029d3
+
+Disposition: FIXED
+Commit: 4be5029d3
+Evidence: `tests/test_repo_policy_guards.py:363` skips absent command-surface files before reading them.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157478910 -> 4be5029d3
+
+Disposition: FIXED
+Commit: 4be5029d3
+Evidence: CodeRabbit review-level actionables are addressed by the mapped thread fixes above; additional review nits were handled in `scripts/QUICK_FIX_PRODUCTION.sh:47`, `scripts/diagnose_production.sh:46`, and `scripts/orchestration/telemetry_rollup.py:27`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#pullrequestreview-4192772964 -> 4be5029d3
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
