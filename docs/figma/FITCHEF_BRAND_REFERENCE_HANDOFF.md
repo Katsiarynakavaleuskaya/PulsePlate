@@ -35,6 +35,7 @@ file `2JDwOByQIbcPgp93FDzHii`
   - `82:2` `FitChef Canonical Variant Gallery`
   - `72:131` `FitChef Usage and Promotion Rules`
   - `1473:2` `FitChef Mascot Asset Inventory — Intake 2026-04-28`
+    - GTM classification keys (`fitchef-candidate-001`…`030`): `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md`
 - Page `10_Welcome_Gate`:
   - `82:66` `FitChef Placement Studies / Approved`
 - Page `11_Welcome_Gate_States`:
