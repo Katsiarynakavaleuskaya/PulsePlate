@@ -36,11 +36,14 @@ Evidence: scripts/orchestration/skill_router.py defines `LAUNCH_SITE_CONDITIONAL
 Disposition: FIXED
 Commit: c2765b8c0
 Evidence: docs/roadmap/BACKLOG_LEDGER.md keeps `pulseplate-web-launch-site` and `pulseplate-agent-product` open as pending merge items for PR #1565 instead of marking unmerged work complete.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3157021915 -> c2765b8c0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556 -> c2765b8c0
 
 Disposition: FIXED
 Commit: c2765b8c0
 Evidence: tools/codex_skills/pulseplate-web-launch-site/SKILL.md and tools/codex_skills/pulseplate-agent-product/SKILL.md explicitly include docs/ENGINEERING_LESSONS.md, RUNBOOK_AGENT.md, and nearest scoped AGENTS.md in required reading.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3157021923 -> c2765b8c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3157021928 -> c2765b8c0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556 -> c2765b8c0
 
 Disposition: FIXED
@@ -51,6 +54,7 @@ Evidence: docs/dev/CODEX_SKILLS.md adds SKILL/test evidence anchors for `pulsepl
 Disposition: NOT-A-BUG
 Evidence: Commit subjects are conventional and scoped to the actual changes (`feat(codex-skills)`, `docs(review)`, and `fix(codex-skills)`); no `docs/orchestration/AGENTS.md` update exists in this PR, and rewriting already-pushed history only for a subjective docs scope would add governance risk without changing repo behavior.
 Reason: The packet is part of the skills lane, not an agent behavior contract change requiring a `docs(agents)` commit subject.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3157021910
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556
 
 ## Initial Evidence
