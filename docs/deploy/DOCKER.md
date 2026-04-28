@@ -15,9 +15,12 @@ Docker runtime contract.
 - Hard-budget enforcement landed via `PR #1498` on April 22, 2026.
 - Signed provenance and SPDX SBOM attestation verification landed via `PR #1503`.
 - Shared Safety audit extraction landed via `PR #1515`.
-- The current Docker/CI/Security slice consolidates duplicate production-image
-  build paths and folds PR-time smoke validation into the canonical loaded-image
-  build path where workflow boundaries allow deterministic reuse.
+- Duplicate production-image build-path consolidation landed via `PR #1526`.
+- Post-consolidation Docker runtime dependency-profile slimming landed via
+  `PR #1530`.
+- The current Docker/CI/Security baseline keeps PR-time smoke validation on the
+  canonical loaded-image build path where workflow boundaries allow
+  deterministic reuse.
 
 ## Runtime manifest policy
 
@@ -54,14 +57,13 @@ pushed-image lanes only:
 - emit SPDX SBOM attestations on the same pushed-image lanes
 - verify both provenance and SBOM by exact digest before staging or production deploy
 
-With runtime, budget, provenance, and Shared Safety slices landed, the active
-Docker/CI cost issue was duplicate production-image builds. `build.yml` now owns
-the canonical PR-time production image validation path: runtime dependency
-surface, telemetry, hard budget, container health, and OpenAPI compatibility
-smoke checks run against the same loaded `target: production` image. The
-scheduled/manual `trivy.yml` lane remains out-of-band image-security evidence,
-and pushed-image provenance/SBOM contracts remain isolated to publish/deploy
-paths.
+With runtime, budget, provenance, Shared Safety, build-path consolidation, and
+post-consolidation runtime slimming slices landed, `build.yml` now owns the
+canonical PR-time production image validation path: runtime dependency surface,
+telemetry, hard budget, container health, and OpenAPI compatibility smoke checks
+run against the same loaded `target: production` image. The scheduled/manual
+`trivy.yml` lane remains out-of-band image-security evidence, and pushed-image
+provenance/SBOM contracts remain isolated to publish/deploy paths.
 
 ## Baseline source rule
 
@@ -214,11 +216,6 @@ Explicitly deferred after this PR:
   Remove-by: 2026-07-15
   Rollback: keep the current GitHub Actions-based Docker control plane as the only supported path.
   Exit criteria: telemetry baseline, hard-budget, provenance, and build-path consolidation slices are closed and a separate evaluation packet re-approves any Dagger pilot.
-- Docker base-image change or API-core dependency-profile slimming
-  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-runtime-slimming-after-build-path-consolidation`
-  Remove-by: 2026-07-15
-  Rollback: keep `python:3.13.6-slim-bookworm` and `requirements-docker-runtime.txt` as the canonical backend runtime path.
-  Exit criteria: consolidated CI evidence shows remaining image size/cost pressure is dependency-profile or base-image driven.
 - SBOM/VEX signed security-artifact maturity lane
   Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-sbom-vex-signed-security-artifacts`
   Remove-by: 2026-08-15

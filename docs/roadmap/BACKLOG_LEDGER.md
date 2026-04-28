@@ -783,17 +783,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Follow-up docs and CI checks explicitly cover the restored path
 
 <a id="ledger-p1-docker-workflow-build-path-consolidation"></a>
-- [ ] P1: Docker workflow build-path consolidation and loaded-image smoke reuse
+- [x] P1: Docker workflow build-path consolidation and loaded-image smoke reuse
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1526 (`codex/docker-build-path-consolidation`)
   - Area: CI / docker / security scan / operator workflow
-  - Status: Active next Docker/CI/Security slice after `PR #1515`
+  - Status: Landed via `PR #1526` on 2026-04-25; baseline/governance closeout is the only remaining action in this PR.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
     - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
-  - Reason: Docker production image work is now functionally correct but CI still rebuilt the same `target: production` image across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. This PR consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` as a scheduled/manual image-security lane, reducing CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture.
+  - Reason: Docker production image work is now functionally correct, and `PR #1526` removed the duplicate `target: production` PR rebuild pattern across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. The landed baseline consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` as a scheduled/manual image-security lane, reducing CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture.
   - Links:
     - `docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md`
     - `.github/workflows/build.yml`
@@ -808,17 +808,17 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Dagger, Docker base-image changes, requirements-profile split, and SBOM/VEX maturity work remain out of scope.
 
 <a id="ledger-p1-docker-runtime-slimming-after-build-path-consolidation"></a>
-- [ ] P1: Docker runtime base-image and API dependency-profile slimming
+- [x] P1: Docker runtime base-image and API dependency-profile slimming
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1530
   - Area: CI / docker / dependency profile / runtime cost
-  - Status: Active
+  - Status: Landed via `PR #1530` on 2026-04-25; this closeout PR only updates docs/governance truth.
   - Transition note: 2026-04-25 — Opened as immediate follow-up after PR #1526 and build-path consolidation telemetry stabilisation.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-workflow-build-path-consolidation`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
-  - Reason: Base-image changes and API-core dependency-profile slimming are separate runtime-risk work. PR #1526 intentionally keeps `python:3.13.6-slim-bookworm` and `requirements-docker-runtime.txt` unchanged while consolidating duplicate production-image CI paths. Revisit slimming only after current-head telemetry shows the remaining image-size or cost pressure is caused by the base image or dependency profile rather than duplicate workflow builds.
+  - Reason: Base-image changes and API-core dependency-profile slimming were intentionally split from `PR #1526` and landed in `PR #1530` after build-path consolidation telemetry stabilized. The active Docker/CI next state is baseline/governance closure, not a repeat runtime-slimming implementation slice.
   - Links:
     - `docs/deploy/DOCKER.md`
     - `Dockerfile`
@@ -836,7 +836,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security maturity after release-truth closure)
   - Target PR: PR #1332
-  - Status: 📋 Planned
+  - Status: Blocked until P0 release-truth closure; docs/governance-only, with no CI/control-plane enablement in this closeout PR.
   - Blocked by:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
     - release-truth closure criteria listed below
@@ -4123,15 +4123,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-deploy-contract-reconciliation`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-budget-telemetry`
     - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
-  - Reason: Dagger is not the treatment for the current Docker/CI pain while build context, install surface, deploy contract, and telemetry baseline are still unsettled. Revisit only after the measured baseline exists and the deferred provenance lane is re-evaluated.
+  - Reason: Dagger is not part of the landed GitHub Actions Docker/CI baseline. Revisit only through a separate P2 evaluation packet after the landed baseline, release-truth state, and security-artifact posture are re-reviewed.
   - Links:
     - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
     - `docs/architecture/ADR_DOCKER_BUILD_PROVENANCE_WORKAROUND_2026-03-01.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
   - DoD:
     - Image-budget telemetry baseline exists and is referenced in the proposal
-    - Install-profile split and deploy-contract reconciliation are merged
-    - Provenance defer state is re-reviewed before any pilot recommendation
+    - Install-profile split, deploy-contract reconciliation, build-path consolidation, and runtime-slimming closeout are merged
+    - Release-truth state and signed security-artifact posture are re-reviewed before any pilot recommendation
     - Any pilot compares against the existing GitHub Actions control plane rather than bypassing it
 
 <a id="ledger-p2-cloudflare-narrow-reopen-automation"></a>
