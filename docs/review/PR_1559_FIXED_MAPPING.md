@@ -11,7 +11,17 @@ merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156254891 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256218 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256222 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256406 -> 324b5a9f8
+
+Disposition: FIXED
+Commit: 324b5a9f8
+Evidence: `core/food_sources/source_onboarding.py` now normalizes absolute repo-local catalog paths to repo-relative refs; `tests/test_food_source_onboarding.py` covers absolute catalog paths.
+Evidence: `scripts/food_source_onboarding.py` now makes `--json` a real output-mode flag with a non-JSON summary fallback.
+Evidence: `tests/test_food_source_onboarding.py` now fails fast when `_mutate_source` cannot find the target source.
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses `Target PR: PR #1559`.
 
 ## Local Validation Evidence
 
