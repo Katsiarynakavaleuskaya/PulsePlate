@@ -11,6 +11,15 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152112602
+Disposition: NOT-A-BUG
+Evidence: PR scope for #1553 is locked to `Input` core RuntimeSet parity and governance docs; wrapper API harmonization is tracked as follow-up work (`docs/roadmap/BACKLOG_LEDGER.md` accessory/runtime follow-up lane).
+Reason: Avoid scope creep in a bounded parity PR; no runtime regression is introduced in touched surfaces.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152112604 -> d86208f27
+Disposition: FIXED
+Evidence: `frontend/src/components/ui/Input.tsx` now preserves explicit `aria-invalid` tokens (`grammar|spelling`) while still synthesizing invalid state from boolean prop.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124458 -> d86208f27
 Disposition: FIXED
 Evidence: Added line-precise `file:line` anchors for Input parity claims in `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`.
