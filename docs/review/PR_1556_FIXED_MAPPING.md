@@ -16,9 +16,9 @@ Disposition: FIXED
 Commit: 8171f925c
 Evidence: `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` now uses canonical keyspace `fitchef-candidate-001..030`, exact intake distribution (`6` approved-seed, `20` candidate, `3` reference-only, `1` needs-rework), and GTM/runtime enums aligned to `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155584473 -> PENDING_COMMIT_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155584473 -> a9494b9c1
 Disposition: FIXED
-Commit: PENDING_COMMIT_SHA
+Commit: a9494b9c1
 Evidence: The approved-seed rows in `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` now map only to canonical seed files from `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`, removing action-asset mislabeling.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155595159 -> 8171f925c
