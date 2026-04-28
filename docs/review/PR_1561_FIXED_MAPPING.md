@@ -37,6 +37,13 @@ Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#issueco
 Reason: CodeRabbit's initial issue comment was a review-in-progress status note, not an actionable finding.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#issuecomment-4338147685
 
+Disposition: FIXED
+Commit: fd6bd3c7e
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:16; docs/review/PR_1561_FIXED_MAPPING.md:22; docs/review/PR_1561_FIXED_MAPPING.md:30
+Reason: The evidence pointers now cite the actual fix locations instead of self-referential mapping lines.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191922485 -> fd6bd3c7e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#discussion_r3156777068 -> fd6bd3c7e
+
 ## Review Notes
 
 No actionable human or bot review comments remain unmapped in this artifact.
@@ -52,6 +59,8 @@ threads on GitHub.
 - `9d057d7b6` - `docs(review): address pr1561 coderabbit feedback`
 - `a1c74bf49` - `docs(review): map pr1561 coderabbit feedback`
 - `6efce3a75` - `docs(review): polish pr1561 mapping wording`
+- `50c34174d` - `docs(review): map pr1561 discussion threads`
+- `fd6bd3c7e` - `docs(review): fix pr1561 evidence pointers`
 
 ## Merge Readiness
 
