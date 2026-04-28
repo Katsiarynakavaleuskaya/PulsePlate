@@ -4040,7 +4040,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Add dry-run report runner for PulsePlate PR review skill
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review automation follow-up)
-  - Target PR: PR-TBD (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md`)
+  - Target PR: PR #1558 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md`, docs/review/PR_1558_FIXED_MAPPING.md)
   - Status: In progress in PR3 dry-run report runner lane
   - Area: orchestration / PR review / Codex skills
   - Reason: PR2 provides read-only review context JSON, but reviewers still need a deterministic Markdown/JSON dry-run report that follows the `pulseplate-pr-review` role order and finding schema without posting comments or resolving threads.
