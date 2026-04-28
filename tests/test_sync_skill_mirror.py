@@ -36,6 +36,50 @@ def test_sync_skill_mirror_copies_source_and_writes_marker(tmp_path: Path) -> No
     assert marker.read_text(encoding="utf-8").strip() == "tools/codex_skills/pulseplate-pr-review"
 
 
+def test_sync_skill_mirror_writes_source_root_relative_marker_for_custom_root(
+    tmp_path: Path,
+) -> None:
+    source_root = tmp_path / "custom_tools"
+    skill_name = "custom-review-skill"
+    source_skill = source_root / skill_name
+    source_skill.mkdir(parents=True)
+    source_skill.joinpath("SKILL.md").write_text("# custom", encoding="utf-8")
+
+    mirror_root = tmp_path / "custom_mirror"
+
+    sync_skill_mirror.sync_skill_mirror(
+        skill_name=skill_name,
+        source_root=source_root,
+        mirror_root=mirror_root,
+        force=False,
+    )
+
+    marker = mirror_root / skill_name / ".pulseplate_codex_skill_source"
+    assert marker.exists()
+    assert marker.read_text(encoding="utf-8").strip() == skill_name
+
+
+def test_sync_skill_mirror_writes_nested_fallback_marker(tmp_path: Path) -> None:
+    source_root = tmp_path
+    skill_name = "custom_layout/pulseplate-pr-review"
+    source_skill = source_root / skill_name
+    source_skill.mkdir(parents=True)
+    source_skill.joinpath("SKILL.md").write_text("# nested", encoding="utf-8")
+
+    mirror_root = tmp_path / "nested_mirror"
+
+    sync_skill_mirror.sync_skill_mirror(
+        skill_name=skill_name,
+        source_root=source_root,
+        mirror_root=mirror_root,
+        force=False,
+    )
+
+    marker = mirror_root / skill_name / ".pulseplate_codex_skill_source"
+    assert marker.exists()
+    assert marker.read_text(encoding="utf-8").strip() == "custom_layout/pulseplate-pr-review"
+
+
 def test_sync_skill_mirror_rejects_existing_without_force(tmp_path: Path) -> None:
     source_root = tmp_path / "tools" / "codex_skills" / "pulseplate-pr-review"
     source_root.mkdir(parents=True)

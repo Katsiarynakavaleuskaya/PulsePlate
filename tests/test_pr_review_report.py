@@ -5,12 +5,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.orchestration import pr_review_report as report_runner
 
 
 def _base_context() -> dict[str, object]:
     return {
         "schema_version": "1.0.0",
+        "generated_at_utc": "2026-04-28T17:00:00Z",
         "query": {
             "repo": "Katsiarynakavaleuskaya/PulsePlate",
             "pr_number": 1539,
@@ -57,6 +60,7 @@ def test_build_report_has_no_findings_for_complete_context() -> None:
     )
 
     assert report["mode"] == "dry-run-report"
+    assert report["generated_at_utc"] == "2026-04-28T17:00:00Z"
     assert report["findings"] == []
     assert report["findings_count"] == 0
     assert report["coordinator_packet"]["task_packet_id"] == "packet-1"
@@ -97,6 +101,9 @@ def test_build_report_flags_large_diff() -> None:
     assert report["findings"][0]["role_agent"] == "bug-hunter"
     assert "905 changed lines" in report["findings"][0]["evidence"]
     assert "make validate-changed" in report["gate_plan"]
+    assert report["gate_plan"].index("python3 scripts/orchestration/check_preflight.py") < report[
+        "gate_plan"
+    ].index("make validate-changed")
 
 
 def test_render_markdown_contains_required_sections() -> None:
@@ -114,7 +121,10 @@ def test_render_markdown_contains_required_sections() -> None:
     assert "agent-coordinator -> architecture-specialist" in markdown
 
 
-def test_main_writes_json_report(tmp_path: Path, monkeypatch) -> None:
+def test_main_writes_json_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     context_path = tmp_path / "context.json"
     output_path = tmp_path / "report.json"
     context_path.write_text(json.dumps(_base_context()), encoding="utf-8")

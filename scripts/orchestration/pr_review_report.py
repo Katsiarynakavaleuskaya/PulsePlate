@@ -6,8 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
@@ -39,10 +38,6 @@ class Finding:
     disposition_candidate: str
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
 def _load_context(path: str | None) -> dict[str, Any]:
     raw = Path(path).read_text(encoding="utf-8") if path else sys.stdin.read()
     try:
@@ -72,6 +67,17 @@ def _dedupe_strings(values: list[Any]) -> list[str]:
         seen.add(item)
         deduped.append(item)
     return deduped
+
+
+def _ordered_unique(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        ordered.append(value)
+    return ordered
 
 
 def _context_path(context: dict[str, Any], default: str) -> str:
@@ -214,7 +220,7 @@ def _build_gate_plan(context: dict[str, Any], findings: list[Finding]) -> list[s
         "python3 -m pytest tests/test_pr_review_report.py tests/test_pr_review_context.py -q",
     ]
     finding_gates = [finding.gate_to_run for finding in findings if finding.gate_to_run]
-    return sorted(set(base + suggestions + finding_gates))
+    return _ordered_unique(base + suggestions + finding_gates)
 
 
 def build_report(
@@ -226,7 +232,7 @@ def build_report(
     findings = build_findings(context)
     return {
         "schema_version": SCHEMA_VERSION,
-        "generated_at_utc": _utc_now(),
+        "generated_at_utc": str(context.get("generated_at_utc") or "unknown"),
         "mode": "dry-run-report",
         "coordinator_packet": {
             "task_packet_id": packet_id,
@@ -235,7 +241,7 @@ def build_report(
         },
         "scope_reviewed": _build_scope(context),
         "findings_count": len(findings),
-        "findings": [finding.__dict__ for finding in findings],
+        "findings": [asdict(finding) for finding in findings],
         "role_review": _build_role_reviews(findings),
         "gate_plan": _build_gate_plan(context, findings),
         "deferred_followups": [],
