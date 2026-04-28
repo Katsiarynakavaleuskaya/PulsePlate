@@ -6,8 +6,8 @@ Date: 2026-04-29
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass initialized
-- [x] Fixed in commit mapping artifact created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Artifact status: PR-open governance artifact exists for the Compose v2 command
 surface migration lane. No actionable review threads were present when this
@@ -15,9 +15,7 @@ artifact was created.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads were present at artifact creation time. Future
-review comments must be recorded here with `Disposition:` evidence before any
-thread is resolved.
+- No actionable review comments
 
 ## Initial Evidence
 
