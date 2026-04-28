@@ -30,22 +30,26 @@ autonomy framework and it does not create a parallel orchestration layer.
 ## Procedure
 
 1. Start from `agent-coordinator` output and keep the declared role order.
-2. Read the governing orchestration/product contracts:
+2. Complete REQUIRED READING before edits:
+   - `docs/ENGINEERING_LESSONS.md`
+   - `RUNBOOK_AGENT.md`
+   - nearest scoped `AGENTS.md`
+3. Read the governing orchestration/product contracts:
    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
    - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`
    - `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
    - `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
    - `docs/orchestration/AGENT_REFLECTION_PROTOCOL.md`
    - `docs/dev/CODEX_SKILLS.md`
-3. Define the product surface before proposing implementation:
+4. Define the product surface before proposing implementation:
    - user/operator,
    - permitted actions,
    - blocked actions,
    - evidence and audit trail,
    - handoff back to coordinator.
-4. Keep agent capabilities bounded by repo source of truth, quality gates, and
+5. Keep agent capabilities bounded by repo source of truth, quality gates, and
    explicit human approval.
-5. Record deferred autonomy, telemetry, or memory behavior in
+6. Record deferred autonomy, telemetry, or memory behavior in
    `docs/roadmap/BACKLOG_LEDGER.md`.
 
 ## Output Format
@@ -77,6 +81,8 @@ Report:
 
 - `AGENTS.md`
 - `RUNBOOK_AGENT.md`
+- `docs/ENGINEERING_LESSONS.md`
+- nearest scoped `AGENTS.md`
 - `docs/dev/CODEX_SKILLS.md`
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`

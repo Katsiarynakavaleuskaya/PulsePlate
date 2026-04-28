@@ -76,11 +76,15 @@ LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
         "pulseplate-design-launch-system",
     }
 )
+LAUNCH_SITE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
+        "pulseplate-web-launch-site",
+    }
+)
 RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "pulseplate-ai-reports",
         "pulseplate-monetization-gtm",
-        "pulseplate-web-launch-site",
         "notion-research-documentation",
         "notion-knowledge-capture",
         "linear",
@@ -1671,6 +1675,11 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
         return (
             "Enable when launch-asset work includes explicit design packet metadata, "
             "concrete source anchors, and token/brand governance intent."
+        )
+    if skill in LAUNCH_SITE_CONDITIONAL_SKILLS:
+        return (
+            "Enable when the task explicitly covers a public launch surface, "
+            "landing-page CTA, waitlist flow, or launch-copy handoff."
         )
     if skill in RESEARCH_CONDITIONAL_SKILLS and task_classification_label != "creative_research":
         return "Enable when the task requires a report/research deliverable or durable knowledge capture."

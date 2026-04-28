@@ -1684,6 +1684,23 @@ def test_docs_only_envelope_keeps_web_launch_site_planning_skill() -> None:
     assert "pulseplate-web-launch-site" in recommended
 
 
+def test_launch_site_conditional_uses_launch_specific_guidance() -> None:
+    """Partial launch-site signals should not inherit generic research wording."""
+
+    decision = route_skills(
+        goal="Refresh waitlist wording",
+        task_class="Documentation",
+        candidate_paths=["README.md"],
+        domain="docs",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert conditional_by_skill["pulseplate-web-launch-site"]["when"] == (
+        "Enable when the task explicitly covers a public launch surface, "
+        "landing-page CTA, waitlist flow, or launch-copy handoff."
+    )
+
+
 def test_docs_only_app_store_runbook_updates_do_not_route_release_skill() -> None:
     """docs_only App Store runbook edits must not surface release implementation helpers."""
 

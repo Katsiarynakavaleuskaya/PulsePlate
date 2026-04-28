@@ -30,23 +30,27 @@ pricing/subscription policy, or coordinator-owned PR gates.
 ## Procedure
 
 1. Start from `agent-coordinator` output and preserve the declared role order.
-2. Read the nearest `AGENTS.md` plus relevant launch/product docs before edits:
+2. Complete REQUIRED READING before edits:
+   - `docs/ENGINEERING_LESSONS.md`
+   - `RUNBOOK_AGENT.md`
+   - nearest scoped `AGENTS.md`
+3. Read relevant launch/product docs before edits:
    - `docs/dev/CODEX_SKILLS.md`
    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
    - `docs/marketing/GTM_NOTES_DEV_ONLY.md`
    - `docs/marketing/WELCOME_GATE_GTM_OUTLINE.md`
    - `docs/product/FREE_PRO_SOFT_PAYWALL.md`
-3. Separate launch-site concerns:
+4. Separate launch-site concerns:
    - content and positioning,
    - information architecture,
    - conversion path,
    - frontend implementation,
    - deployment evidence.
-4. For implementation work, keep frontend changes thin, token-driven, and aligned
+5. For implementation work, keep frontend changes thin, token-driven, and aligned
    with existing components.
-5. For copy, keep wellness language bounded: no medical, therapy, diagnosis, or
+6. For copy, keep wellness language bounded: no medical, therapy, diagnosis, or
    guaranteed-outcome claims.
-6. Run the scoped gates requested by `pulseplate-gates`.
+7. Run the scoped gates requested by `pulseplate-gates`.
 
 ## Output Format
 
