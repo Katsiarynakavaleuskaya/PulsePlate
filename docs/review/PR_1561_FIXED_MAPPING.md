@@ -20,7 +20,7 @@ Reason: The mapping artifact now keeps merge-readiness content PR-specific and l
 Disposition: FIXED
 Commit: 9d057d7b6
 Evidence: docs/review/PR_1561_FIXED_MAPPING.md:42; docs/roadmap/BACKLOG_LEDGER.md:3449
-Reason: The mapping artifact now includes the required standardized merge-readiness checkboxes, the ledger records why the closeout PR landed after PR #1522, and the scope-boundary bullet punctuation is consistent.
+Reason: The mapping artifact now includes the required, standardized merge-readiness checkboxes, the ledger records why the closeout PR landed after PR #1522, and the scope-boundary bullet punctuation is consistent.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191701860 -> 9d057d7b6
 
 ## Review Notes
