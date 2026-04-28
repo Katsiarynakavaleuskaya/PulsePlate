@@ -30,9 +30,21 @@ def _clear_existing_path(path: Path) -> None:
         shutil.rmtree(path)
 
 
-def _copy_with_marker(source: Path, destination: Path) -> None:
+def _source_marker_value(source: Path, source_root: Path) -> str:
+    """Return a portable marker path for the copied skill source."""
+
+    if source_root.name == "codex_skills" and source_root.parent.name == "tools":
+        repo_root = source_root.parent.parent
+        return source.relative_to(repo_root).as_posix()
+    return source.relative_to(source_root).as_posix()
+
+
+def _copy_with_marker(source: Path, source_root: Path, destination: Path) -> None:
     shutil.copytree(source, destination)
-    (destination / SOURCE_MARKER).write_text(f"{source}\n", encoding="utf-8")
+    (destination / SOURCE_MARKER).write_text(
+        f"{_source_marker_value(source, source_root)}\n",
+        encoding="utf-8",
+    )
 
 
 def sync_skill_mirror(
@@ -56,7 +68,7 @@ def sync_skill_mirror(
         _clear_existing_path(destination)
 
     mirror_root.mkdir(parents=True, exist_ok=True)
-    _copy_with_marker(source, destination)
+    _copy_with_marker(source, source_root, destination)
 
 
 def _parse_args() -> argparse.Namespace:

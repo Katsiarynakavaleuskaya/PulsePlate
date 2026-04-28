@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+
 import pytest
 
 from scripts.orchestration import sync_skill_mirror
@@ -32,7 +33,7 @@ def test_sync_skill_mirror_copies_source_and_writes_marker(tmp_path: Path) -> No
     assert mirrored_skill.joinpath("SKILL.md").exists()
     marker = mirrored_skill / ".pulseplate_codex_skill_source"
     assert marker.exists()
-    assert marker.read_text(encoding="utf-8").strip() == str(source_skill)
+    assert marker.read_text(encoding="utf-8").strip() == "tools/codex_skills/pulseplate-pr-review"
 
 
 def test_sync_skill_mirror_rejects_existing_without_force(tmp_path: Path) -> None:
@@ -57,7 +58,6 @@ def test_sync_skill_mirror_rejects_existing_without_force(tmp_path: Path) -> Non
 def test_sync_skill_mirror_force_replaces_existing_destination(tmp_path: Path) -> None:
     source_root = tmp_path / "tools" / "codex_skills" / "pulseplate-pr-review"
     source_root.mkdir(parents=True)
-    source_skill = source_root
     source_root.joinpath("SKILL.md").write_text("# source", encoding="utf-8")
 
     mirror_root = tmp_path / "mirror"
@@ -77,4 +77,4 @@ def test_sync_skill_mirror_force_replaces_existing_destination(tmp_path: Path) -
     assert not destination.joinpath("stale.txt").exists()
     assert destination.joinpath("SKILL.md").exists()
     marker = destination / ".pulseplate_codex_skill_source"
-    assert marker.read_text(encoding="utf-8").strip() == str(source_skill)
+    assert marker.read_text(encoding="utf-8").strip() == "tools/codex_skills/pulseplate-pr-review"
