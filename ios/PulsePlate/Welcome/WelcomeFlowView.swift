@@ -33,43 +33,47 @@ struct WelcomeFlowView: View {
     private let totalSteps: Int = 2
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text(stepA11yText)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("appstore.welcome.step")
+        ZStack {
+            PPDesignTokens.Brand.navy
+                .ignoresSafeArea()
 
-            Text(screenTitleKey)
-                .font(.largeTitle)
-                .fontWeight(.bold)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("appstore.welcome.title")
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
+                Text(stepA11yText)
+                    .ppStyle(.caption, color: .secondary)
+                    .accessibilityIdentifier("appstore.welcome.step")
 
-            Text(screenBodyKey)
-                .font(.body)
-                .accessibilityIdentifier("appstore.welcome.body")
+                Text(screenTitleKey)
+                    .ppStyle(.largeTitle, color: .primary)
+                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityIdentifier("appstore.welcome.title")
 
-            Spacer()
-
-            HStack {
-                if step.back() != nil {
-                    Button(backKey) { step = step.back() ?? step }
-                        .accessibilityLabel(Text(backKey))
-                        .accessibilityIdentifier("appstore.welcome.back")
-                }
+                Text(screenBodyKey)
+                    .ppStyle(.body, color: .primary)
+                    .accessibilityIdentifier("appstore.welcome.body")
 
                 Spacer()
 
-                Button(primaryCtaKey) {
-                    guard let next = step.next() else { return onCompleted() }
-                    step = next
+                HStack {
+                    if step.back() != nil {
+                        PPButton(backTitle, variant: .ghost, size: .md) {
+                            step = step.back() ?? step
+                        }
+                            .accessibilityLabel(Text(backKey))
+                            .accessibilityIdentifier("appstore.welcome.back")
+                    }
+
+                    Spacer()
+
+                    PPButton(primaryCtaTitle, variant: .primary, size: .lg) {
+                        guard let next = step.next() else { return onCompleted() }
+                        step = next
+                    }
+                    .accessibilityLabel(Text(primaryCtaKey))
+                    .accessibilityIdentifier("appstore.welcome.primary_cta")
                 }
-                .buttonStyle(.borderedProminent)
-                .accessibilityLabel(Text(primaryCtaKey))
-                .accessibilityIdentifier("appstore.welcome.primary_cta")
             }
+            .padding(PPDesignTokens.Spacing.large)
         }
-        .padding()
     }
 
     // MARK: - Localization keys (match audit namespace onboarding.welcome.*)
@@ -89,11 +93,23 @@ struct WelcomeFlowView: View {
     }
 
     private var primaryCtaKey: LocalizedStringKey {
-        step.next() == nil ? "onboarding.welcome.cta.start" : "onboarding.welcome.cta.continue"
+        LocalizedStringKey(primaryCtaLocalizationKey)
     }
 
     private var backKey: LocalizedStringKey {
         "onboarding.welcome.cta.back"
+    }
+
+    private var primaryCtaTitle: String {
+        NSLocalizedString(primaryCtaLocalizationKey, comment: "")
+    }
+
+    private var backTitle: String {
+        NSLocalizedString("onboarding.welcome.cta.back", comment: "")
+    }
+
+    private var primaryCtaLocalizationKey: String {
+        step.next() == nil ? "onboarding.welcome.cta.start" : "onboarding.welcome.cta.continue"
     }
 
     private var stepA11yText: String {

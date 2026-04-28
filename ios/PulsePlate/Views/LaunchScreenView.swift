@@ -1,19 +1,22 @@
 import SwiftUI
 
+private enum LaunchScreenMetrics {
+    static let logoSize: CGFloat = 180
+}
+
 struct LaunchScreenView: View {
     var body: some View {
         ZStack {
-            Color("Navy")
+            PPDesignTokens.Brand.navy
                 .ignoresSafeArea()
             VStack {
                 Image("FitChef")
                     .resizable()
                     .scaledToFit()
-                    .frame(width: 180, height: 180)
+                    .frame(width: LaunchScreenMetrics.logoSize, height: LaunchScreenMetrics.logoSize)
                 Text("PulsePlate")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.top, 16)
+                    .ppStyle(.heading, color: .primary)
+                    .padding(.top, PPDesignTokens.Spacing.large)
             }
         }
     }

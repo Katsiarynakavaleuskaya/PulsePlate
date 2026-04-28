@@ -28,5 +28,6 @@ struct RootTabs: View {
       .tabItem { Label("Debug", systemImage: "hammer.fill") }
       #endif
     }
+    .tint(PPDesignTokens.ColorToken.primary)
   }
 }
