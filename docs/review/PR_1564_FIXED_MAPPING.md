@@ -15,7 +15,20 @@ created.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 8a61b46d4
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now keeps Docker/CI ledger `Status` values terse (`Landed` / `Blocked`) and moves explanatory closeout text into `Reason`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1564#pullrequestreview-4192132647 -> 8a61b46d4
+
+Disposition: FIXED
+Commit: 8a61b46d4
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` removes the closed entitlement ledger item from the active SBOM/VEX `Blocked by` list and keeps release-truth closure as the active blocker.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1564#discussion_r3156967592 -> 8a61b46d4
+
+Disposition: FIXED
+Commit: 8a61b46d4
+Evidence: this CodeRabbit review summary contained the active stale-blocker thread mapped above; commit hooks also re-ran `fix end of files` and passed for the final-newline nitpick.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1564#pullrequestreview-4192147292 -> 8a61b46d4
 
 ## Initial Evidence
 
