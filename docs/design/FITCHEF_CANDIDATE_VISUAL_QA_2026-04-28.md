@@ -25,12 +25,12 @@ Figma source: `2JDwOByQIbcPgp93FDzHii` node `1473:2`
 
 | asset_id | current_status | asset_type | visual_fitchef_identity | embedded_text_risk | localization_risk | wellness_safety_risk | marketing_use | runtime_use | disposition | notes |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| fitchef-candidate-001 | APPROVED-SEED | action | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_ACTION_COOKING_V1`; keep seed lock only. |
-| fitchef-candidate-002 | APPROVED-SEED | action | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_ACTION_HEALTHY_CHOICE_V1`; seed parity retained. |
-| fitchef-candidate-003 | APPROVED-SEED | action | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_ACTION_HYDRATION_REMINDER_V1`; safe supportive framing. |
-| fitchef-candidate-004 | APPROVED-SEED | action | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_ACTION_MEAL_PLANNING_V1`; no runtime expansion implied. |
-| fitchef-candidate-005 | APPROVED-SEED | action | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_ACTION_NUTRITION_PLATE_V1`; visual wellness context only. |
-| fitchef-candidate-006 | APPROVED-SEED | action | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Maps to `FITCHEF_ACTION_PROGRESS_TRACKING_V1`; seed set locked. |
+| fitchef-candidate-001 | APPROVED-SEED | portrait | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Canonical seed: `fitchef-portrait-neutral-v1.png`. |
+| fitchef-candidate-002 | APPROVED-SEED | portrait | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Canonical seed: `fitchef-portrait-wink-v1.png`. |
+| fitchef-candidate-003 | APPROVED-SEED | portrait | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Canonical seed: `fitchef-portrait-thinking-v1.png`. |
+| fitchef-candidate-004 | APPROVED-SEED | portrait | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Canonical seed: `fitchef-portrait-sleepy-v1.png`. |
+| fitchef-candidate-005 | APPROVED-SEED | portrait | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Canonical seed: `fitchef-portrait-surprised-v1.png`. |
+| fitchef-candidate-006 | APPROVED-SEED | onboarding | pass | none | low | low | approved_seed | canon_aligned | keep candidate | Canonical seed: `fitchef-onboarding-welcome-v1.png`. |
 | fitchef-candidate-007 | CANDIDATE | action | partial | minor_ui | medium | low | social_ready | no_runtime_promotion | keep candidate | Maps to `FITCHEF_ACTION_SHOPPING_LIST_V1`; social-first usage. |
 | fitchef-candidate-008 | CANDIDATE | action | partial | minor_ui | medium | medium | blocked_gtm | blocked_runtime | needs-rework | Maps to `FITCHEF_ACTION_WORKOUT_COACH_V1`; requires claim-safe rework. |
 | fitchef-candidate-009 | CANDIDATE | marketing | partial | dominant_text | high | medium | blocked_gtm | no_runtime_promotion | reject | Maps to `FITCHEF_MARKETING_BREAKFAST_PROMO_V1`; promo-heavy text risk. |
