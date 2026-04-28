@@ -11,7 +11,7 @@ merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at PR open.
+- No actionable review comments
 
 ## Local Validation Evidence
 
