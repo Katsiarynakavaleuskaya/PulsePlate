@@ -105,6 +105,10 @@ PR3 adds a deterministic source catalog and replacement shortlist so MenuStat
 cannot be mistaken for an active source and commercial/unresolved sources stay
 blocked until their own legal, cache, display, attribution, and retrieval
 reviews are complete.
+PR4 adds deterministic dedupe/mapping collision policy to source manifests.
+PR5 adds a source-onboarding gate so cache, display, attribution,
+redistribution, commercial contract, and unresolved-source decisions are
+validated before source-specific ingest or staging work starts.
 
 Implementation anchors (W1, repo paths on default branch):
 
@@ -115,6 +119,9 @@ Implementation anchors (W1, repo paths on default branch):
 - PR3 source catalog contract:
   `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`,
   `core/food_sources/source_catalog.py`
+- PR5 source-onboarding gate:
+  `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`,
+  `core/food_sources/source_onboarding.py`, `scripts/food_source_onboarding.py`
 - Snapshot manifest hub + fail-closed revalidation (size/checksum): `core/food_sources/snapshot_manager.py:91` (`SnapshotManager`), `:258` (`verify_recorded_snapshots`)
 - OFF deterministic delta/full source: `core/food_sources/off_delta.py:54` (`OpenFoodFactsDeltaSource`)
 - OFF export selection (cache/snapshot inputs): `core/food_apis/update_manager.py:261` (`_find_off_export_file`); scheduler entry for OFF updates: `:352` (`update_database` → `_update_off_database`)

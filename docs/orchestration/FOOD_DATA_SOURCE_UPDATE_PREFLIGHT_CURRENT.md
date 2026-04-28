@@ -9,6 +9,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md)
 - Current PR4 collision-policy packet:
   [`FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md`](./FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md)
+- Current PR5 source-onboarding gate packet:
+  [`FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md`](./FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md)
+- Current PR5 source-onboarding gate:
+  [`FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`](../architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -19,4 +23,5 @@ current tooling packet for food-data lanes that need non-dated links.
   [`BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight`](../roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-preflight)
 
 Update this alias when a later accepted packet supersedes the dated PR1
-criteria, PR2 tooling packet, or PR3 source catalog.
+criteria, PR2 tooling packet, PR3 source catalog, PR4 collision policy, or PR5
+source-onboarding gate.
