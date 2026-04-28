@@ -33,7 +33,7 @@ collector and mirror synchronization step for deterministic Codex review runs.
 - `tests/test_install_codex_skills.py`
 - `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md`
 - `docs/review/PR_<N>_FIXED_MAPPING.md` after PR number is assigned
-- `/.agents/skills/pulseplate-pr-review`
+- `.agents/skills/pulseplate-pr-review`
 
 ## Role Order
 

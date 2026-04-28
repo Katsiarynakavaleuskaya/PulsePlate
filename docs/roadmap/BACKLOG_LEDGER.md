@@ -4019,11 +4019,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 ### P2
 
 <a id="ledger-p2-pulseplate-pr-review-context-collector"></a>
-- [ ] P2: Add read-only context collector for PulsePlate PR review skill
+- [x] P2: Add read-only context collector for PulsePlate PR review skill
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review automation follow-up)
   - Target PR: PR #1539 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md`, docs/review/PR_1539_FIXED_MAPPING.md)
-  - Status: Open (closeout in docs-only follow-up PR)
+  - Status: Completed in PR #1539; closeout recorded in PR3 dry-run report runner lane
   - Area: orchestration / PR review / Codex skills
   - Reason: PR1 intentionally keeps `pulseplate-pr-review` passive and documentation/router-only. A separate follow-up should add a read-only collector for changed files, diff stats, scoped `AGENTS.md`, PR metadata, fixed-mapping state, and relevant test suggestions after the skill contract is merged and reviewed.
   - Links:
@@ -4035,6 +4035,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - collector output has a stable JSON schema usable by `pulseplate-pr-review`
     - tests cover branch diff, scoped `AGENTS.md` discovery, missing PR metadata, and fixed-mapping absence
     - the collector remains advisory and does not post GitHub comments, resolve threads, or claim merge readiness
+
+<a id="ledger-p2-pulseplate-pr-review-dry-run-report-runner"></a>
+- [ ] P2: Add dry-run report runner for PulsePlate PR review skill
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (review automation follow-up)
+  - Target PR: PR #1558 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md`, docs/review/PR_1558_FIXED_MAPPING.md)
+  - Status: In progress in PR3 dry-run report runner lane
+  - Area: orchestration / PR review / Codex skills
+  - Reason: PR2 provides read-only review context JSON, but reviewers still need a deterministic Markdown/JSON dry-run report that follows the `pulseplate-pr-review` role order and finding schema without posting comments or resolving threads.
+  - Links:
+    - `scripts/orchestration/pr_review_context.py`
+    - `tools/codex_skills/pulseplate-pr-review/SKILL.md`
+    - `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md`
+  - DoD:
+    - `scripts/orchestration/pr_review_report.py` consumes context JSON from file or stdin
+    - report output supports stable Markdown and JSON formats
+    - findings follow the `pulseplate-pr-review` schema and coordinator role order
+    - runner remains advisory and does not post GitHub comments, resolve review threads, or claim merge readiness
 
 <a id="ledger-p2-rag-release-gates-runtime-warnings-dedup"></a>
 - [ ] P2: Deduplicate `EvalRuntimeState.warnings` in RAG release-gates runner

@@ -64,7 +64,15 @@ Use this default order unless the active packet declares a narrower compatible s
    rg -n "CodeRabbit|Sourcery|Cubic|Disposition:|FIXED|NOT-A-BUG|DEFERRED" docs/review docs/orchestration
    ```
 
-3. Classify findings with the required schema:
+3. For deterministic dry-run mode, collect context and render the report:
+
+   ```bash
+   python3 scripts/orchestration/pr_review_context.py --pr <PR_NUMBER> --output /tmp/pulseplate_pr_review_context.json
+   python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_review_context.json --format markdown
+   python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_review_context.json --format json
+   ```
+
+4. Classify findings with the required schema:
    - `severity`: `critical`, `major`, `minor`, or `note`
    - `role_agent`: owning reviewer agent
    - `category`: correctness, security, architecture, tests, docs, wellness, release, or governance
@@ -74,7 +82,7 @@ Use this default order unless the active packet declares a narrower compatible s
    - `gate_to_run`: exact command that proves the fix
    - `disposition_candidate`: `FIXED`, `NOT-A-BUG`, `DEFERRED`, or `NEEDS-HUMAN`
 
-4. Keep plugin evidence optional:
+5. Keep plugin evidence optional:
    - GitHub: PR metadata, checks, reviews, and future dry-run-to-comment path.
    - CodeRabbit: reference workflow only; do not depend on available review quota.
    - Hugging Face: optional model/paper scouting for code review and vulnerability-detection methods.
@@ -109,3 +117,5 @@ Use this default order unless the active packet declares a narrower compatible s
 - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
 - `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
+- `scripts/orchestration/pr_review_context.py`
+- `scripts/orchestration/pr_review_report.py`
