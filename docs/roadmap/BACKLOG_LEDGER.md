@@ -2785,7 +2785,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Migrate command surface to `docker compose` v2 only
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-COMPOSE-V2-MIGRATION (`codex/compose-v2-command-surface`)
+  - Target PR: PR #1567 (`codex/compose-v2-command-surface`)
   - Area: infra / docs / operator workflow
   - Finding Type: command-surface consistency
   - Status: Landed

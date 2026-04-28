@@ -21,12 +21,18 @@ artifact names, not command syntax.
 
 The seam is retired when all are true:
 
-1. Makefile targets use `docker compose`.
+1. Makefile targets use `docker compose`; evidence:
+   `Makefile:33`, `Makefile:36`, `Makefile:39`, `Makefile:42`,
+   `Makefile:52`, `Makefile:55`.
 2. Active runbooks and operator docs no longer present legacy Compose v1 syntax
-   as the target state.
+   as the target state; evidence: `scripts/QUICK_DIAGNOSTIC.md:76`,
+   `scripts/QUICK_FIX_PRODUCTION.sh:47`,
+   `scripts/diagnose_production.sh:46`.
 3. Transitional wording is removed from `AGENTS.md` and
-   `docs/runbooks/ENGINEER_QUICKPATH.md`.
-4. Grep-based verification for lingering legacy command syntax is automated.
+   `docs/runbooks/ENGINEER_QUICKPATH.md`; evidence: `AGENTS.md:1163`,
+   `docs/runbooks/ENGINEER_QUICKPATH.md:74`.
+4. Grep-based verification for lingering legacy command syntax is automated;
+   evidence: `tests/test_repo_policy_guards.py:341`.
 
 ## Consequences
 

@@ -43,7 +43,7 @@ echo ""
 
 dc() {
     if docker compose version >/dev/null 2>&1; then
-        docker compose -f "$COMPOSE_FILE" "$@"
+        docker compose --env-file .env -f "$COMPOSE_FILE" "$@"
         return 0
     fi
     echo "❌ Docker Compose v2 plugin is required: docker compose"

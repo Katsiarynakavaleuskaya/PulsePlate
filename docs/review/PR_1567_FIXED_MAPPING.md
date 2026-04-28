@@ -39,8 +39,8 @@ Reason: The review-level readability/centralization notes are valid advisory fee
 - `pytest -q tests/test_deploy_contract_scripts.py -q` (PASS, 32 passed)
 - `pytest -q tests/test_repo_policy_guards.py tests/test_deploy_contract_scripts.py` (PASS, 46 passed)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md docs/runbooks/ENGINEER_QUICKPATH.md scripts/QUICK_DIAGNOSTIC.md` (PASS)
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` (PASS)
-- `make validate-min VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` (PASS)
+- `make validate-changed VENV_PYTHON=<venv-python>` (PASS)
+- `make validate-min VENV_PYTHON=<venv-python>` (PASS)
 - commit hooks during `git commit` (PASS)
 - pre-push hooks during `git push` (PASS)
 
@@ -49,7 +49,7 @@ Reason: The review-level readability/centralization notes are valid advisory fee
 Full local `make verify` was not run for this coordinator-owned Docker/CI
 command-surface governance PR. The operator approved using narrow local gates
 plus current-head GitHub CI as the machine-heavy signal. Merge readiness still
-requires current-head required CI parity and strict merge-readiness wrappers.
+requires current-head required-CI parity and strict merge-readiness wrappers.
 
 ## Start Gate Note
 

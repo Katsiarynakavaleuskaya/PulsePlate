@@ -360,7 +360,10 @@ def test_active_command_surfaces_use_docker_compose_v2() -> None:
     offenders: list[str] = []
 
     for rel in command_surface_paths:
-        content = _read(REPO_ROOT / rel)
+        path = REPO_ROOT / rel
+        if not path.exists():
+            continue
+        content = _read(path)
         if content is None:
             continue
         for line_no, line in enumerate(content.splitlines(), start=1):
