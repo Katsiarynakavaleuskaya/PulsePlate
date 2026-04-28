@@ -13,10 +13,28 @@ from core.food_sources.source_preflight import (
     SourceManifestError,
     build_source_preflight_report,
     load_source_manifest,
+    validate_manifest_source_contract,
 )
 
 _FIXTURE_DIR = Path(__file__).parent / "fixtures" / "food_source_preflight"
 _SCRIPT = Path(__file__).parents[1] / "scripts" / "food_source_preflight.py"
+_CATALOG = (
+    Path(__file__).parents[1]
+    / "docs"
+    / "architecture"
+    / "FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json"
+)
+_ONBOARDING = (
+    Path(__file__).parents[1]
+    / "docs"
+    / "architecture"
+    / "FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json"
+)
+_USDA_MANIFEST_PAIRS = (
+    ("current_usda_foundation_manifest.json", "incoming_usda_foundation_manifest.json"),
+    ("current_usda_branded_manifest.json", "incoming_usda_branded_manifest.json"),
+    ("current_usda_fndds_manifest.json", "incoming_usda_fndds_manifest.json"),
+)
 
 
 def _fixture(name: str) -> Path:
@@ -42,6 +60,100 @@ def test_load_source_manifest_accepts_legacy_static_menustat() -> None:
     assert manifest.source_classification == "legacy_static"
     assert manifest.source_version == "2022"
     assert manifest.collision_policy.collision_resolution == "quarantine"
+
+
+@pytest.mark.parametrize("current_fixture,incoming_fixture", _USDA_MANIFEST_PAIRS)
+def test_load_source_manifest_accepts_usda_current_fixtures(
+    current_fixture: str,
+    incoming_fixture: str,
+) -> None:
+    current = load_source_manifest(_fixture(current_fixture))
+    incoming = load_source_manifest(_fixture(incoming_fixture))
+
+    assert current.source == incoming.source
+    assert current.source.startswith("usda_")
+    assert incoming.source_classification == "current"
+    assert incoming.source_url == "https://fdc.nal.usda.gov/download-datasets"
+    assert incoming.schema.primary_keys == ("fdc_id",)
+
+
+@pytest.mark.parametrize("current_fixture,incoming_fixture", _USDA_MANIFEST_PAIRS)
+def test_build_source_preflight_report_accepts_usda_dry_run_pairs(
+    current_fixture: str,
+    incoming_fixture: str,
+) -> None:
+    report = build_source_preflight_report(
+        _fixture(current_fixture),
+        _fixture(incoming_fixture),
+    )
+
+    assert report["success"] is True
+    assert report["dry_run"] is True
+    assert report["runtime_cutover"] is False
+    assert report["source_classification"] == "current"
+    assert report["source_url"] == "https://fdc.nal.usda.gov/download-datasets"
+    row_count = report["row_count"]
+    checksum = report["checksum"]
+    assert isinstance(row_count, dict)
+    assert isinstance(checksum, dict)
+    assert row_count["changed"] is True
+    assert checksum["changed"] is True
+
+
+@pytest.mark.parametrize("_,incoming_fixture", _USDA_MANIFEST_PAIRS)
+def test_validate_manifest_source_contract_accepts_usda_onboarding_gate(
+    _: str,
+    incoming_fixture: str,
+) -> None:
+    manifest = load_source_manifest(_fixture(incoming_fixture))
+
+    errors = validate_manifest_source_contract(
+        manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=_ONBOARDING,
+    )
+
+    assert errors == []
+
+
+def test_validate_manifest_source_contract_rejects_unknown_source(tmp_path: Path) -> None:
+    payload = json.loads(_fixture("incoming_usda_foundation_manifest.json").read_text())
+    payload["source"] = "usda_unknown"
+    manifest_path = tmp_path / "unknown_usda_manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    manifest = load_source_manifest(manifest_path)
+
+    errors = validate_manifest_source_contract(
+        manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=_ONBOARDING,
+    )
+
+    assert errors == [
+        "catalog: unknown source 'usda_unknown'",
+        "onboarding: missing source 'usda_unknown'",
+    ]
+
+
+def test_validate_manifest_source_contract_rejects_classification_mismatch(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(_fixture("incoming_usda_foundation_manifest.json").read_text())
+    payload["source_classification"] = "legacy_static"
+    manifest_path = tmp_path / "classification_mismatch_manifest.json"
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+    manifest = load_source_manifest(manifest_path)
+
+    errors = validate_manifest_source_contract(
+        manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=_ONBOARDING,
+    )
+
+    assert errors == [
+        "catalog: source_classification mismatch for 'usda_foundation': "
+        "manifest='legacy_static' catalog='current'"
+    ]
 
 
 def test_load_source_manifest_rejects_invalid_source_classification() -> None:
@@ -224,6 +336,38 @@ def test_food_source_preflight_cli_is_file_only_and_json(
     payload = json.loads(result.stdout)
     assert payload["success"] is True
     assert payload["runtime_cutover"] is False
+    assert result.stderr == ""
+    assert after == before
+
+
+def test_food_source_preflight_cli_accepts_usda_fixture_pair(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgres://must-not-be-used.invalid/db")
+    before = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_SCRIPT),
+            "--current-manifest",
+            str(_fixture("current_usda_foundation_manifest.json")),
+            "--incoming-manifest",
+            str(_fixture("incoming_usda_foundation_manifest.json")),
+            "--dry-run",
+            "--json",
+        ],
+        cwd=tmp_path,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    after = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+
+    payload = json.loads(result.stdout)
+    assert payload["success"] is True
+    assert payload["runtime_cutover"] is False
+    assert payload["source"]["incoming"] == "usda_foundation"
     assert result.stderr == ""
     assert after == before
 

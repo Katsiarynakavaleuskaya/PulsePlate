@@ -1,0 +1,30 @@
+{
+  "source": "usda_branded",
+  "source_classification": "current",
+  "source_version": "fixture-2025-12-branded-incoming",
+  "source_url": "https://fdc.nal.usda.gov/download-datasets",
+  "retrieved_on": "2026-04-24",
+  "artifact": {
+    "path": "fixtures/usda/branded_incoming.json",
+    "checksum_sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+    "size_bytes": 2304,
+    "record_count": 240
+  },
+  "schema": {
+    "fields": [
+      "fdc_id",
+      "gtin_upc",
+      "brand_owner",
+      "description",
+      "serving_size",
+      "serving_size_unit",
+      "branded_food_category"
+    ],
+    "primary_keys": ["fdc_id"]
+  },
+  "collision_policy": {
+    "dedupe_fields": ["gtin_upc"],
+    "mapping_fields": ["fdc_id", "gtin_upc", "description"],
+    "collision_resolution": "quarantine"
+  }
+}
