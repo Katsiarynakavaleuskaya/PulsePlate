@@ -4058,7 +4058,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Calibrate PulsePlate PR review dry-run false-positive rubric
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review automation follow-up)
-  - Target PR: PR-TBD (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md`)
+  - Target PR: PR #1560 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md`, docs/review/PR_1560_FIXED_MAPPING.md)
   - Status: In progress in PR4 calibration lane
   - Area: orchestration / PR review / Codex skills
   - Reason: PR3 added a side-effect-free dry-run report runner, but any future dry-run-to-comment path needs deterministic calibration first so benign context and `NOT-A-BUG` reviewer patterns do not become noisy actionable comments.
