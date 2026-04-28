@@ -51,6 +51,11 @@ Disposition: NOT-A-BUG
 Evidence: CodeRabbit review; dispositioned per inline threads `#discussion_r3150659894`–`#discussion_r3150659926` above.
 Reason: Merge-readiness gate requires the aggregate review URL mapped; thread-level NOT-A-BUG rows are the proof.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1552#discussion_r3150760692
+Disposition: FIXED
+Commit: 07eaa4ed5
+Evidence: `docs/review/PR_1552_FIXED_MAPPING.md` evidence line uses "Phase 2" (with space) per CodeRabbit review; replaces "Phase2".
+
 ## Scope (PR-1552)
 
 - `frontend/src/components/ui/Button.tsx` — RuntimeSet parity: `success` / `warning` variants, `loading` / `loadingLabel`, `destructive` as sole danger mapping.
