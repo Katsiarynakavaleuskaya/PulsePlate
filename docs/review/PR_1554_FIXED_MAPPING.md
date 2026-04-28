@@ -11,7 +11,13 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads at this stage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1554#discussion_r3153664697 -> 5d2598de4
+Disposition: FIXED
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` uses consistent `accessory-shell` terminology in both Status and Reason lines for the closed Input parity ledger entry.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1554#pullrequestreview-4188240749 -> 5d2598de4
+Disposition: FIXED
+Evidence: Sourcery aggregate review URL is mapped; its only actionable thread (`#discussion_r3153664697`) is fixed by the commit above.
 
 ## Scope (PR-1554)
 
