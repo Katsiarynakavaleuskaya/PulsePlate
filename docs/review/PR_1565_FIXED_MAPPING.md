@@ -27,6 +27,32 @@ Evidence: scripts/orchestration/skill_router.py keeps `pulseplate-web-launch-sit
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3156986579 -> e06dd686d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192168608 -> e06dd686d
 
+Disposition: FIXED
+Commit: c2765b8c0
+Evidence: scripts/orchestration/skill_router.py defines `LAUNCH_SITE_CONDITIONAL_SKILLS`, removes `pulseplate-web-launch-site` from the research conditional bucket, and tests/test_skill_router.py verifies launch-specific conditional guidance.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556 -> c2765b8c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192269599 -> c2765b8c0
+
+Disposition: FIXED
+Commit: c2765b8c0
+Evidence: docs/roadmap/BACKLOG_LEDGER.md keeps `pulseplate-web-launch-site` and `pulseplate-agent-product` open as pending merge items for PR #1565 instead of marking unmerged work complete.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556 -> c2765b8c0
+
+Disposition: FIXED
+Commit: c2765b8c0
+Evidence: tools/codex_skills/pulseplate-web-launch-site/SKILL.md and tools/codex_skills/pulseplate-agent-product/SKILL.md explicitly include docs/ENGINEERING_LESSONS.md, RUNBOOK_AGENT.md, and nearest scoped AGENTS.md in required reading.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556 -> c2765b8c0
+
+Disposition: FIXED
+Commit: c2765b8c0
+Evidence: docs/dev/CODEX_SKILLS.md adds SKILL/test evidence anchors for `pulseplate-web-launch-site` and `pulseplate-agent-product` in both inventory sections.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556 -> c2765b8c0
+
+Disposition: NOT-A-BUG
+Evidence: Commit subjects are conventional and scoped to the actual changes (`feat(codex-skills)`, `docs(review)`, and `fix(codex-skills)`); no `docs/orchestration/AGENTS.md` update exists in this PR, and rewriting already-pushed history only for a subjective docs scope would add governance risk without changing repo behavior.
+Reason: The packet is part of the skills lane, not an agent behavior contract change requiring a `docs(agents)` commit subject.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192211556
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` PASS.
@@ -39,7 +65,7 @@ Evidence: scripts/orchestration/skill_router.py keeps `pulseplate-web-launch-sit
 
 ## External Bot Status
 
-- CodeRabbit: pending on latest pushed head after review-fix commit.
+- CodeRabbit: actionable feedback mapped above; pending latest pushed head after review-fix commit.
 - Sourcery: actionable feedback mapped above.
 - Cubic: pending on latest pushed head.
 
