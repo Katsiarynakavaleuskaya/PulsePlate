@@ -28,23 +28,19 @@ resolving threads on GitHub.
 Merge-readiness contract:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
-- [ ] Current-head CI is green for PR branch head
-- [ ] Required checks complete with no pending required jobs
-- [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] After latest bot/review activity, perform a final check and wait at least
-      one review cycle before merging
-- [x] `python3 scripts/orchestration/check_preflight.py`
-- [x] `python3 scripts/orchestration/check_agent_consistency.py`
-- [x] `python3 scripts/orchestration/task_bootstrap.py --goal "Close PR-S0-B2 plugin-control-plane families umbrella ledger after merged PR #1522" --task-class "Orchestration" --pr-phase pre_open`
-- [x] `git diff --check`
-- [x] `pytest -q tests/test_repo_policy_guards.py`
-- [x] Focused grep checks for PR #1522 evidence, Rail B2 advisory/control-plane
-      boundary, semantic-cache deferral, and Rail B1 separation
-- [x] `pre-commit run --all-files`
-- [x] `make validate-changed`
-- [x] `make verify` passed before clean rebase; after rebase, PR-scoped gates
-      and pre-commit were rerun green.
+PR-specific local evidence recorded for this closeout:
+
+- `python3 scripts/orchestration/check_preflight.py`
+- `python3 scripts/orchestration/check_agent_consistency.py`
+- `python3 scripts/orchestration/task_bootstrap.py --goal "Close PR-S0-B2 plugin-control-plane families umbrella ledger after merged PR #1522" --task-class "Orchestration" --pr-phase pre_open`
+- `git diff --check`
+- `pytest -q tests/test_repo_policy_guards.py`
+- focused grep checks for PR #1522 evidence, Rail B2 advisory/control-plane
+  boundary, semantic-cache deferral, and Rail B1 separation
+- `pre-commit run --all-files`
+- `make validate-changed`
+- `make verify` passed before clean rebase; after rebase, PR-scoped gates and
+  pre-commit were rerun green.
 
 ## Scope Boundary Proof
 
