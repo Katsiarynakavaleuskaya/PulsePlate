@@ -20,7 +20,7 @@ For traceability without blocking on node-id capture in this governance PR:
 ## Evidence anchors (repo contracts)
 
 - Web `Button` API: `frontend/src/components/ui/Button.tsx:3-4` (`ButtonVariant` including success/warning, `ButtonSize`); loading props in `frontend/src/components/ui/Button.tsx:10-11`.
-- Web `Input`: `frontend/src/components/ui/Input.tsx:4-24` (generic `HTMLInputElement` wrapper; no dedicated size/accessory/loading API).
+- Web `Input`: `frontend/src/components/ui/Input.tsx:5-11` (`InputSize` + `InputProps` parity API), `frontend/src/components/ui/Input.tsx:47-76` (runtime `loading`/`invalid`/`fullWidth` behavior), `frontend/src/components/ui/__tests__/Input.test.tsx:30-41` (native `type` passthrough).
 
 ## Visual PASS
 
@@ -68,8 +68,12 @@ Variants:
 
 Code parity:
 
-- Generic text/number/search/password usage maps to HTML input semantics via `Input` props.
-- `size`, `unit`, `loading`, `prefix`, `suffix`, and clear-action require repo API promotion before becoming canonical.
+- Core Input RuntimeSet parity is backed by `frontend/src/components/ui/Input.tsx:5-11`, `frontend/src/components/ui/Input.tsx:47-76`: `size`, `invalid`, `loading`, native HTML input `type`, and disabled behavior.
+- `type=text`, `type=number`, `type=search`, and `type=secret` map to native input types (`text`, `number`, `search`, `password`) via passthrough in `frontend/src/components/ui/Input.tsx:66-76` and tests in `frontend/src/components/ui/__tests__/Input.test.tsx:30-41`.
+- `type=text, state=default, size=sm` maps to `size="sm"` (`frontend/src/components/ui/Input.tsx:14-17`, `frontend/src/components/ui/__tests__/Input.test.tsx:18-22`).
+- `state=error` maps to `invalid` / `aria-invalid` (`frontend/src/components/ui/Input.tsx:60-69`, `frontend/src/components/ui/__tests__/Input.test.tsx:44-60`).
+- `state=disabled` maps to native `disabled` and loading-enforced disabled (`frontend/src/components/ui/Input.tsx:61-76`, `frontend/src/components/ui/__tests__/Input.test.tsx:62-81`).
+- Unit, prefix, suffix, and clear-action remain accessory-shell follow-ups and are not promoted in PR #1553.
 
 ### PP/Shared/FormField/RuntimeSet
 
@@ -142,4 +146,4 @@ Related backlog:
 ## Follow-ups
 
 - Button RuntimeSet parity: **resolved in PR #1552** (`Button.tsx`, Vitest, Storybook, audit anchors above).
-- Input code parity PR: decide size/unit/loading/prefix/suffix/clear-action API.
+- Input core parity: **resolved in PR #1553** (`Input.tsx`, Vitest, Storybook, audit anchors above).

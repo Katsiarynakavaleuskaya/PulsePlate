@@ -1,0 +1,88 @@
+# PR #1553 - Fixed in Commit Mapping (canonical)
+
+PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553>
+Branch: `feat/input-runtime-set-code-parity`
+Date: 2026-04-28
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152112602
+Disposition: NOT-A-BUG
+Evidence: PR scope for #1553 is locked to `Input` core RuntimeSet parity and governance docs; wrapper API harmonization is tracked as follow-up work (`docs/roadmap/BACKLOG_LEDGER.md` accessory/runtime follow-up lane).
+Reason: Avoid scope creep in a bounded parity PR; no runtime regression is introduced in touched surfaces.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152112604 -> d86208f27
+Disposition: FIXED
+Evidence: `frontend/src/components/ui/Input.tsx` now preserves explicit `aria-invalid` tokens (`grammar|spelling`) while still synthesizing invalid state from boolean prop.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124458 -> d86208f27
+Disposition: FIXED
+Evidence: Added line-precise `file:line` anchors for Input parity claims in `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124465 -> 1f525aa7e
+Disposition: FIXED
+Evidence: `docs/review/PR_1553_FIXED_MAPPING.md` checkboxes are checked in the canonical artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124469
+Disposition: NOT-A-BUG
+Evidence: Canonical artifact contract for this lane requires `## Discussion Thread Pass` and `## Fixed in Commit Mapping`; merge-readiness truth is validated by CI gate, not a mandatory artifact section in this PR.
+Reason: Keeping the artifact aligned to active repo policy avoids introducing non-canonical sections.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124477 -> d86208f27
+Disposition: FIXED
+Evidence: Expanded `ledger-p1-design-input-runtime-code-parity` DoD into explicit, testable acceptance bullets in `docs/roadmap/BACKLOG_LEDGER.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124480 -> d86208f27
+Disposition: FIXED
+Evidence: Preserved explicit `aria-invalid` token values (`grammar|spelling`) in `frontend/src/components/ui/Input.tsx` and updated focused test expectations.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#pullrequestreview-4186460720
+Disposition: NOT-A-BUG
+Evidence: Sourcery aggregate review URL is tracked; actionable scope is resolved in Input core parity commits `61830a897`, `c49573f26`, `7b1a48717`.
+Reason: Merge-readiness governance requires mapping the aggregate bot review URL in the canonical artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#pullrequestreview-4186485199 -> d86208f27
+Disposition: FIXED
+Evidence: Actionable CodeRabbit review comments in this aggregate review were addressed via mapped thread fixes above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#pullrequestreview-4186552163 -> d86208f27
+Disposition: FIXED
+Evidence: This follow-up aggregate review references the same actionable thread set now mapped and resolved in this artifact.
+
+## Scope (PR-1553)
+
+- `frontend/src/components/ui/Input.tsx` — core RuntimeSet parity.
+- `frontend/src/components/ui/__tests__/Input.test.tsx` — focused tests.
+- `frontend/src/components/ui/Input.stories.tsx` — Storybook stories.
+- `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md` — Input code parity notes.
+- `docs/roadmap/BACKLOG_LEDGER.md` — Input parity / accessory follow-up tracking.
+
+## Role stack execution log (PR #1553)
+
+| Step | Role | Result |
+|------|------|--------|
+| 1 | agent-coordinator | GO — scope locked to Input core parity and governance surfaces only. |
+| 2 | architecture-specialist | GO — enforce thin primitive contract with `size/invalid/loading/fullWidth` and native `type` passthrough. |
+| 3 | frontend-engineer | GO — implemented Input parity API plus focused tests/stories in allowed files. |
+| 4 | designer-artist-agent | GO — visual review surface matches requested RuntimeSet parity stories. |
+| 5 | creative-designer | GO — style consistency with PulsePlate token language; only minor non-blocking refinements suggested. |
+| 6 | qa-engineer-agent | GO — targeted `Input.test.tsx` deterministic and passing; optional extra edge-case tests noted. |
+| 7 | bug-hunter | GO — no scope violations in component surface; process reminder to avoid build artifact commits. |
+| 8 | cursor-specialist-agent | GO — merge governance checklist and mapping/disposition workflow aligned with repo policy. |
+
+## Validation
+
+Run locally before merge:
+
+- `cd frontend && npm run test:ci -- src/components/ui/__tests__/Input.test.tsx`
+- `cd frontend && npm run build-storybook`
+- `python3 scripts/orchestration/check_preflight.py`
+- `python3 scripts/orchestration/check_agent_consistency.py`
+- `pre-commit run --all-files`
+- `make validate-changed`
+- `make validate-min`
