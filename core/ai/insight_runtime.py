@@ -281,4 +281,6 @@ def _build_recursive_optimization_hints(
         target_depth_cap=target_depth_cap,
         aggressive_short_circuit_allowed=optimization_applied and target_depth_cap <= 2,
         pragmatic_early_stop_allowed=optimization_applied,
+        speech_act=str(getattr(getattr(decision, "speech_act", None), "value", "unknown")),
+        language_game=str(getattr(getattr(decision, "language_game", None), "value", "general")),
     )

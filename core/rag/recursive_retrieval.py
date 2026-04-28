@@ -32,6 +32,8 @@ from core.rag.rag_constants import (
 logger = logging.getLogger(__name__)
 
 _TOKEN_RE = re.compile(r"[\w\-]+", re.UNICODE)
+_AGGRESSIVE_SHORT_CIRCUIT_CONFIDENCE = 0.85
+_PRAGMATIC_EARLY_STOP_CONFIDENCE = 0.7
 _STOPWORDS = {
     "the",
     "and",
@@ -94,6 +96,8 @@ def _make_optimization_stats() -> OptimizationStats:
         "early_stop_no_new_chunks": False,
         "early_stop_low_confidence_gain": False,
         "early_stop_latency_budget": False,
+        "early_stop_aggressive_short_circuit": False,
+        "early_stop_pragmatic_usefulness": False,
     }
 
 
@@ -178,6 +182,65 @@ def _query_changed_materially(previous_query: str, refined_query: str) -> bool:
     if refined_query.strip() == previous_query.strip():
         return False
     return set(_tokenize(refined_query)) != set(_tokenize(previous_query))
+
+
+def _pragmatic_evidence_is_sufficient(
+    *,
+    query: str,
+    chunks: List[RAGChunk],
+    hints: RecursiveOptimizationHints,
+) -> bool:
+    """Reuse pragmatic validation to stop when current evidence is already useful."""
+    if not hints.pragmatic_early_stop_allowed or not chunks:
+        return False
+
+    from core.insight.linguistic import LanguageGameType
+    from core.insight.post_analytical import PragmaticValidator
+
+    try:
+        language_game = LanguageGameType(hints.language_game)
+    except ValueError:
+        language_game = LanguageGameType.GENERAL
+
+    evidence_text = " ".join(chunk.content for chunk in chunks)
+    assessment = PragmaticValidator().assess(
+        evidence_text,
+        query=query,
+        language_game=language_game,
+    )
+    return bool(assessment.practically_useful)
+
+
+def _should_short_circuit_from_hints(
+    *,
+    query: str,
+    chunks: List[RAGChunk],
+    confidence: float,
+    hop: int,
+    hints: RecursiveOptimizationHints | None,
+) -> tuple[OptimizationStopReason | None, str | None]:
+    """Apply prepared philosophical speed hints without changing recursive budgets."""
+    if hints is None:
+        return None, None
+
+    if (
+        hints.aggressive_short_circuit_allowed
+        and hop == 1
+        and confidence >= _AGGRESSIVE_SHORT_CIRCUIT_CONFIDENCE
+    ):
+        return (
+            OptimizationStopReason.AGGRESSIVE_SHORT_CIRCUIT,
+            "early_stop_aggressive_short_circuit",
+        )
+
+    if confidence >= _PRAGMATIC_EARLY_STOP_CONFIDENCE and _pragmatic_evidence_is_sufficient(
+        query=query,
+        chunks=chunks,
+        hints=hints,
+    ):
+        return OptimizationStopReason.COMPLETED, "early_stop_pragmatic_usefulness"
+
+    return None, None
 
 
 def _apply_verification(
@@ -464,6 +527,22 @@ def retrieve_recursive_context_structured(
 
             merged_chunks = candidate_chunks
             previous_confidence = confidence
+
+            if optimization_enabled and optimization_hints is not None:
+                short_circuit_reason, short_circuit_key = _should_short_circuit_from_hints(
+                    query=query,
+                    chunks=ranked_chunks,
+                    confidence=confidence,
+                    hop=hop,
+                    hints=optimization_hints,
+                )
+                if short_circuit_reason is not None:
+                    _set_stop_reason(
+                        optimization_stats,
+                        short_circuit_reason,
+                        early_stop_key=short_circuit_key,
+                    )
+                    break
 
             if (
                 optimization_enabled

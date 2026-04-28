@@ -27,6 +27,7 @@ class OptimizationStopReason(str, Enum):
     """Deterministic stop reasons for recursive runtime optimization."""
 
     COMPLETED = "completed"
+    AGGRESSIVE_SHORT_CIRCUIT = "aggressive_short_circuit"
     EMPTY_HOP = "empty_hop"
     LATENCY_BUDGET = "latency_budget"
     LOW_CONFIDENCE_GAIN = "low_confidence_gain"
@@ -66,6 +67,8 @@ class OptimizationStats(TypedDict):
     early_stop_no_new_chunks: bool
     early_stop_low_confidence_gain: bool
     early_stop_latency_budget: bool
+    early_stop_aggressive_short_circuit: bool
+    early_stop_pragmatic_usefulness: bool
 
 
 @dataclass(frozen=True)
@@ -75,6 +78,8 @@ class RecursiveOptimizationHints:
     target_depth_cap: int
     aggressive_short_circuit_allowed: bool = False
     pragmatic_early_stop_allowed: bool = False
+    speech_act: str = "unknown"
+    language_game: str = "general"
 
 
 @dataclass

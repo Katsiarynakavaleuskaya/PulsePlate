@@ -394,6 +394,48 @@ def test_prepare_insight_runtime_derives_recursive_speed_hints_from_route_truth(
     )
 
 
+def test_prepare_insight_runtime_preserves_linguistic_speed_hint_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recursive speed hints must carry cheap route context from the prepared seam."""
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> SimpleNamespace:
+            del text, lang, router_enabled, use_rag
+            return SimpleNamespace(
+                needs_generation=True,
+                needs_rag=True,
+                target_depth=2,
+                optimization_applied=True,
+                route_type=SimpleNamespace(value="RAG_FACTUAL"),
+                speech_act=SimpleNamespace(value="question"),
+                language_game=SimpleNamespace(value="nutrition"),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="How much protein should I eat?",
+        use_rag=True,
+        philosophy_router_enabled=True,
+        philosophy_linguistic_enabled=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.recursive_rollout_policy.optimization_hints == RecursiveOptimizationHints(
+        target_depth_cap=2,
+        aggressive_short_circuit_allowed=True,
+        pragmatic_early_stop_allowed=True,
+        speech_act="question",
+        language_game="nutrition",
+    )
+
+
 def test_prepare_insight_runtime_skips_recursive_speed_hints_for_non_rag_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
