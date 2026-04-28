@@ -11,6 +11,11 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#pullrequestreview-4186460720
+Disposition: NOT-A-BUG
+Evidence: Sourcery aggregate review URL is tracked; actionable scope is resolved in Input core parity commits `61830a897`, `c49573f26`, `7b1a48717`.
+Reason: Merge-readiness governance requires mapping the aggregate bot review URL in the canonical artifact.
+
 ## Scope (PR-1553)
 
 - `frontend/src/components/ui/Input.tsx` — core RuntimeSet parity.
