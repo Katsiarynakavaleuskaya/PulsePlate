@@ -5541,11 +5541,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill docs explicitly preserve fail-closed packet metadata expectations and passive discovery-only boundaries
 
 <a id="ledger-p2-codex-skill-pulseplate-web-launch-site"></a>
-- [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
+- [x] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1565
-  - Status: Pending merge (target: PR #1565); close this item after PR #1565 merges.
+  - Status: ✅ Merged via PR #1565 (Merge commit: `93de5e8dbc7304e3c653736952de8e564b906f5e`) on 2026-04-28.
   - Area: web / launch / frontend
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific launch-site skill for high-conviction landing pages, launch copy, capture funnels, and deploy-adjacent web launch workflows beyond generic frontend helpers.
@@ -5559,11 +5559,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill docs explicitly preserve coordinator-first and non-interference contract
 
 <a id="ledger-p2-codex-skill-pulseplate-agent-product"></a>
-- [ ] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
+- [x] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1565
-  - Status: Pending merge (target: PR #1565); close this item after PR #1565 merges.
+  - Status: ✅ Merged via PR #1565 (Merge commit: `93de5e8dbc7304e3c653736952de8e564b906f5e`) on 2026-04-28.
   - Area: agents / product strategy / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific agent-product skill for productizing agent workflows without collapsing repo orchestration, transport-only bridge semantics, or coordinator authority into a parallel runtime layer.
