@@ -39,7 +39,6 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--json",
         action="store_true",
-        required=True,
         help="Emit the deterministic JSON report.",
     )
     return parser.parse_args(argv)
@@ -51,7 +50,11 @@ def main(argv: list[str] | None = None) -> int:
         catalog_path=args.catalog,
         onboarding_path=args.onboarding,
     )
-    print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        status = "PASS" if report.get("success") is True else "FAIL"
+        print(f"source_onboarding: {status}")
     return 0 if report.get("success") is True else 1
 
 

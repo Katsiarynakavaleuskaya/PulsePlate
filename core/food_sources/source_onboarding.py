@@ -21,6 +21,8 @@ from core.food_sources.source_catalog import (
 )
 from core.food_sources.source_preflight import SourceClassification
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
 OnboardingStatus = Literal[
     "eligible_preflight",
     "legacy_baseline_blocked",
@@ -565,9 +567,10 @@ def load_source_onboarding(
 def _expected_catalog_ref(catalog_path: Path | str) -> str:
     """Return the canonical catalog ref embedded in PR5 onboarding snapshots."""
     path = Path(catalog_path)
-    if path.name == "FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json":
-        return "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json"
-    return path.as_posix()
+    try:
+        return path.resolve().relative_to(_REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def build_source_onboarding_report(

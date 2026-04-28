@@ -48,10 +48,13 @@ def _mutate_source(
     updated = copy.deepcopy(payload)
     sources = updated["sources"]
     assert isinstance(sources, list)
+    found = False
     for source in sources:
         if isinstance(source, dict) and source.get("source") == source_name:
             source[key] = value
+            found = True
             break
+    assert found, f"source {source_name!r} not found in payload"
     return updated
 
 
@@ -153,6 +156,13 @@ def test_food_source_onboarding_rejects_catalog_ref_mismatch() -> None:
             catalog=_catalog(),
             expected_catalog_ref="docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
         )
+
+
+def test_food_source_onboarding_accepts_absolute_catalog_path_ref() -> None:
+    report = build_source_onboarding_report(_CATALOG_PATH.resolve(), _ONBOARDING_PATH)
+
+    assert report["success"] is True
+    assert report["catalog_ref"] == "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json"
 
 
 def test_food_source_onboarding_rejects_generic_legacy_static_without_replacement_gate() -> None:
