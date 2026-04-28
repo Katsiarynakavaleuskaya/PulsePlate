@@ -11,7 +11,11 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 76b0fe1f1
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:21
+Reason: The mapping artifact now keeps merge-readiness content PR-specific and links to the canonical governance contracts instead of duplicating the full shared checklist.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191604149 -> 76b0fe1f1
 
 ## Review Notes
 
@@ -22,6 +26,8 @@ resolving threads on GitHub.
 ## Initial Implementation Commits
 
 - `3e8988f43` - `docs(roadmap): close plugin control-plane umbrella`
+- `375381156` - `docs(review): add pr1561 fixed mapping`
+- `76b0fe1f1` - `docs(review): trim pr1561 mapping`
 
 ## Merge Readiness
 
