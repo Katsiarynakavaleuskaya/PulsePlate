@@ -3419,16 +3419,18 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Launcher/runtime behavior stays outside repo SoT unless separately promoted by the automation readiness matrix
     - No duplicate orchestration source of truth is introduced
 <a id="ledger-p2-karpathy-style-advisory-wiki-umbrella"></a>
-- [ ] P2: Karpathy-style advisory wiki umbrella
+- [x] P2: Karpathy-style advisory wiki umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-S0-B1 (`docs(roadmap): define Karpathy advisory wiki umbrella`)
+  - Target PR: PR-S0-B1 (`docs(roadmap): define Karpathy advisory wiki umbrella`, merged as PR #1514)
   - Area: orchestration / workforce memory / roadmap
   - Finding Type: umbrella canonicalization
-  - Status: 🟡 In progress (PR-S0-B1 locks Rail B1 as advisory workforce compiled memory only; no product RAG, runtime truth, semantic cache, or plugin/control-plane implementation)
+  - Status: ✅ Closed. PR #1514 merged on 2026-04-24 as `49e8c65eb27a9a36592a0786f34bca64392d80d8`; Rail B1 is now locked as advisory workforce compiled memory only, with no product RAG, runtime truth, public response-contract logic, semantic cache, or plugin/control-plane implementation.
+  - Closeout note: The docs-only closure PR was opened on 2026-04-28 after the stale `🟡 In progress` ledger state was found during the post-B2 closeout planning pass. Mitigation is this ledger-only reconciliation; no remaining Rail B1 umbrella implementation work is pending.
   - Reason (EN): The workforce compiled-memory line now has launcher/bootstrap, compiler, and hardening slices, but the backlog still lacks one explicit umbrella item that marks it as a separate advisory rail rather than an accidental side-project or product-RAG substitute. (RU: У workforce compiled-memory линии уже есть launcher/bootstrap, compiler и hardening slices, но в backlog нет одного umbrella-item, который бы фиксировал её как отдельный advisory rail, а не побочный side-project или замену product RAG.)
   - Links:
     - `docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
+    - `docs/review/PR_1514_FIXED_MAPPING.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
