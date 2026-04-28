@@ -1,0 +1,82 @@
+# PR 1569 Fixed in Commit Mapping
+
+## PR
+
+- PR: `#1569`
+- Branch: `codex/ios-design-system-adoption-v1`
+- Slice: `PR-5 iOS Design-System Adoption v1`
+- Phase: `post_open_review`
+
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+- Status: Draft PR opened; CodeRabbit/Sourcery/Cubic/human review pass pending.
+
+## Fixed in Commit Mapping
+
+No actionable review threads have been filed at mapping creation time.
+
+## Manual Review Substitute
+
+- Scope: local role-agent review of `origin/main...HEAD`
+- Result: PASS so far; no architecture blockers after post-diff role review.
+- Evidence:
+  - `agent-coordinator` locked PR-5 scope to the packet, backlog ledger, and
+    four bounded iOS surfaces.
+  - `creative-designer` confirmed governed token/primitive adoption boundaries
+    for Welcome, Launch, BMI validation/CTA, and RootTabs tint.
+  - `frontend-engineer` provided token parity guidance and localization caveats.
+  - advisory `cursor-specialist-agent` flagged `PPButton` localization risk;
+    implementation preserves `LocalizedStringKey` labels while passing
+    localized `String` titles into the existing `PPButton` API.
+  - `architecture-specialist` reported no blocking findings after the final
+    PR-5 diff review.
+
+## Mandatory QA And Bug-Hunter Pass
+
+- `qa-engineer-agent`: Pending post-open pass.
+- `bug-hunter`: Pending post-open pass.
+
+## Validation Evidence
+
+- `python3 scripts/orchestration/check_preflight.py` - PASS
+- `python3 scripts/orchestration/check_agent_consistency.py` - PASS
+- `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json`
+  - PASS
+- `pytest -q tests/test_repo_policy_guards.py` - PASS
+- `pytest -q tests/test_design_token_parity.py` - PASS
+- `pre-commit run --all-files` - PASS
+- `make ios-test IOS_DESTINATION='platform=iOS Simulator,id=3DA1887F-A91D-4D32-A49F-C96D82F7C4B6'`
+  - PASS (`86` selected tests, `0` failures)
+- `make verify` - PASS before the final `origin/main` rebase on the same PR-5
+  diff: verify-env, flake8, mypy, smoke tests, full pytest coverage, and
+  diff-cover all passed.
+- Post-rebase fresh gates - PASS:
+  - `python3 scripts/orchestration/check_preflight.py`
+  - `python3 scripts/orchestration/check_agent_consistency.py`
+  - `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json`
+  - `pytest -q tests/test_repo_policy_guards.py`
+  - `pytest -q tests/test_design_token_parity.py`
+  - `pre-commit run --all-files`
+  - `make ios-test IOS_DESTINATION='platform=iOS Simulator,id=3DA1887F-A91D-4D32-A49F-C96D82F7C4B6'`
+
+## Host Caveats
+
+- Default `make ios-test` destination lookup using `OS=latest` did not match a
+  local simulator destination. The canonical iOS test target passed when run
+  with the concrete simulator UDID above.
+- Existing iOS build warnings remain outside PR-5 scope: actor-isolation
+  warnings, asset-catalog warnings, and an optional interpolation warning in
+  pre-existing BMI result rendering.
+
+## Merge Readiness
+
+Pending:
+
+- current-head GitHub CI on PR head `308498f6e3493632006251ed32e3a283020a98ba`
+- CodeRabbit/Sourcery/Cubic/human review disposition pass
+- mandatory `qa-engineer-agent -> bug-hunter` pass
+- PR body mirror update after review dispositions
+- strict merge-readiness wrapper
+- mandatory wait-window
