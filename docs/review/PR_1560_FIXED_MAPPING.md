@@ -9,6 +9,9 @@ Date: 2026-04-28
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
+Artifact status: phase2 discussion-pass markers are checked in this PR-open
+mapping artifact.
+
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
