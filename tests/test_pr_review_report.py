@@ -87,6 +87,17 @@ def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:
     assert all(finding["disposition_candidate"] == "NEEDS-HUMAN" for finding in findings)
 
 
+def test_build_report_flags_malformed_fixed_mapping_context() -> None:
+    context = _base_context()
+    context["fixed_mapping"] = None
+
+    report = report_runner.build_report(context)
+
+    assert report["findings_count"] == 1
+    assert report["findings"][0]["role_agent"] == "qa-engineer-agent"
+    assert report["findings"][0]["file"] == "docs/review/PR_1539_FIXED_MAPPING.md"
+
+
 def test_build_report_flags_large_diff() -> None:
     context = _base_context()
     context["diff"] = {
@@ -147,3 +158,10 @@ def test_main_writes_json_report(
 
     assert payload["mode"] == "dry-run-report"
     assert payload["findings"] == []
+
+
+def test_load_context_reports_unreadable_file(tmp_path: Path) -> None:
+    missing_context = tmp_path / "missing-context.json"
+
+    with pytest.raises(SystemExit, match="Unable to read context JSON"):
+        report_runner._load_context(str(missing_context))

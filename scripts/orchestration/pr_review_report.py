@@ -39,7 +39,10 @@ class Finding:
 
 
 def _load_context(path: str | None) -> dict[str, Any]:
-    raw = Path(path).read_text(encoding="utf-8") if path else sys.stdin.read()
+    try:
+        raw = Path(path).read_text(encoding="utf-8") if path else sys.stdin.read()
+    except OSError as exc:
+        raise SystemExit(f"Unable to read context JSON: {exc}") from exc
     try:
         payload = json.loads(raw)
     except json.JSONDecodeError as exc:
@@ -123,8 +126,8 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
             )
         )
 
-    fixed_mapping = context.get("fixed_mapping")
-    if isinstance(fixed_mapping, dict) and not fixed_mapping.get("exists"):
+    fixed_mapping = _as_dict(context.get("fixed_mapping"))
+    if not fixed_mapping.get("exists"):
         findings.append(
             Finding(
                 severity="note",
