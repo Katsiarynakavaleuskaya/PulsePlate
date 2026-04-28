@@ -17,6 +17,9 @@ merge readiness.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256406 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321044 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321366 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156347773 -> ca24364f9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156347782 -> ca24364f9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191427009 -> ca24364f9
 
 Disposition: FIXED
 Commit: 324b5a9f8
@@ -24,6 +27,11 @@ Evidence: `core/food_sources/source_onboarding.py` now normalizes absolute repo-
 Evidence: `scripts/food_source_onboarding.py` now makes `--json` a real output-mode flag with a non-JSON summary fallback.
 Evidence: `tests/test_food_source_onboarding.py` now fails fast when `_mutate_source` cannot find the target source.
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses `Target PR: PR #1559`.
+
+Disposition: FIXED
+Commit: ca24364f9
+Evidence: `core/food_sources/source_onboarding.py` now rejects onboarding snapshots whose `generated_on` differs from `catalog.generated_on`; `tests/test_food_source_onboarding.py` covers the mismatch.
+Evidence: `core/food_sources/source_onboarding.py` now catches only `SourceCatalogError` around catalog loading so implementation bugs fail fast.
 
 ## Local Validation Evidence
 
