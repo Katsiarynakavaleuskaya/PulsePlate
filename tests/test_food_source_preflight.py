@@ -156,6 +156,30 @@ def test_validate_manifest_source_contract_rejects_classification_mismatch(
     ]
 
 
+def test_build_source_preflight_report_enforces_strict_source_contract(
+    tmp_path: Path,
+) -> None:
+    payload = json.loads(_fixture("incoming_usda_foundation_manifest.json").read_text())
+    payload["source"] = "usda_unknown"
+    incoming_manifest = tmp_path / "incoming_unknown_usda_manifest.json"
+    incoming_manifest.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = build_source_preflight_report(
+        _fixture("current_usda_foundation_manifest.json"),
+        incoming_manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=_ONBOARDING,
+    )
+
+    assert report["success"] is False
+    assert report["runtime_cutover"] is False
+    assert report["validation_errors"] == [
+        "source mismatch: current='usda_foundation' incoming='usda_unknown'",
+        "source_contract: catalog: unknown source 'usda_unknown'",
+        "source_contract: onboarding: missing source 'usda_unknown'",
+    ]
+
+
 def test_load_source_manifest_rejects_invalid_source_classification() -> None:
     with pytest.raises(SourceManifestError, match="source_classification must be one of"):
         load_source_manifest(_fixture("invalid_classification_manifest.json"))
@@ -356,6 +380,10 @@ def test_food_source_preflight_cli_accepts_usda_fixture_pair(
             str(_fixture("incoming_usda_foundation_manifest.json")),
             "--dry-run",
             "--json",
+            "--catalog",
+            str(_CATALOG),
+            "--onboarding",
+            str(_ONBOARDING),
         ],
         cwd=tmp_path,
         check=True,
@@ -368,6 +396,7 @@ def test_food_source_preflight_cli_accepts_usda_fixture_pair(
     assert payload["success"] is True
     assert payload["runtime_cutover"] is False
     assert payload["source"]["incoming"] == "usda_foundation"
+    assert payload["validation_errors"] == []
     assert result.stderr == ""
     assert after == before
 

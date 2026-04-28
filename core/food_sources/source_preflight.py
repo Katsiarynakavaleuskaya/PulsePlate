@@ -35,6 +35,8 @@ ALLOWED_COLLISION_RESOLUTIONS: tuple[CollisionResolution, ...] = (
     "quarantine",
     "skip",
 )
+ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS = "eligible_preflight"
+MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH = "manifest_preflight_only"
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _RETRIEVED_ON_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -377,6 +379,9 @@ def build_source_diff_report(
 def build_source_preflight_report(
     current_manifest: Path | str,
     incoming_manifest: Path | str,
+    *,
+    catalog_path: Path | str | None = None,
+    onboarding_path: Path | str | None = None,
 ) -> dict[str, object]:
     """Load manifests and return a dry-run report with validation errors."""
     errors: list[str] = []
@@ -401,7 +406,23 @@ def build_source_preflight_report(
             "validation_errors": errors,
         }
 
-    return build_source_diff_report(current, incoming)
+    if (catalog_path is None) != (onboarding_path is None):
+        errors.append("source_contract: catalog_path and onboarding_path must be provided together")
+    elif catalog_path is not None and onboarding_path is not None:
+        errors.extend(
+            f"source_contract: {error}"
+            for error in validate_manifest_source_contract(
+                incoming,
+                catalog_path=catalog_path,
+                onboarding_path=onboarding_path,
+            )
+        )
+
+    report = build_source_diff_report(current, incoming)
+    if errors:
+        report["success"] = False
+        report["validation_errors"] = [*report["validation_errors"], *errors]
+    return report
 
 
 def validate_manifest_source_contract(
@@ -467,16 +488,16 @@ def validate_manifest_source_contract(
     if onboarding_entry is None:
         errors.append(f"onboarding: missing source {manifest.source!r}")
     else:
-        if onboarding_entry.onboarding_status != "eligible_preflight":
+        if onboarding_entry.onboarding_status != ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS:
             errors.append(
                 "onboarding: "
-                f"{manifest.source!r} must be eligible_preflight, got "
+                f"{manifest.source!r} must be {ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS}, got "
                 f"{onboarding_entry.onboarding_status!r}"
             )
-        if onboarding_entry.ingestion_path != "manifest_preflight_only":
+        if onboarding_entry.ingestion_path != MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH:
             errors.append(
                 "onboarding: "
-                f"{manifest.source!r} must use manifest_preflight_only, got "
+                f"{manifest.source!r} must use {MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH}, got "
                 f"{onboarding_entry.ingestion_path!r}"
             )
 

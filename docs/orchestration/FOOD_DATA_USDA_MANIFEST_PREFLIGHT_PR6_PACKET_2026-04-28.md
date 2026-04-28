@@ -73,7 +73,7 @@ Targeted PR6 validation:
 
 ```bash
 python3 -m pytest tests/test_food_source_preflight.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py -q
-python3 scripts/food_source_preflight.py --current-manifest tests/fixtures/food_source_preflight/current_usda_foundation_manifest.json --incoming-manifest tests/fixtures/food_source_preflight/incoming_usda_foundation_manifest.json --dry-run --json
+python3 scripts/food_source_preflight.py --current-manifest tests/fixtures/food_source_preflight/current_usda_foundation_manifest.json --incoming-manifest tests/fixtures/food_source_preflight/incoming_usda_foundation_manifest.json --dry-run --json --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
 ```

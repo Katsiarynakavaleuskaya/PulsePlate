@@ -49,6 +49,16 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
         required=True,
         help="Emit the deterministic JSON report.",
     )
+    parser.add_argument(
+        "--catalog",
+        type=Path,
+        help="Optional source catalog JSON for strict source-contract validation.",
+    )
+    parser.add_argument(
+        "--onboarding",
+        type=Path,
+        help="Optional source onboarding JSON for strict source-contract validation.",
+    )
     return parser.parse_args(argv)
 
 
@@ -58,6 +68,8 @@ def main(argv: list[str] | None = None) -> int:
     report = build_source_preflight_report(
         current_manifest=args.current_manifest,
         incoming_manifest=args.incoming_manifest,
+        catalog_path=args.catalog,
+        onboarding_path=args.onboarding,
     )
     print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if report.get("success") is True else 1
