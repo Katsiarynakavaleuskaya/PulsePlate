@@ -80,3 +80,10 @@ Forbidden:
 Figma consumers must reference this seed pack when composing screens or
 marketing layouts. Any future Figma sync remains `reference_only` until a
 follow-up PR promotes a governed export/import contract.
+
+## Candidate Intake 2026-04-28
+
+The Figma board `FitChef Mascot Asset Inventory — Intake 2026-04-28`
+(`1473:2`) tracks candidate/reference/rework assets only.
+
+The approved seed pack listed in this document remains unchanged.

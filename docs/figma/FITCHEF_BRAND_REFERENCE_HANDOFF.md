@@ -34,6 +34,7 @@ file `2JDwOByQIbcPgp93FDzHii`
   - `72:2` `FitChef Mascot Asset Register / Canonical`
   - `82:2` `FitChef Canonical Variant Gallery`
   - `72:131` `FitChef Usage and Promotion Rules`
+  - `1473:2` `FitChef Mascot Asset Inventory — Intake 2026-04-28`
 - Page `10_Welcome_Gate`:
   - `82:66` `FitChef Placement Studies / Approved`
 - Page `11_Welcome_Gate_States`:
@@ -46,6 +47,12 @@ They document:
 - the approved six-asset repo-backed canon
 - placement studies for the current Welcome Gate lane
 - state coverage that is safe relative to the current preview/runtime canon
+- a candidate intake board that tracks reference-only audit status:
+  - current batch: `30` assets
+  - `6` `APPROVED-SEED` (matches `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`)
+  - `20` `CANDIDATE`
+  - `3` `REFERENCE-ONLY`
+  - `1` `NEEDS-REWORK`
 
 For `11_Welcome_Gate_States`, treat `85:32` `FitChef Mascot State Coverage / Approved`
 as the active board. Earlier state-board variants on that page are legacy audit material,
@@ -56,6 +63,7 @@ They do not authorize:
 - mascot asset promotion from Figma into repo canon
 - runtime route or onboarding flow changes
 - mutation of canonical Welcome Gate frames to match exploratory compositions
+- runtime promotion from `1473:2` without a separate repo PR
 
 ## Deferred Follow-ups
 
