@@ -1792,8 +1792,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DATA-SOURCE-CATALOG-PR3 -> `codex/food-data-source-catalog-pr3`; PR4 collision-policy -> `codex/food-data-dedupe-collision-policy`
-  - Status: 🚧 Active PR4 collision-policy lane following PR3; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR3 source catalog lane is in progress
+  - Target PR: PR5 onboarding gate -> `codex/food-data-source-onboarding-gate-pr5`
+  - Status: 🚧 Active PR5 source-onboarding gate lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, and PR3 lineage hardening merged as PR #1532
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -1801,8 +1801,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md`
+    - `docs/orchestration/FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
+    - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -1818,6 +1820,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR3 catalog validation proves MenuStat is non-updating, replacement candidates are explicit, commercial sources require contract review, and unresolved sources remain blocked
     - `source_classification` is validated with allowed values `current`, `legacy_static`, `commercial_contract`, and `unresolved`
     - Dedupe/mapping collision checks are defined before snapshot promotion or PostgreSQL staging
+    - Source-onboarding gate defines cache, display, attribution, redistribution, and contract-review decisions before any source-specific ingest
     - MenuStat is not treated as an actively updating source; replacement-source decision is required before new restaurant-menu ingest
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
