@@ -80,11 +80,11 @@ Interpretation:
 - `render-deploy`
 - `cloudflare-deploy`
 
-### Tier 3: Missing custom PulsePlate skills
+### Tier 3: Custom PulsePlate skills closed
 
-- `pulseplate-design-launch-system`
-- `pulseplate-agent-product`
-- `pulseplate-web-launch-site`
+- `pulseplate-design-launch-system` — delivered via PR `#1482` / `d881d5f211478c493d4f18984cb6c335d867be6f`.
+- `pulseplate-web-launch-site` — delivered in this wave.
+- `pulseplate-agent-product` — delivered in this wave.
 
 ## Skill Delivery Waves
 
@@ -93,14 +93,14 @@ Interpretation:
 - `pulseplate-app-store-release` (merged via PR `#1436` / `0b3f2de82892a230789d70648fccfd0f7806641f`; evidence: `docs/review/PR_1436_FIXED_MAPPING.md:1`, `tools/codex_skills/pulseplate-app-store-release/SKILL.md:1`)
 - `pulseplate-monetization-gtm` (merged via PR `#1439` / `28c2bd2dd18e57a058386670161b0e350e078c5a`; PR `#1438` closed as superseded; evidence: `docs/roadmap/BACKLOG_LEDGER.md:4752`, `docs/review/PR_1439_FIXED_MAPPING.md:1`, `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`)
 
-### Wave 2 — Planned
+### Wave 2 — Delivered
 
 - `pulseplate-design-launch-system` — governance-only skill bundle for design-system readiness, token/brand consistency, and launch-asset boundaries (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`, `tests/test_skill_router.py:750`)
-- `pulseplate-web-launch-site`
+- `pulseplate-web-launch-site` — launch-site pages, CTA funnels, waitlist/lead-capture paths, SEO/ASO launch copy, and deploy-adjacent web launch handoff.
 
-### Wave 3 — Planned
+### Wave 3 — Delivered
 
-- `pulseplate-agent-product`
+- `pulseplate-agent-product` — agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority.
 
 ## Scope of This PR Family
 

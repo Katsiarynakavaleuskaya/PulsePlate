@@ -5519,11 +5519,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `make verify` and `pre-commit run --all-files` pass in PR scope
 
 <a id="ledger-p2-codex-skill-pulseplate-design-launch-system"></a>
-- [ ] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
+- [x] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: #1482
-  - Status: 🛠 Implemented in worktree `pulseplate-design-launch-system`; pending merge of PR `#1482` (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md:5`, `tests/test_install_codex_skills.py:264`)
+  - Status: ✅ Merged via PR #1482 (`d881d5f211478c493d4f18984cb6c335d867be6f`) on 20 April 2026; ledger closeout recorded in the PulsePlate skills wave 2/3 follow-up PR.
   - Area: design / launch assets / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific design launch system skill that links Figma/design tokens/brand assets with launch-readiness constraints while keeping design tooling passive with respect to coordinator-first routing.
@@ -5540,34 +5540,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Skill docs explicitly preserve fail-closed packet metadata expectations and passive discovery-only boundaries
 
 <a id="ledger-p2-codex-skill-pulseplate-web-launch-site"></a>
-- [ ] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
+- [x] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-CODEX-SKILL-WAVE2B
-  - Status: Planned
+  - Target PR: PulsePlate skills wave 2/3 follow-up PR
+  - Status: Implemented in `codex/pulseplate-skills-wave2-3`
   - Area: web / launch / frontend
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific launch-site skill for high-conviction landing pages, launch copy, capture funnels, and deploy-adjacent web launch workflows beyond generic frontend helpers.
   - Links:
     - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
     - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
+    - `tools/codex_skills/pulseplate-web-launch-site/SKILL.md`
   - DoD:
     - Skill exists under `tools/codex_skills/pulseplate-web-launch-site/`
     - Skill covers launch-site structure, CTA/funnel considerations, and frontend implementation handoff
     - Skill docs explicitly preserve coordinator-first and non-interference contract
 
 <a id="ledger-p2-codex-skill-pulseplate-agent-product"></a>
-- [ ] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
+- [x] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-CODEX-SKILL-WAVE3
-  - Status: Planned
+  - Target PR: PulsePlate skills wave 2/3 follow-up PR
+  - Status: Implemented in `codex/pulseplate-skills-wave2-3`
   - Area: agents / product strategy / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific agent-product skill for productizing agent workflows without collapsing repo orchestration, transport-only bridge semantics, or coordinator authority into a parallel runtime layer.
   - Links:
     - `docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md`
     - `docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
+    - `tools/codex_skills/pulseplate-agent-product/SKILL.md`
   - DoD:
     - Skill exists under `tools/codex_skills/pulseplate-agent-product/`
     - Skill covers agent-facing product surfaces, guardrails, and orchestration boundaries

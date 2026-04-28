@@ -80,6 +80,7 @@ RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "pulseplate-ai-reports",
         "pulseplate-monetization-gtm",
+        "pulseplate-web-launch-site",
         "notion-research-documentation",
         "notion-knowledge-capture",
         "linear",
@@ -152,6 +153,7 @@ DOCS_ONLY_EXCLUDED_ROUTING_SKILLS: frozenset[str] = frozenset(
         "build-ios-apps:swiftui-performance-audit",
         "build-web-apps:stripe-best-practices",
         "pulseplate-playwright-e2e",
+        "pulseplate-web-launch-site",
         "playwright",
         "figma-implement-design",
         "pulseplate-design-launch-system",
@@ -962,6 +964,66 @@ SKILL_RULES: tuple[SkillRule, ...] = (
             "seo",
             "gtm",
             "monetization",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-web-launch-site",
+        category="repo-tracked",
+        rationale=(
+            "Launch-site pages, CTA funnels, SEO/ASO landing copy, and "
+            "deploy-adjacent web launch work should use the dedicated "
+            "PulsePlate web launch skill."
+        ),
+        min_score=6,
+        domain_weights={"frontend": 2, "business": 2, "research": 1, "wellness": 1},
+        path_prefixes=(
+            "frontend/",
+            "docs/marketing/",
+            "docs/product/FREE_PRO_SOFT_PAYWALL.md",
+            "docs/audience_pack/",
+        ),
+        keywords=(
+            "launch site",
+            "landing page",
+            "marketing site",
+            "waitlist",
+            "lead capture",
+            "cta",
+            "conversion funnel",
+            "product hunt",
+            "seo landing",
+            "aso landing",
+            "public website",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-agent-product",
+        category="repo-tracked",
+        rationale=(
+            "Agent-product surfaces, operator workflows, and HITL agent UX "
+            "must preserve coordinator authority and avoid parallel runtime "
+            "orchestration."
+        ),
+        min_score=6,
+        domain_weights={"orchestration": 2, "business": 1, "qa": 1},
+        path_prefixes=(
+            "docs/orchestration/",
+            "docs/product/",
+            "scripts/orchestration/",
+        ),
+        keywords=(
+            "agent product",
+            "agent-product",
+            "productize agent",
+            "agent workflow",
+            "operator workflow",
+            "operator console",
+            "human-in-the-loop",
+            "hitl",
+            "agent capability",
+            "agent ux",
+            "runtime autonomy",
+            "native subagent bridge",
         ),
     ),
     SkillRule(

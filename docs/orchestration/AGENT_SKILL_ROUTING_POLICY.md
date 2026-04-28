@@ -154,14 +154,14 @@ metadata, screenshot-pack, App Privacy, or release-evidence intent.
 
 | Lane | Default Skills | Conditional Skills |
 |------|----------------|--------------------|
-| Orchestration / agent workflow | `pulseplate-workflow`, `docs-sync`, `agents-md`, `pulseplate-gates` | `pulseplate-guards`, `pulseplate-pr-review`, `code-review-expert`, `create-pr` |
+| Orchestration / agent workflow | `pulseplate-workflow`, `docs-sync`, `agents-md`, `pulseplate-gates` | `pulseplate-guards`, `pulseplate-pr-review`, `pulseplate-agent-product`, `code-review-expert`, `create-pr` |
 | Experimentation / eval / optimization | `pulseplate-workflow`, `docs-sync`, `pulseplate-gates` | `bug-triage`, `code-review-expert`, `openai-docs` |
 | Backend / API / contracts | `pulseplate-backend-endpoints`, `pulseplate-openapi-sync`, `pulseplate-gates` | `bug-triage`, `security-best-practices`, `openai-docs` |
-| Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates`, `build-web-apps:frontend-skill` | `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices` |
+| Frontend / web UX | `pulseplate-frontend-ui`, `pulseplate-gates`, `build-web-apps:frontend-skill` | `pulseplate-web-launch-site`, `pulseplate-playwright-e2e`, `playwright`, `figma`, `figma-implement-design`, `vercel-react-best-practices`, `build-web-apps:web-design-guidelines`, `build-web-apps:react-best-practices` |
 | iOS / App Store / Fastlane | `build-ios-apps:swiftui-ui-patterns`, `build-ios-apps:swiftui-view-refactor` | `build-ios-apps:ios-debugger-agent`, `build-ios-apps:swiftui-performance-audit`, `pulseplate-app-store-release` |
 | Docs / runbooks / policy | `docs-sync` | `agents-md`, `release-notes`, `code-review-expert` |
 | QA / CI / remediation | `bug-triage`, `pulseplate-gates` | `pulseplate-pr-review`, `ci-fix`, `gh-fix-ci`, `gh-address-comments`, `code-review-expert` |
-| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm` (evidence: `scripts/orchestration/skill_router.py:533`, `tests/test_skill_router.py:744`) |
+| Reports / wellness / GTM research | `pulseplate-ai-reports`, `docs-sync` | `notion-research-documentation`, `notion-knowledge-capture`, `linear`, `openai-docs`, `pulseplate-monetization-gtm`, `pulseplate-web-launch-site` |
 | Monetization / paywall / subscriptions | `docs-sync`, `pulseplate-monetization-gtm` (evidence: `tools/codex_skills/pulseplate-monetization-gtm/SKILL.md:1`, `tests/test_install_codex_skills.py:276`) | `build-web-apps:stripe-best-practices`, `pulseplate-ai-reports`, `linear`, `notion-research-documentation` |
 | Design / media / launch assets | `figma`, `docs-sync` | `figma-implement-design`, `pulseplate-frontend-ui`, `build-web-apps:web-design-guidelines`, `playwright`, `notion-research-documentation`, `notion-knowledge-capture`, `sora`, `imagegen`, `speech`, `screenshot`, `pulseplate-design-launch-system`; `Airweave` and `Penpot` stay Phase 1 runbook-only lanes and are not skill-routed yet (evidence: `scripts/orchestration/skill_router.py:66`, `scripts/orchestration/skill_router.py:1154`, `tests/test_skill_router.py:750`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:65`) |
 
@@ -206,6 +206,8 @@ The coordinator may use installed skills when they improve delivery and align wi
 - `bug-triage`
 - `code-review-expert`
 - `pulseplate-pr-review`
+- `pulseplate-web-launch-site`
+- `pulseplate-agent-product`
 - `openai-docs`
 - `playwright`
 - `figma`

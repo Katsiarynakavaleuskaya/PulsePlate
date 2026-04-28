@@ -651,6 +651,24 @@ def test_skill_router_selects_web_ui_skill_stack() -> None:
     assert "build-web-apps:web-design-guidelines" in skills
 
 
+def test_skill_router_selects_web_launch_site_stack() -> None:
+    """Launch-site work should route the PulsePlate launch-site helper."""
+
+    skills = select_recommended_skills(
+        goal=(
+            "Build a public launch site landing page with waitlist CTA, "
+            "lead capture, SEO landing copy, and Product Hunt handoff"
+        ),
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/LaunchSite.tsx", "docs/marketing/LAUNCH.md"],
+        domain="frontend",
+    )
+
+    assert "pulseplate-web-launch-site" in skills
+    assert "pulseplate-frontend-ui" in skills
+    assert "build-web-apps:frontend-skill" in skills
+
+
 def test_skill_router_selects_ios_app_store_skill_stack() -> None:
     """iOS and App Store work should route the dedicated SwiftUI/iOS helpers."""
 
@@ -810,6 +828,27 @@ def test_skill_router_selects_monetization_and_gtm_stack() -> None:
     assert "pulseplate-monetization-gtm" in skills
     assert "build-web-apps:stripe-best-practices" in skills
     assert "pulseplate-ai-reports" in skills
+    assert "docs-sync" in skills
+
+
+def test_skill_router_selects_agent_product_stack() -> None:
+    """Agent-product work should route the product helper without replacing workflow."""
+
+    skills = select_recommended_skills(
+        goal=(
+            "Productize agent workflow into an operator console with HITL "
+            "approval and native subagent bridge boundaries"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+            "docs/product/AGENT_PRODUCT_SURFACE.md",
+        ],
+        domain="orchestration",
+    )
+
+    assert "pulseplate-workflow" in skills
+    assert "pulseplate-agent-product" in skills
     assert "docs-sync" in skills
 
 
