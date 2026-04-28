@@ -36,8 +36,8 @@ Use these enums in spreadsheets, backlog notes, or future promotion PRs. They ar
 Apply these **in addition** to the row decision:
 
 - **Dominant embedded English** (where RU/CIS is primary): downgrade `marketing_use` by one tier toward `aso_supporting_hold` or `blocked_gtm` for CIS campaigns unless artist supplies localized overlay.
-- **Medical/diagnostic** (“diagnose”, “treatment”, pathology claims, clinician replacement): **`blocked_gtm`** / **`blocked_runtime`**.
-- **Guarantee** (“guaranteed lose”, “cure”, “100% results”): **`blocked_gtm`**.
+- **Medical/diagnostic** (“diagnose”, “treatment”, pathology claims, clinician replacement): **`blocked_gtm`** / **`blocked_runtime`**. `pulseplate-allow:blocker-example`
+- **Guarantee** (“guaranteed lose”, “cure”, “100% results”): **`blocked_gtm`**. `pulseplate-allow:blocker-example`
 - **Fake UI promises** (mock nutrition score / meal plan screenshot presented as guaranteed live feature): **`blocked_runtime`** for in-app use; **`reference_archive`** or **`blocked_gtm`** for public marketing unless reworked per `FITCHEF_APP_STORE_VISUAL_CONTRACT.md` (real UI mass, illustrative labeling).
 
 Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md`; FitChef lane `docs/contracts/FITCHEF_INITIATIVE_FOUNDATION.md`.
@@ -68,7 +68,7 @@ Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRA
 | fitchef-candidate-018 | CANDIDATE #12 | reference_archive¹ | no_runtime_promotion | Reserve for decks / qualitative testing; rarely primary ASO. |
 | fitchef-candidate-019 | CANDIDATE #13 | blocked_gtm¹ | blocked_runtime | **Flag slot:** commonly food/chart composites—scrub for diagnostic language (“your risk”) and fake live scores; escalate to `aso_supporting_hold`/`social_ready` after rework proof.² |
 | fitchef-candidate-020 | CANDIDATE #14 | aso_supporting_hold¹ | no_runtime_promotion | Mid-funnel nurture; localize before Apple-facing use. |
-| fitchef-candidate-021 | CANDIDATE #15 | social_ready¹ | no_runtime_promotion | Acceptable mascot-led social proof when paired compliant caption. |
+| fitchef-candidate-021 | CANDIDATE #15 | social_ready¹ | no_runtime_promotion | Acceptable mascot-led social proof when paired with a compliant caption. |
 | fitchef-candidate-022 | CANDIDATE #16 | reference_archive¹ | no_runtime_promotion | Mood/atmosphere comps; marketing reference only unless simplified. |
 | fitchef-candidate-023 | CANDIDATE #17 | social_ready¹ | no_runtime_promotion | Variant rotation for A/B creatives; watch English density. |
 | fitchef-candidate-024 | CANDIDATE #18 | blocked_gtm¹ | blocked_runtime | **Flag slot:** high risk of mock-phone UI implying shipped feature set; treat as illustrative only pending product parity review.² |
