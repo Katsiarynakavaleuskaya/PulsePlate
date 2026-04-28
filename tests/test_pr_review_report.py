@@ -152,7 +152,14 @@ def test_build_report_flags_large_diff() -> None:
 
 
 def test_render_markdown_contains_required_sections() -> None:
-    report = report_runner.build_report(_base_context(), packet_id="packet-1")
+    context = _base_context()
+    context["diff"] = {
+        "summary": {"files": 12, "additions": 901, "deletions": 4, "changed_lines": 905},
+        "files": [
+            {"path": "scripts/orchestration/pr_review_report.py", "additions": 901, "deletions": 4}
+        ],
+    }
+    report = report_runner.build_report(context, packet_id="packet-1")
 
     markdown = report_runner.render_markdown(report)
 
@@ -163,8 +170,11 @@ def test_render_markdown_contains_required_sections() -> None:
     assert "## Calibration" in markdown
     assert "## Deferred / Follow-ups" in markdown
     assert "## Warnings" in markdown
-    assert "No deterministic findings" in markdown
+    assert "Case labels: `large-diff-risk`" in markdown
     assert "GitHub posting eligible: `false`" in markdown
+    assert "Posting gate: GitHub posting remains out of scope" in markdown
+    assert "False-positive controls:" in markdown
+    assert "clean context must produce zero findings" in markdown
     assert "agent-coordinator -> architecture-specialist" in markdown
 
 

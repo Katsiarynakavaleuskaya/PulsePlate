@@ -24,6 +24,12 @@ DEFAULT_ROLE_ORDER = [
 LARGE_DIFF_CHANGED_LINES = 300
 VERY_LARGE_DIFF_CHANGED_LINES = 800
 CALIBRATION_RUBRIC_VERSION = "pr4-2026-04-28"
+FALSE_POSITIVE_CONTROLS = (
+    "clean context must produce zero findings",
+    "benign fixed-mapping presence must not become a governance finding",
+    "warnings are advisory NEEDS-HUMAN findings, not auto-postable comments",
+    "large diff risk is review-planning evidence, not a merge-readiness claim",
+)
 
 
 @dataclass(frozen=True)
@@ -230,14 +236,14 @@ def _build_gate_plan(context: dict[str, Any], findings: list[Finding]) -> list[s
 def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict[str, Any]:
     warnings = _dedupe_strings(_as_list(context.get("warnings")))
     categories = {finding.category for finding in findings}
-    role_agents = {finding.role_agent for finding in findings}
     case_labels: list[str] = []
-    false_positive_controls: list[str] = [
-        "clean context must produce zero findings",
-        "benign fixed-mapping presence must not become a governance finding",
-        "warnings are advisory NEEDS-HUMAN findings, not auto-postable comments",
-        "large diff risk is review-planning evidence, not a merge-readiness claim",
-    ]
+    has_large_diff_risk = any(
+        finding.category == "tests"
+        and finding.role_agent == "bug-hunter"
+        and finding.gate_to_run == "make validate-changed"
+        and "changed lines" in finding.evidence
+        for finding in findings
+    )
 
     if not findings:
         case_labels.append("clean-context")
@@ -245,13 +251,13 @@ def _build_calibration(context: dict[str, Any], findings: list[Finding]) -> dict
         case_labels.append("warning-bearing-context")
     if "governance" in categories:
         case_labels.append("governance-finding")
-    if "bug-hunter" in role_agents:
+    if has_large_diff_risk:
         case_labels.append("large-diff-risk")
 
     return {
         "rubric_version": CALIBRATION_RUBRIC_VERSION,
         "case_labels": case_labels,
-        "false_positive_controls": false_positive_controls,
+        "false_positive_controls": list(FALSE_POSITIVE_CONTROLS),
         "posting_eligible": False,
         "posting_gate": "GitHub posting remains out of scope until a dedicated calibrated posting PR.",
     }
@@ -347,6 +353,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append("- Case labels: none")
     lines.append(f"- GitHub posting eligible: `{str(calibration['posting_eligible']).lower()}`")
     lines.append(f"- Posting gate: {calibration['posting_gate']}")
+    controls = calibration.get("false_positive_controls") or []
+    lines.append("- False-positive controls:")
+    if controls:
+        lines.extend(f"  - {control}" for control in controls)
+    else:
+        lines.append("  - none")
     lines.extend(["", "## Role Review"])
     for review in report["role_review"]:
         lines.append(f"- `{review['role_agent']}`: {review['summary']}")

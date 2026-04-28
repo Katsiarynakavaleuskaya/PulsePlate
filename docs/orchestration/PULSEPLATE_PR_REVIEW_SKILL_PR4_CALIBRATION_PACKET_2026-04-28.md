@@ -4,7 +4,7 @@
 
 Calibrate the `pulseplate-pr-review` dry-run report runner before any future
 GitHub posting path. PR4 adds a deterministic false-positive rubric and fixture
-coverage while keeping the runner advisory and side-effect free.
+coverage while keeping the runner advisory and side-effect-free.
 
 ## Scope
 
