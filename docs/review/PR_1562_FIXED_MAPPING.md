@@ -15,7 +15,10 @@ artifact was created.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 2adabf6b0
+Evidence: docs/roadmap/BACKLOG_LEDGER.md now splits the closeout note and names PR #1562 as the hygiene-only closeout.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1562#pullrequestreview-4191877002 -> 2adabf6b0
 
 ## Initial Evidence
 
