@@ -55,6 +55,16 @@ Commit: 4be5029d3
 Evidence: CodeRabbit review-level actionables are addressed by the mapped thread fixes above; additional review nits were handled in `scripts/QUICK_FIX_PRODUCTION.sh:47`, `scripts/diagnose_production.sh:46`, and `scripts/orchestration/telemetry_rollup.py:27`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#pullrequestreview-4192772964 -> 4be5029d3
 
+Disposition: FIXED
+Commit: d15f8822d
+Evidence: `tests/test_repo_policy_guards.py:359` broadens the legacy command regex to catch quoted and punctuated standalone `docker-compose` tokens while preserving the filename allow-case asserted at `tests/test_repo_policy_guards.py:365`; `scripts/diagnose_production.sh:37` avoids a diagnostic grep token that would otherwise be an active-surface offender.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157604435 -> d15f8822d
+
+Disposition: FIXED
+Commit: d15f8822d
+Evidence: The review-level actionable is addressed by the mapped regex hardening above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#pullrequestreview-4192923158 -> d15f8822d
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
