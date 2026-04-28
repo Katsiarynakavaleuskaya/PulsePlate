@@ -13,10 +13,10 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1557#discussion_r3155970050 -> fe2027cba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1557#discussion_r3155970050 -> 99d7ec30a
 Disposition: FIXED
-Commit: fe2027cba
-Evidence: `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md` marks `fitchef-candidate-030` as an `APPROVED-SEED` alias with `no_runtime_promotion`; `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` mirrors it as `APPROVED-SEED-ALIAS`.
+Commit: 99d7ec30a
+Evidence: `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md` keeps `fitchef-candidate-030` in the candidate bucket with `reference_archive` / `no_runtime_promotion`; `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` preserves the live `6 APPROVED-SEED`, `21 CANDIDATE`, `3 REFERENCE-ONLY`, `0 NEEDS-REWORK` distribution.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1557#discussion_r3155970052 -> fe2027cba
 Disposition: FIXED
@@ -33,9 +33,9 @@ Disposition: FIXED
 Commit: fe2027cba
 Evidence: Aggregate CodeRabbit review is covered by mapped inline thread `#discussion_r3155975012`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1557#pullrequestreview-4190979946 -> fe2027cba
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1557#pullrequestreview-4190979946 -> 99d7ec30a
 Disposition: FIXED
-Commit: fe2027cba
+Commit: 99d7ec30a
 Evidence: Aggregate Sourcery review is covered by mapped inline threads `#discussion_r3155970050` and `#discussion_r3155970052`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1557#issuecomment-4337569343
