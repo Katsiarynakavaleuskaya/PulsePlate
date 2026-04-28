@@ -6,12 +6,12 @@ Date: 2026-04-28
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No actionable review comments have been received yet.
+- No actionable review comments
 
 ## Initial Evidence
 
