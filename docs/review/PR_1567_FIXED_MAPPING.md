@@ -15,7 +15,20 @@ artifact was created.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: ba1a4f633
+Evidence: `scripts/design/verify_design.py` defines `STATUS_ICONS` once at module scope and reuses it inside the report loop.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157411828 -> ba1a4f633
+
+Disposition: FIXED
+Commit: ba1a4f633
+Evidence: `docs/review/PR_1567_FIXED_MAPPING.md` rephrases the merge-readiness checklist item to `Fixed-mapping artifact and PR body are mirror-aligned`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#discussion_r3157411832 -> ba1a4f633
+
+Disposition: NOT-A-BUG
+Evidence: `pre-commit run --all-files` and commit hooks passed with the Bandit-compatible dict construction, and the Compose v2 checks intentionally keep production helper scripts standalone for operator copy/paste surfaces in this PR scope.
+Reason: The review-level readability/centralization notes are valid advisory feedback, but this lane is scoped to retiring the command-surface seam without introducing a new shared shell helper contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1567#pullrequestreview-4192679623
 
 ## Initial Evidence
 
