@@ -4040,11 +4040,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - the collector remains advisory and does not post GitHub comments, resolve threads, or claim merge readiness
 
 <a id="ledger-p2-pulseplate-pr-review-dry-run-report-runner"></a>
-- [ ] P2: Add dry-run report runner for PulsePlate PR review skill
+- [x] P2: Add dry-run report runner for PulsePlate PR review skill
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review automation follow-up)
   - Target PR: PR #1558 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md`, docs/review/PR_1558_FIXED_MAPPING.md)
-  - Status: In progress in PR3 dry-run report runner lane
+  - Status: Completed in merged PR #1558; closeout recorded in PR4 calibration lane
   - Area: orchestration / PR review / Codex skills
   - Reason: PR2 provides read-only review context JSON, but reviewers still need a deterministic Markdown/JSON dry-run report that follows the `pulseplate-pr-review` role order and finding schema without posting comments or resolving threads.
   - Links:
@@ -4055,6 +4055,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/pr_review_report.py` consumes context JSON from file or stdin
     - report output supports stable Markdown and JSON formats
     - findings follow the `pulseplate-pr-review` schema and coordinator role order
+    - runner remains advisory and does not post GitHub comments, resolve review threads, or claim merge readiness
+
+<a id="ledger-p2-pulseplate-pr-review-calibration-rubric"></a>
+- [ ] P2: Calibrate PulsePlate PR review dry-run false-positive rubric
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (review automation follow-up)
+  - Target PR: PR #1560 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md`, docs/review/PR_1560_FIXED_MAPPING.md)
+  - Status: In progress in PR4 calibration lane
+  - Area: orchestration / PR review / Codex skills
+  - Reason: PR3 added a side-effect-free dry-run report runner, but any future dry-run-to-comment path needs deterministic calibration first so benign context and `NOT-A-BUG` reviewer patterns do not become noisy actionable comments.
+  - Links:
+    - `scripts/orchestration/pr_review_report.py`
+    - `tests/test_pr_review_report.py`
+    - `tools/codex_skills/pulseplate-pr-review/SKILL.md`
+    - `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md`
+  - DoD:
+    - report output includes explicit calibration metadata that never claims posting eligibility
+    - tests cover clean context, governance findings, warning-bearing context, benign fixed-mapping patterns, and large diff risk
+    - skill docs state calibration is required before any future GitHub posting path
     - runner remains advisory and does not post GitHub comments, resolve review threads, or claim merge readiness
 
 <a id="ledger-p2-rag-release-gates-runtime-warnings-dedup"></a>

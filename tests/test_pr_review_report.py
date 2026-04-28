@@ -63,6 +63,9 @@ def test_build_report_has_no_findings_for_complete_context() -> None:
     assert report["generated_at_utc"] == "2026-04-28T17:00:00Z"
     assert report["findings"] == []
     assert report["findings_count"] == 0
+    assert report["calibration"]["rubric_version"] == "pr4-2026-04-28"
+    assert report["calibration"]["case_labels"] == ["clean-context"]
+    assert report["calibration"]["posting_eligible"] is False
     assert report["coordinator_packet"]["task_packet_id"] == "packet-1"
     assert report["coordinator_packet"]["role_order"] == report_runner.DEFAULT_ROLE_ORDER
     assert "GitHub posting" in report["scope_reviewed"]["omitted_surfaces"]
@@ -85,6 +88,35 @@ def test_build_report_flags_missing_metadata_mapping_and_agents() -> None:
         "architecture-specialist",
     }
     assert all(finding["disposition_candidate"] == "NEEDS-HUMAN" for finding in findings)
+    assert report["calibration"]["case_labels"] == [
+        "warning-bearing-context",
+        "governance-finding",
+    ]
+
+
+def test_build_report_keeps_false_positive_controls_for_benign_context() -> None:
+    context = _base_context()
+    context["fixed_mapping"] = {
+        "path": "docs/review/PR_1539_FIXED_MAPPING.md",
+        "exists": True,
+        "entries": {
+            "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1539#discussion": {
+                "disposition": "NOT-A-BUG",
+                "evidence": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md",
+            }
+        },
+        "no_actionable": True,
+        "errors": [],
+    }
+
+    report = report_runner.build_report(context)
+
+    assert report["findings"] == []
+    assert report["calibration"]["case_labels"] == ["clean-context"]
+    assert (
+        "benign fixed-mapping presence must not become a governance finding"
+        in report["calibration"]["false_positive_controls"]
+    )
 
 
 def test_build_report_flags_malformed_fixed_mapping_context() -> None:
@@ -96,6 +128,7 @@ def test_build_report_flags_malformed_fixed_mapping_context() -> None:
     assert report["findings_count"] == 1
     assert report["findings"][0]["role_agent"] == "qa-engineer-agent"
     assert report["findings"][0]["file"] == "docs/review/PR_1539_FIXED_MAPPING.md"
+    assert report["calibration"]["case_labels"] == ["governance-finding"]
 
 
 def test_build_report_flags_large_diff() -> None:
@@ -112,13 +145,21 @@ def test_build_report_flags_large_diff() -> None:
     assert report["findings"][0]["role_agent"] == "bug-hunter"
     assert "905 changed lines" in report["findings"][0]["evidence"]
     assert "make validate-changed" in report["gate_plan"]
+    assert report["calibration"]["case_labels"] == ["large-diff-risk"]
     assert report["gate_plan"].index("python3 scripts/orchestration/check_preflight.py") < report[
         "gate_plan"
     ].index("make validate-changed")
 
 
 def test_render_markdown_contains_required_sections() -> None:
-    report = report_runner.build_report(_base_context(), packet_id="packet-1")
+    context = _base_context()
+    context["diff"] = {
+        "summary": {"files": 12, "additions": 901, "deletions": 4, "changed_lines": 905},
+        "files": [
+            {"path": "scripts/orchestration/pr_review_report.py", "additions": 901, "deletions": 4}
+        ],
+    }
+    report = report_runner.build_report(context, packet_id="packet-1")
 
     markdown = report_runner.render_markdown(report)
 
@@ -126,9 +167,14 @@ def test_render_markdown_contains_required_sections() -> None:
     assert "## Coordinator Packet" in markdown
     assert "## Scope Reviewed" in markdown
     assert "## Findings" in markdown
+    assert "## Calibration" in markdown
     assert "## Deferred / Follow-ups" in markdown
     assert "## Warnings" in markdown
-    assert "No deterministic findings" in markdown
+    assert "Case labels: `large-diff-risk`" in markdown
+    assert "GitHub posting eligible: `false`" in markdown
+    assert "Posting gate: GitHub posting remains out of scope" in markdown
+    assert "False-positive controls:" in markdown
+    assert "clean context must produce zero findings" in markdown
     assert "agent-coordinator -> architecture-specialist" in markdown
 
 
