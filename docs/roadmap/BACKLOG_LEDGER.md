@@ -6698,6 +6698,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Any automated sync path remains bounded and reviewable
   - Blockers: Depends on repo mascot canon landing first
 
+<a id="ledger-p1-fitchef-candidate-intake-visual-qa"></a>
+- [ ] P1: FitChef candidate intake visual QA and selective promotion plan
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-FITCHEF-CANDIDATE-VISUAL-QA
+  - Area: design / brand / marketing assets
+  - Reason: Figma intake board now contains 30 FitChef assets, but only 6
+    repo-backed seed assets are canonical. Candidate/reference/rework assets
+    need visual QA, marketing classification, localization/text-risk review,
+    and selective promotion planning before any runtime use.
+  - Links:
+    - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`
+    - `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md`
+    - Figma node `1473:2`
+  - DoD:
+    - Every candidate has one disposition: keep candidate, reference-only,
+      needs-rework, reject, or promotion proposal
+    - Embedded text and localization risk are recorded for each reviewed asset
+    - Marketing-only assets are separated from runtime-safe assets
+    - No candidate is added to frontend or iOS assets without a separate
+      promotion PR
+
 <a id="ledger-p1-users-surface-hardening"></a>
 - [x] P1: Public users CRUD surface must be authenticated or explicitly retired
   - Owner: @katsiaryna_kavaleuskaya
