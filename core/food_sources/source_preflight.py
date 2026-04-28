@@ -420,8 +420,12 @@ def build_source_preflight_report(
 
     report = build_source_diff_report(current, incoming)
     if errors:
+        diff_errors = report.get("validation_errors")
+        existing_errors = (
+            [str(error) for error in diff_errors] if isinstance(diff_errors, list) else []
+        )
         report["success"] = False
-        report["validation_errors"] = [*report["validation_errors"], *errors]
+        report["validation_errors"] = [*existing_errors, *errors]
     return report
 
 
