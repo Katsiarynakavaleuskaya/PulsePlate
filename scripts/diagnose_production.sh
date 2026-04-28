@@ -34,7 +34,7 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     echo "❌ Compose file not found: $COMPOSE_FILE"
     echo "   Current directory: $(pwd)"
     echo "   Files in directory:"
-    ls -la | grep -E "docker-compose|compose" || echo "   (no compose files found)"
+    ls -la | grep -E "compose" || echo "   (no compose files found)"
     exit 1
 fi
 

@@ -356,8 +356,13 @@ def test_active_command_surfaces_use_docker_compose_v2() -> None:
         "scripts/fix_production_env.sh",
         "scripts/redeploy_caddy.sh",
     )
-    legacy_command_pattern = re.compile(r"(?<![\w./-])docker-compose(?:\s|$)")
+    legacy_command_pattern = re.compile(r"(?<![\w./-])docker-compose(?![\w./-])")
     offenders: list[str] = []
+
+    assert legacy_command_pattern.search("docker-compose up -d")
+    assert legacy_command_pattern.search("`docker-compose`")
+    assert legacy_command_pattern.search("docker-compose:")
+    assert not legacy_command_pattern.search("docker-compose.production.yaml")
 
     for rel in command_surface_paths:
         path = REPO_ROOT / rel
