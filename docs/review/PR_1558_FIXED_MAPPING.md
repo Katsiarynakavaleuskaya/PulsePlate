@@ -11,7 +11,27 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 467d4556f
+Evidence: tests/test_sync_skill_mirror.py covers both canonical and fallback marker path layouts for sync_skill_mirror.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1558#discussion_r3156053099 -> 467d4556f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1558#pullrequestreview-4191079725 -> 467d4556f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1558#pullrequestreview-4191098638 -> 467d4556f
+
+Disposition: FIXED
+Commit: 467d4556f
+Evidence: scripts/orchestration/pr_review_report.py preserves gate order while deduping and uses stable context-provided generated_at_utc report metadata.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1558#discussion_r3156064227 -> 467d4556f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1558#pullrequestreview-4191093231 -> 467d4556f
+
+Disposition: FIXED
+Commit: 467d4556f
+Evidence: tests/test_pr_review_report.py annotates the monkeypatch fixture as pytest.MonkeyPatch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1558#discussion_r3156068684 -> 467d4556f
+
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/pr_review_report.py keeps LARGE_DIFF_CHANGED_LINES and VERY_LARGE_DIFF_CHANGED_LINES as repo-native constants for deterministic PR governance, not cross-repo runtime configuration.
+Reason: This runner is PulsePlate-specific and the thresholds are part of the local advisory review policy for PR3; no runtime or multi-repo tuning surface is required in this slice.
 
 ## Initial Evidence
 
@@ -25,6 +45,9 @@ Date: 2026-04-28
 - `make validate-min` (PASS)
 - `make validate-changed` (PASS)
 - pre-push hooks: mypy, pip-audit, backend pytest, full-repo bandit, docker build test (PASS)
+- Post-review fix validation: `python3 -m pytest tests/test_pr_review_context.py tests/test_pr_review_report.py tests/test_sync_skill_mirror.py tests/test_install_codex_skills.py -q` (PASS, 28 passed)
+- Post-review fix validation: `.venv/bin/mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/pr_review_report.py scripts/orchestration/sync_skill_mirror.py` (PASS)
+- Post-review fix validation: `pre-commit run --all-files` (PASS)
 
 ## Merge Readiness
 
