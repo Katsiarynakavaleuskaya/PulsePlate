@@ -16,6 +16,7 @@ from typing import Literal, cast
 
 from core.food_sources.source_catalog import (
     SourceCatalog,
+    SourceCatalogError,
     SourceFamily,
     load_source_catalog,
 )
@@ -497,6 +498,12 @@ def parse_source_onboarding(
             context,
             f"catalog_ref must be {expected_catalog_ref!r}",
         )
+    generated_on = _parse_date(_require_string(data, "generated_on", context), context)
+    if generated_on != catalog.generated_on:
+        raise _onboarding_error(
+            context,
+            f"generated_on must match catalog.generated_on ({catalog.generated_on.isoformat()})",
+        )
 
     runtime_cutover = _require_bool(data, "runtime_cutover", context)
     digitalocean_postgres_load = _require_bool(data, "digitalocean_postgres_load", context)
@@ -531,7 +538,7 @@ def parse_source_onboarding(
 
     return SourceOnboarding(
         schema_version=schema_version,
-        generated_on=_parse_date(_require_string(data, "generated_on", context), context),
+        generated_on=generated_on,
         catalog_ref=catalog_ref,
         runtime_cutover=runtime_cutover,
         digitalocean_postgres_load=digitalocean_postgres_load,
@@ -583,7 +590,7 @@ def build_source_onboarding_report(
 
     try:
         catalog = load_source_catalog(catalog_path)
-    except Exception as exc:
+    except SourceCatalogError as exc:
         errors.append(f"catalog: {exc}")
         catalog = None
 

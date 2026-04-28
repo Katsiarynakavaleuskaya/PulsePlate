@@ -158,6 +158,14 @@ def test_food_source_onboarding_rejects_catalog_ref_mismatch() -> None:
         )
 
 
+def test_food_source_onboarding_rejects_generated_on_mismatch() -> None:
+    payload = _onboarding_payload()
+    payload["generated_on"] = "2026-04-27"
+
+    with pytest.raises(SourceOnboardingError, match="generated_on must match"):
+        parse_source_onboarding(payload, catalog=_catalog())
+
+
 def test_food_source_onboarding_accepts_absolute_catalog_path_ref() -> None:
     report = build_source_onboarding_report(_CATALOG_PATH.resolve(), _ONBOARDING_PATH)
 
