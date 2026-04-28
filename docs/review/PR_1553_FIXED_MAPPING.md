@@ -11,10 +11,35 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124458 -> d86208f27
+Disposition: FIXED
+Evidence: Added line-precise `file:line` anchors for Input parity claims in `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124465 -> 1f525aa7e
+Disposition: FIXED
+Evidence: `docs/review/PR_1553_FIXED_MAPPING.md` checkboxes are checked in the canonical artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124469
+Disposition: NOT-A-BUG
+Evidence: Canonical artifact contract for this lane requires `## Discussion Thread Pass` and `## Fixed in Commit Mapping`; merge-readiness truth is validated by CI gate, not a mandatory artifact section in this PR.
+Reason: Keeping the artifact aligned to active repo policy avoids introducing non-canonical sections.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124477 -> d86208f27
+Disposition: FIXED
+Evidence: Expanded `ledger-p1-design-input-runtime-code-parity` DoD into explicit, testable acceptance bullets in `docs/roadmap/BACKLOG_LEDGER.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#discussion_r3152124480 -> d86208f27
+Disposition: FIXED
+Evidence: Preserved explicit `aria-invalid` token values (`grammar|spelling`) in `frontend/src/components/ui/Input.tsx` and updated focused test expectations.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#pullrequestreview-4186460720
 Disposition: NOT-A-BUG
 Evidence: Sourcery aggregate review URL is tracked; actionable scope is resolved in Input core parity commits `61830a897`, `c49573f26`, `7b1a48717`.
 Reason: Merge-readiness governance requires mapping the aggregate bot review URL in the canonical artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1553#pullrequestreview-4186485199 -> d86208f27
+Disposition: FIXED
+Evidence: Actionable CodeRabbit review comments in this aggregate review were addressed via mapped thread fixes above.
 
 ## Scope (PR-1553)
 
