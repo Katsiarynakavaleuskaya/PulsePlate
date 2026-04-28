@@ -31,10 +31,11 @@ Scope: `00_Foundation_Tokens` (`6:2`), `01_Components` (`6:3`), `02_Brand_Assets
 
 ### 01_Components
 
-- Verified the existing runtime component sets:
+- Verified the existing Figma RuntimeSet nodes:
   - `PP/Shared/Button/RuntimeSet`
   - `PP/Shared/Input/RuntimeSet`
   - `PP/Shared/FormField/RuntimeSet`
+- `FormField` remains Figma reference coverage only here; this audit does not promote or assert a dedicated repo component API.
 - No Figma-only review surfaces were promoted into repo primitives.
 - No web or iOS component code was changed in this pass.
 

@@ -3,9 +3,9 @@
 **Status:** `Reference only` (docs lane; no asset or runtime promotion)
 **Scope:** `FitChef Mascot Asset Inventory — Intake 2026-04-28`
 **Figma:** file `2JDwOByQIbcPgp93FDzHii`, node `1473:2`
-**Source counts (sticker QA on board):** `6` `APPROVED-SEED` · `21` `CANDIDATE` · `3` `REFERENCE-ONLY` · `0` `NEEDS-REWORK` (see `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:50`)
+**Source counts (sticker QA on board):** `6` `APPROVED-SEED` · `21` `CANDIDATE` · `3` `REFERENCE-ONLY` · `0` `NEEDS-REWORK` (see `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:52`-`56`)
 
-This document assigns **marketing_use** and **runtime_use** posture per repo key `fitchef-candidate-001`…`030`. Row order **`001–006`** map to the six **APPROVED-SEED** assets named in `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`. The live Figma board `1473:2` is the status source for the named card layers: `FITCHEF_MARKETING_FITNESS_MOTIVATION_V1`, `FITCHEF_MARKETING_NUTRITION_EDUCATION_V1`, and `FITCHEF_ONBOARDING_PROFILE_SETUP_V1` are `REFERENCE-ONLY`; there is no current `NEEDS-REWORK` slot.
+This document assigns **marketing_use** and **runtime_use** posture per repo key `fitchef-candidate-001`…`030`. The table below is a GTM classification overlay, not a second runtime promotion source. The live Figma board `1473:2` remains the status source for named card layers: `FITCHEF_MARKETING_FITNESS_MOTIVATION_V1`, `FITCHEF_MARKETING_NUTRITION_EDUCATION_V1`, and `FITCHEF_ONBOARDING_PROFILE_SETUP_V1` are `REFERENCE-ONLY`; `FITCHEF_PORTRAIT_WINK_V1` is an alias of the existing wink seed, not an additional repo-backed seed row.
 
 ---
 
@@ -57,12 +57,12 @@ Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRA
 | fitchef-candidate-007 | CANDIDATE #1 | social_ready¹ | no_runtime_promotion | Default CANDIDATE: OK for organic social once scanned for embedded English/medical/guarantee/fake UI; hold ASO first position until cleared. |
 | fitchef-candidate-008 | CANDIDATE #2 | social_ready¹ | no_runtime_promotion | Same tier as #007; prioritize short-form clips and Stories CTA to real product flows. |
 | fitchef-candidate-009 | CANDIDATE #3 | aso_supporting_hold¹ | no_runtime_promotion | Typical compositional drift risk; localize text layers before placing in ASO carousel. |
-| fitchef-candidate-010 | CANDIDATE #4 | social_ready¹ | no_runtime_promotion | Social-first; screenshot order only after text-risk pass. |
+| fitchef-candidate-010 | REFERENCE-ONLY: `FITCHEF_MARKETING_FITNESS_MOTIVATION_V1` | reference_archive | no_runtime_promotion | Live board marks this named card `REFERENCE-ONLY`; keep campaign concept internal until localization-safe visual QA. |
 | fitchef-candidate-011 | CANDIDATE #5 | aso_supporting_hold¹ | no_runtime_promotion | Audit for mock dashboard density; may read as “fake UI promise” if copy overclaims. |
-| fitchef-candidate-012 | CANDIDATE #6 | social_ready¹ | no_runtime_promotion | Mascot-forward variant; default social when English does not dominate. |
+| fitchef-candidate-012 | REFERENCE-ONLY: `FITCHEF_MARKETING_NUTRITION_EDUCATION_V1` | reference_archive | no_runtime_promotion | Live board marks this named card `REFERENCE-ONLY`; keep nutrition education framing internal until text-heavy QA clears it. |
 | fitchef-candidate-013 | CANDIDATE #7 | reference_archive¹ | no_runtime_promotion | Often layout exploration; defer ASO hero use until aligns with seven-shot honesty rules. |
 | fitchef-candidate-014 | CANDIDATE #8 | aso_supporting_hold¹ | no_runtime_promotion | If frame nests dense metrics, downgrade to blocked_gtm for CIS until rewritten. |
-| fitchef-candidate-015 | CANDIDATE #9 | social_ready¹ | no_runtime_promotion | Short-form friendly; companion to paid UGC tests. |
+| fitchef-candidate-015 | REFERENCE-ONLY: `FITCHEF_ONBOARDING_PROFILE_SETUP_V1` | reference_archive | no_runtime_promotion | Live board marks this named card `REFERENCE-ONLY`; keep profile setup concept internal until visual QA clears it. |
 | fitchef-candidate-016 | CANDIDATE #10 | social_ready¹ | no_runtime_promotion | Default paid social carousel tile if visual passes compliance scan. |
 | fitchef-candidate-017 | CANDIDATE #11 | aso_supporting_hold¹ | no_runtime_promotion | Check FitChef-plus-data compositions for “results guarantee” implication. |
 | fitchef-candidate-018 | CANDIDATE #12 | reference_archive¹ | no_runtime_promotion | Reserve for decks / qualitative testing; rarely primary ASO. |
@@ -77,7 +77,7 @@ Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRA
 | fitchef-candidate-027 | REFERENCE-ONLY #1 | reference_archive | no_runtime_promotion | Board label dictates archive use; internal/Figma-aligned messaging only—not App Store carousel. |
 | fitchef-candidate-028 | REFERENCE-ONLY #2 | reference_archive | no_runtime_promotion | Same as #027; no paid promotion asserting product truth without redesign. |
 | fitchef-candidate-029 | REFERENCE-ONLY #3 | reference_archive | no_runtime_promotion | Same as #027–028; training / partner deck only. |
-| fitchef-candidate-030 | APPROVED-SEED: `FITCHEF_PORTRAIT_WINK_V1` | approved_seed | canon_aligned | Live board marks this card `APPROVED-SEED`; treat as the repo-backed wink seed, not a new runtime promotion. |
+| fitchef-candidate-030 | APPROVED-SEED alias: `FITCHEF_PORTRAIT_WINK_V1` | approved_seed | no_runtime_promotion | Live board marks this card `APPROVED-SEED`, but this intake row is only an alias of the existing wink seed; it does not create a seventh runtime-aligned seed. |
 
 ¹ **Supersedable:** If the frame at that index is clearly mascot-only with no hazardous copy, operator may raise one tier (e.g. `aso_supporting_hold` → `social_ready`). If scan finds English/medical/guarantee/fake UI, apply **Automatic flags** and lower tier.
 ² **High-churn slots:** If your Figma sort places a safe mascot-only frame at #19 or #24, swap classification with the nearest `social_ready` neighbor after documented QA.
@@ -90,15 +90,15 @@ Cross-ref: wellness copy posture `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRA
 | --- | --- | --- |
 | **App Store screenshot candidate (primary / early shots)** | `fitchef-candidate-001`–`006` | Only seed pack with known filenames; pair with real UI stills per `FITCHEF_APP_STORE_VISUAL_CONTRACT.md`. |
 | **App Store screenshot (supporting / later shots)** | `fitchef-candidate-009`, `011`, `014`, `017`, `020`, `025` **if** QA upgrades from `aso_supporting_hold` to cleared state | All require localized, non-guarantee headlines. |
-| **Social-only (organic + paid)** | `007`, `008`, `010`, `012`, `015`, `016`, `021`, `023`, `026` when `social_ready` holds after scan | Prefer Stories/Reels/short carousel; disclose illustrative composites if mock UI appears. |
-| **Reference-only (internal / partner / training)** | `013`, `018`, `022`, **`027`–`029`** | Reference boards; not for consumer ASO shelf without rework PR. |
+| **Social-only (organic + paid)** | `007`, `008`, `016`, `021`, `023`, `026` when `social_ready` holds after scan | Prefer Stories/Reels/short carousel; disclose illustrative composites if mock UI appears. |
+| **Reference-only (internal / partner / training)** | `010`, `012`, `013`, `015`, `018`, `022`, **`027`–`029`** | Reference boards; not for consumer ASO shelf without rework PR. |
 | **Hold / rework before any public use** | `019`, `024` + any row bumped by **Automatic flags** | Blocklisted until caption or pixels prove wellness-safe parity. |
 
 ---
 
 ## Evidence anchors
 
-- `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:33` (`1473:2` board inventory counts)
+- `docs/figma/FITCHEF_BRAND_REFERENCE_HANDOFF.md:52`-`56` (`1473:2` board inventory counts)
 - `docs/design/FITCHEF_MASCOT_ASSET_CANON.md` (six approved seed filenames)
 - `docs/contracts/FITCHEF_APP_STORE_VISUAL_CONTRACT.md` (composition and copy posture)
 
