@@ -11,7 +11,9 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at time of PR creation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1555#discussion_r3154961721 -> 3acb81c95
+Disposition: FIXED
+Evidence: `frontend/src/stories/PulsePlateDesignSystemGuidelines.mdx` now uses explicit wording that Figma exploration assets are reference-only and cannot be used in production until added via dedicated repo PR.
 
 ## Scope (PR-1555)
 
