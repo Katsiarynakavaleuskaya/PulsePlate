@@ -1792,7 +1792,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DATA-PR6-USDA-MANIFEST-PREFLIGHT
+  - Target PR: PR `#1563`
   - Status: 🚧 Active PR6 USDA manifest preflight lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, and PR5 source-onboarding gate merged as PR #1559
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
