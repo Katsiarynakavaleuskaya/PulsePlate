@@ -26,6 +26,11 @@ Disposition: FIXED
 Commit: 8171f925c
 Evidence: Policy-example lines in `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md` now include `pulseplate-allow:blocker-example` markers and keep the wellness guard fail-closed without broad allowlist changes.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155581650 -> 8171f925c
+Disposition: FIXED
+Commit: 8171f925c
+Evidence: Grammar in GTM row `fitchef-candidate-021` updated to “when paired with a compliant caption”.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190520460 -> 8171f925c
 Disposition: FIXED
 Commit: 8171f925c
