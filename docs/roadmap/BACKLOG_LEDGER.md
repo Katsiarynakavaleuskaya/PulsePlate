@@ -1393,20 +1393,37 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Input RuntimeSet code parity (Figma vs `Input.tsx`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DESIGN-INPUT-RUNTIME-PARITY
-  - Status: OPEN
+  - Target PR: PR #1553
+  - Status: CORE PARITY IN PR #1553; accessory-shell follow-up remains open
   - Area: design-system / frontend / governance
   - Finding Type: Figma runtime audit follow-up (2026-04-27)
   - Reason (EN): The Figma Input RuntimeSet includes size, number/search/secret, small default, filled/error/disabled, and prep notes for unit/loading/prefix/suffix/clear action. Current `Input.tsx` is a generic HTML input wrapper without explicit size or accessory API (`frontend/src/components/ui/Input.tsx:4-24`).
   - Links:
     - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
     - `frontend/src/components/ui/Input.tsx`
+    - `frontend/src/components/ui/__tests__/Input.test.tsx`
+    - `frontend/src/components/ui/Input.stories.tsx`
+    - `docs/review/PR_1553_FIXED_MAPPING.md`
   - DoD:
-    - Decide which Input variants are canonical component API vs usage examples
-    - Decide size API
-    - Decide unit/prefix/suffix/clear-action API
-    - Decide loading state handling
-    - Update `Input.tsx`, tests/stories/docs in a dedicated PR
+    - Core Input parity (`size`, `invalid`, `loading`, native `type`) is implemented and covered by tests/stories in PR #1553
+    - Accessory shell API (`unit`, `prefix`, `suffix`, `clear-action`) stays deferred to a dedicated PR
+
+<a id="ledger-p1-design-input-accessory-shell-parity"></a>
+- [ ] P1: Input accessory shell parity
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DESIGN-INPUT-ACCESSORY-SHELL
+  - Status: OPEN
+  - Area: design-system / frontend / governance
+  - Finding Type: Figma runtime audit follow-up
+  - Reason (EN): Unit, prefix, suffix, and clear-action require a compound input shell rather than the core `Input` primitive.
+  - Links:
+    - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
+    - `frontend/src/components/ui/Input.tsx`
+  - DoD:
+    - Decide whether accessory behavior belongs in `Input`, `InputGroup`, or FormField composition.
+    - Define prefix/suffix/unit/clear-action API.
+    - Add tests/stories/docs in a dedicated PR.
 
 <a id="ledger-p1-rebuild-runtime-vocabulary-promotion-decision"></a>
 - [ ] P1: Rebuild runtime family vocabulary promotion decision
