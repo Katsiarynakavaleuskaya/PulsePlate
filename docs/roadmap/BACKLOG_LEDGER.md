@@ -1372,19 +1372,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Button RuntimeSet code parity (Figma vs `Button.tsx`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DESIGN-BUTTON-RUNTIME-PARITY
-  - Status: OPEN
+  - Target PR: PR #1552
+  - Status: OPEN — implementation on branch `feat/button-runtime-set-code-parity`; checkbox flips at merge close-out or docs-only ledger PR if preferred
   - Area: design-system / frontend / governance
   - Finding Type: Figma runtime audit follow-up (2026-04-27)
-  - Reason (EN): The Figma Button RuntimeSet includes success, warning, danger, and loading states. Current `Button.tsx` supports `primary`, `secondary`, `ghost`, and `destructive` with sizes `sm` / `md` / `lg` only (`frontend/src/components/ui/Button.tsx:3-4`).
+  - Reason (EN): The Figma Button RuntimeSet includes success, warning, danger, and loading states. `Button.tsx` now supports `primary`, `secondary`, `ghost`, `destructive`, `success`, and `warning` with sizes `sm` / `md` / `lg`, plus optional `loading` / `loadingLabel` (`frontend/src/components/ui/Button.tsx:3-4`, `frontend/src/components/ui/Button.tsx:10-11`).
   - Links:
     - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
     - `frontend/src/components/ui/Button.tsx`
+    - `frontend/src/components/ui/__tests__/Button.test.tsx`
+    - `frontend/src/components/ui/Button.stories.tsx`
+    - `docs/review/PR_1552_FIXED_MAPPING.md`
   - DoD:
-    - Decide whether success/warning become Button variants or remain composed product patterns
-    - Reconcile danger vs destructive naming
-    - Add loading state only if the product API needs it
-    - Update `Button.tsx`, tests/stories/docs in a dedicated PR
+    - `success` and `warning` are first-class `ButtonVariant` values backed by existing `--color-success` / `--color-warning` tokens (no `tokens.css` edits in PR #1552).
+    - Figma `tone=danger` maps only to `variant="destructive"` (documented in audit; no `danger` alias).
+    - `loading` + `loadingLabel` with `aria-busy`, disabled while loading, and spread order preventing override of disabled/busy when loading.
+    - Vitest coverage in `frontend/src/components/ui/__tests__/Button.test.tsx` and Storybook `frontend/src/components/ui/Button.stories.tsx`.
 
 <a id="ledger-p1-design-input-runtime-code-parity"></a>
 - [ ] P1: Input RuntimeSet code parity (Figma vs `Input.tsx`)
