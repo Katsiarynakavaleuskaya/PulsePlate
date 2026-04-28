@@ -31,6 +31,15 @@ from scripts.design.html_preview import HTML_PREVIEW_VERSION
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 
 AVAILABLE_SCREENS = list(SUPPORTED_SCREENS)
+STATUS_ICONS = dict(
+    [
+        ("pass", "✓"),
+        ("warn", "⚠"),
+        ("fail", "✗"),
+        ("not_executed", "○"),
+        ("error", "✗"),
+    ]
+)
 
 
 def load_manifest() -> dict[str, Any]:
@@ -444,15 +453,7 @@ def main() -> int:
 
         all_pass = True
         for result in results:
-            status_icon = dict(
-                [
-                    ("pass", "✓"),
-                    ("warn", "⚠"),
-                    ("fail", "✗"),
-                    ("not_executed", "○"),
-                    ("error", "✗"),
-                ]
-            ).get(result["status"], "?")
+            status_icon = STATUS_ICONS.get(result["status"], "?")
 
             print(f"\n{status_icon} {result['screen_id']}: {result['status'].upper()}")
 

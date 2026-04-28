@@ -57,7 +57,7 @@ starting while she monitored near-green `main` CI herself.
 - [ ] CI green on current head
 - [ ] No unresolved actionable review threads
 - [ ] CodeRabbit/Sourcery/Cubic statuses reviewed and mapped
-- [ ] Fixed-mapping artifact and PR body mirror aligned
+- [ ] Fixed-mapping artifact and PR body are mirror-aligned
 - [ ] `check_review_threads_disposition.py --require-auth` PASS
 - [ ] `check_pr_merge_readiness.py` PASS
 - [ ] `check_merge_ready.py --require-auth` PASS
