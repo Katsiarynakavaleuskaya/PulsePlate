@@ -788,12 +788,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1526 (`codex/docker-build-path-consolidation`)
   - Area: CI / docker / security scan / operator workflow
-  - Status: Landed via `PR #1526` on 2026-04-25; baseline/governance closeout is the only remaining action in this PR.
+  - Status: Landed
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
     - `docs/roadmap/BACKLOG_LEDGER.md#backlog-restore-signed-build-provenance`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-safety-audit-shared-script-after-pr1479`
-  - Reason: Docker production image work is now functionally correct, and `PR #1526` removed the duplicate `target: production` PR rebuild pattern across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. The landed baseline consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` as a scheduled/manual image-security lane, reducing CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture.
+  - Reason: Landed via `PR #1526` on 2026-04-25. Docker production image work is now functionally correct, and `PR #1526` removed the duplicate `target: production` PR rebuild pattern across `build.yml`, `docker-image.yml`, `trivy.yml`, and `docker-openapi-smoke.yml`. The landed baseline consolidates PR-time runtime/telemetry/budget/OpenAPI smoke validation into `build.yml` and keeps `trivy.yml` as a scheduled/manual image-security lane, reducing CI cost and flake surface without changing the Docker base image, dependency profiles, provenance policy, or Dagger/control-plane posture. Baseline/governance closeout is the only remaining action in this PR.
   - Links:
     - `docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md`
     - `.github/workflows/build.yml`
@@ -813,12 +813,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR #1530
   - Area: CI / docker / dependency profile / runtime cost
-  - Status: Landed via `PR #1530` on 2026-04-25; this closeout PR only updates docs/governance truth.
+  - Status: Landed
   - Transition note: 2026-04-25 — Opened as immediate follow-up after PR #1526 and build-path consolidation telemetry stabilisation.
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-workflow-build-path-consolidation`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-docker-image-hard-budget-gate`
-  - Reason: Base-image changes and API-core dependency-profile slimming were intentionally split from `PR #1526` and landed in `PR #1530` after build-path consolidation telemetry stabilized. The active Docker/CI next state is baseline/governance closure, not a repeat runtime-slimming implementation slice.
+  - Reason: Landed via `PR #1530` on 2026-04-25. Base-image changes and API-core dependency-profile slimming were intentionally split from `PR #1526` and landed in `PR #1530` after build-path consolidation telemetry stabilized. This closeout PR only updates docs/governance truth. The active Docker/CI next state is baseline/governance closure, not a repeat runtime-slimming implementation slice.
   - Links:
     - `docs/deploy/DOCKER.md`
     - `Dockerfile`
@@ -836,11 +836,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security maturity after release-truth closure)
   - Target PR: PR #1332
-  - Status: Blocked until P0 release-truth closure; docs/governance-only, with no CI/control-plane enablement in this closeout PR.
+  - Status: Blocked
   - Blocked by:
-    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-billing-entitlement-routing`
     - release-truth closure criteria listed below
-  - Reason (EN): SBOM/VEX/cosign/OPA is a separate security-maturity lane. Provenance is now restored, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity.
+  - Reason (EN): Blocked until P0 release-truth closure. SBOM/VEX/cosign/OPA is a separate security-maturity lane. Provenance is now restored, but the current canonical release risk remains concentrated in release-truth closure. Until entitlement truth, backend/runtime closure, infra hardening, canonical OpenAPI sync, and web/iOS runtime parity are stable, this lane stays docs/governance-only and must not add new blocking CI or merge-path complexity. This closeout PR does not enable CI/control-plane changes for SBOM/VEX.
   - Current action:
     - docs/governance only
     - no CI enablement
