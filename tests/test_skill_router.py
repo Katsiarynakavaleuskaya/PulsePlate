@@ -1669,6 +1669,21 @@ def test_docs_only_envelope_strips_implementation_skills() -> None:
         assert skill not in conditional
 
 
+def test_docs_only_envelope_keeps_web_launch_site_planning_skill() -> None:
+    """Launch-site skill supports planning/copy docs and should survive docs-only mode."""
+
+    decision = route_skills(
+        goal="Plan launch site SEO landing copy, waitlist CTA, and Product Hunt handoff",
+        task_class="Documentation",
+        candidate_paths=["docs/marketing/LAUNCH_SITE_PLAN.md"],
+        domain="business",
+    )
+
+    assert decision["envelope_mode_hint"] == DOCS_ONLY_ENVELOPE_MODE
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-web-launch-site" in recommended
+
+
 def test_docs_only_app_store_runbook_updates_do_not_route_release_skill() -> None:
     """docs_only App Store runbook edits must not surface release implementation helpers."""
 

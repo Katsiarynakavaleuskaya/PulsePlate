@@ -10,7 +10,7 @@ description: Plan, review, and implement PulsePlate launch-site surfaces, landin
 Use this skill when the task touches PulsePlate public web launch surfaces:
 
 - launch-site or landing-page structure,
-- waitlist, lead capture, CTA, or conversion funnel copy,
+- waitlist, lead-capture, CTA, or conversion funnel copy,
 - SEO/ASO/Product Hunt launch page handoff,
 - frontend implementation for public launch pages,
 - deploy-adjacent launch workflow planning.
