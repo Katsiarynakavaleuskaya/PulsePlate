@@ -15,7 +15,7 @@ created.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads have been posted yet.
+- No actionable review comments
 
 ## Initial Evidence
 
