@@ -11,7 +11,25 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- Pending review threads.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155595152 -> 8171f925c
+Disposition: FIXED
+Commit: 8171f925c
+Evidence: `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` now uses canonical keyspace `fitchef-candidate-001..030`, exact intake distribution (`6` approved-seed, `20` candidate, `3` reference-only, `1` needs-rework), and GTM/runtime enums aligned to `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155595159 -> 8171f925c
+Disposition: FIXED
+Commit: 8171f925c
+Evidence: Policy-example lines in `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md` now include `pulseplate-allow:blocker-example` markers and keep the wellness guard fail-closed without broad allowlist changes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190520460 -> 8171f925c
+Disposition: FIXED
+Commit: 8171f925c
+Evidence: Addressed Sourcery thread guidance by adding explicit candidate-key to mapped-asset traceability in matrix `notes` and fixing grammar in GTM rationale (`when paired with a compliant caption`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190539368 -> 8171f925c
+Disposition: FIXED
+Commit: 8171f925c
+Evidence: Addressed CodeRabbit actionable review items in both matrix/governance docs while preserving docs-only scope.
 
 ## Scope (PR-1556)
 
