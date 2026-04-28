@@ -16,7 +16,7 @@ mapping artifact.
 
 Disposition: FIXED
 Commit: 3f433db91
-Evidence: docs/review/PR_1560_FIXED_MAPPING.md uses the required checked discussion-pass markers enforced by review_mapping_artifact.py and records the phase2 artifact status.
+Evidence: docs/review/PR_1560_FIXED_MAPPING.md uses the required discussion-pass markers set to checked, as enforced by review_mapping_artifact.py, and records the phase2 artifact status.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#discussion_r3156449223 -> 3f433db91
 
 Disposition: FIXED
