@@ -41,6 +41,37 @@ Disposition: FIXED
 Commit: 8171f925c
 Evidence: Addressed CodeRabbit actionable review items in both matrix/governance docs while preserving docs-only scope.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155713773 -> 676b30764
+Disposition: FIXED
+Commit: 676b30764
+Evidence: Added required canonical artifact structure updates including completed discussion-pass checklist; merge-readiness section added in this commit chain to satisfy review-governance template requirements.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190636819
+Disposition: NOT-A-BUG
+Evidence: Review summary entry only; actionable inline item from this review (`discussion_r3155674057`) was fixed in `676b30764` and mapped below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190648149
+Disposition: NOT-A-BUG
+Evidence: Duplicate-summary review with no additional actionable delta beyond already mapped discussion item.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190682743
+Disposition: FIXED
+Commit: 676b30764
+Evidence: Actionable requirement addressed by adding/validating required canonical artifact sections.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155674057 -> 676b30764
+Disposition: FIXED
+Commit: 676b30764
+Evidence: `docs/review/PR_1556_FIXED_MAPPING.md` discussion-pass checkboxes were set to checked state as required.
+
+## Merge Readiness
+
+- [ ] No unresolved review threads
+- [ ] Required checks PASS
+- [ ] Approved by required reviewers
+- [ ] PR body mirror updated with canonical sections
+- [ ] Docs-only scope verified (no non-doc files changed)
+
 ## Scope (PR-1556)
 
 - `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` - add 30-row candidate visual QA matrix for board `1473:2` with disposition, text/localization risk, wellness safety risk, and marketing/runtime separation.
