@@ -35,9 +35,12 @@ ALLOWED_COLLISION_RESOLUTIONS: tuple[CollisionResolution, ...] = (
     "quarantine",
     "skip",
 )
+ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS = "eligible_preflight"
+MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH = "manifest_preflight_only"
 
 _SHA256_RE = re.compile(r"^[0-9a-fA-F]{64}$")
 _RETRIEVED_ON_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class SourceManifestError(ValueError):
@@ -376,6 +379,9 @@ def build_source_diff_report(
 def build_source_preflight_report(
     current_manifest: Path | str,
     incoming_manifest: Path | str,
+    *,
+    catalog_path: Path | str | None = None,
+    onboarding_path: Path | str | None = None,
 ) -> dict[str, object]:
     """Load manifests and return a dry-run report with validation errors."""
     errors: list[str] = []
@@ -400,4 +406,125 @@ def build_source_preflight_report(
             "validation_errors": errors,
         }
 
-    return build_source_diff_report(current, incoming)
+    if (catalog_path is None) != (onboarding_path is None):
+        errors.append("source_contract: catalog_path and onboarding_path must be provided together")
+    elif catalog_path is not None and onboarding_path is not None:
+        errors.extend(
+            f"source_contract: {error}"
+            for error in validate_manifest_source_contract(
+                incoming,
+                catalog_path=catalog_path,
+                onboarding_path=onboarding_path,
+            )
+        )
+
+    report = build_source_diff_report(current, incoming)
+    if errors:
+        diff_errors = report.get("validation_errors")
+        existing_errors = (
+            [str(error) for error in diff_errors] if isinstance(diff_errors, list) else []
+        )
+        report["success"] = False
+        report["validation_errors"] = [*existing_errors, *errors]
+    return report
+
+
+def validate_manifest_source_contract(
+    manifest: SourceManifest,
+    *,
+    catalog_path: Path | str,
+    onboarding_path: Path | str,
+) -> list[str]:
+    """
+    Validate a manifest against the governed catalog/onboarding preflight contract.
+
+    RU: Проверка только файлового допуска preflight, без ingest/сети/БД.
+    EN: File-only preflight eligibility check, with no ingest/network/database side effects.
+    """
+    from core.food_sources.source_catalog import SourceCatalogError, load_source_catalog
+    from core.food_sources.source_onboarding import (
+        SourceOnboardingError,
+        load_source_onboarding,
+    )
+
+    errors: list[str] = []
+    try:
+        catalog = load_source_catalog(catalog_path)
+    except SourceCatalogError as exc:
+        return [f"catalog: {exc}"]
+
+    expected_catalog_ref = _expected_catalog_ref(catalog_path)
+    try:
+        onboarding = load_source_onboarding(
+            onboarding_path,
+            catalog=catalog,
+            expected_catalog_ref=expected_catalog_ref,
+        )
+    except SourceOnboardingError as exc:
+        return [f"onboarding: {exc}"]
+
+    catalog_entries = {entry.source: entry for entry in catalog.sources}
+    catalog_entry = catalog_entries.get(manifest.source)
+    if catalog_entry is None:
+        errors.append(f"catalog: unknown source {manifest.source!r}")
+    else:
+        if manifest.source_classification != catalog_entry.source_classification:
+            errors.append(
+                "catalog: source_classification mismatch for "
+                f"{manifest.source!r}: manifest={manifest.source_classification!r} "
+                f"catalog={catalog_entry.source_classification!r}"
+            )
+        if manifest.source_url != catalog_entry.source_url:
+            errors.append(
+                "catalog: source_url mismatch for "
+                f"{manifest.source!r}: manifest={manifest.source_url!r} "
+                f"catalog={catalog_entry.source_url!r}"
+            )
+        if not catalog_entry.manifest_required:
+            errors.append(f"catalog: {manifest.source!r} must require a manifest")
+        if not catalog_entry.preflight_required:
+            errors.append(f"catalog: {manifest.source!r} must require preflight")
+        if not catalog_entry.active_update_source:
+            errors.append(f"catalog: {manifest.source!r} must be an active update source")
+
+    onboarding_entries = {entry.source: entry for entry in onboarding.sources}
+    onboarding_entry = onboarding_entries.get(manifest.source)
+    if onboarding_entry is None:
+        errors.append(f"onboarding: missing source {manifest.source!r}")
+    else:
+        if onboarding_entry.onboarding_status != ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS:
+            errors.append(
+                "onboarding: "
+                f"{manifest.source!r} must be {ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS}, got "
+                f"{onboarding_entry.onboarding_status!r}"
+            )
+        if onboarding_entry.ingestion_path != MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH:
+            errors.append(
+                "onboarding: "
+                f"{manifest.source!r} must use {MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH}, got "
+                f"{onboarding_entry.ingestion_path!r}"
+            )
+
+    if onboarding.runtime_cutover:
+        errors.append("onboarding: runtime_cutover must remain false")
+    if onboarding.digitalocean_postgres_load:
+        errors.append("onboarding: digitalocean_postgres_load must remain false")
+    if onboarding.bulk_ingest:
+        errors.append("onboarding: bulk_ingest must remain false")
+    if not onboarding.file_only:
+        errors.append("onboarding: file_only must remain true")
+    if onboarding.network_allowed:
+        errors.append("onboarding: network_allowed must remain false")
+    if onboarding.db_writes_allowed:
+        errors.append("onboarding: db_writes_allowed must remain false")
+
+    return errors
+
+
+def _expected_catalog_ref(catalog_path: Path | str) -> str:
+    """Return the repository-relative catalog ref used by onboarding snapshots."""
+    path = Path(catalog_path)
+    try:
+        return path.resolve().relative_to(_REPO_ROOT).as_posix()
+    except ValueError:
+        return path.as_posix()
