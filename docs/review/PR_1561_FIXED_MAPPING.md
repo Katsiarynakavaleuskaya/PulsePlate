@@ -22,12 +22,20 @@ Commit: 9d057d7b6
 Evidence: docs/review/PR_1561_FIXED_MAPPING.md:23; docs/roadmap/BACKLOG_LEDGER.md:3449
 Reason: The mapping artifact now includes the required, standardized merge-readiness checkboxes, the ledger records why the closeout PR landed after PR #1522, and the scope-boundary bullet punctuation is consistent.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191701860 -> 9d057d7b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#discussion_r3156587365 -> 9d057d7b6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#discussion_r3156587377 -> 9d057d7b6
 
 Disposition: FIXED
 Commit: 6efce3a75
 Evidence: docs/review/PR_1561_FIXED_MAPPING.md:29
 Reason: The CodeRabbit readability nit was addressed by changing the phrase to "required, standardized" in the mapping reason.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191790788 -> 6efce3a75
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#discussion_r3156662794 -> 6efce3a75
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#issuecomment-4338147685
+Reason: CodeRabbit's initial issue comment was a review-in-progress status note, not an actionable finding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#issuecomment-4338147685
 
 ## Review Notes
 
