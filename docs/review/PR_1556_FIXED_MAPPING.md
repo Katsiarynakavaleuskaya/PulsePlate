@@ -1,5 +1,7 @@
 # PR #1556 - Fixed in Commit Mapping (canonical)
 
+<!-- markdownlint-disable MD034 -->
+
 PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556>
 Branch: `docs/fitchef-candidate-visual-qa-matrix`
 Date: 2026-04-28
@@ -14,7 +16,7 @@ Date: 2026-04-28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155595152 -> 8171f925c
 Disposition: FIXED
 Commit: 8171f925c
-Evidence: `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` now uses canonical keyspace `fitchef-candidate-001..030`, exact intake distribution (`6` approved-seed, `20` candidate, `3` reference-only, `1` needs-rework), and GTM/runtime enums aligned to `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md`.
+Evidence: `docs/design/FITCHEF_CANDIDATE_VISUAL_QA_2026-04-28.md` now uses canonical keyspace `fitchef-candidate-001..030`, exact intake distribution (`6` approved-seed, `21` candidate, `3` reference-only, `0` needs-rework), and GTM/runtime enums aligned to `docs/figma/FITCHEF_INTAKE_1473_2_GTM_CLASSIFICATION_GUIDANCE.md`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155584473 -> a9494b9c1
 Disposition: FIXED
@@ -84,3 +86,5 @@ Evidence: `docs/review/PR_1556_FIXED_MAPPING.md` discussion-pass checkboxes were
 
 - `pre-commit run --all-files`
 - `git diff --name-only origin/main...HEAD | rg -v "\\.md$|README\\.md$|AGENTS\\.md$|RUNBOOK_AGENT\\.md$|DEPLOYMENT\\.md$"`
+
+<!-- markdownlint-enable MD034 -->

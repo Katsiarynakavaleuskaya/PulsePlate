@@ -51,9 +51,9 @@ They document:
 - a candidate intake board that tracks reference-only audit status:
   - current batch: `30` assets
   - `6` `APPROVED-SEED` (matches `docs/design/FITCHEF_MASCOT_ASSET_CANON.md`)
-  - `20` `CANDIDATE`
+  - `21` `CANDIDATE`
   - `3` `REFERENCE-ONLY`
-  - `1` `NEEDS-REWORK`
+  - `0` `NEEDS-REWORK`
 
 For `11_Welcome_Gate_States`, treat `85:32` `FitChef Mascot State Coverage / Approved`
 as the active board. Earlier state-board variants on that page are legacy audit material,
