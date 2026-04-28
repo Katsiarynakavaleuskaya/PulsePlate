@@ -13,13 +13,13 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 Disposition: FIXED
 Commit: 76b0fe1f1
-Evidence: docs/review/PR_1561_FIXED_MAPPING.md:21
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:56
 Reason: The mapping artifact now keeps merge-readiness content PR-specific and links to the canonical governance contracts instead of duplicating the full shared checklist.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191604149 -> 76b0fe1f1
 
 Disposition: FIXED
 Commit: 9d057d7b6
-Evidence: docs/review/PR_1561_FIXED_MAPPING.md:23; docs/roadmap/BACKLOG_LEDGER.md:3449
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:63; docs/roadmap/BACKLOG_LEDGER.md:3449
 Reason: The mapping artifact now includes the required, standardized merge-readiness checkboxes, the ledger records why the closeout PR landed after PR #1522, and the scope-boundary bullet punctuation is consistent.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191701860 -> 9d057d7b6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#discussion_r3156587365 -> 9d057d7b6
@@ -27,7 +27,7 @@ Reason: The mapping artifact now includes the required, standardized merge-readi
 
 Disposition: FIXED
 Commit: 6efce3a75
-Evidence: docs/review/PR_1561_FIXED_MAPPING.md:29
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:23
 Reason: The CodeRabbit readability nit was addressed by changing the phrase to "required, standardized" in the mapping reason.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191790788 -> 6efce3a75
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#discussion_r3156662794 -> 6efce3a75
