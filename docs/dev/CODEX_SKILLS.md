@@ -148,6 +148,8 @@ approved research-only connector contract. Evidence:
 - Prepare App Store metadata, screenshot packs, and release evidence: `pulseplate-app-store-release`
 - Guide monetization, paywall, pricing, and wellness-safe GTM work: `pulseplate-monetization-gtm`
 - Govern design-system readiness, launch-asset boundaries, and token/brand consistency: `pulseplate-design-launch-system` (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `tests/test_install_codex_skills.py:264`, `tests/test_skill_router.py:750`)
+- Plan and implement public launch-site pages, CTA funnels, waitlist/lead-capture paths, and wellness-safe launch copy: `pulseplate-web-launch-site` (evidence: `tools/codex_skills/pulseplate-web-launch-site/SKILL.md:1`, `tests/test_skill_router.py:657`)
+- Shape agent-product surfaces, operator workflows, HITL boundaries, and product handoffs without creating runtime autonomy: `pulseplate-agent-product` (evidence: `tools/codex_skills/pulseplate-agent-product/SKILL.md:1`, `tests/test_skill_router.py:847`)
 - Build/update architecture graph artifact: `pulseplate-graphmap`
 - Run browser E2E flows (step 3 extension): `pulseplate-playwright-e2e`
 - Run coordinator-owned PR self-review before external review-bot signals: `pulseplate-pr-review` (evidence: `tools/codex_skills/pulseplate-pr-review/SKILL.md:1`, `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md:1`)
@@ -160,6 +162,8 @@ Recommended now for PulsePlate:
 - `pulseplate-app-store-release` for App Store metadata, screenshot packs, and release evidence
 - `pulseplate-monetization-gtm` for monetization, paywall, pricing, and wellness-safe GTM work
 - `pulseplate-design-launch-system` for passive design-launch governance, launch asset bundles, token/brand consistency, and fail-closed packet metadata review (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:8`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`, `tests/test_skill_router.py:750`)
+- `pulseplate-web-launch-site` for launch-site pages, CTA funnels, waitlist/lead-capture paths, and wellness-safe public launch copy (evidence: `tools/codex_skills/pulseplate-web-launch-site/SKILL.md:8`, `tests/test_skill_router.py:657`)
+- `pulseplate-agent-product` for agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority (evidence: `tools/codex_skills/pulseplate-agent-product/SKILL.md:8`, `tests/test_skill_router.py:847`)
 - `pulseplate-pr-review` for passive, coordinator-owned PR self-review that stays advisory and preserves merge-readiness gates
 - `docs-sync` for orchestration, runbooks, and PR support docs
 - `bug-triage` and `pulseplate-gates` for remediation and gate closure
@@ -199,6 +203,7 @@ Not approved as default:
 1. Step 1: Core workflow + gates + contract sync skills.
 2. Step 2: Domain skills (guards, backend endpoints, AI reports, graph map).
 3. Step 3: Browser E2E extension with Playwright (`pulseplate-playwright-e2e`) for controlled web flow automation.
+4. Step 4: Launch/product extensions (`pulseplate-design-launch-system`, `pulseplate-web-launch-site`, `pulseplate-agent-product`, `pulseplate-pr-review`) for repo-native go-to-market, agent-product, and review governance support.
 
 ## Computer Use / MCP troubleshooting
 

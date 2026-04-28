@@ -651,6 +651,24 @@ def test_skill_router_selects_web_ui_skill_stack() -> None:
     assert "build-web-apps:web-design-guidelines" in skills
 
 
+def test_skill_router_selects_web_launch_site_stack() -> None:
+    """Launch-site work should route the PulsePlate launch-site helper."""
+
+    skills = select_recommended_skills(
+        goal=(
+            "Build a public launch site landing page with waitlist CTA, "
+            "lead capture, SEO landing copy, and Product Hunt handoff"
+        ),
+        task_class="Frontend",
+        candidate_paths=["frontend/src/pages/LaunchSite.tsx", "docs/marketing/LAUNCH.md"],
+        domain="frontend",
+    )
+
+    assert "pulseplate-web-launch-site" in skills
+    assert "pulseplate-frontend-ui" in skills
+    assert "build-web-apps:frontend-skill" in skills
+
+
 def test_skill_router_selects_ios_app_store_skill_stack() -> None:
     """iOS and App Store work should route the dedicated SwiftUI/iOS helpers."""
 
@@ -810,6 +828,27 @@ def test_skill_router_selects_monetization_and_gtm_stack() -> None:
     assert "pulseplate-monetization-gtm" in skills
     assert "build-web-apps:stripe-best-practices" in skills
     assert "pulseplate-ai-reports" in skills
+    assert "docs-sync" in skills
+
+
+def test_skill_router_selects_agent_product_stack() -> None:
+    """Agent-product work should route the product helper without replacing workflow."""
+
+    skills = select_recommended_skills(
+        goal=(
+            "Productize agent workflow into an operator console with HITL "
+            "approval and native subagent bridge boundaries"
+        ),
+        task_class="Orchestration",
+        candidate_paths=[
+            "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+            "docs/product/AGENT_PRODUCT_SURFACE.md",
+        ],
+        domain="orchestration",
+    )
+
+    assert "pulseplate-workflow" in skills
+    assert "pulseplate-agent-product" in skills
     assert "docs-sync" in skills
 
 
@@ -1628,6 +1667,38 @@ def test_docs_only_envelope_strips_implementation_skills() -> None:
     for skill in DOCS_ONLY_EXCLUDED_ROUTING_SKILLS:
         assert skill not in recommended
         assert skill not in conditional
+
+
+def test_docs_only_envelope_keeps_web_launch_site_planning_skill() -> None:
+    """Launch-site skill supports planning/copy docs and should survive docs-only mode."""
+
+    decision = route_skills(
+        goal="Plan launch site SEO landing copy, waitlist CTA, and Product Hunt handoff",
+        task_class="Documentation",
+        candidate_paths=["docs/marketing/LAUNCH_SITE_PLAN.md"],
+        domain="business",
+    )
+
+    assert decision["envelope_mode_hint"] == DOCS_ONLY_ENVELOPE_MODE
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-web-launch-site" in recommended
+
+
+def test_launch_site_conditional_uses_launch_specific_guidance() -> None:
+    """Partial launch-site signals should not inherit generic research wording."""
+
+    decision = route_skills(
+        goal="Refresh waitlist wording",
+        task_class="Documentation",
+        candidate_paths=["README.md"],
+        domain="docs",
+    )
+
+    conditional_by_skill = {item["skill"]: item for item in decision["conditional"]}
+    assert conditional_by_skill["pulseplate-web-launch-site"]["when"] == (
+        "Enable when the task explicitly covers a public launch surface, "
+        "landing-page CTA, waitlist flow, or launch-copy handoff."
+    )
 
 
 def test_docs_only_app_store_runbook_updates_do_not_route_release_skill() -> None:

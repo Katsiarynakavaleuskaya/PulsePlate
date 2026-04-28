@@ -76,6 +76,11 @@ LAUNCH_GOVERNANCE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
         "pulseplate-design-launch-system",
     }
 )
+LAUNCH_SITE_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
+    {
+        "pulseplate-web-launch-site",
+    }
+)
 RESEARCH_CONDITIONAL_SKILLS: frozenset[str] = frozenset(
     {
         "pulseplate-ai-reports",
@@ -965,6 +970,66 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         ),
     ),
     SkillRule(
+        skill="pulseplate-web-launch-site",
+        category="repo-tracked",
+        rationale=(
+            "Launch-site pages, CTA funnels, SEO/ASO landing copy, and "
+            "deploy-adjacent web launch work should use the dedicated "
+            "PulsePlate web launch skill."
+        ),
+        min_score=6,
+        domain_weights={"frontend": 2, "business": 2, "research": 1, "wellness": 1},
+        path_prefixes=(
+            "frontend/",
+            "docs/marketing/",
+            "docs/product/FREE_PRO_SOFT_PAYWALL.md",
+            "docs/audience_pack/",
+        ),
+        keywords=(
+            "launch site",
+            "landing page",
+            "marketing site",
+            "waitlist",
+            "lead capture",
+            "cta",
+            "conversion funnel",
+            "product hunt",
+            "seo landing",
+            "aso landing",
+        ),
+    ),
+    SkillRule(
+        skill="pulseplate-agent-product",
+        category="repo-tracked",
+        rationale=(
+            "Agent-product surfaces, operator workflows, and HITL agent UX "
+            "must preserve coordinator authority and avoid parallel runtime "
+            "orchestration."
+        ),
+        min_score=6,
+        domain_weights={"orchestration": 2, "business": 1, "qa": 1},
+        path_prefixes=(
+            "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+            "docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md",
+            "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+            "docs/orchestration/AGENT_REFLECTION_PROTOCOL.md",
+            "scripts/orchestration/",
+        ),
+        keywords=(
+            "agent product",
+            "agent-product",
+            "productize agent",
+            "operator workflow",
+            "operator console",
+            "human-in-the-loop",
+            "hitl",
+            "agent capability",
+            "agent ux",
+            "runtime autonomy",
+            "native subagent bridge",
+        ),
+    ),
+    SkillRule(
         skill="bug-triage",
         category="global",
         rationale="Use the bug-triage workflow when the task is framed as a failure, regression, or fix.",
@@ -1610,6 +1675,11 @@ def _conditional_when_for_skill(*, skill: str, task_classification_label: str) -
         return (
             "Enable when launch-asset work includes explicit design packet metadata, "
             "concrete source anchors, and token/brand governance intent."
+        )
+    if skill in LAUNCH_SITE_CONDITIONAL_SKILLS:
+        return (
+            "Enable when the task explicitly covers a public launch surface, "
+            "landing-page CTA, waitlist flow, or launch-copy handoff."
         )
     if skill in RESEARCH_CONDITIONAL_SKILLS and task_classification_label != "creative_research":
         return "Enable when the task requires a report/research deliverable or durable knowledge capture."
