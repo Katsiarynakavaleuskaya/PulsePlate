@@ -11,7 +11,21 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: e06dd686d
+Evidence: tools/codex_skills/pulseplate-web-launch-site/SKILL.md uses `lead-capture` consistently in the launch-site usage bullets.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3156979727 -> e06dd686d
+
+Disposition: FIXED
+Commit: e06dd686d
+Evidence: scripts/orchestration/skill_router.py narrows agent-product path/keyword triggers and removes the broad `public website` launch keyword to reduce over-trigger risk.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192161038 -> e06dd686d
+
+Disposition: FIXED
+Commit: e06dd686d
+Evidence: scripts/orchestration/skill_router.py keeps `pulseplate-web-launch-site` available in docs-only envelope, and tests/test_skill_router.py covers docs-only launch planning routing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#discussion_r3156986579 -> e06dd686d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1565#pullrequestreview-4192168608 -> e06dd686d
 
 ## Initial Evidence
 
@@ -25,9 +39,9 @@ Date: 2026-04-28
 
 ## External Bot Status
 
-- CodeRabbit: pending on draft PR.
-- Sourcery: pending on draft PR.
-- Cubic: pending on draft PR.
+- CodeRabbit: pending on latest pushed head after review-fix commit.
+- Sourcery: actionable feedback mapped above.
+- Cubic: pending on latest pushed head.
 
 ## Deferred Follow-up
 
