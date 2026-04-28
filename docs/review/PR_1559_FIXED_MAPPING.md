@@ -16,6 +16,7 @@ merge readiness.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256222 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256406 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321044 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321044 -> c19749878
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321366 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156347773 -> ca24364f9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156347782 -> ca24364f9
@@ -27,6 +28,10 @@ Evidence: `core/food_sources/source_onboarding.py` now normalizes absolute repo-
 Evidence: `scripts/food_source_onboarding.py` now makes `--json` a real output-mode flag with a non-JSON summary fallback.
 Evidence: `tests/test_food_source_onboarding.py` now fails fast when `_mutate_source` cannot find the target source.
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses `Target PR: PR #1559`.
+
+Disposition: FIXED
+Commit: c19749878
+Evidence: `core/food_sources/source_onboarding.py` now uses a linear `Counter` duplicate-source check and one shared safety-flag template for parser/report outputs.
 
 Disposition: FIXED
 Commit: ca24364f9
@@ -48,7 +53,7 @@ Evidence: `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR5
 Reason: Coordinator-first packet bootstrap was generated before implementation.
 
 Disposition: NOT-A-BUG
-Evidence: `python3 -m pytest tests/test_food_source_onboarding.py tests/test_food_source_catalog.py tests/test_food_source_preflight.py -q` passed with 49 tests.
+Evidence: `python3 -m pytest tests/test_food_source_onboarding.py tests/test_food_source_catalog.py tests/test_food_source_preflight.py -q` passed with 51 tests.
 Reason: PR5 onboarding validator, PR3 catalog validation, and PR2 preflight contracts remain aligned.
 
 Disposition: NOT-A-BUG
