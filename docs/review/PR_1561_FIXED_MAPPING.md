@@ -17,6 +17,12 @@ Evidence: docs/review/PR_1561_FIXED_MAPPING.md:21
 Reason: The mapping artifact now keeps merge-readiness content PR-specific and links to the canonical governance contracts instead of duplicating the full shared checklist.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191604149 -> 76b0fe1f1
 
+Disposition: FIXED
+Commit: 9d057d7b6
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:42; docs/roadmap/BACKLOG_LEDGER.md:3449
+Reason: The mapping artifact now includes the required standardized merge-readiness checkboxes, the ledger records why the closeout PR landed after PR #1522, and the scope-boundary bullet punctuation is consistent.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191701860 -> 9d057d7b6
+
 ## Review Notes
 
 No actionable human or bot review comments are present at artifact creation.
@@ -28,6 +34,8 @@ resolving threads on GitHub.
 - `3e8988f43` - `docs(roadmap): close plugin control-plane umbrella`
 - `375381156` - `docs(review): add pr1561 fixed mapping`
 - `76b0fe1f1` - `docs(review): trim pr1561 mapping`
+- `cf58f130a` - `docs(review): map pr1561 sourcery feedback`
+- `9d057d7b6` - `docs(review): address pr1561 coderabbit feedback`
 
 ## Merge Readiness
 
