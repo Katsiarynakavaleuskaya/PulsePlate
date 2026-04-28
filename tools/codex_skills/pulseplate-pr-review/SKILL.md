@@ -72,7 +72,19 @@ Use this default order unless the active packet declares a narrower compatible s
    python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_review_context.json --format json
    ```
 
-4. Classify findings with the required schema:
+4. For calibration mode, confirm the report includes calibration metadata before
+   any future dry-run-to-comment path:
+
+   ```bash
+   python3 -m pytest tests/test_pr_review_report.py -q
+   python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_review_context.json --format json
+   ```
+
+   Calibration must prove clean context, governance findings, warning-bearing
+   context, benign fixed-mapping patterns, and large diff risk stay distinct.
+   Calibration never makes GitHub posting eligible by itself.
+
+5. Classify findings with the required schema:
    - `severity`: `critical`, `major`, `minor`, or `note`
    - `role_agent`: owning reviewer agent
    - `category`: correctness, security, architecture, tests, docs, wellness, release, or governance
@@ -82,7 +94,7 @@ Use this default order unless the active packet declares a narrower compatible s
    - `gate_to_run`: exact command that proves the fix
    - `disposition_candidate`: `FIXED`, `NOT-A-BUG`, `DEFERRED`, or `NEEDS-HUMAN`
 
-5. Keep plugin evidence optional:
+6. Keep plugin evidence optional:
    - GitHub: PR metadata, checks, reviews, and future dry-run-to-comment path.
    - CodeRabbit: reference workflow only; do not depend on available review quota.
    - Hugging Face: optional model/paper scouting for code review and vulnerability-detection methods.
