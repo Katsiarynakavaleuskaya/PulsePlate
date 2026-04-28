@@ -23,12 +23,14 @@ Disposition: FIXED
 Commit: d6efa02de
 Evidence: core/food_sources/source_preflight.py defines ELIGIBLE_PREFLIGHT_ONBOARDING_STATUS and MANIFEST_PREFLIGHT_ONLY_INGESTION_PATH constants and uses them in onboarding status/path checks.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1563#discussion_r3156892903 -> d6efa02de
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1563#pullrequestreview-4192051812 -> d6efa02de
 
 Disposition: NOT-A-BUG
 Evidence: core/food_sources/source_preflight.py ALLOWED_SOURCE_CLASSIFICATIONS intentionally allows only current, legacy_static, commercial_contract, and unresolved. tests/test_food_source_preflight.py validates incoming USDA fixtures as source_classification=current and rejects invalid classifications; changing fixture classification to incoming would violate the PR2 manifest contract.
 Reason: incoming_* fixture filenames describe the candidate manifest position in a dry-run pair, not a source_classification enum value.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1563#discussion_r3156901601
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1563#discussion_r3156901623
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1563#pullrequestreview-4192061903
 
 ## Initial Evidence
 
