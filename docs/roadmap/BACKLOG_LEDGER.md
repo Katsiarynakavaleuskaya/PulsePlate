@@ -3447,6 +3447,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: orchestration / advisory control-plane / roadmap
   - Finding Type: umbrella canonicalization
   - Status: ✅ Closed. PR #1522 merged on 2026-04-24 as `c1bd2eb6d21cfead23bac0a75692c1dbf5ea618c`; Rail B2 is now locked as advisory/control-plane only, with no product runtime truth, semantic cache, bounded-context ownership, public response logic, or plugin implementation.
+  - Closeout note: The docs-only closure PR #1561 was opened on 2026-04-28 after the stale `🟡 In progress` ledger state was found during the next-lane planning pass. Mitigation is this ledger-only reconciliation; no remaining Rail B2 umbrella implementation work is pending.
   - Reason (EN): GitHub, Cloudflare, Figma, and Hugging Face already appear across governance, edge, design, and research lanes, but they are not yet grouped under one explicit advisory/control-plane umbrella. Without a dedicated umbrella, later agents can accidentally pull plugin families into product runtime truth or semantic-cache planning. (RU: GitHub, Cloudflare, Figma и Hugging Face уже встречаются в governance, edge, design и research линиях, но пока не собраны под одним umbrella-item как advisory/control-plane rail. Без этого later agents могут случайно втянуть plugin families в product runtime truth или в планирование semantic cache.)
   - Links:
     - `docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md`

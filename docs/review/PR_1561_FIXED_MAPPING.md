@@ -36,6 +36,10 @@ Merge-readiness contract:
 
 PR-specific local evidence recorded for this closeout:
 
+- [ ] Required checks PASS with no pending required jobs
+- [ ] No unresolved review threads
+- [ ] No actionable bot comments
+- [ ] Final post-bot wait cycle completed
 - `python3 scripts/orchestration/check_preflight.py`
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Close PR-S0-B2 plugin-control-plane families umbrella ledger after merged PR #1522" --task-class "Orchestration" --pr-phase pre_open`
