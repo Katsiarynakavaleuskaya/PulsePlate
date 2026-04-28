@@ -1390,14 +1390,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Vitest coverage in `frontend/src/components/ui/__tests__/Button.test.tsx` and Storybook `frontend/src/components/ui/Button.stories.tsx`.
 
 <a id="ledger-p1-design-input-runtime-code-parity"></a>
-- [ ] P1: Input RuntimeSet code parity (Figma vs `Input.tsx`)
+- [x] P1: Input RuntimeSet code parity (Figma vs `Input.tsx`)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1553
-  - Status: CORE PARITY IN PR #1553; accessory-shell follow-up remains open
+  - Status: CLOSED — merged in PR #1553 (`4206d81a5`); accessory-shell follow-up remains open
   - Area: design-system / frontend / governance
   - Finding Type: Figma runtime audit follow-up (2026-04-27)
-  - Reason (EN): The Figma Input RuntimeSet includes size, number/search/secret, small default, filled/error/disabled, and prep notes for unit/loading/prefix/suffix/clear action. Current `Input.tsx` is a generic HTML input wrapper without explicit size or accessory API (`frontend/src/components/ui/Input.tsx:4-24`).
+  - Reason (EN): Core Input RuntimeSet parity for size/invalid/loading/type shipped in PR #1553; accessory shell capabilities (unit/prefix/suffix/clear-action) remain intentionally deferred to the dedicated follow-up item.
   - Links:
     - `docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md`
     - `frontend/src/components/ui/Input.tsx`
