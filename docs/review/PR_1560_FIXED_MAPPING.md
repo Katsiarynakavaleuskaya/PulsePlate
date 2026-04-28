@@ -31,6 +31,12 @@ Evidence: docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#discussion_r3156449219 -> 13615e272
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#pullrequestreview-4191546077 -> 13615e272
 
+Disposition: FIXED
+Commit: 7a85e0ebd
+Evidence: docs/review/PR_1560_FIXED_MAPPING.md now uses clearer wording for the checked discussion-pass marker evidence sentence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#discussion_r3156497476 -> 7a85e0ebd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1560#pullrequestreview-4191601594 -> 7a85e0ebd
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
