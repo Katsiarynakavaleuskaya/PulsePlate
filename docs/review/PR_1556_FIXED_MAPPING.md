@@ -41,10 +41,10 @@ Disposition: FIXED
 Commit: 8171f925c
 Evidence: Addressed CodeRabbit actionable review items in both matrix/governance docs while preserving docs-only scope.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155713773 -> 676b30764
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155713773 -> e8635d94c
 Disposition: FIXED
-Commit: 676b30764
-Evidence: Added required canonical artifact structure updates including completed discussion-pass checklist; merge-readiness section added in this commit chain to satisfy review-governance template requirements.
+Commit: e8635d94c
+Evidence: Added required canonical `## Merge Readiness` section in the review artifact with checklist scaffold expected by governance tooling.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190636819
 Disposition: NOT-A-BUG
@@ -54,9 +54,9 @@ Evidence: Review summary entry only; actionable inline item from this review (`d
 Disposition: NOT-A-BUG
 Evidence: Duplicate-summary review with no additional actionable delta beyond already mapped discussion item.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190682743
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#pullrequestreview-4190682743 -> e8635d94c
 Disposition: FIXED
-Commit: 676b30764
+Commit: e8635d94c
 Evidence: Actionable requirement addressed by adding/validating required canonical artifact sections.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1556#discussion_r3155674057 -> 676b30764
