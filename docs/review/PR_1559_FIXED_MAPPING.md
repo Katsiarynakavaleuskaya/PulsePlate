@@ -15,6 +15,8 @@ merge readiness.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256218 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256222 -> 324b5a9f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#discussion_r3156256406 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321044 -> 324b5a9f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1559#pullrequestreview-4191321366 -> 324b5a9f8
 
 Disposition: FIXED
 Commit: 324b5a9f8
