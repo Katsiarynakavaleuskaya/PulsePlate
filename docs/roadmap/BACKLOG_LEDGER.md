@@ -5523,7 +5523,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: #1482
-  - Status: ✅ Merged via PR #1482 (`d881d5f211478c493d4f18984cb6c335d867be6f`) on 20 April 2026; ledger closeout recorded in the PulsePlate skills wave 2/3 follow-up PR.
+  - Status: ✅ Merged via PR #1482 (`d881d5f211478c493d4f18984cb6c335d867be6f`) on 20 April 2026; ledger closeout recorded in PR #1565.
   - Area: design / launch assets / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific design launch system skill that links Figma/design tokens/brand assets with launch-readiness constraints while keeping design tooling passive with respect to coordinator-first routing.
@@ -5543,7 +5543,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P2: Add custom Codex skill `pulseplate-web-launch-site` (Wave 2)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PulsePlate skills wave 2/3 follow-up PR
+  - Target PR: PR #1565
   - Status: Implemented in `codex/pulseplate-skills-wave2-3`
   - Area: web / launch / frontend
   - Finding Type: capability expansion
@@ -5561,7 +5561,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P2: Add custom Codex skill `pulseplate-agent-product` (Wave 3)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PulsePlate skills wave 2/3 follow-up PR
+  - Target PR: PR #1565
   - Status: Implemented in `codex/pulseplate-skills-wave2-3`
   - Area: agents / product strategy / orchestration
   - Finding Type: capability expansion

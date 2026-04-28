@@ -83,8 +83,8 @@ Interpretation:
 ### Tier 3: Custom PulsePlate skills closed
 
 - `pulseplate-design-launch-system` — delivered via PR `#1482` / `d881d5f211478c493d4f18984cb6c335d867be6f`.
-- `pulseplate-web-launch-site` — delivered in this wave.
-- `pulseplate-agent-product` — delivered in this wave.
+- `pulseplate-web-launch-site` — delivered via PR `#1565`.
+- `pulseplate-agent-product` — delivered via PR `#1565`.
 
 ## Skill Delivery Waves
 
@@ -96,11 +96,11 @@ Interpretation:
 ### Wave 2 — Delivered
 
 - `pulseplate-design-launch-system` — governance-only skill bundle for design-system readiness, token/brand consistency, and launch-asset boundaries (evidence: `tools/codex_skills/pulseplate-design-launch-system/SKILL.md:1`, `docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md:15`, `tests/test_skill_router.py:750`)
-- `pulseplate-web-launch-site` — launch-site pages, CTA funnels, waitlist/lead-capture paths, SEO/ASO launch copy, and deploy-adjacent web launch handoff.
+- `pulseplate-web-launch-site` — launch-site pages, CTA funnels, waitlist/lead-capture paths, SEO/ASO launch copy, and deploy-adjacent web launch handoff (PR `#1565`).
 
 ### Wave 3 — Delivered
 
-- `pulseplate-agent-product` — agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority.
+- `pulseplate-agent-product` — agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority (PR `#1565`).
 
 ## Scope of This PR Family
 
