@@ -5545,7 +5545,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1565
-  - Status: ✅ Merged via PR #1565 (`93de5e8dbc7304e3c653736952de8e564b906f5e`) on 28 April 2026.
+  - Status: ✅ Merged via PR #1565 (Merge commit: `93de5e8dbc7304e3c653736952de8e564b906f5e`) on 2026-04-28.
   - Area: web / launch / frontend
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific launch-site skill for high-conviction landing pages, launch copy, capture funnels, and deploy-adjacent web launch workflows beyond generic frontend helpers.
@@ -5563,7 +5563,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1565
-  - Status: ✅ Merged via PR #1565 (`93de5e8dbc7304e3c653736952de8e564b906f5e`) on 28 April 2026.
+  - Status: ✅ Merged via PR #1565 (Merge commit: `93de5e8dbc7304e3c653736952de8e564b906f5e`) on 2026-04-28.
   - Area: agents / product strategy / orchestration
   - Finding Type: capability expansion
   - Reason: PulsePlate needs a project-specific agent-product skill for productizing agent workflows without collapsing repo orchestration, transport-only bridge semantics, or coordinator authority into a parallel runtime layer.
