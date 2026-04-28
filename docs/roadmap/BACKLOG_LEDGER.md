@@ -4058,11 +4058,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - runner remains advisory and does not post GitHub comments, resolve review threads, or claim merge readiness
 
 <a id="ledger-p2-pulseplate-pr-review-calibration-rubric"></a>
-- [ ] P2: Calibrate PulsePlate PR review dry-run false-positive rubric
+- [x] P2: Calibrate PulsePlate PR review dry-run false-positive rubric
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review automation follow-up)
   - Target PR: PR #1560 (`docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md`, docs/review/PR_1560_FIXED_MAPPING.md)
-  - Status: In progress in PR4 calibration lane
+  - Status: Completed in merged PR #1560; PR5 hygiene closes the stale ledger state after merge
   - Area: orchestration / PR review / Codex skills
   - Reason: PR3 added a side-effect-free dry-run report runner, but any future dry-run-to-comment path needs deterministic calibration first so benign context and `NOT-A-BUG` reviewer patterns do not become noisy actionable comments.
   - Links:
@@ -4075,6 +4075,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - tests cover clean context, governance findings, warning-bearing context, benign fixed-mapping patterns, and large diff risk
     - skill docs state calibration is required before any future GitHub posting path
     - runner remains advisory and does not post GitHub comments, resolve review threads, or claim merge readiness
+  - Closeout: Required PR-review skill implementation slices PR1-PR4 are complete. GitHub posting, automatic thread resolution, and model/scoring evals remain optional future lanes, not open required tails in this epic.
 
 <a id="ledger-p2-rag-release-gates-runtime-warnings-dedup"></a>
 - [ ] P2: Deduplicate `EvalRuntimeState.warnings` in RAG release-gates runner
@@ -10229,6 +10230,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-24 (PulsePlate PR review skill PR1)
+**Last updated:** 2026-04-28 (PulsePlate PR review skill PR5 closeout)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
