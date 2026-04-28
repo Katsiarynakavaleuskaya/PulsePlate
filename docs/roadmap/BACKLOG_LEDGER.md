@@ -6702,7 +6702,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: FitChef candidate intake visual QA and selective promotion plan
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FITCHEF-CANDIDATE-VISUAL-QA
+  - Target PR: PR #1556 (`docs/fitchef-candidate-visual-qa-matrix`)
+  - Status: In review (PR #1556, opened 2026-04-28)
   - Area: design / brand / marketing assets
   - Reason: Figma intake board now contains 30 FitChef assets, but only 6
     repo-backed seed assets are canonical. Candidate/reference/rework assets
