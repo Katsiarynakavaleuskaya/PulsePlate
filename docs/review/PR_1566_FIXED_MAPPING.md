@@ -11,7 +11,15 @@ Date: 2026-04-28
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 036e1b6b4
+Evidence: docs/review/PR_1566_FIXED_MAPPING.md expands initial evidence commands and clarifies that the unchecked merge-readiness command is pending final current-head rerun before merge.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1566#pullrequestreview-4192556208 -> 036e1b6b4
+
+Disposition: FIXED
+Commit: 036e1b6b4
+Evidence: docs/roadmap/BACKLOG_LEDGER.md normalizes PR #1565 merge evidence with ISO date `2026-04-28` and explicit merge commit label.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1566#pullrequestreview-4192556208 -> 036e1b6b4
 
 ## Initial Evidence
 
