@@ -80,14 +80,12 @@ if [ -z "${PRODUCTION_DOMAIN:-}" ] && [ -f ".env" ]; then
     export PRODUCTION_DOMAIN
 fi
 
-# Detect compose command
+# Detect Compose v2 command
 DC_CMD=""
 if docker compose version >/dev/null 2>&1; then
     DC_CMD="docker compose -f $COMPOSE_FILE"
-elif command -v docker-compose >/dev/null 2>&1; then
-    DC_CMD="docker-compose -f $COMPOSE_FILE"
 else
-    echo "❌ Neither 'docker compose' nor 'docker-compose' is available"
+    echo "❌ Docker Compose v2 plugin is required: docker compose"
     exit 1
 fi
 

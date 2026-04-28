@@ -338,6 +338,41 @@ def test_engineering_lessons_are_linked_from_repo_entrypoints() -> None:
     ), "PR template must reference docs/ENGINEERING_LESSONS.md to keep humans/agents aligned."
 
 
+def test_active_command_surfaces_use_docker_compose_v2() -> None:
+    """Active operator command surfaces must use Docker Compose v2 syntax.
+
+    File names such as ``docker-compose.production.yaml`` are allowed. This
+    guard blocks executable legacy command tokens only.
+    """
+
+    command_surface_paths = (
+        "Makefile",
+        "AGENTS.md",
+        "docs/runbooks/ENGINEER_QUICKPATH.md",
+        "docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md",
+        "scripts/QUICK_DIAGNOSTIC.md",
+        "scripts/QUICK_FIX_PRODUCTION.sh",
+        "scripts/diagnose_production.sh",
+        "scripts/fix_production_env.sh",
+        "scripts/redeploy_caddy.sh",
+    )
+    legacy_command_pattern = re.compile(r"(?<![\w./-])docker-compose(?:\s|$)")
+    offenders: list[str] = []
+
+    for rel in command_surface_paths:
+        content = _read(REPO_ROOT / rel)
+        if content is None:
+            continue
+        for line_no, line in enumerate(content.splitlines(), start=1):
+            if legacy_command_pattern.search(line):
+                offenders.append(f"{rel}:{line_no}: {line.strip()}")
+
+    assert not offenders, (
+        "Active command surfaces must use 'docker compose' v2 syntax; "
+        "compose file names remain allowed. Offenders: " + repr(offenders)
+    )
+
+
 def test_no_direct_model_submodule_imports() -> None:
     """Prohibit importing models from submodules - causes duplicate registration.
 

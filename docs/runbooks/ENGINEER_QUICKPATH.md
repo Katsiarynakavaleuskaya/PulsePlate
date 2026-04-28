@@ -71,6 +71,5 @@ Do not claim green or merge-ready without local evidence.
 
 ## Deployment note
 
-- Prefer `docker compose` in new or edited commands.
-
-- Existing `docker-compose` references in repo command surfaces are a tracked migration seam, not the canonical target state. See `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`.
+- Use `docker compose` v2 in active repo command surfaces.
+- Compose filenames such as `docker-compose.production.yaml` are file names, not command syntax, and remain unchanged.

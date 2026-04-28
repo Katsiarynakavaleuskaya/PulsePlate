@@ -444,13 +444,15 @@ def main() -> int:
 
         all_pass = True
         for result in results:
-            status_icon = {
-                "pass": "✓",
-                "warn": "⚠",
-                "fail": "✗",
-                "not_executed": "○",
-                "error": "✗",
-            }.get(result["status"], "?")
+            status_icon = dict(
+                [
+                    ("pass", "✓"),
+                    ("warn", "⚠"),
+                    ("fail", "✗"),
+                    ("not_executed", "○"),
+                    ("error", "✗"),
+                ]
+            ).get(result["status"], "?")
 
             print(f"\n{status_icon} {result['screen_id']}: {result['status'].upper()}")
 

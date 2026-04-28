@@ -30,16 +30,16 @@ docker-build-dev: ensure-python-proxy ## Build development Docker image
 		.
 
 docker-run: ensure-python-proxy ## Run Docker containers in background
-	docker-compose up -d
+	docker compose up -d
 
 docker-run-dev: ensure-python-proxy ## Run development Docker containers
-	docker-compose --profile dev up -d
+	docker compose --profile dev up -d
 
 docker-stop: ## Stop and remove Docker containers
-	docker-compose down
+	docker compose down
 
 docker-clean: ## Clean Docker containers and system
-	docker-compose down -v
+	docker compose down -v
 	docker system prune -f
 
 docker-clean-images: ## Remove old Docker images (keep latest 3)
@@ -49,10 +49,10 @@ docker-clean-images: ## Remove old Docker images (keep latest 3)
 		xargs -r docker rmi || echo "No old images to remove"
 
 docker-logs: ## Show Docker container logs
-	docker-compose logs -f
+	docker compose logs -f
 
 docker-shell: ## Open shell in Docker container
-	docker-compose exec pulseplate /bin/bash
+	docker compose exec pulseplate /bin/bash
 
 health-check:
 	python3 -m pytest -q tests/test_app_health_and_root.py

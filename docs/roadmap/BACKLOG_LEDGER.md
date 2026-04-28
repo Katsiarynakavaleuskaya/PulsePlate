@@ -2782,19 +2782,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-compose-v2-migration"></a>
-- [ ] P1: Migrate command surface to `docker compose` v2 only
+- [x] P1: Migrate command surface to `docker compose` v2 only
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-COMPOSE-V2-MIGRATION
+  - Target PR: PR-TBD-COMPOSE-V2-MIGRATION (`codex/compose-v2-command-surface`)
   - Area: infra / docs / operator workflow
   - Finding Type: command-surface consistency
-  - Reason: Repo command surfaces are mixed: some docs use `docker compose`, while `Makefile` and several runbooks still use `docker-compose`. This creates onboarding ambiguity and toolchain drift.
+  - Status: Landed
+  - Reason: The active repo command surface now uses `docker compose` v2 syntax. Makefile targets, active operator scripts, and current runbook guidance no longer recommend the legacy hyphenated Compose v1 command, while compose file names such as `docker-compose.production.yaml` remain unchanged.
   - Links:
     - `Makefile`
     - `docs/deploy/README.md`
     - `docs/runbooks/ENGINEER_QUICKPATH.md`
     - `AGENTS.md`
     - `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md`
+    - `tests/test_repo_policy_guards.py`
   - DoD:
     - Makefile targets use `docker compose`
     - Active runbooks/docs no longer recommend `docker-compose` as the target state

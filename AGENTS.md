@@ -1160,7 +1160,7 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 - CI/debug triage: `RUNBOOK_AGENT.md`
 - Deployment navigation: `docs/deploy/README.md`
 - Terminal diagnostics: `scripts/QUICK_DIAGNOSTIC.md`
-- Prefer `docker compose` v2 in new or edited commands; current `docker-compose` usage in repo command surfaces remains a tracked migration seam at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`, governed by `docs/architecture/ADR_COMPOSE_V2_COMMAND_SURFACE_SEAM_2026-03-09.md` (retire the seam only when Makefile/runbooks stop carrying `docker-compose` as active guidance).
+- Use `docker compose` v2 for active repo command surfaces. The completed command-surface migration is tracked at `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`; compose filenames such as `docker-compose.production.yaml` remain unchanged.
 
 ### AI bounded context
 

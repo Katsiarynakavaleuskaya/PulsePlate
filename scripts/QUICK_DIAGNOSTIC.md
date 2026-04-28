@@ -72,12 +72,8 @@ chmod +x /tmp/diagnose_production.sh
 # На Droplet (SSH)
 cd /srv/pulseplate-production
 
-# Если на сервере нет `docker compose` (v2), используйте `docker-compose` (v1):
-# - Проверить:
-#   docker compose version || true
-#   docker-compose --version || true
-#
-# - В командах ниже замените `docker compose` на `docker-compose`, если нужно.
+# Проверить, что доступен Docker Compose v2:
+docker compose version
 
 # 1) Кто слушает 80/443 на сервере
 sudo ss -lntp | grep -E ':80|:443' || true

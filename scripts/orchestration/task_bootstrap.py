@@ -866,12 +866,14 @@ def build_task_packet(
             "claim_taxonomy": list(CLAIM_TYPES),
             "flow": list(JUDGMENT_FLOW),
         }
-        judgment_budget = {
-            "skeptic_pass_required": True,
-            "verifier_pass_required": True,
-            "max_provider_calls": 0,
-            "uncertainty_split_required": True,
-        }
+        judgment_budget = dict(
+            [
+                ("skeptic_pass_required", True),
+                ("verifier_pass_required", True),
+                ("max_provider_calls", 0),
+                ("uncertainty_split_required", True),
+            ]
+        )
         result_adjudication = {
             "claim_evidence_fields": list(CLAIM_EVIDENCE_FIELDS),
             "support_statuses": list(SUPPORT_STATUSES),
@@ -886,12 +888,14 @@ def build_task_packet(
             "claim_taxonomy": [],
             "flow": [],
         }
-        judgment_budget = {
-            "skeptic_pass_required": False,
-            "verifier_pass_required": False,
-            "max_provider_calls": 0,
-            "uncertainty_split_required": False,
-        }
+        judgment_budget = dict(
+            [
+                ("skeptic_pass_required", False),
+                ("verifier_pass_required", False),
+                ("max_provider_calls", 0),
+                ("uncertainty_split_required", False),
+            ]
+        )
         result_adjudication = {
             "claim_evidence_fields": [],
             "support_statuses": [],

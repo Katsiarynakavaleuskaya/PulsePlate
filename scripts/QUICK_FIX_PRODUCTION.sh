@@ -28,16 +28,13 @@ echo "📍 Deploy directory: $DEPLOY_DIR"
 cd "$DEPLOY_DIR" || exit 1
 echo ""
 
-# Detect compose command (v1 priority)
+# Detect Compose v2 command
 DC_CMD=""
-if command -v docker-compose >/dev/null 2>&1; then
-    DC_CMD="docker-compose"
-    echo "✅ Using: docker-compose (v1)"
-elif docker compose version >/dev/null 2>&1; then
+if docker compose version >/dev/null 2>&1; then
     DC_CMD="docker compose"
-    echo "✅ Using: docker compose (v2 plugin)"
+    echo "✅ Using: docker compose"
 else
-    echo "❌ Neither 'docker-compose' (v1) nor 'docker compose' (v2) is available"
+    echo "❌ Docker Compose v2 plugin is required: docker compose"
     exit 1
 fi
 
