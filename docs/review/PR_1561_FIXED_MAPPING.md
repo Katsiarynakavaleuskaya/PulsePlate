@@ -19,15 +19,21 @@ Reason: The mapping artifact now keeps merge-readiness content PR-specific and l
 
 Disposition: FIXED
 Commit: 9d057d7b6
-Evidence: docs/review/PR_1561_FIXED_MAPPING.md:42; docs/roadmap/BACKLOG_LEDGER.md:3449
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:23; docs/roadmap/BACKLOG_LEDGER.md:3449
 Reason: The mapping artifact now includes the required, standardized merge-readiness checkboxes, the ledger records why the closeout PR landed after PR #1522, and the scope-boundary bullet punctuation is consistent.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191701860 -> 9d057d7b6
 
+Disposition: FIXED
+Commit: 6efce3a75
+Evidence: docs/review/PR_1561_FIXED_MAPPING.md:29
+Reason: The CodeRabbit readability nit was addressed by changing the phrase to "required, standardized" in the mapping reason.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1561#pullrequestreview-4191790788 -> 6efce3a75
+
 ## Review Notes
 
-No actionable human or bot review comments are present at artifact creation.
-Record every later actionable comment in `Fixed in Commit Mapping` before
-resolving threads on GitHub.
+No actionable human or bot review comments remain unmapped in this artifact.
+Record every later actionable comment in `Fixed in Commit Mapping` before resolving
+threads on GitHub.
 
 ## Initial Implementation Commits
 
@@ -36,6 +42,8 @@ resolving threads on GitHub.
 - `76b0fe1f1` - `docs(review): trim pr1561 mapping`
 - `cf58f130a` - `docs(review): map pr1561 sourcery feedback`
 - `9d057d7b6` - `docs(review): address pr1561 coderabbit feedback`
+- `a1c74bf49` - `docs(review): map pr1561 coderabbit feedback`
+- `6efce3a75` - `docs(review): polish pr1561 mapping wording`
 
 ## Merge Readiness
 
