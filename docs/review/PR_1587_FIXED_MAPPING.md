@@ -9,12 +9,40 @@ Date: 2026-04-29
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review comments were mapped before the review-fix commit. This
+Actionable review comments are mapped below with disposition evidence. This
 artifact is the canonical source of truth for PR review-governance mapping.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#discussion_r3164688051 -> 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Disposition: FIXED
+Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Evidence: `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md` role order uses registered canonical slugs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#discussion_r3164688055 -> 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Disposition: FIXED
+Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Evidence: `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md` PR-0 scope includes mandatory `docs/review/PR_<N>_FIXED_MAPPING.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#discussion_r3164690600 -> 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Disposition: FIXED
+Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Evidence: `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md` uses file:line source-of-truth anchors.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#discussion_r3164690604 -> 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Disposition: FIXED
+Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Evidence: `docs/review/PR_1587_FIXED_MAPPING.md` records exact task bootstrap command evidence without ellipsis.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#pullrequestreview-4201317720 -> 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Disposition: FIXED
+Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Evidence: `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md` declares the packet as the canonical contract source and defines hash/digest formats.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#pullrequestreview-4201323519 -> 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Disposition: FIXED
+Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
+Evidence: CodeRabbit summary actionables are covered by the individual review-thread mappings above.
 
 ## Initial Evidence
 
