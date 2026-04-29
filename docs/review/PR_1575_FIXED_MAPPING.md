@@ -31,6 +31,12 @@ Evidence: `AGENTS.md` now points the Evidence Graph Runtime invariant to the can
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1575#discussion_r3161965694 -> 64e5e401c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1575#pullrequestreview-4198122665 -> 64e5e401c
 
+Disposition: FIXED
+Commit: 2dd05ef20
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now adds `Remove-by: 2026-06-30` to `ledger-p1-evidence-graph-runtime`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1575#discussion_r3163775471 -> 2dd05ef20
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1575#pullrequestreview-4200263134 -> 2dd05ef20
+
 ## Validation Evidence
 
 Disposition: NOT-A-BUG
