@@ -65,6 +65,8 @@ Canonical recovery order:
    image as well; the edge fix alone cannot add a missing FastAPI route.
 7. Remove full-host Access only after the private check passes, then reopen the
    apex with a narrow temporary bypass for public shell/discovery GET paths only.
+   The public CSS asset under `/assets/` must return `200` with `text/css`; keep
+   `/api*`, `/admin*`, and private probe surfaces out of the bypass.
 
 ## Global release-readiness lock (required)
 

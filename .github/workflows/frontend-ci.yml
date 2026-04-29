@@ -167,6 +167,9 @@ jobs:
       - name: Build frontend
         run: npm run build
 
+      - name: Verify Tailwind CSS utilities
+        run: npm run smoke:css
+
       - name: Upload frontend build artifacts
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

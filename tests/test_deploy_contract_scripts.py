@@ -1518,7 +1518,12 @@ case "$method:$url" in
   GET:https://pulseplate.test/|GET:https://pulseplate.test/bmi|GET:https://pulseplate.test/profile|GET:https://pulseplate.test/plate|GET:https://pulseplate.test/progress)
     status="200"
     content_type="text/html; charset=utf-8"
-    payload='<!doctype html><html><body><div id="root"></div></body></html>'
+    payload='<!doctype html><html><head><link rel="stylesheet" href="/assets/index-test.css"></head><body><div id="root"></div></body></html>'
+    ;;
+  GET:https://pulseplate.test/assets/index-test.css)
+    status="200"
+    content_type="text/css"
+    payload='.grid{display:grid}.min-h-screen{min-height:100vh}.rounded-2xl{border-radius:1rem}'
     ;;
   GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
     status="200"
@@ -1588,6 +1593,9 @@ printf '%s' "$status"
     )
 
     assert "PASS: spa-bmi: /bmi serves the SPA shell with HTTP 200." in completed.stdout
+    assert (
+        "PASS: static-css: /assets/index-test.css is public CSS with HTTP 200." in completed.stdout
+    )
     assert "PASS: health-json: /health reaches the JSON backend surface." in completed.stdout
     assert "PASS: sitemap-xml: /sitemap.xml reaches the XML sitemap surface." in completed.stdout
     assert (
@@ -1657,7 +1665,12 @@ case "$method:$url" in
   GET:https://pulseplate.test/|GET:https://pulseplate.test/bmi|GET:https://pulseplate.test/profile|GET:https://pulseplate.test/plate|GET:https://pulseplate.test/progress)
     status="200"
     content_type="text/html; charset=utf-8"
-    payload='<!doctype html><html><body><div id="root"></div></body></html>'
+    payload='<!doctype html><html><head><link rel="stylesheet" href="/assets/index-test.css"></head><body><div id="root"></div></body></html>'
+    ;;
+  GET:https://pulseplate.test/assets/index-test.css)
+    status="200"
+    content_type="text/css"
+    payload='.grid{{display:grid}}.min-h-screen{{min-height:100vh}}.rounded-2xl{{border-radius:1rem}}'
     ;;
   GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
     status="200"
@@ -1731,6 +1744,13 @@ printf '%s' "$status"
     log_output = log_file.read_text(encoding="utf-8")
     assert "-H CF-Access-Client-Id: client-id" in log_output
     assert "-H CF-Access-Client-Secret: client-secret" in log_output
+    static_css_calls = [
+        line
+        for line in log_output.splitlines()
+        if "https://pulseplate.test/assets/index-test.css" in line
+    ]
+    assert static_css_calls
+    assert all("CF-Access-Client-" not in line for line in static_css_calls)
     assert (
         "PASS: Cloudflare Access service-token headers enabled for private probes."
         in completed.stdout
@@ -1779,7 +1799,12 @@ case "$method:$url" in
   GET:https://pulseplate.test/|GET:https://pulseplate.test/bmi|GET:https://pulseplate.test/profile|GET:https://pulseplate.test/plate|GET:https://pulseplate.test/progress)
     status="200"
     content_type="text/html; charset=utf-8"
-    payload='<!doctype html><html><body><div id="root"></div></body></html>'
+    payload='<!doctype html><html><head><link rel="stylesheet" href="/assets/index-test.css"></head><body><div id="root"></div></body></html>'
+    ;;
+  GET:https://pulseplate.test/assets/index-test.css)
+    status="200"
+    content_type="text/css"
+    payload='.grid{display:grid}.min-h-screen{min-height:100vh}.rounded-2xl{border-radius:1rem}'
     ;;
   GET:https://pulseplate.test/health|GET:https://pulseplate.test/openapi.json)
     status="200"

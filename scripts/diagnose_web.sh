@@ -155,6 +155,12 @@ curl_probe() {
     local name="$1"
     local url="$2"
     shift 2
+    local use_access_headers=1
+
+    if [[ "${1:-}" == "--no-access-headers" ]]; then
+        use_access_headers=0
+        shift
+    fi
 
     local headers_file="${tmp_dir}/${name}.headers"
     local body_file="${tmp_dir}/${name}.body"
@@ -169,7 +175,7 @@ curl_probe() {
         -w '%{http_code}'
     )
 
-    if [[ "${ACCESS_HEADERS_ENABLED}" -eq 1 ]]; then
+    if [[ "${ACCESS_HEADERS_ENABLED}" -eq 1 && "${use_access_headers}" -eq 1 ]]; then
         curl_args+=("${ACCESS_CURL_HEADERS[@]}")
     fi
 
@@ -218,6 +224,64 @@ assert_html_200() {
         return
     fi
     pass "${label}: ${path} serves the SPA shell with HTTP 200."
+}
+
+assert_public_css_asset() {
+    local label="$1"
+    local root_probe=""
+    root_probe="$(curl_probe "${label}-root" "${BASE_URL}/" --no-access-headers)" || {
+        fail "${label}: request to ${BASE_URL}/ failed."
+        return
+    }
+
+    IFS='|' read -r root_status _root_content_type _root_headers root_body_file <<<"${root_probe}"
+    if [[ "${root_status}" != "200" ]]; then
+        fail "${label}: expected root HTML HTTP 200 before CSS discovery, got ${root_status}."
+        return
+    fi
+
+    local css_path=""
+    css_path="$(
+        awk '
+            match($0, /href="[^"]*\/assets\/[^"]+\.css"/) {
+                css = substr($0, RSTART + 6, RLENGTH - 7)
+                print css
+                exit
+            }
+        ' "${root_body_file}"
+    )"
+    if [[ -z "${css_path}" ]]; then
+        fail "${label}: root HTML did not reference a Vite CSS asset under /assets/."
+        return
+    fi
+
+    local css_probe=""
+    css_probe="$(curl_probe "${label}" "${BASE_URL}${css_path}" --no-access-headers)" || {
+        fail "${label}: request to ${BASE_URL}${css_path} failed."
+        return
+    }
+
+    IFS='|' read -r status content_type headers_file body_file <<<"${css_probe}"
+    if grep -Eiq 'location: .*cloudflareaccess\.com' "${headers_file}"; then
+        fail "${label}: ${css_path} redirected to Cloudflare Access instead of public CSS."
+        return
+    fi
+    if [[ "${status}" != "200" ]]; then
+        fail "${label}: expected HTTP 200 for ${css_path}, got ${status}."
+        return
+    fi
+    case "${content_type}" in
+        text/css*) ;;
+        *)
+            fail "${label}: expected text/css for ${css_path}, got '${content_type:-<empty>}' ."
+            return
+            ;;
+    esac
+    if grep -Eiq 'cloudflare access|cf-access|/cdn-cgi/access' "${body_file}"; then
+        fail "${label}: ${css_path} body looks like a Cloudflare Access page."
+        return
+    fi
+    pass "${label}: ${css_path} is public CSS with HTTP 200."
 }
 
 assert_json_200() {
@@ -407,6 +471,7 @@ run_http_probes() {
     assert_html_200 "spa-profile" "/profile"
     assert_html_200 "spa-plate" "/plate"
     assert_html_200 "spa-progress" "/progress"
+    assert_public_css_asset "static-css"
 
     assert_json_200 "health-json" "/health"
     assert_json_backend "openapi-json" "/openapi.json"

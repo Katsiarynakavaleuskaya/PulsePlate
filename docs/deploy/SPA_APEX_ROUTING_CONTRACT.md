@@ -60,6 +60,11 @@ shell/discovery surfaces:
 - `/terms`
 - `/legacy/bmi-calculator`
 
+The bypass must stay method-scoped to safe public requests: `GET` and `HEAD`
+only. A hashed CSS asset under `/assets/` must return `200` with
+`text/css`; any redirect to `pulseplate.cloudflareaccess.com` means the public
+SPA shell will render without production styles.
+
 Keep these surfaces edge-protected during the reopen window:
 
 - `/api*`

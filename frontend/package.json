@@ -9,6 +9,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
+    "smoke:css": "node ./scripts/check-tailwind-utilities.mjs",
     "tokens:build": "node ./scripts/build-tokens.mjs",
     "tokens:check": "node ./scripts/build-tokens.mjs --check",
     "storybook": "storybook dev -p 6006",
