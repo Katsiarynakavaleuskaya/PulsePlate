@@ -23,6 +23,7 @@ export interface RouteConfig {
 // Union type for all route paths to ensure exhaustiveness
 export type RoutePath =
   | '/'
+  | '/app'
   | '/marketing'
   | '/enter-key'
   | '/setup'
@@ -35,7 +36,14 @@ export type RoutePath =
   | '/welcome-gate-v1';
 
 export const routes: RouteConfig[] = [
-  { path: '/', label: 'Home', requiresAuth: false, component: Home },
+  {
+    path: '/',
+    label: 'Launch',
+    requiresAuth: false,
+    component: PulsePlateMarketingPage,
+    hideTabBar: true,
+  },
+  { path: '/app', label: 'Home', requiresAuth: false, component: Home },
   {
     path: '/marketing',
     label: 'Marketing',

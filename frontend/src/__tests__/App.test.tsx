@@ -61,6 +61,12 @@ vi.mock('../config/routes', () => ({
   routes: [
     {
       path: '/',
+      component: () => <div data-testid="launch-page">Launch Page</div>,
+      hideTabBar: true,
+      requiresAuth: false
+    },
+    {
+      path: '/app',
       component: () => <div data-testid="home-page">Home Page</div>,
       hideTabBar: false,
       requiresAuth: false
@@ -119,16 +125,24 @@ describe('App', () => {
   it('renders routes correctly', () => {
     render(<App />);
 
-    // Should render the home page by default
-    expect(screen.getByTestId('home-page')).toBeInTheDocument();
+    expect(screen.getByTestId('launch-page')).toBeInTheDocument();
   });
 
   it('shows tab bar when route does not hide it', () => {
+    navigateTo('/app');
+
     render(<App />);
 
     expect(screen.getByTestId('app-shell')).toHaveClass('bg-[var(--pp-navy)]');
     expect(screen.getByTestId('app-shell')).toHaveClass('pb-[var(--spacing-touch-large)]');
     expect(screen.getByTestId('tab-bar')).toBeInTheDocument();
+  });
+
+  it('hides tab bar for the public launch route', () => {
+    render(<App />);
+
+    expect(screen.getByTestId('launch-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('tab-bar')).not.toBeInTheDocument();
   });
 
   it('hides tab bar for the design system preview route', () => {

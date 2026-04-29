@@ -63,9 +63,9 @@ function renderConfiguredRoute(path: RoutePath, element: JSX.Element): JSX.Eleme
 
 function renderHomeRoutes(): ReturnType<typeof render> {
   return render(
-    <MemoryRouter initialEntries={['/']}>
+    <MemoryRouter initialEntries={['/app']}>
       <Routes>
-        <Route path="/" element={renderConfiguredRoute('/', <Home />)} />
+        <Route path="/app" element={renderConfiguredRoute('/app', <Home />)} />
         <Route
           path="/setup"
           element={renderConfiguredRoute('/setup', <div data-testid="setup-route">Nutrition Setup Flow</div>)}
