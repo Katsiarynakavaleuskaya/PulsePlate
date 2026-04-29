@@ -40,7 +40,12 @@
 
 - `qa-engineer-agent`: BLOCKING on first pass for post-open governance
   metadata/body mirror only; fixed in this mapping update.
-- `bug-hunter`: pending after governance follow-up push.
+- `bug-hunter`: PASS
+  - Reviewed head: `72a60ae88b380e7dc583c208e7b1d9978edb7299`
+  - Evidence: no P0/P1 behavioral regression found in the bounded PR-5B diff;
+    Home, Plate, Progress, GlassCard, packet, ledger, and mapping changes stay
+    visual/token/governance-scoped, with no backend, web, generated-token,
+    entitlement, API, or product-token runtime drift.
 
 ## Validation Evidence
 
