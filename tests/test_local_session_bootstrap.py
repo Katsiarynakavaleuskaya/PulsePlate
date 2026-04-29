@@ -147,9 +147,16 @@ def test_local_session_bootstrap_rejects_local_only_scope_paths() -> None:
     """Local-only artifact and worktree paths must not become task scope."""
 
     for blocked_path in (
+        "artifacts/agent_runs",
+        "artifacts/agent_runs/session.json",
         "artifacts/orchestration",
         "artifacts/orchestration/task_packets/demo.json",
+        "artifacts/security_lab",
+        "artifacts/security_lab/report.json",
+        ".venv",
+        ".venv/bin/python",
         "worktrees",
+        "worktrees/other-lane",
     ):
         result = run_bootstrap(
             "--goal",
