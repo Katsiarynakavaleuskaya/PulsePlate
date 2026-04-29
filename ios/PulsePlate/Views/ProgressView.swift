@@ -9,27 +9,27 @@ struct ProgressViewPP: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
                     GlassCard {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                             Text("Progress")
-                                .font(.title.bold())
-                                .foregroundStyle(Color.textPrimary)
+                                .font(PPDesignTokens.Typography.heading)
+                                .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                             Text("Track daily nutrition completion and segment balance.")
-                                .font(.subheadline)
-                                .foregroundStyle(Color.textSecondary)
+                                .font(PPDesignTokens.Typography.body)
+                                .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
                         }
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
 
                     if nutritionService.isLoading {
                         GlassCard {
-                            HStack(spacing: 10) {
+                            HStack(spacing: PPDesignTokens.Spacing.medium) {
                                 ProgressView()
-                                    .tint(Color.appPrimary)
+                                    .tint(PPDesignTokens.ColorToken.primary)
                                 Text("Loading progress data...")
-                                    .foregroundStyle(Color.textSecondary)
-                                    .font(.subheadline)
+                                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                                    .font(PPDesignTokens.Typography.body)
                             }
                         }
                     } else if let issue = nutritionService.issue {
@@ -40,26 +40,25 @@ struct ProgressViewPP: View {
                         segmentListCard(nutritionData: nutritionData)
                     } else {
                         GlassCard {
-                            VStack(alignment: .leading, spacing: 10) {
+                            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                                 Text("No progress data")
-                                    .font(.headline)
-                                    .foregroundStyle(Color.textPrimary)
+                                    .font(PPDesignTokens.Typography.title)
+                                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                                 Text("Configure profile + key, then refresh to load your current day.")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.textSecondary)
-                                Button("Refresh") {
+                                    .font(PPDesignTokens.Typography.caption)
+                                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
+                                PPButton("Refresh", variant: .primary) {
                                     Task { await nutritionService.fetchNutritionData(for: Date()) }
                                 }
-                                .buttonStyle(.borderedProminent)
                             }
                         }
                     }
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .padding(.bottom, 20)
+                .padding(.horizontal, PPDesignTokens.Spacing.large)
+                .padding(.top, PPDesignTokens.Spacing.medium)
+                .padding(.bottom, PPDesignTokens.Spacing.xLarge)
             }
-            .background(Color.navy.ignoresSafeArea())
+            .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
             .navigationTitle("Progress")
             .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(isPresented: $showProfile) {
@@ -84,20 +83,20 @@ struct ProgressViewPP: View {
 
         return GlassCard {
             HStack {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xSmall) {
                     Text("Overall completion")
-                        .font(.caption)
-                        .foregroundStyle(Color.textSecondary)
+                        .font(PPDesignTokens.Typography.caption)
+                        .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
                     Text("\(Int((clampedProgress * 100).rounded()))%")
-                        .font(.title2.bold())
-                        .foregroundStyle(Color.textPrimary)
+                        .font(PPDesignTokens.Typography.heading)
+                        .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                 }
 
                 Spacer()
 
                 ProgressView(value: clampedProgress, total: 1.0)
                     .progressViewStyle(.linear)
-                    .tint(Color.success)
+                    .tint(PPDesignTokens.ColorToken.success)
                     .frame(width: 140)
             }
         }
@@ -107,10 +106,10 @@ struct ProgressViewPP: View {
         let segments = indexedSegments(nutritionData.segments)
 
         return GlassCard {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                 Text("Segment progress")
-                    .font(.headline)
-                    .foregroundStyle(Color.textPrimary)
+                    .font(PPDesignTokens.Typography.title)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
                 Chart(segments, id: \.index) { item in
                     BarMark(
@@ -134,19 +133,19 @@ struct ProgressViewPP: View {
         let segments = indexedSegments(nutritionData.segments)
 
         return GlassCard {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                 Text("Today")
-                    .font(.headline)
-                    .foregroundStyle(Color.textPrimary)
+                    .font(PPDesignTokens.Typography.title)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
                 ForEach(segments, id: \.index) { item in
-                    HStack(spacing: 10) {
+                    HStack(spacing: PPDesignTokens.Spacing.medium) {
                         Circle()
                             .fill(Color.segmentSemanticColor(from: item.segment.color))
-                            .frame(width: 8, height: 8)
+                            .frame(width: PPDesignTokens.Spacing.small, height: PPDesignTokens.Spacing.small)
                         Text(item.segment.name)
-                            .font(.subheadline)
-                            .foregroundStyle(Color.textPrimary)
+                            .font(PPDesignTokens.Typography.body)
+                            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                         Spacer()
                         Text(
                             String(
@@ -155,8 +154,8 @@ struct ProgressViewPP: View {
                                 item.segment.targetValue
                             )
                         )
-                        .font(.caption)
-                        .foregroundStyle(Color.textSecondary)
+                        .font(PPDesignTokens.Typography.caption)
+                        .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
                     }
                 }
             }
@@ -171,32 +170,29 @@ struct ProgressViewPP: View {
 
     private func issueCard(issue: PlateLoadIssue) -> some View {
         GlassCard {
-            VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                 Text(issue.title)
-                    .font(.headline)
-                    .foregroundStyle(Color.textPrimary)
+                    .font(PPDesignTokens.Typography.title)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                 Text(issue.message)
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
+                    .font(PPDesignTokens.Typography.caption)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
 
                 switch issue.primaryAction {
                 case .none:
                     EmptyView()
                 case .retry:
-                    Button("Retry") {
+                    PPButton("Retry", variant: .primary) {
                         Task { await nutritionService.fetchNutritionData(for: Date()) }
                     }
-                    .buttonStyle(.borderedProminent)
                 case .openProfile:
-                    Button("Open profile") {
+                    PPButton("Open profile", variant: .secondary) {
                         showProfile = true
                     }
-                    .buttonStyle(.bordered)
                 case .openProSetup:
-                    Button("Open PRO setup") {
+                    PPButton("Open PRO setup", variant: .secondary) {
                         showProSetup = true
                     }
-                    .buttonStyle(.bordered)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
