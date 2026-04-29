@@ -2,7 +2,7 @@
 
 **PR:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580
 **Branch:** `codex/main-payment-auth-isolation-fix`
-**Head SHA:** `f15c56ab6e635b65af179ec1093660d7ff03051a`
+**Code Fix SHA:** `fce5e048138387b50cda8ee1edb3a2c57c3d05f0`
 **Base:** `main`
 **Coordinator Packet:** `147c95aed252`
 
@@ -24,14 +24,20 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346168676
 Reason: Sourcery posted a reviewer guide summarizing the single-file test-isolation change and did not identify a code action in that comment.
 
+Disposition: FIXED
+Commit: fce5e048138387b50cda8ee1edb3a2c57c3d05f0
+Evidence: `tests/test_payment_source_contract_api.py` now imports the app-level `get_api_key` once at module load and no longer catches broad `Exception`; `../../.venv/bin/python -m pytest -q tests/test_payment_source_contract_api.py` and the combined api-tiers/payment contract set passed.
+Reason: Sourcery review `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#pullrequestreview-4199427355` asked to avoid a broad exception handler and repeated app imports in `_is_app_get_api_key_dependency`.
+
 ## Fixed in Commit Mapping
 
 Disposition: FIXED / NOT-A-BUG
-Commit: f15c56ab6e635b65af179ec1093660d7ff03051a
-Evidence: Main CI failure is fixed by the test-isolation commit; CodeRabbit and Sourcery entries are comment-only NOT-A-BUG dispositions documented above.
+Commit: f15c56ab6e635b65af179ec1093660d7ff03051a, fce5e048138387b50cda8ee1edb3a2c57c3d05f0
+Evidence: Main CI failure is fixed by the test-isolation commit; Sourcery review feedback is fixed by the follow-up helper cleanup; CodeRabbit and Sourcery guide entries are comment-only NOT-A-BUG dispositions documented above.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25116159382/job/73603719884 -> f15c56ab6e635b65af179ec1093660d7ff03051a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346167776
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346168676
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#pullrequestreview-4199427355 -> fce5e048138387b50cda8ee1edb3a2c57c3d05f0
 
 ## Local Validation
 
