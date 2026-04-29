@@ -1,0 +1,33 @@
+{
+  "schema_version": "food-data-jptn-identity.v1",
+  "generated_on": "2026-04-29",
+  "source": "jptn_food_facts",
+  "catalog_ref": "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+  "onboarding_ref": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+  "runtime_cutover": false,
+  "digitalocean_postgres_load": false,
+  "bulk_ingest": false,
+  "file_only": true,
+  "network_allowed": false,
+  "db_writes_allowed": false,
+  "provider_identity_status": "not_verified",
+  "source_url_evidence_status": "no_confirmed_public_source",
+  "license_status": "missing",
+  "retrieval_contract_status": "missing",
+  "schema_unit_normalization_status": "missing",
+  "attribution_redistribution_status": "blocked_pending_license",
+  "final_gate_decision": "blocked_until_verified",
+  "blocking_reasons": [
+    "Exact provider identity is not confirmed.",
+    "Canonical source URL and retrieval contract are not confirmed.",
+    "License, attribution, redistribution, and cache rights are not confirmed.",
+    "Schema, primary keys, units, locale, and normalization contract are not confirmed."
+  ],
+  "reviewed_queries": [
+    "\"JPTN Food Facts\" nutrition database",
+    "\"JPTN\" \"Food Facts\"",
+    "\"jptn_food_facts\"",
+    "\"JPTN\" food database nutrition"
+  ],
+  "notes": "JPTN Food Facts remains blocked. The reviewed public search terms did not identify a confirmed food-data provider, license, schema, or retrieval contract. A later source-specific PR may replace this gate only with explicit provider evidence and legal review."
+}
