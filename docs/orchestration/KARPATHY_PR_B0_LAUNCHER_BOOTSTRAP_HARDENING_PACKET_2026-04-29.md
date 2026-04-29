@@ -40,14 +40,14 @@ Out of scope:
 
 ## Implementation Contract
 
-- The repo bridge remains opt-in and non-mutating.
-- `--help` must not run preflight.
-- No-argument mode preserves the legacy placeholder recipe.
-- Supplying concrete bootstrap options requires both `--goal` and `--task-class`.
+- The repo bridge remains opt-in and non-mutating (`scripts/orchestration/local_session_bootstrap.sh:1-4`, `scripts/orchestration/local_session_bootstrap.sh:146-166`).
+- `--help` must not run preflight (`scripts/orchestration/local_session_bootstrap.sh:63-68`).
+- No-argument mode preserves the legacy placeholder recipe (`scripts/orchestration/local_session_bootstrap.sh:167-176`).
+- Supplying concrete bootstrap options requires both `--goal` and `--task-class` (`scripts/orchestration/local_session_bootstrap.sh:87-139`).
 - `--path` is repeatable and passed to `check_preflight.py --mode analyze` so scoped `AGENTS.md`
-  resolution matches the printed bootstrap command.
-- `--pr-phase` accepts only `pre_open`, `post_open_review`, `merge_ready`, or `none`.
-- The script prints the exact `task_bootstrap.py` command but does not execute it.
+  resolution matches the printed bootstrap command (`scripts/orchestration/local_session_bootstrap.sh:112-115`, `scripts/orchestration/local_session_bootstrap.sh:145-147`).
+- `--pr-phase` accepts only `pre_open`, `post_open_review`, `merge_ready`, or `none` (`scripts/orchestration/local_session_bootstrap.sh:136-139`).
+- The script prints the exact `task_bootstrap.py` command but does not execute it (`scripts/orchestration/local_session_bootstrap.sh:154-166`).
 
 ## Validation
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -12,12 +13,17 @@ BOOTSTRAP_SCRIPT = REPO_ROOT / "scripts/orchestration/local_session_bootstrap.sh
 def run_bootstrap(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     """Run the shell bridge without mutating the repo checkout."""
 
+    bash_path = shutil.which("bash")
+    if bash_path is None:
+        raise RuntimeError("bash executable not found on PATH")
+
     return subprocess.run(
-        ["bash", str(BOOTSTRAP_SCRIPT), *args],
+        [bash_path, str(BOOTSTRAP_SCRIPT), *args],
         cwd=cwd or REPO_ROOT,
         text=True,
         capture_output=True,
         check=False,
+        timeout=60,
     )
 
 

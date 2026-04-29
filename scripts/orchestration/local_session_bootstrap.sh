@@ -60,6 +60,13 @@ normalize_scope_path() {
     printf "%s" "${rel_path}"
 }
 
+for arg in "$@"; do
+    if [[ "${arg}" == "-h" || "${arg}" == "--help" ]]; then
+        usage
+        exit 0
+    fi
+done
+
 if ! command -v python3 >/dev/null 2>&1; then
     echo "ERROR: python3 not found in PATH (required for check_preflight)." >&2
     exit 1

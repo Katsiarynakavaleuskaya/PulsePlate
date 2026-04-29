@@ -83,7 +83,8 @@ Expect: preflight exit 0, bootstrap writes task packet under gitignored `artifac
 ## Repo bridge smoke
 
 The repo helper is intentionally weaker than the installed host wrapper: it does not execute
-`task_bootstrap.py`, but it can validate the selected options and print the exact command to run.
+`task_bootstrap.py`, but it can validate the selected options and print the exact command to run
+(`scripts/orchestration/local_session_bootstrap.sh:87-139`, `scripts/orchestration/local_session_bootstrap.sh:154-166`).
 
 ```bash
 scripts/orchestration/local_session_bootstrap.sh \
@@ -95,7 +96,10 @@ scripts/orchestration/local_session_bootstrap.sh \
 
 Expect: analyze preflight exit 0, no task packet creation from the helper itself, and a printed
 `python3 .../scripts/orchestration/task_bootstrap.py` command that includes the same `--path` and
-`--pr-phase` values. Use `--help` to inspect the local bridge contract without running preflight.
+`--pr-phase` values. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147`
+for analyze preflight and `scripts/orchestration/local_session_bootstrap.sh:154-166` for
+command rendering. Use `--help` to inspect the local bridge contract without running preflight
+(`scripts/orchestration/local_session_bootstrap.sh:63-68`).
 
 ### Smoke 2
 

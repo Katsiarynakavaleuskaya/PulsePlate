@@ -36,7 +36,7 @@ actionable comment in `Fixed in Commit Mapping` before resolving threads on GitH
 - `bash -n scripts/orchestration/local_session_bootstrap.sh` PASS.
 - `python3 -m pytest -q tests/test_local_session_bootstrap.py tests/test_task_bootstrap.py tests/test_bootstrap_sync_policy.py tests/test_repo_policy_guards.py` PASS.
 - `git diff --check` PASS.
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS.
+- `VENV_PYTHON=<redacted-local-venv-python> make validate-changed` PASS.
 - `pre-commit run --all-files` PASS.
 - Pre-push hooks PASS.
 

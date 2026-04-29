@@ -567,7 +567,9 @@ Ensure session start reliably runs preflight + bootstrap before relying on compi
 
 #### Boundary
 Repo-side bridge hardening only: no host auto-start claim, no advisory wiki compiler, and no
-product runtime or semantic-cache scope.
+product runtime or semantic-cache scope. Evidence:
+`docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md:9-14`
+and `docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md:35-39`.
 
 ---
 

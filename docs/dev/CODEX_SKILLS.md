@@ -102,7 +102,7 @@ The user should not have to name skills manually for normal project work, but
 that routing comes from the canonical bootstrap/orchestration path, not from
 this document by itself.
 
-**Raw session note:** nothing in this file runs at host session start. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) to run analyze preflight and print the selected `task_bootstrap.py` command, then invoke that command so routing and `recommended_skills` are produced deterministically.
+**Raw session note:** nothing in this file runs at host session start. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) to run analyze preflight and print the selected `task_bootstrap.py` command, then invoke that command so routing and `recommended_skills` are produced deterministically. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147` (analyze preflight) and `scripts/orchestration/local_session_bootstrap.sh:154-166` (printed task bootstrap command).
 
 **Launcher vs skills:** If you use an opt-in machine launcher (see [`docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md)), run preflight/bootstrap **before** relying on installed skills or manual task work. **Skills do not replace** `task_bootstrap.py`; they complement routing after a packet exists.
 

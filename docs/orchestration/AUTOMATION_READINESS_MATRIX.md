@@ -231,7 +231,7 @@ Out:
 
 Operator path today (repo companion, **not** a guarantee of raw-session auto-start):
 
-1. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe. When `--goal` and `--task-class` are supplied, the helper validates `--pr-phase`, forwards repeatable `--path` values to analyze preflight, and prints the exact follow-up command without executing it.
+1. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147` runs analyze preflight and `scripts/orchestration/local_session_bootstrap.sh:154-166` renders the follow-up command without executing it. For flag-specific option handling, use the script's `--help` output.
 2. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
 
 In:
