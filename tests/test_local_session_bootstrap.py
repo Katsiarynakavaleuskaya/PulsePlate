@@ -115,6 +115,7 @@ def test_local_session_bootstrap_requires_goal_and_task_class_together() -> None
 
     assert result.returncode == 2
     assert "--goal and --task-class are required" in result.stderr
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_invalid_pr_phase() -> None:
@@ -131,6 +132,7 @@ def test_local_session_bootstrap_rejects_invalid_pr_phase() -> None:
 
     assert result.returncode == 2
     assert "--pr-phase must be one of" in result.stderr
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_unknown_args() -> None:
