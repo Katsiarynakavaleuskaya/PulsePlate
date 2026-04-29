@@ -530,7 +530,7 @@ def retrieve_recursive_context_structured(
 
             if optimization_enabled and optimization_hints is not None:
                 short_circuit_reason, short_circuit_key = _should_short_circuit_from_hints(
-                    query=query,
+                    query=current_query,
                     chunks=ranked_chunks,
                     confidence=confidence,
                     hop=hop,
