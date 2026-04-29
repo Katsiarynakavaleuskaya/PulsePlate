@@ -30,6 +30,11 @@ Disposition: FIXED
 Commit: cb7f924ae
 Evidence: `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md` now states the public bypass is limited to `GET` and `HEAD` only; `docs/review/PR_1576_FIXED_MAPPING.md` now uses portable evidence commands instead of machine-specific absolute paths.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4199308377 -> 54a9f3ecf
+Disposition: FIXED
+Commit: 54a9f3ecf
+Evidence: CodeRabbit duplicate review was addressed in the canonical artifact: `docs/review/PR_1576_FIXED_MAPPING.md` no longer contains machine-specific `/Users/...` evidence commands and now keeps resolved thread URLs in contiguous disposition blocks.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223775 -> 164959779
 Disposition: FIXED
 Commit: 164959779
