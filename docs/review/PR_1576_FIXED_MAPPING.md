@@ -41,6 +41,11 @@ Disposition: FIXED
 Commit: 662931f42
 Evidence: `docs/review/PR_1576_FIXED_MAPPING.md` now uses the consistent full `164959779` commit reference in the CodeRabbit evidence sentence.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4199355908
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1576_FIXED_MAPPING.md` currently uses the full `164959779` reference in the CodeRabbit evidence sentence.
+Reason: Duplicate CodeRabbit review was generated from an older commit range after the typo was already fixed in commit `662931f42`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223775 -> 164959779
 Disposition: FIXED
 Commit: 164959779
