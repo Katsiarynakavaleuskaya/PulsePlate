@@ -26,7 +26,7 @@ vi.mock('react-i18next', () => ({
 // Mock routes config BEFORE imports
 vi.mock('../../config/routes', () => ({
   tabRoutes: [
-    { path: '/', label: 'Home', requiresAuth: false },
+    { path: '/app', label: 'Home', requiresAuth: false },
     { path: '/profile', label: 'Profile', requiresAuth: false },
     { path: '/plate', label: 'Plate', requiresAuth: true },
     { path: '/progress', label: 'Progress', requiresAuth: true },
@@ -45,10 +45,10 @@ vi.mock('react-router-dom', () => ({
       {children}
     </a>
   ),
-  useLocation: () => ({ pathname: '/' }),
+  useLocation: () => ({ pathname: '/app' }),
   matchPath: (config: any, pathname: string) => {
-    if (config.path === '/' && pathname === '/') {
-      return { path: '/', pathname: '/', params: {}, search: '', hash: '', key: 'default' };
+    if (config.path === '/app' && pathname === '/app') {
+      return { path: '/app', pathname: '/app', params: {}, search: '', hash: '', key: 'default' };
     }
     return null;
   },
@@ -159,7 +159,7 @@ describe('TabBar', () => {
       expect(plateTab).toBeInTheDocument();
       expect(progressTab).toBeInTheDocument();
 
-      expect(homeTab).toHaveAttribute('href', '/');
+      expect(homeTab).toHaveAttribute('href', '/app');
       expect(plateTab).toHaveAttribute('href', '/plate');
       expect(progressTab).toHaveAttribute('href', '/progress');
     });

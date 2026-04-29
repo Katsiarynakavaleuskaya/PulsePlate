@@ -266,6 +266,41 @@
   padding: 1.75rem;
 }
 
+.ppm-fitchef-hero {
+  display: grid;
+  grid-template-columns: 7.5rem minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: center;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
+  border: 1px solid rgba(51, 159, 255, 0.18);
+  border-radius: 1.5rem;
+  background: rgba(51, 159, 255, 0.08);
+}
+
+.ppm-fitchef-image {
+  width: 7.5rem;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.ppm-fitchef-kicker {
+  margin: 0;
+  color: var(--pp-gold);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+}
+
+.ppm-fitchef-copy {
+  margin: 0.65rem 0 0;
+  color: var(--ppm-slate-200);
+  font-size: 1rem;
+  line-height: 1.6;
+}
+
 .ppm-preview-row {
   display: flex;
   align-items: center;
@@ -669,6 +704,14 @@
 
   .ppm-preview {
     padding: 1.25rem;
+  }
+
+  .ppm-fitchef-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .ppm-fitchef-image {
+    width: 6.5rem;
   }
 
   .ppm-cta-card {

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Activity, ArrowRight, Brain, Droplets, Lock, ShieldCheck, Sparkles, Target } from 'lucide-react';
 import brandMark from '../../assets/brand/pulseplate-brand-mark.png';
+import fitChefHero from '../../assets/brand/fitchef-onboarding-welcome-v1.png';
 import {
   MarketingCard,
   MarketingSection,
@@ -15,11 +16,11 @@ const quickActions = [
   { label: 'View Progress', icon: Sparkles },
 ];
 
-const metrics = [
-  { label: 'Session status', value: 'Active', accent: 'ppm-dot--green' },
-  { label: 'Plan', value: 'Pro', accent: 'ppm-dot--gold' },
-  { label: 'AI guidance', value: 'Available', accent: 'ppm-dot--blue' },
-  { label: 'Hydration', value: 'Steady', accent: 'ppm-dot--green' },
+const launchSignals = [
+  { label: 'Meals', value: 'Plan today', accent: 'ppm-dot--green' },
+  { label: 'Progress', value: 'Track gently', accent: 'ppm-dot--gold' },
+  { label: 'FitChef', value: 'Guided tips', accent: 'ppm-dot--blue' },
+  { label: 'Boundaries', value: 'Wellness only', accent: 'ppm-dot--green' },
 ];
 
 export function HeroSection() {
@@ -34,22 +35,22 @@ export function HeroSection() {
           </div>
         </div>
         <a className="ppm-hero-link" href="#trust-scope">
-          Wellness-safe product framing
+          Wellness-safe guidance
         </a>
       </div>
 
       <div className="ppm-hero-grid">
         <div className="ppm-hero-copy">
-          <p className="ppm-eyebrow">Navy-first calm control panel</p>
-          <h1 className="ppm-hero-title">Your calm wellness control panel</h1>
+          <p className="ppm-eyebrow">AI wellness coach trio</p>
+          <h1 className="ppm-hero-title">Plan meals, habits, and progress in one calm place</h1>
           <p className="ppm-hero-body">
-            Understand your metrics, set clear targets, and plan your nutrition with simple
-            structure.
+            PulsePlate pairs simple nutrition structure with FitChef guidance, progress tracking,
+            and gentle habit support for everyday wellness decisions.
           </p>
 
           <div className="ppm-actions">
-            <Link className={marketingButtonClasses.primary} to="/welcome-gate-v1">
-              <span>See the product</span>
+            <Link className={marketingButtonClasses.primary} to="/app">
+              <span>Open the app</span>
               <ArrowRight size={16} />
             </Link>
             <Link className={marketingButtonClasses.secondary} to="/enter-key">
@@ -60,39 +61,47 @@ export function HeroSection() {
           <div className="ppm-pill-row">
             <StatusPill className="ppm-pill--success">
               <span className="ppm-dot ppm-dot--green" />
-              Available now
+              Wellness planner
             </StatusPill>
             <StatusPill>
               <Lock size={14} />
-              Advisory AI
+              Privacy-minded
             </StatusPill>
             <StatusPill className="ppm-pill--premium">
               <Sparkles size={14} />
-              VIP preview
+              FitChef preview
             </StatusPill>
           </div>
         </div>
 
         <MarketingCard className="ppm-preview" id="product-preview">
+          <div className="ppm-fitchef-hero">
+            <img alt="FitChef wellness guide" className="ppm-fitchef-image" src={fitChefHero} />
+            <div>
+              <p className="ppm-fitchef-kicker">FitChef</p>
+              <p className="ppm-fitchef-copy">Friendly meal and habit guidance without medical claims.</p>
+            </div>
+          </div>
+
           <div className="ppm-preview-row">
             <StatusPill className="ppm-pill--success">
               <span className="ppm-dot ppm-dot--green" />
-              Secure session
+              Launch preview
             </StatusPill>
             <StatusPill className="ppm-pill--premium">
               <span className="ppm-dot ppm-dot--gold" />
-              Pro
+              Early access
             </StatusPill>
           </div>
 
           <div className="ppm-grid-2">
-            {metrics.map((metric) => (
-              <div key={metric.label} className="ppm-stat-card">
+            {launchSignals.map((signal) => (
+              <div key={signal.label} className="ppm-stat-card">
                 <div className="ppm-stat-label">
-                  <span className={['ppm-dot', metric.accent].join(' ').trim()} />
-                  {metric.label}
+                  <span className={['ppm-dot', signal.accent].join(' ').trim()} />
+                  {signal.label}
                 </div>
-                <p className="ppm-stat-value">{metric.value}</p>
+                <p className="ppm-stat-value">{signal.value}</p>
               </div>
             ))}
           </div>
@@ -117,23 +126,22 @@ export function HeroSection() {
           <div className="ppm-preview-lower">
             <div className="ppm-panel">
               <div className="ppm-preview-row">
-                <p className="ppm-subsection-title">Pro tools</p>
+                <p className="ppm-subsection-title">Coach lanes</p>
                 <Brain size={16} color="var(--pp-blue)" />
               </div>
               <div className="ppm-tool-stack">
-                <div className="ppm-tool-item">AI Coach</div>
-                <div className="ppm-tool-item">Weekly charts</div>
+                <div className="ppm-tool-item">Nutrition structure</div>
+                <div className="ppm-tool-item">Habit check-ins</div>
               </div>
             </div>
 
             <div className="ppm-insight-card">
               <div className="ppm-preview-row">
-                <p className="ppm-subsection-title">AI insight</p>
-                <StatusPill className="ppm-pill--neutral">Pro</StatusPill>
+                <p className="ppm-subsection-title">FitChef note</p>
+                <StatusPill className="ppm-pill--neutral">Advisory</StatusPill>
               </div>
               <p className="ppm-insight-body">
-                Based on your current targets, consider balancing protein intake across meals for
-                steadier energy.
+                Try pairing a simple protein target with one repeatable meal habit for the week.
               </p>
               <div className="ppm-insight-note">
                 <Droplets size={14} color="var(--pp-green)" />

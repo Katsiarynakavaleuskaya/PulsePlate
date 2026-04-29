@@ -16,7 +16,7 @@ import {
 export default function PulsePlateMarketingPage(): JSX.Element {
     useEffect(() => {
         const previousTitle = document.title;
-        document.title = "PulsePlate | Marketing";
+        document.title = "PulsePlate | Wellness planner";
 
         return () => {
             document.title = previousTitle;
