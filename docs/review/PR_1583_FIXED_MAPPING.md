@@ -11,7 +11,10 @@ Date: 2026-04-29
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1583#discussion_r3163785317 -> e9182b20a
+Disposition: FIXED
+Commit: e9182b20a
+Evidence: `frontend/src/pages/Onboarding/EnterKey.tsx` now defaults direct `/enter-key` success to `/app` and still preserves protected source routes such as `/plate`; `frontend/src/pages/Onboarding/__tests__/EnterKey.test.tsx` covers both flows.
 
 ## Implementation Evidence
 
@@ -44,7 +47,7 @@ Evidence: `frontend/src/__tests__/App.test.tsx`, `frontend/src/pages/__tests__/H
 ## Merge Readiness
 
 - [ ] CI green on current head
-- [x] No unresolved actionable review threads at artifact creation time
+- [ ] No unresolved actionable review threads
 - [x] CodeRabbit/Sourcery/Cubic statuses reviewed at artifact creation time
 - [x] Fixed-mapping artifact and PR body mirror aligned
 - [ ] `check_merge_ready.py --require-auth` PASS
