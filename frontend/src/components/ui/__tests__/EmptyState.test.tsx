@@ -49,7 +49,7 @@ describe('EmptyState', () => {
     expect(screen.getByRole('button', { name: 'Create Chart' })).toBeInTheDocument();
   });
 
-  it('uses assertive error semantics when requested', () => {
+  it('uses alert semantics without duplicate live-region attributes when requested', () => {
     render(
       <EmptyState
         state="error"
@@ -58,7 +58,7 @@ describe('EmptyState', () => {
       />
     );
 
-    expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
+    expect(screen.getByRole('alert')).not.toHaveAttribute('aria-live');
   });
 
   it('uses polite status semantics for loading state', () => {

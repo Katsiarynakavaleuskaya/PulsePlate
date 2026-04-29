@@ -20,13 +20,14 @@ export function EmptyState({
   state = 'empty',
 }: EmptyStateProps) {
   const role = state === 'error' ? 'alert' : 'status';
+  const liveRegionProps = state === 'error' ? {} : { 'aria-live': 'polite' as const };
 
   return (
     <div
       className="flex flex-col items-center justify-center min-h-[300px] p-8 text-center"
       data-state={state}
       role={role}
-      aria-live={state === 'error' ? 'assertive' : 'polite'}
+      {...liveRegionProps}
     >
       <div className="rounded-full bg-gray-100 dark:bg-gray-800 p-4 mb-4" aria-hidden="true">
         <Icon className="w-8 h-8 text-gray-400" />

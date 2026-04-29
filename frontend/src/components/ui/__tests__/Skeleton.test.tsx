@@ -39,28 +39,28 @@ describe('Skeleton Components', () => {
 
   describe('ChartSkeleton', () => {
     it('renders chart skeleton structure', () => {
-      render(<ChartSkeleton />);
+      const { container } = render(<ChartSkeleton />);
 
       // Should have header skeleton and main chart skeleton
-      const skeletons = document.querySelectorAll('[aria-hidden="true"]');
+      const skeletons = container.querySelectorAll('[aria-hidden="true"]');
       expect(skeletons.length).toBeGreaterThan(1);
     });
   });
 
   describe('CardSkeleton', () => {
     it('renders card skeleton structure', () => {
-      render(<CardSkeleton />);
+      const { container } = render(<CardSkeleton />);
 
-      const skeletons = document.querySelectorAll('[aria-hidden="true"]');
+      const skeletons = container.querySelectorAll('[aria-hidden="true"]');
       expect(skeletons.length).toBeGreaterThan(1);
     });
   });
 
   describe('ProgressPageSkeleton', () => {
     it('renders complete progress page skeleton', () => {
-      render(<ProgressPageSkeleton />);
+      const { container } = render(<ProgressPageSkeleton />);
 
-      const skeletons = document.querySelectorAll('[aria-hidden="true"]');
+      const skeletons = container.querySelectorAll('[aria-hidden="true"]');
       expect(skeletons.length).toBeGreaterThan(3); // header + charts + cards
     });
   });
