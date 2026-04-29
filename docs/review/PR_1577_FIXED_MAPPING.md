@@ -44,6 +44,7 @@ Disposition: FIXED
 Commit: e6bbf9f6b
 Evidence: Added canonical blocking-reason validation and a negative test so JPTN cannot pass with an incomplete unresolved evidence set.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#discussion_r3163748581 -> e6bbf9f6b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#pullrequestreview-4200227491 -> e6bbf9f6b
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery review guide is a generated summary/reviewer guide with no requested code or documentation change.
