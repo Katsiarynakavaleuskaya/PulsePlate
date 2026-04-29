@@ -561,15 +561,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover per-manifest artifact naming and fail-closed severity aggregation
 
 <a id="ledger-p1-docker-deploy-contract-reconciliation"></a>
-- [ ] P1: Docker deploy contract reconciliation after install-profile split
+- [x] P1: Docker deploy contract reconciliation after install-profile split
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-DEPLOY-CONTRACT
+  - Target PR: PR-TBD-DOCKER-DEPLOY-CONTRACT-PR2 (`codex/docker-deploy-contract-reconciliation-pr2`)
   - Area: deploy / docker / operator workflow
+  - Status: Implemented in this PR
   - Depends on:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ci-install-profile-split-after-disk-unblock`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-compose-v2-migration`
-  - Reason: The canonical production shape is already split, but deploy/operator docs and some workflow assumptions still carry older shared-artifact language (`frontend_dist`, copy-into-backend assumptions, mixed compose wording). Reconcile the live split contract without widening topology scope or reintroducing monolithic image assumptions.
+  - Reason: The canonical production shape is already split, but deploy/operator docs and some workflow assumptions still carried older shared-artifact language and insufficiently constrained manual shell-sync wording. This PR reconciles the live split contract without widening topology scope or reintroducing monolithic image assumptions: backend image updates remain `IMAGE_REF`-driven, the frontend/Caddy shell stays a separate `frontend/Dockerfile.caddy-spa` build, and manual `frontend/` sync is explicitly limited to production CD, CI-produced release bundles, or merged canonical checkout recovery.
   - Links:
     - `docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md`
     - `docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md`
