@@ -125,6 +125,139 @@ def test_recursive_optimization_hints_cap_depth(monkeypatch: pytest.MonkeyPatch)
     assert result.refined_queries == ["meal plan"]
 
 
+def test_recursive_aggressive_short_circuit_uses_prepared_speed_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """High-confidence first-hop evidence can stop early only when hints allow it."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 4)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls = {"n": 0}
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=f"doc:{calls['n']}",
+                    file="doc.md",
+                    content="protein evidence with strong confidence",
+                    score=0.91,
+                )
+            ],
+            confidence=0.91,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured(
+        "protein target",
+        optimization_enabled=True,
+        optimization_hints=RecursiveOptimizationHints(
+            target_depth_cap=3,
+            aggressive_short_circuit_allowed=True,
+        ),
+    )
+
+    assert result.hops == 1
+    assert calls["n"] == 1
+    assert result.optimization_stats is not None
+    assert (
+        result.optimization_stats["stop_reason"] == OptimizationStopReason.AGGRESSIVE_SHORT_CIRCUIT
+    )
+    assert result.optimization_stats["early_stop_aggressive_short_circuit"] is True
+
+
+def test_recursive_pragmatic_early_stop_uses_language_game_hint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Actionable relevant evidence should stop before unnecessary refinement hops."""
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 3)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 3)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls = {"n": 0}
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return _ctx(
+            query,
+            [
+                RAGChunk(
+                    chunk_id=f"meal:{calls['n']}",
+                    file="doc.md",
+                    content="First, use protein and fiber at each meal for satiety.",
+                    score=0.75,
+                )
+            ],
+            confidence=0.75,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = retrieve_recursive_context_structured(
+        "protein meal",
+        optimization_enabled=True,
+        optimization_hints=RecursiveOptimizationHints(
+            target_depth_cap=3,
+            pragmatic_early_stop_allowed=True,
+            language_game="nutrition",
+        ),
+    )
+
+    assert result.hops == 1
+    assert calls["n"] == 1
+    assert result.optimization_stats is not None
+    assert result.optimization_stats["stop_reason"] == OptimizationStopReason.COMPLETED
+    assert result.optimization_stats["early_stop_pragmatic_usefulness"] is True
+
+
+def test_recursive_pragmatic_early_stop_falls_back_for_unknown_language_game() -> None:
+    """Malformed internal language-game hints must stay deterministic and safe."""
+    import core.rag.recursive_retrieval as recursive
+
+    assert (
+        recursive._pragmatic_evidence_is_sufficient(
+            query="protein meal",
+            chunks=[
+                RAGChunk(
+                    chunk_id="meal:1",
+                    file="doc.md",
+                    content="First, use protein at each meal.",
+                    score=0.75,
+                )
+            ],
+            hints=RecursiveOptimizationHints(
+                target_depth_cap=3,
+                pragmatic_early_stop_allowed=True,
+                language_game="unknown-game",
+            ),
+        )
+        is True
+    )
+
+
+def test_recursive_short_circuit_helper_ignores_missing_hints() -> None:
+    """No prepared hints means no optimization-specific stop decision."""
+    import core.rag.recursive_retrieval as recursive
+
+    assert recursive._should_short_circuit_from_hints(
+        query="protein meal",
+        chunks=[],
+        confidence=1.0,
+        hop=1,
+        hints=None,
+    ) == (None, None)
+
+
 def test_recursive_respects_verification_budget(monkeypatch: pytest.MonkeyPatch) -> None:
     """Verification functions are bounded by MAX_VERIFICATION_QUERIES."""
     import core.rag.recursive_retrieval as recursive

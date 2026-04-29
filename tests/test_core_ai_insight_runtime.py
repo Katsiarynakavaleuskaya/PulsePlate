@@ -21,7 +21,13 @@ from core.ai.insight_runtime import (
     require_ai_generated_insight_notice,
 )
 from core.insight.philosophical_runtime import PhilosophyRolloutPolicy
-from core.rag.contracts import RAGDegradedReason
+from core.rag.contracts import (
+    OptimizationStopReason,
+    RAGChunk,
+    RAGContext,
+    RAGDegradedReason,
+    RecursiveOptimizationHints as RagRecursiveOptimizationHints,
+)
 
 
 class _FakeProvider:
@@ -394,6 +400,90 @@ def test_prepare_insight_runtime_derives_recursive_speed_hints_from_route_truth(
     )
 
 
+def test_prepare_insight_runtime_preserves_linguistic_speed_hint_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Recursive speed hints must carry cheap route context from the prepared seam."""
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> SimpleNamespace:
+            del text, lang, router_enabled, use_rag
+            return SimpleNamespace(
+                needs_generation=True,
+                needs_rag=True,
+                target_depth=2,
+                optimization_applied=True,
+                route_type=SimpleNamespace(value="RAG_FACTUAL"),
+                speech_act=SimpleNamespace(value="question"),
+                language_game=SimpleNamespace(value="nutrition"),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="How much protein should I eat?",
+        use_rag=True,
+        philosophy_router_enabled=True,
+        philosophy_linguistic_enabled=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.recursive_rollout_policy.optimization_hints == RecursiveOptimizationHints(
+        target_depth_cap=2,
+        aggressive_short_circuit_allowed=True,
+        pragmatic_early_stop_allowed=True,
+        speech_act="question",
+        language_game="nutrition",
+    )
+
+
+def test_prepare_insight_runtime_defaults_null_linguistic_speed_hint_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Null-valued route context must fall back before string coercion."""
+
+    class _FakeRuntime:
+        def preview_route(
+            self, *, text: str, lang: str | None, router_enabled: bool, use_rag: bool
+        ) -> SimpleNamespace:
+            del text, lang, router_enabled, use_rag
+            return SimpleNamespace(
+                needs_generation=True,
+                needs_rag=True,
+                target_depth=2,
+                optimization_applied=True,
+                route_type=SimpleNamespace(value="RAG_FACTUAL"),
+                speech_act=SimpleNamespace(value=None),
+                language_game=SimpleNamespace(value=None),
+            )
+
+    monkeypatch.setattr("core.ai.insight_runtime.PhilosophicalRuntime", _FakeRuntime, raising=True)
+
+    prepared = prepare_insight_runtime(
+        text="How much protein should I eat?",
+        use_rag=True,
+        philosophy_router_enabled=True,
+        philosophy_linguistic_enabled=True,
+        recursive_rag_enabled=True,
+        recursive_rag_optimization_enabled=True,
+        provider_loader=lambda: _FakeProvider(),
+        transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
+    )
+
+    assert prepared.recursive_rollout_policy.optimization_hints == RecursiveOptimizationHints(
+        target_depth_cap=2,
+        aggressive_short_circuit_allowed=True,
+        pragmatic_early_stop_allowed=True,
+        speech_act="unknown",
+        language_game="general",
+    )
+
+
 def test_prepare_insight_runtime_skips_recursive_speed_hints_for_non_rag_route(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -518,3 +608,158 @@ def test_prepare_insight_runtime_raises_when_custom_provider_loader_returns_none
             provider_loader=lambda: None,
             transparency_loader=lambda: ("ai_generated_insight", "Wellness only."),
         )
+
+
+def test_recursive_speed_helper_uses_pragmatic_language_game_hint() -> None:
+    """CI-selected insight suite covers recursive pragmatic early-stop helpers."""
+
+    import core.rag.recursive_retrieval as recursive
+
+    chunks = [
+        RAGChunk(
+            chunk_id="meal",
+            file="nutrition.md",
+            content="First, use protein at each meal.",
+            score=0.75,
+        )
+    ]
+
+    assert recursive._should_short_circuit_from_hints(
+        query="protein meal",
+        chunks=chunks,
+        confidence=0.75,
+        hop=2,
+        hints=RagRecursiveOptimizationHints(
+            target_depth_cap=3,
+            pragmatic_early_stop_allowed=True,
+            language_game="unknown-game",
+        ),
+    ) == (OptimizationStopReason.COMPLETED, "early_stop_pragmatic_usefulness")
+
+    assert recursive._should_short_circuit_from_hints(
+        query="protein meal",
+        chunks=chunks,
+        confidence=0.75,
+        hop=2,
+        hints=None,
+    ) == (None, None)
+
+    assert (
+        recursive._pragmatic_evidence_is_sufficient(
+            query="protein meal",
+            chunks=chunks,
+            hints=RagRecursiveOptimizationHints(
+                target_depth_cap=3,
+                pragmatic_early_stop_allowed=False,
+            ),
+        )
+        is False
+    )
+    assert recursive._should_short_circuit_from_hints(
+        query="protein meal",
+        chunks=chunks,
+        confidence=0.2,
+        hop=2,
+        hints=RagRecursiveOptimizationHints(target_depth_cap=3),
+    ) == (None, None)
+
+
+def test_recursive_speed_hint_short_circuits_full_retrieval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CI-selected insight suite covers loop break on prepared speed hints."""
+
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 4)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 4)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+
+    calls: list[str] = []
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls.append(query)
+        return RAGContext(
+            query=query,
+            refined_queries=[query],
+            chunks=[
+                RAGChunk(
+                    chunk_id=f"chunk-{len(calls)}",
+                    file="nutrition.md",
+                    content="Balanced meal evidence with protein and fiber.",
+                    score=0.9,
+                )
+            ],
+            confidence=0.9,
+            hops=1,
+            latency_ms=5,
+        )
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+
+    result = recursive.retrieve_recursive_context_structured(
+        "balanced meal",
+        optimization_enabled=True,
+        optimization_hints=RagRecursiveOptimizationHints(
+            target_depth_cap=3,
+            aggressive_short_circuit_allowed=True,
+        ),
+    )
+
+    assert len(calls) == 1
+    assert result.optimization_stats["stop_reason"] == "aggressive_short_circuit"
+    assert result.optimization_stats["early_stop_aggressive_short_circuit"] is True
+
+
+def test_recursive_speed_hint_uses_current_hop_query(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Later-hop pragmatic checks must use the refined hop-local query."""
+
+    import core.rag.recursive_retrieval as recursive
+
+    monkeypatch.setattr(recursive, "MAX_RAG_HOPS", 2)
+    monkeypatch.setattr(recursive, "MAX_REFINEMENT_PASSES", 2)
+    monkeypatch.setattr(recursive, "MAX_VERIFICATION_QUERIES", 0)
+    monkeypatch.setattr(recursive, "MIN_CONFIDENCE_GAIN_PER_HOP", -1.0)
+    monkeypatch.setattr(recursive, "_refine_query", lambda _current, *_args, **_kwargs: "refined")
+
+    calls = {"n": 0}
+    queries_seen: list[str] = []
+
+    def _fake_retrieve(query: str, **_: Any) -> RAGContext:
+        calls["n"] += 1
+        return RAGContext(
+            query=query,
+            refined_queries=[query],
+            chunks=[
+                RAGChunk(
+                    chunk_id=f"chunk-{calls['n']}",
+                    file="nutrition.md",
+                    content=f"evidence for {query}",
+                    score=0.6,
+                )
+            ],
+            confidence=0.6,
+            hops=1,
+            latency_ms=5,
+        )
+
+    def _record_query(**kwargs: Any) -> tuple[None, None]:
+        queries_seen.append(str(kwargs["query"]))
+        return None, None
+
+    monkeypatch.setattr("core.rag.vector_rag.retrieve_context_structured", _fake_retrieve)
+    monkeypatch.setattr(recursive, "_should_short_circuit_from_hints", _record_query)
+
+    recursive.retrieve_recursive_context_structured(
+        "base",
+        optimization_enabled=True,
+        optimization_hints=RagRecursiveOptimizationHints(
+            target_depth_cap=2,
+            pragmatic_early_stop_allowed=True,
+        ),
+    )
+
+    assert queries_seen == ["base", "refined"]
