@@ -16,6 +16,22 @@ Disposition: FIXED
 Commit: e9182b20a
 Evidence: `frontend/src/pages/Onboarding/EnterKey.tsx` now defaults direct `/enter-key` success to `/app` and still preserves protected source routes such as `/plate`; `frontend/src/pages/Onboarding/__tests__/EnterKey.test.tsx` covers both flows.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1583#discussion_r3163820036 -> 0a1347656
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1583#discussion_r3163820048 -> 0a1347656
+Disposition: FIXED
+Commit: 0a1347656
+Evidence: `docs/review/PR_1583_FIXED_MAPPING.md` now uses `VENV_PYTHON=$VENV_PYTHON` instead of a local `/Users/...` path and keeps Merge Readiness checkboxes unchecked until final merge-cycle verification.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1583#discussion_r3163820053 -> 46453d8ca
+Disposition: FIXED
+Commit: 46453d8ca
+Evidence: `frontend/src/components/NotFound.tsx` now sends the Go Home fallback to `/app`; `frontend/src/components/__tests__/NotFound.test.tsx` covers the preserved app-home fallback. The related `/enter-key` fallback was fixed in commit `e9182b20a`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1583#pullrequestreview-4200318636 -> 0a1347656
+Disposition: FIXED
+Commit: 0a1347656
+Evidence: CodeRabbit review aggregated the artifact privacy/checklist findings fixed in commit `0a1347656` and the root fallback findings fixed in commits `e9182b20a` and `46453d8ca`.
+
 ## Implementation Evidence
 
 Disposition: FIXED
