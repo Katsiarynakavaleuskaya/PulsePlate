@@ -44,10 +44,11 @@ of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#issuecomment-4347346486 -> 921568003
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200620769 -> 8f5d363af
 
 Disposition: FIXED
-Commit: `921568003`
-Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; this artifact includes `## Merge Readiness`.
+Commit: `921568003`, `8f5d363af`
+Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided and uses an explicit retry handler; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics; this artifact includes `## Merge Readiness`.
 
 ## Merge Readiness
 
