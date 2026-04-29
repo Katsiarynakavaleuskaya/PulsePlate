@@ -41,6 +41,26 @@ def test_production_compose_source_of_truth_matches_split_contract() -> None:
     assert caddy_build_args["VITE_API_BASE"] == "${VITE_API_BASE:-/api/v1}"
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "deploy/PRODUCTION.md",
+        "deploy/WORKFLOW.md",
+        "scripts/QUICK_DIAGNOSTIC.md",
+    ),
+)
+def test_manual_shell_sync_docs_are_merged_truth_only(relative_path: str) -> None:
+    content = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+
+    rsync_index = content.index("rsync -az --delete frontend/")
+    provenance_window = content[max(0, rsync_index - 900) : rsync_index]
+
+    assert "merged" in provenance_window
+    assert "git fetch origin main" in provenance_window
+    assert "git switch --detach origin/main" in provenance_window
+    assert "dirty" in provenance_window or "unmerged" in provenance_window
+
+
 def test_deploy_production_rejects_shell_bundle_without_redeploy_helper(
     tmp_path: Path,
 ) -> None:

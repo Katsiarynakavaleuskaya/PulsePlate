@@ -140,9 +140,14 @@ curl -I https://pulseplate.app/
 
 # 2. Если challenge/interstitial есть — проверить Security Events в Cloudflare Dashboard
 # 3. Если origin healthy, а apex contract нарушен — синхронизировать shell bundle
-#    только из merged canonical tree / release bundle:
+#    только из merged canonical tree / release bundle. Не используйте dirty checkout.
+git fetch origin main
+git switch --detach origin/main
 scp deploy/Caddyfile.production user@your-droplet:/srv/pulseplate-production/Caddyfile.production
 scp deploy/docker-compose.production.yaml user@your-droplet:/srv/pulseplate-production/docker-compose.production.yaml
+ssh user@your-droplet 'mkdir -p /srv/pulseplate-production/scripts'
+scp scripts/diagnose_web.sh user@your-droplet:/srv/pulseplate-production/scripts/diagnose_web.sh
+scp scripts/redeploy_caddy.sh user@your-droplet:/srv/pulseplate-production/scripts/redeploy_caddy.sh
 rsync -az --delete frontend/ user@your-droplet:/srv/frontend/
 
 # 4. Затем пересобрать/restart caddy

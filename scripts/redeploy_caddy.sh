@@ -101,7 +101,7 @@ $DC_CMD pull app || {
 }
 
 echo ""
-echo "=== Step 2: Build Caddy image (frontend dist + Caddyfile) ==="
+echo "=== Step 2: Build Caddy image (synced frontend shell bundle + Caddyfile) ==="
 $DC_CMD build caddy || {
     echo "❌ Failed to build Caddy image"
     exit 1
