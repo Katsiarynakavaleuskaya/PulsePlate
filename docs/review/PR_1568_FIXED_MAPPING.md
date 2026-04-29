@@ -11,7 +11,23 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#issuecomment-4339593962
+Reason: CodeRabbit's initial issue comment was a walkthrough/status summary, not an actionable finding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#issuecomment-4339593962
+
+Disposition: FIXED
+Commit: 6fcb04e30
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3429
+Reason: The B1 closeout note now records the 2026-04-28 operator-approved closeout reconciliation in PR #1568 and keeps the note ledger-focused.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#pullrequestreview-4193020011 -> 6fcb04e30
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#discussion_r3157686695 -> 6fcb04e30
+
+Disposition: FIXED
+Commit: 6fcb04e30
+Evidence: docs/review/PR_1568_FIXED_MAPPING.md:40; docs/roadmap/BACKLOG_LEDGER.md:3429
+Reason: The implementation commit is now listed with its full hash and the ledger closeout note is shortened while retaining auditable approval metadata.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#pullrequestreview-4193041176 -> 6fcb04e30
 
 ## Review Notes
 
@@ -22,6 +38,7 @@ threads on GitHub.
 ## Initial Implementation Commits
 
 - `dc443444044bc7ea0b935981c9f68d0804b0af11` - `docs(roadmap): close Karpathy advisory wiki umbrella`
+- `6fcb04e30` - `docs(roadmap): document b1 closeout approval`
 
 ## Merge Readiness
 
