@@ -31,12 +31,26 @@ Reason: Sourcery review `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pu
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED / NOT-A-BUG
-Commit: f15c56ab6e635b65af179ec1093660d7ff03051a, fce5e048138387b50cda8ee1edb3a2c57c3d05f0
-Evidence: Main CI failure is fixed by the test-isolation commit; Sourcery review feedback is fixed by the follow-up helper cleanup; CodeRabbit and Sourcery guide entries are comment-only NOT-A-BUG dispositions documented above.
+Disposition: FIXED
+Commit: f15c56ab6e635b65af179ec1093660d7ff03051a
+Evidence: Main CI failure is fixed by the test-isolation commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25116159382/job/73603719884 -> f15c56ab6e635b65af179ec1093660d7ff03051a
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346167776
+Reason: CodeRabbit reported a temporary rate-limit/retry condition and later current-head status passed as `Review completed`; no code finding was present in the comment.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346167776
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346168676
+Reason: Sourcery reviewer-guide comment summarized the change and did not identify a code action.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#issuecomment-4346168676
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Sourcery review feedback is fixed by the follow-up helper cleanup.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#pullrequestreview-4199427355
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1580#pullrequestreview-4199427355 -> fce5e048138387b50cda8ee1edb3a2c57c3d05f0
 
 ## Local Validation
