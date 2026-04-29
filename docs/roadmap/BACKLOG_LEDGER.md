@@ -1948,6 +1948,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
   - Status: Active docs/governance umbrella
+  - Remove-by: 2026-06-30
   - Reason (EN): PulsePlate already has strong RAG runtime, verification, knowledge-promotion, eval-gate, advisory-wiki, and plugin/control-plane foundations, but evidence-bearing artifacts are still governed mostly through task packets, gate outputs, and lane-specific docs rather than one asset/evidence graph. This umbrella freezes the rail boundaries and PR train needed to make eval runs, context bundles, verification bundles, knowledge candidates, knowledge records, and gate reports first-class assets with lineage, idempotency, replay, fingerprints, policy versions, and admission decisions.
   - Links:
     - `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md`
