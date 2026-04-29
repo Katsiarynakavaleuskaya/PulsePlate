@@ -32,6 +32,14 @@ Reason: Added evidence anchors, redacted the local venv path, made `--help` inde
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840713 -> 32e21cf50
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3162000762 -> 32e21cf50
 
+Disposition: FIXED
+Commit: b9a17edac
+Evidence: tests/test_local_session_bootstrap.py
+Reason: Replaced the broad `"PASS:"` negative sentinel with the exact preflight success marker and scoped repeatable-flag ordering assertions to the generated task-bootstrap command block.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4198166640 -> b9a17edac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3162130482 -> b9a17edac
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4198331140 -> b9a17edac
+
 ## Review Notes
 
 No actionable human or bot review comments are present at artifact creation.
