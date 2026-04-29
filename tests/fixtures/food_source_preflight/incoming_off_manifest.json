@@ -1,21 +1,29 @@
 {
   "artifact": {
     "checksum_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
-    "path": "raw/off/2026-04-25/products.csv.gz",
-    "record_count": 120,
-    "size_bytes": 4096
+    "path": "raw/off/2026-04-30/products.csv.gz",
+    "record_count": 101500,
+    "size_bytes": 2056192
   },
   "collision_policy": {
     "dedupe_fields": ["code"],
-    "mapping_fields": ["code", "product_name"],
-    "collision_resolution": "reject"
+    "mapping_fields": ["code", "product_name", "brands"],
+    "collision_resolution": "quarantine"
   },
-  "retrieved_on": "2026-04-25",
+  "retrieved_on": "2026-04-30",
   "schema": {
     "fields": [
       "code",
       "product_name",
-      "quantity"
+      "brands",
+      "quantity",
+      "categories",
+      "nutriscore_grade",
+      "energy-kcal_100g",
+      "proteins_100g",
+      "carbohydrates_100g",
+      "fat_100g",
+      "salt_100g"
     ],
     "primary_keys": [
       "code"
@@ -24,5 +32,5 @@
   "source": "open_food_facts",
   "source_classification": "current",
   "source_url": "https://world.openfoodfacts.org/data",
-  "source_version": "2026-04-25"
+  "source_version": "2026-04-30"
 }

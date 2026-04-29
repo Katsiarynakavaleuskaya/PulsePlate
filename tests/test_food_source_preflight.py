@@ -35,10 +35,35 @@ _USDA_MANIFEST_PAIRS = (
     ("current_usda_branded_manifest.json", "incoming_usda_branded_manifest.json"),
     ("current_usda_fndds_manifest.json", "incoming_usda_fndds_manifest.json"),
 )
+_OFF_MANIFEST_PAIRS = (
+    ("current_off_manifest.json", "incoming_off_manifest.json"),
+    ("current_off_manifest.json", "incoming_off_delta_manifest.json"),
+)
 
 
 def _fixture(name: str) -> Path:
     return _FIXTURE_DIR / name
+
+
+def _write_onboarding_variant(
+    tmp_path: Path,
+    *,
+    top_level_flag: str | None = None,
+    top_level_value: object | None = None,
+    off_field: str | None = None,
+    off_value: object | None = None,
+) -> Path:
+    payload = json.loads(_ONBOARDING.read_text(encoding="utf-8"))
+    if top_level_flag is not None:
+        payload[top_level_flag] = top_level_value
+    if off_field is not None:
+        for entry in payload["sources"]:
+            if entry["source"] == "open_food_facts":
+                entry[off_field] = off_value
+                break
+    path = tmp_path / "onboarding_variant.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
 
 
 def test_load_source_manifest_accepts_current_source_classification() -> None:
@@ -49,8 +74,24 @@ def test_load_source_manifest_accepts_current_source_classification() -> None:
     assert manifest.artifact.checksum_sha256 == "a" * 64
     assert manifest.schema.primary_keys == ("code",)
     assert manifest.collision_policy.dedupe_fields == ("code",)
-    assert manifest.collision_policy.mapping_fields == ("code", "product_name")
-    assert manifest.collision_policy.collision_resolution == "reject"
+    assert manifest.collision_policy.mapping_fields == ("code", "product_name", "brands")
+    assert manifest.collision_policy.collision_resolution == "quarantine"
+
+
+@pytest.mark.parametrize("current_fixture,incoming_fixture", _OFF_MANIFEST_PAIRS)
+def test_load_source_manifest_accepts_off_current_fixtures(
+    current_fixture: str,
+    incoming_fixture: str,
+) -> None:
+    current = load_source_manifest(_fixture(current_fixture))
+    incoming = load_source_manifest(_fixture(incoming_fixture))
+
+    assert current.source == incoming.source == "open_food_facts"
+    assert incoming.source_classification == "current"
+    assert incoming.source_url == "https://world.openfoodfacts.org/data"
+    assert incoming.schema.primary_keys == ("code",)
+    assert incoming.collision_policy.dedupe_fields == ("code",)
+    assert incoming.collision_policy.collision_resolution == "quarantine"
 
 
 def test_load_source_manifest_accepts_legacy_static_menustat() -> None:
@@ -102,6 +143,22 @@ def test_build_source_preflight_report_accepts_usda_dry_run_pairs(
 
 @pytest.mark.parametrize("_,incoming_fixture", _USDA_MANIFEST_PAIRS)
 def test_validate_manifest_source_contract_accepts_usda_onboarding_gate(
+    _: str,
+    incoming_fixture: str,
+) -> None:
+    manifest = load_source_manifest(_fixture(incoming_fixture))
+
+    errors = validate_manifest_source_contract(
+        manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=_ONBOARDING,
+    )
+
+    assert errors == []
+
+
+@pytest.mark.parametrize("_,incoming_fixture", _OFF_MANIFEST_PAIRS)
+def test_validate_manifest_source_contract_accepts_off_onboarding_gate(
     _: str,
     incoming_fixture: str,
 ) -> None:
@@ -284,8 +341,8 @@ def test_build_source_preflight_report_diff_contract() -> None:
     }
     assert report["source_classification"] == "current"
     assert report["version"] == {
-        "current": "2026-04-24",
-        "incoming": "2026-04-25",
+        "current": "2026-04-29",
+        "incoming": "2026-04-30",
         "changed": True,
     }
     assert report["checksum"] == {
@@ -294,18 +351,105 @@ def test_build_source_preflight_report_diff_contract() -> None:
         "changed": True,
     }
     assert report["row_count"] == {
-        "current": 100,
-        "incoming": 120,
-        "delta": 20,
+        "current": 100000,
+        "incoming": 101500,
+        "delta": 1500,
         "changed": True,
     }
-    assert report["schema"] == {"added": ["quantity"], "removed": ["brands"]}
+    assert report["schema"] == {"added": ["nutriscore_grade", "quantity"], "removed": []}
     assert report["primary_keys"] == {"added": [], "removed": []}
     assert report["collision_policy"] == {
         "dedupe_fields": {"added": [], "removed": []},
         "mapping_fields": {"added": [], "removed": []},
-        "collision_resolution": {"changed": False, "current": "reject", "incoming": "reject"},
+        "collision_resolution": {
+            "changed": False,
+            "current": "quarantine",
+            "incoming": "quarantine",
+        },
     }
+
+
+@pytest.mark.parametrize("current_fixture,incoming_fixture", _OFF_MANIFEST_PAIRS)
+def test_build_source_preflight_report_accepts_off_dry_run_pairs(
+    current_fixture: str,
+    incoming_fixture: str,
+) -> None:
+    report = build_source_preflight_report(
+        _fixture(current_fixture),
+        _fixture(incoming_fixture),
+        catalog_path=_CATALOG,
+        onboarding_path=_ONBOARDING,
+    )
+
+    assert report["success"] is True
+    assert report["dry_run"] is True
+    assert report["runtime_cutover"] is False
+    assert report["source_classification"] == "current"
+    assert report["source_url"] == "https://world.openfoodfacts.org/data"
+    assert report["validation_errors"] == []
+    row_count = report["row_count"]
+    checksum = report["checksum"]
+    assert isinstance(row_count, dict)
+    assert isinstance(checksum, dict)
+    assert row_count["changed"] is True
+    assert checksum["changed"] is True
+
+
+@pytest.mark.parametrize(
+    ("flag", "value"),
+    (
+        ("network_allowed", True),
+        ("db_writes_allowed", True),
+        ("digitalocean_postgres_load", True),
+        ("runtime_cutover", True),
+    ),
+)
+def test_validate_manifest_source_contract_rejects_off_unsafe_safety_flags(
+    tmp_path: Path,
+    flag: str,
+    value: object,
+) -> None:
+    onboarding = _write_onboarding_variant(
+        tmp_path,
+        top_level_flag=flag,
+        top_level_value=value,
+    )
+    manifest = load_source_manifest(_fixture("incoming_off_manifest.json"))
+
+    errors = validate_manifest_source_contract(
+        manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=onboarding,
+    )
+
+    assert len(errors) == 1
+    assert errors[0].startswith("onboarding: Invalid source onboarding ")
+    assert (
+        "runtime_cutover, digitalocean_postgres_load, bulk_ingest, "
+        "network_allowed, and db_writes_allowed must be false; file_only must be true"
+    ) in errors[0]
+
+
+def test_validate_manifest_source_contract_rejects_off_odbl_policy_drift(
+    tmp_path: Path,
+) -> None:
+    onboarding = _write_onboarding_variant(
+        tmp_path,
+        off_field="provider_policy_ref",
+        off_value=None,
+    )
+    manifest = load_source_manifest(_fixture("incoming_off_manifest.json"))
+
+    errors = validate_manifest_source_contract(
+        manifest,
+        catalog_path=_CATALOG,
+        onboarding_path=onboarding,
+    )
+
+    assert errors == [
+        "onboarding: Invalid source onboarding "
+        f"{onboarding}: policy mismatch for open_food_facts: provider_policy_ref"
+    ]
 
 
 def test_build_source_preflight_report_surfaces_validation_errors() -> None:
@@ -328,8 +472,8 @@ def test_build_source_preflight_report_surfaces_collision_policy_drift() -> None
 
     assert report["collision_policy"] == {
         "dedupe_fields": {"added": ["product_name"], "removed": []},
-        "mapping_fields": {"added": [], "removed": ["product_name"]},
-        "collision_resolution": {"changed": True, "current": "reject", "incoming": "quarantine"},
+        "mapping_fields": {"added": [], "removed": ["brands", "product_name"]},
+        "collision_resolution": {"changed": True, "current": "quarantine", "incoming": "reject"},
     }
 
 
@@ -360,6 +504,43 @@ def test_food_source_preflight_cli_is_file_only_and_json(
     payload = json.loads(result.stdout)
     assert payload["success"] is True
     assert payload["runtime_cutover"] is False
+    assert result.stderr == ""
+    assert after == before
+
+
+def test_food_source_preflight_cli_accepts_off_fixture_pair_with_contract(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgres://must-not-be-used.invalid/db")
+    before = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(_SCRIPT),
+            "--current-manifest",
+            str(_fixture("current_off_manifest.json")),
+            "--incoming-manifest",
+            str(_fixture("incoming_off_manifest.json")),
+            "--dry-run",
+            "--json",
+            "--catalog",
+            str(_CATALOG),
+            "--onboarding",
+            str(_ONBOARDING),
+        ],
+        cwd=tmp_path,
+        check=True,
+        text=True,
+        capture_output=True,
+    )
+    after = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
+
+    payload = json.loads(result.stdout)
+    assert payload["success"] is True
+    assert payload["runtime_cutover"] is False
+    assert payload["source"]["incoming"] == "open_food_facts"
+    assert payload["validation_errors"] == []
     assert result.stderr == ""
     assert after == before
 

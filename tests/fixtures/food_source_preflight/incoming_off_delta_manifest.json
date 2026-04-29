@@ -1,27 +1,22 @@
 {
   "artifact": {
-    "checksum_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "path": "raw/off/2026-04-29/products.csv.gz",
-    "record_count": 100000,
-    "size_bytes": 2048000
+    "checksum_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+    "path": "raw/off/2026-04-30/delta-products.jsonl.gz",
+    "record_count": 2500,
+    "size_bytes": 65536
   },
   "collision_policy": {
     "dedupe_fields": ["code"],
     "mapping_fields": ["code", "product_name", "brands"],
     "collision_resolution": "quarantine"
   },
-  "retrieved_on": "2026-04-29",
+  "retrieved_on": "2026-04-30",
   "schema": {
     "fields": [
       "code",
       "product_name",
       "brands",
-      "categories",
-      "energy-kcal_100g",
-      "proteins_100g",
-      "carbohydrates_100g",
-      "fat_100g",
-      "salt_100g"
+      "last_modified_t"
     ],
     "primary_keys": [
       "code"
@@ -30,5 +25,5 @@
   "source": "open_food_facts",
   "source_classification": "current",
   "source_url": "https://world.openfoodfacts.org/data",
-  "source_version": "2026-04-29"
+  "source_version": "2026-04-30-delta"
 }

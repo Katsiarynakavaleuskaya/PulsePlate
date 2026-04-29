@@ -8,7 +8,7 @@
   "collision_policy": {
     "dedupe_fields": ["code", "product_name"],
     "mapping_fields": ["code"],
-    "collision_resolution": "quarantine"
+    "collision_resolution": "reject"
   },
   "retrieved_on": "2026-04-26",
   "schema": {
