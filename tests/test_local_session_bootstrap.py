@@ -64,6 +64,42 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     assert automation_matrix_line in result.stdout
 
 
+def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
+    tmp_path: Path,
+) -> None:
+    """Repeated path and agent flags should all appear in first-seen order."""
+
+    result = run_bootstrap(
+        "--goal",
+        "B0",
+        "--task-class",
+        "Orchestration",
+        "--path",
+        "docs/dev/CODEX_SKILLS.md",
+        "--path",
+        "scripts/orchestration/local_session_bootstrap.sh",
+        "--requested-agent",
+        "qa-engineer-agent",
+        "--requested-agent",
+        "bug-hunter",
+        cwd=tmp_path,
+    )
+
+    assert result.returncode == 0, result.stderr
+    output = result.stdout
+    first_path = "--path docs/dev/CODEX_SKILLS.md"
+    second_path = "--path scripts/orchestration/local_session_bootstrap.sh"
+    first_agent = "--requested-agent qa-engineer-agent"
+    second_agent = "--requested-agent bug-hunter"
+
+    assert first_path in output
+    assert second_path in output
+    assert output.index(first_path) < output.index(second_path)
+    assert first_agent in output
+    assert second_agent in output
+    assert output.index(first_agent) < output.index(second_agent)
+
+
 def test_local_session_bootstrap_requires_goal_and_task_class_together() -> None:
     """Any concrete bootstrap option should fail closed without goal/class."""
 
