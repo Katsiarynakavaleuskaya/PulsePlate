@@ -5506,7 +5506,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SKILL-ROUTING-WAVE2-CLOSEOUT
+  - Target PR: PR #1570
   - Status: Closed by the closeout reconciliation PR. The implementation is
     already present on `main`; this item is closed by recording evidence and
     preserving the no-runtime-scraping / no-product-RAG boundary.
