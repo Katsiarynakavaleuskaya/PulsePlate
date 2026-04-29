@@ -40,6 +40,12 @@ Reason: Replaced the broad `"PASS:"` negative sentinel with the exact preflight 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3162130482 -> b9a17edac
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4198331140 -> b9a17edac
 
+Disposition: FIXED
+Commit: 5e0280681
+Evidence: tests/test_local_session_bootstrap.py
+Reason: Added post-comment regression coverage for all local-only bootstrap scope families, including `artifacts/agent_runs`, `artifacts/orchestration`, `artifacts/security_lab`, `.venv`, and `worktrees`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161833488 -> 5e0280681
+
 ## Review Notes
 
 No actionable human or bot review comments are present at artifact creation.
