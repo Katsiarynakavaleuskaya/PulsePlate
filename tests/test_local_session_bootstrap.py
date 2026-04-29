@@ -102,18 +102,23 @@ def test_local_session_bootstrap_rejects_unknown_args() -> None:
 def test_local_session_bootstrap_rejects_local_only_scope_paths() -> None:
     """Local-only artifact and worktree paths must not become task scope."""
 
-    result = run_bootstrap(
-        "--goal",
-        "B0",
-        "--task-class",
-        "Orchestration",
-        "--path",
+    for blocked_path in (
+        "artifacts/orchestration",
         "artifacts/orchestration/task_packets/demo.json",
-    )
+        "worktrees",
+    ):
+        result = run_bootstrap(
+            "--goal",
+            "B0",
+            "--task-class",
+            "Orchestration",
+            "--path",
+            blocked_path,
+        )
 
-    assert result.returncode == 2
-    assert "local-only artifact/cache surface" in result.stderr
-    assert "PASS:" not in result.stdout
+        assert result.returncode == 2
+        assert "local-only artifact/cache surface" in result.stderr
+        assert "PASS:" not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_paths_outside_repo() -> None:

@@ -52,7 +52,7 @@ normalize_scope_path() {
         ""|"."|".."|../*|*/../*|/*)
             die_usage "--path must stay inside the repo without parent traversal: ${raw_path}"
             ;;
-        artifacts/agent_runs/*|artifacts/orchestration/*|artifacts/security_lab/*|worktrees/*|.venv/*|.pytest_cache/*|.mypy_cache/*|.ruff_cache/*|node_modules/*|dist/*|build/*)
+        artifacts/agent_runs|artifacts/agent_runs/*|artifacts/orchestration|artifacts/orchestration/*|artifacts/security_lab|artifacts/security_lab/*|worktrees|worktrees/*|.venv|.venv/*|.pytest_cache|.pytest_cache/*|.mypy_cache|.mypy_cache/*|.ruff_cache|.ruff_cache/*|node_modules|node_modules/*|dist|dist/*|build|build/*)
             die_usage "--path points at a local-only artifact/cache surface: ${raw_path}"
             ;;
     esac

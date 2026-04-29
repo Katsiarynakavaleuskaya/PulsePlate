@@ -6,12 +6,12 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
 `docs/orchestration/AGENTS.md`.
 
-- [x] Discussion-thread pass completed at artifact creation
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review-thread mappings yet.
+- No actionable review comments
 
 ## Review Notes
 
