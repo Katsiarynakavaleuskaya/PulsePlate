@@ -25,6 +25,7 @@ PR-0 may touch only:
 - `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
 - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
+- `docs/review/PR_<N>_FIXED_MAPPING.md` after PR open for mandatory review-governance mapping
 
 PR-0 must not change:
 
@@ -45,12 +46,16 @@ narrows it with explicit rationale:
 3. `ml-engineer-agent`
 4. `data-scientist-agent`
 5. `security-auditor`
-6. `appstore-release-agent`
-7. `backend-engineer-agent`
-8. `ios-engineer-agent`
+6. `app-store-release-agent`
+7. `backend-engineer`
+8. `frontend-engineer`
 9. `dev-operator`
 10. `qa-engineer-agent`
 11. `bug-hunter`
+
+For iOS-specific release surfaces, `frontend-engineer` is the canonical platform
+surface owner per the routing graph until a dedicated `ios-engineer-agent` slug
+exists in the agent inventory.
 
 Mandatory post-open review lane:
 
@@ -86,6 +91,11 @@ governance, or local gates.
 
 ## PR Train
 
+The canonical PR train and release packet contract source of truth is this task
+packet. The epic, C4 context, and ledger entry summarize or link back to this
+packet; later slices must update this packet first if the train or contract
+changes.
+
 | PR | Branch | Primary outcome | Blocking proof |
 | --- | --- | --- | --- |
 | PR-0 | `release/release-control-plane-pr0-bootstrap` | Epic, packet, C4 release-risk context, ledger anchor | docs/ledger validation and repo policy guards |
@@ -105,6 +115,16 @@ identity groups:
 - ML identity: `rag_gate_result_hash`, `eval_artifact_hash`, optional `mlflow_run_id` and `model_version`
 - supply-chain identity: `sbom_digest`, `provenance_digest`, `attestation_status`
 - release decision: `ALLOW` or `BLOCK`
+
+Hash and digest format contract:
+
+- `*_hash` fields use SHA-256 over canonical UTF-8 bytes and are encoded as
+  lowercase hexadecimal without a `sha256:` prefix.
+- `*_digest` fields preserve the upstream artifact digest format when one
+  exists, for example OCI digests as `sha256:<hex>`.
+- If a non-OCI artifact lacks an upstream digest format, later slices must use
+  SHA-256 lowercase hexadecimal and document the canonical byte serialization
+  next to the producing validator.
 
 PR-0 defines the contract only. It does not generate, validate, or publish the
 packet.
@@ -135,9 +155,9 @@ python3 scripts/orchestration/task_bootstrap.py \
   --requested-agent ml-engineer-agent \
   --requested-agent data-scientist-agent \
   --requested-agent security-auditor \
-  --requested-agent appstore-release-agent \
-  --requested-agent backend-engineer-agent \
-  --requested-agent ios-engineer-agent \
+  --requested-agent app-store-release-agent \
+  --requested-agent backend-engineer \
+  --requested-agent frontend-engineer \
   --requested-agent dev-operator \
   --requested-agent qa-engineer-agent \
   --requested-agent bug-hunter

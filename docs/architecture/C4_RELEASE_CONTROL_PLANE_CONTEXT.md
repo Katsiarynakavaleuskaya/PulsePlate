@@ -54,13 +54,22 @@ flowchart LR
 
 ## Existing Source Of Truth
 
-- System overview: `docs/architecture/system_overview.md`
-- AI bounded context: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md`
-- RAG gates: `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
-- RAG runner: `scripts/evals/run_rag_release_gates.py`
-- Docker provenance verifier: `scripts/ci/check_docker_provenance_attestation.py`
-- App Store rollout runbook: `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
-- App Store metadata and reviewer notes: `ios/fastlane/metadata/`
+- System overview: `docs/architecture/system_overview.md:11-23`,
+  `docs/architecture/system_overview.md:34-69`
+- AI bounded context: `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:44-63`,
+  `docs/architecture/C4_AI_BOUNDED_CONTEXT_PACKET_2026-03-20.md:87-97`
+- RAG gates: `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md:11-22`,
+  `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md:237-251`
+- RAG runner: `scripts/evals/run_rag_release_gates.py:1-9`,
+  `scripts/evals/run_rag_release_gates.py:2194-2228`
+- Docker provenance verifier: `scripts/ci/check_docker_provenance_attestation.py:1-6`,
+  `scripts/ci/check_docker_provenance_attestation.py:214-262`
+- App Store rollout runbook: `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md:24-36`,
+  `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md:134-172`,
+  `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md:209-215`
+- App Store metadata and reviewer notes:
+  `ios/fastlane/metadata/review_information/notes.txt:1-11`,
+  `ios/fastlane/metadata/en-US/release_notes.txt:1`
 
 ## Non-Goals
 

@@ -36,6 +36,11 @@ relevant artifacts land on `main`.
 
 Later slices converge on one internal release packet. The packet must be
 machine-readable and fail closed when required evidence is absent or stale.
+The canonical source of truth for the PR train and field-level release packet
+contract is
+[`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`](../orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md).
+This epic summarizes that packet and must not redefine the train or field
+format independently.
 
 | Group | Fields | Purpose |
 | --- | --- | --- |
@@ -44,6 +49,10 @@ machine-readable and fail closed when required evidence is absent or stale.
 | ML identity | `rag_gate_result_hash`, `eval_artifact_hash`, optional `mlflow_run_id`, optional `model_version` | Links shipped AI behavior to evaluated release-gate evidence |
 | Supply-chain identity | `sbom_digest`, `provenance_digest`, `attestation_status` | Links release candidate to signed artifact evidence |
 | Decision | `ALLOW` or `BLOCK` plus reasons | Gives one final release-control verdict |
+
+`*_hash` fields use SHA-256 over canonical UTF-8 bytes and are encoded as
+lowercase hexadecimal. `*_digest` fields preserve upstream artifact digest
+format when one exists, for example OCI `sha256:<hex>` digests.
 
 The packet is internal policy. It is not a substitute for Apple review details,
 App Store Connect protected uploads, PR merge-readiness checks, or external bot

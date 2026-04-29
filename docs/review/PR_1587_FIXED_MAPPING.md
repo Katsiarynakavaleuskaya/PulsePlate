@@ -9,9 +9,8 @@ Date: 2026-04-29
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review comments have been raised yet. This artifact is present
-from PR open so the Phase 2 body/artifact gate can use the canonical repo file
-as the source of truth.
+No actionable review comments were mapped before the review-fix commit. This
+artifact is the canonical source of truth for PR review-governance mapping.
 
 ## Fixed in Commit Mapping
 
@@ -21,7 +20,7 @@ as the source of truth.
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
 - `python3 scripts/orchestration/check_agent_consistency.py` (PASS)
-- `python3 scripts/orchestration/task_bootstrap.py --goal "Complementary release automation control plane PR-0: bootstrap C4 release-risk, ML/RAG gate promotion contract, supply-chain provenance, and release manifest governance without editing PR 1582" --task-class Orchestration --pr-phase pre_open ...` (PASS)
+- `python3 scripts/orchestration/task_bootstrap.py --goal "Complementary release automation control plane PR-0: bootstrap C4 release-risk, ML/RAG gate promotion contract, supply-chain provenance, and release manifest governance without editing PR 1582" --task-class Orchestration --pr-phase pre_open --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent ml-engineer-agent --requested-agent data-scientist-agent --requested-agent security-auditor --requested-agent appstore-release-agent --requested-agent backend-engineer-agent --requested-agent ios-engineer-agent --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter` (PASS)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md docs/release/RELEASE_CONTROL_PLANE_EPIC.md docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md docs/roadmap/BACKLOG_LEDGER.md` (PASS)
 - `pytest -q tests/test_repo_policy_guards.py` (PASS)
 - `pre-commit run --all-files` (PASS)
