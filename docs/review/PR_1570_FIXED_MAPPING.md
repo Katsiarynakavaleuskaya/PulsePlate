@@ -25,6 +25,19 @@ Commit: 1d2e556ac
 Evidence: PR-number sync adds `docs/review/PR_1570_FIXED_MAPPING.md:1` and points `docs/roadmap/BACKLOG_LEDGER.md:5509` at PR #1570.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570 -> 1d2e556ac
 
+Disposition: FIXED
+Commit: 9147ae761
+Evidence: Clarifies closeout wording as merge-effective, removes the machine-local validation path, and keeps ledger closure language tied to PR #1570 merge in `docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md`, `docs/roadmap/BACKLOG_LEDGER.md`, and this mapping file.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570#discussion_r3161236441 -> 9147ae761
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570#discussion_r3161236450 -> 9147ae761
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570#discussion_r3161236473 -> 9147ae761
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570#pullrequestreview-4197234936 -> 9147ae761
+
+Disposition: NOT-A-BUG
+Evidence: The closeout packet remains the canonical reconciliation document, while the ledger and PR mapping intentionally mirror minimal governance proof required by the repo PR lifecycle. Current snapshot line references are evidence anchors for this closeout; broader durable-anchor refactoring is outside this docs-only reconciliation.
+Reason: Sourcery's high-level suggestions are advisory maintainability feedback, not a blocker for the closeout contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570#pullrequestreview-4197222216
+
 ## Deferred / Follow-ups
 
 - `RAG for agent context` remains a separate ledger item:
