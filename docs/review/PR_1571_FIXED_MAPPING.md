@@ -10,12 +10,17 @@ Date: 2026-04-29
 - [x] Fixed in commit mapping completed
 
 Artifact status: PR-open governance artifact exists for the Docker deploy
-contract reconciliation lane. No actionable review threads were present when
-this artifact was created.
+contract reconciliation lane. Post-open bot actionables were fixed before
+thread resolution.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 238220252
+Evidence: `tests/test_deploy_contract_scripts.py:56`; `deploy/PRODUCTION.md:203`; `deploy/WORKFLOW.md:212`; `scripts/QUICK_DIAGNOSTIC.md:144`; `pytest -q tests/test_deploy_contract_scripts.py::test_manual_shell_sync_docs_are_merged_truth_only` (PASS); `python3 scripts/ci/check_docs_phase1_gates.py --files deploy/PRODUCTION.md deploy/WORKFLOW.md scripts/QUICK_DIAGNOSTIC.md tests/test_deploy_contract_scripts.py` (PASS)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161091192 -> 238220252
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161091670 -> 238220252
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161091680 -> 238220252
 
 ## Initial Evidence
 
