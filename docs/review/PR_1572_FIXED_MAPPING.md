@@ -37,11 +37,11 @@ Reason: CodeRabbit review `4197626843` is a non-blocking refactor nitpick; addin
 
 ## Merge Readiness
 
-- [x] No unresolved review threads after disposition mapping/resolution
-- [x] Required checks PASS on current-head CI except superseded cancelled runs
-- [x] Branch up to date with `main` at PR7 head
-- [x] Diff coverage >= 97%
-- [x] Ready for strict squash merge after final wait-cycle
+- [ ] No unresolved review threads after disposition mapping/resolution
+- [ ] Required checks PASS on current-head CI except superseded cancelled runs
+- [ ] Branch up to date with `main` at PR7 head
+- [ ] Diff coverage >= 97%
+- [ ] Ready for strict squash merge after final wait-cycle
 
 ## Local Evidence
 
