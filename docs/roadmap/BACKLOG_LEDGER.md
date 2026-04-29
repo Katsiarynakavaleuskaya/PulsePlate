@@ -564,7 +564,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Docker deploy contract reconciliation after install-profile split
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-DOCKER-DEPLOY-CONTRACT-PR2 (`codex/docker-deploy-contract-reconciliation-pr2`)
+  - Target PR: PR #1571 (`codex/docker-deploy-contract-reconciliation-pr2`)
   - Area: deploy / docker / operator workflow
   - Status: Implemented in this PR
   - Depends on:
