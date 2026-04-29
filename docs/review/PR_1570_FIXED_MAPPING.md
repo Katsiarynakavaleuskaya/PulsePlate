@@ -8,18 +8,22 @@ merged router behavior, and refreshes stale evidence references.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No review threads existed at PR creation time.
 
 ## Fixed in Commit Mapping
 
-- Initial closeout implementation -> `4ef291fd8`
-  - Disposition: FIXED
-  - Commit: `4ef291fd8`
-  - Evidence:
-    - `docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md:1`
-    - `docs/roadmap/BACKLOG_LEDGER.md:5506`
-    - `docs/dev/CODEX_SKILLS.md:130`
-    - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:111`
+Disposition: FIXED
+Commit: 4ef291fd8
+Evidence: Initial closeout implementation adds `docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md`, closes `docs/roadmap/BACKLOG_LEDGER.md:5506`, and refreshes `docs/dev/CODEX_SKILLS.md:130` plus `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:111`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570 -> 4ef291fd8
+
+Disposition: FIXED
+Commit: 1d2e556ac
+Evidence: PR-number sync adds `docs/review/PR_1570_FIXED_MAPPING.md:1` and points `docs/roadmap/BACKLOG_LEDGER.md:5509` at PR #1570.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570 -> 1d2e556ac
 
 ## Deferred / Follow-ups
 
