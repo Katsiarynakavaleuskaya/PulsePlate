@@ -7,7 +7,15 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1578#discussion_r3163789209 -> eb74dce21
+Disposition: FIXED
+Commit: eb74dce21
+Evidence: `core/ai/insight_runtime.py` now defaults null-valued speech-act and language-game route hints before string coercion; `tests/test_core_ai_insight_runtime.py` covers null fallback.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1578#discussion_r3163789216 -> eb74dce21
+Disposition: FIXED
+Commit: eb74dce21
+Evidence: `core/rag/recursive_retrieval.py` now passes `current_query` into recursive short-circuit evaluation; `tests/test_core_ai_insight_runtime.py` covers later-hop refined query usage.
 
 ## Merge Readiness
 
