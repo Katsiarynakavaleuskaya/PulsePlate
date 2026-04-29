@@ -117,6 +117,8 @@
 "home.section.quick_actions" = "Acciones rápidas";
 "home.action.bmi.title" = "Calculadora BMI";
 "home.action.bmi.subtitle" = "Actualiza métricas corporales clave";
+"bmi.calculate.cta" = "Calcular";
+"bmi.calculate.loading" = "Calculando...";
 "home.action.profile_setup.title" = "Configurar perfil";
 "home.action.profile_setup.subtitle" = "Configura el perfil PRO y el idioma";
 "home.action.open_plate.title" = "Abrir Plate";

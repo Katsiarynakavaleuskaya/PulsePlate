@@ -44,7 +44,9 @@ struct BMICalculatorScreen: View {
                 }
 
                 PPButton(
-                    vm.isLoading ? "Loading..." : "Calculate",
+                    vm.isLoading
+                        ? NSLocalizedString("bmi.calculate.loading", comment: "")
+                        : NSLocalizedString("bmi.calculate.cta", comment: ""),
                     variant: .primary,
                     size: .lg,
                     fullWidth: true,

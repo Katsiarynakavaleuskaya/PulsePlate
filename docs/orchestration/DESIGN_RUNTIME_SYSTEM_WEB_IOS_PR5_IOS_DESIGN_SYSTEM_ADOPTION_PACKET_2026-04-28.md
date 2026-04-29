@@ -15,9 +15,12 @@
 This packet is the branch-scoped field contract for `PR-5` of the design
 runtime system web+iOS epic line.
 
-`PR-0`, `PR-1`, `PR-2`, `PR-3`, and `PR-4` are treated as merged baseline.
+`PR-0`, `PR-1`, `PR-2`, `PR-3`, and `PR-4` are treated as merged baseline
+per the design epic ledger (`docs/roadmap/BACKLOG_LEDGER.md:1003`).
 This slice adopts existing generated iOS design tokens and existing
-`PPDesignTokens` / `PPButton` / `PPTypography` primitives on bounded,
+`PPDesignTokens` (`ios/PulsePlate/DesignSystem/DesignTokens.swift:5`),
+`PPButton` (`ios/PulsePlate/DesignSystem/PPButton.swift:51`), and
+`PPTypography` (`ios/PulsePlate/DesignSystem/PPTypography.swift:7`) primitives on bounded,
 non-conflicting iOS surfaces without product-screen migration, token
 regeneration, backend changes, or ownership drift.
 
@@ -25,7 +28,7 @@ Execution started only after fresh live `main` confirmation:
 
 - `origin/main` head: `3c83082a49812fe08eaafc153dde957036abb689`
 - `main...origin/main`: `0 0`
-- current-head `main` workflows for that head completed `success`, including
+- current-head `main` workflows for that head completed with `success`, including
   canonical `CI` run `25065564665`
 
 Evidence:
@@ -107,12 +110,17 @@ Research`, `OpenAPI`, `GraphMap`, and `Playwright`.
 ## Implementation Contract
 
 - consume existing generated iOS runtime mirrors through `PPDesignTokens`
-- consume existing `PPButton` and `PPTypography` primitives without changing
-  their public APIs
+  (`ios/PulsePlate/DesignSystem/DesignTokens.swift:5`)
+- consume existing `PPButton` (`ios/PulsePlate/DesignSystem/PPButton.swift:51`)
+  and `PPTypography` (`ios/PulsePlate/DesignSystem/PPTypography.swift:7`)
+  primitives without changing their public APIs
 - preserve `WelcomeFlowView` localization keys and accessibility identifiers
+  (`ios/PulsePlate/Welcome/WelcomeFlowView.swift:81`)
 - preserve `BMICalculatorScreen` request/response DTOs, parsing behavior,
   backend-owned BMI logic, and paywall routing
+  (`ios/PulsePlate/Screens/BMICalculatorScreen.swift:108`)
 - preserve `RootTabs` tab structure, destinations, labels, and debug gating
+  (`ios/PulsePlate/Views/RootTabs.swift:10`)
 - do not add local BMI thresholds, category inference, waist/height math, or
   product entitlement logic
 

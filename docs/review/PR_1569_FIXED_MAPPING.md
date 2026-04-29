@@ -11,13 +11,33 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Status: Draft PR opened; CodeRabbit skipped draft review, Sourcery guide is
-  non-actionable, Codecov reported modified coverable lines covered, and no
-  human actionable review threads have been filed.
+- Status: CodeRabbit and Sourcery actionables are mapped below; Codecov
+  reported modified coverable lines covered, and no human actionable review
+  threads have been filed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: TBD_FIX_COMMIT
+Evidence: corrected packet wording/evidence anchors, review mapping evidence,
+ledger PR traceability, and localized BMI CTA/loading strings; local gates rerun
+before push.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161071556 -> TBD_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081682 -> TBD_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081689 -> TBD_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081692 -> TBD_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081696 -> TBD_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081701 -> TBD_FIX_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081711 -> TBD_FIX_COMMIT
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery review container has no standalone actionable beyond the
+mapped inline typo; CodeRabbit review container has no standalone actionable
+beyond the mapped inline comments.
+Reason: Container-level bot review records are governance references;
+individual actionable findings are mapped above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#pullrequestreview-4197047445
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#pullrequestreview-4197058576
 
 ## Manual Review Substitute
 
@@ -30,8 +50,10 @@
     for Welcome, Launch, BMI validation/CTA, and RootTabs tint.
   - `frontend-engineer` provided token parity guidance and localization caveats.
   - advisory `cursor-specialist-agent` flagged `PPButton` localization risk;
-    implementation preserves `LocalizedStringKey` labels while passing
-    localized `String` titles into the existing `PPButton` API.
+    implementation preserves localization keys at call sites while passing
+    localized `String` titles into the existing `PPButton` API
+    (`ios/PulsePlate/DesignSystem/PPButton.swift:60`,
+    `ios/PulsePlate/Welcome/WelcomeFlowView.swift:103`).
   - `architecture-specialist` reported no blocking findings after the final
     PR-5 diff review.
 
@@ -41,9 +63,13 @@
 - `bug-hunter`: PASS
   - Reviewed head: `aec4cb3eb3a4dc7b2c30d51967cfa2be78956881`
   - Evidence: no blocking Swift/UI regression found; Welcome localization and
-    accessibility are preserved, token contrast is consistent with generated
-    white text tokens, Launch uses existing tokens, BMI remains thin-client
-    with DTO/paywall routing intact, and RootTabs only changes shell tint.
+    accessibility are preserved (`ios/PulsePlate/Welcome/WelcomeFlowView.swift:81`),
+    token contrast is consistent with generated white text tokens
+    (`ios/PulsePlate/DesignSystem/PPTypography.swift:42`), Launch uses existing
+    tokens (`ios/PulsePlate/Views/LaunchScreenView.swift:10`), BMI remains
+    thin-client with DTO/paywall routing intact
+    (`ios/PulsePlate/Screens/BMICalculatorScreen.swift:120`), and RootTabs only
+    changes shell tint (`ios/PulsePlate/Views/RootTabs.swift:31`).
 
 ## Validation Evidence
 
