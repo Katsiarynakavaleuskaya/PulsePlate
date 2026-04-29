@@ -31,16 +31,18 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.large) {
                 heroCard
 
-                HStack(spacing: 12) {
+                HStack(spacing: PPDesignTokens.Spacing.medium) {
                     HomeStatusCard(
                         title: localized("home.status.pro_key.title"),
                         value: hasProKey
                             ? localized("home.status.pro_key.configured")
                             : localized("home.status.pro_key.missing"),
-                        color: hasProKey ? .success : .warning
+                        color: hasProKey
+                            ? PPDesignTokens.ColorToken.success
+                            : PPDesignTokens.ColorToken.warning
                     )
 
                     HomeStatusCard(
@@ -48,15 +50,17 @@ struct HomeView: View {
                         value: hasProfile
                             ? localized("home.status.profile.ready")
                             : localized("home.status.profile.incomplete"),
-                        color: hasProfile ? .success : .warning
+                        color: hasProfile
+                            ? PPDesignTokens.ColorToken.success
+                            : PPDesignTokens.ColorToken.warning
                     )
                 }
 
                 GlassCard {
-                    VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                         Text(localized("home.section.quick_actions"))
-                            .font(.headline)
-                            .foregroundStyle(Color.textPrimary)
+                            .font(PPDesignTokens.Typography.title)
+                            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
                         NavigationLink {
                             BMICalculatorScreen()
@@ -92,10 +96,10 @@ struct HomeView: View {
 
                 if hasProTools {
                     GlassCard {
-                        VStack(alignment: .leading, spacing: 10) {
+                        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
                             Text(localized("home.section.pro_tools"))
-                                .font(.headline)
-                                .foregroundStyle(Color.textPrimary)
+                                .font(PPDesignTokens.Typography.title)
+                                .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
                             if FeatureFlags.aiInsightEnabled {
                                 NavigationLink {
@@ -136,11 +140,11 @@ struct HomeView: View {
 
                 MascotBubble(textKey: "mascot.plate.hint")
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 20)
+            .padding(.horizontal, PPDesignTokens.Spacing.large)
+            .padding(.top, PPDesignTokens.Spacing.medium)
+            .padding(.bottom, PPDesignTokens.Spacing.xLarge)
         }
-        .background(Color.navy.ignoresSafeArea())
+        .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
         .navigationTitle(localized("home.navigation.title"))
         .navigationBarTitleDisplayMode(.inline)
         .accessibilityLabel(localized("home.accessibility.screen_label"))
@@ -148,15 +152,14 @@ struct HomeView: View {
 
     private var heroCard: some View {
         GlassCard {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                 Text(localized("home.hero.title"))
-                    .font(.largeTitle)
-                    .bold()
-                    .foregroundStyle(Color.textPrimary)
+                    .font(PPDesignTokens.Typography.largeTitle)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
                 Text(localized("home.hero.subtitle"))
-                    .font(.subheadline)
-                    .foregroundStyle(Color.textSecondary)
+                    .font(PPDesignTokens.Typography.body)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -205,20 +208,24 @@ private struct HomeStatusCard: View {
     let color: Color
 
     var body: some View {
-        GlassCard(cornerRadius: 14) {
-            VStack(alignment: .leading, spacing: 8) {
+        GlassCard(
+            cornerRadius: PPDesignTokens.Radius.large,
+            contentPadding: PPDesignTokens.Spacing.large,
+            strokeColor: PPDesignTokens.ColorToken.strokeSubtle
+        ) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                 Text(title)
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
+                    .font(PPDesignTokens.Typography.caption)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
 
-                HStack(spacing: 8) {
+                HStack(spacing: PPDesignTokens.Spacing.small) {
                     Circle()
                         .fill(color)
-                        .frame(width: 8, height: 8)
+                        .frame(width: PPDesignTokens.Spacing.small, height: PPDesignTokens.Spacing.small)
                         .accessibilityHidden(true)
                     Text(value)
-                        .font(.headline)
-                        .foregroundStyle(Color.textPrimary)
+                        .font(PPDesignTokens.Typography.title)
+                        .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -232,29 +239,29 @@ private struct HomeActionRow: View {
     let icon: String
 
     var body: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: PPDesignTokens.Spacing.medium) {
             Image(systemName: icon)
-                .foregroundStyle(Color.appPrimary)
-                .frame(width: 20)
+                .foregroundStyle(PPDesignTokens.ColorToken.primary)
+                .frame(width: PPDesignTokens.Spacing.xLarge)
                 .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xSmall) {
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color.textPrimary)
+                    .font(PPDesignTokens.Typography.bodyStrong)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
                 Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(Color.textSecondary)
+                    .font(PPDesignTokens.Typography.caption)
+                    .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.caption.bold())
-                .foregroundStyle(Color.textTertiary)
+                .foregroundStyle(PPDesignTokens.ColorToken.textTertiary)
                 .accessibilityHidden(true)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, PPDesignTokens.Spacing.xSmall)
         .contentShape(Rectangle())
     }
 }

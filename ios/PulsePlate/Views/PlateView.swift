@@ -203,15 +203,15 @@ struct PlateViewPP: View {
   var body: some View {
     NavigationStack {
       ScrollView {
-        VStack(spacing: 24) {
+        VStack(spacing: PPDesignTokens.Spacing.xLarge) {
           // Header
-          VStack(alignment: .leading, spacing: 8) {
+          VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
             Text(localized("plate.preview.title"))
-              .font(.largeTitle)
-              .bold()
-              .foregroundStyle(.white)
+              .font(PPDesignTokens.Typography.largeTitle)
+              .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
             Text(localized("plate.preview.subtitle"))
-              .foregroundStyle(.white.opacity(0.8))
+              .font(PPDesignTokens.Typography.body)
+              .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
           }
           .frame(maxWidth: .infinity, alignment: .leading)
           .padding(.horizontal)
@@ -219,7 +219,7 @@ struct PlateViewPP: View {
           // Loading state
           if nutritionService.isLoading {
             ProgressView("Loading nutrition data...")
-              .foregroundStyle(.white)
+              .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
               .padding()
           } else if let issue = nutritionService.issue {
             PlateIssueView(issue: issue) { action in
@@ -238,7 +238,7 @@ struct PlateViewPP: View {
             }
           } else {
           // Interactive Plate Segments with animations
-          VStack(spacing: 16) {
+          VStack(spacing: PPDesignTokens.Spacing.large) {
             plateSegmentsView
 
             // Overall progress ring with shimmer effect
@@ -252,9 +252,9 @@ struct PlateViewPP: View {
             }
           }
         }
-        .padding(.bottom, 12)
+        .padding(.bottom, PPDesignTokens.Spacing.medium)
       }
-      .background(Color.navy.ignoresSafeArea())
+      .background(PPDesignTokens.Brand.navy.ignoresSafeArea())
       .navigationDestination(isPresented: $showMealEntry) {
         MealEntryView()
       }
@@ -272,31 +272,29 @@ struct PlateViewPP: View {
         #endif
       }
       .safeAreaInset(edge: .bottom) {
-        VStack(spacing: 12) {
+        VStack(spacing: PPDesignTokens.Spacing.medium) {
           // Mascot hint always visible above action buttons
           MascotBubble(textKey: "mascot.plate.hint")
             .padding(.horizontal)
 
-          HStack(spacing: 16) {
-            Button(localized("plate.preview.add_meal")) {
+          HStack(spacing: PPDesignTokens.Spacing.large) {
+            PPButton(localized("plate.preview.add_meal"), variant: .secondary, fullWidth: true) {
               handlePrimaryCTA(.addMeal)
             }
             .accessibilityIdentifier("appstore.plate.add_meal")
-            .buttonStyle(.bordered)
 
-            Button(localized("plate.preview.view_details")) {
+            PPButton(localized("plate.preview.view_details"), variant: .primary, fullWidth: true) {
               handlePrimaryCTA(.viewDetails)
             }
             .accessibilityIdentifier("appstore.plate.view_details")
-            .buttonStyle(.borderedProminent)
           }
           .padding(.horizontal)
         }
-        .padding()
+        .padding(PPDesignTokens.Spacing.large)
         .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.xLarge, style: .continuous))
         .padding(.horizontal)
-        .padding(.bottom, 8)
+        .padding(.bottom, PPDesignTokens.Spacing.small)
       }
       .accessibilityLabel("Plate Screen")
       .onAppear {
@@ -322,27 +320,25 @@ private struct PlateIssueView: View {
 
   var body: some View {
     let action = issue.primaryAction
-    VStack(spacing: 12) {
+    VStack(spacing: PPDesignTokens.Spacing.medium) {
       Text(issue.title)
-        .foregroundStyle(.white)
-        .font(.headline)
+        .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
+        .font(PPDesignTokens.Typography.title)
 
       Text(issue.message)
-        .font(.caption)
-        .foregroundStyle(.white.opacity(0.85))
+        .font(PPDesignTokens.Typography.caption)
+        .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
         .multilineTextAlignment(.center)
 
       if action != .none {
-        Button(buttonTitle(for: action)) {
+        PPButton(buttonTitle(for: action), variant: .secondary) {
           onAction(action)
         }
-        .buttonStyle(.bordered)
-        .foregroundStyle(.white)
       }
     }
-    .padding()
-    .background(Color.surfaceElevated)
-    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    .padding(PPDesignTokens.Spacing.large)
+    .background(PPDesignTokens.ColorToken.surfaceElevated)
+    .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.large, style: .continuous))
     .padding(.horizontal)
   }
 
@@ -364,37 +360,35 @@ struct SegmentDetailView: View {
   let segment: NutritionSegment
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.medium) {
       HStack {
         Image(systemName: segment.icon)
           .foregroundColor(segment.color)
           .font(.title2)
 
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.xSmall) {
           Text(segment.name)
-            .font(.title2)
-            .bold()
-            .foregroundStyle(.white)
+            .font(PPDesignTokens.Typography.heading)
+            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
 
           Text("\(Int(segment.percentage))% of your plate")
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.8))
+            .font(PPDesignTokens.Typography.caption)
+            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
         }
 
         Spacer()
       }
 
       // Progress bar
-      VStack(alignment: .leading, spacing: 8) {
+      VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
         HStack {
           Text("Progress")
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.8))
+            .font(PPDesignTokens.Typography.caption)
+            .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
           Spacer()
           Text("\(segment.targetValue > 0 ? Int((segment.currentValue / segment.targetValue) * 100) : 0)%")
-            .font(.caption)
-            .bold()
-            .foregroundStyle(.white)
+            .font(PPDesignTokens.Typography.captionStrong)
+            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
         }
 
         ProgressView(value: max(0, min(segment.currentValue, segment.targetValue)), total: segment.targetValue > 0 ? segment.targetValue : 1)
@@ -407,11 +401,10 @@ struct SegmentDetailView: View {
         VStack(alignment: .leading) {
           Text("Current")
             .font(.caption2)
-            .foregroundStyle(.white.opacity(0.6))
+            .foregroundStyle(PPDesignTokens.ColorToken.textTertiary)
           Text("\(segment.currentValue, specifier: "%.1f") servings")
-            .font(.caption)
-            .bold()
-            .foregroundStyle(.white)
+            .font(PPDesignTokens.Typography.captionStrong)
+            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
         }
 
         Spacer()
@@ -419,19 +412,18 @@ struct SegmentDetailView: View {
         VStack(alignment: .trailing) {
           Text("Target")
             .font(.caption2)
-            .foregroundStyle(.white.opacity(0.6))
+            .foregroundStyle(PPDesignTokens.ColorToken.textTertiary)
           Text("\(segment.targetValue, specifier: "%.1f") servings")
-            .font(.caption)
-            .bold()
-            .foregroundStyle(.white)
+            .font(PPDesignTokens.Typography.captionStrong)
+            .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
         }
       }
     }
-    .padding()
-    .background(Color.surfaceElevated)
-    .cornerRadius(12)
+    .padding(PPDesignTokens.Spacing.large)
+    .background(PPDesignTokens.ColorToken.surfaceElevated)
+    .cornerRadius(PPDesignTokens.Radius.large)
     .overlay(
-      RoundedRectangle(cornerRadius: 12)
+      RoundedRectangle(cornerRadius: PPDesignTokens.Radius.large)
         .stroke(segment.color.opacity(0.3), lineWidth: 1)
     )
   }
@@ -443,26 +435,25 @@ struct ProgressItem: View {
   let color: Color
 
   var body: some View {
-    VStack(spacing: 4) {
+    VStack(spacing: PPDesignTokens.Spacing.xSmall) {
       Text(title)
-        .font(.caption)
-        .foregroundStyle(.white.opacity(0.8))
+        .font(PPDesignTokens.Typography.caption)
+        .foregroundStyle(PPDesignTokens.ColorToken.textSecondary)
 
       ZStack {
         Circle()
-          .stroke(Color.white.opacity(0.2), lineWidth: 4)
-          .frame(width: 40, height: 40)
+          .stroke(PPDesignTokens.ColorToken.strokeSubtle, lineWidth: PPDesignTokens.Spacing.xSmall)
+          .frame(width: PPDesignTokens.Spacing.touchTarget, height: PPDesignTokens.Spacing.touchTarget)
 
         Circle()
           .trim(from: 0, to: value)
-          .stroke(color, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-          .frame(width: 40, height: 40)
+          .stroke(color, style: StrokeStyle(lineWidth: PPDesignTokens.Spacing.xSmall, lineCap: .round))
+          .frame(width: PPDesignTokens.Spacing.touchTarget, height: PPDesignTokens.Spacing.touchTarget)
           .rotationEffect(.degrees(-90))
 
         Text("\(Int(value * 100))%")
-          .font(.caption2)
-          .bold()
-          .foregroundStyle(.white)
+          .font(PPDesignTokens.Typography.captionStrong)
+          .foregroundStyle(PPDesignTokens.ColorToken.textPrimary)
       }
     }
   }
