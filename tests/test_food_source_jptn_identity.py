@@ -143,6 +143,16 @@ def test_jptn_identity_gate_rejects_unexpected_keys() -> None:
         parse_jptn_identity_gate(payload, catalog=_catalog(), onboarding=_onboarding())
 
 
+def test_jptn_identity_gate_rejects_missing_blocking_reason() -> None:
+    payload = _identity_payload()
+    blocking_reasons = payload["blocking_reasons"]
+    assert isinstance(blocking_reasons, list)
+    payload["blocking_reasons"] = blocking_reasons[:-1]
+
+    with pytest.raises(JptnIdentityError, match="canonical unresolved evidence set"):
+        parse_jptn_identity_gate(payload, catalog=_catalog(), onboarding=_onboarding())
+
+
 def test_jptn_identity_report_rejects_onboarding_eligibility_drift(tmp_path: Path) -> None:
     onboarding_path = _mutate_jptn_onboarding(
         "onboarding_status",

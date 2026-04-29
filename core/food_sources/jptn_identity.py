@@ -62,6 +62,12 @@ _IDENTITY_GATE_KEYS = frozenset(
         "notes",
     }
 )
+_CANONICAL_BLOCKING_REASONS = (
+    "Exact provider identity is not confirmed.",
+    "Canonical source URL and retrieval contract are not confirmed.",
+    "License, attribution, redistribution, and cache rights are not confirmed.",
+    "Schema, primary keys, units, locale, and normalization contract are not confirmed.",
+)
 
 JPTN_SOURCE = "jptn_food_facts"
 BLOCKED_GATE_DECISION = "blocked_until_verified"
@@ -338,6 +344,11 @@ def parse_jptn_identity_gate(
         )
     if gate.final_gate_decision != BLOCKED_GATE_DECISION:
         raise _identity_error(context, f"final_gate_decision must be {BLOCKED_GATE_DECISION}")
+    if gate.blocking_reasons != _CANONICAL_BLOCKING_REASONS:
+        raise _identity_error(
+            context,
+            "blocking_reasons must match the canonical unresolved evidence set",
+        )
 
     _validate_jptn_catalog_policy(_catalog_jptn_entry(catalog, context), context)
     _validate_jptn_onboarding_policy(_onboarding_jptn_entry(onboarding, context), context)
