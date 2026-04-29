@@ -351,7 +351,7 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Product AI runtime, advisory wiki / compiled memory, and plugin/control-plane artifacts must stay on separate rails.
 - Product runtime is canonical only when backed by repo contracts, DB/runtime truth, verification bundles, deterministic tests, and merge gates.
 - Advisory wiki and local support/control-plane outputs are non-canonical unless promoted through a dedicated repo-reviewed contract.
-- Semantic cache is forbidden until evidence asset lineage, replay-safe promotion, and metadata admission gates exist and the dedicated semantic-cache gate explicitly opens.
+- Semantic cache is forbidden until evidence asset lineage, replay-safe promotion, and metadata admission gates exist and the dedicated semantic-cache gate (`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`) explicitly opens.
 - Any new evidence-bearing artifact must define asset type, upstream assets, fingerprint, policy version, idempotency key, and replay/admission behavior.
 
 ---

@@ -25,7 +25,17 @@ Evidence: `AGENTS.md:349`
 
 Disposition: NOT-A-BUG
 Evidence: Final rebased local narrow gates passed before draft PR creation:
-`check_preflight.py`, `check_agent_consistency.py`, anchor grep, `pre-commit run --all-files`, and `make validate-min`.
+`python3 scripts/orchestration/check_preflight.py` (exit code 0; stdout:
+`PASS: All required SoT files present`; `PASS: worktrees/ not tracked`).
+`python3 scripts/orchestration/check_agent_consistency.py` (exit code 0;
+stdout: `OK: agent docs and files are consistent.`).
+`rg -n "Evidence Graph Runtime|semantic cache|Rail A|Rail B1|Rail B2"` against
+`AGENTS.md`, `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md`, and
+`docs/roadmap/BACKLOG_LEDGER.md` (exit code 0; expected anchors present).
+`pre-commit run --all-files` (exit code 0; stdout included `Passed` for yaml,
+secrets, cache, workflow, lint/security, frontend/backend, and iOS hooks).
+`make validate-min` (exit code 0; stdout: `tests/test_repo_policy_guards.py:
+14 passed`; `test-fast: passed`).
 Evidence: Post-open full `make verify` passed before the rebase to `origin/main` at `2266d37b2`, including verify-env, flake8, mypy, smoke tests, full pytest under coverage, coverage XML, and diff-cover.
 Reason: PR-E0 is docs/governance only and intentionally does not change runtime code, public API, DB schema, OpenAPI, billing, providers, semantic cache, GraphRAG, or user-facing behavior.
 
