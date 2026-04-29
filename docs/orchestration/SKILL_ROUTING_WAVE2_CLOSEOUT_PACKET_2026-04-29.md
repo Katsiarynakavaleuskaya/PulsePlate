@@ -2,7 +2,8 @@
 
 ## Summary
 
-This packet closes the Skill routing wave 2 ledger item as a reconciliation PR.
+This packet is the Skill routing wave 2 reconciliation closeout and marks the
+ledger item for closure upon merge of PR #1570.
 The implementation already exists on `main`: deterministic routing exposes a
 stable explanation schema, semantic lexeme groups, approved research-only
 connectors, and blocked low-fit scraping patterns.

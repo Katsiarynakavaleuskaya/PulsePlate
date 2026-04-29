@@ -5507,9 +5507,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR #1570
-  - Status: Closed by the closeout reconciliation PR. The implementation is
-    already present on `main`; this item is closed by recording evidence and
-    preserving the no-runtime-scraping / no-product-RAG boundary.
+  - Status: Closure is targeted on merge of PR #1570. The implementation is
+    already present on `main`; this closeout records evidence and preserves the
+    no-runtime-scraping / no-product-RAG boundary.
   - Area: orchestration / research / product governance
   - Finding Type: capability expansion
   - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.

@@ -2,9 +2,9 @@
 
 ## Scope
 
-PR #1570 closes the Skill routing wave 2 ledger item as a docs/tooling
-reconciliation. It adds a closeout packet, records evidence for the already
-merged router behavior, and refreshes stale evidence references.
+PR #1570 targets closure of the Skill routing wave 2 ledger item upon merge as
+a docs/tooling reconciliation. It adds a closeout packet, records evidence for
+the already merged router behavior, and refreshes stale evidence references.
 
 ## Discussion Thread Pass
 
@@ -17,7 +17,7 @@ No review threads existed at PR creation time.
 
 Disposition: FIXED
 Commit: 4ef291fd8
-Evidence: Initial closeout implementation adds `docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md`, closes `docs/roadmap/BACKLOG_LEDGER.md:5506`, and refreshes `docs/dev/CODEX_SKILLS.md:130` plus `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:111`.
+Evidence: Initial closeout implementation adds `docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md`, targets closure of `docs/roadmap/BACKLOG_LEDGER.md:5506`, and refreshes `docs/dev/CODEX_SKILLS.md:130` plus `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md:111`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1570 -> 4ef291fd8
 
 Disposition: FIXED
@@ -37,7 +37,7 @@ Evidence: PR-number sync adds `docs/review/PR_1570_FIXED_MAPPING.md:1` and point
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 -m pytest tests/test_skill_router.py tests/test_task_bootstrap.py -q` - PASS
 - `pre-commit run --all-files` - PASS
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-min` - PASS
+- `VENV_PYTHON=.venv/bin/python make validate-min` - PASS
 
 ## Merge Readiness
 
