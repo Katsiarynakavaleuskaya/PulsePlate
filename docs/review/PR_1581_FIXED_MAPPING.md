@@ -37,13 +37,17 @@ and PR CI are green and the strict merge wrapper passes.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable human, CodeRabbit, Sourcery, or Cubic review threads were present
-at artifact creation time. New actionables must be added below with one of:
-`FIXED`, `NOT-A-BUG`, or `DEFERRED`.
+CodeRabbit actionables were reviewed after the PR moved out of draft. New
+human, CodeRabbit, Sourcery, or Cubic actionables must be added below with one
+of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#issuecomment-4347346486 -> 921568003
+
+Disposition: FIXED
+Commit: `921568003`
+Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; this artifact includes `## Merge Readiness`.
 
 ## Merge Readiness
 
