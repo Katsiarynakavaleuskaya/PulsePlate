@@ -28,16 +28,13 @@ echo "📍 Deploy directory: $DEPLOY_DIR"
 cd "$DEPLOY_DIR" || exit 1
 echo ""
 
-# Detect compose command (v1 has priority if both exist, as it's more common on servers)
+# Detect Compose v2 command
 DC_CMD=""
-if command -v docker-compose >/dev/null 2>&1; then
-    DC_CMD="docker-compose"
-    echo "✅ Using: docker-compose (v1)"
-elif docker compose version >/dev/null 2>&1; then
+if docker compose version >/dev/null 2>&1; then
     DC_CMD="docker compose"
-    echo "✅ Using: docker compose (v2 plugin)"
+    echo "✅ Using: docker compose"
 else
-    echo "❌ Neither 'docker-compose' (v1) nor 'docker compose' (v2 plugin) is available"
+    echo "❌ Docker Compose v2 plugin is required: docker compose"
     exit 1
 fi
 
@@ -149,63 +146,31 @@ fi
 
 echo ""
 echo "=== Step 3: Validate compose file ==="
-# Note: docker-compose v1 reads .env automatically from current directory
-# --env-file is only needed for v2 or custom location
-if [ "$DC_CMD" = "docker-compose" ]; then
-    # v1: reads .env automatically, no --env-file needed
-    if $DC_CMD -f "$COMPOSE_FILE" config >/dev/null 2>&1; then
-        echo "✅ Compose file is valid"
-    else
-        echo "❌ Compose file validation failed"
-        echo "   Trying to see error:"
-        $DC_CMD -f "$COMPOSE_FILE" config 2>&1 | head -20 || true
-        exit 1
-    fi
+if $DC_CMD --env-file .env -f "$COMPOSE_FILE" config >/dev/null 2>&1; then
+    echo "✅ Compose file is valid"
 else
-    # v2: needs --env-file
-    if $DC_CMD --env-file .env -f "$COMPOSE_FILE" config >/dev/null 2>&1; then
-        echo "✅ Compose file is valid"
-    else
-        echo "❌ Compose file validation failed"
-        echo "   Trying to see error:"
-        $DC_CMD --env-file .env -f "$COMPOSE_FILE" config 2>&1 | head -20 || true
-        exit 1
-    fi
+    echo "❌ Compose file validation failed"
+    echo "   Trying to see error:"
+    $DC_CMD --env-file .env -f "$COMPOSE_FILE" config 2>&1 | head -20 || true
+    exit 1
 fi
 
 echo ""
 echo "=== Step 4: Pull latest images ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    $DC_CMD -f "$COMPOSE_FILE" pull || {
-        echo "⚠️  Warning: Some images failed to pull (may already be up to date)"
-    }
-else
-    $DC_CMD --env-file .env -f "$COMPOSE_FILE" pull || {
-        echo "⚠️  Warning: Some images failed to pull (may already be up to date)"
-    }
-fi
+$DC_CMD --env-file .env -f "$COMPOSE_FILE" pull || {
+    echo "⚠️  Warning: Some images failed to pull (may already be up to date)"
+}
 
 echo ""
 echo "=== Step 5: Restart services ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    $DC_CMD -f "$COMPOSE_FILE" up -d --force-recreate || {
-        echo "❌ Failed to restart services"
-        exit 1
-    }
-else
-    $DC_CMD --env-file .env -f "$COMPOSE_FILE" up -d --force-recreate || {
-        echo "❌ Failed to restart services"
-        exit 1
-    }
-fi
+$DC_CMD --env-file .env -f "$COMPOSE_FILE" up -d --force-recreate || {
+    echo "❌ Failed to restart services"
+    exit 1
+}
 
 echo ""
 echo "=== Step 6: Check service status ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    $DC_CMD -f "$COMPOSE_FILE" ps
-else
-    $DC_CMD --env-file .env -f "$COMPOSE_FILE" ps
-fi
+$DC_CMD --env-file .env -f "$COMPOSE_FILE" ps
 
 echo ""
 echo "=========================================="
@@ -224,8 +189,4 @@ if [ "${PROD_DOMAIN}" = "YOUR_DOMAIN" ]; then
 fi
 echo ""
 echo "2. Verify environment is 'production':"
-if [ "$DC_CMD" = "docker-compose" ]; then
-    echo "   docker-compose -f $COMPOSE_FILE exec app python -c \"import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))\""
-else
-    echo "   docker compose --env-file .env -f $COMPOSE_FILE exec app python -c \"import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))\""
-fi
+echo "   docker compose --env-file .env -f $COMPOSE_FILE exec app python -c \"import os; print('APP_ENV:', os.getenv('APP_ENV')); print('ENVIRONMENT:', os.getenv('ENVIRONMENT'))\""

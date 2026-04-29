@@ -28,16 +28,10 @@ echo "📍 Deploy directory: $DEPLOY_DIR"
 cd "$DEPLOY_DIR" || exit 1
 echo ""
 
-# Detect compose command (v1 priority)
-DC_CMD=""
-if command -v docker-compose >/dev/null 2>&1; then
-    DC_CMD="docker-compose"
-    echo "✅ Using: docker-compose (v1)"
-elif docker compose version >/dev/null 2>&1; then
-    DC_CMD="docker compose"
-    echo "✅ Using: docker compose (v2 plugin)"
+if docker compose version >/dev/null 2>&1; then
+    echo "✅ Using: docker compose"
 else
-    echo "❌ Neither 'docker-compose' (v1) nor 'docker compose' (v2) is available"
+    echo "❌ Docker Compose v2 plugin is required: docker compose"
     exit 1
 fi
 
@@ -49,6 +43,10 @@ fi
 
 echo "📍 Compose file: $COMPOSE_FILE"
 echo ""
+
+dc() {
+    docker compose --env-file .env -f "$COMPOSE_FILE" "$@"
+}
 
 # Check for duplicates
 echo "=== Step 1: Check for duplicate env vars ==="
@@ -98,56 +96,31 @@ esac
 
 # Validate compose
 echo "=== Step 3: Validate compose file ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    if $DC_CMD -f "$COMPOSE_FILE" config >/dev/null 2>&1; then
-        echo "✅ Compose file is valid"
-    else
-        echo "❌ Compose file validation failed"
-        $DC_CMD -f "$COMPOSE_FILE" config 2>&1 | head -20 || true
-        exit 1
-    fi
+if dc config >/dev/null 2>&1; then
+    echo "✅ Compose file is valid"
 else
-    if $DC_CMD --env-file .env -f "$COMPOSE_FILE" config >/dev/null 2>&1; then
-        echo "✅ Compose file is valid"
-    else
-        echo "❌ Compose file validation failed"
-        $DC_CMD --env-file .env -f "$COMPOSE_FILE" config 2>&1 | head -20 || true
-        exit 1
-    fi
+    echo "❌ Compose file validation failed"
+    dc config 2>&1 | head -20 || true
+    exit 1
 fi
 echo ""
 
 # Pull images
 echo "=== Step 4: Pull latest images ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    $DC_CMD -f "$COMPOSE_FILE" pull || echo "⚠️  Some images failed to pull (may already be up to date)"
-else
-    $DC_CMD --env-file .env -f "$COMPOSE_FILE" pull || echo "⚠️  Some images failed to pull (may already be up to date)"
-fi
+dc pull || echo "⚠️  Some images failed to pull (may already be up to date)"
 echo ""
 
 # Restart services
 echo "=== Step 5: Restart services ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    $DC_CMD -f "$COMPOSE_FILE" up -d --force-recreate || {
-        echo "❌ Failed to restart services"
-        exit 1
-    }
-else
-    $DC_CMD --env-file .env -f "$COMPOSE_FILE" up -d --force-recreate || {
-        echo "❌ Failed to restart services"
-        exit 1
-    }
-fi
+dc up -d --force-recreate || {
+    echo "❌ Failed to restart services"
+    exit 1
+}
 echo ""
 
 # Check status
 echo "=== Step 6: Service status ==="
-if [ "$DC_CMD" = "docker-compose" ]; then
-    $DC_CMD -f "$COMPOSE_FILE" ps
-else
-    $DC_CMD --env-file .env -f "$COMPOSE_FILE" ps
-fi
+dc ps
 echo ""
 
 # Check env in container

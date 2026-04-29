@@ -354,18 +354,18 @@ printf 'curl %s\\n' "$*" >> "{log_file}"
         log_lines,
         predicate=lambda line: "compose --env-file" in line
         and "up -d --remove-orphans app" in line,
-        message="Expected app docker-compose up step to appear in deploy log",
+        message="Expected app docker compose up step to appear in deploy log",
     )
     caddy_build_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "compose --env-file" in line and "build caddy" in line,
-        message="Expected caddy docker-compose build step to appear in deploy log",
+        message="Expected caddy docker compose build step to appear in deploy log",
     )
     caddy_up_index = _assert_log_index(
         log_lines,
         predicate=lambda line: "compose --env-file" in line
         and "up -d --remove-orphans caddy" in line,
-        message="Expected caddy docker-compose up step to appear in deploy log",
+        message="Expected caddy docker compose up step to appear in deploy log",
     )
     external_ready_index = _assert_log_index(
         log_lines,

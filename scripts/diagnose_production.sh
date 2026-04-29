@@ -34,7 +34,7 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     echo "❌ Compose file not found: $COMPOSE_FILE"
     echo "   Current directory: $(pwd)"
     echo "   Files in directory:"
-    ls -la | grep -E "docker-compose|compose" || echo "   (no compose files found)"
+    ls -la | grep -E "compose" || echo "   (no compose files found)"
     exit 1
 fi
 
@@ -43,14 +43,10 @@ echo ""
 
 dc() {
     if docker compose version >/dev/null 2>&1; then
-        docker compose -f "$COMPOSE_FILE" "$@"
+        docker compose --env-file .env -f "$COMPOSE_FILE" "$@"
         return 0
     fi
-    if command -v docker-compose >/dev/null 2>&1; then
-        docker-compose -f "$COMPOSE_FILE" "$@"
-        return 0
-    fi
-    echo "❌ Neither 'docker compose' (v2 plugin) nor 'docker-compose' (v1) is available."
+    echo "❌ Docker Compose v2 plugin is required: docker compose"
     return 1
 }
 
