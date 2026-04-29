@@ -38,7 +38,7 @@ Evidence: CodeRabbit duplicate review was addressed in the canonical artifact: `
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223775 -> 164959779
 Disposition: FIXED
 Commit: 164959779
-Evidence: `frontend/scripts/check-tailwind-utilities.mjs` had already been updated in commit `164959779` to use `fileURLToPath(...)`; CodeRabbit confirmed this thread was addressed by commits `1649597` to `daf433d`.
+Evidence: `frontend/scripts/check-tailwind-utilities.mjs` had already been updated in commit `164959779` to use `fileURLToPath(...)`; CodeRabbit confirmed this thread was addressed by commits `164959779` to `daf433d`.
 
 ## Implementation Evidence
 
