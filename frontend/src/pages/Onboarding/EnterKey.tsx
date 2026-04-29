@@ -10,6 +10,8 @@ interface LocationState {
   };
 }
 
+const APP_HOME_PATH = "/app";
+
 export default function EnterKey() {
   const { t } = useTranslation();
   const auth = useAuth();
@@ -18,7 +20,7 @@ export default function EnterKey() {
   const [value, setValue] = useState("");
 
   // Get the page user was trying to access
-  const from = (location.state as LocationState)?.from?.pathname || "/";
+  const from = (location.state as LocationState)?.from?.pathname || APP_HOME_PATH;
 
   const handleSave = async () => {
     const trimmed = value.trim();
@@ -32,7 +34,7 @@ export default function EnterKey() {
       if (from && from !== "/enter-key" && from !== "/") {
         navigate(from, { replace: true });
       } else {
-        navigate("/", { replace: true });
+        navigate(APP_HOME_PATH, { replace: true });
       }
     } catch (error) {
       let errorMessage = t("onboarding.enterKey.errorGeneric");

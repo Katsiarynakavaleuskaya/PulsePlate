@@ -34,10 +34,11 @@ vi.mock('react-i18next', () => ({
 
 // Mock react-router-dom
 const mockNavigate = vi.fn();
+let mockLocationState: { from?: { pathname: string } } | null = null;
 vi.mock('react-router-dom', () => ({
   BrowserRouter: ({ children }: any) => children,
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ state: null }),
+  useLocation: () => ({ state: mockLocationState }),
 }));
 
 // Mock react-hot-toast
@@ -67,6 +68,7 @@ beforeEach(() => {
   checkProSessionMock.mockResolvedValue(false);
   exchangeApiKeyForSessionMock.mockResolvedValue(true);
   clearProSessionMock.mockResolvedValue(undefined);
+  mockLocationState = null;
 });
 
 describe('EnterKey', () => {
@@ -119,6 +121,37 @@ describe('EnterKey', () => {
       expect(toast.success).toHaveBeenCalledWith('onboarding.enterKey.successSaved');
     });
     expect(exchangeApiKeyForSessionMock).toHaveBeenCalledWith('sk-test12345678901234567890');
+  });
+
+  it('returns direct key-entry success to the app home route', async () => {
+    checkProSessionMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+
+    await renderWithProviders(<EnterKey />);
+
+    fireEvent.change(screen.getByPlaceholderText('onboarding.enterKey.placeholder'), {
+      target: { value: 'sk-test12345678901234567890' },
+    });
+    fireEvent.click(screen.getByText('onboarding.enterKey.save'));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/app', { replace: true });
+    });
+  });
+
+  it('preserves protected source route after key-entry success', async () => {
+    checkProSessionMock.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    mockLocationState = { from: { pathname: '/plate' } };
+
+    await renderWithProviders(<EnterKey />);
+
+    fireEvent.change(screen.getByPlaceholderText('onboarding.enterKey.placeholder'), {
+      target: { value: 'sk-test12345678901234567890' },
+    });
+    fireEvent.click(screen.getByText('onboarding.enterKey.save'));
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/plate', { replace: true });
+    });
   });
 
   it('clears API key when clear button is clicked', async () => {
