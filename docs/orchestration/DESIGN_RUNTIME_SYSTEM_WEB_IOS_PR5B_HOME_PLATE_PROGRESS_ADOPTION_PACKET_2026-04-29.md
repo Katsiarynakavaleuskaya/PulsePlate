@@ -3,10 +3,10 @@
 **Version:** 2026-04-29 (`America/New_York`)
 **Epic Slug:** `epic/design-runtime-system-web-ios-v1`
 **Slice:** `PR-5B`
-**PR:** `TBD`
+**PR:** `#1579`
 **Worktree:** `worktrees/ios-design-system-adoption-v1-clean`
 **Branch:** `codex/ios-design-system-adoption-v1-clean`
-**PR Phase:** `pre_open`
+**PR Phase:** `post_open_review`
 **Design Lane Mode:** `repo_first_reference_sync`
 **Title:** `feat(ios): adopt design tokens on Home Plate Progress`
 
@@ -60,7 +60,7 @@ generated tokens, and iOS runtime design-system files remain Source of Truth.
 - `ios/PulsePlate/Views/HomeView.swift`
 - `ios/PulsePlate/Views/PlateView.swift`
 - `ios/PulsePlate/Views/ProgressView.swift`
-- `docs/review/PR_<N>_FIXED_MAPPING.md` after PR creation, if review comments appear
+- `docs/review/PR_1579_FIXED_MAPPING.md`
 
 ## Role Order
 
