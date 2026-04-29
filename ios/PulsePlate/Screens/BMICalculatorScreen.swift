@@ -13,9 +13,9 @@ struct BMICalculatorScreen: View {
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 12) {
+            VStack(spacing: PPDesignTokens.Spacing.medium) {
                 GroupBox("Input") {
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                         TextField("Weight (kg)", text: $weightKg)
                             .keyboardType(.decimalPad)
                         TextField("Height (cm)", text: $heightCm)
@@ -43,15 +43,20 @@ struct BMICalculatorScreen: View {
                     }
                 }
 
-                Button(vm.isLoading ? "Loading..." : "Calculate") {
+                PPButton(
+                    vm.isLoading
+                        ? NSLocalizedString("bmi.calculate.loading", comment: "")
+                        : NSLocalizedString("bmi.calculate.cta", comment: ""),
+                    variant: .primary,
+                    size: .lg,
+                    fullWidth: true,
+                    isLoading: vm.isLoading
+                ) {
                     Task { await onCalculate() }
                 }
-                .disabled(vm.isLoading)
 
                 if let validationMessage {
-                    Text(validationMessage)
-                        .foregroundColor(.red)
-                        .font(.caption)
+                    PPCaption(validationMessage, color: .error, strong: true)
                 }
 
                 if let err = vm.error {
@@ -60,7 +65,7 @@ struct BMICalculatorScreen: View {
 
                 if let res = vm.result {
                     GroupBox("Result") {
-                        VStack(alignment: .leading, spacing: 8) {
+                        VStack(alignment: .leading, spacing: PPDesignTokens.Spacing.small) {
                             Text("BMI: \(res.bmi, specifier: "%.2f")")
                             if let category = res.category {
                                 Text("Category: \(category)")
@@ -89,7 +94,7 @@ struct BMICalculatorScreen: View {
                     }
                 }
             }
-            .padding()
+            .padding(PPDesignTokens.Spacing.large)
         }
         .navigationTitle("BMI")
         .sheet(

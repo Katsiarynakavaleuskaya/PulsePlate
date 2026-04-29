@@ -101,6 +101,8 @@
 "home.section.quick_actions" = "Quick actions";
 "home.action.bmi.title" = "BMI Calculator";
 "home.action.bmi.subtitle" = "Update core body metrics";
+"bmi.calculate.cta" = "Calculate";
+"bmi.calculate.loading" = "Loading...";
 "home.action.profile_setup.title" = "Profile Setup";
 "home.action.profile_setup.subtitle" = "Configure PRO profile and language";
 "home.action.open_plate.title" = "Open Plate";

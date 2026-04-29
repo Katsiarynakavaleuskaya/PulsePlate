@@ -117,6 +117,8 @@
 "home.section.quick_actions" = "Быстрые действия";
 "home.action.bmi.title" = "Калькулятор ИМТ";
 "home.action.bmi.subtitle" = "Обновите ключевые показатели тела";
+"bmi.calculate.cta" = "Рассчитать";
+"bmi.calculate.loading" = "Расчет...";
 "home.action.profile_setup.title" = "Настройка профиля";
 "home.action.profile_setup.subtitle" = "Настройте PRO-профиль и язык";
 "home.action.open_plate.title" = "Открыть Plate";
