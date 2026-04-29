@@ -28,6 +28,36 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P0
 
+<a id="ledger-p0-appstore-release-readiness-full-feature"></a>
+- [ ] P0: App Store release readiness closure for full-feature launch
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P0 (App Store submission blocker)
+  - Target PR: PR-TBD-APPSTORE-READINESS-TRAIN (`release/appstore-readiness-*`)
+  - Status: 📋 Planned / PR train bootstrap in progress
+  - Area: iOS / App Store / privacy / release governance
+  - Finding Type: release-truth drift blocker
+  - Reason (EN): The release shell must align iOS runtime, backend reachability, App Privacy, privacy manifest, permission strings, App Store assets, reviewer notes, and CI validators before public App Store submission. The fix is not to delete assets or reduce product scope; the train must preserve assets and classify each public submission surface as `SUBMIT_READY`, `IMPLEMENTATION_REQUIRED`, or `INTERNAL_REVIEW_ONLY`.
+  - Links:
+    - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
+    - `docs/release/APPSTORE_FEATURE_ASSET_MATRIX.md`
+    - `docs/orchestration/APPSTORE_RELEASE_READINESS_TASK_PACKET_2026-04-29.md`
+    - `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
+    - `ios/fastlane/app_privacy_details.json`
+    - `ios/PulsePlate/Services/AppConfig.swift`
+    - `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift`
+    - `ios/PulsePlate/Models/HealthKitManager.swift`
+    - `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json`
+  - DoD:
+    - `ios/PulsePlate/PrivacyInfo.xcprivacy` exists and covers required-reason API use
+    - App Privacy no longer declares `DATA_NOT_COLLECTED` while profile, AI, billing, receipt, activation, or diagnostics data leaves the device
+    - Release `BASE_URL` is explicit HTTPS and fails before submission if missing or invalid
+    - Unused sensitive permission strings are removed from release localization files
+    - App Store screenshot scenarios are classified and blocked from submission unless release-enabled, smoke-tested, privacy-disclosed, and reviewer-note-covered
+    - AppIcon marketing asset validates through the release asset gate
+    - HealthKit remains read-only and Swift 6 clean
+    - AI/CBT free-text flow is gated by explicit wellness-only consent
+    - Reviewer notes, metadata, privacy map, and release validators enforce no drift
+
 <a id="ledger-p0-self-hosted-postgres-droplet-foundation"></a>
 - [x] P0: Self-hosted Postgres Droplet Foundation
   - Owner: @katsiaryna_kavaleuskaya

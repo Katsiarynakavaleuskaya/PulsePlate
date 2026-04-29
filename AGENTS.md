@@ -276,6 +276,19 @@ If diff-cover shows uncovered helpers that have zero call sites → **delete the
 
 - If a new env var becomes required at startup, update `.env.example` + root `docker-compose.yaml` in the same PR.
 
+## App Store release readiness gates
+
+Any iOS release or App Store metadata PR MUST verify:
+
+1. `ios/PulsePlate/PrivacyInfo.xcprivacy` exists and covers required-reason APIs.
+2. `ios/fastlane/app_privacy_details.json` matches actual network data flows.
+3. Release `BASE_URL` is explicit HTTPS; no silent production fallback.
+4. App Store screenshot scenarios are not submitted unless the feature is release-enabled and smoke-tested.
+5. App Store assets are preserved as repo assets, but submission status must be classified as `SUBMIT_READY`, `IMPLEMENTATION_REQUIRED`, or `INTERNAL_REVIEW_ONLY`.
+6. Unused sensitive permission strings are forbidden in release localization files.
+7. AI/CBT/user free-text features require explicit consent and wellness-only disclosure before release.
+8. HealthKit must remain read-only unless a separate reviewed PR changes entitlement posture.
+
 **Rate Limiting Policy:**
 
 **Hard rule:** Expensive endpoints (LLM, exports) MUST be rate-limited AND MUST have deterministic 429 tests.
