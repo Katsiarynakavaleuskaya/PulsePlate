@@ -15,6 +15,8 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`](../architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json)
 - Current PR6 USDA manifest preflight packet:
   [`FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md`](./FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md)
+- Current PR7 Open Food Facts manifest preflight packet:
+  [`FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md`](./FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -26,4 +28,5 @@ current tooling packet for food-data lanes that need non-dated links.
 
 Update this alias when a later accepted packet supersedes the dated PR1
 criteria, PR2 tooling packet, PR3 source catalog, PR4 collision policy, PR5
-source-onboarding gate, or PR6 USDA manifest preflight gate.
+source-onboarding gate, PR6 USDA manifest preflight gate, or PR7 Open Food
+Facts manifest preflight gate.
