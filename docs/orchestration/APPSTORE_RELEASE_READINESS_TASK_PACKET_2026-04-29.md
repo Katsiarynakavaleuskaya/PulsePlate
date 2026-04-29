@@ -19,6 +19,14 @@ Canonical epic:
 - `docs/release/APPSTORE_FEATURE_ASSET_MATRIX.md`
 - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature`
 
+Hard-gate source of truth:
+
+- root `AGENTS.md` section `App Store release readiness gates`
+
+This date-stamped packet is the PR-0 bootstrap packet for the lane. Future
+slices add their own date-stamped packets; the stable entrypoints for the train
+remain the epic, matrix, backlog anchor, and root `AGENTS.md` gate list.
+
 ## Scope
 
 PR-0 is docs/governance only:
@@ -154,9 +162,9 @@ the protected rollout by themselves.
 
 1. Assets are preserved and classified; public submission is gated.
 2. The first runtime blocker is privacy manifest plus App Privacy truth.
-3. The Release backend host must be explicit HTTPS, but the canonical host is a
-   PR-3 operator decision because repo docs still contain both
-   `api.pulseplate.com` and `api.pulseplate.app`.
+3. The Release backend host must be explicit HTTPS. The exact host is tracked in
+   `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md#backend-host-decision-register`
+   and remains a PR-3 operator decision.
 4. Social features are out of scope for this train.
 5. Apple Server API migration and billing rewrite are out of scope.
 6. AI/CBT release requires explicit consent and wellness-only copy.

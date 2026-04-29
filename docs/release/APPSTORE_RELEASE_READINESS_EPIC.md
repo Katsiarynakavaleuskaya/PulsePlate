@@ -44,6 +44,14 @@ implemented feature
 - Keep billing and entitlement truth backend-owned.
 - Keep protected App Store uploads operator-owned and evidence-based.
 
+## Canonical Gate Source
+
+Root `AGENTS.md` section `App Store release readiness gates` is the hard-gate
+source of truth for release readiness checks. This epic, the feature matrix, and
+the orchestration packet are planning mirrors that explain how the train will
+close each gate. When a readiness gate changes, update root `AGENTS.md` first,
+then update this epic, the matrix, and the lane packet in the same PR.
+
 ## Current Repo Truth
 
 - `ios/PulsePlate/PrivacyInfo.xcprivacy` is absent on `main`; the iOS app uses
@@ -90,9 +98,8 @@ implemented feature
    - Branch: `release/appstore-readiness-pr3-base-url`
    - Remove silent production fallback from `AppConfig.baseURL()`.
    - Require explicit HTTPS `BASE_URL` in `Info-Release.plist`.
-   - The production host is an operator decision recorded before this PR lands;
-     current repo signals include both `api.pulseplate.com` and
-     `api.pulseplate.app`.
+   - Resolve the production backend host in the backend-host decision register
+     below before changing runtime configuration.
 
 5. **PR-4: App Store assets governance**
    - Branch: `release/appstore-readiness-pr4-asset-gating`
@@ -137,6 +144,23 @@ implemented feature
 - Apple Server API migration.
 - Figma or brand-system redesign.
 - Billing rewrite.
+
+## Backend Host Decision Register
+
+`canonical_release_base_url` is intentionally unresolved in PR-0. PR-3 owns the
+operator decision and must record the final HTTPS production host before runtime
+fail-fast changes land.
+
+Current repo signals:
+
+- `ios/PulsePlate/Services/AppConfig.swift` falls back to
+  `https://api.pulseplate.com` in Release.
+- `ios/PulsePlate/Info-Release.plist` contains a commented example for
+  `https://api.pulseplate.app`.
+
+PR-3 must choose one canonical host, update `Info-Release.plist`, remove the
+silent fallback, and add release-base-url validation so future documents do not
+carry competing backend hosts.
 
 ## Required Gates
 
