@@ -30,9 +30,10 @@ this artifact was created.
 
 ## Representative Feedback-Budget Evidence
 
-Representative push run `25112546294` on `fix/ci-feature-fast-feedback`:
+Representative push run `25113556297` on `fix/ci-feature-fast-feedback`
+captured before this governance evidence refresh:
 
-- [x] `test-feature (3.13)` settled on current branch head `cf5d77760b5e8328f8e05f996ebd7412a9116876` (PASS, 10m11s)
+- [x] `test-feature (3.13)` settled on implementation head `d9364812cd5e75e71497efee12cd0a5e513d85da` (PASS, 10m22s)
 - [x] `feature-feedback-budget-3.13` artifact present
 - [x] elapsed/target evidence reviewed before deciding whether to open `ledger-p1-ci-install-profile-split-after-disk-unblock`
 
@@ -41,7 +42,7 @@ Budget artifact evidence:
 ```json
 {
   "status": "within_budget",
-  "elapsed_seconds": 598,
+  "elapsed_seconds": 612,
   "target_minutes": 45,
   "python_version": "3.13",
   "contract_risk_groups": "billing_entitlement,insight_ai,openapi_contract,food_catalog,route_contract_safety,merge_governance",
