@@ -9,13 +9,17 @@ Date: 2026-04-29
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Artifact status: PR-open governance artifact exists for the CI feature/fix
-fast-feedback prerequisite lane. No actionable review threads were present when
-this artifact was created.
+Artifact status: PR-open governance artifact for the CI feature/fix
+fast-feedback prerequisite lane. One actionable CodeRabbit review thread was
+fixed after the comment timestamp and is mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164706825 -> 565d84c00f2f97a65ad0026853b7d8d121388749
+
+Disposition: FIXED
+Commit: 565d84c00f2f97a65ad0026853b7d8d121388749
+Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed as `timing_unavailable` with `elapsed_seconds=-1` instead of falling back to `date +%s`; `tests/test_ci_workflow_pr_size_governance_contract.py:188` asserts the explicit missing-seed warning and forbids the legacy fallback.
 
 ## Initial Evidence
 
@@ -30,10 +34,10 @@ this artifact was created.
 
 ## Representative Feedback-Budget Evidence
 
-Representative push run `25113556297` on `fix/ci-feature-fast-feedback`
+Representative push run `25138247476` on `fix/ci-feature-fast-feedback`
 captured before this governance evidence refresh:
 
-- [x] `test-feature (3.13)` settled on implementation head `d9364812cd5e75e71497efee12cd0a5e513d85da` (PASS, 10m22s)
+- [x] `test-feature (3.13)` settled on implementation head `15f78c0ad9bbe43792a4a11bd5c64017f6a54b8a` (PASS, 9m59s)
 - [x] `feature-feedback-budget-3.13` artifact present
 - [x] elapsed/target evidence reviewed before deciding whether to open `ledger-p1-ci-install-profile-split-after-disk-unblock`
 
@@ -42,7 +46,7 @@ Budget artifact evidence:
 ```json
 {
   "status": "within_budget",
-  "elapsed_seconds": 612,
+  "elapsed_seconds": 587,
   "target_minutes": 45,
   "python_version": "3.13",
   "contract_risk_groups": "billing_entitlement,insight_ai,openapi_contract,food_catalog,route_contract_safety,merge_governance",
@@ -69,10 +73,9 @@ parity and strict merge-readiness wrappers.
 
 ## Merge Readiness
 
-- [ ] CI green on current head
-- [ ] No unresolved actionable review threads
-- [ ] CodeRabbit/Sourcery/Cubic statuses reviewed and mapped
-- [ ] Fixed-mapping artifact and PR body are mirror-aligned
+- [ ] CI green on current head after review-fix push
+- [x] CodeRabbit actionable mapped as FIXED; Sourcery/Cubic statuses reviewed as no actionable repo change
+- [x] Fixed-mapping artifact and PR body are mirror-aligned for the known actionable
 - [ ] `check_review_threads_disposition.py --require-auth` PASS
 - [ ] `check_pr_merge_readiness.py` PASS
 - [ ] `check_merge_ready.py --require-auth` PASS
