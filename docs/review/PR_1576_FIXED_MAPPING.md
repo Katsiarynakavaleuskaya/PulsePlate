@@ -15,6 +15,10 @@ Date: 2026-04-29
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162190364 -> 164959779
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4198416972 -> 164959779
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162202726 -> 164959779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4198438962 -> cb7f924ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223716 -> cb7f924ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223768 -> cb7f924ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223775 -> 164959779
 
 Disposition: FIXED
 Commit: 164959779
@@ -23,6 +27,10 @@ Evidence: `frontend/scripts/check-tailwind-utilities.mjs` now uses `fileURLToPat
 Disposition: FIXED
 Commit: 164959779
 Evidence: `scripts/diagnose_web.sh` now probes root HTML and `/assets/*.css` with `--no-access-headers`, preserving anonymous public CSS validation even when private Cloudflare Access service-token env vars are present; `tests/test_deploy_contract_scripts.py` asserts CSS probes do not receive `CF-Access-Client-*` headers.
+
+Disposition: FIXED
+Commit: cb7f924ae
+Evidence: `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md` now states the public bypass is limited to `GET` and `HEAD` only; `docs/review/PR_1576_FIXED_MAPPING.md` now uses portable evidence commands instead of machine-specific absolute paths.
 
 ## Implementation Evidence
 
