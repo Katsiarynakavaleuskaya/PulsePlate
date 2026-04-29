@@ -55,7 +55,7 @@ of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#discussion_r3164251798 -> a7e8f24d6
 
 Disposition: FIXED
-Commit: `a7e8f24d6`
+Commit: a7e8f24d6
 Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided, uses an explicit retry handler, and avoids duplicate live-region attributes for `role="alert"`; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics, container-scoped skeleton queries, and callback execution for built-in `Start Tracking` and `Retry` actions; this artifact includes `## Merge Readiness`.
 
 ## Merge Readiness
