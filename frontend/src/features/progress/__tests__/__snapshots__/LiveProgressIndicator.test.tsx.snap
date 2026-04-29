@@ -15,8 +15,13 @@ exports[`LiveProgressIndicator > renders live status and tracks click with enric
     >
       <span
         aria-hidden="true"
-        class="h-2.5 w-2.5 rounded-full bg-[var(--color-success)] animate-pulse"
+        class="h-2.5 w-2.5 rounded-full bg-[var(--color-success)] motion-safe:animate-pulse"
       />
+      <span
+        class="sr-only"
+      >
+        Live status
+      </span>
       <p
         class="text-sm font-medium text-[var(--color-text)]"
       >
@@ -37,7 +42,7 @@ exports[`LiveProgressIndicator > renders live status and tracks click with enric
   </p>
   <div>
     <a
-      class="rounded-xl font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-95 hover:shadow-md min-h-[44px] px-6 py-3 text-sm  inline-flex rounded-lg px-5 py-2.5"
+      class="rounded-xl font-semibold transition-all active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:cursor-not-allowed disabled:opacity-60 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-95 hover:shadow-md min-h-[44px] px-6 py-3 text-sm  inline-flex rounded-lg px-5 py-2.5"
       data-discover="true"
       href="/setup"
     >
@@ -64,6 +69,11 @@ exports[`LiveProgressIndicator > renders static fallback and tracks impressions 
         aria-hidden="true"
         class="h-2.5 w-2.5 rounded-full bg-[var(--color-warning)]"
       />
+      <span
+        class="sr-only"
+      >
+        Pending status
+      </span>
       <p
         class="text-sm font-medium text-[var(--color-text)]"
       >
@@ -78,7 +88,7 @@ exports[`LiveProgressIndicator > renders static fallback and tracks impressions 
   </p>
   <div>
     <a
-      class="rounded-xl font-semibold transition-all active:scale-95 disabled:cursor-not-allowed disabled:opacity-60 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-95 hover:shadow-md min-h-[44px] px-6 py-3 text-sm  inline-flex rounded-lg px-4 py-2"
+      class="rounded-xl font-semibold transition-all active:scale-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-primary)] motion-reduce:transition-none motion-reduce:active:scale-100 disabled:cursor-not-allowed disabled:opacity-60 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:opacity-95 hover:shadow-md min-h-[44px] px-6 py-3 text-sm  inline-flex rounded-lg px-4 py-2"
       data-discover="true"
       href="/progress"
     >
