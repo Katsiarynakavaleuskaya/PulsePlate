@@ -62,6 +62,8 @@ export function NoProgressData({ onStartTracking }: { onStartTracking?: () => vo
 }
 
 export function NoChartsAvailable({ onRetry }: { onRetry?: () => void }) {
+  const handleRetry = onRetry ?? (() => window.location.reload());
+
   return (
     <EmptyState
       icon={BarChart3}
@@ -69,7 +71,7 @@ export function NoChartsAvailable({ onRetry }: { onRetry?: () => void }) {
       description="Unable to load progress charts at the moment. Please try again later."
       state="error"
       action={
-        <Button variant="secondary" onClick={onRetry ?? (() => window.location.reload())}>
+        <Button variant="secondary" onClick={handleRetry}>
           Retry
         </Button>
       }

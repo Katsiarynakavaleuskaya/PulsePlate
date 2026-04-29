@@ -61,6 +61,20 @@ describe('EmptyState', () => {
     expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
   });
 
+  it('uses polite status semantics for loading state', () => {
+    render(
+      <EmptyState
+        state="loading"
+        title="Loading"
+        description="Please wait"
+      />
+    );
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('data-state', 'loading');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
   it('has correct CSS classes', () => {
     render(
       <EmptyState
