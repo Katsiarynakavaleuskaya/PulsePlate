@@ -30,11 +30,24 @@ this artifact was created.
 
 ## Representative Feedback-Budget Evidence
 
-Pending first GitHub push run on `fix/ci-feature-fast-feedback`:
+Representative push run `25112546294` on `fix/ci-feature-fast-feedback`:
 
-- [ ] `test-feature` settled on current branch head
-- [ ] `feature-feedback-budget-3.13` artifact present or explicit reason documented
-- [ ] elapsed/target evidence reviewed before deciding whether to open `ledger-p1-ci-install-profile-split-after-disk-unblock`
+- [x] `test-feature (3.13)` settled on current branch head `cf5d77760b5e8328f8e05f996ebd7412a9116876` (PASS, 10m11s)
+- [x] `feature-feedback-budget-3.13` artifact present
+- [x] elapsed/target evidence reviewed before deciding whether to open `ledger-p1-ci-install-profile-split-after-disk-unblock`
+
+Budget artifact evidence:
+
+```json
+{
+  "status": "within_budget",
+  "elapsed_seconds": 598,
+  "target_minutes": 45,
+  "python_version": "3.13",
+  "contract_risk_groups": "billing_entitlement,insight_ai,openapi_contract,food_catalog,route_contract_safety,merge_governance",
+  "run_backend_blocking": "true"
+}
+```
 
 ## Machine-Heavy Local Gate Deferral
 
