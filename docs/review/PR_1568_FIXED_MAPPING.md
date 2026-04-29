@@ -21,7 +21,7 @@ threads on GitHub.
 
 ## Initial Implementation Commits
 
-- `dc4434440` - `docs(roadmap): close Karpathy advisory wiki umbrella`
+- `dc443444044bc7ea0b935981c9f68d0804b0af11` - `docs(roadmap): close Karpathy advisory wiki umbrella`
 
 ## Merge Readiness
 
