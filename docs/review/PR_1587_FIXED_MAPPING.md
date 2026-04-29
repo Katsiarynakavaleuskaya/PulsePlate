@@ -44,6 +44,21 @@ Disposition: FIXED
 Commit: 1724dc5f4707efbed9c1531695d5bc5e7cb7b1e1
 Evidence: CodeRabbit summary actionables are covered by the individual review-thread mappings above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#discussion_r3164724764 -> 41185a248
+Disposition: FIXED
+Commit: 41185a248
+Evidence: `docs/release/RELEASE_CONTROL_PLANE_EPIC.md` release packet contract cites task-packet file:line anchors for source-of-truth, identity groups, and hash/digest format.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#discussion_r3164724768 -> 41185a248
+Disposition: FIXED
+Commit: 41185a248
+Evidence: `docs/release/RELEASE_CONTROL_PLANE_EPIC.md` security notes cite task-packet, App Store secret-placement, KPP, RAG artifact, and Docker provenance verifier file:line anchors.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1587#pullrequestreview-4201361440 -> 41185a248
+Disposition: FIXED
+Commit: 41185a248
+Evidence: CodeRabbit summary actionables are covered by the individual review-thread mappings above.
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
