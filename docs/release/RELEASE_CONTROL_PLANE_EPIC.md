@@ -40,19 +40,27 @@ The canonical source of truth for the PR train and field-level release packet
 contract is
 [`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`](../orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md).
 This epic summarizes that packet and must not redefine the train or field
-format independently.
+format independently. Normative anchors: PR train source of truth
+`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:94-106`,
+release packet identity groups
+`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:108-117`,
+and hash/digest formats
+`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:119-127`.
 
 | Group | Fields | Purpose |
 | --- | --- | --- |
-| Build identity | `git_sha`, `ios_build_number`, `marketing_version`, `bundle_id` | Pins the source and iOS build under review |
-| Reviewer identity | `reviewer_notes_hash`, `appstore_metadata_hash`, attachments hash | Prevents drift between reviewer packet and submitted metadata |
-| ML identity | `rag_gate_result_hash`, `eval_artifact_hash`, optional `mlflow_run_id`, optional `model_version` | Links shipped AI behavior to evaluated release-gate evidence |
-| Supply-chain identity | `sbom_digest`, `provenance_digest`, `attestation_status` | Links release candidate to signed artifact evidence |
-| Decision | `ALLOW` or `BLOCK` plus reasons | Gives one final release-control verdict |
+| Build identity | `git_sha`, `ios_build_number`, `marketing_version`, `bundle_id` | Pins the source and iOS build under review; task-packet anchor `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:113` |
+| Reviewer identity | `reviewer_notes_hash`, `appstore_metadata_hash`, attachments hash | Prevents drift between reviewer packet and submitted metadata; task-packet anchor `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:114` |
+| ML identity | `rag_gate_result_hash`, `eval_artifact_hash`, optional `mlflow_run_id`, optional `model_version` | Links shipped AI behavior to evaluated release-gate evidence; task-packet anchor `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:115` |
+| Supply-chain identity | `sbom_digest`, `provenance_digest`, `attestation_status` | Links release candidate to signed artifact evidence; task-packet anchor `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:116` |
+| Decision | `ALLOW` or `BLOCK` plus reasons | Gives one final release-control verdict; task-packet anchor `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:117` |
 
 `*_hash` fields use SHA-256 over canonical UTF-8 bytes and are encoded as
-lowercase hexadecimal. `*_digest` fields preserve upstream artifact digest
-format when one exists, for example OCI `sha256:<hex>` digests.
+lowercase hexadecimal
+(`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:121-122`).
+`*_digest` fields preserve upstream artifact digest format when one exists, for
+example OCI `sha256:<hex>` digests
+(`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:123-127`).
 
 The packet is internal policy. It is not a substitute for Apple review details,
 App Store Connect protected uploads, PR merge-readiness checks, or external bot
@@ -112,12 +120,29 @@ Out of scope:
 ## Security Notes
 
 - Release decisions must fail closed on missing evidence, stale hashes, or
-  digest mismatch.
+  digest mismatch. Enforcement contracts: release manifest validator in PR-3
+  and CI decision integration in PR-5
+  (`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:104-106`),
+  minimum slice gates
+  (`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:166-188`),
+  and stop condition for unsafe release evidence
+  (`docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:198-206`).
 - Secrets, App Store credentials, signing keys, and reviewer credentials must
-  stay in protected environments, never in release packet files.
-- RAG gate outputs are evidence artifacts, not canonical knowledge promotion.
+  stay in protected environments, never in release packet files. Enforcement
+  anchors: protected App Store secret placement
+  `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md:38-40` and release-control
+  stop condition
+  `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:205`.
+- RAG gate outputs are evidence artifacts, not canonical knowledge promotion;
+  repo-level KPP keeps repo artifacts as source of truth (`AGENTS.md:487-493`),
+  while the RAG lane keeps eval outputs in gitignored artifacts
+  (`docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md:267-276`).
 - Supply-chain attestations must be verified by exact digest before deploy
-  claims, reusing the existing Docker provenance controls.
+  claims, reusing the existing Docker provenance controls. Verifier anchors:
+  exact OCI artifact URI construction
+  `scripts/ci/check_docker_provenance_attestation.py:51-60` and
+  provenance/SBOM attestation verification
+  `scripts/ci/check_docker_provenance_attestation.py:214-262`.
 
 ## Marketing And GTM
 
