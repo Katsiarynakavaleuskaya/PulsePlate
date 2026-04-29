@@ -12,8 +12,8 @@ export function Skeleton({ ariaLabel, className, ...props }: SkeletonProps) {
 
   return (
     <div
-      {...statusProps}
       {...props}
+      {...statusProps}
       className={cn(
         "motion-safe:animate-pulse rounded-md bg-gray-300 dark:bg-gray-700",
         className

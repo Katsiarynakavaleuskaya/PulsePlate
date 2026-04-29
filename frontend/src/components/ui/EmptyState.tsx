@@ -53,9 +53,9 @@ export function NoProgressData({ onStartTracking }: { onStartTracking?: () => vo
       title="No progress data yet"
       description="Start tracking your health journey to see charts and insights here."
       action={
-        <Button onClick={onStartTracking}>
-          Start Tracking
-        </Button>
+        onStartTracking ? (
+          <Button onClick={onStartTracking}>Start Tracking</Button>
+        ) : undefined
       }
     />
   );

@@ -28,6 +28,13 @@ describe('Skeleton Components', () => {
       expect(skeleton).toHaveAttribute('aria-live', 'polite');
       expect(skeleton).not.toHaveAttribute('aria-hidden');
     });
+
+    it('preserves governed semantics when consumer props conflict', () => {
+      render(<Skeleton ariaLabel="Loading dashboard" role="presentation" aria-live="off" />);
+
+      const skeleton = screen.getByRole('status', { name: 'Loading dashboard' });
+      expect(skeleton).toHaveAttribute('aria-live', 'polite');
+    });
   });
 
   describe('ChartSkeleton', () => {

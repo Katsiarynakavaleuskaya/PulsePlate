@@ -44,3 +44,11 @@ at artifact creation time. New actionables must be added below with one of:
 ## Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Merge Readiness
+
+- [ ] No unresolved review threads
+- [ ] Required checks PASS on the PR current head
+- [ ] Current-head `main` CI PASS
+- [ ] Strict merge wrapper PASS
+- [ ] Required wait window observed

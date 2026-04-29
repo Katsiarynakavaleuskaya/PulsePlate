@@ -9,7 +9,9 @@ describe('ProgressIndicator', () => {
 
     const liveLabel = screen.getByText('Live status');
     expect(liveLabel).toHaveClass('sr-only');
-    expect(liveLabel.previousSibling).toHaveClass('motion-safe:animate-pulse');
+    const liveDot = liveLabel.previousElementSibling as HTMLElement | null;
+    expect(liveDot).not.toBeNull();
+    expect(liveDot).toHaveClass('motion-safe:animate-pulse');
   });
 
   it('exposes non-color-only warning semantics', () => {

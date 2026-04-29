@@ -94,6 +94,12 @@ describe('EmptyState', () => {
     expect(action).toHaveClass('bg-[var(--color-primary)]', 'min-h-[44px]');
   });
 
+  it('does not render a no-op start action without a handler', () => {
+    render(<NoProgressData />);
+
+    expect(screen.queryByRole('button', { name: 'Start Tracking' })).not.toBeInTheDocument();
+  });
+
   it('renders built-in retry action through governed secondary Button', () => {
     render(<NoChartsAvailable onRetry={() => undefined} />);
 

@@ -24,7 +24,7 @@ product screen migrations require a separate handoff or supersede record.
 
 ## Reduced Motion
 
-- Decorative web motion must be guarded by reduced-motion aware classes.
+- Decorative web motion must be guarded by reduced-motion-aware classes.
 - iOS primitive press and focus animations must resolve to no animation when
   `accessibilityReduceMotion` is enabled.
 - Disabling motion must not change layout, routing, or data behavior.
