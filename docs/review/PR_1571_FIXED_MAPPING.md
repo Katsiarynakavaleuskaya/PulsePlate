@@ -21,6 +21,15 @@ Evidence: `tests/test_deploy_contract_scripts.py:56`; `deploy/PRODUCTION.md:203`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161091192 -> 238220252
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161091670 -> 238220252
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161091680 -> 238220252
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#pullrequestreview-4197069072 -> 238220252
+
+Disposition: FIXED
+Commit: dbe40dda7
+Evidence: `docs/review/PR_1571_FIXED_MAPPING.md:42`; `docs/roadmap/BACKLOG_LEDGER.md:573`; `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/review/PR_1571_FIXED_MAPPING.md` (PASS); `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1571` (PASS)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161127036 -> dbe40dda7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161127049 -> dbe40dda7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#pullrequestreview-4197109264 -> dbe40dda7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#pullrequestreview-4197166797 -> dbe40dda7
 
 ## Initial Evidence
 
