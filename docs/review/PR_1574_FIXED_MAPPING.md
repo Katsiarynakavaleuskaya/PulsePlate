@@ -50,6 +50,7 @@ Disposition: FIXED
 Commit: cb576be51
 Evidence: tests/test_local_session_bootstrap.py
 Reason: Added no-preflight assertions to the missing goal/class and invalid phase fail-closed tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4199288265 -> cb576be51
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3162941118 -> cb576be51
 
 ## Review Notes
