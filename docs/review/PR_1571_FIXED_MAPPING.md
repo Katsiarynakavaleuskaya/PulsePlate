@@ -39,7 +39,7 @@ Evidence: `tests/test_deploy_contract_scripts.py:56`; `deploy/PRODUCTION.md:203`
 Full local `make verify` was not run for this coordinator-owned Docker/deploy
 governance PR. The operator approved using narrow local gates plus current-head
 GitHub CI as the machine-heavy signal. Merge readiness still requires
-current-head required-CI parity and strict merge-readiness wrappers.
+current-head required CI parity and strict merge-readiness wrappers.
 
 ## Deferred / Follow-ups
 
