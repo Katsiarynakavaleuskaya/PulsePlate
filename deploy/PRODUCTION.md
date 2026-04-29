@@ -53,7 +53,9 @@ Canonical recovery order:
 3. Re-sync the production shell bundle from the same merged commit / release bundle:
    - `deploy/Caddyfile.production`
    - `deploy/docker-compose.production.yaml`
-   - sibling `frontend/` build context on the host (typically `/srv/frontend`)
+   - sibling `frontend/` shell bundle on the host (typically `/srv/frontend`),
+     staged only from production CD, a CI-produced release bundle, or merged
+     canonical truth
 4. Pull the new production app image, run `alembic upgrade head`, rebuild Caddy,
    and restart the stack from the synced shell bundle.
 5. Re-run `BASE_URL=https://$PRODUCTION_DOMAIN bash scripts/diagnose_web.sh`.
@@ -193,10 +195,18 @@ It now also terminates `www.<domain>` and permanently redirects it to the apex p
 
 **To stage it manually from merged release truth:**
 
-1. On a local merged checkout or from an unpacked CI-produced release bundle,
-   sync the release shell bundle to the production host:
+Manual staging is a bootstrap/emergency path only. The canonical production CD
+path already stages the same release bundle before `scripts/deploy_production.sh`
+runs. Do not stage `deploy/` or `frontend/` from a dirty or unmerged local
+checkout.
+
+1. Sync the release shell bundle to the production host from one trusted source:
+   a local merged checkout or an unpacked CI-produced release bundle. When using
+   a CI bundle, start from the unpacked bundle root and skip the `git` commands
+   below because the release provenance already comes from CI.
 
    ```bash
+   # For a local checkout only; skip when already inside a CI-produced release bundle.
    git fetch origin main
    git switch --detach origin/main
    scp deploy/Caddyfile.production ubuntu@your-host:/srv/pulseplate-production/
@@ -209,7 +219,7 @@ It now also terminates `www.<domain>` and permanently redirects it to the apex p
 
    GitHub Actions production deploy already stages this bundle before
    `scripts/deploy_production.sh` runs. Manual copy is for bootstrap or
-   emergency recovery from merged release truth.
+   emergency recovery from merged release truth only.
 
 2. On the production server, ensure the file is readable by Docker (mode 644 or similar):
 

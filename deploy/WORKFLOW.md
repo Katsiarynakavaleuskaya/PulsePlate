@@ -77,6 +77,8 @@ git push origin main
 **Что делаем:**
 - ✅ `docker pull` нового образа
 - ✅ one-shot migrations через release image до рестарта приложения
+- ✅ rebuild Caddy только из shell bundle, пришедшего из того же production CD run,
+  CI-produced release bundle или merged canonical checkout
 - ✅ `docker compose up -d --force-recreate` (или `docker run`)
 - ✅ Проверка health endpoint
 
@@ -84,6 +86,7 @@ git push origin main
 - ❌ Правка кода на сервере
 - ❌ `git clone` или `git pull` на сервере
 - ❌ Изменение файлов приложения (кроме `.env` и конфигов)
+- ❌ `rsync frontend/` или `deploy/` с dirty/unmerged локального checkout
 
 **Пример:**
 
@@ -206,11 +209,14 @@ tree** (`origin/main` / release commit) или из CI-produced release bundle.
 Нельзя копировать `deploy/` и `frontend/` с произвольного локального dirty checkout.
 
 ```bash
-# Локально: перейти на merged canonical tree
+# Локально: перейти на merged canonical tree.
+# Если recovery идёт из unpacked CI-produced release bundle, эти git-команды
+# пропустить и выполнять sync из корня распакованного bundle.
 git fetch origin main
 git switch --detach origin/main
 
-# С этого checkout синхронизировать production shell bundle на сервер
+# С этого checkout синхронизировать production shell bundle на сервер.
+# Это emergency/manual path; обычный deploy должен получать bundle из CI/CD.
 scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
 scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
 rsync -az --delete frontend/ ubuntu@64.226.117.163:/srv/frontend/
@@ -321,8 +327,11 @@ bash scripts/diagnose_web.sh
    ```bash
    # ✅ ПРАВИЛЬНО
    # Сначала: merge PR с нужным изменением в deploy/Caddyfile.production
+   # Если используете CI-produced release bundle, начинайте из распакованного
+   # bundle root и пропустите git fetch/switch ниже.
    git fetch origin main
    git switch --detach origin/main
+   # Затем синхронизировать только этот merged/release checkout, не рабочий dirty tree.
    ssh ubuntu@64.226.117.163 'mkdir -p /srv/pulseplate-production/scripts'
    scp deploy/Caddyfile.production ubuntu@64.226.117.163:/srv/pulseplate-production/Caddyfile.production
    scp deploy/docker-compose.production.yaml ubuntu@64.226.117.163:/srv/pulseplate-production/docker-compose.production.yaml
