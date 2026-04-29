@@ -38,7 +38,12 @@
 ## Mandatory QA And Bug-Hunter Pass
 
 - `qa-engineer-agent`: BLOCKING on first pass; fixed in this mapping update.
-- `bug-hunter`: Pending post-open pass.
+- `bug-hunter`: PASS
+  - Reviewed head: `aec4cb3eb3a4dc7b2c30d51967cfa2be78956881`
+  - Evidence: no blocking Swift/UI regression found; Welcome localization and
+    accessibility are preserved, token contrast is consistent with generated
+    white text tokens, Launch uses existing tokens, BMI remains thin-client
+    with DTO/paywall routing intact, and RootTabs only changes shell tint.
 
 ## Validation Evidence
 
@@ -76,7 +81,7 @@
 
 Pending:
 
-- current-head GitHub CI on PR head `afacfc4411ab4b14196b5fcd8e33680f5956c941`
+- current-head GitHub CI on PR head `aec4cb3eb3a4dc7b2c30d51967cfa2be78956881`
 - CodeRabbit/Sourcery/Cubic/human review disposition pass
 - mandatory `qa-engineer-agent -> bug-hunter` pass
 - PR body mirror update after review dispositions
