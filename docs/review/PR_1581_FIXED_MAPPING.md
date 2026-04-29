@@ -44,11 +44,16 @@ of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#issuecomment-4347346486 -> 63006f30b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#discussion_r3163753147 -> 63006f30b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#discussion_r3163753152 -> 63006f30b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200233929 -> 63006f30b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200620769 -> 9be23bc8c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#discussion_r3164028059 -> 03ea929c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200740579 -> 03ea929c1
 
 Disposition: FIXED
-Commit: `63006f30b`, `9be23bc8c`
-Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided and uses an explicit retry handler; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics; this artifact includes `## Merge Readiness`.
+Commit: `63006f30b`, `9be23bc8c`, `03ea929c1`
+Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided, uses an explicit retry handler, and avoids duplicate live-region attributes for `role="alert"`; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics; `frontend/src/components/ui/__tests__/Skeleton.test.tsx` uses container-scoped skeleton queries; this artifact includes `## Merge Readiness`.
 
 ## Merge Readiness
 
