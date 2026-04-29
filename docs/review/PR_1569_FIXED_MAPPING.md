@@ -9,13 +9,15 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
-- Status: Draft PR opened; CodeRabbit/Sourcery/Cubic/human review pass pending.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- Status: Draft PR opened; CodeRabbit skipped draft review, Sourcery guide is
+  non-actionable, Codecov reported modified coverable lines covered, and no
+  human actionable review threads have been filed.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads have been filed at mapping creation time.
+- No actionable review comments
 
 ## Manual Review Substitute
 
@@ -35,7 +37,7 @@ No actionable review threads have been filed at mapping creation time.
 
 ## Mandatory QA And Bug-Hunter Pass
 
-- `qa-engineer-agent`: Pending post-open pass.
+- `qa-engineer-agent`: BLOCKING on first pass; fixed in this mapping update.
 - `bug-hunter`: Pending post-open pass.
 
 ## Validation Evidence
@@ -74,7 +76,7 @@ No actionable review threads have been filed at mapping creation time.
 
 Pending:
 
-- current-head GitHub CI on PR head `308498f6e3493632006251ed32e3a283020a98ba`
+- current-head GitHub CI on PR head `afacfc4411ab4b14196b5fcd8e33680f5956c941`
 - CodeRabbit/Sourcery/Cubic/human review disposition pass
 - mandatory `qa-engineer-agent -> bug-hunter` pass
 - PR body mirror update after review dispositions
