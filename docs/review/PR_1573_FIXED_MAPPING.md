@@ -21,6 +21,12 @@ Disposition: FIXED
 Commit: 565d84c00f2f97a65ad0026853b7d8d121388749
 Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed as `timing_unavailable` with `elapsed_seconds=-1` instead of falling back to `date +%s`; `tests/test_ci_workflow_pr_size_governance_contract.py:188` asserts the explicit missing-seed warning and forbids the legacy fallback.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164765312 -> 1a70c43ed5b0a3679c3b0a34da1167bbc6ebfb3d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> 1a70c43ed5b0a3679c3b0a34da1167bbc6ebfb3d
+Disposition: FIXED
+Commit: 1a70c43ed5b0a3679c3b0a34da1167bbc6ebfb3d
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:76` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
