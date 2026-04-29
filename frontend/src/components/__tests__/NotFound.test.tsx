@@ -78,7 +78,7 @@ describe("NotFound", () => {
     // Test Go Home button navigation
     expect(locationElement).toHaveTextContent("/some-page");
     fireEvent.click(goHomeButton);
-    expect(locationElement).toHaveTextContent("/");
+    expect(locationElement).toHaveTextContent("/app");
 
     // Explicitly restore the spy for clarity and maintainability
     mockBack.mockRestore();
