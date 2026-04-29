@@ -29,6 +29,13 @@ Evidence: docs/review/PR_1568_FIXED_MAPPING.md:40; docs/roadmap/BACKLOG_LEDGER.m
 Reason: The implementation commit is now listed with its full hash and the ledger closeout note is shortened while retaining auditable approval metadata.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#pullrequestreview-4193041176 -> 6fcb04e30
 
+Disposition: FIXED
+Commit: 68c834cd6
+Evidence: docs/roadmap/BACKLOG_LEDGER.md:3434
+Reason: The B1 ledger Links block now includes the canonical PR #1568 fixed-mapping artifact used as this closeout proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#pullrequestreview-4196778697 -> 68c834cd6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1568#discussion_r3160848088 -> 68c834cd6
+
 ## Review Notes
 
 No actionable human or bot review comments are present at artifact creation.
@@ -39,6 +46,8 @@ threads on GitHub.
 
 - `dc443444044bc7ea0b935981c9f68d0804b0af11` - `docs(roadmap): close Karpathy advisory wiki umbrella`
 - `6fcb04e30` - `docs(roadmap): document b1 closeout approval`
+- `aa74ef82d` - `docs(review): map pr1568 bot feedback`
+- `68c834cd6` - `docs(roadmap): link pr1568 closeout mapping`
 
 ## Merge Readiness
 
