@@ -185,6 +185,10 @@ def test_feature_push_fast_feedback_budget_is_warning_only_evidence() -> None:
 
     assert "Feature/fix fast-feedback exceeded" in test_feature_section
     assert "::warning::Feature/fix fast-feedback exceeded" in test_feature_section
+    assert "Fast-feedback timing seed is missing" in test_feature_section
+    assert 'status="timing_unavailable"' in test_feature_section
+    assert "elapsed_seconds=-1" in test_feature_section
+    assert "FEATURE_FEEDBACK_STARTED_AT:-$(date +%s)" not in test_feature_section
     assert "feature-feedback-budget.json" in test_feature_section
     assert "feature-feedback-budget-${{ env.COVERAGE_PY }}" in test_feature_section
     assert "if-no-files-found: error" in test_feature_section
