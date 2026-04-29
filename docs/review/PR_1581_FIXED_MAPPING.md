@@ -18,6 +18,7 @@ Evidence:
 - `pytest -q tests/test_repo_policy_guards.py` PASS
 - `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json` PASS
 - `cd frontend && npm test -- --run src/components/ui/__tests__/Button.test.tsx src/components/ui/__tests__/Skeleton.test.tsx src/components/ui/__tests__/EmptyState.test.tsx src/components/ui/__tests__/ProgressIndicator.test.tsx` PASS, 26 tests
+- `cd frontend && npm test -- --run src/components/ui/__tests__/EmptyState.test.tsx` PASS, 10 tests
 - `cd frontend && npm run build` PASS
 - `make ios-test IOS_DESTINATION='platform=iOS Simulator,id=3DA1887F-A91D-4D32-A49F-C96D82F7C4B6'` PASS, 90 tests
 - `pre-commit run --all-files` PASS
@@ -50,10 +51,11 @@ of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200620769 -> 9be23bc8c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#discussion_r3164028059 -> 03ea929c1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200740579 -> 03ea929c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#discussion_r3164251798 -> a7e8f24d6
 
 Disposition: FIXED
-Commit: `63006f30b`, `9be23bc8c`, `03ea929c1`
-Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided, uses an explicit retry handler, and avoids duplicate live-region attributes for `role="alert"`; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics; `frontend/src/components/ui/__tests__/Skeleton.test.tsx` uses container-scoped skeleton queries; this artifact includes `## Merge Readiness`.
+Commit: `63006f30b`, `9be23bc8c`, `03ea929c1`, `a7e8f24d6`
+Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided, uses an explicit retry handler, and avoids duplicate live-region attributes for `role="alert"`; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics, container-scoped skeleton queries, and callback execution for built-in `Start Tracking` and `Retry` actions; this artifact includes `## Merge Readiness`.
 
 ## Merge Readiness
 
