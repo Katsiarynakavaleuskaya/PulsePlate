@@ -7,6 +7,7 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 import pytest
 
+from app import get_api_key as _APP_GET_API_KEY
 from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
@@ -19,15 +20,7 @@ def _is_app_get_api_key_dependency(dependency: Callable[..., object]) -> bool:
     if getattr(dependency, "__name__", None) == "get_api_key":
         return True
 
-    try:
-        import app as app_module
-
-        if dependency is getattr(app_module, "get_api_key", None):
-            return True
-    except Exception:
-        return False
-
-    return False
+    return dependency is _APP_GET_API_KEY
 
 
 def _pop_app_get_api_key_overrides(app: FastAPI) -> list[DependencyOverride]:
