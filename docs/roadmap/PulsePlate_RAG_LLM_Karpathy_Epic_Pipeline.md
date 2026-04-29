@@ -562,6 +562,13 @@ or plugin/control-plane ownership.
 #### Goal
 Ensure session start reliably runs preflight + bootstrap before relying on compiled memory.
 
+#### Packet
+`docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md`
+
+#### Boundary
+Repo-side bridge hardening only: no host auto-start claim, no advisory wiki compiler, and no
+product runtime or semantic-cache scope.
+
 ---
 
 ## PR-B1 — advisory wiki compiler v1

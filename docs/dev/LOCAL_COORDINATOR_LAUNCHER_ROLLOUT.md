@@ -14,7 +14,7 @@ developers or CI. Repository markdown and templates do not auto-start sessions o
 
 **Related SoT:** [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](../orchestration/AUTOMATION_READINESS_MATRIX.md),
 [`scripts/orchestration/local_session_bootstrap.sh`](../../scripts/orchestration/local_session_bootstrap.sh)
-(repo bridge; prints bootstrap recipe only).
+(repo bridge; runs analyze preflight and prints the selected bootstrap recipe only).
 
 **Governance boundary:** This launcher can invoke canonical coordinator packets on an opted-in
 machine. It does **not** bypass review-thread, required-check, or merge-readiness rules from root
@@ -47,7 +47,7 @@ into the repository.
 Run from any directory inside the repo (so `git rev-parse --show-toplevel` resolves), or set
 `PULSEPLATE_REPO_ROOT` to the clone root and run from elsewhere.
 
-Required flags: `--goal`, `--task-class`.
+Required flags for the host wrapper: `--goal`, `--task-class`.
 
 Optional: `--pr-phase`, repeatable `--path`, repeatable `--requested-agent`.
 
@@ -79,6 +79,23 @@ Run these **before** opening the docs companion PR (or re-run after template cha
 ```
 
 Expect: preflight exit 0, bootstrap writes task packet under gitignored `artifacts/orchestration/task_packets/`.
+
+## Repo bridge smoke
+
+The repo helper is intentionally weaker than the installed host wrapper: it does not execute
+`task_bootstrap.py`, but it can validate the selected options and print the exact command to run.
+
+```bash
+scripts/orchestration/local_session_bootstrap.sh \
+  --goal "Close machine-local launcher gap for coordinator-first startup" \
+  --task-class "pr_governance" \
+  --path docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md \
+  --pr-phase pre_open
+```
+
+Expect: analyze preflight exit 0, no task packet creation from the helper itself, and a printed
+`python3 .../scripts/orchestration/task_bootstrap.py` command that includes the same `--path` and
+`--pr-phase` values. Use `--help` to inspect the local bridge contract without running preflight.
 
 ### Smoke 2
 
