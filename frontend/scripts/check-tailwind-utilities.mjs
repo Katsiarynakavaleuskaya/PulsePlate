@@ -1,18 +1,20 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
-const cssDirectory = new URL("../dist/assets/", import.meta.url);
+const cssDirectoryUrl = new URL("../dist/assets/", import.meta.url);
+const cssDirectoryPath = fileURLToPath(cssDirectoryUrl);
 const requiredSelectors = [".grid", ".min-h-screen", ".rounded-2xl"];
 
 async function findBuiltCssFile() {
-  const files = await readdir(cssDirectory);
+  const files = await readdir(cssDirectoryPath);
   const cssFiles = files.filter((fileName) => /^index-.*\.css$/.test(fileName)).sort();
 
   if (cssFiles.length === 0) {
     throw new Error("No built frontend CSS bundle found in dist/assets.");
   }
 
-  return join(cssDirectory.pathname, cssFiles[cssFiles.length - 1]);
+  return join(cssDirectoryPath, cssFiles[cssFiles.length - 1]);
 }
 
 const cssFile = await findBuiltCssFile();

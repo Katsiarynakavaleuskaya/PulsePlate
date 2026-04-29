@@ -155,6 +155,12 @@ curl_probe() {
     local name="$1"
     local url="$2"
     shift 2
+    local use_access_headers=1
+
+    if [[ "${1:-}" == "--no-access-headers" ]]; then
+        use_access_headers=0
+        shift
+    fi
 
     local headers_file="${tmp_dir}/${name}.headers"
     local body_file="${tmp_dir}/${name}.body"
@@ -169,7 +175,7 @@ curl_probe() {
         -w '%{http_code}'
     )
 
-    if [[ "${ACCESS_HEADERS_ENABLED}" -eq 1 ]]; then
+    if [[ "${ACCESS_HEADERS_ENABLED}" -eq 1 && "${use_access_headers}" -eq 1 ]]; then
         curl_args+=("${ACCESS_CURL_HEADERS[@]}")
     fi
 
@@ -223,7 +229,7 @@ assert_html_200() {
 assert_public_css_asset() {
     local label="$1"
     local root_probe=""
-    root_probe="$(curl_probe "${label}-root" "${BASE_URL}/")" || {
+    root_probe="$(curl_probe "${label}-root" "${BASE_URL}/" --no-access-headers)" || {
         fail "${label}: request to ${BASE_URL}/ failed."
         return
     }
@@ -250,7 +256,7 @@ assert_public_css_asset() {
     fi
 
     local css_probe=""
-    css_probe="$(curl_probe "${label}" "${BASE_URL}${css_path}")" || {
+    css_probe="$(curl_probe "${label}" "${BASE_URL}${css_path}" --no-access-headers)" || {
         fail "${label}: request to ${BASE_URL}${css_path} failed."
         return
     }
@@ -264,10 +270,13 @@ assert_public_css_asset() {
         fail "${label}: expected HTTP 200 for ${css_path}, got ${status}."
         return
     fi
-    if [[ "${content_type}" != text/css* ]]; then
-        fail "${label}: expected text/css for ${css_path}, got '${content_type:-<empty>}' ."
-        return
-    fi
+    case "${content_type}" in
+        text/css*) ;;
+        *)
+            fail "${label}: expected text/css for ${css_path}, got '${content_type:-<empty>}' ."
+            return
+            ;;
+    esac
     if grep -Eiq 'cloudflare access|cf-access|/cdn-cgi/access' "${body_file}"; then
         fail "${label}: ${css_path} body looks like a Cloudflare Access page."
         return

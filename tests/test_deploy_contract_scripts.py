@@ -1744,6 +1744,13 @@ printf '%s' "$status"
     log_output = log_file.read_text(encoding="utf-8")
     assert "-H CF-Access-Client-Id: client-id" in log_output
     assert "-H CF-Access-Client-Secret: client-secret" in log_output
+    static_css_calls = [
+        line
+        for line in log_output.splitlines()
+        if "https://pulseplate.test/assets/index-test.css" in line
+    ]
+    assert static_css_calls
+    assert all("CF-Access-Client-" not in line for line in static_css_calls)
     assert (
         "PASS: Cloudflare Access service-token headers enabled for private probes."
         in completed.stdout
