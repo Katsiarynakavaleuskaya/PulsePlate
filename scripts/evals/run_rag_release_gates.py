@@ -89,6 +89,7 @@ ROUTING_CONFIDENCE_THRESHOLD = 0.65
 
 # Canonical committed eval fixture (weekly CI / workflow_dispatch default input).
 CANONICAL_RAG_EVAL_SAMPLE_FILENAME = "pulseplate_rag_eval_sample.jsonl"
+CANONICAL_RAG_EVAL_SAMPLE_PATH = DEFAULT_INPUT_PATH.resolve()
 # Numeric aggregate gates (A, B*, C2) are not statistically meaningful on tiny n;
 # weekly lane still enforces strict runtime hygiene (gate_d1) and calibration (gate_c1).
 SMALL_FIXTURE_NUMERIC_GATES_ADVISORY_MAX_N = 16
@@ -141,7 +142,7 @@ def _small_fixture_numeric_gates_advisory(
 
     if trace_count <= 0 or trace_count > SMALL_FIXTURE_NUMERIC_GATES_ADVISORY_MAX_N:
         return False
-    return Path(dataset_path_used).name == CANONICAL_RAG_EVAL_SAMPLE_FILENAME
+    return Path(dataset_path_used).resolve() == CANONICAL_RAG_EVAL_SAMPLE_PATH
 
 
 def _iso_now() -> str:

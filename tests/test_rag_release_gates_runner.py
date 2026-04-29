@@ -481,6 +481,78 @@ def test_small_fixture_advisory_not_applied_for_non_canonical_dataset_name(
     assert release_decision == "NO-GO"
 
 
+def test_small_fixture_advisory_not_applied_for_spoofed_canonical_basename(
+    tmp_path: Path,
+) -> None:
+    """Advisory must not trigger for non-canonical paths with canonical basename."""
+
+    spoofed_dataset = tmp_path / "attacker" / "pulseplate_rag_eval_sample.jsonl"
+    spoofed_dataset.parent.mkdir(parents=True, exist_ok=True)
+    spoofed_dataset.write_text('{"query_id":"q1"}\n', encoding="utf-8")
+
+    assert (
+        runner._small_fixture_numeric_gates_advisory(
+            dataset_path_used=str(spoofed_dataset),
+            trace_count=5,
+        )
+        is False
+    )
+
+
+def test_require_pass_rejects_spoofed_canonical_sample_path(tmp_path: Path) -> None:
+    """Public runner must not apply advisory mode to a spoofed canonical basename."""
+
+    project_root = tmp_path / "repo"
+    (project_root / "docs").mkdir(parents=True)
+    (project_root / "core").mkdir()
+    (project_root / "app").mkdir()
+    (project_root / "tests" / "guards").mkdir(parents=True)
+    (project_root / "notebooks").mkdir()
+    (project_root / "artifacts").mkdir()
+    (project_root / "AGENTS.md").write_text("FREE PRO VIP", encoding="utf-8")
+    (project_root / "RUNBOOK_AGENT.md").write_text("retrieve_and_validate_rag", encoding="utf-8")
+    input_path = project_root / "data" / "evals" / "pulseplate_rag_eval_sample.jsonl"
+    input_path.parent.mkdir(parents=True)
+    input_path.write_text(
+        json.dumps(
+            {
+                "query_id": "q1",
+                "query_text": "What are the canonical tiers in PulsePlate?",
+                "gold_doc_ids": ["docs/does_not_exist.md"],
+                "gold_answer": "FREE PRO and VIP",
+                "expected_claims": ["PulsePlate canonical tiers are FREE PRO and VIP."],
+                "evidence_quotes": ["FREE", "PRO", "VIP"],
+                "user_tier": "PRO",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = main(
+        [
+            "--project-root",
+            str(project_root),
+            "--input-path",
+            str(input_path),
+            "--artifact-root",
+            str(project_root / "artifacts" / "rag_eval"),
+            "--experiment-id",
+            "spoofed_canonical_basename",
+            "--sample-size",
+            "1",
+            "--top-k",
+            "5",
+            "--retriever-mode",
+            "local_tfidf",
+            "--generator-mode",
+            "extractive_stub",
+            "--require-pass",
+        ],
+    )
+
+    assert exit_code == 2
+
+
 def test_expected_calibration_error_keeps_last_bin_bounded() -> None:
     """The terminal ECE bin must not double-count probabilities from lower bins."""
 
