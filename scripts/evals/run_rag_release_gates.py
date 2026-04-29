@@ -141,7 +141,10 @@ def _small_fixture_numeric_gates_advisory(
 
     if trace_count <= 0 or trace_count > SMALL_FIXTURE_NUMERIC_GATES_ADVISORY_MAX_N:
         return False
-    return Path(dataset_path_used).name == CANONICAL_RAG_EVAL_SAMPLE_FILENAME
+    canonical_sample_path = (
+        Path(__file__).resolve().parents[2] / "data" / "evals" / CANONICAL_RAG_EVAL_SAMPLE_FILENAME
+    )
+    return Path(dataset_path_used).resolve() == canonical_sample_path.resolve()
 
 
 def _iso_now() -> str:

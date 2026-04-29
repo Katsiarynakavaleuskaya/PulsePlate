@@ -481,6 +481,24 @@ def test_small_fixture_advisory_not_applied_for_non_canonical_dataset_name(
     assert release_decision == "NO-GO"
 
 
+def test_small_fixture_advisory_not_applied_for_spoofed_canonical_basename(
+    tmp_path: Path,
+) -> None:
+    """Advisory must not trigger for non-canonical paths with canonical basename."""
+
+    spoofed_dataset = tmp_path / "attacker" / "pulseplate_rag_eval_sample.jsonl"
+    spoofed_dataset.parent.mkdir(parents=True, exist_ok=True)
+    spoofed_dataset.write_text('{"query_id":"q1"}\n', encoding="utf-8")
+
+    assert (
+        runner._small_fixture_numeric_gates_advisory(
+            dataset_path_used=str(spoofed_dataset),
+            trace_count=5,
+        )
+        is False
+    )
+
+
 def test_expected_calibration_error_keeps_last_bin_bounded() -> None:
     """The terminal ECE bin must not double-count probabilities from lower bins."""
 
