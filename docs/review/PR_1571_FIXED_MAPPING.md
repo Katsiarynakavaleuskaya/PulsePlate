@@ -31,6 +31,12 @@ Evidence: `docs/review/PR_1571_FIXED_MAPPING.md:42`; `docs/roadmap/BACKLOG_LEDGE
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#pullrequestreview-4197109264 -> dbe40dda7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#pullrequestreview-4197166797 -> dbe40dda7
 
+Disposition: NOT-A-BUG
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md:564`; `docs/roadmap/BACKLOG_LEDGER.md:569`; `docs/review/PR_1571_FIXED_MAPPING.md:38`; PR #1571 remains subject to current-head CI, bot-actionable, review-thread, and strict merge-wrapper gates before merge.
+Reason: This lane intentionally closes `ledger-p1-docker-deploy-contract-reconciliation` in the implementation PR after the deploy-contract docs/tests are committed, matching the operator-approved plan for this PR. The entry still names PR #1571 and does not bypass merge governance; failure to merge leaves the PR unlanded.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#discussion_r3161228433
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1571#pullrequestreview-4197225730
+
 ## Initial Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` (PASS)
