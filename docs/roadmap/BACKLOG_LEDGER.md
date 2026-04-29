@@ -365,6 +365,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 ### P1
 
+<a id="ledger-p1-release-control-plane"></a>
+- [ ] P1: Release automation control plane for C4, App Store Review, ML gates, and supply chain
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR-TBD-RELEASE-CONTROL-PLANE-PR5
+  - Area: release / App Store / AI evals / supply-chain / orchestration
+  - Finding Type: release evidence unification gap
+  - Status: Bootstrap lane starts in branch `release/release-control-plane-pr0-bootstrap`.
+  - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
+  - Links:
+    - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
+    - `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
+    - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `scripts/ci/check_docker_provenance_attestation.py`
+    - `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
+  - DoD:
+    - PR-0 lands governance docs, C4 release-risk context, packet, and this ledger anchor without runtime/workflow changes.
+    - PR-1 defines reviewer-packet hash contract after App Store readiness artifacts land on `main`.
+    - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth.
+    - PR-3 adds a release manifest generator and fail-closed validator.
+    - PR-4 proves review-build and production-candidate equivalence by digest/hash checks.
+    - PR-5 integrates focused CI gates for manifest, ML gate result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.
+
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
   - Owner: @katsiaryna_kavaleuskaya
