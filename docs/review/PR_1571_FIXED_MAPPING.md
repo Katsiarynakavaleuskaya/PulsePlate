@@ -15,7 +15,7 @@ this artifact was created.
 
 ## Fixed in Commit Mapping
 
-No external review threads were present when this artifact was created.
+- No actionable review comments
 
 ## Initial Evidence
 
