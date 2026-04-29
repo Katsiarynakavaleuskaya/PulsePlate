@@ -14,18 +14,19 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 7ef8ed373
+Commit: e88773759
 Evidence: `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md:1`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md:1942`
 Evidence: `AGENTS.md:349`
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1575 -> 7ef8ed373
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1575 -> e88773759
 
 ## Validation Evidence
 
 Disposition: NOT-A-BUG
 Evidence: Final rebased local narrow gates passed before draft PR creation:
 `check_preflight.py`, `check_agent_consistency.py`, anchor grep, `pre-commit run --all-files`, and `make validate-min`.
+Evidence: Post-open full `make verify` passed before the rebase to `origin/main` at `2266d37b2`, including verify-env, flake8, mypy, smoke tests, full pytest under coverage, coverage XML, and diff-cover.
 Reason: PR-E0 is docs/governance only and intentionally does not change runtime code, public API, DB schema, OpenAPI, billing, providers, semantic cache, GraphRAG, or user-facing behavior.
 
 ## Deferred / Follow-ups
@@ -42,4 +43,4 @@ Reason: Semantic cache remains blocked until evidence asset lineage, replay-safe
 
 - This PR is draft until current-head PR CI, post-open review, bot review disposition, and strict merge-readiness checks complete.
 - No merge-ready claim is made by this mapping artifact; the checked Phase 2 boxes only confirm that the PR body/mapping artifact contract has been populated.
-- Local full `make verify` passed before the final trunk rebase, but the post-rebase full run lost stdout during thread resume; no merge-ready claim is made from that lost-output run.
+- Local full `make verify` passed before the latest clean trunk rebase; current-head CI and strict merge readiness remain the final merge gates.
