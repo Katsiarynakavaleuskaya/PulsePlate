@@ -141,6 +141,8 @@ curl -I https://pulseplate.app/
 # 2. Если challenge/interstitial есть — проверить Security Events в Cloudflare Dashboard
 # 3. Если origin healthy, а apex contract нарушен — синхронизировать shell bundle
 #    только из merged canonical tree / release bundle. Не используйте dirty checkout.
+#    Если используете CI-produced release bundle, стартуйте из его unpacked root
+#    и пропустите git-команды ниже.
 git fetch origin main
 git switch --detach origin/main
 scp deploy/Caddyfile.production user@your-droplet:/srv/pulseplate-production/Caddyfile.production

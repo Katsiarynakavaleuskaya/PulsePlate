@@ -200,10 +200,13 @@ path already stages the same release bundle before `scripts/deploy_production.sh
 runs. Do not stage `deploy/` or `frontend/` from a dirty or unmerged local
 checkout.
 
-1. On a local merged checkout or from an unpacked CI-produced release bundle,
-   sync the release shell bundle to the production host:
+1. Sync the release shell bundle to the production host from one trusted source:
+   a local merged checkout or an unpacked CI-produced release bundle. When using
+   a CI bundle, start from the unpacked bundle root and skip the `git` commands
+   below because the release provenance already comes from CI.
 
    ```bash
+   # For a local checkout only; skip when already inside a CI-produced release bundle.
    git fetch origin main
    git switch --detach origin/main
    scp deploy/Caddyfile.production ubuntu@your-host:/srv/pulseplate-production/

@@ -209,7 +209,9 @@ tree** (`origin/main` / release commit) или из CI-produced release bundle.
 Нельзя копировать `deploy/` и `frontend/` с произвольного локального dirty checkout.
 
 ```bash
-# Локально: перейти на merged canonical tree
+# Локально: перейти на merged canonical tree.
+# Если recovery идёт из unpacked CI-produced release bundle, эти git-команды
+# пропустить и выполнять sync из корня распакованного bundle.
 git fetch origin main
 git switch --detach origin/main
 
@@ -325,6 +327,8 @@ bash scripts/diagnose_web.sh
    ```bash
    # ✅ ПРАВИЛЬНО
    # Сначала: merge PR с нужным изменением в deploy/Caddyfile.production
+   # Если используете CI-produced release bundle, начинайте из распакованного
+   # bundle root и пропустите git fetch/switch ниже.
    git fetch origin main
    git switch --detach origin/main
    # Затем синхронизировать только этот merged/release checkout, не рабочий dirty tree.
