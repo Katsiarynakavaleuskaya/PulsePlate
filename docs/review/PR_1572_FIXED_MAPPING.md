@@ -13,22 +13,22 @@
 - [x] Fixed in commit mapping completed
 
 Disposition: FIXED
-Commit: TBD_FIX_COMMIT
+Commit: 42aa054c0
 Evidence: Sourcery and CodeRabbit review comments were classified and addressed
 in docs/tests/ledger updates before merge readiness.
 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: TBD_FIX_COMMIT
+Commit: 42aa054c0
 Evidence: Added packet evidence citations, corrected Marketing & GTM wording, parametrized OFF CLI coverage, hardened the onboarding test helper, replaced the ledger Target PR placeholder, and added merge-readiness/CI parity evidence.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197351376 -> 0000000
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161333494 -> 0000000
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197368393 -> 0000000
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347195 -> 0000000
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347205 -> 0000000
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347211 -> 0000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197351376 -> 42aa054c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161333494 -> 42aa054c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197368393 -> 42aa054c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347195 -> 42aa054c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347205 -> 42aa054c0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347211 -> 42aa054c0
 
 ## Merge Readiness
 
