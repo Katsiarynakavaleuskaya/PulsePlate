@@ -9,21 +9,18 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [x] Fixed in commit mapping initialized
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Disposition: NOT-A-BUG
-Evidence: No human, CodeRabbit, Sourcery, or Cubic review threads existed when
-the PR was opened as draft.
-Reason: Initial mapping artifact exists so later review dispositions have a
-canonical home before any thread is resolved.
+Evidence: No human, CodeRabbit, Sourcery, or Cubic review threads existed when the PR was opened as draft.
+Reason: Initial mapping artifact exists so later review dispositions have a canonical home before any thread is resolved.
 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
 Commit: 674984d5f
-Evidence: Added the JPTN identity/license artifact, file-only validator, CLI,
-PR8 packet, ledger/current-pointer updates, and focused tests.
+Evidence: Added the JPTN identity/license artifact, file-only validator, CLI, PR8 packet, ledger/current-pointer updates, and focused tests.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577 -> 674984d5f
 
