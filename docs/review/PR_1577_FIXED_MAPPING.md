@@ -21,19 +21,16 @@ Reason: Initial mapping artifact exists so later review dispositions have a cano
 Disposition: FIXED
 Commit: 674984d5f
 Evidence: Added the JPTN identity/license artifact, file-only validator, CLI, PR8 packet, ledger/current-pointer updates, and focused tests.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577 -> 674984d5f
 
 Disposition: FIXED
 Commit: 6abc29646
 Evidence: Added docstrings for JPTN identity helper functions and the CLI wrapper so the CodeRabbit docstring-coverage warning is addressed.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#issuecomment-4345149109 -> 6abc29646
 
 Disposition: FIXED
 Commit: a0dad389b
 Evidence: Rejected unexpected JPTN identity keys, updated the ledger target PR to `#1577`, removed the CLI `sys.path` mutation by switching docs/tests to the module entrypoint, strengthened the AST import guard, and surfaced non-JSON CLI validation errors.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#discussion_r3162959217 -> a0dad389b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#discussion_r3162959225 -> a0dad389b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#discussion_r3162959232 -> a0dad389b
@@ -46,7 +43,6 @@ Evidence: Rejected unexpected JPTN identity keys, updated the ledger target PR t
 Disposition: NOT-A-BUG
 Evidence: Sourcery review guide is a generated summary/reviewer guide with no requested code or documentation change.
 Reason: The review guide is informational; actionable Sourcery suggestions are mapped separately above.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1577#pullrequestreview-4199334614
 
 ## Merge Readiness
