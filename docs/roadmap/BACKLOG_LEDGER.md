@@ -1944,6 +1944,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Semantic cache, Redis/GPTCache, GraphRAG, and ContextManifest remain out of scope
     - Deterministic tests cover bundle materialization and denied/allowed write admission paths
 
+<a id="ledger-p1-evidence-graph-runtime"></a>
+- [ ] P1: Evidence Graph Runtime umbrella
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (AI runtime governance / evidence lineage)
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5
+  - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
+  - Finding Type: asset-lineage and replay-governance gap
+  - Status: Active docs/governance umbrella
+  - Remove-by: 2026-06-30
+  - Reason (EN): PulsePlate already has strong RAG runtime, verification, knowledge-promotion, eval-gate, advisory-wiki, and plugin/control-plane foundations, but evidence-bearing artifacts are still governed mostly through task packets, gate outputs, and lane-specific docs rather than one asset/evidence graph. This umbrella freezes the rail boundaries and PR train needed to make eval runs, context bundles, verification bundles, knowledge candidates, knowledge records, and gate reports first-class assets with lineage, idempotency, replay, fingerprints, policy versions, and admission decisions.
+  - Links:
+    - `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md`
+    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md`
+    - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
+    - `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md`
+    - `docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md`
+    - `AGENTS.md`
+  - DoD:
+    - One canonical Evidence Graph Runtime epic doc exists and defines the PR-E0 -> PR-E5 train
+    - Rail A product runtime, Rail B1 advisory wiki / compiled memory, and Rail B2 plugin/control-plane boundaries are explicit
+    - Semantic cache remains blocked until evidence asset lineage, replay-safe promotion, and metadata admission gates exist
+    - Downstream PR acceptance criteria cover asset registry, eval event schema, promotion ledger/replay, active metadata admission, and advisory wiki evidence bridge
+    - PR-E0 remains docs/governance only with no public API, DB migration, endpoint, OpenAPI, billing, provider, semantic-cache, GraphRAG, or user-facing runtime behavior change
+
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API
   - Owner: @katsiaryna_kavaleuskaya
