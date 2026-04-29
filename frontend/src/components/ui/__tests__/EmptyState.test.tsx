@@ -1,5 +1,5 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { EmptyState, NoChartsAvailable, NoProgressData } from '../EmptyState';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 
@@ -102,10 +102,13 @@ describe('EmptyState', () => {
   });
 
   it('renders built-in start action through governed Button', () => {
-    render(<NoProgressData onStartTracking={() => undefined} />);
+    const handleStartTracking = vi.fn();
+    render(<NoProgressData onStartTracking={handleStartTracking} />);
 
     const action = screen.getByRole('button', { name: 'Start Tracking' });
     expect(action).toHaveClass('bg-[var(--color-primary)]', 'min-h-[44px]');
+    fireEvent.click(action);
+    expect(handleStartTracking).toHaveBeenCalledTimes(1);
   });
 
   it('does not render a no-op start action without a handler', () => {
@@ -115,10 +118,13 @@ describe('EmptyState', () => {
   });
 
   it('renders built-in retry action through governed secondary Button', () => {
-    render(<NoChartsAvailable onRetry={() => undefined} />);
+    const handleRetry = vi.fn();
+    render(<NoChartsAvailable onRetry={handleRetry} />);
 
     const action = screen.getByRole('button', { name: 'Retry' });
     expect(action).toHaveClass('border', 'border-[var(--color-border)]');
+    fireEvent.click(action);
+    expect(handleRetry).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('alert')).toHaveAttribute('data-state', 'error');
   });
 });
