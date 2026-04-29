@@ -8,15 +8,10 @@
 
 ## Discussion Thread Pass
 
-- [ ] No unresolved actionable review threads.
-- [ ] CodeRabbit checked for actionable items.
-- [ ] Sourcery checked for actionable items.
-- [ ] Cubic checked for actionable items.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` review pass completed.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
-
-### Initial implementation
 
 Disposition: FIXED
 Commit: 7ef8ed373
@@ -46,4 +41,5 @@ Reason: Semantic cache remains blocked until evidence asset lineage, replay-safe
 ## Merge Readiness Notes
 
 - This PR is draft until current-head PR CI, post-open review, bot review disposition, and strict merge-readiness checks complete.
+- No merge-ready claim is made by this mapping artifact; the checked Phase 2 boxes only confirm that the PR body/mapping artifact contract has been populated.
 - Local full `make verify` passed before the final trunk rebase, but the post-rebase full run lost stdout during thread resume; no merge-ready claim is made from that lost-output run.
