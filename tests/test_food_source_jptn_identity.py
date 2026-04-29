@@ -31,7 +31,7 @@ _ONBOARDING_PATH = (
 _IDENTITY_PATH = (
     _REPO_ROOT / "docs" / "architecture" / "FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json"
 )
-_SCRIPT = _REPO_ROOT / "scripts" / "food_source_jptn_identity.py"
+_CLI_MODULE = "scripts.food_source_jptn_identity"
 
 
 def _catalog():
@@ -135,6 +135,14 @@ def test_jptn_identity_gate_rejects_unsafe_flags(
         parse_jptn_identity_gate(payload, catalog=_catalog(), onboarding=_onboarding())
 
 
+def test_jptn_identity_gate_rejects_unexpected_keys() -> None:
+    payload = _identity_payload()
+    payload["eligible_preflight"] = True
+
+    with pytest.raises(JptnIdentityError, match="unexpected keys: eligible_preflight"):
+        parse_jptn_identity_gate(payload, catalog=_catalog(), onboarding=_onboarding())
+
+
 def test_jptn_identity_report_rejects_onboarding_eligibility_drift(tmp_path: Path) -> None:
     onboarding_path = _mutate_jptn_onboarding(
         "onboarding_status",
@@ -203,7 +211,8 @@ def test_jptn_identity_cli_is_file_only_and_json(
     result = subprocess.run(
         [
             sys.executable,
-            str(_SCRIPT),
+            "-m",
+            _CLI_MODULE,
             "--catalog",
             str(_CATALOG_PATH),
             "--onboarding",
@@ -212,7 +221,7 @@ def test_jptn_identity_cli_is_file_only_and_json(
             str(_IDENTITY_PATH),
             "--json",
         ],
-        cwd=tmp_path,
+        cwd=_REPO_ROOT,
         check=True,
         text=True,
         capture_output=True,
@@ -238,7 +247,8 @@ def test_jptn_identity_cli_returns_nonzero_for_invalid_payload(tmp_path: Path) -
     result = subprocess.run(
         [
             sys.executable,
-            str(_SCRIPT),
+            "-m",
+            _CLI_MODULE,
             "--catalog",
             str(_CATALOG_PATH),
             "--onboarding",
@@ -247,7 +257,7 @@ def test_jptn_identity_cli_returns_nonzero_for_invalid_payload(tmp_path: Path) -
             str(bad_path),
             "--json",
         ],
-        cwd=tmp_path,
+        cwd=_REPO_ROOT,
         check=False,
         text=True,
         capture_output=True,
@@ -259,23 +269,59 @@ def test_jptn_identity_cli_returns_nonzero_for_invalid_payload(tmp_path: Path) -
     assert payload["runtime_cutover"] is False
 
 
+def test_jptn_identity_cli_prints_validation_errors_without_json(tmp_path: Path) -> None:
+    bad_path = tmp_path / "bad_identity.json"
+    payload = _identity_payload()
+    payload["network_allowed"] = True
+    bad_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            _CLI_MODULE,
+            "--catalog",
+            str(_CATALOG_PATH),
+            "--onboarding",
+            str(_ONBOARDING_PATH),
+            "--identity",
+            str(bad_path),
+        ],
+        cwd=_REPO_ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+
+    assert result.returncode == 1
+    assert "jptn_identity: FAIL" in result.stdout
+    assert "Validation errors:" in result.stdout
+    assert "network_allowed" in result.stdout
+
+
 def test_jptn_identity_has_no_network_or_db_dependencies() -> None:
     source_text = Path(jptn_identity.__file__).read_text(encoding="utf-8")
     syntax_tree = ast.parse(source_text)
 
-    blocked_modules = (
+    blocked_roots = {
         "requests",
         "httpx",
-        "urllib.request",
         "psycopg",
         "sqlalchemy",
         "digitalocean",
         "subprocess",
-    )
-    imported_modules: set[str] = set()
+    }
+    blocked_full_imports = {"urllib.request", "sqlite3"}
+    imported_roots: set[str] = set()
+    imported_full: set[str] = set()
     for node in ast.walk(syntax_tree):
         if isinstance(node, ast.Import):
-            imported_modules.update(alias.name for alias in node.names)
+            for alias in node.names:
+                imported_full.add(alias.name)
+                imported_roots.add(alias.name.split(".")[0])
         elif isinstance(node, ast.ImportFrom) and node.module:
-            imported_modules.add(node.module)
-    assert imported_modules.isdisjoint(blocked_modules)
+            imported_full.add(node.module)
+            imported_roots.add(node.module.split(".")[0])
+            imported_full.update(f"{node.module}.{alias.name}" for alias in node.names)
+    assert imported_roots.isdisjoint(blocked_roots)
+    assert imported_full.isdisjoint(blocked_full_imports)

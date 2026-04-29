@@ -13,10 +13,6 @@ import json
 from pathlib import Path
 import sys
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-if str(_PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(_PROJECT_ROOT))
-
 from core.food_sources.jptn_identity import build_jptn_identity_report
 
 
@@ -43,8 +39,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
     else:
-        status = "PASS" if report.get("success") is True else "FAIL"
+        success = report.get("success") is True
+        status = "PASS" if success else "FAIL"
         print(f"jptn_identity: {status}")
+        if not success:
+            validation_errors = report.get("validation_errors") or []
+            if validation_errors:
+                print("Validation errors:")
+                for error in validation_errors:
+                    print(f"- {error}")
     return 0 if report.get("success") is True else 1
 
 

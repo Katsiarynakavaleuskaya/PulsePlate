@@ -44,7 +44,7 @@ Evidence: Added docstrings for JPTN identity helper functions and the CLI wrappe
 - `python3 scripts/orchestration/check_agent_consistency.py` (PASS)
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR8 JPTN identity license gate" --task-class "Orchestration" --pr-phase pre_open` (PASS)
 - `python3 -m pytest tests/test_food_source_jptn_identity.py tests/test_food_source_onboarding.py tests/test_food_source_catalog.py tests/test_food_source_preflight.py -q` (PASS)
-- `python3 scripts/food_source_jptn_identity.py --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --identity docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json --json` (PASS)
+- `python3 -m scripts.food_source_jptn_identity --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --identity docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json --json` (PASS)
 - `pytest -q tests/test_repo_policy_guards.py` (PASS)
 - `pre-commit run --all-files` (PASS)
 - `git push -u origin codex/food-data-jptn-identity-license-pr8` pre-push hooks (PASS: changed-files mypy, backend pytest, full bandit, docker build test)

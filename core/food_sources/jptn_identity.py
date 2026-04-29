@@ -37,6 +37,31 @@ _SAFETY_FLAG_TEMPLATE: dict[str, bool] = {
     "network_allowed": False,
     "db_writes_allowed": False,
 }
+_IDENTITY_GATE_KEYS = frozenset(
+    {
+        "schema_version",
+        "generated_on",
+        "source",
+        "catalog_ref",
+        "onboarding_ref",
+        "runtime_cutover",
+        "digitalocean_postgres_load",
+        "bulk_ingest",
+        "file_only",
+        "network_allowed",
+        "db_writes_allowed",
+        "provider_identity_status",
+        "source_url_evidence_status",
+        "license_status",
+        "retrieval_contract_status",
+        "schema_unit_normalization_status",
+        "attribution_redistribution_status",
+        "final_gate_decision",
+        "blocking_reasons",
+        "reviewed_queries",
+        "notes",
+    }
+)
 
 JPTN_SOURCE = "jptn_food_facts"
 BLOCKED_GATE_DECISION = "blocked_until_verified"
@@ -234,6 +259,11 @@ def parse_jptn_identity_gate(
 ) -> JptnIdentityGate:
     """Parse and validate the JPTN source identity/license gate."""
     data = _require_mapping(payload, context)
+    unexpected_keys = sorted(set(data) - _IDENTITY_GATE_KEYS)
+    if unexpected_keys:
+        joined = ", ".join(unexpected_keys)
+        raise _identity_error(context, f"unexpected keys: {joined}")
+
     schema_version = _require_string(data, "schema_version", context)
     if not _IDENTITY_SCHEMA_RE.fullmatch(schema_version):
         raise _identity_error(context, "schema_version must look like food-data-jptn-identity.vN")

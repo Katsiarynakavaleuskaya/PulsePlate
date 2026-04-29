@@ -34,7 +34,7 @@ food search.
   - onboarding `onboarding_status=unresolved_blocked`;
   - `final_gate_decision=blocked_until_verified`.
 - Add a repo-local dry-run CLI:
-  `python3 scripts/food_source_jptn_identity.py --catalog <path> --onboarding <path> --identity <path> --json`.
+  `python3 -m scripts.food_source_jptn_identity --catalog <path> --onboarding <path> --identity <path> --json`.
 
 ## Out Of Scope
 
@@ -71,7 +71,7 @@ Targeted PR8 validation:
 
 ```bash
 python3 -m pytest tests/test_food_source_jptn_identity.py tests/test_food_source_onboarding.py tests/test_food_source_catalog.py tests/test_food_source_preflight.py -q
-python3 scripts/food_source_jptn_identity.py --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --identity docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json --json
+python3 -m scripts.food_source_jptn_identity --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --identity docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json --json
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
 ```
