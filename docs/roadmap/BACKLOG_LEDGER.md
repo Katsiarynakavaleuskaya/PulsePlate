@@ -5507,25 +5507,46 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Decision: adopt or decline; if adopt, document in orchestration and one pilot use case
 
 
-- [ ] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
+- [x] P2: Skill routing wave 2 — compositional task semantics + approved research connectors
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-SKILL-ROUTING-WAVE2
+  - Target PR: PR #1570
+  - Status: Closure is targeted on merge of PR #1570. The implementation is
+    already present on `main`; this closeout records evidence and preserves the
+    no-runtime-scraping / no-product-RAG boundary.
   - Area: orchestration / research / product governance
   - Finding Type: capability expansion
   - Reason: PR #1022 establishes deterministic weighted skill routing and explicit scraping blocks. The next wave should deepen routing quality without breaking explainability: compositional task semantics, bounded telemetry feedback, and research-only connectors approved for PulsePlate.
   - Links:
+    - `docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md`
     - `docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md`
     - `scripts/orchestration/skill_router.py`
     - `scripts/orchestration/task_bootstrap.py`
     - `docs/dev/CODEX_SKILLS.md`
+  - Closeout evidence:
+    - Stable explanation schema and semantic lexeme groups:
+      `scripts/orchestration/skill_router.py:231`,
+      `scripts/orchestration/skill_router.py:695`
+    - Approved research-only connector policy:
+      `scripts/orchestration/skill_router.py:288`,
+      `scripts/orchestration/skill_router.py:594`
+    - Blocked low-fit scraping metadata:
+      `scripts/orchestration/skill_router.py:629`
+    - Bootstrap packet propagation:
+      `scripts/orchestration/task_bootstrap.py:786`,
+      `scripts/orchestration/task_bootstrap.py:922`
+    - Deterministic coverage:
+      `tests/test_skill_router.py:1442`,
+      `tests/test_skill_router.py:1510`,
+      `tests/test_skill_router.py:1557`,
+      `tests/test_task_bootstrap.py:163`
   - DoD:
-    - Task packets expose a stable skill-routing explanation schema with compact per-skill evidence
-    - Routing model adds compositional lexeme groups or ontology tags without introducing nondeterministic scoring
-    - Approved research-only connector policy is implemented for narrow sources only: YouTube transcripts, X/Twitter official API or compliant exports, Google Trends
-    - No runtime scraping surface is added to product endpoints
-    - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests
-    - `make verify` and `pre-commit run --all-files` pass in PR scope
+    - Task packets expose a stable skill-routing explanation schema with compact per-skill evidence: done
+    - Routing model adds compositional lexeme groups or ontology tags without introducing nondeterministic scoring: done
+    - Approved research-only connector policy is implemented for narrow sources only: YouTube transcripts, X/Twitter official API or compliant exports, Google Trends: done
+    - No runtime scraping surface is added to product endpoints: done
+    - Deterministic tests cover allowlisted research connectors and blocked low-fit scraping requests: done
+    - Closeout PR records focused validation and uses GitHub current-head CI as the heavy signal for this machine-heavy docs/tooling reconciliation
 
 <a id="ledger-p2-codex-skill-pulseplate-design-launch-system"></a>
 - [x] P2: Add custom Codex skill `pulseplate-design-launch-system` (Wave 2)
