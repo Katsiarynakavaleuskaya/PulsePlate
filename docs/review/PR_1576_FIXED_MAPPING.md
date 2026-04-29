@@ -35,6 +35,12 @@ Disposition: FIXED
 Commit: 54a9f3ecf
 Evidence: CodeRabbit duplicate review was addressed in the canonical artifact: `docs/review/PR_1576_FIXED_MAPPING.md` no longer contains machine-specific `/Users/...` evidence commands and now keeps resolved thread URLs in contiguous disposition blocks.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4199331858 -> 662931f42
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162979862 -> 662931f42
+Disposition: FIXED
+Commit: 662931f42
+Evidence: `docs/review/PR_1576_FIXED_MAPPING.md` now uses the consistent full `164959779` commit reference in the CodeRabbit evidence sentence.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162223775 -> 164959779
 Disposition: FIXED
 Commit: 164959779
