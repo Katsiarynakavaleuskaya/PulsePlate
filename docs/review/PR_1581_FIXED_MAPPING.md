@@ -32,7 +32,10 @@ for `2266d37b2026098e970cec365f28e5f5a9930bc5` was `failure`. This is not a
 merge-readiness claim. Merge readiness remains blocked until current-head `main`
 and PR CI are green and the strict merge wrapper passes.
 
-## Review Thread Pass
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No actionable human, CodeRabbit, Sourcery, or Cubic review threads were present
 at artifact creation time. New actionables must be added below with one of:
@@ -40,4 +43,4 @@ at artifact creation time. New actionables must be added below with one of:
 
 ## Fixed in Commit Mapping
 
-- Initial implementation -> `ffe1efd39`
+- No actionable review comments
