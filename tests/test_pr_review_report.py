@@ -155,7 +155,9 @@ def test_build_report_handles_non_numeric_changed_lines() -> None:
     context = _base_context()
     context["diff"] = {
         "summary": {"files": 1, "additions": 4, "deletions": 1, "changed_lines": "not-a-number"},
-        "files": [{"path": "scripts/orchestration/pr_review_report.py", "additions": 4, "deletions": 1}],
+        "files": [
+            {"path": "scripts/orchestration/pr_review_report.py", "additions": 4, "deletions": 1}
+        ],
     }
 
     report = report_runner.build_report(context)
