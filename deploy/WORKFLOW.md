@@ -264,6 +264,9 @@ bash scripts/diagnose_web.sh
 - `/terms`
 - `/legacy/bmi-calculator`
 
+Проверяй `/assets/<hashed-css>.css`: ответ должен быть `200` и `text/css`,
+без редиректа на `pulseplate.cloudflareaccess.com`.
+
 Не ослабляй:
 
 - `/api*`

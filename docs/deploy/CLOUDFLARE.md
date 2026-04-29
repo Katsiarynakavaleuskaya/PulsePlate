@@ -280,6 +280,11 @@ temporary bypass для **public shell/discovery GET paths**:
 - `/terms`
 - `/legacy/bmi-calculator`
 
+Bypass must be scoped to safe HTTP methods for those public surfaces, preferably
+`GET` and `HEAD`. A CSS asset probe must return `200` with `text/css`; a
+redirect to `pulseplate.cloudflareaccess.com` means the public shell will render
+without production styles.
+
 Обязательно оставить защищёнными:
 
 - `/api*`
