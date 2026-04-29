@@ -18,24 +18,19 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: TBD_FIX_COMMIT
-Evidence: corrected packet wording/evidence anchors, review mapping evidence,
-ledger PR traceability, and localized BMI CTA/loading strings; local gates rerun
-before push.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161071556 -> TBD_FIX_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081682 -> TBD_FIX_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081689 -> TBD_FIX_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081692 -> TBD_FIX_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081696 -> TBD_FIX_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081701 -> TBD_FIX_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081711 -> TBD_FIX_COMMIT
+Commit: 8700bf69c
+Evidence: corrected packet wording/evidence anchors, review mapping evidence, ledger PR traceability, and localized BMI CTA/loading strings; local gates rerun before push.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161071556 -> 8700bf69c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081682 -> 8700bf69c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081689 -> 8700bf69c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081692 -> 8700bf69c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081696 -> 8700bf69c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081701 -> 8700bf69c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#discussion_r3161081711 -> 8700bf69c
 
 Disposition: NOT-A-BUG
-Evidence: Sourcery review container has no standalone actionable beyond the
-mapped inline typo; CodeRabbit review container has no standalone actionable
-beyond the mapped inline comments.
-Reason: Container-level bot review records are governance references;
-individual actionable findings are mapped above.
+Evidence: Sourcery review container has no standalone actionable beyond the mapped inline typo; CodeRabbit review container has no standalone actionable beyond the mapped inline comments.
+Reason: Container-level bot review records are governance references; individual actionable findings are mapped above.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#pullrequestreview-4197047445
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1569#pullrequestreview-4197058576
 
@@ -107,9 +102,8 @@ individual actionable findings are mapped above.
 
 Pending:
 
-- current-head GitHub CI on PR head `aec4cb3eb3a4dc7b2c30d51967cfa2be78956881`
-- CodeRabbit/Sourcery/Cubic/human review disposition pass
-- mandatory `qa-engineer-agent -> bug-hunter` pass
+- current-head GitHub CI on the latest pushed PR head after this mapping update
+- CodeRabbit/Sourcery/Cubic/human review disposition pass after this mapping update
 - PR body mirror update after review dispositions
 - strict merge-readiness wrapper
 - mandatory wait-window
