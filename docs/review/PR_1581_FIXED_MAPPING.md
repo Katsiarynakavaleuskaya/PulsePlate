@@ -5,12 +5,12 @@
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581>
 - Branch: `codex/design-accessibility-motion-state-contract`
 - Base observed at draft open: `2266d37b2026098e970cec365f28e5f5a9930bc5`
-- Implementation commit: `ffe1efd39`
+- Implementation commit: `8211fe345`
 
 ## Local Validation
 
 Disposition: FIXED
-Commit: `ffe1efd39`
+Commit: `8211fe345`
 Evidence:
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
@@ -43,11 +43,11 @@ of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#issuecomment-4347346486 -> 921568003
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200620769 -> 8f5d363af
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#issuecomment-4347346486 -> 63006f30b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1581#pullrequestreview-4200620769 -> 9be23bc8c
 
 Disposition: FIXED
-Commit: `921568003`, `8f5d363af`
+Commit: `63006f30b`, `9be23bc8c`
 Evidence: `docs/design/ACCESSIBILITY_MOTION_STATE_CONTRACT.md` uses `reduced-motion-aware`; `frontend/src/components/ui/Skeleton.tsx` preserves governed ARIA status props; `frontend/src/components/ui/EmptyState.tsx` only renders the `Start Tracking` CTA when `onStartTracking` is provided and uses an explicit retry handler; `frontend/src/components/ui/__tests__/ProgressIndicator.test.tsx` uses `previousElementSibling`; `frontend/src/components/ui/__tests__/EmptyState.test.tsx` covers loading status semantics; this artifact includes `## Merge Readiness`.
 
 ## Merge Readiness
