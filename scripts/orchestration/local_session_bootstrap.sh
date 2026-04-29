@@ -49,7 +49,7 @@ normalize_scope_path() {
     done
 
     case "${rel_path}" in
-        ""|"."|".."|../*|*/../*|/*)
+        ""|"."|".."|../*|*/../*|*/..|/*)
             die_usage "--path must stay inside the repo without parent traversal: ${raw_path}"
             ;;
         artifacts/agent_runs|artifacts/agent_runs/*|artifacts/orchestration|artifacts/orchestration/*|artifacts/security_lab|artifacts/security_lab/*|worktrees|worktrees/*|.venv|.venv/*|.pytest_cache|.pytest_cache/*|.mypy_cache|.mypy_cache/*|.ruff_cache|.ruff_cache/*|node_modules|node_modules/*|dist|dist/*|build|build/*)

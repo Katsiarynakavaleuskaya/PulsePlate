@@ -136,3 +136,20 @@ def test_local_session_bootstrap_rejects_paths_outside_repo() -> None:
     assert result.returncode == 2
     assert "must be repo-relative or under repo root" in result.stderr
     assert "PASS:" not in result.stdout
+
+
+def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:
+    """Parent traversal must fail even when it appears as the final segment."""
+
+    result = run_bootstrap(
+        "--goal",
+        "B0",
+        "--task-class",
+        "Orchestration",
+        "--path",
+        "docs/..",
+    )
+
+    assert result.returncode == 2
+    assert "must stay inside the repo without parent traversal" in result.stderr
+    assert "PASS:" not in result.stdout
