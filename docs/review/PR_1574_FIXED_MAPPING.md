@@ -11,13 +11,18 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 8380dcc96
+Evidence: tests/test_local_session_bootstrap.py
+Reason: Added regression coverage proving repeated `--path` and `--requested-agent` flags are printed in first-seen order.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4197940665 -> 8380dcc96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161822852 -> 8380dcc96
 
 ## Review Notes
 
 No actionable human or bot review comments are present at artifact creation.
-Record every later actionable comment in `Fixed in Commit Mapping` before resolving
-threads on GitHub.
+Sourcery's actionable repeatable-flag test suggestion is mapped above. Record every later
+actionable comment in `Fixed in Commit Mapping` before resolving threads on GitHub.
 
 ## Initial Implementation Commits
 
