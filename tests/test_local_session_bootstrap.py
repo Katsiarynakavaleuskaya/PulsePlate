@@ -8,6 +8,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 BOOTSTRAP_SCRIPT = REPO_ROOT / "scripts/orchestration/local_session_bootstrap.sh"
+PREFLIGHT_SUCCESS_MARKER = "OK: preflight passed (analyze)"
 
 
 def run_bootstrap(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
@@ -35,7 +36,7 @@ def test_local_session_bootstrap_help_is_non_mutating() -> None:
     assert result.returncode == 0
     assert "Usage:" in result.stdout
     assert "--goal <text>" in result.stdout
-    assert "PASS:" not in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
@@ -92,18 +93,19 @@ def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
     )
 
     assert result.returncode == 0, result.stderr
-    output = result.stdout
+    command_block = result.stdout.partition("Generate the selected task packet:")[2]
+    assert command_block
     first_path = "--path docs/dev/CODEX_SKILLS.md"
     second_path = "--path scripts/orchestration/local_session_bootstrap.sh"
     first_agent = "--requested-agent qa-engineer-agent"
     second_agent = "--requested-agent bug-hunter"
 
-    assert first_path in output
-    assert second_path in output
-    assert output.index(first_path) < output.index(second_path)
-    assert first_agent in output
-    assert second_agent in output
-    assert output.index(first_agent) < output.index(second_agent)
+    assert first_path in command_block
+    assert second_path in command_block
+    assert command_block.index(first_path) < command_block.index(second_path)
+    assert first_agent in command_block
+    assert second_agent in command_block
+    assert command_block.index(first_agent) < command_block.index(second_agent)
 
 
 def test_local_session_bootstrap_requires_goal_and_task_class_together() -> None:
@@ -138,7 +140,7 @@ def test_local_session_bootstrap_rejects_unknown_args() -> None:
 
     assert result.returncode == 2
     assert "unknown arg: --nope" in result.stderr
-    assert "PASS:" not in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_local_only_scope_paths() -> None:
@@ -160,7 +162,7 @@ def test_local_session_bootstrap_rejects_local_only_scope_paths() -> None:
 
         assert result.returncode == 2
         assert "local-only artifact/cache surface" in result.stderr
-        assert "PASS:" not in result.stdout
+        assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_paths_outside_repo() -> None:
@@ -177,7 +179,7 @@ def test_local_session_bootstrap_rejects_paths_outside_repo() -> None:
 
     assert result.returncode == 2
     assert "must be repo-relative or under repo root" in result.stderr
-    assert "PASS:" not in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:
@@ -194,4 +196,4 @@ def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:
 
     assert result.returncode == 2
     assert "must stay inside the repo without parent traversal" in result.stderr
-    assert "PASS:" not in result.stdout
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
