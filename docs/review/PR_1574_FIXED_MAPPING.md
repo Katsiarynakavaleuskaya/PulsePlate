@@ -18,6 +18,20 @@ Reason: Added regression coverage proving repeated `--path` and `--requested-age
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4197940665 -> 8380dcc96
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161822852 -> 8380dcc96
 
+Disposition: FIXED
+Commit: 32e21cf50
+Evidence: docs/dev/CODEX_SKILLS.md; docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md; docs/orchestration/AUTOMATION_READINESS_MATRIX.md; docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md; docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md; docs/review/PR_1574_FIXED_MAPPING.md; scripts/orchestration/local_session_bootstrap.sh; tests/test_local_session_bootstrap.py
+Reason: Added evidence anchors, redacted the local venv path, made `--help` independent of runtime dependency checks, and updated tests to use an absolute bash path with a timeout.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#pullrequestreview-4197962558 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840623 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840656 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840664 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840675 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840680 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840703 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3161840713 -> 32e21cf50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1574#discussion_r3162000762 -> 32e21cf50
+
 ## Review Notes
 
 No actionable human or bot review comments are present at artifact creation.
