@@ -5,7 +5,7 @@ export function NotFound() {
   const navigate = useNavigate();
 
   const handleGoHome = () => {
-    navigate('/');
+    navigate('/app');
   };
 
   const handleGoBack = () => {

@@ -3506,13 +3506,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Rail B1 advisory wiki remains a separate sibling rail, not a child of Rail B2
 
 <a id="ledger-p2-local-workforce-pr-d-advisory-wiki-compiler"></a>
-- [ ] P2: Local workforce PR-D — advisory wiki compiler over local support plane
+- [x] P2: Local workforce PR-D — advisory wiki compiler over local support plane
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR #1371 (branch `feat/local-workforce-pr-d-advisory-wiki-compiler`)
+  - Target PR: PR #1371 (branch `feat/local-workforce-pr-d-advisory-wiki-compiler`, merged)
   - Area: orchestration / local support plane / operator tooling
   - Finding Type: RFC follow-on slice (compiled advisory memory)
-  - Status (EN): Implementation on branch; merge closes this item when `docs/review/PR_<N>_FIXED_MAPPING.md` exists and checklist is complete.
+  - Status (EN): ✅ Closed. PR #1371 merged on 2026-04-07 as
+    `72b665763db36291b132ee148d347d7d6d8d273e`; advisory wiki compiler v1 is
+    present in `main` as local/operator-only compiled memory over the support
+    plane. PR #1372 merged on 2026-04-08 as
+    `0c997be2352603c1bd5820d6d98f1c6b25793204` and landed the semantics /
+    rollback hardening follow-up.
+  - Closeout packet:
+    `docs/orchestration/KARPATHY_PR_B1_ADVISORY_WIKI_COMPILER_CLOSEOUT_PACKET_2026-04-29.md`
   - Reason: Non-canonical wiki artifacts help operators navigate ingested repo slices without introducing embeddings, vector stores, or a second documentation SoT.
   - Dependencies:
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-c-support-plane`
@@ -3524,10 +3531,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `scripts/orchestration/wiki_lint.py`
     - `scripts/orchestration/wiki_promote.py`
     - `scripts/orchestration/local_support_plane.py`
+    - `docs/review/PR_1372_FIXED_MAPPING.md`
   - DoD:
-    - CLIs documented and covered by deterministic tests
-    - No writes to canonical `docs/**` tree from promote path; support-plane keys respect `normalize_key`
-    - Ledger + agent entrypoints reference the wiki doc in the same merge cycle
+    - ✅ CLIs documented and covered by deterministic tests.
+    - ✅ No writes to canonical `docs/**` tree from promote path; support-plane keys respect `normalize_key`.
+    - ✅ Ledger + agent entrypoints reference the wiki doc in the same merge cycle.
   - Deferred / follow-ups (post-v1 hardening, English-first):
     - Slug strategy after truncation (reject vs hash-suffix vs manifest) when paths differ but truncate to the same slug (`scripts/orchestration/_wiki_compiler_support.py` `path_to_slug`).
     - Readability refactor (no behavior change): extract staging filesystem rollback and support-plane failure rollback from `wiki_promote.promote_slug` into small helpers with docstrings (Sourcery review suggestion on PR #1372; current logic is correct and covered by `tests/test_wiki_promote.py`).

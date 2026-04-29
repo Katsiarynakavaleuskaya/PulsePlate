@@ -2,6 +2,27 @@ import { describe, expect, it } from 'vitest';
 import { routes } from '../routes';
 
 describe('design preview routes', (): void => {
+  it('registers the public root as a hidden launch route', (): void => {
+    expect(routes).toContainEqual(
+      expect.objectContaining({
+        path: '/',
+        label: 'Launch',
+        requiresAuth: false,
+        hideTabBar: true,
+      })
+    );
+  });
+
+  it('preserves the app home as a tabbed route', (): void => {
+    expect(routes).toContainEqual(
+      expect.objectContaining({
+        path: '/app',
+        label: 'Home',
+        requiresAuth: false,
+      })
+    );
+  });
+
   it('registers the marketing page as a hidden public route', (): void => {
     expect(routes).toContainEqual(
       expect.objectContaining({

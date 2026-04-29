@@ -578,10 +578,20 @@ and `docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-
 `feat(orchestration): advisory wiki compiler over local support plane`
 
 #### Current anchor
-existing local workforce PR-D entry
+Closed local workforce PR-D entry:
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
 
 #### Goal
 Implement raw/wiki/index/log-style advisory memory.
+
+#### Current status
+Materially landed via PR #1371 on 2026-04-07
+(`72b665763db36291b132ee148d347d7d6d8d273e`) with PR #1372 hardening on
+2026-04-08 (`0c997be2352603c1bd5820d6d98f1c6b25793204`). Do not reopen or
+reimplement compiler v1 as a new baseline lane.
+
+#### Closeout packet
+`docs/orchestration/KARPATHY_PR_B1_ADVISORY_WIKI_COMPILER_CLOSEOUT_PACKET_2026-04-29.md`
 
 #### In scope
 - ingest
@@ -615,6 +625,9 @@ Non-destructive promote semantics + deterministic slug hardening.
 ## PR-B3 — query/lint enrichment
 #### Title
 `feat(orchestration): enrich advisory wiki query and lint without changing SoT`
+
+#### Current status
+Next substantive Rail B1 implementation slice after PR-B1 closeout.
 
 #### Optional follow-on
 - orphan detection
