@@ -74,10 +74,12 @@ class JptnIdentityGate:
 
 
 def _identity_error(context: str, detail: str) -> JptnIdentityError:
+    """Build a stable validation error for the current artifact context."""
     return JptnIdentityError(f"Invalid JPTN identity gate {context}: {detail}")
 
 
 def _require_mapping(value: object, context: str) -> dict[str, object]:
+    """Return an object mapping or fail closed on malformed JSON payloads."""
     if not isinstance(value, dict):
         raise _identity_error(context, "must be an object")
     result: dict[str, object] = {}
@@ -89,6 +91,7 @@ def _require_mapping(value: object, context: str) -> dict[str, object]:
 
 
 def _require_string(data: dict[str, object], key: str, context: str) -> str:
+    """Read a required non-empty string field from a validated object."""
     value = data.get(key)
     if not isinstance(value, str) or not value.strip():
         raise _identity_error(context, f"missing non-empty string '{key}'")
@@ -96,6 +99,7 @@ def _require_string(data: dict[str, object], key: str, context: str) -> str:
 
 
 def _require_bool(data: dict[str, object], key: str, context: str) -> bool:
+    """Read a required boolean field without truthy/falsy coercion."""
     value = data.get(key)
     if not isinstance(value, bool):
         raise _identity_error(context, f"'{key}' must be a boolean")
@@ -107,6 +111,7 @@ def _require_string_tuple(
     key: str,
     context: str,
 ) -> tuple[str, ...]:
+    """Read a required non-empty string list and reject duplicate values."""
     value = data.get(key)
     if not isinstance(value, list):
         raise _identity_error(context, f"'{key}' must be a list of strings")
@@ -126,6 +131,7 @@ def _require_string_tuple(
 
 
 def _parse_date(value: str, context: str) -> date:
+    """Parse the canonical YYYY-MM-DD artifact date format."""
     if not _DATE_RE.fullmatch(value):
         raise _identity_error(context, "generated_on must use YYYY-MM-DD")
     try:
@@ -135,10 +141,12 @@ def _parse_date(value: str, context: str) -> date:
 
 
 def _require_safety_flags(data: dict[str, object], context: str) -> dict[str, bool]:
+    """Extract all safety flags before comparing them with the gate template."""
     return {key: _require_bool(data, key, context) for key in _SAFETY_FLAG_TEMPLATE}
 
 
 def _relative_repo_path(path: Path | str) -> str:
+    """Normalize a path to the repo-relative form used by canonical artifacts."""
     resolved = Path(path).resolve()
     try:
         return resolved.relative_to(_REPO_ROOT).as_posix()
@@ -147,6 +155,7 @@ def _relative_repo_path(path: Path | str) -> str:
 
 
 def _catalog_jptn_entry(catalog: SourceCatalog, context: str) -> SourceCatalogEntry:
+    """Find the JPTN catalog entry required by the identity gate."""
     entries = {entry.source: entry for entry in catalog.sources}
     entry = entries.get(JPTN_SOURCE)
     if entry is None:
@@ -158,6 +167,7 @@ def _onboarding_jptn_entry(
     onboarding: SourceOnboarding,
     context: str,
 ) -> SourceOnboardingEntry:
+    """Find the JPTN onboarding entry required by the identity gate."""
     entries = {entry.source: entry for entry in onboarding.sources}
     entry = entries.get(JPTN_SOURCE)
     if entry is None:
@@ -166,6 +176,7 @@ def _onboarding_jptn_entry(
 
 
 def _validate_jptn_catalog_policy(entry: SourceCatalogEntry, context: str) -> None:
+    """Ensure the catalog still treats JPTN as unresolved and blocked."""
     if entry.source_classification != "unresolved":
         raise _identity_error(context, "JPTN must remain source_classification=unresolved")
     if entry.source_family != "unresolved":
@@ -179,6 +190,7 @@ def _validate_jptn_catalog_policy(entry: SourceCatalogEntry, context: str) -> No
 
 
 def _validate_jptn_onboarding_policy(entry: SourceOnboardingEntry, context: str) -> None:
+    """Ensure onboarding cannot make JPTN preflight-eligible before verification."""
     expected: dict[str, object] = {
         "source_classification": "unresolved",
         "source_family": "unresolved",

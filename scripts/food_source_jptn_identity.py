@@ -21,6 +21,7 @@ from core.food_sources.jptn_identity import build_jptn_identity_report
 
 
 def _parse_args(argv: list[str]) -> argparse.Namespace:
+    """Parse CLI arguments for the file-only JPTN identity gate."""
     parser = argparse.ArgumentParser(
         description="Validate the JPTN source identity/license gate without ingesting data.",
     )
@@ -32,6 +33,7 @@ def _parse_args(argv: list[str]) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the JPTN identity validator and return a process exit code."""
     args = _parse_args(argv if argv is not None else sys.argv[1:])
     report = build_jptn_identity_report(
         catalog_path=args.catalog,
