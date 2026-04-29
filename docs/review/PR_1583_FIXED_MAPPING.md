@@ -41,13 +41,13 @@ Evidence: `frontend/src/__tests__/App.test.tsx`, `frontend/src/pages/__tests__/H
 - `cd frontend && npm run smoke:css` (PASS)
 - Browser smoke: `/` and `/app` on desktop and mobile via local preview (PASS)
 - `pre-commit run --all-files` (PASS)
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` (PASS; no Python files changed)
+- `make validate-changed VENV_PYTHON=$VENV_PYTHON` (PASS; no Python files changed)
 - Pre-push hooks: backend pre-push pytest, full-repo Bandit, docker build test (PASS)
 
 ## Merge Readiness
 
 - [ ] CI green on current head
 - [ ] No unresolved actionable review threads
-- [x] CodeRabbit/Sourcery/Cubic statuses reviewed at artifact creation time
-- [x] Fixed-mapping artifact and PR body mirror aligned
+- [ ] CodeRabbit/Sourcery/Cubic statuses reviewed
+- [ ] Fixed-mapping artifact and PR body mirror aligned
 - [ ] `check_merge_ready.py --require-auth` PASS
