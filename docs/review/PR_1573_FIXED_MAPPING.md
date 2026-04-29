@@ -16,7 +16,7 @@ fixed after the comment timestamp and is mapped below.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164706825 -> 565d84c00f2f97a65ad0026853b7d8d121388749
-
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201341325 -> 565d84c00f2f97a65ad0026853b7d8d121388749
 Disposition: FIXED
 Commit: 565d84c00f2f97a65ad0026853b7d8d121388749
 Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed as `timing_unavailable` with `elapsed_seconds=-1` instead of falling back to `date +%s`; `tests/test_ci_workflow_pr_size_governance_contract.py:188` asserts the explicit missing-seed warning and forbids the legacy fallback.
@@ -74,8 +74,8 @@ parity and strict merge-readiness wrappers.
 ## Merge Readiness
 
 - [ ] CI green on current head after review-fix push
-- [x] CodeRabbit actionable mapped as FIXED; Sourcery/Cubic statuses reviewed as no actionable repo change
-- [x] Fixed-mapping artifact and PR body are mirror-aligned for the known actionable
+- [ ] CodeRabbit actionable mapped as FIXED; Sourcery/Cubic statuses reviewed as no actionable repo change
+- [ ] Fixed-mapping artifact and PR body are mirror-aligned for the known actionable
 - [ ] `check_review_threads_disposition.py --require-auth` PASS
 - [ ] `check_pr_merge_readiness.py` PASS
 - [ ] `check_merge_ready.py --require-auth` PASS
