@@ -43,8 +43,8 @@ def main(argv: list[str] | None = None) -> int:
         status = "PASS" if success else "FAIL"
         print(f"jptn_identity: {status}")
         if not success:
-            validation_errors = report.get("validation_errors") or []
-            if validation_errors:
+            validation_errors = report.get("validation_errors")
+            if isinstance(validation_errors, list) and validation_errors:
                 print("Validation errors:")
                 for error in validation_errors:
                     print(f"- {error}")
