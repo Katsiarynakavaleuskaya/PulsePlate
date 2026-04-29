@@ -25,16 +25,20 @@ runtime food search.
   - delta/export-style incoming candidate.
 - Keep `source=open_food_facts`, `source_classification=current`, and source
   URL `https://world.openfoodfacts.org/data`.
-- Validate fixture manifests through the existing PR2 manifest parser and
-  dry-run diff contract.
+- Validate fixture manifests through the existing PR2 manifest parser
+  (`core/food_sources/source_preflight.py:276`) and dry-run diff contract
+  (`core/food_sources/source_preflight.py:316`).
 - Prove OFF manifests are allowed by:
-  - PR3 catalog identity/classification;
-  - PR3 active update, manifest, and preflight flags;
+  - PR3 catalog identity/classification
+    (`core/food_sources/source_preflight.py:432`);
+  - PR3 active update, manifest, and preflight flags
+    (`core/food_sources/source_preflight.py:466`);
   - PR5 onboarding `eligible_preflight`, `manifest_preflight_only`, and ODbL
-    policy ref;
+    policy ref (`core/food_sources/source_onboarding.py:352`);
   - PR5 safety flags: `runtime_cutover=false`,
     `digitalocean_postgres_load=false`, `bulk_ingest=false`,
-    `network_allowed=false`, and `db_writes_allowed=false`.
+    `network_allowed=false`, and `db_writes_allowed=false`
+    (`core/food_sources/source_onboarding.py:523`).
 
 ## Out Of Scope
 
@@ -88,14 +92,17 @@ machine-heavy signal.
   cutover path is allowed.
 - OFF must keep `provider_policy_ref=docs/legal/ODbL_COMPLIANCE.md`,
   `redistribution_decision=odbl_obligations_required`, and
-  `attribution_required=true`.
+  `attribution_required=true` (`docs/legal/ODbL_COMPLIANCE.md:21`,
+  `core/food_sources/source_onboarding.py:352`).
 - The validator must fail closed when ODbL policy, catalog identity,
-  onboarding status, ingestion path, or safety flags drift.
+  onboarding status, ingestion path, or safety flags drift
+  (`core/food_sources/source_preflight.py:421`,
+  `core/food_sources/source_preflight.py:495`).
 
 ## Marketing & GTM
 
 No product, API, UX, launch, pricing, or public dataset claim changes in PR7.
-The later marketable claim remains governed multi-source food data with
+The later marketable claim remains a governed multi-source food database with
 provenance, only after source-specific ingest and runtime authority lanes are
 approved.
 

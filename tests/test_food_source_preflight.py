@@ -57,10 +57,14 @@ def _write_onboarding_variant(
     if top_level_flag is not None:
         payload[top_level_flag] = top_level_value
     if off_field is not None:
+        found_off_entry = False
         for entry in payload["sources"]:
             if entry["source"] == "open_food_facts":
                 entry[off_field] = off_value
+                found_off_entry = True
                 break
+        if not found_off_entry:
+            raise AssertionError("open_food_facts onboarding entry is missing")
     path = tmp_path / "onboarding_variant.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
@@ -508,9 +512,12 @@ def test_food_source_preflight_cli_is_file_only_and_json(
     assert after == before
 
 
+@pytest.mark.parametrize("current_fixture,incoming_fixture", _OFF_MANIFEST_PAIRS)
 def test_food_source_preflight_cli_accepts_off_fixture_pair_with_contract(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    current_fixture: str,
+    incoming_fixture: str,
 ) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgres://must-not-be-used.invalid/db")
     before = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
@@ -519,9 +526,9 @@ def test_food_source_preflight_cli_accepts_off_fixture_pair_with_contract(
             sys.executable,
             str(_SCRIPT),
             "--current-manifest",
-            str(_fixture("current_off_manifest.json")),
+            str(_fixture(current_fixture)),
             "--incoming-manifest",
-            str(_fixture("incoming_off_manifest.json")),
+            str(_fixture(incoming_fixture)),
             "--dry-run",
             "--json",
             "--catalog",

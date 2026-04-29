@@ -1791,7 +1791,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#TBD-FOOD-DATA-OFF-MANIFEST-PREFLIGHT-PR7`
+  - Target PR: PR `#1572` (`feat(food-data): add Open Food Facts manifest preflight gate`)
   - Status: 🚧 Active PR7 Open Food Facts manifest preflight lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, and PR6 USDA manifest preflight merged as PR #1563
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap

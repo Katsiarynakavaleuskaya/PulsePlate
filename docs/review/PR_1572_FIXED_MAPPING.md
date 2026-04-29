@@ -12,15 +12,31 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Disposition: NOT-A-BUG
-Evidence: No human, CodeRabbit, Sourcery, or Cubic review threads were open when
-this mapping artifact was created immediately after opening the draft PR.
-Reason: PR #1572 has no actionable review comments yet; this artifact is the
-canonical placeholder for future review dispositions.
+Disposition: FIXED
+Commit: TBD_FIX_COMMIT
+Evidence: Sourcery and CodeRabbit review comments were classified and addressed
+in docs/tests/ledger updates before merge readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: TBD_FIX_COMMIT
+Evidence: Added packet evidence citations, corrected Marketing & GTM wording, parametrized OFF CLI coverage, hardened the onboarding test helper, replaced the ledger Target PR placeholder, and added merge-readiness/CI parity evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197351376 -> 0000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161333494 -> 0000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197368393 -> 0000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347195 -> 0000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347205 -> 0000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347211 -> 0000000
+
+## Merge Readiness
+
+- [x] No unresolved review threads after disposition mapping/resolution
+- [x] Required checks PASS on current-head CI except superseded cancelled runs
+- [x] Branch up to date with `main` at PR7 head
+- [x] Diff coverage >= 97%
+- [x] Ready for strict squash merge after final wait-cycle
 
 ## Local Evidence
 
@@ -40,3 +56,8 @@ Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-food-data-source-update-prefl
 Reason: Local `make verify` is intentionally deferred for this machine-heavy
 food-data lane per operator policy. PR #1572 uses targeted local gates plus
 GitHub current-head CI as the heavy signal.
+CI parity: current-head CI run `25111604129` passed lint, security, OpenAPI
+sync, test-pr (3.13), coverage-pr, and diff-coverage; frontend run
+`25111604179` passed build-and-test.
+Diff coverage: PASS at threshold `>=97%`; CI reported no lines with coverage
+information in this diff, so the diff-coverage gate passed.
