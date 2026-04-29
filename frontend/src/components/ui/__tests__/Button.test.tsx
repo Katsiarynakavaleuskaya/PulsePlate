@@ -32,8 +32,15 @@ describe('Button', () => {
   });
 
   it('applies size classes', () => {
-    expect(buttonClasses({ size: 'sm' })).toContain('min-h-[40px]');
+    expect(buttonClasses({ size: 'sm' })).toContain('min-h-[44px]');
     expect(buttonClasses({ size: 'lg' })).toContain('min-h-[48px]');
+  });
+
+  it('applies focus and reduced-motion contract classes', () => {
+    const merged = buttonClasses({});
+    expect(merged).toContain('focus-visible:outline-[var(--color-primary)]');
+    expect(merged).toContain('motion-reduce:transition-none');
+    expect(merged).toContain('motion-reduce:active:scale-100');
   });
 
   it('merges fullWidth and className', () => {
@@ -50,6 +57,7 @@ describe('Button', () => {
     );
     const button = screen.getByRole('button', { name: 'Please wait' });
     expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).toHaveAttribute('aria-live', 'polite');
     expect(button).toBeDisabled();
     expect(button).not.toHaveTextContent('Submit');
   });

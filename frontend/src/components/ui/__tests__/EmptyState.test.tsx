@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
-import { EmptyState } from '../EmptyState';
+import { EmptyState, NoChartsAvailable, NoProgressData } from '../EmptyState';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 
 describe('EmptyState', () => {
@@ -18,6 +18,7 @@ describe('EmptyState', () => {
 
     expect(screen.getByText('No data')).toBeInTheDocument();
     expect(screen.getByText('There is no data to display')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveAttribute('data-state', 'empty');
   });
 
   it('renders with custom icon', () => {
@@ -48,6 +49,18 @@ describe('EmptyState', () => {
     expect(screen.getByRole('button', { name: 'Create Chart' })).toBeInTheDocument();
   });
 
+  it('uses assertive error semantics when requested', () => {
+    render(
+      <EmptyState
+        state="error"
+        title="Failed"
+        description="Unable to load"
+      />
+    );
+
+    expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
+  });
+
   it('has correct CSS classes', () => {
     render(
       <EmptyState
@@ -71,5 +84,21 @@ describe('EmptyState', () => {
 
     const iconContainer = screen.getByText('Test').closest('div')?.querySelector('div');
     expect(iconContainer).toHaveClass('rounded-full', 'bg-gray-100', 'dark:bg-gray-800', 'p-4', 'mb-4');
+    expect(iconContainer).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('renders built-in start action through governed Button', () => {
+    render(<NoProgressData onStartTracking={() => undefined} />);
+
+    const action = screen.getByRole('button', { name: 'Start Tracking' });
+    expect(action).toHaveClass('bg-[var(--color-primary)]', 'min-h-[44px]');
+  });
+
+  it('renders built-in retry action through governed secondary Button', () => {
+    render(<NoChartsAvailable onRetry={() => undefined} />);
+
+    const action = screen.getByRole('button', { name: 'Retry' });
+    expect(action).toHaveClass('border', 'border-[var(--color-border)]');
+    expect(screen.getByRole('alert')).toHaveAttribute('data-state', 'error');
   });
 });

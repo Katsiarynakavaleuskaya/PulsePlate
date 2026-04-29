@@ -15,9 +15,9 @@ enum PPButtonSize {
 
     var minHeight: CGFloat {
         switch self {
-        case .sm: return 40
-        case .md: return 44  // iOS HIG touch target
-        case .lg: return 48
+        case .sm: return PPAccessibility.minimumTouchTarget
+        case .md: return PPAccessibility.minimumTouchTarget
+        case .lg: return PPAccessibility.minimumTouchTarget(for: 48)
         }
     }
 
@@ -105,6 +105,8 @@ struct PPButton: View {
 
 /// Custom button style for PPButton variants
 struct PPButtonStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     let variant: PPButtonVariant
 
     func makeBody(configuration: Configuration) -> some View {
@@ -116,8 +118,19 @@ struct PPButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: PPDesignTokens.Radius.large, style: .continuous)
                     .stroke(borderColor, lineWidth: variant == .secondary ? 1 : 0)
             )
-            .scaleEffect(configuration.isPressed ? 0.95 : 1.0)
-            .animation(.easeInOut(duration: PPDesignTokens.Motion.fast), value: configuration.isPressed)
+            .scaleEffect(
+                PPAccessibility.pressScale(
+                    isPressed: configuration.isPressed,
+                    reduceMotion: reduceMotion
+                )
+            )
+            .animation(
+                PPAccessibility.animation(
+                    .easeInOut(duration: PPDesignTokens.Motion.fast),
+                    reduceMotion: reduceMotion
+                ),
+                value: configuration.isPressed
+            )
     }
 
     private var foregroundColor: Color {

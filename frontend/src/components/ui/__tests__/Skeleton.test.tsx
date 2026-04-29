@@ -9,8 +9,9 @@ describe('Skeleton Components', () => {
       const { container } = render(<Skeleton />);
 
       const skeleton = container.firstChild as HTMLElement;
-      expect(skeleton).toHaveClass('animate-pulse', 'rounded-md', 'bg-gray-300');
+      expect(skeleton).toHaveClass('motion-safe:animate-pulse', 'rounded-md', 'bg-gray-300');
       expect(skeleton).toHaveClass('dark:bg-gray-700');
+      expect(skeleton).toHaveAttribute('aria-hidden', 'true');
     });
 
     it('renders with custom className', () => {
@@ -19,6 +20,14 @@ describe('Skeleton Components', () => {
       const skeleton = container.firstChild as HTMLElement;
       expect(skeleton).toHaveClass('w-10', 'h-10');
     });
+
+    it('can expose labeled status semantics when requested', () => {
+      render(<Skeleton ariaLabel="Loading dashboard" />);
+
+      const skeleton = screen.getByRole('status', { name: 'Loading dashboard' });
+      expect(skeleton).toHaveAttribute('aria-live', 'polite');
+      expect(skeleton).not.toHaveAttribute('aria-hidden');
+    });
   });
 
   describe('ChartSkeleton', () => {
@@ -26,7 +35,7 @@ describe('Skeleton Components', () => {
       render(<ChartSkeleton />);
 
       // Should have header skeleton and main chart skeleton
-      const skeletons = screen.getAllByRole('generic');
+      const skeletons = document.querySelectorAll('[aria-hidden="true"]');
       expect(skeletons.length).toBeGreaterThan(1);
     });
   });
@@ -35,7 +44,7 @@ describe('Skeleton Components', () => {
     it('renders card skeleton structure', () => {
       render(<CardSkeleton />);
 
-      const skeletons = screen.getAllByRole('generic');
+      const skeletons = document.querySelectorAll('[aria-hidden="true"]');
       expect(skeletons.length).toBeGreaterThan(1);
     });
   });
@@ -44,7 +53,7 @@ describe('Skeleton Components', () => {
     it('renders complete progress page skeleton', () => {
       render(<ProgressPageSkeleton />);
 
-      const skeletons = screen.getAllByRole('generic');
+      const skeletons = document.querySelectorAll('[aria-hidden="true"]');
       expect(skeletons.length).toBeGreaterThan(3); // header + charts + cards
     });
   });

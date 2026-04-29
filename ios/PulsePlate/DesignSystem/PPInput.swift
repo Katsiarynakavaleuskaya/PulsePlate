@@ -3,6 +3,8 @@ import SwiftUI
 /// Design system text input aligned with web Input.tsx
 /// Uses PPDesignTokens for consistent cross-platform styling
 struct PPInput: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Binding var text: String
     let placeholder: String
     let isSecure: Bool
@@ -36,7 +38,7 @@ struct PPInput: View {
         .foregroundColor(PPDesignTokens.ColorToken.textPrimary)
         .padding(.horizontal, PPDesignTokens.Spacing.medium)
         .padding(.vertical, PPDesignTokens.Spacing.medium)
-        .frame(minHeight: PPDesignTokens.Spacing.touchTarget)
+        .frame(minHeight: PPAccessibility.minimumTouchTarget)
         .background(PPDesignTokens.ColorToken.surface)
         .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.medium, style: .continuous))
         .overlay(
@@ -46,13 +48,21 @@ struct PPInput: View {
                     lineWidth: isFocused ? 2 : 1
                 )
         )
-        .animation(.easeInOut(duration: PPDesignTokens.Motion.fast), value: isFocused)
+        .animation(
+            PPAccessibility.animation(
+                .easeInOut(duration: PPDesignTokens.Motion.fast),
+                reduceMotion: reduceMotion
+            ),
+            value: isFocused
+        )
     }
 }
 
 /// Number input variant for numeric values with locale support
 /// Uses NumberFormatter for proper locale-aware decimal parsing (CodeRabbit review)
 struct PPNumberInput: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @Binding var value: Double?
     let placeholder: String
     let suffix: String?
@@ -100,7 +110,7 @@ struct PPNumberInput: View {
         }
         .padding(.horizontal, PPDesignTokens.Spacing.medium)
         .padding(.vertical, PPDesignTokens.Spacing.medium)
-        .frame(minHeight: PPDesignTokens.Spacing.touchTarget)
+        .frame(minHeight: PPAccessibility.minimumTouchTarget)
         .background(PPDesignTokens.ColorToken.surface)
         .clipShape(RoundedRectangle(cornerRadius: PPDesignTokens.Radius.medium, style: .continuous))
         .overlay(
@@ -110,7 +120,13 @@ struct PPNumberInput: View {
                     lineWidth: isFocused ? 2 : 1
                 )
         )
-        .animation(.easeInOut(duration: PPDesignTokens.Motion.fast), value: isFocused)
+        .animation(
+            PPAccessibility.animation(
+                .easeInOut(duration: PPDesignTokens.Motion.fast),
+                reduceMotion: reduceMotion
+            ),
+            value: isFocused
+        )
         .onAppear {
             if let value = value {
                 textValue = formatter.string(from: NSNumber(value: value)) ?? ""
