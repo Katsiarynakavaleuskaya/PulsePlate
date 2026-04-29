@@ -46,16 +46,16 @@ Evidence: `docs/deploy/CLOUDFLARE.md`, `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Post-open review lane for PR 1576 Cloudflare static assets and Tailwind CSS pipeline" --task-class "Design" --pr-phase post_open_review` (PASS; packet `f162f381fb48`)
 - `cd frontend && npm run build` (PASS)
 - `cd frontend && npm run smoke:css` (PASS)
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pytest -q tests/test_deploy_contract_scripts.py -k 'diagnose_web'` (PASS; 8 passed)
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` (PASS; no Python files changed)
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run --all-files` (PASS)
+- `pytest -q tests/test_deploy_contract_scripts.py -k 'diagnose_web'` (PASS; 8 passed)
+- `make validate-changed` with `VENV_PYTHON` set to the repo virtualenv Python (PASS; no Python files changed)
+- `pre-commit run --all-files` from the repo virtualenv (PASS)
 - Pre-push hooks: backend pre-push pytest, full-repo Bandit, docker build test (PASS)
 - Local preview static CSS: `http://127.0.0.1:4174/assets/index-D42ApsRM.css` returned `200` with `Content-Type: text/css`
 - Live baseline before operator Access bypass: `curl -I https://pulseplate.app/assets/index-BN60ERUL.css` returned `302` to `pulseplate.cloudflareaccess.com`
 - `cd frontend && npm run build && npm run smoke:css` after review fixes (PASS)
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pytest -q tests/test_deploy_contract_scripts.py -k 'diagnose_web'` after review fixes (PASS; 8 passed)
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` after review fixes (PASS)
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run --all-files` after review fixes (PASS after Black hook formatting was committed)
+- `pytest -q tests/test_deploy_contract_scripts.py -k 'diagnose_web'` after review fixes (PASS; 8 passed)
+- `make validate-changed` with `VENV_PYTHON` set to the repo virtualenv Python after review fixes (PASS)
+- `pre-commit run --all-files` from the repo virtualenv after review fixes (PASS after Black hook formatting was committed)
 
 ## Merge Readiness
 
