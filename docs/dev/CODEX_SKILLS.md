@@ -130,9 +130,10 @@ For explainability, the packet also carries `skill_routing` metadata with weight
 Wave 2 routing packets additionally expose `skill_routing.explanation` for the
 stable explanation schema and `skill_routing.research_connector_policy` for the
 approved research-only connector contract. Evidence:
-`scripts/orchestration/skill_router.py:1881-1888`,
-`scripts/orchestration/task_bootstrap.py:786-919`,
-`tests/test_skill_router.py:1318-1378`,
+`scripts/orchestration/skill_router.py:594-626`,
+`scripts/orchestration/skill_router.py:695-733`,
+`scripts/orchestration/task_bootstrap.py:786-923`,
+`tests/test_skill_router.py:1510-1586`,
 `tests/test_task_bootstrap.py:163-183`.
 
 ## Skill map (task to skill)
