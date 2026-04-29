@@ -20,7 +20,7 @@ in docs/tests/ledger updates before merge readiness.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 42aa054c0
+Commit: see mapping entries below
 Evidence: Added packet evidence citations, corrected Marketing & GTM wording, parametrized OFF CLI coverage, hardened the onboarding test helper, replaced the ledger Target PR placeholder, and added merge-readiness/CI parity evidence.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197351376 -> 42aa054c0
@@ -29,6 +29,11 @@ Evidence: Added packet evidence citations, corrected Marketing & GTM wording, pa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347195 -> 42aa054c0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347205 -> 42aa054c0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161347211 -> 42aa054c0
+
+Disposition: NOT-A-BUG
+Evidence: `tests/test_food_source_preflight.py` keeps each CLI smoke explicit so PR7 validates file-only OFF full/delta and USDA command contracts without adding shared test abstraction churn.
+Reason: CodeRabbit review `4197626843` is a non-blocking refactor nitpick; adding a helper is not required for PR7 correctness or source-governance safety.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197626843
 
 ## Merge Readiness
 
