@@ -35,6 +35,12 @@ Evidence: `tests/test_food_source_preflight.py` keeps each CLI smoke explicit so
 Reason: CodeRabbit review `4197626843` is a non-blocking refactor nitpick; adding a helper is not required for PR7 correctness or source-governance safety.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197626843
 
+Disposition: FIXED
+Commit: 2376da4ce
+Evidence: Kept PR7 merge-readiness checkboxes unchecked until the actual final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#discussion_r3161676412 -> 2376da4ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1572#pullrequestreview-4197764867 -> 2376da4ce
+
 ## Merge Readiness
 
 - [ ] No unresolved review threads after disposition mapping/resolution
