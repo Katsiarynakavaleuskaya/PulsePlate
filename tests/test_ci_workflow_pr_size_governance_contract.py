@@ -155,6 +155,12 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
     assert "Critical smoke (deterministic merge blocker)" in feature_step_names
     assert "Contract and risk suites" in feature_step_names
     assert "Finalize coverage artifacts" in feature_step_names
+    assert "Start fast-feedback timing" in feature_step_names
+    assert "Summarize fast-feedback budget" in feature_step_names
+    assert "Upload fast-feedback budget artifact" in feature_step_names
+    test_feature_env = test_feature["env"]
+    assert isinstance(test_feature_env, dict)
+    assert test_feature_env["FEATURE_FEEDBACK_TARGET_MINUTES"] == "45"
 
     coverage_feature = jobs["coverage-feature"]
     assert isinstance(coverage_feature, dict)
@@ -171,6 +177,17 @@ def test_feature_push_jobs_use_changes_gate_and_smoke_risk_topology() -> None:
         "Download coverage artifact (Python ${{ env.COVERAGE_PY }})" in coverage_feature_step_names
     )
     assert "Upload to Codecov" in coverage_feature_step_names
+
+
+def test_feature_push_fast_feedback_budget_is_warning_only_evidence() -> None:
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    test_feature_section = _extract_job_section(workflow_text, "  test-feature:")
+
+    assert "Feature/fix fast-feedback exceeded" in test_feature_section
+    assert "::warning::Feature/fix fast-feedback exceeded" in test_feature_section
+    assert "feature-feedback-budget.json" in test_feature_section
+    assert "feature-feedback-budget-${{ env.COVERAGE_PY }}" in test_feature_section
+    assert "if-no-files-found: error" in test_feature_section
 
 
 def test_feature_branch_alias_stays_in_sync_for_ios_push_jobs() -> None:
