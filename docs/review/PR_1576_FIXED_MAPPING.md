@@ -11,7 +11,18 @@ Date: 2026-04-29
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4198402760 -> 164959779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162190364 -> 164959779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#pullrequestreview-4198416972 -> 164959779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1576#discussion_r3162202726 -> 164959779
+
+Disposition: FIXED
+Commit: 164959779
+Evidence: `frontend/scripts/check-tailwind-utilities.mjs` now uses `fileURLToPath(...)` before joining the built CSS bundle path, making the smoke script cross-platform.
+
+Disposition: FIXED
+Commit: 164959779
+Evidence: `scripts/diagnose_web.sh` now probes root HTML and `/assets/*.css` with `--no-access-headers`, preserving anonymous public CSS validation even when private Cloudflare Access service-token env vars are present; `tests/test_deploy_contract_scripts.py` asserts CSS probes do not receive `CF-Access-Client-*` headers.
 
 ## Implementation Evidence
 
@@ -41,6 +52,10 @@ Evidence: `docs/deploy/CLOUDFLARE.md`, `docs/deploy/SPA_APEX_ROUTING_CONTRACT.md
 - Pre-push hooks: backend pre-push pytest, full-repo Bandit, docker build test (PASS)
 - Local preview static CSS: `http://127.0.0.1:4174/assets/index-D42ApsRM.css` returned `200` with `Content-Type: text/css`
 - Live baseline before operator Access bypass: `curl -I https://pulseplate.app/assets/index-BN60ERUL.css` returned `302` to `pulseplate.cloudflareaccess.com`
+- `cd frontend && npm run build && npm run smoke:css` after review fixes (PASS)
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pytest -q tests/test_deploy_contract_scripts.py -k 'diagnose_web'` after review fixes (PASS; 8 passed)
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` after review fixes (PASS)
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pre-commit run --all-files` after review fixes (PASS after Black hook formatting was committed)
 
 ## Merge Readiness
 
