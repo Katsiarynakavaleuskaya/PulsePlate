@@ -151,6 +151,23 @@ def test_build_report_flags_large_diff() -> None:
     ].index("make validate-changed")
 
 
+def test_build_report_handles_non_numeric_changed_lines() -> None:
+    context = _base_context()
+    context["diff"] = {
+        "summary": {"files": 1, "additions": 4, "deletions": 1, "changed_lines": "not-a-number"},
+        "files": [
+            {"path": "scripts/orchestration/pr_review_report.py", "additions": 4, "deletions": 1}
+        ],
+    }
+
+    report = report_runner.build_report(context)
+
+    assert report["findings_count"] == 1
+    assert report["findings"][0]["role_agent"] == "qa-engineer-agent"
+    assert "changed_lines is not numeric" in report["findings"][0]["evidence"]
+    assert report["calibration"]["case_labels"] == ["governance-finding"]
+
+
 def test_render_markdown_contains_required_sections() -> None:
     context = _base_context()
     context["diff"] = {

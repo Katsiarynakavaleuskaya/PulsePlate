@@ -98,6 +98,13 @@ def _context_path(context: dict[str, Any], default: str) -> str:
     return default
 
 
+def _coerce_int(value: Any) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def build_findings(context: dict[str, Any]) -> list[Finding]:
     """Build conservative advisory findings from context collector output."""
 
@@ -170,7 +177,22 @@ def build_findings(context: dict[str, Any]) -> list[Finding]:
 
     diff = _as_dict(context.get("diff"))
     summary = _as_dict(diff.get("summary"))
-    changed_lines = int(summary.get("changed_lines") or 0)
+    changed_lines = _coerce_int(summary.get("changed_lines") or 0)
+    if changed_lines is None:
+        findings.append(
+            Finding(
+                severity="note",
+                role_agent="qa-engineer-agent",
+                category="governance",
+                file="scripts/orchestration/pr_review_context.py",
+                line=None,
+                evidence="diff.summary.changed_lines is not numeric; treated as 0 for advisory planning.",
+                suggested_fix="Regenerate context or set diff.summary.changed_lines to an integer value.",
+                gate_to_run="python3 scripts/orchestration/pr_review_context.py --pr <PR_NUMBER>",
+                disposition_candidate="NEEDS-HUMAN",
+            )
+        )
+        changed_lines = 0
     if changed_lines > LARGE_DIFF_CHANGED_LINES:
         threshold = (
             VERY_LARGE_DIFF_CHANGED_LINES
