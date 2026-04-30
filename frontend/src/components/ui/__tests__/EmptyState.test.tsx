@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
-import { EmptyState } from '../EmptyState';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { EmptyState, NoChartsAvailable, NoProgressData } from '../EmptyState';
 import { TrendingUp, BarChart3 } from 'lucide-react';
 
 describe('EmptyState', () => {
@@ -18,6 +18,7 @@ describe('EmptyState', () => {
 
     expect(screen.getByText('No data')).toBeInTheDocument();
     expect(screen.getByText('There is no data to display')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveAttribute('data-state', 'empty');
   });
 
   it('renders with custom icon', () => {
@@ -48,6 +49,32 @@ describe('EmptyState', () => {
     expect(screen.getByRole('button', { name: 'Create Chart' })).toBeInTheDocument();
   });
 
+  it('uses alert semantics without duplicate live-region attributes when requested', () => {
+    render(
+      <EmptyState
+        state="error"
+        title="Failed"
+        description="Unable to load"
+      />
+    );
+
+    expect(screen.getByRole('alert')).not.toHaveAttribute('aria-live');
+  });
+
+  it('uses polite status semantics for loading state', () => {
+    render(
+      <EmptyState
+        state="loading"
+        title="Loading"
+        description="Please wait"
+      />
+    );
+
+    const status = screen.getByRole('status');
+    expect(status).toHaveAttribute('data-state', 'loading');
+    expect(status).toHaveAttribute('aria-live', 'polite');
+  });
+
   it('has correct CSS classes', () => {
     render(
       <EmptyState
@@ -71,5 +98,33 @@ describe('EmptyState', () => {
 
     const iconContainer = screen.getByText('Test').closest('div')?.querySelector('div');
     expect(iconContainer).toHaveClass('rounded-full', 'bg-gray-100', 'dark:bg-gray-800', 'p-4', 'mb-4');
+    expect(iconContainer).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('renders built-in start action through governed Button', () => {
+    const handleStartTracking = vi.fn();
+    render(<NoProgressData onStartTracking={handleStartTracking} />);
+
+    const action = screen.getByRole('button', { name: 'Start Tracking' });
+    expect(action).toHaveClass('bg-[var(--color-primary)]', 'min-h-[44px]');
+    fireEvent.click(action);
+    expect(handleStartTracking).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not render a no-op start action without a handler', () => {
+    render(<NoProgressData />);
+
+    expect(screen.queryByRole('button', { name: 'Start Tracking' })).not.toBeInTheDocument();
+  });
+
+  it('renders built-in retry action through governed secondary Button', () => {
+    const handleRetry = vi.fn();
+    render(<NoChartsAvailable onRetry={handleRetry} />);
+
+    const action = screen.getByRole('button', { name: 'Retry' });
+    expect(action).toHaveClass('border', 'border-[var(--color-border)]');
+    fireEvent.click(action);
+    expect(handleRetry).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('alert')).toHaveAttribute('data-state', 'error');
   });
 });

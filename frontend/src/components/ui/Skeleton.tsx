@@ -1,14 +1,21 @@
+import type { HTMLAttributes } from 'react';
 import { cn } from '../../lib/utils';
 
-interface SkeletonProps {
-  className?: string;
+interface SkeletonProps extends HTMLAttributes<HTMLDivElement> {
+  ariaLabel?: string;
 }
 
-export function Skeleton({ className }: SkeletonProps) {
+export function Skeleton({ ariaLabel, className, ...props }: SkeletonProps) {
+  const statusProps = ariaLabel
+    ? { role: 'status', 'aria-live': 'polite' as const, 'aria-label': ariaLabel }
+    : { 'aria-hidden': true };
+
   return (
     <div
+      {...props}
+      {...statusProps}
       className={cn(
-        "animate-pulse rounded-md bg-gray-300 dark:bg-gray-700",
+        "motion-safe:animate-pulse rounded-md bg-gray-300 dark:bg-gray-700",
         className
       )}
     />

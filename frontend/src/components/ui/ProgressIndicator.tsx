@@ -15,10 +15,17 @@ export interface ProgressIndicatorProps extends HTMLAttributes<HTMLElement> {
 }
 
 const stateDotClasses: Record<ProgressIndicatorState, string> = {
-  live: 'bg-[var(--color-success)] animate-pulse',
+  live: 'bg-[var(--color-success)] motion-safe:animate-pulse',
   static: 'bg-[var(--color-warning)]',
   complete: 'bg-[var(--color-primary)]',
   warning: 'bg-[var(--color-warning)]',
+};
+
+const stateStatusLabels: Record<ProgressIndicatorState, string> = {
+  live: 'Live status',
+  static: 'Pending status',
+  complete: 'Complete status',
+  warning: 'Warning status',
 };
 
 export function ProgressIndicator({
@@ -49,6 +56,7 @@ export function ProgressIndicator({
             aria-hidden="true"
             className={clsx('h-2.5 w-2.5 rounded-full', stateDotClasses[state])}
           />
+          <span className="sr-only">{stateStatusLabels[state]}</span>
           <p className="text-sm font-medium text-[var(--color-text)]">{label}</p>
         </div>
         {timestampLabel ? (
