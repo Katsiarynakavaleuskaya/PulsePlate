@@ -27,6 +27,16 @@ Commit: 12bc14f4a
 Evidence: `scripts/design_guard.py` now validates every non-empty `core_lock.path`, including deferred core locks, before hash enforcement; `tests/test_design_invariant_guard.py` covers absolute and repo-escaping deferred core paths.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#bug-hunter-deferred-core-path -> 12bc14f4a
 
+Disposition: FIXED
+Commit: da7e70135
+Evidence: `docs/review/PR_1595_FIXED_MAPPING.md` now links deferred local heavy-gate and icon-core follow-up evidence to `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-runtime-system-web-ios-epic`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878650 -> da7e70135
+
+Disposition: FIXED
+Commit: da7e70135
+Evidence: `scripts/design_guard.py` now rejects `TBD` node-id placeholders case-insensitively, and `tests/test_design_invariant_guard.py` covers lowercase `tbd_after_capture`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878653 -> da7e70135
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
