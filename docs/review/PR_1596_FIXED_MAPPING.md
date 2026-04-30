@@ -6,7 +6,7 @@
 - Branch: `codex/advisory-wiki-query-lint-enrichment-b3`
 - Base branch: `main`
 - Initial implementation commit: `9688903881767dee86ab6480237ee98e13ab3865`
-- Current head after draft open: `9688903881767dee86ab6480237ee98e13ab3865`
+- Current head after governance sync: `8163149521cf1ab36664d1576063aec8655108e2`
 
 ## Scope
 
@@ -64,12 +64,28 @@ Evidence:
 - [x] Fixed in commit mapping completed
 
 No actionable human, CodeRabbit, Sourcery, or Cubic review comments were present
-when this initial mapping was recorded. New actionables must be added below with
-one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
+when this initial mapping was recorded. Post-open bot/status events were
+classified below. New actionables must be added below with one of: `FIXED`,
+`NOT-A-BUG`, or `DEFERRED`.
+
+## Post-Open Role Review
+
+Disposition: NOT-A-BUG
+Evidence: `python3 scripts/orchestration/task_bootstrap.py --goal "Post-open review for PR-B3 advisory wiki query/lint enrichment" --task-class "Orchestration" --pr-phase post_open_review` PASS; task packet `9e9c71f5b89c`.
+Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 1596 --output /tmp/pulseplate_pr_1596_review_context.json && python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1596_review_context.json --format markdown` produced one advisory large-diff planning note and no deterministic code findings.
+Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates passed, and local Make targets remain deferred by the operator CPU exception above.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit skipped review because the PR is draft and did not report actionable code comments.
+Reason: Draft-skip status is advisory only; no thread was resolved.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#issuecomment-4351013003
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported weekly rate-limit exhaustion and did not produce actionable review comments.
+Reason: External rate limiting is not a code defect in this PR; no Sourcery actionables were available to fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4203723926
 
 ## Merge Readiness
 
