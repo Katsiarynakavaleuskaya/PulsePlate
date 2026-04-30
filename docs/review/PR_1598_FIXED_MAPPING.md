@@ -23,7 +23,10 @@ before any review thread is resolved.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1598#discussion_r3168261150 -> d5fc8c896
+Disposition: FIXED
+Commit: d5fc8c896
+Evidence: `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json` now declares `experiment_id` and `timestamp`, matching the fields emitted by `scripts/evals/run_rag_release_gates.py`; `tests/test_rag_release_gates_runner.py` adds `test_rag_gate_result_schema_declares_all_emitted_fields`.
 
 ## Implementation Evidence
 
@@ -41,6 +44,8 @@ Evidence:
 - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md` and
   `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json` define the
   contract.
+- Review fix `d5fc8c896` aligns the published schema with the emitted export
+  fields and adds regression coverage.
 
 ## Local Gate Evidence
 
@@ -52,6 +57,8 @@ Evidence:
 - `pytest -q tests/test_repo_policy_guards.py` PASS, 14 tests
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md docs/release/RELEASE_CONTROL_PLANE_EPIC.md docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md docs/roadmap/BACKLOG_LEDGER.md` PASS
 - `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS, 47 tests
+- `pytest -q tests/test_rag_release_gates_runner.py` PASS after schema fix, 48 tests
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json` PASS
 - `pre-commit run --all-files` PASS after Black formatting rerun
 - git commit hooks PASS
 - git pre-push hooks PASS
