@@ -57,6 +57,9 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery posted a reviewer guide and file-level summary only; no code, docs, or design-packet actionable was posted.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#pullrequestreview-4203763443 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740139 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740144 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740152 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
 
 Disposition: FIXED
 Commit: `34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990`
