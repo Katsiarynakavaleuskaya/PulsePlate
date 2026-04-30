@@ -4,7 +4,7 @@
 **Branch:** `release/release-control-plane-pr3-release-manifest`
 **Release-control-plane slice:** PR-3 release manifest generator and validator
 **Canonical commit:** `998664069`
-**Latest review-fix commit:** `1697feb5b`
+**Latest review-fix commit:** `3a647ee35`
 
 ## Scope
 
@@ -21,17 +21,19 @@ APIs, OpenAPI, PR-4 build equivalence, and PR-5 CI release-decision enforcement.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Two Codex review threads are dispositioned as `FIXED` below. New actionable
-review comments must be dispositioned here first as `FIXED`, `NOT-A-BUG`, or
-`DEFERRED` before any thread is resolved.
+Codex and CodeRabbit review threads are dispositioned as `FIXED` below. New
+actionable review comments must be dispositioned here first as `FIXED`,
+`NOT-A-BUG`, or `DEFERRED` before any thread is resolved.
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909585 -> 1697feb5b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592 -> 1697feb5b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929124 -> 1697feb5b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929086 -> 3a647ee35
 Disposition: FIXED
-Commit: 1697feb5b
-Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts` and validates source artifact `kind`; `tests/test_release_manifest.py::test_missing_source_artifacts_are_rejected_even_with_valid_self_hash` and `tests/test_release_manifest.py::test_invalid_source_artifact_kind_is_rejected` cover both review findings.
+Commit: 1697feb5b, 3a647ee35
+Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, and wraps unreadable JSON inputs in `ReleaseManifestError`; `tests/test_release_manifest.py::test_missing_source_artifacts_are_rejected_even_with_valid_self_hash`, `tests/test_release_manifest.py::test_invalid_source_artifact_kind_is_rejected`, `tests/test_release_manifest.py::test_cli_validate_missing_manifest_uses_controlled_error`, and `tests/test_release_manifest.py::test_cli_generate_missing_rag_gate_result_uses_controlled_error` cover the review findings.
 
 ## Validation
 
@@ -46,6 +48,7 @@ Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identi
 - `pre-commit run --all-files` PASS
 - `pytest -q tests/test_release_manifest.py` PASS after `1697feb5b`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RELEASE_MANIFEST_CONTRACT.md docs/release/RELEASE_MANIFEST_CONTRACT.schema.json` PASS after `1697feb5b`
+- `pytest -q tests/test_release_manifest.py` PASS after `3a647ee35`
 - Push-time hooks PASS: mypy changed files, backend pre-push, full-repo Bandit, Docker build test
 
 ## Machine-Heavy Deferral
