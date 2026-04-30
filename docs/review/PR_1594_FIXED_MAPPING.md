@@ -29,6 +29,11 @@ Disposition: FIXED
 Commit: 3f26a6409
 Evidence: `core/evidence/policies.py` validates raw canonical evidence upstream ids against the target rail, `core/evidence/assets.py` applies that validation after upstream-id normalization, and `tests/core/evidence/test_assets.py` covers cross-rail raw `upstream_ids` rejection.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#discussion_r3169224614 -> 6a6e86c62
+Disposition: FIXED
+Commit: 6a6e86c62
+Evidence: `core/evidence/policies.py` rejects whitespace-padded canonical evidence upstream version tokens, and `tests/core/evidence/test_assets.py` covers malformed whitespace-padded raw evidence IDs.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#issuecomment-4350691456
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit docstring coverage is not a required repository merge gate; public `core/evidence` helpers introduced by E1 have docstrings, and required local gates are listed below.
@@ -105,8 +110,9 @@ Mandatory post-open review lane:
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `. .venv/bin/activate && pytest -q tests/core/evidence` PASS
-  (`25 passed`) after CodeRabbit test-hardening fixes, the post-open
-  `qa-engineer-agent` / `bug-hunter` fixes, and the diff-coverage branch tests.
+  (`26 passed`) after CodeRabbit test-hardening fixes, the post-open
+  `qa-engineer-agent` / `bug-hunter` fixes, the diff-coverage branch tests,
+  and the padded upstream-version rejection fix.
 - `. .venv/bin/activate && pytest -q tests/core/evidence tests/test_ci_workflow_pr_size_governance_contract.py`
   PASS (`30 passed`) after the CI coverage-routing fix.
 - `. .venv/bin/activate && python -m mypy --no-incremental --cache-dir=/dev/null core/evidence tests/core/evidence`
