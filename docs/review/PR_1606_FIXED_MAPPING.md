@@ -40,6 +40,7 @@ Evidence: `frontend/src/components/ui/EmptyState.stories.tsx` now supplies requi
 Disposition: FIXED
 Commit: 0cde28de4
 Evidence: `frontend/src/stories/storybookParitySupport.tsx` now parses request URLs and compares exact origin plus `/api/*` pathname before routing through Storybook fixtures. `frontend/src/stories/__tests__/storybookParity.test.ts` covers spoofed Storybook hostname prefixes so external hosts do not enter the fixture router.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#discussion_r3169021823 -> 0cde28de4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/runs/73804421529 -> 0cde28de4
 
 ## Local Validation Evidence
