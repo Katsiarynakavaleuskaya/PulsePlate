@@ -6,7 +6,7 @@
 - Branch: `codex/a9-scientific-reliability-closeout`
 - Base observed at draft open: `ae08f299c3a6437bb6b77f8aa74baa8bfbe90565`
 - Initial implementation commit: `4cdd7c1f1`
-- Current head after post-open governance sync: `8bb68b83e`
+- Current head after post-open governance sync: `0476af80d`
 
 ## Scope
 
@@ -16,6 +16,9 @@ Evidence:
 
 - `docs/roadmap/BACKLOG_LEDGER.md` closes
   `ledger-p1-scientific-reliability-pipeline` after merged PR `#1512`.
+- `docs/roadmap/BACKLOG_LEDGER.md` links both the merged A9 implementation
+  mapping (`docs/review/PR_1512_FIXED_MAPPING.md`) and this reconciliation
+  mapping (`docs/review/PR_1588_FIXED_MAPPING.md`).
 - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` records
   `PR-A9` as historical/merged and blocks reopening it as the active publish
   lane.
@@ -67,23 +70,34 @@ Evidence:
   `mypy`, and `test-fast`, then entered full coverage before the operator
   disabled further Make runs for CPU protection.
 - `gh pr checks 1588 --watch=false` showed current-head docs/governance checks
-  passing or path-skipped for head `8bb68b83e`; `lint` was still in progress
-  when this deferral was recorded.
+  passing or path-skipped for head `0476af80d`, a descendant governance-sync
+  head after initial implementation commit `4cdd7c1f1`; `lint` was still in
+  progress when this deferral was recorded.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-CodeRabbit completed its pre-merge checks with no actionable findings. Sourcery
-posted a reviewer guide only; it did not open actionable review threads. Cubic
-was neutral/skipped. No human, CodeRabbit, Sourcery, or Cubic actionable review
-threads were present when this pass was recorded. New actionables must be added
-below with one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
+CodeRabbit and Sourcery bot findings are mapped below. Cubic was
+neutral/skipped. No human review threads were present when this pass was
+recorded. New actionables must be added below with one of: `FIXED`,
+`NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#discussion_r3166464524 -> 0476af80d
+Disposition: FIXED
+Evidence: This artifact now distinguishes initial implementation commit `4cdd7c1f1` from current governance-sync head `0476af80d`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#discussion_r3166464544 -> 2d21050e5
+Disposition: FIXED
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records the 30 April 2026 delayed-closeout exception and rationale.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203440221
+Disposition: NOT-A-BUG
+Evidence: The ledger links both historical PR `#1512` implementation mapping and this PR `#1588` reconciliation mapping; the PR body remains a required mirror.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203446952
+Disposition: FIXED
+Evidence: The two CodeRabbit inline review comments are mapped explicitly above.
 
 ## Merge Readiness
 
