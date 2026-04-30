@@ -16,6 +16,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
 - `pytest -q tests/ios/test_privacy_manifest_contract.py tests/ios/test_app_privacy_details_contract.py tests/test_ios_appstore_asset_validators.py` PASS, 43 tests
+- `pytest -q tests/ios/test_privacy_manifest_contract.py tests/ios/test_app_privacy_details_contract.py tests/test_ios_appstore_asset_validators.py` PASS, 44 tests after post-ready review fixes
 - `pytest -q tests/test_repo_policy_guards.py` PASS, 14 tests
 - `cd ios && bundle exec fastlane validate_metadata_package` PASS
 - `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` PASS
@@ -58,6 +59,21 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now lists PR #1582 and PR #1591 / `re
 Disposition: FIXED
 Commit: 2f9bdf4fc
 Evidence: `tests/ios/test_privacy_manifest_contract.py` asserts `membership_exception_blocks` is non-empty before `PrivacyInfo.xcprivacy` exclusion checks.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1591#discussion_r3166747911 -> 4941c3c38
+Disposition: FIXED
+Commit: 4941c3c38
+Evidence: `ios/fastlane/app_privacy_details.json` now uses Fastlane/App Store Connect category identifiers `HEALTH`, `OTHER_USER_CONTENT`, and `PURCHASE_HISTORY`; `tests/ios/test_app_privacy_details_contract.py` locks the allowed Fastlane category ID set.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1591#pullrequestreview-4203813159 -> 4941c3c38
+Disposition: FIXED
+Commit: 4941c3c38
+Evidence: `tests/ios/test_app_privacy_details_contract.py` now asserts `data_protections` exists and is a list before checking `DATA_NOT_COLLECTED`, runtime-flow protections, and tracking protections.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1591#discussion_r3166780304 -> 4941c3c38
+Disposition: FIXED
+Commit: 4941c3c38
+Evidence: `tests/ios/test_app_privacy_details_contract.py` uses `_data_protections(...)` to fail closed when `data_protections` is missing or malformed.
 
 ## Merge Readiness
 
