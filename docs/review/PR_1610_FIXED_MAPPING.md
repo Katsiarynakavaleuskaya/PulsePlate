@@ -21,18 +21,14 @@ Actionable CodeRabbit comments were fixed after the first review pass.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `tests/test_food_source_menustat_replacement.py`, `tests/test_food_source_menustat_source_decision.py`, and `docs/review/PR_1610_FIXED_MAPPING.md` address CodeRabbit review findings.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#discussion_r3169352494 -> a9a52367e
-Disposition: FIXED
-Evidence: `docs/review/PR_1610_FIXED_MAPPING.md` uses the required `## Merge Readiness` checklist section.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#discussion_r3169352504 -> a9a52367e
-Disposition: FIXED
-Evidence: `tests/test_food_source_menustat_replacement.py` annotates the parametrized helper callable.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#issuecomment-4354114129 -> a9a52367e
-Disposition: FIXED
-Evidence: `tests/test_food_source_menustat_source_decision.py` annotates newly added helper and parametrized signatures.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#pullrequestreview-4206770024 -> a9a52367e
-Disposition: FIXED
-Evidence: `tests/test_food_source_menustat_replacement.py` and `tests/test_food_source_menustat_source_decision.py` annotate CodeRabbit-reported helper signatures.
 
 ## Local Verification
 
