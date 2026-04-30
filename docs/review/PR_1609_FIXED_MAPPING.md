@@ -39,6 +39,15 @@ Disposition: FIXED
 Commit: a395145e0
 Evidence: Added explicit query/fragment rejection plus `page_access` and `js_required` cross-field validation with regression tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> a395145e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609#discussion_r3169120323 -> a395145e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609#discussion_r3169120339 -> a395145e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609#discussion_r3169120351 -> a395145e0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609#discussion_r3169120359 -> a395145e0
+
+Disposition: FIXED
+Commit: 2ff9bc8a7
+Evidence: Finalized CodeRabbit actionable mapping after the implementation fixes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609#pullrequestreview-4206500207 -> 2ff9bc8a7
 
 ## Merge Readiness Evidence
 
