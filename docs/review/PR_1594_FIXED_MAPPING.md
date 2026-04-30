@@ -11,15 +11,47 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at artifact creation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203461409
+  -> `694c6eb25`
+  - Disposition: FIXED.
+  - Evidence: `tests/core/evidence/test_fingerprints.py` now asserts the full
+    lowercase `sha256:[0-9a-f]{64}` format, and
+    `tests/core/evidence/test_assets.py` now varies `policy_version` in the
+    identity-scope uniqueness test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203441788
+  - Disposition: NOT-A-BUG.
+  - Evidence: Sourcery reported a service-side weekly diff-character rate
+    limit. No repo code or PR scope change is requested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203472985
+  - Disposition: NOT-A-BUG.
+  - Evidence: Codex connector posted informational review metadata without
+    actionable suggestions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#issuecomment-4350691456
+  - Disposition: NOT-A-BUG for the docstring-coverage warning.
+  - Evidence: This repository does not enforce CodeRabbit docstring coverage as
+    a required merge gate; public `core/evidence` helpers introduced by E1 have
+    docstrings, and required local gates are listed below.
+- Post-open `qa-engineer-agent` finding: raw `upstream_ids` could bypass rail
+  separation by passing an advisory `evidence:...` id into a runtime asset.
+  -> `3f26a6409`
+  - Disposition: FIXED.
+  - Evidence: `core/evidence/policies.py` now validates raw canonical evidence
+    upstream ids against the target rail, `core/evidence/assets.py` applies that
+    validation after upstream-id normalization, and
+    `tests/core/evidence/test_assets.py` covers the bypass case.
 
 ## Initial Implementation Commits
 
 - `64ba7a6fc` - `feat(metadata): add evidence asset registry`
+- `bc0991aa0` - `docs(review): add PR 1594 mapping`
+- `694c6eb25` - `test(evidence): harden asset registry contracts`
+- `3f26a6409` - `fix(evidence): reject cross-rail raw upstream ids`
 
 ## Coordinator Packet
 
 - Pre-open packet: `artifacts/orchestration/task_packets/95e7f0962991.json`
+  (local/gitignored, intentionally not committed).
+- Post-open packet: `artifacts/orchestration/task_packets/d62dc7d03c3f.json`
   (local/gitignored, intentionally not committed).
 
 ## Role Order
@@ -45,9 +77,11 @@ Mandatory post-open review lane:
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `. .venv/bin/activate && pytest -q tests/core/evidence` PASS
-  (`14 passed`).
+  (`15 passed`) after CodeRabbit test-hardening fixes and the post-open
+  `qa-engineer-agent` rail-bypass fix.
 - `. .venv/bin/activate && python -m mypy --no-incremental --cache-dir=/dev/null core/evidence tests/core/evidence`
-  PASS (`Success: no issues found in 6 source files`).
+  PASS (`Success: no issues found in 6 source files`) after CodeRabbit
+  test-hardening fixes.
 - `pre-commit run --all-files` PASS after black formatted two new files, then
   clean rerun PASS.
 - Commit hook PASS.
