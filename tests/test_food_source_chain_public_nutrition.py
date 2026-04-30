@@ -332,6 +332,19 @@ def test_chain_public_nutrition_rejects_host_drift() -> None:
         )
 
 
+def test_chain_public_nutrition_rejects_same_host_non_nutrition_page() -> None:
+    payload = _governance_payload()
+    _chain_page(payload, "mcdonalds_us")["official_url"] = "https://www.mcdonalds.com/"
+
+    with pytest.raises(ChainPublicNutritionGovernanceError, match="official_url must be"):
+        parse_chain_public_nutrition_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+        )
+
+
 @pytest.mark.parametrize(
     "field_name",
     (

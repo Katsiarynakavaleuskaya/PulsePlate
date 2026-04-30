@@ -68,6 +68,12 @@ _EXPECTED_CHAIN_HOSTS: dict[str, str] = {
     "starbucks_us": "www.starbucks.com",
 }
 
+_EXPECTED_CHAIN_URLS: dict[str, str] = {
+    "mcdonalds_us": ("https://www.mcdonalds.com/us/en-us/about-our-food/nutrition-calculator.html"),
+    "chipotle_us": "https://www.chipotle.com/nutrition-calculator",
+    "starbucks_us": "https://www.starbucks.com/menu/nutrition-info",
+}
+
 _SOCIAL_MEDIA_HOST_FRAGMENTS = (
     "facebook.com",
     "instagram.com",
@@ -365,6 +371,9 @@ def _validate_official_url(chain_id: str, official_url: str, context: str) -> No
         raise _governance_error(context, f"unknown chain page id: {chain_id}")
     if host != expected_host:
         raise _governance_error(context, f"{chain_id} official_url host must be {expected_host}")
+    expected_url = _EXPECTED_CHAIN_URLS[chain_id]
+    if official_url != expected_url:
+        raise _governance_error(context, f"{chain_id} official_url must be {expected_url}")
 
 
 def _parse_chain_page(value: object, context: str) -> RepresentativeChainPage:
