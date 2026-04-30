@@ -28,7 +28,7 @@ def _iter_app_override_targets(app: FastAPI) -> list[FastAPI]:
     targets = [app]
     try:
         from app.main import app as canonical_app
-    except Exception:
+    except ImportError:
         canonical_app = None
 
     if isinstance(canonical_app, FastAPI):
