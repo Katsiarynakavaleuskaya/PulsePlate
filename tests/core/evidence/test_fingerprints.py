@@ -6,6 +6,7 @@ from typing import cast
 import pytest
 
 from core.evidence.fingerprints import JsonValue, fingerprint_payload
+from core.evidence.policies import validate_fingerprint
 
 
 def test_fingerprint_is_stable_for_dict_key_ordering() -> None:
@@ -45,3 +46,18 @@ def test_fingerprint_does_not_embed_raw_payload_text() -> None:
 def test_fingerprint_rejects_non_json_payload() -> None:
     with pytest.raises(ValueError, match="JSON-compatible"):
         fingerprint_payload(cast(JsonValue, {"unsupported": {object()}}))
+
+
+@pytest.mark.parametrize(
+    "fingerprint",
+    [
+        "not-a-sha",
+        "sha256:abc",
+        "sha256:0123456789abcdeg0123456789abcdef0123456789abcdef0123456789abcdef",
+    ],
+)
+def test_validate_fingerprint_fails_closed_for_malformed_values(
+    fingerprint: str,
+) -> None:
+    with pytest.raises(ValueError):
+        validate_fingerprint(fingerprint)

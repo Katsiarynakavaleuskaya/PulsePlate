@@ -175,6 +175,7 @@ def test_same_rail_upstream_ref_is_accepted() -> None:
 @pytest.mark.parametrize(
     "upstream_id",
     [
+        "evidence:eval_run:runtime:v1",
         "evidence:eval_run:runtime:v1:nothex",
         "evidence:eval_run:runtime:v1:abc",
         "evidence:eval_run:runtime:v1:0123456789abcdeg01234567",
