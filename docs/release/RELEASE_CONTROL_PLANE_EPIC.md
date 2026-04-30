@@ -93,6 +93,9 @@ review governance.
    - Branch: `release/release-control-plane-pr3-release-manifest`
    - Generate and validate the internal release packet.
    - Fail closed on missing required identity groups.
+   - Contract: [`RELEASE_MANIFEST_CONTRACT.md`](RELEASE_MANIFEST_CONTRACT.md)
+     and [`RELEASE_MANIFEST_CONTRACT.schema.json`](RELEASE_MANIFEST_CONTRACT.schema.json).
+   - Helper: `scripts/release/release_manifest.py`.
 
 5. **PR-4: review build equals production candidate**
    - Branch: `release/release-control-plane-pr4-build-equivalence`
@@ -169,3 +172,4 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
 4. Keep the release packet internal and machine-readable.
 5. Defer MLflow, Hugging Face cards, VEX/OPA, and protected uploads to later explicitly scoped slices.
 6. PR-1 hashes reviewer notes separately from localized App Store metadata and treats App Privacy JSON as upstream context only.
+7. PR-3 keeps the release manifest internal and fail-closed, but leaves CI enforcement to PR-5 and build equivalence to PR-4.

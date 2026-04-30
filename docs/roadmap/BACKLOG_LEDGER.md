@@ -373,7 +373,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR-TBD-RELEASE-CONTROL-PLANE-PR5
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: PR-0 merged; PR-1 active in branch `release/release-control-plane-pr1-reviewer-hash`.
+  - Status: PR-0, PR-1, and PR-2 merged; PR-3 active in branch `release/release-control-plane-pr3-release-manifest`.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
@@ -382,6 +382,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`
     - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`
     - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json`
+    - `docs/release/RELEASE_MANIFEST_CONTRACT.md`
+    - `docs/release/RELEASE_MANIFEST_CONTRACT.schema.json`
+    - `scripts/release/release_manifest.py`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
     - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
     - `scripts/evals/run_rag_release_gates.py`
