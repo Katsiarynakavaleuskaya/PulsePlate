@@ -32,7 +32,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: App Store release readiness closure for full-feature launch
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (App Store submission blocker)
-  - Target PR: PR-TBD-APPSTORE-READINESS-TRAIN (`release/appstore-readiness-*`)
+  - Target PR: PR #1582 -> PR-0 merged; PR #1591 / `release/appstore-readiness-pr1-privacy-manifest` -> PR-1 active; remaining train `release/appstore-readiness-*`
   - Status: 🛠️ PR-0 merged in PR #1582; PR-1 active on branch `release/appstore-readiness-pr1-privacy-manifest`
   - Area: iOS / App Store / privacy / release governance
   - Finding Type: release-truth drift blocker

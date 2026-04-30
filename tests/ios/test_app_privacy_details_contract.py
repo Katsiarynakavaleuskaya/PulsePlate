@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,13 +11,27 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 APP_PRIVACY_DETAILS = REPO_ROOT / "ios/fastlane/app_privacy_details.json"
 IOS_ROOT = REPO_ROOT / "ios/PulsePlate"
 
-NETWORK_FLOW_CATEGORIES = {
-    "HEALTH_AND_FITNESS": {
-        "paths": [
+APP_FUNCTIONALITY = ["APP_FUNCTIONALITY"]
+DATA_LINKED_TO_YOU = ["DATA_LINKED_TO_YOU"]
+
+
+@dataclass(frozen=True)
+class AppPrivacyRuntimeFlow:
+    category: str
+    source_paths: tuple[str, ...]
+    source_markers: tuple[str, ...]
+    purposes: list[str]
+    data_protections: list[str]
+
+
+RUNTIME_FLOW_DISCLOSURES = (
+    AppPrivacyRuntimeFlow(
+        category="HEALTH_AND_FITNESS",
+        source_paths=(
             "Services/ProDailyNutritionService.swift",
             "Services/ProfileProvider.swift",
-        ],
-        "needles": [
+        ),
+        source_markers=(
             "/api/v1/pro/nutrition/daily",
             "sex",
             "height_cm",
@@ -24,21 +39,29 @@ NETWORK_FLOW_CATEGORIES = {
             "activity",
             "goal",
             "lang",
-        ],
-    },
-    "USER_CONTENT": {
-        "paths": ["Services/CBTInsightService.swift"],
-        "needles": ["/api/v1/pro/cbt/insight", "query"],
-    },
-    "PURCHASES": {
-        "paths": ["Services/SubscriptionBillingService.swift"],
-        "needles": [
+        ),
+        purposes=APP_FUNCTIONALITY,
+        data_protections=DATA_LINKED_TO_YOU,
+    ),
+    AppPrivacyRuntimeFlow(
+        category="USER_CONTENT",
+        source_paths=("Services/CBTInsightService.swift",),
+        source_markers=("/api/v1/pro/cbt/insight", "query"),
+        purposes=APP_FUNCTIONALITY,
+        data_protections=DATA_LINKED_TO_YOU,
+    ),
+    AppPrivacyRuntimeFlow(
+        category="PURCHASES",
+        source_paths=("Services/SubscriptionBillingService.swift",),
+        source_markers=(
             "/api/v1/billing/apple/verify-receipt",
             "/api/v1/pro/payments/activate",
             "/api/v1/pro/payments/activations/",
-        ],
-    },
-}
+        ),
+        purposes=APP_FUNCTIONALITY,
+        data_protections=DATA_LINKED_TO_YOU,
+    ),
+)
 
 
 def _privacy_entries() -> list[dict[str, Any]]:
@@ -58,7 +81,7 @@ def _entry_by_category() -> dict[str, dict[str, Any]]:
     }
 
 
-def _source_text(paths: list[str]) -> str:
+def _source_text(paths: tuple[str, ...]) -> str:
     return "\n".join((IOS_ROOT / path).read_text(encoding="utf-8") for path in paths)
 
 
@@ -72,20 +95,20 @@ def test_app_privacy_no_longer_claims_nothing_collected() -> None:
 def test_app_privacy_declares_profile_ai_and_billing_data_flows() -> None:
     entries = _entry_by_category()
 
-    for category in NETWORK_FLOW_CATEGORIES:
-        assert category in entries
-        assert entries[category]["purposes"] == ["APP_FUNCTIONALITY"]
-        assert entries[category]["data_protections"] == ["DATA_LINKED_TO_YOU"]
+    for flow in RUNTIME_FLOW_DISCLOSURES:
+        assert flow.category in entries
+        assert entries[flow.category]["purposes"] == flow.purposes
+        assert entries[flow.category]["data_protections"] == flow.data_protections
 
 
 def test_app_privacy_contract_tracks_current_ios_network_flows() -> None:
     entries = _entry_by_category()
 
-    for category, flow in NETWORK_FLOW_CATEGORIES.items():
-        source = _source_text(flow["paths"])
-        for needle in flow["needles"]:
-            assert needle in source
-        assert category in entries
+    for flow in RUNTIME_FLOW_DISCLOSURES:
+        source = _source_text(flow.source_paths)
+        for marker in flow.source_markers:
+            assert marker in source
+        assert flow.category in entries
 
 
 def test_app_privacy_does_not_enable_tracking_disclosures() -> None:

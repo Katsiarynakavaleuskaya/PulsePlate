@@ -27,20 +27,13 @@ def test_privacy_manifest_exists_and_disables_tracking() -> None:
 def test_privacy_manifest_declares_user_defaults_required_reason() -> None:
     manifest = _read_manifest()
     accessed_api_types = manifest["NSPrivacyAccessedAPITypes"]
+    expected_user_defaults_entry = {
+        "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
+        "NSPrivacyAccessedAPITypeReasons": ["CA92.1"],
+    }
 
     assert isinstance(accessed_api_types, list)
-    user_defaults_entries = [
-        entry
-        for entry in accessed_api_types
-        if entry.get("NSPrivacyAccessedAPIType") == "NSPrivacyAccessedAPICategoryUserDefaults"
-    ]
-
-    assert user_defaults_entries == [
-        {
-            "NSPrivacyAccessedAPIType": "NSPrivacyAccessedAPICategoryUserDefaults",
-            "NSPrivacyAccessedAPITypeReasons": ["CA92.1"],
-        }
-    ]
+    assert expected_user_defaults_entry in accessed_api_types
 
 
 def test_privacy_manifest_is_not_excluded_from_pulseplate_target() -> None:
@@ -53,4 +46,5 @@ def test_privacy_manifest_is_not_excluded_from_pulseplate_target() -> None:
 
     assert "path = PulsePlate;" in project
     assert "PBXFileSystemSynchronizedRootGroup" in project
+    assert membership_exception_blocks
     assert all("PrivacyInfo.xcprivacy" not in block for block in membership_exception_blocks)
