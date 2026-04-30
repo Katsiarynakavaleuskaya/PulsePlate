@@ -4,6 +4,7 @@
 **Branch:** `release/release-control-plane-pr3-release-manifest`
 **Release-control-plane slice:** PR-3 release manifest generator and validator
 **Canonical commit:** `998664069`
+**Latest review-fix commit:** `1697feb5b`
 
 ## Scope
 
@@ -20,13 +21,18 @@ APIs, OpenAPI, PR-4 build equivalence, and PR-5 CI release-decision enforcement.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads have been resolved for PR `#1605` yet. New actionable review
-comments must be dispositioned here first as `FIXED`, `NOT-A-BUG`, or
+Two Codex review threads are dispositioned as `FIXED` below. New actionable
+review comments must be dispositioned here first as `FIXED`, `NOT-A-BUG`, or
 `DEFERRED` before any thread is resolved.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909585 -> 1697feb5b
+  - Disposition: FIXED
+  - Evidence: `scripts/release/release_manifest.py` now rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`; `tests/test_release_manifest.py::test_missing_source_artifacts_are_rejected_even_with_valid_self_hash` covers recomputed self-hash bypass attempts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592 -> 1697feb5b
+  - Disposition: FIXED
+  - Evidence: `scripts/release/release_manifest.py` now validates source artifact `kind`; `tests/test_release_manifest.py::test_invalid_source_artifact_kind_is_rejected` covers missing/invalid artifact kind.
 
 ## Validation
 
@@ -39,6 +45,8 @@ comments must be dispositioned here first as `FIXED`, `NOT-A-BUG`, or
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md docs/release/RELEASE_CONTROL_PLANE_EPIC.md docs/release/RELEASE_MANIFEST_CONTRACT.md docs/release/RELEASE_MANIFEST_CONTRACT.schema.json docs/roadmap/BACKLOG_LEDGER.md` PASS
 - `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS
 - `pre-commit run --all-files` PASS
+- `pytest -q tests/test_release_manifest.py` PASS after `1697feb5b`
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RELEASE_MANIFEST_CONTRACT.md docs/release/RELEASE_MANIFEST_CONTRACT.schema.json` PASS after `1697feb5b`
 - Push-time hooks PASS: mypy changed files, backend pre-push, full-repo Bandit, Docker build test
 
 ## Machine-Heavy Deferral
