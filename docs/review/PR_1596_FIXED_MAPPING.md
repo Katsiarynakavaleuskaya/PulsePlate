@@ -41,22 +41,21 @@ Evidence:
 - `pytest -q tests/test_wiki_query.py tests/test_wiki_lint.py tests/test_wiki_ingest.py tests/test_wiki_promote.py tests/test_wiki_compiler_keys.py tests/test_repo_policy_guards.py` PASS, 69 tests
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` PASS
 - `pre-commit run --all-files` PASS
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS
-- `make verify` PASS after creating the local ignored worktree symlink `.venv -> ../../.venv`; `verify-env`, lint, mypy, test-fast, full coverage pytest, and diff-cover all passed. Diff-cover reported no covered-line diff gaps.
 - commit hooks PASS
 - pre-push hooks PASS, including mypy changed-files, pip-audit,
   backend tests, full-repo bandit, and docker build test where applicable
 
-## Local Full Verify
+## Local Heavy Verify Deferral
 
-Disposition: FIXED
-Commit: 517b8e72c9b009027e0a76211a8ea73b05dfdd66
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-query-lint-enrichment
 Evidence:
 
-- Full local `make verify` was run on 2026-04-30 before the final
-  `origin/main` sync and passed.
-- The worktree-local `.venv` symlink is an ignored local artifact only and is
-  not part of the PR diff.
+- Full local `make verify` and local `make` targets are intentionally not part
+  of the PR-B3 local validation loop under the operator CPU exception.
+- PR-B3 uses the packet-declared narrow gates, pre-commit, current-head GitHub
+  checks, unresolved review-thread audit, and the strict merge-readiness wrapper
+  as the merge-readiness path.
 
 ## Discussion Thread Pass
 
@@ -79,7 +78,7 @@ Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates 
 
 Disposition: FIXED
 Commit: 943b2d85ffd087e364d98491b3a2a27489402483
-Evidence: `docs/review/PR_1596_FIXED_MAPPING.md` now uses a concrete commit SHA for the Local Full Verify `FIXED` block.
+Evidence: `docs/review/PR_1596_FIXED_MAPPING.md` no longer contains a free-text commit value in the local heavy-verify disposition block; the lane records the operator CPU deferral instead.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168206712 -> 943b2d85ffd087e364d98491b3a2a27489402483
 
 Disposition: FIXED
@@ -91,6 +90,11 @@ Disposition: FIXED
 Commit: 943b2d85ffd087e364d98491b3a2a27489402483
 Evidence: The CodeRabbit review summary listed the two actionable inline comments above, both fixed in the same commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4205443302 -> 943b2d85ffd087e364d98491b3a2a27489402483
+
+Disposition: FIXED
+Commit: 943b2d85ffd087e364d98491b3a2a27489402483
+Evidence: The follow-up CodeRabbit review summary duplicated the same commit-SHA and tilde-fence findings; both were fixed in the same commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4205475515 -> 943b2d85ffd087e364d98491b3a2a27489402483
 
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit status after the PR moved from draft to ready and did not report actionable code comments.

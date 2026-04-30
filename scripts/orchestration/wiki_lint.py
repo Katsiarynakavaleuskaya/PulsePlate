@@ -23,8 +23,9 @@ _REQUIRED_KEYS = ("advisory", "corpus", "content_hash", "ingested_at")
 _CONTENT_HASH_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9a-f]{64}$")
 _INDEX_PAGE_LINK_RE: Final[re.Pattern[str]] = re.compile(r"\]\(pages/([^)/]+)\.md\)")
 _LOCAL_PAGE_LINK_RE: Final[re.Pattern[str]] = re.compile(
-    r"\[[^\]]+\]\((?:\./)?pages/([^)/]+)\.md(?:#[^)]+)?\)"
+    r"\[[^\]]+\]\(<?(?:\./)?pages/([^)/]+)\.md(?:#[^)>\s]+)?(?:>?|\s+[^)]*)\)"
 )
+_FENCE_OPEN_RE: Final[re.Pattern[str]] = re.compile(r"^(`{3,}|~{3,})")
 
 
 def _index_page_slugs(index_path: Path) -> set[str] | None:
@@ -40,11 +41,16 @@ def _strip_fenced_code_blocks(body: str) -> str:
     fence_marker: str | None = None
     for line in body.splitlines():
         stripped = line.lstrip()
-        if not in_fence and (stripped.startswith("```") or stripped.startswith("~~~")):
+        opening = _FENCE_OPEN_RE.match(stripped)
+        if not in_fence and opening is not None:
             in_fence = True
-            fence_marker = stripped[:3]
+            fence_marker = opening.group(1)
             continue
-        if in_fence and fence_marker is not None and stripped.startswith(fence_marker):
+        if (
+            in_fence
+            and fence_marker is not None
+            and stripped.startswith(fence_marker[0] * len(fence_marker))
+        ):
             in_fence = False
             fence_marker = None
             continue

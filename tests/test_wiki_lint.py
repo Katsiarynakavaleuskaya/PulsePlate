@@ -120,6 +120,32 @@ def test_lint_reports_stale_local_page_links_only(tmp_path: Path) -> None:
     assert all("not-wiki" not in item for item in v)
 
 
+def test_lint_reports_markdown_page_links_with_titles_and_angles(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text(
+        "\n".join(
+            [
+                '[Missing title](pages/missing-title.md "title")',
+                "[Missing angle](<pages/missing-angle.md>)",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert "s.a.md:page_local_link_missing:missing-title" in v
+    assert "s.a.md:page_local_link_missing:missing-angle" in v
+
+
 def test_lint_ignores_page_links_inside_fenced_code(tmp_path: Path) -> None:
     repo = tmp_path / "r"
     (repo / "s").mkdir(parents=True)
@@ -158,6 +184,34 @@ def test_lint_ignores_page_links_inside_tilde_fenced_code(tmp_path: Path) -> Non
                 "~~~markdown",
                 "[Example](pages/missing.md)",
                 "~~~",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert all("missing" not in item for item in v)
+
+
+def test_lint_ignores_page_links_inside_longer_fenced_code(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text(
+        "\n".join(
+            [
+                "````markdown",
+                "```",
+                "[Example](pages/missing.md)",
+                "```",
+                "````",
                 "",
             ]
         ),
