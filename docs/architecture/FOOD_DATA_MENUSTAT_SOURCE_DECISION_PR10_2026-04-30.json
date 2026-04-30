@@ -50,8 +50,7 @@
   "public_web_evidence_policy": {
     "allowed_capture_methods": [
       "url_citation",
-      "manual_screenshot_for_internal_review",
-      "manual_transcription_after_legal_review"
+      "manual_screenshot_for_internal_review"
     ],
     "allowed_surfaces": [
       "official_restaurant_website",

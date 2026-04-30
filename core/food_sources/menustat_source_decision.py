@@ -412,8 +412,8 @@ def _parse_budget_api_review(value: object, context: str) -> BudgetApiReview:
         raise _decision_error(context, "budget API review must stay recipe_corpus")
     if review.review_lane_decision != "adjacent_recipe_food_db_review_only":
         raise _decision_error(context, "budget API review must stay adjacent review only")
-    if review.starter_budget_usd_per_month > 20:
-        raise _decision_error(context, "budget API review must stay at or below 20 USD/month")
+    if review.starter_budget_usd_per_month < 0 or review.starter_budget_usd_per_month > 20:
+        raise _decision_error(context, "budget API review must stay between 0 and 20 USD/month")
     if review.authority_decision != "not_approved" or review.api_calls_allowed:
         raise _decision_error(context, "budget API review cannot approve authority or API calls")
     if review.cache_policy_status != "blocked_terms_review_required":
@@ -445,14 +445,16 @@ def _parse_public_web_policy(value: object, context: str) -> PublicWebEvidencePo
     )
     if policy.policy_decision != "manual_evidence_only_legal_review_required":
         raise _decision_error(context, "public web policy must stay manual evidence only")
-    required_surfaces = {"official_restaurant_website", "official_restaurant_social_account"}
-    if not required_surfaces.issubset(set(policy.allowed_surfaces)):
+    required_surfaces = ("official_restaurant_website", "official_restaurant_social_account")
+    if policy.allowed_surfaces != required_surfaces:
         raise _decision_error(
-            context, "public web policy must include official website/social surfaces"
+            context, "public web policy surfaces must match the approved official-only list"
         )
-    required_methods = {"url_citation", "manual_screenshot_for_internal_review"}
-    if not required_methods.issubset(set(policy.allowed_capture_methods)):
-        raise _decision_error(context, "public web policy must include URL citation and screenshot")
+    required_methods = ("url_citation", "manual_screenshot_for_internal_review")
+    if policy.allowed_capture_methods != required_methods:
+        raise _decision_error(
+            context, "public web policy capture methods must match approved manual methods"
+        )
     if not (
         policy.legal_review_required
         and policy.anti_scraping_review_required

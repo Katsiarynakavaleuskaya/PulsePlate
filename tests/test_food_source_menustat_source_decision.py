@@ -247,7 +247,22 @@ def test_menustat_source_decision_rejects_over_budget_api_lane() -> None:
     assert isinstance(budget_review, dict)
     budget_review["starter_budget_usd_per_month"] = 29
 
-    with pytest.raises(MenuStatSourceDecisionError, match="at or below 20 USD"):
+    with pytest.raises(MenuStatSourceDecisionError, match="between 0 and 20 USD"):
+        parse_menustat_source_decision(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            replacement=_replacement(),
+        )
+
+
+def test_menustat_source_decision_rejects_negative_budget_api_lane() -> None:
+    payload = _decision_payload()
+    budget_review = payload["budget_api_review"]
+    assert isinstance(budget_review, dict)
+    budget_review["starter_budget_usd_per_month"] = -5
+
+    with pytest.raises(MenuStatSourceDecisionError, match="between 0 and 20 USD"):
         parse_menustat_source_decision(
             payload,
             catalog=_catalog(),
@@ -278,6 +293,40 @@ def test_menustat_source_decision_requires_public_web_legal_review() -> None:
     web_policy["legal_review_required"] = False
 
     with pytest.raises(MenuStatSourceDecisionError, match="must require legal reviews"):
+        parse_menustat_source_decision(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            replacement=_replacement(),
+        )
+
+
+def test_menustat_source_decision_rejects_public_web_surface_broadening() -> None:
+    payload = _decision_payload()
+    web_policy = payload["public_web_evidence_policy"]
+    assert isinstance(web_policy, dict)
+    allowed_surfaces = web_policy["allowed_surfaces"]
+    assert isinstance(allowed_surfaces, list)
+    allowed_surfaces.append("third_party_blog")
+
+    with pytest.raises(MenuStatSourceDecisionError, match="approved official-only list"):
+        parse_menustat_source_decision(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            replacement=_replacement(),
+        )
+
+
+def test_menustat_source_decision_rejects_public_web_capture_broadening() -> None:
+    payload = _decision_payload()
+    web_policy = payload["public_web_evidence_policy"]
+    assert isinstance(web_policy, dict)
+    allowed_capture_methods = web_policy["allowed_capture_methods"]
+    assert isinstance(allowed_capture_methods, list)
+    allowed_capture_methods.append("bulk_scraping")
+
+    with pytest.raises(MenuStatSourceDecisionError, match="approved manual methods"):
         parse_menustat_source_decision(
             payload,
             catalog=_catalog(),

@@ -54,8 +54,7 @@ dish/recipe database, and preference-menu planning problem space.
 - Public restaurant websites and official social accounts may be used only as
   manual evidence after legal review. Allowed PR10 terminology:
   `public_web_evidence_policy=manual_evidence_only_legal_review_required`,
-  `url_citation`, `manual_screenshot_for_internal_review`, and
-  `manual_transcription_after_legal_review`. Blocked terminology:
+  `url_citation`, and `manual_screenshot_for_internal_review`. Blocked terminology:
   scraping, bulk collection, login/paywall bypass, redistribution, or public
   dataset claims.
 - Under-$20 APIs are allowed only as adjacent review candidates, not source
