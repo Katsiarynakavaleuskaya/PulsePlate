@@ -1888,8 +1888,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1597 (PR10: `docs(food-data): narrow MenuStat replacement source decision`)
-  - Status: 🚧 Active PR10 MenuStat source-decision cleanup lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, and PR9 MenuStat replacement gate merged as PR #1590
+  - Target PR: PR `#1601` (PR11: `docs(food-data): add food coverage source-gap audit`)
+  - Status: 🚧 Active PR11 coverage/source-gap audit lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, PR9 MenuStat replacement gate merged as PR #1590, and PR10 MenuStat source decision merged as PR #1597
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -1903,12 +1903,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md`
     - `docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md`
     - `docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md`
+    - `docs/orchestration/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_PACKET_2026-04-30.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
     - `docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json`
     - `docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json`
     - `docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json`
+    - `docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -1932,6 +1934,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR10 narrows the PR9 interpretation: FatSecret Platform is explicitly not a PulsePlate project source; MenuStat is archival/reference-only and requires validation before use; chain public nutrition pages are the preferred budget-first research lane but remain manual-evidence-only until legal, anti-scraping, cache, attribution, freshness, schema, screenshot/evidence, and rollback governance is approved
     - Under-$20 food/recipe APIs such as Edamam Food Database may be recorded only as adjacent review candidates and must not become source authority, API-call lanes, cache authority, or runtime/ingest surfaces without a dedicated source-specific packet
     - Core product food database authority stays USDA-first; Open Food Facts remains auxiliary and may require a later schema/PostgreSQL review lane because upstream fields/source structure changed, while restaurant menus, dish/recipe databases, and preference-menu planning remain the active unresolved source area
+    - PR11 coverage/source-gap audit proves USDA + Open Food Facts cover the product food baseline only at the governance level, records restaurant menus, recipe/dish corpora, regional/local foods, manual evidence, and preference-menu planning as unresolved/deferred gaps, and prevents any gap decision from approving ingest, scraping, paid API use, DB writes, DigitalOcean Postgres, or runtime authority
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
