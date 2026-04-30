@@ -1,0 +1,138 @@
+{
+  "api_calls_allowed": false,
+  "bulk_ingest": false,
+  "catalog_ref": "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+  "db_writes_allowed": false,
+  "digitalocean_postgres_load": false,
+  "file_only": true,
+  "final_gate_decision": "source_decision_locked_no_ingest",
+  "generated_on": "2026-04-30",
+  "legacy_source": "menustat",
+  "menustat_archival_policy": {
+    "active_update_source": false,
+    "allowed_use": [
+      "historical_baseline_reference",
+      "schema_mapping_reference",
+      "manual_comparison_after_validation"
+    ],
+    "archival_reference_only": true,
+    "blocked_use": [
+      "freshness_authority",
+      "active_restaurant_menu_source",
+      "automated_snapshot_promotion",
+      "runtime_authority",
+      "postgres_staging_load_without_new_packet"
+    ],
+    "freshness_authority": false,
+    "notes": "MenuStat is treated as archival/reference-only because the public data page lists annual datasets through 2022 and no ongoing update stream. Any MenuStat-derived comparison requires validation before use.",
+    "replacement_required": true,
+    "source": "menustat",
+    "source_classification": "legacy_static",
+    "validation_required_before_use": true
+  },
+  "menustat_replacement_ref": "docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json",
+  "network_allowed": false,
+  "notes": "PR10 supersedes PR9 candidate interpretation: FatSecret Platform is not a PulsePlate project source, MenuStat is archival/reference-only, and the next budget-first lane is chain public nutrition pages governance only. Core product food database authority remains USDA-first, with Open Food Facts auxiliary/future schema-review work outside this PR10 lane; unresolved scope is restaurant menus, dish/recipe databases, and preference-menu planning.",
+  "onboarding_ref": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+  "preferred_research_lane": "chain_public_nutrition_pages",
+  "budget_api_review": {
+    "api_calls_allowed": false,
+    "attribution_status": "blocked_attribution_review_required",
+    "authority_decision": "not_approved",
+    "cache_policy_status": "blocked_terms_review_required",
+    "notes": "Edamam is captured only as an adjacent under-$20 recipe/food database review candidate. It is not a MenuStat replacement authority and PR10 does not call the API.",
+    "pricing_evidence_ref": "https://developer.edamam.com/food-database-api",
+    "review_lane_decision": "adjacent_recipe_food_db_review_only",
+    "source": "edamam_food_database",
+    "source_family": "recipe_corpus",
+    "starter_budget_usd_per_month": 14
+  },
+  "public_web_evidence_policy": {
+    "allowed_capture_methods": [
+      "url_citation",
+      "manual_screenshot_for_internal_review",
+      "manual_transcription_after_legal_review"
+    ],
+    "allowed_surfaces": [
+      "official_restaurant_website",
+      "official_restaurant_social_account"
+    ],
+    "anti_scraping_review_required": true,
+    "automation_allowed": false,
+    "blocked_methods": [
+      "bulk_scraping",
+      "social_media_terms_bypass",
+      "paywall_or_login_bypass",
+      "redistribution_without_license",
+      "public_dataset_claim_without_review"
+    ],
+    "copyright_review_required": true,
+    "legal_review_required": true,
+    "notes": "Public restaurant websites and official social accounts may be used only as manual evidence after legal review. Screenshots are internal review evidence, not redistributed dataset assets.",
+    "policy_decision": "manual_evidence_only_legal_review_required",
+    "public_claim_allowed": false,
+    "redistribution_allowed": false
+  },
+  "runtime_cutover": false,
+  "schema_version": "food-data-menustat-source-decision.v1",
+  "scraping_allowed": false,
+  "source_decisions": [
+    {
+      "approved_ingest": false,
+      "automation_approved": false,
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Commercial contract and pricing terms remain unapproved.",
+        "Not selected as the budget-first PR10 source lane."
+      ],
+      "eligible_preflight": false,
+      "notes": "Nutritionix remains a deferred commercial contract-review option only.",
+      "project_source_decision": "deferred_contract_review",
+      "research_lane_decision": "not_preferred_for_budget_first_lane",
+      "source": "nutritionix"
+    },
+    {
+      "approved_ingest": false,
+      "automation_approved": false,
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "User decision: FatSecret Platform is not used as a PulsePlate project source.",
+        "Official free/startup access still carries attribution and contract dependency that does not fit the selected project direction."
+      ],
+      "eligible_preflight": false,
+      "notes": "FatSecret remains historical PR9 evidence only and must not be routed as the next food-data source lane.",
+      "project_source_decision": "not_project_source",
+      "research_lane_decision": "rejected_for_project_use",
+      "source": "fatsecret_platform"
+    },
+    {
+      "approved_ingest": false,
+      "automation_approved": false,
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Recipe/menu query experiments are separate from restaurant-menu authority.",
+        "Official pricing, quota, backlink, and cache terms do not fit database-authority use."
+      ],
+      "eligible_preflight": false,
+      "notes": "Spoonacular remains deferred for possible recipe experiments only.",
+      "project_source_decision": "deferred_recipe_experiments_only",
+      "research_lane_decision": "not_restaurant_authority",
+      "source": "spoonacular"
+    },
+    {
+      "approved_ingest": false,
+      "automation_approved": false,
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Per-chain legal, anti-scraping, cache, display, attribution, schema, freshness, and rollback review is missing.",
+        "FDA menu-labeling rules support public evidence availability but do not grant scraping, redistribution, or automation rights."
+      ],
+      "eligible_preflight": false,
+      "notes": "Chain public nutrition pages are the preferred low-cost research lane only; automation remains blocked until a dedicated governance packet is approved.",
+      "project_source_decision": "preferred_research_lane",
+      "research_lane_decision": "chain_public_pages_governance_first",
+      "source": "chain_public_nutrition_pages"
+    }
+  ],
+  "source_download_allowed": false
+}
