@@ -36,15 +36,15 @@ stability, and `check_merge_ready.py --require-auth` pass.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 New human, CodeRabbit, Sourcery, or Cubic actionables must be added below with
 one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-- No review threads or actionable bot comments have been dispositioned yet.
+- No actionable review comments
 
 ## Merge Readiness
 
