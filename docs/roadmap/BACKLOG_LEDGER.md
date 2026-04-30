@@ -30,7 +30,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Web launch shell design polish v1
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD / `codex/web-launch-design-polish-v1`
+  - Target PR: PR #1608 / `codex/web-launch-design-polish-v1`
   - Status: Active draft-override implementation lane
   - Area: web / launch / design system
   - Finding Type: design handoff implementation
