@@ -37,6 +37,16 @@ Commit: da7e70135
 Evidence: `scripts/design_guard.py` now rejects `TBD` node-id placeholders case-insensitively, and `tests/test_design_invariant_guard.py` covers lowercase `tbd_after_capture`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878653 -> da7e70135
 
+Disposition: FIXED
+Commit: fe6619770
+Evidence: `scripts/design_guard.py` now requires numeric `number:number` Figma node IDs, and `tests/test_design_invariant_guard.py` covers freeform `capture_later` rejection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230933 -> fe6619770
+
+Disposition: FIXED
+Commit: fe6619770
+Evidence: `scripts/design_guard.py` now validates `token_source` through the repo-root path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping token sources.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230944 -> fe6619770
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
