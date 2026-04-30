@@ -657,6 +657,12 @@ class TestTargetsEdgeCases:
         result = calculate_bmr(age="thirty", gender="M", weight=70, height=175)  # type: ignore[arg-type]
         assert result is None
 
+    def test_calculate_bmr_invalid_gender(self) -> None:
+        """Unknown gender labels should be rejected before BMR math."""
+        from core.targets import calculate_bmr
+
+        assert calculate_bmr(age=30, gender="unknown", weight=70, height=175) is None
+
     def test_calculate_tdee_exception(self) -> None:
         """Test TDEE with edge cases (covers lines 541-542)."""
         from core.targets import calculate_tdee
@@ -664,3 +670,15 @@ class TestTargetsEdgeCases:
         # Pass None as bmr
         result = calculate_tdee(bmr=None, activity="moderate")  # type: ignore[arg-type]
         assert result is None
+
+    def test_calculate_tdee_handles_core_exception(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Facade should fail closed when core TDEE calculation raises."""
+        import core.bmr
+        from core.targets import calculate_tdee
+
+        def raise_key_error(_bmr: float, _activity: str) -> float:
+            raise KeyError("activity")
+
+        monkeypatch.setattr(core.bmr, "tdee", raise_key_error)
+
+        assert calculate_tdee(bmr=1500, activity="moderate") is None

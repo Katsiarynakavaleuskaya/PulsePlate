@@ -134,6 +134,59 @@ def test_in_memory_store_only_supersedes_when_explicitly_declared() -> None:
     assert superseded[0].superseded_by == "fact-2"
 
 
+def test_in_memory_store_preserves_unrelated_records_when_superseding() -> None:
+    """Superseding one fact must not drop unrelated active records."""
+
+    observed_at = datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
+    store = InMemoryKnowledgeStore()
+    first = KnowledgeFactCandidate(
+        fact_key="fact-1",
+        subject="subject:42",
+        predicate="validated_rag_evidence:docs/test.md:chunk-1",
+        value="v1",
+        observed_at=observed_at,
+        confidence=0.7,
+        access_scope="subject:42",
+        rail="product_ai_runtime",
+        provenance=(KnowledgeEvidenceRef("chunk-1", "docs/test.md", 0.7, 1),),
+    )
+    unrelated = KnowledgeFactCandidate(
+        fact_key="fact-unrelated",
+        subject="subject:99",
+        predicate="validated_rag_evidence:docs/other.md:chunk-9",
+        value="keep",
+        observed_at=observed_at,
+        confidence=0.8,
+        access_scope="subject:99",
+        rail="product_ai_runtime",
+        provenance=(KnowledgeEvidenceRef("chunk-9", "docs/other.md", 0.8, 1),),
+    )
+    superseding = KnowledgeFactCandidate(
+        fact_key="fact-2",
+        subject="subject:42",
+        predicate="validated_rag_evidence:docs/test.md:chunk-1",
+        value="v2",
+        observed_at=observed_at.replace(minute=1),
+        confidence=0.9,
+        access_scope="subject:42",
+        rail="product_ai_runtime",
+        provenance=(KnowledgeEvidenceRef("chunk-1", "docs/test.md", 0.9, 1),),
+        supersedes=("fact-1",),
+    )
+
+    store.promote([first, unrelated])
+    store.promote([superseding])
+
+    records_by_key = {record.fact_key: record for record in store.all_records()}
+    assert set(records_by_key) == {"fact-1", "fact-2", "fact-unrelated"}
+    assert records_by_key["fact-1"].status == "superseded"
+    assert records_by_key["fact-1"].superseded_by == "fact-2"
+    assert records_by_key["fact-2"].status == "active"
+    assert records_by_key["fact-2"].value == "v2"
+    assert records_by_key["fact-unrelated"].status == "active"
+    assert records_by_key["fact-unrelated"].value == "keep"
+
+
 def test_in_memory_store_keeps_identical_scope_isolated_by_rail() -> None:
     """Same logical fact may coexist across rails without cross-reading leakage."""
 
