@@ -44,7 +44,7 @@ No review threads yet; PR is draft.
 ## Fixed in Commit Mapping
 
 - Initial ledger/dependency closeout -> `4f210ba53`
-- PR number mapping and ledger target update -> pending this commit
+- PR number mapping and ledger target update -> `2fcbed8f8`
 
 ## Deferred / Follow-ups
 
