@@ -152,12 +152,16 @@ scope, export format, validation path, and owner must be documented first.
 
 ## 9. Figma manifest policy
 
-`docs/design/figma-manifest.json` currently points to the web runtime token
-source and can be used as a bootstrap reference.
+`docs/design/figma-manifest.json` is locked for the governed design export set
+only. It points to the web runtime token source for palette-drift checks and
+records repo-governed design audit/runtime-set artifacts with deterministic
+hashes.
 
 Current rule:
 
 - Do not treat `figma-manifest.json` as the governing pipeline schema.
+- Do not use the manifest lock as Figma write authority or token publication
+  authority.
 - Optional schema unification with token pipeline governance is deferred until
   explicitly activated and tracked.
 

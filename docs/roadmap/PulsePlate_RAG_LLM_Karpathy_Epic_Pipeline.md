@@ -634,25 +634,38 @@ Non-destructive promote semantics + deterministic slug hardening.
 `feat(orchestration): enrich advisory wiki query and lint without changing SoT`
 
 #### Current status
-Next substantive Rail B1 implementation slice after PR-B1 closeout.
+Historical / merged Rail B1 implementation slice.
 
-#### Optional follow-on
-- orphan detection
-- stale link detection
+PR-B3 merged as PR #1596 on 2026-04-30 with merge commit
+`438d135f7ae0a07cb28549488284a40e08183c92`. The canonical packet remains
+`docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`;
+review-governance evidence remains in `docs/review/PR_1596_FIXED_MAPPING.md`.
+
+#### First-cut scope
+- opt-in query context for local substring search
+- deterministic index/page consistency lint
+- deterministic stale local `pages/<slug>.md` link lint
+
+#### Deferred follow-on
 - contradiction lint
-- title/heading weighting
+- title/heading weighting or ranking
 - manifest/history improvements
+- bounded reference-corpus policy
 
 #### Still out of scope
 - embeddings
 - vector DB
 - product RAG replacement
+- semantic cache
 
 ---
 
 ## PR-B4 — optional reference-corpus policy
 #### Title
 `docs(orchestration): define bounded reference-corpus policy for advisory wiki`
+
+#### Current status
+Next substantive Rail B1 slice after PR-B3 closeout/reconciliation.
 
 #### Goal
 Allow DeepWiki or other reference corpora only as read-only secondary understanding aids.

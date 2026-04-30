@@ -159,6 +159,24 @@ UTF-8, line endings are normalized to LF, exactly one trailing LF is enforced,
 all other whitespace is preserved, and the resulting canonical UTF-8 bytes are
 hashed with SHA-256 lowercase hexadecimal.
 
+### PR-2 RAG Gate Result Export Contract
+
+PR-2 defines the ML identity export without changing RAG thresholds, retrieval,
+generation, product runtime, backend APIs, or final release decision logic. The
+machine-readable schema and field contract live in
+[`docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`](../release/RAG_GATE_RESULT_EXPORT_CONTRACT.md)
+and
+[`docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json`](../release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json).
+
+The existing RAG release-gates runner emits
+`artifacts/rag_eval/<experiment_id>/rag_gate_result.json` beside the current
+artifact pack. The export contains `rag_gate_result_hash`,
+`eval_artifact_hash`, existing `PASS` / `NO-GO` eval decision fields, gate
+checks, threshold rows, strict violations, runtime warnings, dataset identity,
+sample size, git SHA, and retriever/generator modes. It reserves optional
+`mlflow_run_id` and `model_version` fields for future explicitly scoped ML
+identity integrations.
+
 ## Bootstrap Commands
 
 Run from synced root before each slice:

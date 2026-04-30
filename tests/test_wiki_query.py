@@ -14,7 +14,7 @@ from scripts.orchestration import wiki_query
 def _seed_wiki(repo: Path) -> None:
     (repo / "src").mkdir(parents=True)
     p = repo / "src" / "doc.md"
-    p.write_text("alpha beta gamma\n", encoding="utf-8")
+    p.write_text("# Intro\nalpha beta gamma\nbeta delta\n", encoding="utf-8")
     wiki_ingest.ingest_paths(
         [p],
         corpus="project_internal",
@@ -83,6 +83,42 @@ def test_query_search_hits(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -
     )
     data = json.loads(capsys.readouterr().out.strip())
     assert data["hits"]
+    assert "excerpt" not in data["hits"][0]
+    assert "heading" not in data["hits"][0]
+    assert "match_count" not in data["hits"][0]
+
+
+def test_query_search_include_context_is_opt_in(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    repo = tmp_path / "repo"
+    _seed_wiki(repo)
+    assert (
+        wiki_query.main(
+            [
+                "--mode",
+                "search",
+                "--needle",
+                "beta",
+                "--include-context",
+                "--repo-root",
+                str(repo),
+                "--wiki-root",
+                str(repo / "wiki"),
+            ]
+        )
+        == 0
+    )
+    data = json.loads(capsys.readouterr().out.strip())
+    assert data["hits"] == [
+        {
+            "excerpt": "alpha beta gamma",
+            "heading": "Intro",
+            "lines": [3, 4],
+            "match_count": 2,
+            "slug": "src.doc",
+        }
+    ]
 
 
 def test_query_detail_rejects_path_like_slug(

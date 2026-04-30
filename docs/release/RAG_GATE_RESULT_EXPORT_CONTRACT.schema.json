@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.app/schemas/release-rag-gate-result.v1.json",
+  "title": "PulsePlate Release RAG Gate Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_algorithm",
+    "canonicalization",
+    "rag_gate_result_hash",
+    "eval_artifact_hash",
+    "experiment_id",
+    "timestamp",
+    "release_decision",
+    "gate_checks",
+    "threshold_results",
+    "strict_violations",
+    "runtime_warnings",
+    "dataset_path_used",
+    "dataset_fallback_used",
+    "sample_size",
+    "git_sha",
+    "retriever_mode",
+    "generator_mode",
+    "small_fixture_metric_gates_advisory",
+    "source_artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "release-rag-gate-result.v1"
+    },
+    "hash_algorithm": {
+      "const": "sha256"
+    },
+    "canonicalization": {
+      "const": "json-sorted-compact-utf8-single-trailing-newline"
+    },
+    "rag_gate_result_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "eval_artifact_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "experiment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_decision": {
+      "enum": [
+        "PASS",
+        "NO-GO"
+      ]
+    },
+    "gate_checks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "threshold_results": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "strict_violations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "runtime_warnings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dataset_path_used": {
+      "type": "string",
+      "minLength": 1
+    },
+    "dataset_fallback_used": {
+      "type": "boolean"
+    },
+    "sample_size": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "git_sha": {
+      "type": "string",
+      "minLength": 1
+    },
+    "retriever_mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "generator_mode": {
+      "type": "string",
+      "minLength": 1
+    },
+    "small_fixture_metric_gates_advisory": {
+      "type": "boolean"
+    },
+    "small_fixture_raw_gate_checks": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "mlflow_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "path",
+          "hash"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "gate_report",
+              "latest_executed_notebook",
+              "metrics_summary",
+              "parquet_or_csv",
+              "traces_jsonl"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}

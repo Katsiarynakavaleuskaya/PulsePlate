@@ -380,6 +380,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
     - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.md`
     - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`
+    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`
+    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
     - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
     - `scripts/evals/run_rag_release_gates.py`
@@ -388,7 +390,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - PR-0 lands governance docs, C4 release-risk context, packet, and this ledger anchor without runtime/workflow changes.
     - PR-1 defines reviewer-packet hash contract after App Store readiness artifacts land on `main`, including `reviewer_notes_hash`, `appstore_metadata_hash`, canonical UTF-8 SHA-256 rules, and schema tests.
-    - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth.
+    - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth, including `rag_gate_result_hash`, `eval_artifact_hash`, existing `PASS` / `NO-GO` eval decision fields, and safe artifact references.
     - PR-3 adds a release manifest generator and fail-closed validator.
     - PR-4 proves review-build and production-candidate equivalence by digest/hash checks.
     - PR-5 integrates focused CI gates for manifest, ML gate result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.
@@ -572,22 +574,54 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Any remaining missing source-of-truth docs are either created or removed from the ordered list with rationale
 
 <a id="ledger-p1-ci-install-profile-split-after-disk-unblock"></a>
-- [ ] P1: CI install profile split after disk-regression unblock
+- [x] P1: CI install profile split after disk-regression unblock
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-CI-INSTALL-PROFILE-SPLIT
+  - Target PR: PR #1599 (`codex/ci-install-profile-split-after-fast-feedback`)
   - Area: CI / Python dependencies / supply-chain
-  - Status note: Re-evaluate only after `fix/ci-feature-fast-feedback` lands and
-    representative feature/fix push runs still miss the target feedback budget.
-    Do not use this item to reopen security or proxy hardening regressions.
-  - Reason: The emergency unblock PR stabilizes `main` by removing duplicate Python installs and forcing `direct-proxy` in canonical CI lanes, but it intentionally leaves the heavy ML/GPU dependency surface in the base runtime lock. A follow-up PR must split tooling/runtime install profiles and move `torch` / `sentence-transformers` / `nvidia-*` out of the default CI surface where possible.
+  - Status note: Closed by governance closeout after `fix/ci-feature-fast-feedback`
+    landed as PR #1573. The representative feature/fix push evidence recorded in
+    `docs/review/PR_1599_FIXED_MAPPING.md` stayed inside the current feedback
+    budget, so the post-#1573 re-evaluation did not justify a new heavy
+    install-profile implementation slice. Generic CI lanes already use
+    `ci-lite` / `ci-test`, optional vector/ML runtime dependencies remain
+    isolated in `requirements-rag-vector.txt`, and production Docker targets use
+    `requirements-docker-runtime.txt`.
+  - Reason: The emergency unblock and follow-up CI stabilization work removed
+    duplicate Python installs, forced `direct-proxy` in canonical CI lanes, and
+    promoted explicit install profiles. This closeout records the live baseline:
+    generic CI feedback no longer installs the heavy vector/ML stack, while
+    optional RAG/vector runtime dependencies stay behind the explicit
+    `rag-vector` profile instead of the default CI surface.
   - Links:
     - `.github/actions/python-setup/action.yml`
     - `.github/workflows/ci.yml`
     - `requirements.txt`
+    - `requirements-ci-lite.txt`
     - `requirements-dev.txt`
+    - `requirements-test.txt`
+    - `requirements-rag-vector.txt`
+    - `requirements-docker-runtime.txt`
     - `scripts/ci/install_locked_python_requirements.py`
+    - `docs/DEPENDENCY_MANAGEMENT.md`
     - `docs/roadmap/BACKLOG_LEDGER.md`
+  - Evidence:
+    - PR #1573 (`fix/ci-feature-fast-feedback`) merged at `c44e2d0b`.
+    - `docs/review/PR_1599_FIXED_MAPPING.md` records the representative
+      feature/fix push run, head SHA, timing, and current warning budget used
+      for this closeout decision.
+    - `.github/workflows/ci.yml` uses `requirements-profile: ci-lite` for
+      lint/security/OpenAPI/diff-coverage control-plane jobs and
+      `requirements-profile: ci-test` for `test-pr`, `test-feature`, and
+      `test-main`.
+    - `tests/test_python_supply_chain_controls.py` covers the split CI,
+      runtime, Docker runtime, and optional RAG/vector dependency surfaces.
+    - `tests/test_install_locked_python_requirements.py` covers explicit
+      `ci-lite`, `ci-test`, and `rag-vector` profile resolution and fail-closed
+      missing-file behavior.
+    - `tests/test_ci_workflow_pr_size_governance_contract.py` covers the
+      feature/fix fast-feedback evidence artifact and warning-only budget
+      contract.
   - DoD:
     - Canonical CI install profiles distinguish runtime, test/dev tooling, and OpenAPI-only tooling
     - Heavy ML/GPU dependencies are optionalized away from generic CI lanes unless a job explicitly needs them
@@ -1059,8 +1093,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system productization and governance)
-  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`) -> PR #1519 (`feat(tokens): add product-level token layer for planning and premium surfaces`, PR-3) -> PR #1527 (`feat(frontend): converge web shell onto governed tokens`, PR-4) -> PR #1569 (`feat(ios): adopt governed design-system primitives`, PR-5, branch `codex/ios-design-system-adoption-v1`) -> PR-5B (`feat(ios): adopt design tokens on Home Plate Progress`, branch `codex/ios-design-system-adoption-v1-clean`) -> PR-6 (`codex/design-accessibility-motion-state-contract`)
-  - Status: 🛠️ PR-0 merged; PR-1 merged in PR #1504; PR-2 merged in PR #1510; PR-3 product token expansion merged in PR #1519; PR-4 web shell convergence merged in PR #1527; PR-5 merged in PR #1569; PR-5B Home / Plate / Progress adoption is active on branch `codex/ios-design-system-adoption-v1-clean`; PR-6 accessibility / motion / state contract is active on branch `codex/design-accessibility-motion-state-contract`
+  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`) -> PR #1519 (`feat(tokens): add product-level token layer for planning and premium surfaces`, PR-3) -> PR #1527 (`feat(frontend): converge web shell onto governed tokens`, PR-4) -> PR #1569 (`feat(ios): adopt governed design-system primitives`, PR-5, branch `codex/ios-design-system-adoption-v1`) -> PR-5B (`feat(ios): adopt design tokens on Home Plate Progress`, branch `codex/ios-design-system-adoption-v1-clean`) -> PR #1581 (`feat(design): add accessibility motion state contract`, PR-6) -> PR-7 (`codex/design-export-lock-and-manifest-hardening`) -> PR-8 (`codex/storybook-design-review-parity`)
+  - Status: 🛠️ PR-0 merged; PR-1 merged in PR #1504; PR-2 merged in PR #1510; PR-3 product token expansion merged in PR #1519; PR-4 web shell convergence merged in PR #1527; PR-5 merged in PR #1569; PR-5B Home / Plate / Progress adoption is active on branch `codex/ios-design-system-adoption-v1-clean`; PR-6 accessibility / motion / state contract merged in PR #1581; PR-7 export lock and manifest hardening is active on branch `codex/design-export-lock-and-manifest-hardening`; PR-8 Storybook parity is next.
   - Area: docs / orchestration / design-system / frontend / ios / storybook
   - Finding Type: coordinator-owned epic bootstrap and sequencing contract
   - Reason: PulsePlate already has governed design-runtime, token-pipeline,
@@ -1079,6 +1113,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5_IOS_DESIGN_SYSTEM_ADOPTION_PACKET_2026-04-28.md`
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5B_HOME_PLATE_PROGRESS_ADOPTION_PACKET_2026-04-29.md`
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR6_ACCESSIBILITY_MOTION_STATE_CONTRACT_PACKET_2026-04-29.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR7_EXPORT_LOCK_AND_MANIFEST_HARDENING_PACKET_2026-04-30.md`
     - `docs/design/TOKENS_SOT.md`
     - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
     - `docs/design/UI_COMPONENT_VOCABULARY.md`
@@ -1102,8 +1137,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       remains simulator-first for implementation slices
     - `/tokens` stays the authoring source and generated web+iOS mirrors remain
       derived runtime outputs
-    - `figma-manifest` remains bootstrap metadata until the dedicated export
-      lock slice hardens it
+    - `figma-manifest` is hardened by the dedicated export lock slice without
+      becoming the token-pipeline schema
 
 <a id="ledger-p1-design-agent-runtime-pr-chain"></a>
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
@@ -1853,8 +1888,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1597 (PR10: `docs(food-data): narrow MenuStat replacement source decision`)
-  - Status: 🚧 Active PR10 MenuStat source-decision cleanup lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, and PR9 MenuStat replacement gate merged as PR #1590
+  - Target PR: PR `#1601` (PR11: `docs(food-data): add food coverage source-gap audit`)
+  - Status: 🚧 Active PR11 coverage/source-gap audit lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, PR9 MenuStat replacement gate merged as PR #1590, and PR10 MenuStat source decision merged as PR #1597
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -1868,12 +1903,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md`
     - `docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md`
     - `docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md`
+    - `docs/orchestration/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_PACKET_2026-04-30.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
     - `docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json`
     - `docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json`
     - `docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json`
+    - `docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -1897,6 +1934,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR10 narrows the PR9 interpretation: FatSecret Platform is explicitly not a PulsePlate project source; MenuStat is archival/reference-only and requires validation before use; chain public nutrition pages are the preferred budget-first research lane but remain manual-evidence-only until legal, anti-scraping, cache, attribution, freshness, schema, screenshot/evidence, and rollback governance is approved
     - Under-$20 food/recipe APIs such as Edamam Food Database may be recorded only as adjacent review candidates and must not become source authority, API-call lanes, cache authority, or runtime/ingest surfaces without a dedicated source-specific packet
     - Core product food database authority stays USDA-first; Open Food Facts remains auxiliary and may require a later schema/PostgreSQL review lane because upstream fields/source structure changed, while restaurant menus, dish/recipe databases, and preference-menu planning remain the active unresolved source area
+    - PR11 coverage/source-gap audit proves USDA + Open Food Facts cover the product food baseline only at the governance level, records restaurant menus, recipe/dish corpora, regional/local foods, manual evidence, and preference-menu planning as unresolved/deferred gaps, and prevents any gap decision from approving ingest, scraping, paid API use, DB writes, DigitalOcean Postgres, or runtime authority
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
@@ -3627,22 +3665,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
 
 <a id="ledger-p2-advisory-wiki-query-lint-enrichment"></a>
-- [ ] P2: Advisory wiki query/lint enrichment
+- [x] P2: Advisory wiki query/lint enrichment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-ADVISORY-WIKI-QUERY-LINT-ENRICHMENT
+  - Target PR: PR-B3 / `codex/advisory-wiki-query-lint-enrichment-b3`
   - Area: orchestration / workforce memory / operator tooling
   - Finding Type: post-hardening follow-on
-  - Reason (EN): The compiler/hardening baseline is now present, but the next workforce slice should enrich query and lint behavior without widening into embeddings, vector search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже есть, но следующий workforce slice должен улучшать query/lint без ухода в embeddings, vector search или product-facing RAG semantics.)
+  - Status: ✅ Closed. PR-B3 merged as PR #1596 on 2026-04-30 with merge commit
+    `438d135f7ae0a07cb28549488284a40e08183c92`.
+  - Closeout note: PR #1596 completed the advisory/operator-only query/lint
+    enrichment slice without product RAG runtime, API, DTO, OpenAPI, semantic
+    cache, GraphRAG, embeddings, vector DB, Redis/GPTCache, or ContextManifest
+    scope. The next substantive Rail B1 slice remains
+    `PR-B4 — docs(orchestration): define bounded reference-corpus policy for
+    advisory wiki`.
+  - Reason (EN): The compiler/hardening baseline is now present, and PR-B3 has
+    enriched query and lint behavior without widening into embeddings, vector
+    search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже
+    есть, и PR-B3 улучшил query/lint без ухода в embeddings, vector search или
+    product-facing RAG semantics.)
   - Links:
+    - `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`
+    - `docs/review/PR_1596_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
     - `scripts/orchestration/wiki_query.py`
     - `scripts/orchestration/wiki_lint.py`
   - DoD:
-    - Query/lint enrichment remains non-canonical and operator-only
-    - No embeddings, vector DB, or public runtime coupling are introduced
-    - Follow-on scope is explicit: richer query semantics, orphan/stale-link detection, contradiction lint, or index weighting
+    - ✅ Query/lint enrichment remains non-canonical and operator-only.
+    - ✅ No embeddings, vector DB, or public runtime coupling are introduced.
+    - ✅ Opt-in query context remains backward-compatible with default search output.
+    - ✅ Lint covers deterministic index/page consistency and stale local page links.
+    - ✅ Follow-on scope remains explicit: contradiction lint, index weighting,
+      manifest/history improvements, and reference-corpus policy stay separate.
 
 <a id="ledger-p2-advisory-wiki-reference-corpus-policy"></a>
 - [ ] P2: Advisory wiki bounded reference-corpus policy

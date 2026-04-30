@@ -636,6 +636,7 @@ def test_runner_smoke_writes_expected_artifacts(tmp_path: Path) -> None:
     assert (run_dir / "traces.jsonl").is_file()
     assert (run_dir / "metrics_summary.json").is_file()
     assert (run_dir / "gate_report.md").is_file()
+    assert (run_dir / "rag_gate_result.json").is_file()
     assert (run_dir / "latest_executed.ipynb").is_file()
 
 
@@ -1525,6 +1526,157 @@ def test_threshold_results_ordering_and_escalation_corridor_are_deterministic(
     assert "`gate_c2_escalation_corridor` | `escalation_rate` | `0.25` | `0.1..0.25`" in gate_report
 
 
+def test_rag_gate_result_export_schema_and_hashes_are_deterministic(
+    tmp_path: Path,
+) -> None:
+    """The PR-2 export must be a stable release-control-plane artifact."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "gate_result"
+    run_dir.mkdir(parents=True)
+    artifact_paths: dict[str, str] = {}
+    for name, content in {
+        "gate_report": "# report\n",
+        "latest_executed_notebook": "{}\n",
+        "metrics_summary": '{"ok": true}\n',
+        "parquet_or_csv": "trace_id\n",
+        "traces_jsonl": "{}\n",
+    }.items():
+        path = run_dir / f"{name}.txt"
+        path.write_text(content, encoding="utf-8")
+        artifact_paths[name] = str(path)
+    state = _make_release_gate_state(tmp_path, experiment_id="gate_result")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    first = runner.build_rag_gate_result_export(metrics_summary, artifact_paths, run_dir=run_dir)
+    second = runner.build_rag_gate_result_export(
+        metrics_summary,
+        dict(reversed(list(artifact_paths.items()))),
+        run_dir=run_dir,
+    )
+
+    assert first == second
+    assert first["schema_version"] == "release-rag-gate-result.v1"
+    assert first["hash_algorithm"] == "sha256"
+    assert first["canonicalization"] == "json-sorted-compact-utf8-single-trailing-newline"
+    assert first["release_decision"] == "PASS"
+    assert len(first["rag_gate_result_hash"]) == 64
+    assert len(first["eval_artifact_hash"]) == 64
+    int(first["rag_gate_result_hash"], 16)
+    int(first["eval_artifact_hash"], 16)
+    assert all(not Path(entry["path"]).is_absolute() for entry in first["source_artifacts"])
+    assert first["small_fixture_raw_gate_checks"]
+
+
+def test_rag_gate_result_schema_declares_all_emitted_fields(tmp_path: Path) -> None:
+    """The published schema must allow every key emitted by the runner."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "schema_keys"
+    run_dir.mkdir(parents=True)
+    metrics_path = run_dir / "metrics_summary.json"
+    metrics_path.write_text("{}", encoding="utf-8")
+    state = _make_release_gate_state(tmp_path, experiment_id="schema_keys")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+    payload = runner.build_rag_gate_result_export(
+        metrics_summary,
+        {"metrics_summary": str(metrics_path)},
+        run_dir=run_dir,
+    )
+    schema = json.loads(
+        Path("docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json").read_text(encoding="utf-8")
+    )
+
+    assert set(payload).issubset(schema["properties"])
+    assert set(schema["required"]).issubset(payload)
+
+
+def test_rag_gate_result_hash_changes_when_gate_result_changes(tmp_path: Path) -> None:
+    """The self-hash must bind the exported gate result, not just artifacts."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "gate_change"
+    run_dir.mkdir(parents=True)
+    metrics_path = run_dir / "metrics_summary.json"
+    metrics_path.write_text("{}", encoding="utf-8")
+    artifacts = {"metrics_summary": str(metrics_path)}
+    state = _make_release_gate_state(tmp_path, experiment_id="gate_change")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    passing = runner.build_rag_gate_result_export(metrics_summary, artifacts, run_dir=run_dir)
+    changed_metrics = {
+        **metrics_summary,
+        "release_decision": "NO-GO",
+        "gate_checks": {**metrics_summary["gate_checks"], "gate_c1_ece": False},
+    }
+    failing = runner.build_rag_gate_result_export(changed_metrics, artifacts, run_dir=run_dir)
+
+    assert passing["eval_artifact_hash"] == failing["eval_artifact_hash"]
+    assert passing["rag_gate_result_hash"] != failing["rag_gate_result_hash"]
+
+
+def test_eval_artifact_hash_changes_when_artifact_changes(tmp_path: Path) -> None:
+    """The eval artifact hash must bind the safe artifact manifest bytes."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "artifact_change"
+    run_dir.mkdir(parents=True)
+    metrics_path = run_dir / "metrics_summary.json"
+    metrics_path.write_text("first\n", encoding="utf-8")
+    artifacts = {"metrics_summary": str(metrics_path)}
+    state = _make_release_gate_state(tmp_path, experiment_id="artifact_change")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    first = runner.build_rag_gate_result_export(metrics_summary, artifacts, run_dir=run_dir)
+    metrics_path.write_text("second\n", encoding="utf-8")
+    second = runner.build_rag_gate_result_export(metrics_summary, artifacts, run_dir=run_dir)
+
+    assert first["eval_artifact_hash"] != second["eval_artifact_hash"]
+    assert first["rag_gate_result_hash"] != second["rag_gate_result_hash"]
+
+
+def test_write_artifacts_creates_rag_gate_result_export(tmp_path: Path) -> None:
+    """The canonical artifact pack must include the PR-2 export file."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "write_export"
+    state = _make_release_gate_state(tmp_path, experiment_id="write_export")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    artifacts = write_artifacts(run_dir, _passing_release_gate_traces(), metrics_summary)
+    export_path = Path(artifacts["rag_gate_result"])
+    payload = json.loads(export_path.read_text(encoding="utf-8"))
+
+    assert export_path == run_dir / "rag_gate_result.json"
+    assert payload["source_artifacts"]
+    assert payload["rag_gate_result_hash"]
+
+
 def test_step_summary_includes_threshold_results_and_optional_companion_metrics(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1552,6 +1704,7 @@ def test_step_summary_includes_threshold_results_and_optional_companion_metrics(
         {
             "gate_report": "artifacts/rag_eval/step_summary/gate_report.md",
             "metrics_summary": "artifacts/rag_eval/step_summary/metrics_summary.json",
+            "rag_gate_result": "artifacts/rag_eval/step_summary/rag_gate_result.json",
             "traces_jsonl": "artifacts/rag_eval/step_summary/traces.jsonl",
         },
     )
@@ -1559,6 +1712,9 @@ def test_step_summary_includes_threshold_results_and_optional_companion_metrics(
 
     assert "## PulsePlate RAG Release Gates" in summary_text
     assert "### Threshold results" in summary_text
+    assert (
+        "- RAG gate result: `artifacts/rag_eval/step_summary/rag_gate_result.json`" in summary_text
+    )
     assert (
         "`gate_c2_escalation_corridor` | `0.25` | `0.1..0.25` | `between_inclusive` | `True`"
         in summary_text
