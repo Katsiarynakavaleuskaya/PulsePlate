@@ -640,6 +640,8 @@ PR-B3 merged as PR #1596 on 2026-04-30 with merge commit
 `438d135f7ae0a07cb28549488284a40e08183c92`. The canonical packet remains
 `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`;
 review-governance evidence remains in `docs/review/PR_1596_FIXED_MAPPING.md`.
+Closeout reconciliation packet:
+`docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_CLOSEOUT_PACKET_2026-04-30.md`.
 
 #### First-cut scope
 - opt-in query context for local substring search
