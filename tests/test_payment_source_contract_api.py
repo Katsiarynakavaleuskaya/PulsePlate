@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import cast
 
 from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
@@ -26,6 +27,7 @@ def _is_app_get_api_key_dependency(dependency: Callable[..., object]) -> bool:
 def _iter_app_override_targets(app: FastAPI) -> list[FastAPI]:
     """Return app instances that may carry app-level auth dependency overrides."""
     targets = [app]
+    canonical_app: FastAPI | None
     try:
         from app.main import app as canonical_app
     except ImportError:
@@ -82,28 +84,33 @@ def test_pop_app_get_api_key_overrides_removes_stale_reload_key(app: FastAPI) ->
     assert app.dependency_overrides[get_api_key] is _override
 
 
-def test_pop_app_get_api_key_overrides_scans_canonical_app(app: FastAPI) -> None:
+def test_pop_app_get_api_key_overrides_scans_canonical_app() -> None:
     other_app = FastAPI()
+    from app.main import app as canonical_app
 
     def _override() -> str:
         return "override"
 
     sentinel = object()
-    original_override = app.dependency_overrides.get(_APP_GET_API_KEY, sentinel)
-    app.dependency_overrides[_APP_GET_API_KEY] = _override
+    original_override = canonical_app.dependency_overrides.get(_APP_GET_API_KEY, sentinel)
+    canonical_app.dependency_overrides[_APP_GET_API_KEY] = _override
 
     try:
         removed = _pop_app_get_api_key_overrides(other_app)
 
-        assert (app, _APP_GET_API_KEY, _override) in removed
-        assert _APP_GET_API_KEY not in app.dependency_overrides
-        _restore_dependency_overrides(removed)
-        assert app.dependency_overrides[_APP_GET_API_KEY] is _override
+        try:
+            assert (canonical_app, _APP_GET_API_KEY, _override) in removed
+            assert _APP_GET_API_KEY not in canonical_app.dependency_overrides
+        finally:
+            _restore_dependency_overrides(removed)
+        assert canonical_app.dependency_overrides[_APP_GET_API_KEY] is _override
     finally:
         if original_override is sentinel:
-            app.dependency_overrides.pop(_APP_GET_API_KEY, None)
+            canonical_app.dependency_overrides.pop(_APP_GET_API_KEY, None)
         else:
-            app.dependency_overrides[_APP_GET_API_KEY] = original_override
+            canonical_app.dependency_overrides[_APP_GET_API_KEY] = cast(
+                Callable[..., object], original_override
+            )
 
 
 def test_manual_intent_rejects_invalid_transport_key_behaviorally(

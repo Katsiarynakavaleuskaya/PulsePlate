@@ -257,6 +257,23 @@ class TestAppDBFallback97:
                 db_err=db_err,
             )
 
+    def test_validate_fallback_url_rejects_production_inmemory(
+        self, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Production validation rejects direct in-memory fallback URLs."""
+        from core.db_fallback import _validate_fallback_url
+
+        db_err = RuntimeError("primary unavailable")
+        with pytest.raises(RuntimeError, match="primary unavailable"):
+            _validate_fallback_url(
+                env_name="production",
+                is_production=True,
+                fallback_url="sqlite:///:memory:",
+                db_err=db_err,
+            )
+
+        assert "In-memory database fallback is not allowed" in caplog.text
+
     def test_check_production_constraints_persistent_logs(
         self, caplog: pytest.LogCaptureFixture
     ) -> None:

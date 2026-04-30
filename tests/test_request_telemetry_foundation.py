@@ -3,6 +3,7 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Iterator
 
 import anyio
 from fastapi import FastAPI, Request
@@ -18,7 +19,9 @@ from app.middleware.request_telemetry import (
     _extract_tier,
     _feature_flags_from_request,
     _get_recorder,
+    _normalized_content_type,
     _normalized_platform_label,
+    _normalized_tier_label,
     build_request_fingerprint,
     request_telemetry_middleware,
 )
@@ -82,6 +85,50 @@ def test_request_fingerprint_uses_safe_route_and_content_type_labels() -> None:
     fingerprint_b = build_request_fingerprint(request_b, route_template=None)
 
     assert fingerprint_a == fingerprint_b
+
+
+def test_request_telemetry_normalizers_collapse_client_controlled_labels() -> None:
+    assert _normalized_content_type("application/vnd.pulseplate+json") == ("application/*+json")
+    assert _normalized_content_type("multipart/mixed; boundary=abc") == "multipart/other"
+    assert _normalized_content_type("text/csv; charset=utf-8") == "text/other"
+    assert _normalized_platform_label("ios") == "ios"
+    assert _normalized_platform_label("bot@example.com") == "unknown"
+    assert _normalized_tier_label("pro") == "pro"
+    assert _normalized_tier_label("vip@example.com") == "unknown"
+
+
+def test_preview_buffer_ignores_non_request_messages() -> None:
+    raw_messages: list[dict[str, object]] = [
+        {"type": "http.disconnect"},
+        {"type": "http.request", "body": b"abcdef", "more_body": False},
+    ]
+    messages: Iterator[dict[str, object]] = iter(raw_messages)
+
+    async def receive() -> dict[str, object]:
+        return next(messages)
+
+    request = StarletteRequest(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/preview",
+            "query_string": b"",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+        },
+        receive,
+    )
+    cloned, preview = _clone_request_with_preview_buffer(request, preview_limit=3)
+
+    first = anyio.run(cloned.receive)
+    second = anyio.run(cloned.receive)
+
+    assert first["type"] == "http.disconnect"
+    assert second["type"] == "http.request"
+    assert bytes(preview) == b"abc"
 
 
 def test_deterministic_sampler_is_consistent() -> None:
@@ -357,6 +404,31 @@ def test_debug_full_capture_requires_non_prod_flag(
     assert "debug_header" in attrs["pp.full_capture_reasons"]
 
 
+def test_sampled_capture_without_vault_records_config_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    register_request_telemetry(app)
+    monkeypatch.delenv("TELEMETRY_VAULT_DIR", raising=False)
+    monkeypatch.delenv("TELEMETRY_VAULT_KEY", raising=False)
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RATE", "1")
+    monkeypatch.setenv("TELEMETRY_FULL_CAPTURE_RESERVOIR_PER_HOUR", "1")
+
+    @app.get("/sampled-without-vault")
+    async def sampled_without_vault() -> PlainTextResponse:
+        return PlainTextResponse("ok")
+
+    client = TestClient(app)
+    response = client.get("/sampled-without-vault")
+
+    assert response.status_code == 200
+    spans = app.state.request_telemetry_recorder.snapshot()
+    attrs = spans[-1]["attributes"]
+    assert attrs["pp.full_capture"] is False
+    assert "sampled" in attrs["pp.full_capture_reasons"]
+    assert "vault_config_failed" in attrs["pp.full_capture_reasons"]
+
+
 def test_telemetry_fail_open_when_capture_storage_raises(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -388,6 +460,60 @@ def test_telemetry_fail_open_when_capture_storage_raises(
     assert attrs["pp.full_capture"] is False
     assert "debug_header" in attrs["pp.full_capture_reasons"]
     assert "vault_store_failed" in attrs["pp.full_capture_reasons"]
+
+
+def test_telemetry_fail_open_when_recorder_setup_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = FastAPI()
+    register_request_telemetry(app)
+    monkeypatch.setattr(
+        "app.middleware.request_telemetry._get_recorder",
+        lambda _: (_ for _ in ()).throw(RuntimeError("recorder down")),
+    )
+
+    @app.get("/recorder-down")
+    async def recorder_down() -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    client = TestClient(app)
+    response = client.get("/recorder-down")
+
+    assert response.status_code == 200
+
+
+def test_telemetry_logs_original_error_after_processing(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    app = FastAPI()
+
+    async def receive() -> dict[str, object]:
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    request = StarletteRequest(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/raises",
+            "query_string": b"",
+            "headers": [],
+            "scheme": "http",
+            "server": ("testserver", 80),
+            "client": ("testclient", 50000),
+            "root_path": "",
+            "app": app,
+        },
+        receive,
+    )
+
+    async def call_next(_: Request) -> JSONResponse:
+        raise RuntimeError("downstream failed")
+
+    with caplog.at_level("DEBUG", logger="app.middleware.request_telemetry"):
+        with pytest.raises(RuntimeError, match="downstream failed"):
+            anyio.run(request_telemetry_middleware, request, call_next)
+
+    assert "Request failed after telemetry processing" in caplog.text
 
 
 def test_telemetry_fail_open_when_vault_config_is_invalid(
