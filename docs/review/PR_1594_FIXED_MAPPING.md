@@ -71,6 +71,21 @@ Disposition: FIXED
 Commit: a0d62c5d3
 Evidence: `docs/review/PR_1594_FIXED_MAPPING.md` now includes a dedicated `## Merge Readiness` section with local gate status, the operator-approved `make verify` deferral, out-of-scope blockers, and final readiness conditions.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#discussion_r3170294900 -> 4da124ae7
+Disposition: FIXED
+Commit: 4da124ae7
+Evidence: `tests/test_disclaimers.py` now gives `test_nutrition_disclaimer_default_context` an explicit `-> None` return type.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#discussion_r3170294919 -> 4da124ae7
+Disposition: FIXED
+Commit: 4da124ae7
+Evidence: `tests/test_payment_source_contract_api.py` now restores removed dependency overrides in a nested `finally` before asserting the restored override state.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4207899312 -> 4da124ae7
+Disposition: FIXED
+Commit: 4da124ae7
+Evidence: CodeRabbit review actionables are fixed by the explicit return type in `tests/test_disclaimers.py` and guaranteed dependency override restoration in `tests/test_payment_source_contract_api.py`.
+
 ## Post-open Agent Review
 
 `qa-engineer-agent` found that raw `upstream_ids` could bypass rail separation by
