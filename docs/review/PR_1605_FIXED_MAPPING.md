@@ -17,13 +17,16 @@ APIs, OpenAPI, PR-4 build equivalence, and PR-5 CI release-decision enforcement.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No review threads have been resolved for PR `#1605` yet. New actionable review
 comments must be dispositioned here first as `FIXED`, `NOT-A-BUG`, or
 `DEFERRED` before any thread is resolved.
 
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 
-- Initial implementation -> `998664069`
+- No actionable review comments
 
 ## Validation
 
