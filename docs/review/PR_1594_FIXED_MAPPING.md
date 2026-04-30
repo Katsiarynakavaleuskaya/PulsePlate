@@ -6,39 +6,36 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
 `docs/orchestration/AGENTS.md`.
 
-- [ ] Discussion-thread pass completed
-- [x] Fixed in commit mapping created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203461409
-  -> `694c6eb25`
-  - Disposition: FIXED.
-  - Evidence: `tests/core/evidence/test_fingerprints.py` now asserts the full
-    lowercase `sha256:[0-9a-f]{64}` format, and
-    `tests/core/evidence/test_assets.py` now varies `policy_version` in the
-    identity-scope uniqueness test.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203461409 -> 694c6eb25
+Disposition: FIXED
+Commit: 694c6eb25
+Evidence: `tests/core/evidence/test_fingerprints.py` asserts the full lowercase `sha256:[0-9a-f]{64}` format, and `tests/core/evidence/test_assets.py` varies `policy_version` in the identity-scope uniqueness test.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203441788
-  - Disposition: NOT-A-BUG.
-  - Evidence: Sourcery reported a service-side weekly diff-character rate
-    limit. No repo code or PR scope change is requested.
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a service-side weekly diff-character rate limit. No repo code or PR scope change is requested.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203472985
-  - Disposition: NOT-A-BUG.
-  - Evidence: Codex connector posted informational review metadata without
-    actionable suggestions.
+Disposition: NOT-A-BUG
+Evidence: Codex connector posted informational review metadata without actionable suggestions.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#issuecomment-4350691456
-  - Disposition: NOT-A-BUG for the docstring-coverage warning.
-  - Evidence: This repository does not enforce CodeRabbit docstring coverage as
-    a required merge gate; public `core/evidence` helpers introduced by E1 have
-    docstrings, and required local gates are listed below.
-- Post-open `qa-engineer-agent` finding: raw `upstream_ids` could bypass rail
-  separation by passing an advisory `evidence:...` id into a runtime asset.
-  -> `3f26a6409`
-  - Disposition: FIXED.
-  - Evidence: `core/evidence/policies.py` now validates raw canonical evidence
-    upstream ids against the target rail, `core/evidence/assets.py` applies that
-    validation after upstream-id normalization, and
-    `tests/core/evidence/test_assets.py` covers the bypass case.
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit docstring coverage is not a required repository merge gate; public `core/evidence` helpers introduced by E1 have docstrings, and required local gates are listed below.
+
+## Post-open Agent Review
+
+`qa-engineer-agent` found that raw `upstream_ids` could bypass rail separation by
+passing an advisory `evidence:...` id into a runtime asset.
+
+Disposition: FIXED
+Commit: 3f26a6409
+Evidence: `core/evidence/policies.py` validates raw canonical evidence upstream ids against the target rail, `core/evidence/assets.py` applies that validation after upstream-id normalization, and `tests/core/evidence/test_assets.py` covers the bypass case.
 
 ## Initial Implementation Commits
 

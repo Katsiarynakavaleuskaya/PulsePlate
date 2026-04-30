@@ -151,6 +151,47 @@ def test_raw_evidence_upstream_ids_must_stay_on_same_rail() -> None:
         )
 
 
+def test_same_rail_upstream_ref_is_accepted() -> None:
+    upstream = create_evidence_asset_ref(
+        asset_type="knowledge_candidate",
+        version="v1",
+        rail="runtime",
+        policy_version="policy-v1",
+        payload={"candidate": "runtime"},
+    )
+
+    asset = create_evidence_asset_ref(
+        asset_type="knowledge_record",
+        version="v1",
+        rail="runtime",
+        policy_version="policy-v1",
+        payload={"record": "runtime"},
+        upstream_refs=(upstream,),
+    )
+
+    assert asset.upstream_ids == (upstream.asset_id,)
+
+
+@pytest.mark.parametrize(
+    "upstream_id",
+    [
+        "evidence:eval_run:runtime:v1:nothex",
+        "evidence:eval_run:runtime:v1:abc",
+        "evidence:eval_run:runtime:v1:0123456789abcdeg01234567",
+    ],
+)
+def test_malformed_raw_evidence_upstream_ids_fail_closed(upstream_id: str) -> None:
+    with pytest.raises(ValueError, match="invalid evidence upstream_id"):
+        create_evidence_asset_ref(
+            asset_type="knowledge_record",
+            version="v1",
+            rail="runtime",
+            policy_version="policy-v1",
+            payload={"record": "runtime"},
+            upstream_ids=(upstream_id,),
+        )
+
+
 @pytest.mark.parametrize(
     ("asset_type", "rail", "version", "policy_version", "upstream_ids"),
     [
@@ -158,7 +199,9 @@ def test_raw_evidence_upstream_ids_must_stay_on_same_rail() -> None:
         ("eval_run", cast(Rail, "unknown"), "v1", "policy-v1", ()),
         ("eval_run", "runtime", " ", "policy-v1", ()),
         ("eval_run", "runtime", "v 1", "policy-v1", ()),
+        ("eval_run", "runtime", "v1:prod", "policy-v1", ()),
         ("eval_run", "runtime", "v1", "", ()),
+        ("eval_run", "runtime", "v1", "policy:v1", ()),
         ("eval_run", "runtime", "v1", "policy-v1", ("valid", " ")),
     ],
 )

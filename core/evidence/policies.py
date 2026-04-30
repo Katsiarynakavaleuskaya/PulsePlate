@@ -26,6 +26,7 @@ ALLOWED_RAILS: tuple[str, ...] = ("runtime", "advisory", "control_plane")
 
 FINGERPRINT_PREFIX = "sha256:"
 FINGERPRINT_HEX_LENGTH = 64
+ASSET_ID_DIGEST_HEX_LENGTH = 24
 
 
 def validate_asset_type(asset_type: "AssetType") -> "AssetType":
@@ -52,6 +53,8 @@ def validate_non_empty_token(name: str, value: str) -> str:
         raise ValueError(f"{name} must be non-empty")
     if any(char.isspace() for char in normalized):
         raise ValueError(f"{name} must not contain whitespace")
+    if ":" in normalized:
+        raise ValueError(f"{name} must not contain ':'")
     return normalized
 
 
@@ -123,6 +126,8 @@ def _parse_evidence_asset_rail(upstream_id: str) -> "Rail | None":
     validate_asset_type(cast("AssetType", asset_type))
     validate_rail(cast("Rail", rail))
     validate_non_empty_token("upstream version", version)
-    if not digest:
+    if len(digest) != ASSET_ID_DIGEST_HEX_LENGTH:
+        raise ValueError(f"invalid evidence upstream_id: {upstream_id!r}")
+    if any(char not in "0123456789abcdef" for char in digest):
         raise ValueError(f"invalid evidence upstream_id: {upstream_id!r}")
     return cast("Rail", rail)
