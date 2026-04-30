@@ -1,6 +1,6 @@
 {
   "manifest_version": "1.0",
-  "contract_status": "bootstrap",
+  "contract_status": "locked",
   "token_source": "frontend/src/styles/tokens.css",
   "allowed_palette_hex": [
     "#102A43",
@@ -15,7 +15,60 @@
     "version": "v1.0",
     "lock_type": "L4",
     "figma_url": "",
-    "node_id": ""
+    "node_id": "",
+    "lock_state": "deferred",
+    "deferred_reason": "PR-7 locks manifest-only repo-governed design exports; icon core L4 masters are absent and remain outside this slice."
   },
-  "exports": []
+  "exports": [
+    {
+      "id": "figma-runtime-set-audit-2026-04-27",
+      "path": "docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md",
+      "sha256": "38f910e7cd1103c59598f5e1cbd0b99ef3e2960436c6717766d76cb11ec82109",
+      "figma_url": "https://www.figma.com/design/2JDwOByQIbcPgp93FDzHii/PulsePlate_v3_Canonical_Foundations_Welcome_Gate?node-id=1040-2",
+      "node_id": "1040:2",
+      "version": "v1.0",
+      "lock_type": "L3",
+      "palette_hexes": [
+        "#102A43",
+        "#3B82F6",
+        "#20C997"
+      ],
+      "artifact_type": "repo_design_audit",
+      "source_file_key": "2JDwOByQIbcPgp93FDzHii"
+    },
+    {
+      "id": "figma-foundations-components-brand-audit-2026-04-28",
+      "path": "docs/design/FIGMA_AUDIT_FIRST_FOUNDATIONS_COMPONENTS_BRAND_2026-04-28.md",
+      "sha256": "3e4e4d35255e5fe22fb960d5fb0106c151950e83eacad92fd2b0887a11ae85c3",
+      "figma_url": "https://www.figma.com/design/2JDwOByQIbcPgp93FDzHii/PulsePlate_v3_Canonical_Foundations_Welcome_Gate?node-id=6-3",
+      "node_id": "6:3",
+      "version": "v1.0",
+      "lock_type": "L3",
+      "palette_hexes": [
+        "#102A43",
+        "#3B82F6",
+        "#20C997",
+        "#EF4444",
+        "#D4AF37"
+      ],
+      "artifact_type": "repo_design_audit",
+      "source_file_key": "2JDwOByQIbcPgp93FDzHii"
+    },
+    {
+      "id": "figma-sync-closeout-2026-04-25",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_FIGMA_SYNC_CLOSEOUT_2026-04-25.md",
+      "sha256": "0dff747fff6b7ebf1f1da6d297e907783ac812da548cedbf3a7b8529eb1ef56b",
+      "figma_url": "https://www.figma.com/design/2JDwOByQIbcPgp93FDzHii/PulsePlate_v3_Canonical_Foundations_Welcome_Gate?node-id=174-116",
+      "node_id": "174:116",
+      "version": "v1.0",
+      "lock_type": "L3",
+      "palette_hexes": [
+        "#102A43",
+        "#3B82F6",
+        "#20C997"
+      ],
+      "artifact_type": "repo_design_audit",
+      "source_file_key": "2JDwOByQIbcPgp93FDzHii"
+    }
+  ]
 }

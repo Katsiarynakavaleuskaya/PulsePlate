@@ -1059,8 +1059,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system productization and governance)
-  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`) -> PR #1519 (`feat(tokens): add product-level token layer for planning and premium surfaces`, PR-3) -> PR #1527 (`feat(frontend): converge web shell onto governed tokens`, PR-4) -> PR #1569 (`feat(ios): adopt governed design-system primitives`, PR-5, branch `codex/ios-design-system-adoption-v1`) -> PR-5B (`feat(ios): adopt design tokens on Home Plate Progress`, branch `codex/ios-design-system-adoption-v1-clean`) -> PR-6 (`codex/design-accessibility-motion-state-contract`)
-  - Status: 🛠️ PR-0 merged; PR-1 merged in PR #1504; PR-2 merged in PR #1510; PR-3 product token expansion merged in PR #1519; PR-4 web shell convergence merged in PR #1527; PR-5 merged in PR #1569; PR-5B Home / Plate / Progress adoption is active on branch `codex/ios-design-system-adoption-v1-clean`; PR-6 accessibility / motion / state contract is active on branch `codex/design-accessibility-motion-state-contract`
+  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`) -> PR #1519 (`feat(tokens): add product-level token layer for planning and premium surfaces`, PR-3) -> PR #1527 (`feat(frontend): converge web shell onto governed tokens`, PR-4) -> PR #1569 (`feat(ios): adopt governed design-system primitives`, PR-5, branch `codex/ios-design-system-adoption-v1`) -> PR-5B (`feat(ios): adopt design tokens on Home Plate Progress`, branch `codex/ios-design-system-adoption-v1-clean`) -> PR #1581 (`feat(design): add accessibility motion state contract`, PR-6) -> PR-7 (`codex/design-export-lock-and-manifest-hardening`) -> PR-8 (`codex/storybook-design-review-parity`)
+  - Status: 🛠️ PR-0 merged; PR-1 merged in PR #1504; PR-2 merged in PR #1510; PR-3 product token expansion merged in PR #1519; PR-4 web shell convergence merged in PR #1527; PR-5 merged in PR #1569; PR-5B Home / Plate / Progress adoption is active on branch `codex/ios-design-system-adoption-v1-clean`; PR-6 accessibility / motion / state contract merged in PR #1581; PR-7 export lock and manifest hardening is active on branch `codex/design-export-lock-and-manifest-hardening`; PR-8 Storybook parity is next.
   - Area: docs / orchestration / design-system / frontend / ios / storybook
   - Finding Type: coordinator-owned epic bootstrap and sequencing contract
   - Reason: PulsePlate already has governed design-runtime, token-pipeline,
@@ -1079,6 +1079,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5_IOS_DESIGN_SYSTEM_ADOPTION_PACKET_2026-04-28.md`
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5B_HOME_PLATE_PROGRESS_ADOPTION_PACKET_2026-04-29.md`
     - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR6_ACCESSIBILITY_MOTION_STATE_CONTRACT_PACKET_2026-04-29.md`
+    - `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR7_EXPORT_LOCK_AND_MANIFEST_HARDENING_PACKET_2026-04-30.md`
     - `docs/design/TOKENS_SOT.md`
     - `docs/design/TOKEN_PIPELINE_GOVERNANCE.md`
     - `docs/design/UI_COMPONENT_VOCABULARY.md`
@@ -1102,8 +1103,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       remains simulator-first for implementation slices
     - `/tokens` stays the authoring source and generated web+iOS mirrors remain
       derived runtime outputs
-    - `figma-manifest` remains bootstrap metadata until the dedicated export
-      lock slice hardens it
+    - `figma-manifest` is hardened by the dedicated export lock slice without
+      becoming the token-pipeline schema
 
 <a id="ledger-p1-design-agent-runtime-pr-chain"></a>
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
