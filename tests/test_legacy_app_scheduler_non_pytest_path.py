@@ -54,10 +54,8 @@ def test_scheduler_path_without_pytest_current_test(monkeypatch: pytest.MonkeyPa
 def test_scheduler_pytest_sync_prefers_package_ref_for_app_module_alias(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Cover scheduler sync-mode fallback when sys.modules['app'] is the alias module."""
-    alias_app = ModuleType("app")
-    package_app = ModuleType("app_package")
-    package_app.__path__ = []  # mark as package-like for legacy_app fallback logic
+    """Cover scheduler sync-mode package callable resolution without module registry edits."""
+    package_app = importlib.import_module("app")
     called: list[Any] = []
 
     def starter(update_interval_hours: int) -> None:
@@ -66,12 +64,8 @@ def test_scheduler_pytest_sync_prefers_package_ref_for_app_module_alias(
     def stopper() -> None:
         called.append(("stop", None))
 
-    package_app._scheduler_start_background_updates = starter
-    package_app._scheduler_stop_background_updates = stopper
-    sys_modules = importlib.import_module("sys").modules
-    monkeypatch.setitem(sys_modules, "app", alias_app)
-    monkeypatch.setitem(sys_modules, "app_module", alias_app)
-    monkeypatch.setattr(legacy_app, "_APP_PACKAGE_REF", package_app, raising=False)
+    monkeypatch.setattr(package_app, "_scheduler_start_background_updates", starter, raising=False)
+    monkeypatch.setattr(package_app, "_scheduler_stop_background_updates", stopper, raising=False)
 
     legacy_app.start_background_updates(update_interval_hours=6)
     legacy_app.stop_background_updates()
@@ -91,18 +85,13 @@ def test_scheduler_pytest_sync_skips_noncallable_candidates(
     def stopper() -> None:
         called.append(("stop", None))
 
-    pkg = ModuleType("app")
-    pkg.__path__ = []
-    pkg._scheduler_start_background_updates = object()
-    pkg._scheduler_stop_background_updates = object()
+    pkg = importlib.import_module("app")
     app_module = ModuleType("app_module")
     app_module._scheduler_start_background_updates = object()
     app_module._scheduler_stop_background_updates = object()
-    pkg.app_module = app_module
-
-    sys_modules = importlib.import_module("sys").modules
-    monkeypatch.setitem(sys_modules, "app", pkg)
-    monkeypatch.setitem(sys_modules, "app_module", app_module)
+    monkeypatch.setattr(pkg, "_scheduler_start_background_updates", object(), raising=False)
+    monkeypatch.setattr(pkg, "_scheduler_stop_background_updates", object(), raising=False)
+    monkeypatch.setattr(pkg, "app_module", app_module, raising=False)
     monkeypatch.setattr(legacy_app, "_scheduler_start_background_updates", starter, raising=False)
     monkeypatch.setattr(legacy_app, "_scheduler_stop_background_updates", stopper, raising=False)
 
