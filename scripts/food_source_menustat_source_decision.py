@@ -37,7 +37,10 @@ def main() -> int:
     else:
         print("menustat_source_decision: FAIL")
         print("Validation errors:")
-        for error in report["validation_errors"]:
+        errors = report.get("validation_errors", [])
+        if not isinstance(errors, list):
+            errors = [str(errors)]
+        for error in errors:
             print(f"- {error}")
     return 0 if report["success"] else 1
 
