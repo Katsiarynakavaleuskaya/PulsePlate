@@ -26,6 +26,32 @@ If it is not recorded here — it does not exist.
 
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
+<a id="ledger-p1-web-launch-design-polish-v1"></a>
+- [ ] P1: Web launch shell design polish v1
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1608 / `codex/web-launch-design-polish-v1`
+  - Status: Active draft-override implementation lane
+  - Area: web / launch / design system
+  - Finding Type: design handoff implementation
+  - Reason (EN): PR #1593 accepted the Figma Make `PulsePlate_Web` packet as reference-only design direction. The public launch shell now needs a bounded repo-first polish pass for `/` and `/marketing` using existing tokens/components, wellness-safe copy, and no Figma/Canva runtime authority.
+  - Links:
+    - `docs/figma/PULSEPLATE_WEB_MAKE_PROTOTYPE_DESIGN_PACKET_2026-04-30.md`
+    - `docs/figma/orchestration/sessions/2026-04-30_web_launch_design_polish_v1/01_TASK_ANALYSIS.md`
+    - `docs/figma/orchestration/sessions/2026-04-30_web_launch_design_polish_v1/02_DESIGN_IMPLEMENTATION_NOTES.md`
+    - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
+    - `frontend/src/components/marketing/`
+  - DoD:
+    - `/` and `/marketing` still render the public launch shell and keep the tabbar hidden
+    - launch page polish uses repo tokens/components and existing routes only
+    - hero/product preview hierarchy, section rhythm, responsive layout, focus states, reduced-motion behavior, and CTA clarity are improved
+    - wellness copy avoids unsupported proof, diagnosis, medical, guaranteed-outcome, pricing, billing, and store claims
+    - focused frontend tests and `npm run build` pass
+    - CI parity is confirmed with no local-green / CI-red delta
+    - current-head CI is green and `check_merge_ready.py --require-auth` passes
+    - merge does not proceed while current `main` stability signals are red
+    - Figma/Canva remain reference-only with no writes or generated runtime assets
+
 ### P0
 
 <a id="ledger-p0-appstore-release-readiness-full-feature"></a>
