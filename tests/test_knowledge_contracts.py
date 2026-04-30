@@ -179,6 +179,10 @@ def test_in_memory_store_preserves_unrelated_records_when_superseding() -> None:
 
     records_by_key = {record.fact_key: record for record in store.all_records()}
     assert set(records_by_key) == {"fact-1", "fact-2", "fact-unrelated"}
+    assert records_by_key["fact-1"].status == "superseded"
+    assert records_by_key["fact-1"].superseded_by == "fact-2"
+    assert records_by_key["fact-2"].status == "active"
+    assert records_by_key["fact-2"].value == "v2"
     assert records_by_key["fact-unrelated"].status == "active"
     assert records_by_key["fact-unrelated"].value == "keep"
 

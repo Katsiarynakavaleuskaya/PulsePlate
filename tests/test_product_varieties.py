@@ -1030,7 +1030,9 @@ class TestProductVarietiesManagerAdditionalCoverage:
         assert recommended.variety == "Rare"
         assert recommended.name == "Exotic Fruit"
 
-    def test_find_alternatives_filters_plant_based_criteria(self, monkeypatch):
+    def test_find_alternatives_filters_plant_based_criteria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """Plant-based alternatives should require the VEG flag."""
         manager = ProductVarietiesManager()
         dairy_yogurt = ProductVariety(
