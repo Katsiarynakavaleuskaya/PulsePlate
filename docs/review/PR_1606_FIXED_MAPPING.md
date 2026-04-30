@@ -12,12 +12,20 @@
 - [ ] Fixed in commit mapping completed
 
 - Status: Draft PR opened for CodeRabbit / bot / human review.
-- Review threads resolved by this artifact: none yet.
-- Actionable review comments: pending review intake.
+- Review threads resolved by this artifact: QA agent findings listed below.
+- Actionable review comments: CodeRabbit / bot / human review intake pending.
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads have been received or resolved yet.
+Disposition: FIXED
+Commit: 711b66be1
+Evidence: `frontend/src/stories/storybookParitySupport.tsx` now routes the Pro paywall story through `StorybookApiStub`, stubs `INTERNAL_PAYWALL_EVENTS_PATH`, and fails closed for unhandled `/api/*` Storybook requests. `frontend/src/stories/__tests__/storybookParity.test.ts` renders the Pro paywall surface behind the stub and verifies unhandled Storybook API requests do not reach live fetch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#qa-engineer-agent-storybook-network-fail-closed -> 711b66be1
+
+Disposition: FIXED
+Commit: 711b66be1
+Evidence: `frontend/src/pages/NutritionSetup/hooks.ts` was restored to the pre-PR runtime premium barrel imports, keeping PR-8 out of product runtime import refactor scope. The Storybook-only circular chunk warning was addressed in `frontend/.storybook/main.ts`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#qa-engineer-agent-runtime-import-scope -> 711b66be1
 
 ## Local Validation Evidence
 
@@ -40,7 +48,7 @@
 
 ## Mandatory Post-Open Pass
 
-- [ ] `qa-engineer-agent` pass completed.
+- [x] `qa-engineer-agent` pass completed.
 - [ ] `bug-hunter` pass completed after QA intake.
 
 ## Deferred / Follow-ups
