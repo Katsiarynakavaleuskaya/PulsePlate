@@ -1,9 +1,9 @@
 # PR 1598 Fixed in Commit Mapping
 
-PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1598
-Branch: `release/release-control-plane-pr2-rag-gate-export`
-Base: `main`
-Head at PR open: `e31d43656`
+**PR:** https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1598
+**Branch:** `release/release-control-plane-pr2-rag-gate-export`
+**Base:** `main`
+**Release-control-plane slice:** PR-2 RAG/ML gate result export contract
 
 ## Scope
 
@@ -12,23 +12,35 @@ from the existing RAG release-gates runner. It does not create a second eval
 source of truth, change RAG thresholds/runtime behavior, or add final
 `ALLOW` / `BLOCK` release-decision CI enforcement.
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+No human, CodeRabbit, Sourcery, or Cubic actionable review threads were present
+when this canonical mapping artifact was created. This file must be updated
+before any review thread is resolved.
+
 ## Fixed in Commit Mapping
 
-- Initial implementation: `e31d43656`
-  - Disposition: FIXED
-  - Evidence:
-    - `scripts/evals/run_rag_release_gates.py` emits `rag_gate_result.json`
-      with `release-rag-gate-result.v1`, `rag_gate_result_hash`, and
-      `eval_artifact_hash`.
-    - `tests/test_rag_release_gates_runner.py` covers schema fields,
-      lowercase SHA-256 hash format, canonical ordering, hash changes on gate
-      result changes, hash changes on artifact changes, artifact writing, CLI
-      smoke output, and small-fixture raw gate preservation.
-    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md` and
-      `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json` define the
-      contract.
+- No actionable review comments
 
-No GitHub review threads were resolved at PR open.
+## Implementation Evidence
+
+Disposition: FIXED
+Commit: e31d43656
+Evidence:
+
+- `scripts/evals/run_rag_release_gates.py` emits `rag_gate_result.json` with
+  `release-rag-gate-result.v1`, `rag_gate_result_hash`, and
+  `eval_artifact_hash`.
+- `tests/test_rag_release_gates_runner.py` covers schema fields, lowercase
+  SHA-256 hash format, canonical ordering, hash changes on gate result
+  changes, hash changes on artifact changes, artifact writing, CLI smoke
+  output, and small-fixture raw gate preservation.
+- `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md` and
+  `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json` define the
+  contract.
 
 ## Local Gate Evidence
 
@@ -47,13 +59,6 @@ No GitHub review threads were resolved at PR open.
 Full `make verify` was intentionally not run under the operator-approved
 machine-heavy exception. Merge readiness requires current-head CI parity plus
 strict `check_merge_ready.py --require-auth`.
-
-## Discussion Thread Pass
-
-- [x] Canonical fixed-mapping artifact exists for PR `#1598`.
-- [x] No review threads were resolved without disposition evidence.
-- [x] External bot comments remain unresolved until classified as FIXED,
-  NOT-A-BUG, DEFERRED, or non-actionable with evidence.
 
 ## Merge Readiness
 
