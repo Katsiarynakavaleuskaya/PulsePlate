@@ -660,19 +660,39 @@ review-governance evidence remains in `docs/review/PR_1596_FIXED_MAPPING.md`.
 
 ---
 
-## PR-B4 — optional reference-corpus policy
+## PR-B4 — bounded reference-corpus policy
 #### Title
 `docs(orchestration): define bounded reference-corpus policy for advisory wiki`
 
 #### Current status
-Next substantive Rail B1 slice after PR-B3 closeout/reconciliation.
+Active docs/governance Rail B1 slice after PR-B3 closeout/reconciliation.
+
+#### Canonical packet
+`docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md`
 
 #### Goal
-Allow DeepWiki or other reference corpora only as read-only secondary understanding aids.
+Allow DeepWiki or other reference corpora only as bounded, read-only secondary
+understanding aids.
 
-#### Rule
-- DeepWiki/reference corpora = helper for understanding
-- repo = source of truth
+#### Policy contract
+- DeepWiki/reference corpora are helper inputs for operator and role-agent
+  understanding only.
+- Repo-tracked artifacts remain the only canonical source of truth for product
+  behavior, runtime contracts, orchestration policy, ledger state, and merge
+  governance.
+- Any conflict between a reference corpus and repo artifacts resolves to repo
+  truth.
+- Reference corpora cannot authorize product behavior, public response shape,
+  API/DTO/OpenAPI contracts, DB/runtime truth, legal/compliance claims, medical
+  or production marketing claims, or knowledge promotion.
+
+#### Out of scope
+- embeddings or vector DB/search
+- product RAG replacement or runtime memory
+- semantic cache, GraphRAG, Redis/GPTCache, or ContextManifest
+- external corpus import, sync, scraping, or background refresh
+- contradiction lint, ranking/index weighting, manifest/history, or corpus
+  admission tooling
 
 ---
 
