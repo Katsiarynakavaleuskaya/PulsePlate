@@ -35,9 +35,13 @@
 Disposition: FIXED
 Commit: 597e7b197
 Evidence: `tests/test_legacy_app_scheduler_non_pytest_path.py` now pins both `app` and `app_module` alias surfaces in scheduler sync-mode tests and asserts the running-loop scheduling branch without allowing the cleanup fallback path.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1612#discussion_r3169886929 -> 597e7b197
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1612#pullrequestreview-4207410376 -> 597e7b197
+
+Disposition: FIXED
+Commit: 91e7f2238
+Evidence: `tests/test_legacy_app_scheduler_non_pytest_path.py` covers scheduler sync-mode package/app-module fallback branches with `monkeypatch.setattr()` on the imported `app` package and no `sys.modules` mutation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1612#discussion_r3169876414 -> 91e7f2238
 
 ## Merge Readiness
 
