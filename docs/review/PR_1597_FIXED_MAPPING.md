@@ -2,6 +2,8 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - Coordinator-first start completed with task packet `3fc17fdf87f3`.
 - Role order recorded and executed for the PR10 lane:
   `agent-coordinator -> data-scientist-agent -> backend-engineer -> security-auditor -> qa-engineer-agent -> bug-hunter -> dev-operator`.
@@ -14,36 +16,25 @@
 
 ## Fixed in Commit Mapping
 
-- Initial PR10 implementation, validator, CLI, canonical source-decision
-  artifact, packet, ledger/current-pointer updates, and tests.
 Disposition: FIXED
 Commit: cf3d71c6d
-Evidence: `core/food_sources/menustat_source_decision.py`,
-`scripts/food_source_menustat_source_decision.py`,
-`docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json`,
-`docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md`,
-`tests/test_food_source_menustat_source_decision.py`
+Evidence: Added the initial PR10 validator, CLI, canonical source-decision artifact, packet, ledger/current-pointer updates, and tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597 -> cf3d71c6d
 
-- PR10 CLI typing hardening after local pre-push MyPy caught an untyped
-  validation-error path.
 Disposition: FIXED
 Commit: 36c14fec2
-Evidence: `scripts/food_source_menustat_source_decision.py`
+Evidence: Hardened PR10 CLI validation-error typing after local pre-push MyPy caught the path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597 -> 36c14fec2
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597#discussion_r3166891348
 Disposition: FIXED
 Commit: 6e25078dae
-Evidence: `core/food_sources/menustat_source_decision.py` now requires the
-public-web evidence surfaces and capture methods to exactly match the approved
-manual-only lists; `tests/test_food_source_menustat_source_decision.py` covers
-surface and capture-method broadening.
+Evidence: `core/food_sources/menustat_source_decision.py` now requires public-web evidence surfaces and capture methods to exactly match the approved manual-only lists; `tests/test_food_source_menustat_source_decision.py` covers surface and capture-method broadening.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597#discussion_r3166891348 -> 6e25078dae
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597#discussion_r3166891356
 Disposition: FIXED
 Commit: 6e25078dae
-Evidence: `core/food_sources/menustat_source_decision.py` now rejects
-negative monthly budget values and values above 20 USD; the focused PR10 tests
-cover negative and over-budget inputs.
+Evidence: `core/food_sources/menustat_source_decision.py` now rejects negative monthly budget values and values above 20 USD; the focused PR10 tests cover negative and over-budget inputs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597#discussion_r3166891356 -> 6e25078dae
 
 ## Local Validation
 
