@@ -286,3 +286,50 @@ def test_cli_generate_and_validate_smoke(tmp_path: Path, capsys) -> None:
     assert validate_status == 0
     assert "Wrote release manifest" in output
     assert "PASS: release manifest is valid" in output
+
+
+def test_cli_validate_missing_manifest_uses_controlled_error(tmp_path: Path, capsys) -> None:
+    missing_path = tmp_path / "missing_release_manifest.json"
+
+    status = release_manifest.main(["validate", "--manifest", str(missing_path)])
+
+    output = capsys.readouterr().out
+    assert status == 1
+    assert "ERROR:" in output
+    assert "is not readable" in output
+
+
+def test_cli_generate_missing_rag_gate_result_uses_controlled_error(tmp_path: Path, capsys) -> None:
+    _write_metadata_pack(tmp_path)
+    missing_rag_path = tmp_path / "artifacts/rag_eval/missing/rag_gate_result.json"
+
+    status = release_manifest.main(
+        [
+            "generate",
+            "--repo-root",
+            str(tmp_path),
+            "--git-sha",
+            TEST_GIT_SHA,
+            "--ios-build-number",
+            "100",
+            "--marketing-version",
+            "1.0",
+            "--bundle-id",
+            "app.pulseplate.PulsePlate",
+            "--rag-gate-result",
+            str(missing_rag_path),
+            "--sbom-digest",
+            OCI_DIGEST,
+            "--provenance-digest",
+            PROVENANCE_DIGEST,
+            "--attestation-status",
+            "VERIFIED",
+            "--output",
+            str(tmp_path / "release_manifest.json"),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert status == 1
+    assert "ERROR:" in output
+    assert "is not readable" in output

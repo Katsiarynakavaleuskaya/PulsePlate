@@ -51,6 +51,8 @@ def sha256_lower_hex(payload: bytes) -> str:
 def _load_json(path: Path) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ReleaseManifestError(f"{path} is not readable: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise ReleaseManifestError(f"{path} is not valid JSON: {exc}") from exc
     if not isinstance(payload, dict):
