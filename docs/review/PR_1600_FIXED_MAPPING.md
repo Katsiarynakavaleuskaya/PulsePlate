@@ -30,11 +30,14 @@ Declared role order:
 
 ## Fixed in Commit Mapping
 
-- Initial implementation -> `10c2d3528`
+- No actionable review comments
 
 ## Discussion Thread Pass
 
-No review threads were present when the draft PR opened.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+No actionable review threads were present when the draft PR opened.
 
 Future actionable review threads must be listed here with disposition-specific
 proof before they are resolved:
