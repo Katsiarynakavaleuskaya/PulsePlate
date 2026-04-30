@@ -8,8 +8,8 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 - Status: Draft PR opened for CodeRabbit / bot / human review.
 - Review threads resolved by this artifact: QA agent findings listed below.
