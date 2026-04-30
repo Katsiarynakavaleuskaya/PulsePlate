@@ -22,6 +22,7 @@ class TestCoreUtilsFacades:
         assert safe_float("-123.45") == -123.45
         assert safe_float(42) == 42.0
         assert safe_float(3.14) == 3.14
+        assert safe_float(object(), default=7.5) == 7.5
 
     def test_safe_float_invalid_inputs(self) -> None:
         """Test safe_float with invalid inputs returns default."""
@@ -41,7 +42,9 @@ class TestCoreUtilsFacades:
         assert safe_int("0") == 0
         assert safe_int("-123") == -123
         assert safe_int(42) == 42
+        assert safe_int(42.9) == 42
         assert safe_int("123.45") == 123  # truncates float string
+        assert safe_int(object(), default=7) == 7
 
     def test_safe_int_invalid_inputs(self) -> None:
         """Test safe_int with invalid inputs returns default."""

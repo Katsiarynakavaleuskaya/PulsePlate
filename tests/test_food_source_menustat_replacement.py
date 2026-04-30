@@ -442,6 +442,44 @@ def test_menustat_replacement_rejects_candidate_catalog_or_onboarding_drift(
         )
 
 
+def test_menustat_replacement_rejects_candidate_policy_mismatch() -> None:
+    payload = _decision_payload()
+    candidate = _candidate(payload, "nutritionix")
+    candidate["source_family"] = "recipe_corpus"
+
+    with pytest.raises(MenuStatReplacementError, match="policy mismatch: source_family"):
+        parse_menustat_replacement_decision(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+        )
+
+
+def test_menustat_replacement_rejects_candidate_eligible_preflight_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = _decision_payload()
+    candidate = _candidate(payload, "nutritionix")
+    candidate["onboarding_status"] = "eligible_preflight"
+    expected_policy = dict(menustat_replacement._EXPECTED_CANDIDATE_POLICY["nutritionix"])
+    expected_policy["onboarding_status"] = "eligible_preflight"
+    monkeypatch.setitem(
+        menustat_replacement._EXPECTED_CANDIDATE_POLICY,
+        "nutritionix",
+        expected_policy,
+    )
+
+    with pytest.raises(MenuStatReplacementError, match="must not be eligible_preflight"):
+        parse_menustat_replacement_decision(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding_with_replaced(
+                "nutritionix",
+                onboarding_status="eligible_preflight",
+            ),
+        )
+
+
 def test_menustat_replacement_gate_rejects_missing_candidate() -> None:
     payload = _decision_payload()
     candidates = payload["candidate_sources"]
