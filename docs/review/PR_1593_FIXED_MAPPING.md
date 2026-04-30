@@ -57,19 +57,33 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery posted a reviewer guide and file-level summary only; no code, docs, or design-packet actionable was posted.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#pullrequestreview-4203763443 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740139 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740144 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740152 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
-
 Disposition: FIXED
-Commit: `34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990`
+Commit: 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+Evidence: `docs/figma/PULSEPLATE_WEB_MAKE_PROTOTYPE_DESIGN_PACKET_2026-04-30.md:29` records `make-root (nodeId=0:1)`; `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/01_TASK_ANALYSIS.md:74` removes repeated Make-prefixed risk wording; `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/02_DESIGN_AUDIT.md:38` through `:43` adds Figma Make resource anchors; `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/04_DOD_CHECK.md:39` and `:44` through `:45` align smoke-test and machine-heavy exception wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740139 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+Disposition: FIXED
+Commit: 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+Evidence: `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/04_DOD_CHECK.md:39` and `:44` through `:45` align smoke-test and machine-heavy exception wording with the accepted caveat.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740144 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+Disposition: FIXED
+Commit: 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+Evidence: `docs/figma/PULSEPLATE_WEB_MAKE_PROTOTYPE_DESIGN_PACKET_2026-04-30.md:29` records `make-root (nodeId=0:1)`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166740152 -> 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
+Disposition: FIXED
+Commit: 34c0be38cb15ad46ec69f8a7ac82b4dcf3c5b990
 Evidence: `docs/figma/PULSEPLATE_WEB_MAKE_PROTOTYPE_DESIGN_PACKET_2026-04-30.md:29` records `make-root (nodeId=0:1)`; `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/01_TASK_ANALYSIS.md:74` removes repeated Make-prefixed risk wording; `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/02_DESIGN_AUDIT.md:38` through `:43` adds Figma Make resource anchors and the `get_design_context(... nodeId=0:1)` evidence pointer; `docs/figma/orchestration/sessions/2026-04-30_pulseplate_web_make_prototype/04_DOD_CHECK.md:39` and `:44` through `:45` align smoke-test and machine-heavy exception wording; `docs/review/PR_1593_FIXED_MAPPING.md:31` through `:37` documents the accepted machine-heavy exception plus current-head CI parity caveat; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1593` PASS; `pre-commit run --all-files` PASS.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#pullrequestreview-4203885886 -> adbcb92401237b6e1d6e1b7277c4617c2eefd278
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166840192 -> adbcb92401237b6e1d6e1b7277c4617c2eefd278
-
 Disposition: FIXED
-Commit: `adbcb92401237b6e1d6e1b7277c4617c2eefd278`
+Commit: adbcb92401237b6e1d6e1b7277c4617c2eefd278
+Evidence: `docs/review/PR_1593_FIXED_MAPPING.md:66` adds concrete file-line anchors for the prior FIXED disposition; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1593` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#discussion_r3166840192 -> adbcb92401237b6e1d6e1b7277c4617c2eefd278
+Disposition: FIXED
+Commit: adbcb92401237b6e1d6e1b7277c4617c2eefd278
 Evidence: `docs/review/PR_1593_FIXED_MAPPING.md:66` adds concrete file-line anchors for the prior FIXED disposition; `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1593` PASS.
 
 ## Merge Readiness
