@@ -228,6 +228,34 @@ def test_lint_ignores_page_links_inside_longer_fenced_code(tmp_path: Path) -> No
     assert all("missing" not in item for item in v)
 
 
+def test_lint_ignores_page_links_inside_longer_tilde_fenced_code(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text(
+        "\n".join(
+            [
+                "~~~~markdown",
+                "~~~",
+                "[Example](pages/missing.md)",
+                "~~~",
+                "~~~~",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert all("missing" not in item for item in v)
+
+
 def test_main_exit_code(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "r"
     (repo / "s").mkdir(parents=True)
