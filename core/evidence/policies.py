@@ -6,7 +6,7 @@ EN: Fail-closed policies protect rail separation and deterministic IDs.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
     from core.evidence.assets import AssetType, EvidenceAssetRef, Rail
@@ -81,6 +81,23 @@ def normalize_upstream_ids(upstream_ids: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(normalized))
 
 
+def validate_upstream_ids_for_rail(
+    *,
+    rail: "Rail",
+    upstream_ids: tuple[str, ...],
+) -> None:
+    """Fail closed when raw evidence ids attempt cross-rail lineage."""
+
+    mismatched: list[str] = []
+    for upstream_id in upstream_ids:
+        parsed_rail = _parse_evidence_asset_rail(upstream_id)
+        if parsed_rail is not None and parsed_rail != rail:
+            mismatched.append(upstream_id)
+    if mismatched:
+        joined = ", ".join(mismatched)
+        raise ValueError(f"cross-rail upstreams are deferred to PR-E5: {joined}")
+
+
 def validate_same_rail_upstreams(
     *,
     rail: "Rail",
@@ -92,3 +109,20 @@ def validate_same_rail_upstreams(
     if mismatched:
         joined = ", ".join(mismatched)
         raise ValueError(f"cross-rail upstreams are deferred to PR-E5: {joined}")
+
+
+def _parse_evidence_asset_rail(upstream_id: str) -> "Rail | None":
+    """Return rail from canonical evidence asset ids; reject malformed lookalikes."""
+
+    if not upstream_id.startswith("evidence:"):
+        return None
+    parts = upstream_id.split(":")
+    if len(parts) != 5:
+        raise ValueError(f"invalid evidence upstream_id: {upstream_id!r}")
+    _, asset_type, rail, version, digest = parts
+    validate_asset_type(cast("AssetType", asset_type))
+    validate_rail(cast("Rail", rail))
+    validate_non_empty_token("upstream version", version)
+    if not digest:
+        raise ValueError(f"invalid evidence upstream_id: {upstream_id!r}")
+    return cast("Rail", rail)

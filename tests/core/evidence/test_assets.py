@@ -131,6 +131,26 @@ def test_upstream_refs_must_stay_on_same_rail() -> None:
         )
 
 
+def test_raw_evidence_upstream_ids_must_stay_on_same_rail() -> None:
+    upstream = create_evidence_asset_ref(
+        asset_type="knowledge_candidate",
+        version="v1",
+        rail="advisory",
+        policy_version="policy-v1",
+        payload={"candidate": "advisory-only"},
+    )
+
+    with pytest.raises(ValueError, match="cross-rail upstreams are deferred to PR-E5"):
+        create_evidence_asset_ref(
+            asset_type="knowledge_record",
+            version="v1",
+            rail="runtime",
+            policy_version="policy-v1",
+            payload={"record": "runtime"},
+            upstream_ids=(upstream.asset_id,),
+        )
+
+
 @pytest.mark.parametrize(
     ("asset_type", "rail", "version", "policy_version", "upstream_ids"),
     [

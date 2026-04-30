@@ -22,6 +22,7 @@ from core.evidence.policies import (
     validate_non_empty_token,
     validate_rail,
     validate_same_rail_upstreams,
+    validate_upstream_ids_for_rail,
 )
 
 AssetType = Literal[
@@ -71,6 +72,10 @@ def create_evidence_asset_ref(
     validate_same_rail_upstreams(rail=normalized_rail, upstream_refs=refs)
     normalized_upstream_ids = normalize_upstream_ids(
         tuple(upstream_ids) + tuple(ref.asset_id for ref in refs)
+    )
+    validate_upstream_ids_for_rail(
+        rail=normalized_rail,
+        upstream_ids=normalized_upstream_ids,
     )
     fingerprint = validate_fingerprint(fingerprint_payload(payload))
     asset_id = build_asset_id(
