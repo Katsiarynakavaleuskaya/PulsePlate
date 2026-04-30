@@ -7,17 +7,38 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements.in` - Production dependencies (high-level)
 - `requirements-dev.in` - Development dependencies (high-level)
 - `requirements-test.in` - Test-only dependencies (high-level)
+- `requirements-ci-lite.in` - Lightweight CI/control-plane dependencies (high-level)
 - `requirements-docker-runtime.in` - Docker production runtime dependencies (high-level)
 - `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
 - `requirements-docker-runtime.txt` - Compiled Docker production runtime dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
 - `requirements-test.txt` - Compiled test-only dependencies with exact versions (auto-generated)
+- `requirements-ci-lite.txt` - Compiled lightweight CI/control-plane dependencies (auto-generated)
 - `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
 `requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the heavy vector/ML runtime packages remain isolated in `requirements-rag-vector.txt`.
 `requirements-docker-runtime.txt` is the backend image contract for production-target Docker builds and excludes CI-only tooling.
+
+## CI Install Profiles
+
+The shared GitHub Actions Python setup action accepts explicit
+`requirements-profile` values so CI jobs can install only the surfaces they
+need:
+
+- `ci-lite` installs `requirements-ci-lite.txt` for lint, OpenAPI sync,
+  diff-coverage, and governance/control-plane jobs.
+- `ci-test` installs `requirements-ci-lite.txt` plus `requirements-test.txt`
+  for canonical test lanes such as `test-pr`, `test-feature`, and `test-main`.
+- `runtime` and `runtime-test` keep app-runtime installs separate from CI
+  tooling and are not the default for generic CI feedback.
+- `rag-vector` is the explicit optional vector/ML profile and is the only
+  canonical profile that carries the heavy vector stack such as
+  `sentence-transformers`, `transformers`, `torch`, and `pgvector`.
+
+Generic feature/fix feedback must stay on `ci-test` or `ci-lite` unless the job
+explicitly proves it needs optional vector/ML runtime behavior.
 
 ### About constraints.txt
 
