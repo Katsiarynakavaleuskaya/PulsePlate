@@ -78,7 +78,10 @@ and the review dry-run found no actionables.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 6526f21e53cfe9014ed12c390fc683e18ec8dac4
+Evidence: `docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md` now uses concrete `docs/review/PR_1607_FIXED_MAPPING.md` in the documented docs phase gate command instead of the shell-breaking `PR_<new_number>` placeholder.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1607#discussion_r3169101814 -> 6526f21e53cfe9014ed12c390fc683e18ec8dac4
 
 ## Merge Readiness
 
