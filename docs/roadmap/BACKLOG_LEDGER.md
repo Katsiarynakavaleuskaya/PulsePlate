@@ -32,8 +32,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: App Store release readiness closure for full-feature launch
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (App Store submission blocker)
-  - Target PR: PR #1582 -> PR-0 merged; PR #1591 / `release/appstore-readiness-pr1-privacy-manifest` -> PR-1 active; remaining train `release/appstore-readiness-*`
-  - Status: 🛠️ PR-0 merged in PR #1582; PR-1 active on branch `release/appstore-readiness-pr1-privacy-manifest`
+  - Target PR: PR #1582 -> PR-0 merged; PR #1591 -> PR-1 merged; PR #1600 / `release/appstore-readiness-pr2-permission-purpose-strings` -> PR-2 active; remaining train `release/appstore-readiness-*`
+  - Status: 🛠️ PR-0 merged in PR #1582; PR-1 merged in PR #1591; PR-2 active in draft PR #1600 on branch `release/appstore-readiness-pr2-permission-purpose-strings`
   - Area: iOS / App Store / privacy / release governance
   - Finding Type: release-truth drift blocker
   - Reason (EN): The release shell must align iOS runtime, backend reachability, App Privacy, privacy manifest, permission strings, App Store assets, reviewer notes, and CI validators before public App Store submission. The fix is not to delete assets or reduce product scope; the train must preserve assets and classify each public submission surface as `SUBMIT_READY`, `IMPLEMENTATION_REQUIRED`, or `INTERNAL_REVIEW_ONLY`.
@@ -42,6 +42,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/APPSTORE_FEATURE_ASSET_MATRIX.md`
     - `docs/orchestration/APPSTORE_RELEASE_READINESS_TASK_PACKET_2026-04-29.md`
     - `docs/orchestration/APPSTORE_RELEASE_READINESS_PR1_PRIVACY_PACKET_2026-04-30.md`
+    - `docs/orchestration/APPSTORE_RELEASE_READINESS_PR2_PERMISSION_PACKET_2026-04-30.md`
+    - `docs/review/PR_1600_FIXED_MAPPING.md`
     - `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
     - `ios/fastlane/app_privacy_details.json`
     - `ios/PulsePlate/Services/AppConfig.swift`
