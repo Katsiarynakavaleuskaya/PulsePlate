@@ -575,7 +575,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: CI install profile split after disk-regression unblock
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-CI-INSTALL-PROFILE-SPLIT-CLOSEOUT
+  - Target PR: PR #1599 (`codex/ci-install-profile-split-after-fast-feedback`)
   - Area: CI / Python dependencies / supply-chain
   - Status note: Closed by governance closeout after `fix/ci-feature-fast-feedback`
     landed as PR #1573. Representative feature/fix push evidence on run
