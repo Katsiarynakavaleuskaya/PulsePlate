@@ -12,7 +12,7 @@ from unittest.mock import patch
 import pytest
 
 from core.food_db import FoodItem
-from core.product_varieties import ProductVarietiesManager, ProductVariety
+from core.product_varieties import ProductVarietiesManager, ProductVariety, find_alternatives
 
 
 class TestProductVariety:
@@ -1029,3 +1029,53 @@ class TestProductVarietiesManagerAdditionalCoverage:
         # Should return the only available variety as fallback
         assert recommended.variety == "Rare"
         assert recommended.name == "Exotic Fruit"
+
+    def test_find_alternatives_filters_plant_based_criteria(self, monkeypatch):
+        """Plant-based alternatives should require the VEG flag."""
+        manager = ProductVarietiesManager()
+        dairy_yogurt = ProductVariety(
+            name="Yogurt",
+            variety="Dairy",
+            brand="Test",
+            protein_g=8.0,
+            fat_g=3.0,
+            carbs_g=12.0,
+            fiber_g=0.0,
+            sugar_g=10.0,
+            Fe_mg=0.0,
+            Ca_mg=180.0,
+            VitD_IU=0.0,
+            B12_ug=0.0,
+            Folate_ug=0.0,
+            Iodine_ug=0.0,
+            K_mg=150.0,
+            Mg_mg=12.0,
+            flags=set(),
+            notes="Dairy yogurt",
+        )
+        soy_yogurt = ProductVariety(
+            name="Yogurt",
+            variety="Soy",
+            brand="Test",
+            protein_g=7.0,
+            fat_g=2.5,
+            carbs_g=9.0,
+            fiber_g=1.0,
+            sugar_g=6.0,
+            Fe_mg=0.8,
+            Ca_mg=160.0,
+            VitD_IU=0.0,
+            B12_ug=0.0,
+            Folate_ug=0.0,
+            Iodine_ug=0.0,
+            K_mg=140.0,
+            Mg_mg=20.0,
+            flags={"VEG"},
+            notes="Plant-based yogurt",
+        )
+        manager.varieties["Yogurt"] = [dairy_yogurt, soy_yogurt]
+        monkeypatch.setattr("core.product_varieties._manager", manager)
+
+        alternatives = find_alternatives("Yogurt", criteria=["plant_based"])
+
+        assert alternatives == [{"name": "Yogurt", "variety": "Soy", "brand": "Test"}]
