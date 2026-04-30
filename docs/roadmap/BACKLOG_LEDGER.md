@@ -578,13 +578,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR #1599 (`codex/ci-install-profile-split-after-fast-feedback`)
   - Area: CI / Python dependencies / supply-chain
   - Status note: Closed by governance closeout after `fix/ci-feature-fast-feedback`
-    landed as PR #1573. Representative feature/fix push evidence on run
-    `25155975508` (`fix/ci-feature-fast-feedback`, head `27bd50da`) completed
-    `test-feature (3.13)` in 10m53s against the 45 minute warning budget and
-    `coverage-feature` in 8s, so the post-#1573 re-evaluation did not justify a
-    new heavy install-profile implementation slice. Generic CI lanes already use
-    `ci-lite` / `ci-test`, optional vector/ML dependencies remain isolated in
-    `requirements-rag-vector.txt`, and production Docker targets use
+    landed as PR #1573. The representative feature/fix push evidence recorded in
+    `docs/review/PR_1599_FIXED_MAPPING.md` stayed inside the current feedback
+    budget, so the post-#1573 re-evaluation did not justify a new heavy
+    install-profile implementation slice. Generic CI lanes already use
+    `ci-lite` / `ci-test`, optional vector/ML runtime dependencies remain
+    isolated in `requirements-rag-vector.txt`, and production Docker targets use
     `requirements-docker-runtime.txt`.
   - Reason: The emergency unblock and follow-up CI stabilization work removed
     duplicate Python installs, forced `direct-proxy` in canonical CI lanes, and
@@ -606,9 +605,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/BACKLOG_LEDGER.md`
   - Evidence:
     - PR #1573 (`fix/ci-feature-fast-feedback`) merged at `c44e2d0b`.
-    - GitHub Actions run `25155975508`: `test-feature (3.13)` succeeded from
-      `2026-04-30T08:41:39Z` to `2026-04-30T08:52:32Z`; `coverage-feature`
-      succeeded from `2026-04-30T08:52:36Z` to `2026-04-30T08:52:44Z`.
+    - `docs/review/PR_1599_FIXED_MAPPING.md` records the representative
+      feature/fix push run, head SHA, timing, and current warning budget used
+      for this closeout decision.
     - `.github/workflows/ci.yml` uses `requirements-profile: ci-lite` for
       lint/security/OpenAPI/diff-coverage control-plane jobs and
       `requirements-profile: ci-test` for `test-pr`, `test-feature`, and

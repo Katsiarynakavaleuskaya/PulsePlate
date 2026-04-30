@@ -33,12 +33,19 @@ need:
   for canonical test lanes such as `test-pr`, `test-feature`, and `test-main`.
 - `runtime` and `runtime-test` keep app-runtime installs separate from CI
   tooling and are not the default for generic CI feedback.
-- `rag-vector` is the explicit optional vector/ML profile and is the only
-  canonical profile that carries the heavy vector stack such as
-  `sentence-transformers`, `transformers`, `torch`, and `pgvector`.
+- `rag-vector` is the explicit optional vector/ML runtime profile and is the
+  only canonical profile that carries the heavy ML runtime stack such as
+  `sentence-transformers`, `transformers`, and `torch`.
 
 Generic feature/fix feedback must stay on `ci-test` or `ci-lite` unless the job
-explicitly proves it needs optional vector/ML runtime behavior.
+explicitly proves it needs optional vector/ML runtime behavior. That proof must
+be a workflow/risk-profile change backed by deterministic tests, for example
+updates to `tests/test_python_supply_chain_controls.py` and
+`tests/test_ci_workflow_pr_size_governance_contract.py`, showing why `ci-test`
+cannot cover the selected target without the `rag-vector` profile. Postgres
+vector test coverage remains in `requirements-test.txt` via `pgvector`; that is
+test tooling, not permission to install the optional ML runtime stack in generic
+CI lanes.
 
 ### About constraints.txt
 
