@@ -102,6 +102,18 @@ Evidence: Concrete anchors are `docs/roadmap/BACKLOG_LEDGER.md:3219` and `docs/r
 Disposition: FIXED
 Commit: 9b92c29de
 Evidence: The two CodeRabbit inline review comments are mapped explicitly above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#discussion_r3166527354 -> b12b68723
+Disposition: FIXED
+Commit: b12b68723
+Evidence: Local absolute venv paths were redacted to `$VENV_PYTHON` in this artifact and the PR body mirror.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#discussion_r3166527364 -> b12b68723
+Disposition: FIXED
+Commit: b12b68723
+Evidence: The NOT-A-BUG disposition now includes concrete ledger anchors `docs/roadmap/BACKLOG_LEDGER.md:3219` and `docs/roadmap/BACKLOG_LEDGER.md:3240`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203516816
+Disposition: FIXED
+Commit: b12b68723
+Evidence: The two CodeRabbit inline findings from this review are mapped explicitly above.
 
 ## Merge Readiness
 
