@@ -4,7 +4,7 @@ import Home from './Home';
 import { HomeStorySurface, type StorySessionState } from '../stories/storybookParitySupport';
 
 const resolveSessionState = (value: unknown): StorySessionState => {
-  if (value === 'guest' || value === 'free' || value === 'pro') {
+  if (value === 'guest' || value === 'pro' || value === 'vip') {
     return value;
   }
   return 'pro';
@@ -27,9 +27,9 @@ type Story = StoryObj<typeof meta>;
 
 export const PremiumAiReady: Story = {};
 
-export const FreeUpgrade: Story = {
+export const VipReview: Story = {
   parameters: {
-    sessionState: 'free',
+    sessionState: 'vip',
   },
 };
 

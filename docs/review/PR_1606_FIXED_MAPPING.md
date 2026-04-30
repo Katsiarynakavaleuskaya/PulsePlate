@@ -27,6 +27,16 @@ Commit: 711b66be1
 Evidence: `frontend/src/pages/NutritionSetup/hooks.ts` was restored to the pre-PR runtime premium barrel imports, keeping PR-8 out of product runtime import refactor scope. The Storybook-only circular chunk warning was addressed in `frontend/.storybook/main.ts`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#qa-engineer-agent-runtime-import-scope -> 711b66be1
 
+Disposition: FIXED
+Commit: TBD
+Evidence: `frontend/src/stories/storybookParitySupport.tsx` now models Storybook sessions with only real backend contract states: `guest` as 401 unauthenticated, and authenticated `pro`/`vip` as `PRO`/`VIP`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-session-contract -> TBD
+
+Disposition: FIXED
+Commit: TBD
+Evidence: `frontend/src/components/ui/EmptyState.stories.tsx` now supplies required `title` and `description` args for preset render stories, preserving Storybook typing while keeping the rendered presets deterministic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-empty-state-required-args -> TBD
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
@@ -49,7 +59,7 @@ Evidence: `frontend/src/pages/NutritionSetup/hooks.ts` was restored to the pre-P
 ## Mandatory Post-Open Pass
 
 - [x] `qa-engineer-agent` pass completed.
-- [ ] `bug-hunter` pass completed after QA intake.
+- [x] `bug-hunter` pass completed after QA intake.
 
 ## Deferred / Follow-ups
 

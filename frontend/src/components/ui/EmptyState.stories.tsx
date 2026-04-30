@@ -39,9 +39,17 @@ export const LoadingStatus: Story = {
 };
 
 export const ProgressPreset: Story = {
+  args: {
+    title: 'No progress data yet',
+    description: 'Start tracking your health journey to see charts and insights here.',
+  },
   render: () => <NoProgressData onStartTracking={() => undefined} />,
 };
 
 export const ChartsPreset: Story = {
+  args: {
+    title: 'Charts not available',
+    description: 'Unable to load progress charts at the moment. Please try again later.',
+  },
   render: () => <NoChartsAvailable onRetry={() => undefined} />,
 };

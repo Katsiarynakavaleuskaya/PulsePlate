@@ -16,7 +16,7 @@ import ResultView from '../pages/NutritionSetup/ResultView';
 import type { SetupFormValues } from '../pages/NutritionSetup/schema';
 import ProPaywallPage from '../pages/Pro/ProPaywallPage';
 
-export type StorySessionState = 'guest' | 'free' | 'pro';
+export type StorySessionState = 'guest' | 'pro' | 'vip';
 
 const STORYBOOK_API_BASE = 'https://storybook.pulseplate.local';
 const CBT_INSIGHT_PATH = '/api/v1/pro/cbt/insight';
@@ -50,7 +50,7 @@ function sessionPayload(sessionState: StorySessionState): ProSessionStatus | nul
     status: 'ok',
     authenticated: true,
     auth_source: 'cookie',
-    tier: sessionState === 'pro' ? 'PRO' : 'FREE',
+    tier: sessionState === 'vip' ? 'VIP' : 'PRO',
   };
 }
 
@@ -245,7 +245,7 @@ export function NutritionSetupResultStorySurface() {
 
 export function ProPaywallStorySurface() {
   return (
-    <StorybookApiStub sessionState="free">
+    <StorybookApiStub sessionState="pro">
       <MemoryRouter
         initialEntries={[
           {
