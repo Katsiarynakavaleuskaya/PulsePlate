@@ -36,9 +36,9 @@ Evidence:
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` PASS
 - `pytest -q tests/test_repo_policy_guards.py` PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_logic_philosophy_replay_eval.py` PASS
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` PASS
-- `make validate-min VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` PASS
+- `$VENV_PYTHON -m pytest -q tests/test_logic_philosophy_replay_eval.py` PASS
+- `make validate-changed VENV_PYTHON=$VENV_PYTHON` PASS
+- `make validate-min VENV_PYTHON=$VENV_PYTHON` PASS
 - `pre-commit run --all-files` PASS
 - commit hooks PASS
 - pre-push hooks PASS, including backend tests and full-repo bandit where
@@ -54,7 +54,7 @@ Evidence:
   failed before test collection with `zsh:1: no such file or directory:
   .venv/bin/python`.
 - The focused replay test and Make gates were rerun with the repo root venv path
-  used by the canonical A9 audit packet.
+  represented above as `$VENV_PYTHON`.
 
 ## Local Full Verify Deferral
 
@@ -66,7 +66,7 @@ machine. Merge-readiness evidence for this lane relies on the already-passed
 narrow local gates plus GitHub current-head CI parity.
 Evidence:
 
-- `make verify VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` reached `verify-env`, `flake8`,
+- `make verify VENV_PYTHON=$VENV_PYTHON` reached `verify-env`, `flake8`,
   `mypy`, and `test-fast`, then entered full coverage before the operator
   disabled further Make runs for CPU protection.
 - `gh pr checks 1588 --watch=false` showed current-head docs/governance checks
@@ -97,6 +97,7 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records the 30 April 2026 delayed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203440221
 Disposition: NOT-A-BUG
 Evidence: The ledger links both historical PR `#1512` implementation mapping and this PR `#1588` reconciliation mapping; the PR body remains a required mirror.
+Evidence: Concrete anchors are `docs/roadmap/BACKLOG_LEDGER.md:3219` and `docs/roadmap/BACKLOG_LEDGER.md:3240`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203446952
 Disposition: FIXED
 Commit: 9b92c29de
