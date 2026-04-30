@@ -59,6 +59,22 @@ def _locked_manifest(export_sha: str) -> dict[str, object]:
     }
 
 
+def _locked_core_manifest(core_path: str, core_sha: str) -> dict[str, object]:
+    manifest = _locked_manifest(core_sha)
+    assert isinstance(manifest["core_lock"], dict)
+    manifest["core_lock"].update(
+        {
+            "path": core_path,
+            "svg_sha256": core_sha,
+            "figma_url": "https://www.figma.com/design/example/file?node-id=1-1",
+            "node_id": "1:1",
+            "lock_state": "locked",
+        }
+    )
+    manifest["core_lock"].pop("deferred_reason")
+    return manifest
+
+
 def test_design_guard_bootstrap_manifest_passes(tmp_path: Path) -> None:
     _write(
         tmp_path / "frontend/src/styles/tokens.css",
@@ -328,3 +344,50 @@ def test_design_guard_rejects_locked_manifest_deferred_core_without_reason(
 
     assert result.returncode == 1
     assert "core_lock.deferred_reason is required" in result.stdout
+
+
+def test_design_guard_rejects_locked_core_absolute_path(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "frontend/src/styles/tokens.css",
+        ":root { --pp-navy: #102A43; --pp-blue: #3B82F6; --pp-accent: #20C997; }\n",
+    )
+    export_content = "# Runtime set audit\n"
+    _write(tmp_path / "docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md", export_content)
+    svg_content = "<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+    svg_path = tmp_path / "assets/brand/icon/core/v1.0/icon_core_v1.svg"
+    _write(svg_path, svg_content)
+
+    manifest = _locked_core_manifest(str(svg_path), _sha256_text(svg_content))
+    assert isinstance(manifest["exports"], list)
+    assert isinstance(manifest["exports"][0], dict)
+    manifest["exports"][0]["sha256"] = _sha256_text(export_content)
+
+    _write(tmp_path / "docs/design/figma-manifest.json", json.dumps(manifest, indent=2))
+
+    result = _run_design_guard(tmp_path)
+
+    assert result.returncode == 1
+    assert "core_lock.path must be repo-relative" in result.stdout
+
+
+def test_design_guard_rejects_locked_core_repo_escaping_path(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "frontend/src/styles/tokens.css",
+        ":root { --pp-navy: #102A43; --pp-blue: #3B82F6; --pp-accent: #20C997; }\n",
+    )
+    export_content = "# Runtime set audit\n"
+    _write(tmp_path / "docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md", export_content)
+    svg_content = "<svg xmlns='http://www.w3.org/2000/svg'></svg>"
+    _write(tmp_path.parent / "icon_core_v1.svg", svg_content)
+
+    manifest = _locked_core_manifest("../icon_core_v1.svg", _sha256_text(svg_content))
+    assert isinstance(manifest["exports"], list)
+    assert isinstance(manifest["exports"][0], dict)
+    manifest["exports"][0]["sha256"] = _sha256_text(export_content)
+
+    _write(tmp_path / "docs/design/figma-manifest.json", json.dumps(manifest, indent=2))
+
+    result = _run_design_guard(tmp_path)
+
+    assert result.returncode == 1
+    assert "core_lock.path must stay within the repo root" in result.stdout

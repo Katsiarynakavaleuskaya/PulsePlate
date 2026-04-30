@@ -182,7 +182,9 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
     if isinstance(core_path_value, str) and core_path_value:
         should_enforce_core_hash = core_lock_state == "locked" or bool(core_sha_value)
         if should_enforce_core_hash:
-            core_path = repo_root / core_path_value
+            core_path = _resolve_repo_path(repo_root, core_path_value, "core_lock.path", errors)
+            if core_path is None:
+                return errors
             if not core_path.exists():
                 errors.append(f"core mutation check failed: file not found: {core_path_value}")
             elif isinstance(core_sha_value, str) and core_sha_value:
