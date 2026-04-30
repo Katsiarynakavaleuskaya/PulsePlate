@@ -25,19 +25,25 @@ Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> a50f5928b43a173766328bc012a0a698603ee708
 Disposition: FIXED
 Commit: a50f5928b43a173766328bc012a0a698603ee708
-Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:111-116` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:117-122` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164782569 -> 45731a11c82d6d170cdbb7f4b7b5f39d8615a16c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201427404 -> 45731a11c82d6d170cdbb7f4b7b5f39d8615a16c
 Disposition: FIXED
 Commit: 45731a11c82d6d170cdbb7f4b7b5f39d8615a16c
-Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:111-116` points at the actual merge-readiness checklist block after CodeRabbit flagged the stale line anchor.
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:117-122` points at the actual merge-readiness checklist block after CodeRabbit flagged the stale line anchor.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166079874 -> d8ccf2327f8bed2475a1f27d744d0a7b33ea01f1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202936731 -> d8ccf2327f8bed2475a1f27d744d0a7b33ea01f1
 Disposition: FIXED
 Commit: d8ccf2327f8bed2475a1f27d744d0a7b33ea01f1
 Evidence: `tests/test_payment_source_contract_api.py:32` narrows the canonical app import guard to `ImportError`; targeted payment tests, focused PR gate, `pre-commit run --all-files`, `make validate-changed`, and `make validate-min` passed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166113804 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202982395 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+Disposition: FIXED
+Commit: 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:105-113` links each deferred follow-up to its canonical `BACKLOG_LEDGER.md` anchor.
 
 ## Regression Stabilization Evidence
 
@@ -114,11 +120,3 @@ parity and strict merge-readiness wrappers.
 - [ ] `check_review_threads_disposition.py --require-auth` PASS
 - [ ] `check_pr_merge_readiness.py` PASS
 - [ ] `check_merge_ready.py --require-auth` PASS
-
-## Additional Fixed in Commit Mapping
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166113804 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202982395 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
-Disposition: FIXED
-Commit: 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
-Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:99-107` links each deferred follow-up to its canonical `BACKLOG_LEDGER.md` anchor.
