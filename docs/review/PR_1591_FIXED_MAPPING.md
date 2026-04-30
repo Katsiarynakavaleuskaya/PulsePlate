@@ -35,8 +35,8 @@ the heavy validation signal before ready-for-review and merge readiness.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No actionable human, CodeRabbit, Sourcery, or Cubic comments have been reviewed
 yet. New actionables must be added below with one of: `FIXED`, `NOT-A-BUG`, or
@@ -44,7 +44,7 @@ yet. New actionables must be added below with one of: `FIXED`, `NOT-A-BUG`, or
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments reviewed yet.
+- No actionable review comments
 
 ## Merge Readiness
 
