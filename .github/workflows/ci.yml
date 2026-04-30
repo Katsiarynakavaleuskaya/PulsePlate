@@ -545,6 +545,7 @@ jobs:
           python -m coverage erase
           python -m coverage run -m pytest -q \
             tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
+            tests/core/evidence \
             --maxfail=3 \
             --junitxml=tests/smoke-results.xml \
             -o junit_family=legacy
@@ -777,6 +778,7 @@ jobs:
           python -m coverage run -m pytest -q \
             -p no:xdist \
             tests/edges tests/test_remaining_modules.py tests/test_web_session_security.py \
+            tests/core/evidence \
             --maxfail=3 \
             --junitxml=tests/smoke-results.xml \
             -o junit_family=legacy
