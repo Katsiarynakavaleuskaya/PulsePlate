@@ -42,9 +42,10 @@ Evidence: `scripts/design_guard.py` now validates every non-empty `core_lock.pat
 - Disposition: DEFERRED by explicit operator instruction.
 - Evidence: `make verify` passed `verify-env`, flake8, mypy, and deterministic smoke tests before the diff-coverage full coverage pytest was operator-aborted at 37% to protect CPU.
 - Terminal evidence: `make: *** [diff-cov] Terminated: 15`
+- Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-runtime-system-web-ios-epic`
 - Heavy signal substitute: GitHub current-head CI for PR #1595.
 
 ## Deferred / Follow-ups
 
-- Icon-core L4 master asset remains blocked/deferred. PR-7 does not create or claim `assets/brand/icon/core/v1.0/icon_core_v1.svg`.
+- Icon-core L4 master asset remains blocked/deferred under `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-runtime-system-web-ios-epic`. PR-7 does not create or claim `assets/brand/icon/core/v1.0/icon_core_v1.svg`.
 - PR-8 Storybook parity remains the next design epic slice and is not widened into PR-7.

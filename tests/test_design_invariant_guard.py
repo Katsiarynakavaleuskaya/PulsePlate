@@ -280,6 +280,28 @@ def test_design_guard_rejects_locked_manifest_invalid_node_id(
     assert "exports[0].node_id must be a concrete Figma node id" in result.stdout
 
 
+def test_design_guard_rejects_locked_manifest_lowercase_placeholder_node_id(
+    tmp_path: Path,
+) -> None:
+    _write(
+        tmp_path / "frontend/src/styles/tokens.css",
+        ":root { --pp-navy: #102A43; --pp-blue: #3B82F6; --pp-accent: #20C997; }\n",
+    )
+    export_content = "# Runtime set audit\n"
+    _write(tmp_path / "docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md", export_content)
+    manifest = _locked_manifest(_sha256_text(export_content))
+    assert isinstance(manifest["exports"], list)
+    assert isinstance(manifest["exports"][0], dict)
+    manifest["exports"][0]["node_id"] = "tbd_after_capture"
+
+    _write(tmp_path / "docs/design/figma-manifest.json", json.dumps(manifest, indent=2))
+
+    result = _run_design_guard(tmp_path)
+
+    assert result.returncode == 1
+    assert "exports[0].node_id must be a concrete Figma node id" in result.stdout
+
+
 def test_design_guard_rejects_locked_manifest_absolute_export_path(
     tmp_path: Path,
 ) -> None:

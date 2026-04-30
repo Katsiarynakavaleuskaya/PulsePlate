@@ -70,7 +70,7 @@ def _validate_node_id(value: Any, field_name: str, errors: list[str]) -> None:
     if not isinstance(value, str):
         errors.append(f"{field_name} must be a string")
         return
-    if value.startswith("TBD") or not NODE_ID_RE.fullmatch(value):
+    if value.upper().startswith("TBD") or not NODE_ID_RE.fullmatch(value):
         errors.append(f"{field_name} must be a concrete Figma node id")
 
 
