@@ -27,6 +27,18 @@ actionable review comments must be dispositioned here first as `FIXED`,
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909585
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929124
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929086
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033949
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033954
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206288583
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206404870
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, wraps unreadable JSON inputs in `ReleaseManifestError`, and validates upstream RAG export `hash_algorithm`, canonicalization, and non-empty `source_artifacts`; `docs/release/RELEASE_MANIFEST_CONTRACT.md` now carries file-line evidence anchors; `tests/test_release_manifest.py` covers missing source artifacts, invalid artifact kind, unreadable inputs, invalid provenance digest, and malformed RAG gate metadata.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909585 -> 1697feb5b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592 -> 1697feb5b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929124 -> 1697feb5b
@@ -35,9 +47,6 @@ actionable review comments must be dispositioned here first as `FIXED`,
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033954 -> bae29dc40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206288583 -> bae29dc40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206404870 -> bae29dc40
-Disposition: FIXED
-Commit: see mapping entries below
-Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, wraps unreadable JSON inputs in `ReleaseManifestError`, and validates upstream RAG export `hash_algorithm`, canonicalization, and non-empty `source_artifacts`; `docs/release/RELEASE_MANIFEST_CONTRACT.md` now carries file-line evidence anchors; `tests/test_release_manifest.py` covers missing source artifacts, invalid artifact kind, unreadable inputs, invalid provenance digest, and malformed RAG gate metadata.
 
 ## Validation
 
