@@ -37,6 +37,14 @@ def test_canonical_utf8_bytes_normalizes_line_endings_and_trailing_lf() -> None:
     assert reviewer_packet_hashes.canonical_utf8_bytes("wellness".encode("utf-8")) == b"wellness\n"
 
 
+def test_canonical_utf8_bytes_reports_artifact_path_on_decode_failure() -> None:
+    with pytest.raises(UnicodeDecodeError, match="bad.txt as UTF-8"):
+        reviewer_packet_hashes.canonical_utf8_bytes(
+            b"\xff",
+            artifact_path=Path("ios/fastlane/metadata/en-US/bad.txt"),
+        )
+
+
 def test_sha256_contract_is_lowercase_hex_without_prefix() -> None:
     digest = reviewer_packet_hashes.sha256_lower_hex(b"reviewer")
 
@@ -92,6 +100,27 @@ def test_metadata_hash_is_stable_for_discovery_order_and_changes_on_content(
 
     assert changed["appstore_metadata_hash"] != first["appstore_metadata_hash"]
     assert changed["reviewer_notes_hash"] == first["reviewer_notes_hash"]
+
+
+def test_metadata_artifact_paths_are_sorted_deterministically(tmp_path: Path) -> None:
+    _write_metadata_pack(tmp_path)
+
+    paths = reviewer_packet_hashes.metadata_artifact_paths(tmp_path)
+
+    assert paths == sorted(paths, key=lambda path: path.as_posix())
+
+
+def test_metadata_artifact_paths_reports_all_missing_files(tmp_path: Path) -> None:
+    _write_metadata_pack(tmp_path)
+    (tmp_path / "ios/fastlane/metadata/en-US/name.txt").unlink()
+    (tmp_path / "ios/fastlane/metadata/es-ES/support_url.txt").unlink()
+
+    with pytest.raises(FileNotFoundError) as exc_info:
+        reviewer_packet_hashes.metadata_artifact_paths(tmp_path)
+
+    message = str(exc_info.value)
+    assert "ios/fastlane/metadata/en-US/name.txt" in message
+    assert "ios/fastlane/metadata/es-ES/support_url.txt" in message
 
 
 def test_schema_file_matches_emitted_payload_shape(tmp_path: Path) -> None:

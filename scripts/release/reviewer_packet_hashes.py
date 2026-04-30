@@ -28,37 +28,52 @@ REQUIRED_METADATA_FILES = (
 )
 
 
-def canonical_utf8_bytes(raw: bytes) -> bytes:
+def canonical_utf8_bytes(raw: bytes, *, artifact_path: Path | None = None) -> bytes:
     """Return canonical UTF-8 bytes for reviewer packet text artifacts."""
 
-    text = raw.decode("utf-8")
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        artifact = artifact_path.as_posix() if artifact_path else "<unknown artifact>"
+        raise UnicodeDecodeError(
+            exc.encoding,
+            exc.object,
+            exc.start,
+            exc.end,
+            f"{exc.reason}; while decoding {artifact} as UTF-8",
+        ) from exc
     normalized = text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
     return f"{normalized}\n".encode("utf-8")
 
 
 def sha256_lower_hex(payload: bytes) -> str:
-    """Return lowercase SHA-256 hex without an algorithm prefix."""
+    """Return lowercase hex using the configured algorithm without a prefix."""
 
-    return hashlib.sha256(payload).hexdigest()
+    return hashlib.new(HASH_ALGORITHM, payload).hexdigest()
 
 
 def hash_text_artifact(path: Path) -> str:
     """Hash one UTF-8 text artifact using reviewer-packet canonicalization."""
 
-    return sha256_lower_hex(canonical_utf8_bytes(path.read_bytes()))
+    return sha256_lower_hex(canonical_utf8_bytes(path.read_bytes(), artifact_path=path))
 
 
 def metadata_artifact_paths(repo_root: Path) -> list[Path]:
     """Return canonical localized metadata file paths in deterministic order."""
 
     paths: list[Path] = []
+    missing_paths: list[Path] = []
     for locale in REQUIRED_LOCALES:
         for filename in REQUIRED_METADATA_FILES:
             relative_path = METADATA_ROOT / locale / filename
             absolute_path = repo_root / relative_path
             if not absolute_path.is_file():
-                raise FileNotFoundError(f"Missing App Store metadata artifact: {relative_path}")
+                missing_paths.append(relative_path)
+                continue
             paths.append(relative_path)
+    if missing_paths:
+        missing = ", ".join(path.as_posix() for path in missing_paths)
+        raise FileNotFoundError(f"Missing App Store metadata artifacts: {missing}")
     return sorted(paths, key=lambda path: path.as_posix())
 
 
