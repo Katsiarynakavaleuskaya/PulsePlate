@@ -68,7 +68,9 @@ def test_scheduler_pytest_sync_prefers_package_ref_for_app_module_alias(
 
     package_app._scheduler_start_background_updates = starter
     package_app._scheduler_stop_background_updates = stopper
-    monkeypatch.setitem(importlib.import_module("sys").modules, "app", alias_app)
+    sys_modules = importlib.import_module("sys").modules
+    monkeypatch.setitem(sys_modules, "app", alias_app)
+    monkeypatch.setitem(sys_modules, "app_module", alias_app)
     monkeypatch.setattr(legacy_app, "_APP_PACKAGE_REF", package_app, raising=False)
 
     legacy_app.start_background_updates(update_interval_hours=6)
@@ -98,7 +100,9 @@ def test_scheduler_pytest_sync_skips_noncallable_candidates(
     app_module._scheduler_stop_background_updates = object()
     pkg.app_module = app_module
 
-    monkeypatch.setitem(importlib.import_module("sys").modules, "app", pkg)
+    sys_modules = importlib.import_module("sys").modules
+    monkeypatch.setitem(sys_modules, "app", pkg)
+    monkeypatch.setitem(sys_modules, "app_module", app_module)
     monkeypatch.setattr(legacy_app, "_scheduler_start_background_updates", starter, raising=False)
     monkeypatch.setattr(legacy_app, "_scheduler_stop_background_updates", stopper, raising=False)
 
@@ -113,24 +117,33 @@ def test_stop_background_updates_schedules_stopper_on_running_loop(
 ) -> None:
     """Cover non-pytest stop path when an event loop is already running."""
     monkeypatch.delenv("PYTEST_CURRENT_TEST", raising=False)
-    scheduled: list[Any] = []
+    scheduled: list[str] = []
+    loop_probe = {"called": False}
 
     async def stopper() -> None:
         scheduled.append("ran")
 
     class FakeLoop:
         def create_task(self, coro: Any) -> None:
-            scheduled.append(coro)
+            scheduled.append("scheduled")
             coro.close()
 
     class FakeAsyncio:
         @staticmethod
         def get_running_loop() -> FakeLoop:
+            loop_probe["called"] = True
             return FakeLoop()
 
     monkeypatch.setattr(legacy_app, "resolve_stop_callable", lambda *args: stopper, raising=True)
     monkeypatch.setattr(legacy_app, "asyncio", FakeAsyncio, raising=True)
+    monkeypatch.setattr(
+        legacy_app,
+        "safe_stop_with_cleanup",
+        lambda _stopper: pytest.fail("expected running-loop scheduling path"),
+        raising=True,
+    )
 
     legacy_app.stop_background_updates()
 
-    assert len(scheduled) == 1
+    assert loop_probe["called"] is True
+    assert scheduled == ["scheduled"]
