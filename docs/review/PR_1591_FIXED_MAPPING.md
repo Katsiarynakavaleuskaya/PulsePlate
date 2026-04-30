@@ -44,7 +44,20 @@ yet. New actionables must be added below with one of: `FIXED`, `NOT-A-BUG`, or
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1591#pullrequestreview-4203449341 -> 2f9bdf4fc
+Disposition: FIXED
+Commit: 2f9bdf4fc
+Evidence: `tests/ios/test_app_privacy_details_contract.py` centralizes runtime-flow privacy probes in `AppPrivacyRuntimeFlow`; `tests/ios/test_privacy_manifest_contract.py` asserts the UserDefaults required-reason entry is present without requiring it to be the only accessed API type.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1591#pullrequestreview-4203457899 -> 2f9bdf4fc
+Disposition: FIXED
+Commit: 2f9bdf4fc
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now lists PR #1582 and PR #1591 / `release/appstore-readiness-pr1-privacy-manifest` in `Target PR`; `tests/ios/test_privacy_manifest_contract.py` now asserts `membership_exception_blocks` is non-empty before checking exclusions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1591#discussion_r3166473693 -> 2f9bdf4fc
+Disposition: FIXED
+Commit: 2f9bdf4fc
+Evidence: `tests/ios/test_privacy_manifest_contract.py` asserts `membership_exception_blocks` is non-empty before `PrivacyInfo.xcprivacy` exclusion checks.
 
 ## Merge Readiness
 
