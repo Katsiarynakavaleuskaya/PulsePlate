@@ -54,12 +54,14 @@ Evidence:
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No human, CodeRabbit, Sourcery, or Cubic actionable review threads were present
-when this artifact was created. New actionables must be added below with one of:
-`FIXED`, `NOT-A-BUG`, or `DEFERRED`.
+CodeRabbit skipped review because the PR is draft. Sourcery posted a reviewer
+guide only; it did not open actionable review threads. No human, CodeRabbit,
+Sourcery, or Cubic actionable review threads were present when this pass was
+recorded. New actionables must be added below with one of: `FIXED`,
+`NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
@@ -68,7 +70,8 @@ when this artifact was created. New actionables must be added below with one of:
 ## Merge Readiness
 
 - [ ] No unresolved review threads
-- [ ] Required checks PASS on the PR current head
+- [ ] Required checks PASS on the PR current head (`gh pr checks 1588` still
+  pending after mapping push)
 - [ ] Current-head `main` CI PASS
 - [ ] Strict merge wrapper PASS
 - [ ] Required wait window observed
