@@ -3,6 +3,7 @@
  * Consumer styles use var(--ppm-*) from marketing.css; do not duplicate hex there.
  */
 .ppm-page {
+  --ppm-gradient-lift: #10263d;
   --ppm-gradient-mid: #121c33;
   --ppm-gradient-end: #0b1224;
   --ppm-slate-50: #f8fafc;

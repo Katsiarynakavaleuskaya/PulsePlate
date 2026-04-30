@@ -18,6 +18,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
 - `python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json` PASS
+- `make tokens-check` PASS
 - `npm test -- --run src/__tests__/App.test.tsx src/components/marketing/__tests__/MarketingLaunchPage.test.tsx` PASS
 - `npm run build` PASS
 - `pre-commit run --all-files` PASS

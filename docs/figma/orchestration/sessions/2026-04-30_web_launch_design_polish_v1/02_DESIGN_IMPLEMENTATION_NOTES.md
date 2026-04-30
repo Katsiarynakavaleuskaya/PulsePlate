@@ -64,6 +64,7 @@ Passed:
 
 ```bash
 python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json
+make tokens-check
 npm test -- --run src/__tests__/App.test.tsx src/components/marketing/__tests__/MarketingLaunchPage.test.tsx
 npm run build
 ```
