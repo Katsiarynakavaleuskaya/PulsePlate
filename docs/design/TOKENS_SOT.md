@@ -99,8 +99,9 @@ They do not create a second token registry and must still be promoted through
   consumers, parity checks, and implementation ergonomics (`frontend/src/styles/tokens.ts:15`, `frontend/src/styles/tokens.ts:24`, `tests/test_design_token_parity.py:255`).
 - `frontend/tailwind.config.ts` consumes runtime token intent and must not be
   treated as an authoring source (`frontend/tailwind.config.ts:11`, `frontend/tailwind.config.ts:24`).
-- `docs/design/figma-manifest.json` is currently an informative bootstrap
-  artifact, not the canonical runtime schema (`docs/design/figma-manifest.json:3`, `docs/design/figma-manifest.json:4`).
+- `docs/design/figma-manifest.json` is locked only for governed design export
+  metadata and remains outside the canonical runtime token schema
+  (`docs/design/figma-manifest.json:3`, `docs/design/figma-manifest.json:4`).
 
 ## Active pipeline
 

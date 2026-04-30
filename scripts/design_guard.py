@@ -19,8 +19,10 @@ from typing import Any
 
 HEX_COLOR_RE = re.compile(r"#[0-9a-fA-F]{6}")
 VERSION_RE = re.compile(r"^v\d+\.\d+$")
+NODE_ID_RE = re.compile(r"^\d+:\d+$")
 LOCK_TYPES = {"L1", "L2", "L3", "L4"}
 CONTRACT_STATES = {"bootstrap", "locked"}
+CORE_LOCK_STATES = {"deferred", "locked"}
 REQUIRED_EXPORT_FIELDS = (
     "path",
     "figma_url",
@@ -62,6 +64,32 @@ def _as_list(value: Any, field_name: str, errors: list[str]) -> list[Any]:
     return value
 
 
+def _validate_node_id(value: Any, field_name: str, errors: list[str]) -> None:
+    if value in (None, ""):
+        return
+    if not isinstance(value, str):
+        errors.append(f"{field_name} must be a string")
+        return
+    if value.upper().startswith("TBD") or not NODE_ID_RE.fullmatch(value):
+        errors.append(f"{field_name} must be a concrete Figma node id")
+
+
+def _resolve_repo_path(
+    repo_root: Path, path_value: str, field_name: str, errors: list[str]
+) -> Path | None:
+    candidate = Path(path_value)
+    if candidate.is_absolute():
+        errors.append(f"{field_name} must be repo-relative")
+        return None
+    resolved = (repo_root / candidate).resolve()
+    try:
+        resolved.relative_to(repo_root.resolve())
+    except ValueError:
+        errors.append(f"{field_name} must stay within the repo root")
+        return None
+    return resolved
+
+
 def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
     errors: list[str] = []
 
@@ -78,8 +106,8 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
         errors.append("token_source must be a non-empty string path")
         token_path = None
     else:
-        token_path = repo_root / token_source
-        if not token_path.exists():
+        token_path = _resolve_repo_path(repo_root, token_source, "token_source", errors)
+        if token_path is not None and not token_path.exists():
             errors.append(f"token_source path not found: {token_source}")
             token_path = None
 
@@ -111,8 +139,13 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
     core_figma_url = core_lock.get("figma_url")
     core_version = core_lock.get("version")
     core_node_id = core_lock.get("node_id")
+    core_lock_state = core_lock.get("lock_state")
+    if core_lock_state is None:
+        core_lock_state = "locked" if contract_status == "locked" else "deferred"
+    if core_lock_state not in CORE_LOCK_STATES:
+        errors.append("core_lock.lock_state must be one of: deferred, locked")
 
-    if contract_status == "locked":
+    if contract_status == "locked" and core_lock_state == "locked":
         required_core_fields = {
             "path": core_path_value,
             "svg_sha256": core_sha_value,
@@ -129,6 +162,10 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
 
         if core_lock_type and core_lock_type != "L4":
             errors.append("core_lock.lock_type must be L4 in locked state")
+    elif contract_status == "locked" and core_lock_state == "deferred":
+        deferred_reason = core_lock.get("deferred_reason")
+        if not isinstance(deferred_reason, str) or not deferred_reason:
+            errors.append("core_lock.deferred_reason is required when core lock is deferred")
 
     if (
         isinstance(core_figma_url, str)
@@ -140,11 +177,14 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
         errors.append("core_lock.version must match v<major>.<minor> format")
     if isinstance(core_lock_type, str) and core_lock_type and core_lock_type not in LOCK_TYPES:
         errors.append("core_lock.lock_type must be one of L1/L2/L3/L4")
+    _validate_node_id(core_node_id, "core_lock.node_id", errors)
 
     if isinstance(core_path_value, str) and core_path_value:
-        should_enforce_core_hash = contract_status == "locked" or bool(core_sha_value)
+        core_path = _resolve_repo_path(repo_root, core_path_value, "core_lock.path", errors)
+        if core_path is None:
+            return errors
+        should_enforce_core_hash = core_lock_state == "locked" or bool(core_sha_value)
         if should_enforce_core_hash:
-            core_path = repo_root / core_path_value
             if not core_path.exists():
                 errors.append(f"core mutation check failed: file not found: {core_path_value}")
             elif isinstance(core_sha_value, str) and core_sha_value:
@@ -154,7 +194,7 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
                         "core mutation check failed: svg_sha256 mismatch "
                         f"(manifest={core_sha_value}, actual={computed})"
                     )
-            elif contract_status == "locked":
+            elif core_lock_state == "locked":
                 errors.append(
                     "core mutation check failed: core_lock.svg_sha256 is empty in locked state"
                 )
@@ -187,6 +227,7 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
             errors.append(
                 f"manifest integrity: {prefix}.figma_url must reference figma.com/design/"
             )
+        _validate_node_id(export.get("node_id"), f"{prefix}.node_id", errors)
 
         palette_hexes_raw = export.get("palette_hexes")
         palette_hexes = _as_list(palette_hexes_raw, f"{prefix}.palette_hexes", errors)
@@ -204,7 +245,9 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
 
         export_path_value = export.get("path")
         if isinstance(export_path_value, str) and export_path_value:
-            export_path = repo_root / export_path_value
+            export_path = _resolve_repo_path(repo_root, export_path_value, f"{prefix}.path", errors)
+            if export_path is None:
+                continue
             if not export_path.exists():
                 errors.append(f"manifest integrity: {prefix}.path not found: {export_path_value}")
             else:
