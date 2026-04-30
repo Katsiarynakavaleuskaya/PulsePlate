@@ -38,6 +38,11 @@ Evidence: `scripts/design_guard.py` now rejects `TBD` node-id placeholders case-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878653 -> 77f270214
 
 Disposition: FIXED
+Commit: 77f270214
+Evidence: CodeRabbit review summary actionables were fixed by the backlog-link and case-insensitive node-id placeholder changes mapped above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#pullrequestreview-4203931291 -> 77f270214
+
+Disposition: FIXED
 Commit: 3ff914d11
 Evidence: `scripts/design_guard.py` now requires numeric `number:number` Figma node IDs, and `tests/test_design_invariant_guard.py` covers freeform `capture_later` rejection.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230933 -> 3ff914d11
@@ -46,6 +51,11 @@ Disposition: FIXED
 Commit: 3ff914d11
 Evidence: `scripts/design_guard.py` now validates `token_source` through the repo-root path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping token sources.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230944 -> 3ff914d11
+
+Disposition: FIXED
+Commit: 3ff914d11
+Evidence: CodeRabbit review summary actionables were fixed by the strict node-id and token-source path-bound changes mapped above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#pullrequestreview-4205476666 -> 3ff914d11
 
 ## Local Validation Evidence
 
