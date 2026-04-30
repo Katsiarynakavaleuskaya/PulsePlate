@@ -32,7 +32,7 @@ python3 -m pytest tests/test_food_source_chain_public_nutrition.py tests/test_fo
 python3 -m scripts.food_source_per_chain_legal_review --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --coverage docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json --chain-public-nutrition docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json --governance docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json --json
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
-make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python
+make validate-changed VENV_PYTHON="${VENV_PYTHON:-.venv/bin/python}"
 git push -u origin codex/food-data-per-chain-legal-anti-scraping-pr13
 ```
 

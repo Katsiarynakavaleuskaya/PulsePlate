@@ -356,9 +356,26 @@ def _parse_per_chain_review(
         )
     if review.cache_decision != "blocked_not_approved":
         raise _review_error(context, f"{chain_id} cache_decision must be blocked_not_approved")
+    if review.display_decision != "internal_review_only_not_product_display":
+        raise _review_error(
+            context,
+            f"{chain_id} display_decision must be internal_review_only_not_product_display",
+        )
+    if review.attribution_decision != "required_not_approved":
+        raise _review_error(
+            context, f"{chain_id} attribution_decision must be required_not_approved"
+        )
     if review.redistribution_decision != "blocked_not_approved":
         raise _review_error(
             context, f"{chain_id} redistribution_decision must be blocked_not_approved"
+        )
+    if review.freshness_review_status != "required_not_approved":
+        raise _review_error(
+            context, f"{chain_id} freshness_review_status must be required_not_approved"
+        )
+    if review.schema_review_status != "required_not_approved":
+        raise _review_error(
+            context, f"{chain_id} schema_review_status must be required_not_approved"
         )
     if review.allowed_role != "manual_evidence_internal_review_only":
         raise _review_error(context, f"{chain_id} allowed_role is not allowed")
@@ -500,19 +517,7 @@ def build_per_chain_legal_review_report(
         "blocked_methods": list(BLOCKED_METHODS),
         "chain_page_ids": list(EXPECTED_CHAIN_IDS),
         "next_recommended_lane": NEXT_RECOMMENDED_LANE,
-        "runtime_cutover": False,
-        "digitalocean_postgres_load": False,
-        "bulk_ingest": False,
-        "network_allowed": False,
-        "db_writes_allowed": False,
-        "api_calls_allowed": False,
-        "source_download_allowed": False,
-        "scraping_allowed": False,
-        "cache_authority_allowed": False,
-        "redistribution_allowed": False,
-        "public_dataset_claim_allowed": False,
-        "automation_allowed": False,
-        "file_only": True,
+        **_SAFETY_FLAG_TEMPLATE,
         "final_gate_decision": FINAL_GATE_DECISION,
         "validation_errors": [],
     }

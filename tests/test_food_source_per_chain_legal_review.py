@@ -21,9 +21,9 @@ from core.food_sources.per_chain_legal_review import (
     load_per_chain_legal_review_governance,
     parse_per_chain_legal_review_governance,
 )
-from core.food_sources.source_catalog import load_source_catalog
-from core.food_sources.source_gap_audit import load_source_gap_audit
-from core.food_sources.source_onboarding import load_source_onboarding
+from core.food_sources.source_catalog import SourceCatalog, load_source_catalog
+from core.food_sources.source_gap_audit import SourceGapAudit, load_source_gap_audit
+from core.food_sources.source_onboarding import SourceOnboarding, load_source_onboarding
 
 _REPO_ROOT = Path(__file__).parents[1]
 _CATALOG_PATH = (
@@ -47,11 +47,11 @@ _GOVERNANCE_PATH = (
 _CLI_MODULE = "scripts.food_source_per_chain_legal_review"
 
 
-def _catalog():
+def _catalog() -> SourceCatalog:
     return load_source_catalog(_CATALOG_PATH)
 
 
-def _onboarding():
+def _onboarding() -> SourceOnboarding:
     return load_source_onboarding(
         _ONBOARDING_PATH,
         catalog=_catalog(),
@@ -59,7 +59,7 @@ def _onboarding():
     )
 
 
-def _coverage():
+def _coverage() -> SourceGapAudit:
     catalog = _catalog()
     onboarding = load_source_onboarding(
         _ONBOARDING_PATH,
@@ -302,6 +302,44 @@ def test_per_chain_legal_review_rejects_cache_approval() -> None:
     _review_row(payload, "mcdonalds_us")["cache_decision"] = "approved"
 
     with pytest.raises(PerChainLegalReviewError, match="cache_decision must be blocked"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "unsafe_value", "expected_error"),
+    (
+        (
+            "display_decision",
+            "blocked_not_approved",
+            "display_decision must be internal_review_only_not_product_display",
+        ),
+        (
+            "attribution_decision",
+            "approved",
+            "attribution_decision must be required_not_approved",
+        ),
+        (
+            "freshness_review_status",
+            "approved",
+            "freshness_review_status must be required_not_approved",
+        ),
+        (
+            "schema_review_status",
+            "approved",
+            "schema_review_status must be required_not_approved",
+        ),
+    ),
+)
+def test_per_chain_legal_review_rejects_unsafe_review_decisions(
+    field_name: str, unsafe_value: str, expected_error: str
+) -> None:
+    payload = _governance_payload()
+    _review_row(payload, "mcdonalds_us")[field_name] = unsafe_value
+
+    with pytest.raises(PerChainLegalReviewError, match=expected_error):
         parse_per_chain_legal_review_governance(
             payload,
             chain_public_nutrition=_chain_public_nutrition(),
