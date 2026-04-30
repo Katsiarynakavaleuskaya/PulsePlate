@@ -45,7 +45,17 @@ one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#issuecomment-4353730237
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit reported draft/rate-limit status plus optional generated-test checkboxes only; no code, docs, design, or test actionable was posted.
+Reason: The PR already includes focused marketing tests and the current-head CodeRabbit status is success. A substantive CodeRabbit retry remains pending the rate-limit refill before ready-for-review promotion.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#pullrequestreview-4206340444
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a weekly diff-character rate limit only; no code, docs, design, or test actionable was posted.
+Reason: This is an external review-capacity note, not an implementation request.
 
 ## Merge Readiness
 
