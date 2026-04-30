@@ -25,6 +25,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md`](./FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md)
 - Current PR9 MenuStat replacement gate:
   [`FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json`](../architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json)
+- Current PR10 MenuStat source-decision packet:
+  [`FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md`](./FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md)
+- Current PR10 MenuStat source-decision gate:
+  [`FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json`](../architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -37,5 +41,5 @@ current tooling packet for food-data lanes that need non-dated links.
 Update this alias when a later accepted packet supersedes the dated PR1
 criteria, PR2 tooling packet, PR3 source catalog, PR4 collision policy, PR5
 source-onboarding gate, PR6 USDA manifest preflight gate, PR7 Open Food Facts
-manifest preflight gate, PR8 JPTN identity/license gate, or PR9 MenuStat
-replacement gate.
+manifest preflight gate, PR8 JPTN identity/license gate, PR9 MenuStat
+replacement gate, or PR10 MenuStat source-decision gate.
