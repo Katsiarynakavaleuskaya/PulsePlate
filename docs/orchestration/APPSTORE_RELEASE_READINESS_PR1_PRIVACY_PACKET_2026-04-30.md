@@ -73,9 +73,9 @@ this slice.
 
 | Runtime flow | Source | App Privacy category | Purpose | Protection |
 | --- | --- | --- | --- | --- |
-| Profile and nutrition context | `ios/PulsePlate/Services/ProDailyNutritionService.swift`, `ios/PulsePlate/Services/ProfileProvider.swift` | `HEALTH_AND_FITNESS` | `APP_FUNCTIONALITY` | `DATA_LINKED_TO_YOU` |
-| Free-form CBT/AI query | `ios/PulsePlate/Services/CBTInsightService.swift` | `USER_CONTENT` | `APP_FUNCTIONALITY` | `DATA_LINKED_TO_YOU` |
-| Receipt and activation data | `ios/PulsePlate/Services/SubscriptionBillingService.swift` | `PURCHASES` | `APP_FUNCTIONALITY` | `DATA_LINKED_TO_YOU` |
+| Profile and nutrition context | `ios/PulsePlate/Services/ProDailyNutritionService.swift`, `ios/PulsePlate/Services/ProfileProvider.swift` | `HEALTH` | `APP_FUNCTIONALITY` | `DATA_LINKED_TO_YOU` |
+| Free-form CBT/AI query | `ios/PulsePlate/Services/CBTInsightService.swift` | `OTHER_USER_CONTENT` | `APP_FUNCTIONALITY` | `DATA_LINKED_TO_YOU` |
+| Receipt and activation data | `ios/PulsePlate/Services/SubscriptionBillingService.swift` | `PURCHASE_HISTORY` | `APP_FUNCTIONALITY` | `DATA_LINKED_TO_YOU` |
 
 No `DATA_USED_TO_TRACK_YOU` entry is allowed in this PR.
 

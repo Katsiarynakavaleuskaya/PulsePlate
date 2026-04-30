@@ -1,6 +1,6 @@
 [
   {
-    "category": "HEALTH_AND_FITNESS",
+    "category": "HEALTH",
     "purposes": [
       "APP_FUNCTIONALITY"
     ],
@@ -9,7 +9,7 @@
     ]
   },
   {
-    "category": "PURCHASES",
+    "category": "PURCHASE_HISTORY",
     "purposes": [
       "APP_FUNCTIONALITY"
     ],
@@ -18,7 +18,7 @@
     ]
   },
   {
-    "category": "USER_CONTENT",
+    "category": "OTHER_USER_CONTENT",
     "purposes": [
       "APP_FUNCTIONALITY"
     ],
