@@ -38,6 +38,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - `docs/figma/PULSEPLATE_WEB_MAKE_PROTOTYPE_DESIGN_PACKET_2026-04-30.md`
     - `docs/figma/orchestration/sessions/2026-04-30_web_launch_design_polish_v1/01_TASK_ANALYSIS.md`
+    - `docs/figma/orchestration/sessions/2026-04-30_web_launch_design_polish_v1/02_DESIGN_IMPLEMENTATION_NOTES.md`
     - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
     - `frontend/src/components/marketing/`
   - DoD:

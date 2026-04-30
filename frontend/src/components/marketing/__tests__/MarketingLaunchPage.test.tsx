@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import PulsePlateMarketingPage from '../../../pages/Marketing/PulsePlateMarketingPage';
 
-const renderMarketingPage = () =>
+const renderMarketingPage = (): ReturnType<typeof render> =>
   render(
     <MemoryRouter>
       <PulsePlateMarketingPage />
@@ -22,10 +22,9 @@ describe('PulsePlateMarketingPage', () => {
     ).toBeInTheDocument();
     expect(screen.getAllByText(/without medical claims/i)).toHaveLength(2);
     expect(screen.getByRole('link', { name: /open the app/i })).toHaveAttribute('href', '/app');
-    expect(screen.getAllByRole('link', { name: /join early access/i })[0]).toHaveAttribute(
-      'href',
-      '/enter-key',
-    );
+    screen
+      .getAllByRole('link', { name: /join early access/i })
+      .forEach((link) => expect(link).toHaveAttribute('href', '/enter-key'));
     expect(screen.getByLabelText('PulsePlate product preview')).toBeInTheDocument();
   });
 
