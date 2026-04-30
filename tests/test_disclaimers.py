@@ -13,6 +13,7 @@ from core.disclaimers import (
     SPECIAL_POPULATION_DISCLAIMERS,
     get_comprehensive_disclaimer,
     get_disclaimer_text,
+    get_nutrition_disclaimer,
     get_professional_referral,
 )
 
@@ -80,6 +81,14 @@ class TestMedicalDisclaimers:
         assert "privacy" in privacy_disclaimer.lower()
         assert "does not store" in privacy_disclaimer.lower()
         assert "locally" in privacy_disclaimer.lower()
+
+    def test_nutrition_disclaimer_default_context(self):
+        """Test nutrition disclaimer fallback text for unknown contexts."""
+        disclaimer = get_nutrition_disclaimer("unknown")
+
+        assert "educational purposes only" in disclaimer
+        assert "Supplements should" not in disclaimer
+        assert "Meal plans are suggestions" not in disclaimer
 
     def test_comprehensive_disclaimer(self):
         """Test comprehensive disclaimer combining all elements."""
