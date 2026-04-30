@@ -28,3 +28,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const ProUnlocked: Story = {};
+
+export const Locked: Story = {
+  parameters: {
+    sessionState: 'locked',
+  },
+};

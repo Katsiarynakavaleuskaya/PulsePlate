@@ -60,6 +60,22 @@ export const Loading: Story = {
   },
 };
 
+export const Disabled: Story = {
+  args: {
+    children: 'Unavailable',
+    disabled: true,
+    variant: 'secondary',
+  },
+};
+
+export const FullWidth: Story = {
+  args: {
+    children: 'Continue to plan',
+    fullWidth: true,
+    variant: 'primary',
+  },
+};
+
 export const Sizes: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
