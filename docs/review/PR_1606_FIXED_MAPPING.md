@@ -43,6 +43,11 @@ Evidence: `frontend/src/stories/storybookParitySupport.tsx` now parses request U
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#discussion_r3169021823 -> 0cde28de4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/runs/73804421529 -> 0cde28de4
 
+Disposition: FIXED
+Commit: TBD
+Evidence: `frontend/.storybook/main.ts` now preserves object-form `output.manualChunks` mappings when layering the Storybook-only premium API chunk rule, so upstream Storybook/Vite chunk maps are not dropped.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#discussion_r3169328857 -> TBD
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`

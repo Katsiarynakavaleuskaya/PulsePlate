@@ -3,6 +3,7 @@ import type { StorybookConfig } from '@storybook/react-vite';
 import type { OutputOptions } from 'rollup';
 
 const PREMIUM_API_CHUNK = 'premium-api';
+type ManualChunksMap = Record<string, readonly string[]>;
 
 function storybookManualChunks(id: string): string | undefined {
   return id.includes('/src/api/premium/') ? PREMIUM_API_CHUNK : undefined;
@@ -22,6 +23,14 @@ function withStorybookManualChunks(output: OutputOptions | OutputOptions[] | und
 
         if (typeof existingManualChunks === 'function') {
           return existingManualChunks(id, api);
+        }
+
+        if (existingManualChunks && typeof existingManualChunks === 'object') {
+          for (const [chunkName, moduleIds] of Object.entries(existingManualChunks as ManualChunksMap)) {
+            if (moduleIds.some((moduleId) => id === moduleId || id.endsWith(`/${moduleId}`))) {
+              return chunkName;
+            }
+          }
         }
 
         return undefined;
