@@ -88,15 +88,18 @@ recorded. New actionables must be added below with one of: `FIXED`,
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#discussion_r3166464524 -> 0476af80d
 Disposition: FIXED
+Commit: 0476af80d
 Evidence: This artifact now distinguishes initial implementation commit `4cdd7c1f1` from current governance-sync head `0476af80d`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#discussion_r3166464544 -> 2d21050e5
 Disposition: FIXED
+Commit: 2d21050e5
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records the 30 April 2026 delayed-closeout exception and rationale.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203440221
 Disposition: NOT-A-BUG
 Evidence: The ledger links both historical PR `#1512` implementation mapping and this PR `#1588` reconciliation mapping; the PR body remains a required mirror.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588#pullrequestreview-4203446952
 Disposition: FIXED
+Commit: 9b92c29de
 Evidence: The two CodeRabbit inline review comments are mapped explicitly above.
 
 ## Merge Readiness
