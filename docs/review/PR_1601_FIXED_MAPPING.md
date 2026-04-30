@@ -18,6 +18,26 @@ Commit: 2bc013fcf
 Evidence: Added PR11 coverage/source-gap audit artifact, file-only validator, CLI, packet, current-pointer update, ledger update, and focused tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1601 -> 2bc013fcf
 
+Disposition: FIXED
+Commit: 23f7c866b
+Evidence: Validates coverage-domain source references against canonical source IDs and updates the audit artifact to use source IDs only.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1601#discussion_r3168546896 -> 23f7c866b
+
+Disposition: FIXED
+Commit: 23f7c866b
+Evidence: Replaced the workstation-specific validation example with a repo-relative `VENV_PYTHON=.venv/bin/python` example.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1601#discussion_r3168546907 -> 23f7c866b
+
+Disposition: FIXED
+Commit: 23f7c866b
+Evidence: Mutation helpers now raise `AssertionError` when the requested source row is missing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1601#discussion_r3168546946 -> 23f7c866b
+
+Disposition: FIXED
+Commit: 23f7c866b
+Evidence: Added success and failure tests for the plain-text CLI output path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1601#discussion_r3168546969 -> 23f7c866b
+
 ## Merge Readiness Evidence
 
 Local PR-scoped gates run before opening the PR:
