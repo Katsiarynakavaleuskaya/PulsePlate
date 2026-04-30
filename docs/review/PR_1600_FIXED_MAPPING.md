@@ -46,6 +46,7 @@ proof before they are resolved:
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168663349 -> 13e3d855e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168686984 -> 13e3d855e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#pullrequestreview-4206008955 -> 13e3d855e
 
 Disposition: FIXED
 Commit: 13e3d855e
