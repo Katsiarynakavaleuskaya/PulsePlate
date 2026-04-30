@@ -53,6 +53,13 @@ Disposition: FIXED
 Commit: f52c5a06e
 Evidence: `.github/workflows/ci.yml` includes `tests/core/evidence` in both PR and feature critical smoke coverage runs; local `tests/core/evidence` and workflow governance tests pass.
 
+Current-head `diff-coverage` later reported four remaining uncovered
+fail-closed branches in `core/evidence/policies.py`.
+
+Disposition: FIXED
+Commit: 784f5b09b
+Evidence: `tests/core/evidence/test_assets.py` covers malformed canonical `evidence:` upstream ids with missing parts, `tests/core/evidence/test_fingerprints.py` covers malformed fingerprint prefix, digest length, and hex charset; local diff-cover reports 100% for `core/evidence/*`.
+
 ## Initial Implementation Commits
 
 - `64ba7a6fc` - `feat(metadata): add evidence asset registry`
@@ -61,6 +68,7 @@ Evidence: `.github/workflows/ci.yml` includes `tests/core/evidence` in both PR a
 - `3f26a6409` - `fix(evidence): reject cross-rail raw upstream ids`
 - `75dd48bb2` - `fix(evidence): harden evidence asset id parsing`
 - `f52c5a06e` - `ci(evidence): include asset registry in coverage smoke`
+- `784f5b09b` - `test(evidence): cover fail-closed policy branches`
 
 ## Coordinator Packet
 
@@ -92,13 +100,16 @@ Mandatory post-open review lane:
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `. .venv/bin/activate && pytest -q tests/core/evidence` PASS
-  (`21 passed`) after CodeRabbit test-hardening fixes and the post-open
-  `qa-engineer-agent` / `bug-hunter` fixes.
+  (`25 passed`) after CodeRabbit test-hardening fixes, the post-open
+  `qa-engineer-agent` / `bug-hunter` fixes, and the diff-coverage branch tests.
 - `. .venv/bin/activate && pytest -q tests/core/evidence tests/test_ci_workflow_pr_size_governance_contract.py`
   PASS (`30 passed`) after the CI coverage-routing fix.
 - `. .venv/bin/activate && python -m mypy --no-incremental --cache-dir=/dev/null core/evidence tests/core/evidence`
   PASS (`Success: no issues found in 6 source files`) after CodeRabbit
   test-hardening fixes.
+- `. .venv/bin/activate && coverage erase && coverage run -m pytest -q tests/core/evidence && coverage xml -o /tmp/pr1594-evidence-coverage.xml && diff-cover /tmp/pr1594-evidence-coverage.xml --compare-branch origin/main --fail-under 97 ...`
+  PASS (`core/evidence/assets.py`, `core/evidence/fingerprints.py`, and
+  `core/evidence/policies.py` all 100%; total 128 lines, missing 0).
 - `pre-commit run --all-files` PASS after the CI coverage-routing fix.
 - Commit hook PASS.
 - Pre-push changed-file mypy PASS.
