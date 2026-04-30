@@ -114,3 +114,11 @@ parity and strict merge-readiness wrappers.
 - [ ] `check_review_threads_disposition.py --require-auth` PASS
 - [ ] `check_pr_merge_readiness.py` PASS
 - [ ] `check_merge_ready.py --require-auth` PASS
+
+## Additional Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166113804 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202982395 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+Disposition: FIXED
+Commit: 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:99-107` links each deferred follow-up to its canonical `BACKLOG_LEDGER.md` anchor.
