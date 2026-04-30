@@ -67,14 +67,17 @@ staging (`tmp`/`bak`), `put_record`, and rollbacks — `scripts/orchestration/wi
 
 - **Read-only** list / search / detail over filesystem pages.
 - **Search** is **substring match on page body** (JSON wrapper); there is no index-first ranking,
-  title/heading weighting, or embedding retrieval. Calling it a “query engine” in the sense of search
-  products would be **overstated** — prefer “local grep-like search over ingested pages”.
+  ranking, or embedding retrieval. `--include-context` is opt-in and only adds deterministic
+  local hit context (`heading`, `excerpt`, `match_count`) to search results; default JSON output
+  remains unchanged. Calling it a “query engine” in the sense of search products would be
+  **overstated** — prefer “local grep-like search over ingested pages”.
 
 ### `wiki_lint.py`
 
 - **Integrity lint:** `pages/` presence, required frontmatter keys, `advisory == true`, matching
-  `raw/<hash>.md` for declared hash. It does **not** enforce contradiction checks, orphan pages,
-  link validity, backlinks, or index drift beyond raw existence.
+  `raw/<hash>.md` for declared hash. PR-B3 also checks local `index.md` / page consistency and
+  stale corpus-local links to missing `pages/<slug>.md` files. It does **not** enforce contradiction
+  checks, backlinks, external URL validity, product truth, or semantic freshness.
 
 ### `wiki_promote.py`
 
@@ -123,12 +126,13 @@ Per corpus (default name `project_internal`):
 ## CLI usage (from repo root)
 
 ```bash
-python3 scripts/orchestration/wiki_ingest.py --source path/under/repo.md --corpus project_internal
-python3 scripts/orchestration/wiki_query.py --mode list --corpus project_internal
-python3 scripts/orchestration/wiki_query.py --mode search --needle foo --corpus project_internal
-python3 scripts/orchestration/wiki_query.py --mode detail --slug your.slug --corpus project_internal
-python3 scripts/orchestration/wiki_lint.py --corpus project_internal
-python3 scripts/orchestration/wiki_promote.py --slug your.slug --corpus project_internal
+python3 -m scripts.orchestration.wiki_ingest --source path/under/repo.md --corpus project_internal
+python3 -m scripts.orchestration.wiki_query --mode list --corpus project_internal
+python3 -m scripts.orchestration.wiki_query --mode search --needle foo --corpus project_internal
+python3 -m scripts.orchestration.wiki_query --mode search --needle foo --include-context --corpus project_internal
+python3 -m scripts.orchestration.wiki_query --mode detail --slug your.slug --corpus project_internal
+python3 -m scripts.orchestration.wiki_lint --corpus project_internal
+python3 -m scripts.orchestration.wiki_promote --slug your.slug --corpus project_internal
 ```
 
 Use `--no-write-support-plane` on ingest/promote when you only want filesystem artifacts.

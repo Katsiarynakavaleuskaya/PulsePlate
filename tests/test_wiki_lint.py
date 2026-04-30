@@ -58,6 +58,96 @@ def test_lint_clean_after_ingest(tmp_path: Path) -> None:
     assert v == []
 
 
+def test_lint_reports_missing_index(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text("ok", encoding="utf-8")
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    (repo / "wiki" / "project_internal" / "index.md").unlink()
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert "index_missing" in v
+
+
+def test_lint_reports_index_page_drift(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text("ok", encoding="utf-8")
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    index = repo / "wiki" / "project_internal" / "index.md"
+    index.write_text(
+        "# Wiki index (project_internal)\n\n- [ghost](pages/ghost.md)\n",
+        encoding="utf-8",
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert "index_missing_page:s.a" in v
+    assert "index_stale_page:ghost" in v
+
+
+def test_lint_reports_stale_local_page_links_only(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text(
+        "[Missing](pages/missing.md)\n"
+        "[External](https://example.com/pages/nope.md)\n"
+        "[Other](../pages/not-wiki.md)\n",
+        encoding="utf-8",
+    )
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert "s.a.md:page_local_link_missing:missing" in v
+    assert all("nope" not in item for item in v)
+    assert all("not-wiki" not in item for item in v)
+
+
+def test_lint_ignores_page_links_inside_fenced_code(tmp_path: Path) -> None:
+    repo = tmp_path / "r"
+    (repo / "s").mkdir(parents=True)
+    f = repo / "s" / "a.md"
+    f.write_text(
+        "\n".join(
+            [
+                "```markdown",
+                "[Example](pages/missing.md)",
+                "```",
+                "[Bad Slug](pages/../bad.md)",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    wiki_ingest.ingest_paths(
+        [f],
+        corpus="project_internal",
+        wiki_root=repo / "wiki",
+        repo_root=repo,
+        write_support_plane=False,
+    )
+    v = wiki_lint.lint_corpus(corpus="project_internal", wiki_root=repo / "wiki", repo_root=repo)
+    assert all("missing" not in item for item in v)
+    assert all("bad" not in item for item in v)
+
+
 def test_main_exit_code(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     repo = tmp_path / "r"
     (repo / "s").mkdir(parents=True)
