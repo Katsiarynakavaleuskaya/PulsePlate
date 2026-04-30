@@ -25,7 +25,7 @@ Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> a50f5928b43a173766328bc012a0a698603ee708
 Disposition: FIXED
 Commit: a50f5928b43a173766328bc012a0a698603ee708
-Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:82` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:97-102` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
 
 ## Regression Stabilization Evidence
 
