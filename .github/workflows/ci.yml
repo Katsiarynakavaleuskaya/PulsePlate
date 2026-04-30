@@ -713,6 +713,8 @@ jobs:
     permissions:
       contents: read
       actions: write
+    env:
+      FEATURE_FEEDBACK_TARGET_MINUTES: "45"
     strategy:
       fail-fast: false
       matrix:
@@ -721,6 +723,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Start fast-feedback timing
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "FEATURE_FEEDBACK_STARTED_AT=$(date +%s)" >> "$GITHUB_ENV"
 
       - name: Setup Python environment
         uses: ./.github/actions/python-setup
@@ -935,6 +943,54 @@ jobs:
             tests/smoke-results.xml
             tests/contract-results.xml
           if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Summarize fast-feedback budget
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          finished_at="$(date +%s)"
+          target_seconds="$((FEATURE_FEEDBACK_TARGET_MINUTES * 60))"
+          status="within_budget"
+          if [ -z "${FEATURE_FEEDBACK_STARTED_AT:-}" ]; then
+            status="timing_unavailable"
+            elapsed_seconds=-1
+            echo "::warning::Fast-feedback timing seed is missing; budget status marked timing_unavailable"
+          else
+            started_at="${FEATURE_FEEDBACK_STARTED_AT}"
+            elapsed_seconds="$((finished_at - started_at))"
+          fi
+          if [ "$elapsed_seconds" -gt "$target_seconds" ]; then
+            status="over_budget"
+            echo "::warning::Feature/fix fast-feedback exceeded ${FEATURE_FEEDBACK_TARGET_MINUTES} minute target (${elapsed_seconds}s elapsed)"
+          fi
+          cat > feature-feedback-budget.json <<JSON
+          {
+            "status": "${status}",
+            "elapsed_seconds": ${elapsed_seconds},
+            "target_minutes": ${FEATURE_FEEDBACK_TARGET_MINUTES},
+            "python_version": "${{ matrix.python-version }}",
+            "contract_risk_groups": "${{ needs.changes.outputs.contract_risk_groups }}",
+            "run_backend_blocking": "${{ needs.changes.outputs.run_backend_blocking }}"
+          }
+          JSON
+          {
+            echo "### Feature/Fix Fast-Feedback Budget"
+            echo
+            echo "- Status: ${status}"
+            echo "- Elapsed seconds: ${elapsed_seconds}"
+            echo "- Target minutes: ${FEATURE_FEEDBACK_TARGET_MINUTES}"
+            echo "- Contract risk groups: ${{ needs.changes.outputs.contract_risk_groups }}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload fast-feedback budget artifact
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: feature-feedback-budget-${{ env.COVERAGE_PY }}
+          path: feature-feedback-budget.json
+          if-no-files-found: error
           retention-days: 7
 
   # Comprehensive testing for main branch
