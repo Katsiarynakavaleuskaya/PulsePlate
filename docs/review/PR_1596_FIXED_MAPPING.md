@@ -6,7 +6,7 @@
 - Branch: `codex/advisory-wiki-query-lint-enrichment-b3`
 - Base branch: `main`
 - Initial implementation commit: `9688903881767dee86ab6480237ee98e13ab3865`
-- Current head after governance sync: `8163149521cf1ab36664d1576063aec8655108e2`
+- Current head after governance sync: see live PR current head
 
 ## Scope
 
@@ -41,22 +41,22 @@ Evidence:
 - `pytest -q tests/test_wiki_query.py tests/test_wiki_lint.py tests/test_wiki_ingest.py tests/test_wiki_promote.py tests/test_wiki_compiler_keys.py tests/test_repo_policy_guards.py` PASS, 69 tests
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` PASS
 - `pre-commit run --all-files` PASS
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS
+- `make verify` PASS after creating the local ignored worktree symlink `.venv -> ../../.venv`; `verify-env`, lint, mypy, test-fast, full coverage pytest, and diff-cover all passed. Diff-cover reported no covered-line diff gaps.
 - commit hooks PASS
 - pre-push hooks PASS, including mypy changed-files, pip-audit,
   backend tests, full-repo bandit, and docker build test where applicable
 
-## Local Full Verify Deferral
+## Local Full Verify
 
-Disposition: DEFERRED
-Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-query-lint-enrichment`
-Reason: Operator explicitly disabled full local `make verify` and local Make
-targets for CPU protection on this advisory tooling PR. Merge-readiness must
-therefore rely on the narrow local gates above plus current-head GitHub CI.
+Disposition: FIXED
+Commit: local validation evidence; no product/runtime code change
 Evidence:
 
-- Full local `make verify` was not run.
-- Local `make validate-changed`, `make validate-min`, and other Make targets
-  were not run.
+- Full local `make verify` was run on 2026-04-30 before the final
+  `origin/main` sync and passed.
+- The worktree-local `.venv` symlink is an ignored local artifact only and is
+  not part of the PR diff.
 
 ## Discussion Thread Pass
 
