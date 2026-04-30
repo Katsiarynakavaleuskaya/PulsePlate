@@ -86,7 +86,7 @@ Required local gates:
 - `python3 scripts/orchestration/check_agent_consistency.py`
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Define PR-B4 bounded reference-corpus policy for advisory wiki" --task-class "Orchestration" --pr-phase pre_open`
 - `git diff --check`
-- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/review/PR_<new_number>_FIXED_MAPPING.md`
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/review/PR_1607_FIXED_MAPPING.md`
 - `pytest -q tests/test_repo_policy_guards.py`
 - `pre-commit run --all-files`
 
