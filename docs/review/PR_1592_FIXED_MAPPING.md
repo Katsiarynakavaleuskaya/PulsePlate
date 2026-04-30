@@ -7,19 +7,27 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No human, CodeRabbit, Sourcery, or Cubic actionable review threads were present
 when this canonical mapping artifact was created. This file must be updated
 before any review thread is resolved.
 
 ## Fixed in Commit Mapping
 
-- Initial implementation commit: `49eb4162e`
-  - Disposition: FIXED
-  - Evidence:
-    - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.md`
-    - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`
-    - `scripts/release/reviewer_packet_hashes.py`
-    - `tests/test_release_reviewer_packet_hashes.py`
+- No actionable review comments
+
+## Implementation Evidence
+
+Disposition: FIXED
+Commit: 49eb4162e
+Evidence:
+
+- `docs/release/REVIEWER_PACKET_HASH_CONTRACT.md`
+- `docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`
+- `scripts/release/reviewer_packet_hashes.py`
+- `tests/test_release_reviewer_packet_hashes.py`
 
 ## Local Gate Evidence
 
