@@ -1,0 +1,117 @@
+{
+  "bulk_ingest": false,
+  "catalog_ref": "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+  "candidate_sources": [
+    {
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Commercial contract and pricing terms are not approved.",
+        "Cache, display, attribution, redistribution, and rollback terms are not approved.",
+        "No source-specific manifest or dry-run proof is approved for restaurant-menu ingest."
+      ],
+      "cache_policy_status": "blocked_contract_required",
+      "candidate_gate_decision": "blocked_contract_review_required",
+      "contract_status": "blocked_contract_required",
+      "display_policy_status": "blocked_contract_required",
+      "evidence_status": "blocked_official_docs_review_required",
+      "freshness_status": "blocked_freshness_review_required",
+      "notes": "Restaurant-menu candidate. Keep blocked until official contract, pricing, cache, display, attribution, redistribution, rate-limit, and rollback terms are approved.",
+      "onboarding_status": "contract_review_blocked",
+      "redistribution_policy_status": "blocked_contract_required",
+      "replacement_for": "menustat",
+      "source": "nutritionix",
+      "source_classification": "commercial_contract",
+      "source_evidence_refs": [
+        "https://developer.nutritionix.com/",
+        "https://developer.nutritionix.com/docs/v2"
+      ],
+      "source_family": "restaurant_menu"
+    },
+    {
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Attribution, cache, redistribution, and contract terms are not approved.",
+        "Startup/free eligibility must be verified before any source-specific API proof.",
+        "No source-specific manifest or dry-run proof is approved for restaurant-menu ingest."
+      ],
+      "cache_policy_status": "blocked_contract_required",
+      "candidate_gate_decision": "blocked_contract_review_required",
+      "contract_status": "blocked_contract_required",
+      "display_policy_status": "blocked_contract_required",
+      "evidence_status": "blocked_official_docs_review_required",
+      "freshness_status": "blocked_freshness_review_required",
+      "notes": "Low-cost/startup-oriented candidate for a future API proof, but still blocked until attribution, cache, redistribution, and contract terms are explicit.",
+      "onboarding_status": "contract_review_blocked",
+      "redistribution_policy_status": "blocked_contract_required",
+      "replacement_for": "menustat",
+      "source": "fatsecret_platform",
+      "source_classification": "commercial_contract",
+      "source_evidence_refs": [
+        "https://platform.fatsecret.com/platform-api",
+        "https://platform.fatsecret.com/api-editions?cpc=true",
+        "https://platform.fatsecret.com/attribution"
+      ],
+      "source_family": "commercial_api"
+    },
+    {
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Pricing, backlink, quota, and cache limitations block database-authority use.",
+        "Recipe/menu usage must remain separate from restaurant-menu authority.",
+        "No source-specific manifest or dry-run proof is approved for restaurant-menu ingest."
+      ],
+      "cache_policy_status": "blocked_contract_required",
+      "candidate_gate_decision": "blocked_contract_review_required",
+      "contract_status": "blocked_contract_required",
+      "display_policy_status": "blocked_contract_required",
+      "evidence_status": "blocked_official_docs_review_required",
+      "freshness_status": "blocked_freshness_review_required",
+      "notes": "Useful for recipe/menu query experiments, not approved as database authority because official pricing/docs show tight free quota and cache restrictions.",
+      "onboarding_status": "contract_review_blocked",
+      "redistribution_policy_status": "blocked_contract_required",
+      "replacement_for": "menustat",
+      "source": "spoonacular",
+      "source_classification": "commercial_contract",
+      "source_evidence_refs": [
+        "https://spoonacular.com/food-api/pricing",
+        "https://spoonacular.com/food-api/docs"
+      ],
+      "source_family": "recipe_corpus"
+    },
+    {
+      "authority_decision": "not_approved",
+      "blocking_reasons": [
+        "Provider identity, license, anti-scraping, cache, display, attribution, and schema terms are unresolved per chain.",
+        "Public pages are evidence references only and are not approved for bulk collection.",
+        "No source-specific manifest or dry-run proof is approved for restaurant-menu ingest."
+      ],
+      "cache_policy_status": "blocked_unresolved",
+      "candidate_gate_decision": "blocked_unresolved_review_required",
+      "contract_status": "blocked_unresolved",
+      "display_policy_status": "blocked_unresolved",
+      "evidence_status": "blocked_per_chain_review_required",
+      "freshness_status": "blocked_per_chain_freshness_review_required",
+      "notes": "Free public evidence source only. Per-chain legal and anti-scraping review is required before any use beyond manual evidence.",
+      "onboarding_status": "unresolved_blocked",
+      "redistribution_policy_status": "blocked_unresolved",
+      "replacement_for": "menustat",
+      "source": "chain_public_nutrition_pages",
+      "source_classification": "unresolved",
+      "source_evidence_refs": [
+        "https://www.mcdonalds.com/us/en-us/about-our-food/nutrition-calculator.html"
+      ],
+      "source_family": "restaurant_menu"
+    }
+  ],
+  "db_writes_allowed": false,
+  "digitalocean_postgres_load": false,
+  "file_only": true,
+  "final_gate_decision": "blocked_until_replacement_approved",
+  "generated_on": "2026-04-30",
+  "legacy_source": "menustat",
+  "network_allowed": false,
+  "notes": "MenuStat remains a legacy/static baseline and reference format only. PR9 does not approve any replacement source for preflight, ingest, staging, or runtime authority.",
+  "onboarding_ref": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+  "runtime_cutover": false,
+  "schema_version": "food-data-menustat-replacement.v1"
+}
