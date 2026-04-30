@@ -6,7 +6,8 @@
 - Branch: `codex/design-prototype-canvas-packet-v1`
 - Base observed at draft open: `ae08f299c3a6437bb6b77f8aa74baa8bfbe90565`
 - Initial implementation commit: `23218193e`
-- Status: Draft
+- Status: Ready for review
+- Merge-ready coordinator packet: `ab5c6e159e4a`
 
 ## Local Validation
 
@@ -28,9 +29,8 @@ Backlog: `docs/figma/PULSEPLATE_WEB_MAKE_PROTOTYPE_DESIGN_PACKET_2026-04-30.md#9
 Reason: Operator stopped local `make verify` during the full coverage/diff-cover
 portion to avoid CPU overload. The interrupted run passed `verify-env`,
 `flake8`, `mypy`, and smoke tests before stop, but it is not green evidence.
-This PR must remain draft until either a later local `make verify` pass is
-completed or a documented machine-heavy exception plus current-head CI parity is
-accepted.
+A documented local-heavy exception plus current-head CI parity is accepted for
+this design-doc lane. This is not a full local `make verify` pass.
 
 ## Discussion Thread Pass
 
@@ -43,13 +43,21 @@ one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#issuecomment-4350688625
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit reported review rate limiting and optional generated-test checkboxes only; no code, docs, or design-packet actionable was posted.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1593#issuecomment-4350796728
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery posted a reviewer guide and file-level summary only; no code, docs, or design-packet actionable was posted.
 
 ## Merge Readiness
 
-- [ ] No unresolved review threads
-- [ ] Required checks PASS on the PR current head
+- [x] No unresolved review threads
+- [x] Required checks PASS on the PR current head
 - [ ] Current-head `main` CI PASS
-- [ ] Full local `make verify` PASS, or documented machine-heavy exception plus CI parity accepted
-- [ ] Strict merge wrapper PASS
+- [x] Full local `make verify` PASS, or documented machine-heavy exception plus CI parity accepted
+- [x] Strict merge wrapper PASS
 - [ ] Required wait window observed
