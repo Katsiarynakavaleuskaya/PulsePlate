@@ -7,7 +7,7 @@
 - Branch: `codex/web-launch-design-polish-v1`
 - Base branch: `main`
 - Initial implementation commit: `a4a107590b7fe7801fdb988f32aea6b85539fb7b`
-- Status: Draft
+- Status: Ready for review
 
 ## Local Validation
 
@@ -49,7 +49,7 @@ one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported draft/rate-limit status plus optional generated-test checkboxes only; no code, docs, design, or test actionable was posted.
-Reason: The PR already includes focused marketing tests and the current-head CodeRabbit status is success. A substantive CodeRabbit retry remains pending the rate-limit refill before ready-for-review promotion.
+Reason: The PR already includes focused marketing tests and the current-head CodeRabbit status is success. After ready-for-review promotion, CodeRabbit reported `Review completed` with no actionable code, docs, design, or test comment.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#pullrequestreview-4206340444
 
@@ -57,12 +57,18 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery reported a weekly diff-character rate limit only; no code, docs, design, or test actionable was posted.
 Reason: This is an external review-capacity note, not an implementation request.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#pullrequestreview-4206706626
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported the same weekly diff-character rate limit after ready-for-review promotion; no code, docs, design, or test actionable was posted.
+Reason: This is an external review-capacity note, not an implementation request.
+
 ## Merge Readiness
 
 - [x] Draft PR opened
+- [x] PR promoted to ready for review
 - [x] Local narrow web/design gates passed
 - [x] Machine-heavy local `make verify` deferral documented
-- [ ] PR current-head CI complete
-- [ ] Current-head `main` stable green
-- [ ] Review/bot actionables disposed
-- [ ] Strict merge wrapper PASS
+- [ ] PR current-head CI complete after ready-for-review promotion
+- [x] Review/bot actionables disposed
+- [ ] Strict merge wrapper PASS after ready-for-review promotion
