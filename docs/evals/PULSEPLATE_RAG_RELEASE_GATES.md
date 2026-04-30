@@ -275,10 +275,19 @@ PR / CI visibility:
 - upload only the safe artifact subset:
   - `gate_report.md`
   - `metrics_summary.json`
+  - `rag_gate_result.json`
   - `latest_executed.ipynb`
 - write a compact markdown summary to the CI check summary / PR check output
 - surface deterministic threshold rows in both the markdown report and the CI summary
 - include companion RAGAS metrics only as an informational block when explicitly provided
+
+### Release-control-plane export
+
+The runner also emits `rag_gate_result.json` for the release-control-plane
+ML identity contract. The schema and hash rules live in
+[`../release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`](../release/RAG_GATE_RESULT_EXPORT_CONTRACT.md).
+This export is derived from the existing runner output and does not redefine
+threshold vocabulary, gate checks, `PASS` / `NO-GO`, or `--require-pass`.
 
 ### v2 persistence
 

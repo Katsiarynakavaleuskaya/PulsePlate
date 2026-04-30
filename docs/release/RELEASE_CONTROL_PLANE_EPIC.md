@@ -85,6 +85,9 @@ review governance.
    - Branch: `release/release-control-plane-pr2-rag-gate-export`
    - Export a stable gate-result JSON contract from the existing RAG release-gate runner.
    - Do not introduce a second eval source of truth or product dashboard.
+   - Contract: [`RAG_GATE_RESULT_EXPORT_CONTRACT.md`](RAG_GATE_RESULT_EXPORT_CONTRACT.md)
+     and [`RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json`](RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json).
+   - Artifact: `artifacts/rag_eval/<experiment_id>/rag_gate_result.json`.
 
 4. **PR-3: release manifest generator and validator**
    - Branch: `release/release-control-plane-pr3-release-manifest`

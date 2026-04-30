@@ -380,6 +380,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
     - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.md`
     - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`
+    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`
+    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
     - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
     - `scripts/evals/run_rag_release_gates.py`
@@ -388,7 +390,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - PR-0 lands governance docs, C4 release-risk context, packet, and this ledger anchor without runtime/workflow changes.
     - PR-1 defines reviewer-packet hash contract after App Store readiness artifacts land on `main`, including `reviewer_notes_hash`, `appstore_metadata_hash`, canonical UTF-8 SHA-256 rules, and schema tests.
-    - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth.
+    - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth, including `rag_gate_result_hash`, `eval_artifact_hash`, existing `PASS` / `NO-GO` eval decision fields, and safe artifact references.
     - PR-3 adds a release manifest generator and fail-closed validator.
     - PR-4 proves review-build and production-candidate equivalence by digest/hash checks.
     - PR-5 integrates focused CI gates for manifest, ML gate result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.

@@ -42,6 +42,17 @@ DEFAULT_INPUT_PATH = REPO_ROOT / "data" / "evals" / "pulseplate_rag_eval_sample.
 DEFAULT_ARTIFACT_ROOT = REPO_ROOT / "artifacts" / "rag_eval"
 DEFAULT_NOTEBOOK_PATH = REPO_ROOT / "notebooks" / "pulseplate_rag_release_gates.ipynb"
 SAFE_EXPERIMENT_ID_RE = re.compile(r"[^A-Za-z0-9_-]+")
+RAG_GATE_RESULT_SCHEMA_VERSION = "release-rag-gate-result.v1"
+RAG_GATE_RESULT_HASH_ALGORITHM = "sha256"
+RAG_GATE_RESULT_CANONICALIZATION = "json-sorted-compact-utf8-single-trailing-newline"
+RAG_GATE_RESULT_FILENAME = "rag_gate_result.json"
+RAG_GATE_SOURCE_ARTIFACT_KEYS: tuple[str, ...] = (
+    "gate_report",
+    "latest_executed_notebook",
+    "metrics_summary",
+    "parquet_or_csv",
+    "traces_jsonl",
+)
 
 DEFAULT_SAMPLE_ROWS: list[dict[str, Any]] = [
     {
@@ -2049,6 +2060,25 @@ def _json_default(obj: Any) -> Any:
     return str(obj)
 
 
+def _canonical_json_bytes(payload: Any) -> bytes:
+    """Serialize JSON for release-control-plane hashing."""
+
+    serialized = json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+        default=_json_default,
+    )
+    return f"{serialized}\n".encode("utf-8")
+
+
+def _sha256_lower_hex(payload: bytes) -> str:
+    """Return lowercase SHA-256 hex without an algorithm prefix."""
+
+    return hashlib.new(RAG_GATE_RESULT_HASH_ALGORITHM, payload).hexdigest()
+
+
 def _write_jsonl(path: Path, traces: Sequence[dict[str, Any]]) -> None:
     """Write traces as JSONL."""
 
@@ -2120,6 +2150,119 @@ def _write_flat_export(run_dir: Path, traces: Sequence[dict[str, Any]]) -> str:
                 writer.writeheader()
                 writer.writerows(flat_rows)
         return str(csv_path)
+
+
+def _run_dir_relative_path(path: Path, *, run_dir: Path) -> str:
+    """Return a deterministic run-dir-relative artifact path."""
+
+    resolved_path = path.resolve()
+    resolved_run_dir = run_dir.resolve()
+    try:
+        return resolved_path.relative_to(resolved_run_dir).as_posix()
+    except ValueError:
+        return path.name
+
+
+def _artifact_manifest_entry(kind: str, path: Path, *, run_dir: Path) -> dict[str, str]:
+    """Build one safe eval artifact manifest entry."""
+
+    return {
+        "kind": kind,
+        "path": _run_dir_relative_path(path, run_dir=run_dir),
+        "hash": _sha256_lower_hex(path.read_bytes()),
+    }
+
+
+def build_eval_artifact_manifest(
+    artifacts: dict[str, str],
+    *,
+    run_dir: Path,
+) -> list[dict[str, str]]:
+    """Return deterministic safe-artifact entries for the RAG gate export."""
+
+    entries: list[dict[str, str]] = []
+    for kind in RAG_GATE_SOURCE_ARTIFACT_KEYS:
+        raw_path = artifacts.get(kind)
+        if raw_path is None:
+            continue
+        path = Path(raw_path)
+        if not path.is_file():
+            continue
+        entries.append(_artifact_manifest_entry(kind, path, run_dir=run_dir))
+    return entries
+
+
+def build_rag_gate_result_export(
+    metrics_summary: dict[str, Any],
+    artifacts: dict[str, str],
+    *,
+    run_dir: Path,
+) -> dict[str, Any]:
+    """Build the deterministic release-control-plane RAG gate result export."""
+
+    source_artifacts = build_eval_artifact_manifest(artifacts, run_dir=run_dir)
+    eval_artifact_hash = _sha256_lower_hex(
+        _canonical_json_bytes(
+            {
+                "artifacts": source_artifacts,
+                "canonicalization": RAG_GATE_RESULT_CANONICALIZATION,
+                "schema_version": RAG_GATE_RESULT_SCHEMA_VERSION,
+            }
+        )
+    )
+    export_payload: dict[str, Any] = {
+        "schema_version": RAG_GATE_RESULT_SCHEMA_VERSION,
+        "hash_algorithm": RAG_GATE_RESULT_HASH_ALGORITHM,
+        "canonicalization": RAG_GATE_RESULT_CANONICALIZATION,
+        "experiment_id": metrics_summary["experiment_id"],
+        "timestamp": metrics_summary["timestamp"],
+        "git_sha": metrics_summary["git_sha"],
+        "sample_size": metrics_summary["sample_size"],
+        "retriever_mode": metrics_summary["retriever_mode"],
+        "generator_mode": metrics_summary["generator_mode"],
+        "dataset_path_used": metrics_summary["dataset_path_used"],
+        "dataset_fallback_used": metrics_summary["dataset_fallback_used"],
+        "release_decision": metrics_summary["release_decision"],
+        "gate_checks": metrics_summary["gate_checks"],
+        "threshold_results": metrics_summary.get("threshold_results", []),
+        "strict_violations": metrics_summary.get("strict_violations", []),
+        "runtime_warnings": metrics_summary.get("runtime_warnings", []),
+        "small_fixture_metric_gates_advisory": metrics_summary.get(
+            "small_fixture_metric_gates_advisory",
+            False,
+        ),
+        "eval_artifact_hash": eval_artifact_hash,
+        "source_artifacts": source_artifacts,
+    }
+    if "small_fixture_raw_gate_checks" in metrics_summary:
+        export_payload["small_fixture_raw_gate_checks"] = metrics_summary[
+            "small_fixture_raw_gate_checks"
+        ]
+    for optional_key in ("mlflow_run_id", "model_version"):
+        optional_value = metrics_summary.get(optional_key)
+        if optional_value:
+            export_payload[optional_key] = optional_value
+
+    export_payload["rag_gate_result_hash"] = _sha256_lower_hex(
+        _canonical_json_bytes(export_payload)
+    )
+    return export_payload
+
+
+def write_rag_gate_result_export(
+    run_dir: Path,
+    metrics_summary: dict[str, Any],
+    artifacts: dict[str, str],
+) -> Path:
+    """Write the PR-2 RAG/ML gate-result export artifact."""
+
+    export_path = run_dir / RAG_GATE_RESULT_FILENAME
+    export_payload = build_rag_gate_result_export(metrics_summary, artifacts, run_dir=run_dir)
+    export_path.write_text(
+        json.dumps(export_payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return export_path
 
 
 def write_summary_notebook(
@@ -2219,13 +2362,17 @@ def write_artifacts(
         gate_report,
         template_notebook_path=template_notebook_path,
     )
-    return {
+    artifacts = {
         "traces_jsonl": str(traces_path),
         "parquet_or_csv": parquet_or_csv_status,
         "metrics_summary": str(metrics_path),
         "gate_report": str(report_path),
         "latest_executed_notebook": str(notebook_path),
     }
+    artifacts["rag_gate_result"] = str(
+        write_rag_gate_result_export(run_dir, metrics_summary, artifacts)
+    )
+    return artifacts
 
 
 def _write_github_step_summary(metrics_summary: dict[str, Any], artifacts: dict[str, str]) -> None:
@@ -2245,6 +2392,7 @@ def _write_github_step_summary(metrics_summary: dict[str, Any], artifacts: dict[
         "### Artifacts",
         f"- Gate report: `{artifacts['gate_report']}`",
         f"- Metrics summary: `{artifacts['metrics_summary']}`",
+        f"- RAG gate result: `{artifacts['rag_gate_result']}`",
         f"- Traces: `{artifacts['traces_jsonl']}`",
     ]
     threshold_results = metrics_summary.get("threshold_results", [])
