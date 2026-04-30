@@ -44,10 +44,6 @@ proof before they are resolved:
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168663349 -> 13e3d855e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168686984 -> 13e3d855e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#pullrequestreview-4206008955 -> 13e3d855e
-
 Disposition: FIXED
 Commit: 13e3d855e
 Evidence: `tests/ios/test_info_plist_permission_strings.py` now scans Xcode
@@ -56,6 +52,9 @@ Evidence: localized `InfoPlist.strings` files are discovered dynamically.
 Evidence: ATT checks stay fail-closed.
 Evidence: `docs/orchestration/APPSTORE_RELEASE_READINESS_PR2_PERMISSION_PACKET_2026-04-30.md`
 Evidence: current-head CI wording now says iOS unit tests rather than iOS unit/UI.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168663349 -> 13e3d855e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168686984 -> 13e3d855e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#pullrequestreview-4206008955 -> 13e3d855e
 
 ## Local Validation
 
