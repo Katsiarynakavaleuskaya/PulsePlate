@@ -77,6 +77,21 @@ Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates 
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: `943b2d85ffd087e364d98491b3a2a27489402483`
+Evidence: `docs/review/PR_1596_FIXED_MAPPING.md` now uses a concrete commit SHA for the Local Full Verify `FIXED` block.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168206712 -> 943b2d85ffd087e364d98491b3a2a27489402483
+
+Disposition: FIXED
+Commit: `943b2d85ffd087e364d98491b3a2a27489402483`
+Evidence: `scripts/orchestration/wiki_lint.py` now strips both backtick and tilde fenced code blocks before local page-link linting; `tests/test_wiki_lint.py` covers tilde fences.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168206737 -> 943b2d85ffd087e364d98491b3a2a27489402483
+
+Disposition: FIXED
+Commit: `943b2d85ffd087e364d98491b3a2a27489402483`
+Evidence: The CodeRabbit review summary listed the two actionable inline comments above, both fixed in the same commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4205443302 -> 943b2d85ffd087e364d98491b3a2a27489402483
+
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit status after the PR moved from draft to ready and did not report actionable code comments.
 Reason: External bot review-rate limiting is not a code defect in this PR; no CodeRabbit actionables were available to fix.
