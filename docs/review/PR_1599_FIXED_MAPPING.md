@@ -44,12 +44,6 @@ GitHub CI parity as the heavy signal before merge-readiness claims.
 
 No review threads yet; PR is draft.
 
-## Commit Evidence
-
-- Initial ledger/dependency closeout: `4f210ba53`
-- PR number mapping and ledger target update: `2fcbed8f8`
-- Mapping SHA finalization: `47e220aac`
-
 ## Fixed in Commit Mapping
 
 - No actionable review comments
