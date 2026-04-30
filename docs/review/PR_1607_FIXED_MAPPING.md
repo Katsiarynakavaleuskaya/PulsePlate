@@ -58,6 +58,8 @@ Evidence:
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial fixed-mapping artifact created.
 - [x] Post-open `qa-engineer-agent -> bug-hunter` review pass completed.
 - [ ] Review threads audited after bot/human activity.
@@ -76,7 +78,7 @@ and the review dry-run found no actionables.
 
 ## Fixed in Commit Mapping
 
-No actionable review comments at initial mapping creation.
+- No actionable review comments
 
 ## Merge Readiness
 
