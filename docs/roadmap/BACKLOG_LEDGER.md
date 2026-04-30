@@ -574,22 +574,54 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Any remaining missing source-of-truth docs are either created or removed from the ordered list with rationale
 
 <a id="ledger-p1-ci-install-profile-split-after-disk-unblock"></a>
-- [ ] P1: CI install profile split after disk-regression unblock
+- [x] P1: CI install profile split after disk-regression unblock
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-CI-INSTALL-PROFILE-SPLIT
+  - Target PR: PR #1599 (`codex/ci-install-profile-split-after-fast-feedback`)
   - Area: CI / Python dependencies / supply-chain
-  - Status note: Re-evaluate only after `fix/ci-feature-fast-feedback` lands and
-    representative feature/fix push runs still miss the target feedback budget.
-    Do not use this item to reopen security or proxy hardening regressions.
-  - Reason: The emergency unblock PR stabilizes `main` by removing duplicate Python installs and forcing `direct-proxy` in canonical CI lanes, but it intentionally leaves the heavy ML/GPU dependency surface in the base runtime lock. A follow-up PR must split tooling/runtime install profiles and move `torch` / `sentence-transformers` / `nvidia-*` out of the default CI surface where possible.
+  - Status note: Closed by governance closeout after `fix/ci-feature-fast-feedback`
+    landed as PR #1573. The representative feature/fix push evidence recorded in
+    `docs/review/PR_1599_FIXED_MAPPING.md` stayed inside the current feedback
+    budget, so the post-#1573 re-evaluation did not justify a new heavy
+    install-profile implementation slice. Generic CI lanes already use
+    `ci-lite` / `ci-test`, optional vector/ML runtime dependencies remain
+    isolated in `requirements-rag-vector.txt`, and production Docker targets use
+    `requirements-docker-runtime.txt`.
+  - Reason: The emergency unblock and follow-up CI stabilization work removed
+    duplicate Python installs, forced `direct-proxy` in canonical CI lanes, and
+    promoted explicit install profiles. This closeout records the live baseline:
+    generic CI feedback no longer installs the heavy vector/ML stack, while
+    optional RAG/vector runtime dependencies stay behind the explicit
+    `rag-vector` profile instead of the default CI surface.
   - Links:
     - `.github/actions/python-setup/action.yml`
     - `.github/workflows/ci.yml`
     - `requirements.txt`
+    - `requirements-ci-lite.txt`
     - `requirements-dev.txt`
+    - `requirements-test.txt`
+    - `requirements-rag-vector.txt`
+    - `requirements-docker-runtime.txt`
     - `scripts/ci/install_locked_python_requirements.py`
+    - `docs/DEPENDENCY_MANAGEMENT.md`
     - `docs/roadmap/BACKLOG_LEDGER.md`
+  - Evidence:
+    - PR #1573 (`fix/ci-feature-fast-feedback`) merged at `c44e2d0b`.
+    - `docs/review/PR_1599_FIXED_MAPPING.md` records the representative
+      feature/fix push run, head SHA, timing, and current warning budget used
+      for this closeout decision.
+    - `.github/workflows/ci.yml` uses `requirements-profile: ci-lite` for
+      lint/security/OpenAPI/diff-coverage control-plane jobs and
+      `requirements-profile: ci-test` for `test-pr`, `test-feature`, and
+      `test-main`.
+    - `tests/test_python_supply_chain_controls.py` covers the split CI,
+      runtime, Docker runtime, and optional RAG/vector dependency surfaces.
+    - `tests/test_install_locked_python_requirements.py` covers explicit
+      `ci-lite`, `ci-test`, and `rag-vector` profile resolution and fail-closed
+      missing-file behavior.
+    - `tests/test_ci_workflow_pr_size_governance_contract.py` covers the
+      feature/fix fast-feedback evidence artifact and warning-only budget
+      contract.
   - DoD:
     - Canonical CI install profiles distinguish runtime, test/dev tooling, and OpenAPI-only tooling
     - Heavy ML/GPU dependencies are optionalized away from generic CI lanes unless a job explicitly needs them
