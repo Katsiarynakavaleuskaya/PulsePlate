@@ -233,6 +233,18 @@ If any required metadata is missing, the lane remains `read_only`.
   - expand Storybook so core primitives, states, and product review surfaces are
     visible as implemented review-only surfaces
 
+## Closeout State
+
+The PR-0 through PR-8 train is complete as of PR #1606
+(`feat(storybook): expand design parity review surfaces`). The runbook does not
+define a PR-9 or any active follow-on implementation slice.
+
+Any future design runtime wave must start from a fresh synced `origin/main` and
+must add a new coordinator-owned packet or runbook update before opening a new
+implementation branch. Until that happens, Storybook remains the final
+review-only slice for this train, Figma remains read-only design intent, and
+the locked token/export governance from PR-3 and PR-7 remains unchanged.
+
 ## Routing Card
 
 - Decision question: How should PulsePlate execute a coordinator-first design
@@ -340,4 +352,5 @@ After merge:
 5. verify PR state is `MERGED`
 6. delete only the finished slice branch / worktree / temporary artifacts
 7. `git worktree prune`
-8. only then open the next slice from synced `origin/main`
+8. only then open a next-wave slice from synced `origin/main` if a new
+   coordinator-owned packet defines it
