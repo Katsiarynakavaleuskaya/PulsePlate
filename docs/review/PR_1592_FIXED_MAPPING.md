@@ -16,7 +16,25 @@ before any review thread is resolved.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1592#pullrequestreview-4203576058 -> 0259cf5b4
+Disposition: FIXED
+Commit: 0259cf5b4
+Evidence: `scripts/release/reviewer_packet_hashes.py` aggregates missing metadata files, reports UTF-8 decode context, and derives the digest from `HASH_ALGORITHM`; `tests/test_release_reviewer_packet_hashes.py` covers ordering and missing-file diagnostics.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1592#discussion_r3166579076 -> 0259cf5b4
+Disposition: FIXED
+Commit: 0259cf5b4
+Evidence: `scripts/release/reviewer_packet_hashes.py` includes artifact path context in UTF-8 decode failures; `tests/test_release_reviewer_packet_hashes.py` covers the diagnostic.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1592#discussion_r3166579122 -> 0259cf5b4
+Disposition: FIXED
+Commit: 0259cf5b4
+Evidence: `scripts/release/reviewer_packet_hashes.py` uses `hashlib.new(HASH_ALGORITHM, payload)` so the emitted algorithm and digest behavior stay aligned.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1592#discussion_r3166579154 -> 0259cf5b4
+Disposition: FIXED
+Commit: 0259cf5b4
+Evidence: `tests/test_release_reviewer_packet_hashes.py` covers deterministic `metadata_artifact_paths` ordering.
 
 ## Implementation Evidence
 
