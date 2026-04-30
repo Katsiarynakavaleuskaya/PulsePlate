@@ -20,9 +20,17 @@ Evidence: `tests/core/evidence/test_fingerprints.py` asserts the full lowercase 
 Disposition: NOT-A-BUG
 Evidence: Sourcery reported a service-side weekly diff-character rate limit. No repo code or PR scope change is requested.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4206595390
+Disposition: NOT-A-BUG
+Evidence: Sourcery repeated the service-side weekly diff-character rate-limit notice after the PR moved out of draft. No repo code or PR scope change is requested.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203472985
 Disposition: NOT-A-BUG
 Evidence: Codex connector posted informational review metadata without actionable suggestions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4206617243
+Disposition: NOT-A-BUG
+Evidence: Codex connector review metadata is informational; its actionable `discussion_r3169224614` thread is mapped separately as FIXED.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#discussion_r3166487794 -> 3f26a6409
 Disposition: FIXED
@@ -37,6 +45,10 @@ Evidence: `core/evidence/policies.py` rejects whitespace-padded canonical eviden
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#issuecomment-4350691456
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit docstring coverage is not a required repository merge gate; public `core/evidence` helpers introduced by E1 have docstrings, and required local gates are listed below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4206628109
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit reported the canonical mapping artifact as compliant and only suggested optional style refinements. The artifact keeps the repo-standard PASS wording used by prior mapping files.
 
 ## Post-open Agent Review
 
