@@ -17,7 +17,10 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 646121873
+Evidence: `scripts/design_guard.py` now validates locked `core_lock.path` through the repo-relative path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping locked core paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#qa-engineer-agent-core-lock-path -> 646121873
 
 ## Local Validation Evidence
 
