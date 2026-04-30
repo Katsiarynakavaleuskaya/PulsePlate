@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import copy
 from dataclasses import replace
 import json
@@ -13,7 +14,10 @@ from pathlib import Path
 import pytest
 
 from core.food_sources import menustat_source_decision
-from core.food_sources.menustat_replacement import load_menustat_replacement_decision
+from core.food_sources.menustat_replacement import (
+    MenuStatReplacementDecision,
+    load_menustat_replacement_decision,
+)
 from core.food_sources.menustat_source_decision import (
     MenuStatSourceDecisionError,
     build_menustat_source_decision_report,
@@ -53,7 +57,7 @@ def _onboarding() -> SourceOnboarding:
     )
 
 
-def _replacement():
+def _replacement() -> MenuStatReplacementDecision:
     return load_menustat_replacement_decision(
         _REPLACEMENT_PATH,
         catalog=_catalog(),
@@ -85,7 +89,7 @@ def _source_decision(payload: dict[str, object], source_name: str) -> dict[str, 
     raise AssertionError(f"missing source decision {source_name}")
 
 
-def _replacement_without(source_name: str):
+def _replacement_without(source_name: str) -> MenuStatReplacementDecision:
     replacement = _replacement()
     return replace(
         replacement,
@@ -97,7 +101,10 @@ def _replacement_without(source_name: str):
     )
 
 
-def _replacement_with_candidate(source_name: str, **changes: object):
+def _replacement_with_candidate(
+    source_name: str,
+    **changes: object,
+) -> MenuStatReplacementDecision:
     replacement = _replacement()
     return replace(
         replacement,
@@ -279,7 +286,7 @@ def test_menustat_source_decision_requires_mapping_payload(
     ),
 )
 def test_menustat_source_decision_helper_failures_are_stable(
-    callable_obj,
+    callable_obj: Callable[[], object],
     match: str,
 ) -> None:
     with pytest.raises(MenuStatSourceDecisionError, match=match):
@@ -532,7 +539,7 @@ def test_menustat_source_decision_rejects_source_decision_drift(
     ),
 )
 def test_menustat_source_decision_rejects_pr9_replacement_drift(
-    replacement,
+    replacement: MenuStatReplacementDecision,
     match: str,
 ) -> None:
     with pytest.raises(MenuStatSourceDecisionError, match=match):

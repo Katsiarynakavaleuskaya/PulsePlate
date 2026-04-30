@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+from collections.abc import Callable
 import copy
 from dataclasses import replace
 import json
@@ -269,7 +270,7 @@ def test_menustat_replacement_requires_mapping_payload(
     ),
 )
 def test_menustat_replacement_helper_failures_are_stable(
-    callable_obj,
+    callable_obj: Callable[[], object],
     match: str,
 ) -> None:
     with pytest.raises(MenuStatReplacementError, match=match):

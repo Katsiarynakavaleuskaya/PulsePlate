@@ -17,11 +17,19 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review comments were present when this artifact was created.
+Actionable CodeRabbit comments were fixed after the first review pass.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#discussion_r3169352494 -> PENDING_COMMIT
+  - Disposition: FIXED
+  - Evidence: `docs/review/PR_1610_FIXED_MAPPING.md` uses the required `## Merge Readiness` checklist section.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#discussion_r3169352504 -> PENDING_COMMIT
+  - Disposition: FIXED
+  - Evidence: `tests/test_food_source_menustat_replacement.py` annotates the parametrized helper callable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#issuecomment-4354114129 -> PENDING_COMMIT
+  - Disposition: FIXED
+  - Evidence: `tests/test_food_source_menustat_source_decision.py` annotates newly added helper and parametrized signatures.
 
 ## Local Verification
 
@@ -37,8 +45,8 @@ No actionable review comments were present when this artifact was created.
 
 Full local `make verify` was intentionally not run per operator instruction to avoid the CPU-heavy full bundle. The broken `test-main` coverage gate was validated directly with the CI-equivalent coverage command.
 
-## Merge Readiness Notes
+## Merge Readiness
 
-- Do not merge while PR current-head checks are pending.
-- Do not merge while CodeRabbit, Sourcery, Cubic, or human review has actionable unresolved comments.
-- After merge, watch `main` CI for the merge commit and confirm the `test-main` matrix passes.
+- [ ] Required checks PASS on current head.
+- [ ] No unresolved actionable review comments/threads.
+- [ ] Post-merge `main` CI observed and `test-main` matrix passes.
