@@ -12,7 +12,7 @@ from tests.payment_test_utils import json_response_payload as _json
 
 pytestmark = pytest.mark.usefixtures("reset_payments_state")
 
-DependencyOverride = tuple[Callable[..., object], Callable[..., object]]
+DependencyOverride = tuple[FastAPI, Callable[..., object], Callable[..., object]]
 
 
 def _is_app_get_api_key_dependency(dependency: Callable[..., object]) -> bool:
@@ -23,22 +23,45 @@ def _is_app_get_api_key_dependency(dependency: Callable[..., object]) -> bool:
     return dependency is _APP_GET_API_KEY
 
 
+def _iter_app_override_targets(app: FastAPI) -> list[FastAPI]:
+    """Return app instances that may carry app-level auth dependency overrides."""
+    targets = [app]
+    try:
+        from app.main import app as canonical_app
+    except Exception:
+        canonical_app = None
+
+    if isinstance(canonical_app, FastAPI):
+        targets.append(canonical_app)
+
+    unique_targets: list[FastAPI] = []
+    seen_ids: set[int] = set()
+    for target in targets:
+        target_id = id(target)
+        if target_id not in seen_ids:
+            unique_targets.append(target)
+            seen_ids.add(target_id)
+    return unique_targets
+
+
 def _pop_app_get_api_key_overrides(app: FastAPI) -> list[DependencyOverride]:
     """Remove all app-level get_api_key overrides, including stale reload keys."""
     removed: list[DependencyOverride] = []
-    for dependency in list(app.dependency_overrides):
-        if _is_app_get_api_key_dependency(dependency):
-            removed.append((dependency, app.dependency_overrides.pop(dependency)))
+    for app_target in _iter_app_override_targets(app):
+        for dependency in list(app_target.dependency_overrides):
+            if _is_app_get_api_key_dependency(dependency):
+                removed.append(
+                    (app_target, dependency, app_target.dependency_overrides.pop(dependency))
+                )
     return removed
 
 
 def _restore_dependency_overrides(
-    app: FastAPI,
     overrides: list[DependencyOverride],
 ) -> None:
     """Restore dependency overrides removed for an isolated auth test."""
-    for dependency, override in overrides:
-        app.dependency_overrides[dependency] = override
+    for app_target, dependency, override in overrides:
+        app_target.dependency_overrides[dependency] = override
 
 
 def test_pop_app_get_api_key_overrides_removes_stale_reload_key(app: FastAPI) -> None:
@@ -53,10 +76,34 @@ def test_pop_app_get_api_key_overrides_removes_stale_reload_key(app: FastAPI) ->
 
     removed = _pop_app_get_api_key_overrides(app)
 
-    assert (get_api_key, _override) in removed
+    assert (app, get_api_key, _override) in removed
     assert get_api_key not in app.dependency_overrides
-    _restore_dependency_overrides(app, removed)
+    _restore_dependency_overrides(removed)
     assert app.dependency_overrides[get_api_key] is _override
+
+
+def test_pop_app_get_api_key_overrides_scans_canonical_app(app: FastAPI) -> None:
+    other_app = FastAPI()
+
+    def _override() -> str:
+        return "override"
+
+    sentinel = object()
+    original_override = app.dependency_overrides.get(_APP_GET_API_KEY, sentinel)
+    app.dependency_overrides[_APP_GET_API_KEY] = _override
+
+    try:
+        removed = _pop_app_get_api_key_overrides(other_app)
+
+        assert (app, _APP_GET_API_KEY, _override) in removed
+        assert _APP_GET_API_KEY not in app.dependency_overrides
+        _restore_dependency_overrides(removed)
+        assert app.dependency_overrides[_APP_GET_API_KEY] is _override
+    finally:
+        if original_override is sentinel:
+            app.dependency_overrides.pop(_APP_GET_API_KEY, None)
+        else:
+            app.dependency_overrides[_APP_GET_API_KEY] = original_override
 
 
 def test_manual_intent_rejects_invalid_transport_key_behaviorally(
@@ -116,7 +163,7 @@ def test_manual_intent_rejects_env_configured_pro_key_without_app_validator_over
             )
             session_response = isolated_client.get("/api/v1/pro/session", headers=pro_headers)
     finally:
-        _restore_dependency_overrides(app, original_overrides)
+        _restore_dependency_overrides(original_overrides)
 
     assert response.status_code == 401, response.text
     assert response.json()["detail"] == "API key required for billing verification"
@@ -149,7 +196,7 @@ def test_manual_intent_rejects_transport_key_when_app_validator_is_missing(
                 },
             )
     finally:
-        _restore_dependency_overrides(app, original_overrides)
+        _restore_dependency_overrides(original_overrides)
 
     assert response.status_code == 401, response.text
     assert response.json()["detail"] == "API key required for billing verification"
