@@ -94,7 +94,7 @@ of truth, coordinator routing, fixed-mapping governance, or local gates.
 | PR | Branch | Primary outcome | Blocking proof |
 | --- | --- | --- | --- |
 | PR-0 | `release/appstore-readiness-pr0-bootstrap` | Epic, matrix, packet, ledger, root gates | docs/ledger validation and repo policy guards |
-| PR-1 | `release/appstore-readiness-pr1-privacy-truth` | Privacy manifest and App Privacy truth | privacy manifest and App Privacy contract tests |
+| PR-1 | `release/appstore-readiness-pr1-privacy-manifest` | Privacy manifest and App Privacy truth | privacy manifest and App Privacy contract tests |
 | PR-2 | `release/appstore-readiness-pr2-permission-truth` | Sensitive permission string cleanup | permission purpose-string guard |
 | PR-3 | `release/appstore-readiness-pr3-base-url` | Explicit HTTPS Release backend | Release plist/baseURL tests |
 | PR-4 | `release/appstore-readiness-pr4-asset-gating` | Screenshot submission policy | Swift and Python asset policy tests |
