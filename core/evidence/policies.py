@@ -125,7 +125,9 @@ def _parse_evidence_asset_rail(upstream_id: str) -> "Rail | None":
     _, asset_type, rail, version, digest = parts
     validate_asset_type(cast("AssetType", asset_type))
     validate_rail(cast("Rail", rail))
-    validate_non_empty_token("upstream version", version)
+    normalized_version = validate_non_empty_token("upstream version", version)
+    if version != normalized_version:
+        raise ValueError(f"invalid evidence upstream_id: {upstream_id!r}")
     if len(digest) != ASSET_ID_DIGEST_HEX_LENGTH:
         raise ValueError(f"invalid evidence upstream_id: {upstream_id!r}")
     if any(char not in "0123456789abcdef" for char in digest):

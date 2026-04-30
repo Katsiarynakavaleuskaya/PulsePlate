@@ -179,6 +179,7 @@ def test_same_rail_upstream_ref_is_accepted() -> None:
         "evidence:eval_run:runtime:v1:nothex",
         "evidence:eval_run:runtime:v1:abc",
         "evidence:eval_run:runtime:v1:0123456789abcdeg01234567",
+        "evidence:eval_run:runtime: v1 :0123456789abcdef01234567",
     ],
 )
 def test_malformed_raw_evidence_upstream_ids_fail_closed(upstream_id: str) -> None:
