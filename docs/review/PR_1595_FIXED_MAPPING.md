@@ -19,8 +19,13 @@
 
 Disposition: FIXED
 Commit: 646121873
-Evidence: `scripts/design_guard.py` now validates locked `core_lock.path` through the repo-relative path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping locked core paths.
+Evidence: `scripts/design_guard.py` validates locked `core_lock.path` through the repo-relative path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping locked core paths.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#qa-engineer-agent-core-lock-path -> 646121873
+
+Disposition: FIXED
+Commit: 12bc14f4a
+Evidence: `scripts/design_guard.py` now validates every non-empty `core_lock.path`, including deferred core locks, before hash enforcement; `tests/test_design_invariant_guard.py` covers absolute and repo-escaping deferred core paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#bug-hunter-deferred-core-path -> 12bc14f4a
 
 ## Local Validation Evidence
 
