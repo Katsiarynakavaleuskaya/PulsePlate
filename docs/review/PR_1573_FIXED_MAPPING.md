@@ -15,34 +15,34 @@ fixed after the comment timestamp and is mapped below.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164706825 -> a9f38fd9ed5fd43da09bd7fd60601d589b8e7d41
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201341325 -> a9f38fd9ed5fd43da09bd7fd60601d589b8e7d41
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164706825 -> e8024ec280a0c50b44185d4a68f491ec3065d0eb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201341325 -> e8024ec280a0c50b44185d4a68f491ec3065d0eb
 Disposition: FIXED
-Commit: a9f38fd9ed5fd43da09bd7fd60601d589b8e7d41
+Commit: e8024ec280a0c50b44185d4a68f491ec3065d0eb
 Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed as `timing_unavailable` with `elapsed_seconds=-1` instead of falling back to `date +%s`; `tests/test_ci_workflow_pr_size_governance_contract.py:188` asserts the explicit missing-seed warning and forbids the legacy fallback.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164765312 -> a50f5928b43a173766328bc012a0a698603ee708
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> a50f5928b43a173766328bc012a0a698603ee708
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164765312 -> b442ae2725308e6311b157dff5c514def918e0b7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> b442ae2725308e6311b157dff5c514def918e0b7
 Disposition: FIXED
-Commit: a50f5928b43a173766328bc012a0a698603ee708
+Commit: b442ae2725308e6311b157dff5c514def918e0b7
 Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:117-122` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164782569 -> 45731a11c82d6d170cdbb7f4b7b5f39d8615a16c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201427404 -> 45731a11c82d6d170cdbb7f4b7b5f39d8615a16c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164782569 -> 011acafa74e12a3b4eb6049c52c294790f755cf6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201427404 -> 011acafa74e12a3b4eb6049c52c294790f755cf6
 Disposition: FIXED
-Commit: 45731a11c82d6d170cdbb7f4b7b5f39d8615a16c
+Commit: 011acafa74e12a3b4eb6049c52c294790f755cf6
 Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:117-122` points at the actual merge-readiness checklist block after CodeRabbit flagged the stale line anchor.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166079874 -> d8ccf2327f8bed2475a1f27d744d0a7b33ea01f1
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202936731 -> d8ccf2327f8bed2475a1f27d744d0a7b33ea01f1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166079874 -> e2a2781721fbafd46724159e1db37da8001b8f22
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202936731 -> e2a2781721fbafd46724159e1db37da8001b8f22
 Disposition: FIXED
-Commit: d8ccf2327f8bed2475a1f27d744d0a7b33ea01f1
+Commit: e2a2781721fbafd46724159e1db37da8001b8f22
 Evidence: `tests/test_payment_source_contract_api.py:32` narrows the canonical app import guard to `ImportError`; targeted payment tests, focused PR gate, `pre-commit run --all-files`, `make validate-changed`, and `make validate-min` passed.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166113804 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202982395 -> 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3166113804 -> 2d79a058f83002eca2eccaeef35ef71a7464c419
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4202982395 -> 2d79a058f83002eca2eccaeef35ef71a7464c419
 Disposition: FIXED
-Commit: 0e59a7b12721b584a575e21fb2a2ef573df7e5c1
+Commit: 2d79a058f83002eca2eccaeef35ef71a7464c419
 Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:105-113` links each deferred follow-up to its canonical `BACKLOG_LEDGER.md` anchor.
 
 ## Regression Stabilization Evidence
