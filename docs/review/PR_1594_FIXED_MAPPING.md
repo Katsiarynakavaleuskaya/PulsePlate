@@ -45,6 +45,14 @@ Disposition: FIXED
 Commit: 75dd48bb2
 Evidence: `core/evidence/policies.py` rejects colon-delimited tokens and validates raw canonical evidence upstream-id digests as 24 lowercase hex characters; `tests/core/evidence/test_assets.py` covers same-rail upstream refs, colon-token rejection, and malformed raw evidence IDs.
 
+Current-head `diff-coverage` failed because the CI coverage artifact did not
+run the new focused `tests/core/evidence` suite, so the new `core/evidence`
+modules appeared as uncovered despite local targeted tests passing.
+
+Disposition: FIXED
+Commit: f52c5a06e
+Evidence: `.github/workflows/ci.yml` includes `tests/core/evidence` in both PR and feature critical smoke coverage runs; local `tests/core/evidence` and workflow governance tests pass.
+
 ## Initial Implementation Commits
 
 - `64ba7a6fc` - `feat(metadata): add evidence asset registry`
@@ -52,6 +60,7 @@ Evidence: `core/evidence/policies.py` rejects colon-delimited tokens and validat
 - `694c6eb25` - `test(evidence): harden asset registry contracts`
 - `3f26a6409` - `fix(evidence): reject cross-rail raw upstream ids`
 - `75dd48bb2` - `fix(evidence): harden evidence asset id parsing`
+- `f52c5a06e` - `ci(evidence): include asset registry in coverage smoke`
 
 ## Coordinator Packet
 
@@ -85,11 +94,12 @@ Mandatory post-open review lane:
 - `. .venv/bin/activate && pytest -q tests/core/evidence` PASS
   (`21 passed`) after CodeRabbit test-hardening fixes and the post-open
   `qa-engineer-agent` / `bug-hunter` fixes.
+- `. .venv/bin/activate && pytest -q tests/core/evidence tests/test_ci_workflow_pr_size_governance_contract.py`
+  PASS (`30 passed`) after the CI coverage-routing fix.
 - `. .venv/bin/activate && python -m mypy --no-incremental --cache-dir=/dev/null core/evidence tests/core/evidence`
   PASS (`Success: no issues found in 6 source files`) after CodeRabbit
   test-hardening fixes.
-- `pre-commit run --all-files` PASS after black formatted two new files, then
-  clean rerun PASS.
+- `pre-commit run --all-files` PASS after the CI coverage-routing fix.
 - Commit hook PASS.
 - Pre-push changed-file mypy PASS.
 - Pre-push pip-audit PASS.
