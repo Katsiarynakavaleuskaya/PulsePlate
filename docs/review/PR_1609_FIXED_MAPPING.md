@@ -20,9 +20,9 @@ Evidence: Added PR12 chain public nutrition governance artifact, file-only valid
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 9eca6cb1b
 
 Disposition: FIXED
-Commit: TBD
+Commit: 804de9dfa
 Evidence: Added this canonical PR #1609 mapping artifact and replaced the ledger target placeholder with PR #1609.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 804de9dfa
 
 ## Merge Readiness Evidence
 
