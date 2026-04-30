@@ -1,0 +1,309 @@
+{
+  "api_calls_allowed": false,
+  "bulk_ingest": false,
+  "catalog_ref": "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+  "coverage_domains": [
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "usda_first",
+      "auxiliary_sources": [
+        "usda_fndds"
+      ],
+      "coverage_decision": "adequate_baseline",
+      "domain": "generic_food_composition",
+      "gap_status": "baseline_covered",
+      "next_action": "no_new_source_before_usda_schema_review",
+      "notes": "USDA Foundation and FNDDS cover the generic food composition baseline after manifest/schema preflight. No extra product-food source is approved in PR11.",
+      "primary_sources": [
+        "usda_foundation"
+      ]
+    },
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "usda_branded_primary_off_auxiliary",
+      "auxiliary_sources": [
+        "open_food_facts"
+      ],
+      "coverage_decision": "adequate_with_auxiliary",
+      "domain": "branded_barcode_products",
+      "gap_status": "covered_with_schema_review_needed",
+      "next_action": "off_schema_postgres_review_before_any_new_product_source",
+      "notes": "USDA Branded remains primary; Open Food Facts is auxiliary for barcode/branded enrichment with ODbL obligations. OFF is accessible in a normal browser, but PR11 tooling must not rely on live network fetches.",
+      "primary_sources": [
+        "usda_branded"
+      ]
+    },
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "not_approved",
+      "auxiliary_sources": [
+        "menustat"
+      ],
+      "coverage_decision": "unresolved_gap",
+      "domain": "restaurant_chain_menus",
+      "gap_status": "not_covered_by_usda_or_off",
+      "next_action": "chain_public_nutrition_pages_governance",
+      "notes": "USDA and OFF do not close restaurant-chain menu coverage. MenuStat is archival/reference-only and must be validated before comparison.",
+      "primary_sources": []
+    },
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "not_approved",
+      "auxiliary_sources": [
+        "edamam_food_database",
+        "spoonacular"
+      ],
+      "coverage_decision": "unresolved_gap",
+      "domain": "recipe_dish_corpora",
+      "gap_status": "not_covered_by_food_nutrient_sources",
+      "next_action": "recipe_corpus_governance",
+      "notes": "Food nutrient records are not recipe/dish corpora. Edamam and Spoonacular remain review candidates only; no API calls or cache authority is approved.",
+      "primary_sources": []
+    },
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "not_approved",
+      "auxiliary_sources": [
+        "recipe_dish_corpora",
+        "restaurant_chain_menus"
+      ],
+      "coverage_decision": "requires_dish_mapping",
+      "domain": "preference_menu_planning",
+      "gap_status": "planner_gap_not_source_authority",
+      "next_action": "preference_recipe_mapping_contract",
+      "notes": "Mediterranean, gluten-free, and similar planning need governed dish/recipe mapping. PR11 does not promote recipe text, user preference text, or LLM output into nutrition authority.",
+      "primary_sources": []
+    },
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "not_approved",
+      "auxiliary_sources": [
+        "regional_catalogs"
+      ],
+      "coverage_decision": "deferred_unresolved",
+      "domain": "regional_local_products",
+      "gap_status": "locale_gap_unresolved",
+      "next_action": "regional_catalog_identity_license_review",
+      "notes": "Regional/local products remain deferred until source identity, license, language, unit, nutrient semantics, cache, and redistribution review exists.",
+      "primary_sources": []
+    },
+    {
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "authority_decision": "not_approved",
+      "auxiliary_sources": [
+        "chain_public_nutrition_pages"
+      ],
+      "coverage_decision": "internal_evidence_only",
+      "domain": "user_manual_evidence",
+      "gap_status": "manual_evidence_not_dataset_authority",
+      "next_action": "manual_evidence_policy_only",
+      "notes": "Manual URLs/screenshots may support internal review after legal approval, but they are not redistributable dataset assets or runtime authority.",
+      "primary_sources": []
+    }
+  ],
+  "db_writes_allowed": false,
+  "digitalocean_postgres_load": false,
+  "file_only": true,
+  "final_gate_decision": "coverage_gap_audit_complete_no_ingest",
+  "generated_on": "2026-04-30",
+  "network_allowed": false,
+  "next_recommended_lane": "chain_public_nutrition_pages_governance_or_recipe_corpus_governance",
+  "notes": "PR11 audits coverage only. USDA remains core product food authority, OFF remains auxiliary, and no additional product-food source is approved. Remaining work is restaurant menus, dish/recipe corpora, regional/local products, and preference-menu planning governance.",
+  "onboarding_ref": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+  "paid_source_use_allowed": false,
+  "pr10_landed_pr": 1597,
+  "runtime_cutover": false,
+  "schema_version": "food-data-coverage-source-gap-audit.v1",
+  "scraping_allowed": false,
+  "source_download_allowed": false,
+  "source_gap_decisions": [
+    {
+      "allowed_role": "primary_product_food_baseline",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Source-specific manifest, checksum, row, schema, and rollback gates still precede ingest."
+      ],
+      "decision": "core_authority_for_generic_composition",
+      "notes": "USDA Foundation is the core generic food-composition baseline.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "usda_foundation",
+      "source_family": "food_composition"
+    },
+    {
+      "allowed_role": "primary_product_food_baseline",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Source-specific manifest, checksum, row, schema, and rollback gates still precede ingest."
+      ],
+      "decision": "primary_branded_barcode_source",
+      "notes": "USDA Branded is primary for branded/barcode product-food coverage.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "usda_branded",
+      "source_family": "barcode_branded"
+    },
+    {
+      "allowed_role": "supporting_food_composition",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "FNDDS must remain separated from Foundation and Branded until schema/PK review."
+      ],
+      "decision": "supporting_food_composition_source",
+      "notes": "USDA FNDDS supports dietary survey-style food composition.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "usda_fndds",
+      "source_family": "food_composition"
+    },
+    {
+      "allowed_role": "auxiliary_product_food_source",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "ODbL attribution and derivative-database obligations remain mandatory.",
+        "OFF schema/PostgreSQL review is future work before refreshed snapshot authority."
+      ],
+      "decision": "auxiliary_barcode_branded_source",
+      "notes": "Open Food Facts is auxiliary for barcode/branded coverage. The data page is accessible in the in-app browser; live crawler-style fetching is not part of PR11 tooling.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "open_food_facts",
+      "source_family": "barcode_branded"
+    },
+    {
+      "allowed_role": "historical_schema_reference",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "MenuStat does not provide active freshness coverage and requires validation before use."
+      ],
+      "decision": "archival_reference_only",
+      "notes": "MenuStat remains archival/reference-only.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "menustat",
+      "source_family": "restaurant_menu"
+    },
+    {
+      "allowed_role": "manual_evidence_governance_candidate",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Per-chain legal, anti-scraping, cache, attribution, schema, freshness, screenshot/evidence, and rollback review is missing."
+      ],
+      "decision": "preferred_research_lane_blocked",
+      "notes": "Chain public nutrition pages are preferred as a low-cost governance lane only.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "chain_public_nutrition_pages",
+      "source_family": "restaurant_menu"
+    },
+    {
+      "allowed_role": "under_20_review_candidate_only",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Contract, cache, attribution, redistribution, and rollback terms are not approved."
+      ],
+      "decision": "adjacent_recipe_food_db_review_only",
+      "notes": "Edamam remains an adjacent under-20 USD/month review candidate only.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "edamam_food_database",
+      "source_family": "recipe_corpus"
+    },
+    {
+      "allowed_role": "deferred_experiment_candidate_only",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Recipe/menu experiments are separate from database authority and need contract/cache review."
+      ],
+      "decision": "deferred_recipe_experiments_only",
+      "notes": "Spoonacular stays deferred for possible recipe experiments only.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "spoonacular",
+      "source_family": "recipe_corpus"
+    },
+    {
+      "allowed_role": "deferred_contract_candidate_only",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Commercial contract, cache, attribution, redistribution, and rollback terms remain unapproved."
+      ],
+      "decision": "deferred_contract_review",
+      "notes": "Nutritionix remains a deferred restaurant-menu contract candidate.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "nutritionix",
+      "source_family": "restaurant_menu"
+    },
+    {
+      "allowed_role": "rejected_for_project_use",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "User decision: FatSecret Platform is not used as a PulsePlate project source."
+      ],
+      "decision": "not_project_source",
+      "notes": "FatSecret remains rejected for PulsePlate project-source routing.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "fatsecret_platform",
+      "source_family": "commercial_api"
+    },
+    {
+      "allowed_role": "identity_license_review_candidate",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Locale-specific source identity, license, language, unit, schema, and redistribution terms are missing."
+      ],
+      "decision": "deferred_unresolved",
+      "notes": "Regional catalogs remain deferred/unresolved.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "regional_catalogs",
+      "source_family": "regional_catalog"
+    },
+    {
+      "allowed_role": "blocked_until_identity_license_verified",
+      "api_calls_allowed": false,
+      "approved_ingest": false,
+      "approved_runtime_authority": false,
+      "blocking_reasons": [
+        "Provider identity, license, schema, retrieval, attribution, and redistribution evidence are unresolved."
+      ],
+      "decision": "blocked_unresolved",
+      "notes": "JPTN remains blocked until identity/license verification.",
+      "paid_source_use_allowed": false,
+      "scraping_allowed": false,
+      "source": "jptn_food_facts",
+      "source_family": "unresolved"
+    }
+  ]
+}
