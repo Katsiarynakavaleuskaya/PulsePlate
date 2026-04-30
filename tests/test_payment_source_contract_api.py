@@ -98,9 +98,11 @@ def test_pop_app_get_api_key_overrides_scans_canonical_app() -> None:
     try:
         removed = _pop_app_get_api_key_overrides(other_app)
 
-        assert (canonical_app, _APP_GET_API_KEY, _override) in removed
-        assert _APP_GET_API_KEY not in canonical_app.dependency_overrides
-        _restore_dependency_overrides(removed)
+        try:
+            assert (canonical_app, _APP_GET_API_KEY, _override) in removed
+            assert _APP_GET_API_KEY not in canonical_app.dependency_overrides
+        finally:
+            _restore_dependency_overrides(removed)
         assert canonical_app.dependency_overrides[_APP_GET_API_KEY] is _override
     finally:
         if original_override is sentinel:

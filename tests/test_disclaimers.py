@@ -82,7 +82,7 @@ class TestMedicalDisclaimers:
         assert "does not store" in privacy_disclaimer.lower()
         assert "locally" in privacy_disclaimer.lower()
 
-    def test_nutrition_disclaimer_default_context(self):
+    def test_nutrition_disclaimer_default_context(self) -> None:
         """Test nutrition disclaimer fallback text for unknown contexts."""
         disclaimer = get_nutrition_disclaimer("unknown")
 
