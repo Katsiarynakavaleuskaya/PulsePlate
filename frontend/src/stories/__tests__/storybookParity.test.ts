@@ -1,6 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { createElement, useEffect } from 'react';
+import { render, screen, waitFor } from '@testing-library/react';
+import '../../i18n';
+import {
+  ProPaywallStorySurface,
+  StorybookApiStub,
+} from '../storybookParitySupport';
 
 const frontendRoot = resolve(__dirname, '../../..');
 
@@ -48,6 +55,59 @@ describe('PR-8 Storybook parity surfaces', () => {
 
     expect(support).toContain('https://storybook.pulseplate.local');
     expect(support).toContain('setApiClientDependencies');
+    expect(support).toContain('Unhandled Storybook API fixture');
     expect(support).not.toContain('localhost');
+  });
+
+  it('fails closed for unhandled Storybook API requests without touching live fetch', async () => {
+    const originalFetch = window.fetch;
+    const liveFetch = vi.fn(async () => new Response('live backend should not be called'));
+    window.fetch = liveFetch as unknown as typeof window.fetch;
+
+    function UnhandledApiProbe() {
+      useEffect(() => {
+        void fetch('/api/v1/storybook/unhandled').then(async (response) => {
+          document.body.dataset.storybookUnhandledStatus = String(response.status);
+          document.body.dataset.storybookUnhandledPayload = await response.text();
+        });
+      }, []);
+
+      return createElement('div', null, 'Unhandled API probe');
+    }
+
+    try {
+      render(
+        createElement(StorybookApiStub, null, createElement(UnhandledApiProbe))
+      );
+
+      await waitFor(() => {
+        expect(document.body.dataset.storybookUnhandledStatus).toBe('500');
+      });
+      expect(document.body.dataset.storybookUnhandledPayload).toContain(
+        'Unhandled Storybook API fixture'
+      );
+      expect(liveFetch).not.toHaveBeenCalled();
+    } finally {
+      delete document.body.dataset.storybookUnhandledStatus;
+      delete document.body.dataset.storybookUnhandledPayload;
+      window.fetch = originalFetch;
+    }
+  });
+
+  it('renders the Pro paywall review surface behind the local API stub', async () => {
+    const originalFetch = window.fetch;
+    const liveFetch = vi.fn(async () => new Response('live backend should not be called'));
+    window.fetch = liveFetch as unknown as typeof window.fetch;
+
+    try {
+      render(createElement(ProPaywallStorySurface));
+
+      expect(await screen.findByTestId('paywall-cta')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(liveFetch).not.toHaveBeenCalled();
+      });
+    } finally {
+      window.fetch = originalFetch;
+    }
   });
 });

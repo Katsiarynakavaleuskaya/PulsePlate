@@ -1,6 +1,7 @@
 import { useLayoutEffect, type PropsWithChildren } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import {
+  INTERNAL_PAYWALL_EVENTS_PATH,
   PRO_SESSION_PATH,
   setApiClientDependencies,
   type ProSessionStatus,
@@ -53,13 +54,23 @@ function sessionPayload(sessionState: StorySessionState): ProSessionStatus | nul
   };
 }
 
-function routeStorybookResponse(requestUrl: string, sessionState: StorySessionState): Response | null {
-  if (requestUrl.endsWith(PRO_SESSION_PATH)) {
+function storybookPathname(requestUrl: string): string {
+  return new URL(requestUrl, STORYBOOK_API_BASE).pathname;
+}
+
+function routeStorybookResponse(requestUrl: string, sessionState: StorySessionState): Response {
+  const pathname = storybookPathname(requestUrl);
+
+  if (pathname === PRO_SESSION_PATH) {
     const payload = sessionPayload(sessionState);
     return payload ? jsonResponse(payload) : jsonResponse({ detail: 'No active story session' }, 401);
   }
 
-  if (requestUrl.endsWith(CBT_INSIGHT_PATH)) {
+  if (pathname === INTERNAL_PAYWALL_EVENTS_PATH) {
+    return jsonResponse({ status: 'ok', storybook_fixture: true });
+  }
+
+  if (pathname === CBT_INSIGHT_PATH) {
     return jsonResponse({
       insight: 'Keep dinner protein-forward and repeat one reliable meal to reduce decision fatigue.',
       confidence: 0.92,
@@ -79,7 +90,7 @@ function routeStorybookResponse(requestUrl: string, sessionState: StorySessionSt
     });
   }
 
-  if (requestUrl.endsWith(BMR_PATH)) {
+  if (pathname === BMR_PATH) {
     return jsonResponse({
       bmr: { mifflin: 1390, harris: 1420 },
       tdee: { mifflin: 2154, harris: 2201 },
@@ -96,7 +107,7 @@ function routeStorybookResponse(requestUrl: string, sessionState: StorySessionSt
     });
   }
 
-  if (requestUrl.endsWith(PLATE_PATH)) {
+  if (pathname === PLATE_PATH) {
     return jsonResponse({
       kcal: 2154,
       macros: {
@@ -121,7 +132,7 @@ function routeStorybookResponse(requestUrl: string, sessionState: StorySessionSt
     });
   }
 
-  if (requestUrl.endsWith(TARGETS_PATH)) {
+  if (pathname === TARGETS_PATH) {
     return jsonResponse({
       kcal_daily: 2154,
       macros: { protein_g: 132, carbs_g: 242, fat_g: 72 },
@@ -137,7 +148,13 @@ function routeStorybookResponse(requestUrl: string, sessionState: StorySessionSt
     });
   }
 
-  return null;
+  return jsonResponse(
+    {
+      detail: `Unhandled Storybook API fixture: ${pathname}`,
+      storybook_fixture: true,
+    },
+    500
+  );
 }
 
 export function StorybookApiStub({
@@ -156,8 +173,11 @@ export function StorybookApiStub({
     const stubFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const requestUrl =
         typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      const response = routeStorybookResponse(requestUrl, sessionState);
-      return response ?? originalFetch(input, init);
+      const pathname = storybookPathname(requestUrl);
+      if (requestUrl.startsWith(STORYBOOK_API_BASE) || pathname.startsWith('/api/')) {
+        return routeStorybookResponse(requestUrl, sessionState);
+      }
+      return originalFetch(input, init);
     }) as typeof window.fetch;
 
     window.fetch = stubFetch;
@@ -225,23 +245,25 @@ export function NutritionSetupResultStorySurface() {
 
 export function ProPaywallStorySurface() {
   return (
-    <MemoryRouter
-      initialEntries={[
-        {
-          pathname: '/pro',
-          state: {
-            exposureId: 'storybook-pro-paywall',
-            source: 'storybook_parity',
-            triggerReason: 'review_surface',
-            via: 'storybook',
+    <StorybookApiStub sessionState="free">
+      <MemoryRouter
+        initialEntries={[
+          {
+            pathname: '/pro',
+            state: {
+              exposureId: 'storybook-pro-paywall',
+              source: 'storybook_parity',
+              triggerReason: 'review_surface',
+              via: 'storybook',
+            },
           },
-        },
-      ]}
-    >
-      <Routes>
-        <Route path="/pro" element={<ProPaywallPage />} />
-      </Routes>
-    </MemoryRouter>
+        ]}
+      >
+        <Routes>
+          <Route path="/pro" element={<ProPaywallPage />} />
+        </Routes>
+      </MemoryRouter>
+    </StorybookApiStub>
   );
 }
 

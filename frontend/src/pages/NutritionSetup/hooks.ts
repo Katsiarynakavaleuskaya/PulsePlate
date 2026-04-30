@@ -3,9 +3,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getBmr } from '../../api/premium/bmr';
-import { getPlate, type PlateResponse as ApiPlateResponse } from '../../api/premium/plate';
-import { getTargets, type TargetsApiResponse } from '../../api/premium/targets';
+import { getBmr, getPlate, getTargets } from '../../api/premium';
 import type {
   SetupFormValues,
   NormalizedBmrData,
@@ -14,7 +12,7 @@ import type {
   TargetsResponse,
 } from './schema';
 import { validDietFlags } from './schema';
-import type { BmrApiResponse, SupportedPremiumLang } from '../../api/premium/types';
+import type { PlateResponse as ApiPlateResponse, BmrApiResponse, TargetsApiResponse, SupportedPremiumLang } from '../../api/premium';
 
 const SUPPORTED_LANGS: SupportedPremiumLang[] = ['ru', 'en', 'es'];
 

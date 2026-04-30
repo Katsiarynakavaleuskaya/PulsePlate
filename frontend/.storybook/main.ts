@@ -1,5 +1,36 @@
 import path from 'node:path';
 import type { StorybookConfig } from '@storybook/react-vite';
+import type { OutputOptions } from 'rollup';
+
+const PREMIUM_API_CHUNK = 'premium-api';
+
+function storybookManualChunks(id: string): string | undefined {
+  return id.includes('/src/api/premium/') ? PREMIUM_API_CHUNK : undefined;
+}
+
+function withStorybookManualChunks(output: OutputOptions | OutputOptions[] | undefined) {
+  const applyManualChunks = (entry: OutputOptions = {}): OutputOptions => {
+    const existingManualChunks = entry.manualChunks;
+
+    return {
+      ...entry,
+      manualChunks(id, api) {
+        const storybookChunk = storybookManualChunks(id);
+        if (storybookChunk) {
+          return storybookChunk;
+        }
+
+        if (typeof existingManualChunks === 'function') {
+          return existingManualChunks(id, api);
+        }
+
+        return undefined;
+      },
+    };
+  };
+
+  return Array.isArray(output) ? output.map((entry) => applyManualChunks(entry)) : applyManualChunks(output);
+}
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.mdx', '../src/**/*.stories.@(ts|tsx)'],
@@ -26,6 +57,12 @@ const config: StorybookConfig = {
     if (!Array.isArray(config.resolve.alias)) {
       config.resolve.alias['@'] = path.resolve(__dirname, '../src');
     }
+
+    config.build ??= {};
+    config.build.rollupOptions ??= {};
+    config.build.rollupOptions.output = withStorybookManualChunks(
+      config.build.rollupOptions.output as OutputOptions | OutputOptions[] | undefined
+    );
 
     return config;
   },
