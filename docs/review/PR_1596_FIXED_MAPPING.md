@@ -11,7 +11,7 @@
 ## Scope
 
 Disposition: FIXED
-Commit: `9688903881767dee86ab6480237ee98e13ab3865`
+Commit: 9688903881767dee86ab6480237ee98e13ab3865
 Evidence:
 
 - `scripts/orchestration/wiki_query.py` preserves default `search` JSON output
@@ -31,7 +31,7 @@ Evidence:
 ## Local Validation
 
 Disposition: FIXED
-Commit: `9688903881767dee86ab6480237ee98e13ab3865`
+Commit: 9688903881767dee86ab6480237ee98e13ab3865
 Evidence:
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
@@ -50,7 +50,7 @@ Evidence:
 ## Local Full Verify
 
 Disposition: FIXED
-Commit: `517b8e72c9b009027e0a76211a8ea73b05dfdd66`
+Commit: 517b8e72c9b009027e0a76211a8ea73b05dfdd66
 Evidence:
 
 - Full local `make verify` was run on 2026-04-30 before the final
@@ -78,17 +78,17 @@ Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `943b2d85ffd087e364d98491b3a2a27489402483`
+Commit: 943b2d85ffd087e364d98491b3a2a27489402483
 Evidence: `docs/review/PR_1596_FIXED_MAPPING.md` now uses a concrete commit SHA for the Local Full Verify `FIXED` block.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168206712 -> 943b2d85ffd087e364d98491b3a2a27489402483
 
 Disposition: FIXED
-Commit: `943b2d85ffd087e364d98491b3a2a27489402483`
+Commit: 943b2d85ffd087e364d98491b3a2a27489402483
 Evidence: `scripts/orchestration/wiki_lint.py` now strips both backtick and tilde fenced code blocks before local page-link linting; `tests/test_wiki_lint.py` covers tilde fences.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168206737 -> 943b2d85ffd087e364d98491b3a2a27489402483
 
 Disposition: FIXED
-Commit: `943b2d85ffd087e364d98491b3a2a27489402483`
+Commit: 943b2d85ffd087e364d98491b3a2a27489402483
 Evidence: The CodeRabbit review summary listed the two actionable inline comments above, both fixed in the same commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4205443302 -> 943b2d85ffd087e364d98491b3a2a27489402483
 
