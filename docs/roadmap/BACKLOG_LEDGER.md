@@ -3673,11 +3673,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P2: Advisory wiki query/lint enrichment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-B3 / `codex/advisory-wiki-query-lint-enrichment-b3`
+  - Target PR: PR-B3 / `codex/advisory-wiki-query-lint-enrichment-b3` (merged as PR #1596)
   - Area: orchestration / workforce memory / operator tooling
   - Finding Type: post-hardening follow-on
   - Status: ✅ Closed. PR-B3 merged as PR #1596 on 2026-04-30 with merge commit
     `438d135f7ae0a07cb28549488284a40e08183c92`.
+  - Closeout packet:
+    `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_CLOSEOUT_PACKET_2026-04-30.md`
   - Closeout note: PR #1596 completed the advisory/operator-only query/lint
     enrichment slice without product RAG runtime, API, DTO, OpenAPI, semantic
     cache, GraphRAG, embeddings, vector DB, Redis/GPTCache, or ContextManifest
