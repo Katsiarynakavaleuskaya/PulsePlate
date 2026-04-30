@@ -25,6 +25,16 @@ Commit: 804de9dfa
 Evidence: Added this canonical PR #1609 mapping artifact and replaced the ledger target placeholder with PR #1609.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 804de9dfa
 
+Disposition: FIXED
+Commit: 7e36788db
+Evidence: Added exact Phase2 checklist wording required by `scripts/ci/check_pr_body_phase2_gates.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 7e36788db
+
+Disposition: FIXED
+Commit: 22ddff823
+Evidence: Tightened chain public nutrition governance validation from host-only checks to exact canonical nutrition URLs and added same-host non-nutrition negative coverage.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 22ddff823
+
 ## Merge Readiness Evidence
 
 Local PR-scoped gates run before opening the PR:
