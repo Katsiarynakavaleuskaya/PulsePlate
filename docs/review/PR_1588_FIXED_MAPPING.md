@@ -65,7 +65,7 @@ recorded. New actionables must be added below with one of: `FIXED`,
 
 ## Fixed in Commit Mapping
 
-- No actionable review threads as of artifact creation.
+- No actionable review comments
 
 ## Merge Readiness
 
