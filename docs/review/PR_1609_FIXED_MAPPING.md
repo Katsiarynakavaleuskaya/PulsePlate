@@ -36,9 +36,9 @@ Evidence: Tightened chain public nutrition governance validation from host-only 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 22ddff823
 
 Disposition: FIXED
-Commit: TBD
+Commit: a395145e0
 Evidence: Added explicit query/fragment rejection plus `page_access` and `js_required` cross-field validation with regression tests.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> a395145e0
 
 ## Merge Readiness Evidence
 
