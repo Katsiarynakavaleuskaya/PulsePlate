@@ -266,6 +266,28 @@ bash scripts/diagnose_web.sh
 - header scanners измеряют Cloudflare interstitial / Access page, а не origin app
 - публичные curl/SSL scans используйте только после reopen
 
+### Prelaunch access smoke contract
+
+До явного launch gate сайт остаётся закрытым для anonymous public traffic.
+В этом состоянии `https://pulseplate.app/` может ожидаемо редиректить на
+`pulseplate.cloudflareaccess.com` или показывать Cloudflare Access login.
+Это не считается production regression для launch shell, пока публичный launch
+не одобрен отдельно.
+
+Release-truth для prelaunch проверки:
+
+- authenticated operator/team browser session через Cloudflare Access
+- scripted private probe через `CF_ACCESS_CLIENT_ID` /
+  `CF_ACCESS_CLIENT_SECRET`
+- staging или preview hostname, если он включён отдельно
+- local build/preview для Figma parity, copy, CTA, FitChef visual и UX
+
+Не открывайте публичный bypass только ради smoke до launch. Публичный bypass
+для `/`, SPA routes, `/assets/*`, `/favicon*`, `/sitemap.xml`, `/privacy` и
+`/terms` остаётся launch-gate действием. До этого момента публичные anonymous
+smoke checks должны фиксировать Access redirect как expected prelaunch state,
+а не как требование снять Access.
+
 ## Public reopen contract (narrow temporary bypass)
 
 После приватной проверки снимайте full-host Access только вместе с узким

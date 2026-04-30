@@ -45,11 +45,23 @@ Caddy evaluates **POST**, then **OPTIONS**, then **GET** (legacy-only paths), th
 
 **Caddy matcher evidence:** `/legacy*` is included in the `@api` path list in [`deploy/Caddyfile.production:42`](../../deploy/Caddyfile.production).
 
+## Prelaunch access smoke contract
+
+During prelaunch, `pulseplate.app` may intentionally stay behind full-host
+Cloudflare Access. Anonymous public checks can therefore receive a
+`pulseplate.cloudflareaccess.com` redirect or Access login page. That is the
+expected closed-preview state until an explicit launch gate approves anonymous
+public access.
+
+Prelaunch validation must use authenticated/operator access, Access service
+token probes, staging/preview, or local frontend build/preview. Do not treat
+the public bypass below as required for normal prelaunch smoke.
+
 ## Temporary public reopen contract
 
 During private recovery, Cloudflare Access may protect the full host. When the
-apex reopens publicly, use a **narrow temporary bypass** only for the public
-shell/discovery surfaces:
+apex reopens publicly through an explicit launch gate, use a **narrow temporary
+bypass** only for the public shell/discovery surfaces:
 
 - `/`
 - SPA routes

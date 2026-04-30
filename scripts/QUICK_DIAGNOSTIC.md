@@ -52,6 +52,25 @@ bash scripts/diagnose_web.sh
 Этот probe теперь включает admin canary (`/api/v1/admin/status`) и помогает
 поймать случайный публичный expose admin surface при reopen.
 
+### Prelaunch access smoke contract
+
+Если сайт ещё не готов к публичному launch, anonymous public
+`https://pulseplate.app` может ожидаемо редиректить на
+`pulseplate.cloudflareaccess.com` или показывать Cloudflare Access login.
+Это закрытый prelaunch state, а не требование открывать сайт людям.
+
+До launch release-truth для web shell:
+
+- authenticated operator/team browser session через Cloudflare Access
+- private probe с `CF_ACCESS_CLIENT_ID` / `CF_ACCESS_CLIENT_SECRET`
+- staging или preview URL, если он выделен
+- local `frontend` build/preview для Figma parity и UX проверки
+
+Публичный bypass для `/`, SPA routes, `/assets/*`, `/favicon*`,
+`/sitemap.xml`, `/privacy` и `/terms` откладывается до отдельного launch gate.
+`/api*`, `/admin*`, private probes и service-token verification остаются
+закрытыми.
+
 ## Выполнить на Droplet (SSH)
 
 ### Вариант 1: Использовать server-side скрипт (рекомендуется)
