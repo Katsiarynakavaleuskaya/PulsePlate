@@ -22,8 +22,9 @@ Evidence: Added the canonical PR #1590 mapping artifact and updated the ledger t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1590 -> 64242f328
 
 Disposition: FIXED
-Commit: pending
-Evidence: Pending follow-up commit will add explicit return type annotations for the `_catalog` and `_onboarding` test helpers.
+Commit: c422b5846
+Evidence: Added explicit return type annotations for the `_catalog` and `_onboarding` test helpers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1590#discussion_r3166471653 -> c422b5846
 
 ## Merge Readiness Evidence
 
