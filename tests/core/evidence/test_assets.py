@@ -70,6 +70,13 @@ def test_asset_id_changes_when_identity_scope_changes() -> None:
         policy_version="policy-v1",
         payload={"status": "failed"},
     )
+    changed_policy_version = create_evidence_asset_ref(
+        asset_type="eval_run",
+        version="v1",
+        rail="runtime",
+        policy_version="policy-v2",
+        payload={"status": "passed"},
+    )
 
     asset_ids = {
         baseline.asset_id,
@@ -77,8 +84,9 @@ def test_asset_id_changes_when_identity_scope_changes() -> None:
         changed_rail.asset_id,
         changed_version.asset_id,
         changed_payload.asset_id,
+        changed_policy_version.asset_id,
     }
-    assert len(asset_ids) == 5
+    assert len(asset_ids) == 6
 
 
 def test_idempotency_key_is_stable_across_upstream_order_and_duplicates() -> None:

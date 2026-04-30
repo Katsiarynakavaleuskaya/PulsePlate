@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import cast
 
 import pytest
@@ -24,6 +25,7 @@ def test_fingerprint_is_stable_for_dict_key_ordering() -> None:
     assert first == second
     assert first.startswith("sha256:")
     assert len(first.removeprefix("sha256:")) == 64
+    assert re.fullmatch(r"sha256:[0-9a-f]{64}", first)
 
 
 def test_fingerprint_changes_when_payload_changes() -> None:
