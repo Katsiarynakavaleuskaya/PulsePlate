@@ -52,6 +52,22 @@ Evidence:
 - The focused replay test and Make gates were rerun with the repo root venv path
   used by the canonical A9 audit packet.
 
+## Local Full Verify Deferral
+
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-scientific-reliability-pipeline`
+Reason: Operator stopped the local full `make verify` path for this docs-only
+governance closeout because the coverage phase is CPU-heavy on the local
+machine. Merge-readiness evidence for this lane relies on the already-passed
+narrow local gates plus GitHub current-head CI parity.
+Evidence:
+
+- `make verify VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python` reached `verify-env`, `flake8`,
+  `mypy`, and `test-fast`, then entered full coverage before the operator
+  disabled further Make runs for CPU protection.
+- `gh pr checks 1588 --watch=false` showed current-head docs/governance checks
+  passing or path-skipped for the draft head after commit `d7c6571d1`.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
