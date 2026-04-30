@@ -1924,7 +1924,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-FOOD-DATA-PER-CHAIN-LEGAL-ANTI-SCRAPING-PR13
+  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`)
   - Status: 🚧 Active PR13 per-chain legal / anti-scraping review lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, PR9 MenuStat replacement gate merged as PR #1590, PR10 MenuStat source decision merged as PR #1597, PR11 coverage/source-gap audit merged as PR #1601, and PR12 chain public nutrition governance merged as PR #1609
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
