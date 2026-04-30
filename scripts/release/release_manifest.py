@@ -119,6 +119,10 @@ def _validate_rag_gate_result(payload: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     if payload.get("schema_version") != RAG_GATE_SCHEMA_VERSION:
         errors.append("rag_gate_result.schema_version must be release-rag-gate-result.v1.")
+    if payload.get("hash_algorithm") != HASH_ALGORITHM:
+        errors.append("rag_gate_result.hash_algorithm must be sha256.")
+    if payload.get("canonicalization") != CANONICALIZATION:
+        errors.append(f"rag_gate_result.canonicalization must be {CANONICALIZATION}.")
     _check_sha256_hex(payload.get("rag_gate_result_hash"), "rag_gate_result_hash", errors)
     _check_sha256_hex(payload.get("eval_artifact_hash"), "eval_artifact_hash", errors)
     if payload.get("release_decision") not in {"PASS", "NO-GO"}:
@@ -132,11 +136,15 @@ def _validate_rag_gate_result(payload: dict[str, Any]) -> list[str]:
         if self_hash != expected_hash:
             errors.append("rag_gate_result_hash does not match canonical payload.")
 
-    _validate_source_artifacts(
-        payload.get("source_artifacts", []),
-        field_name="rag_gate_result.source_artifacts",
-        errors=errors,
-    )
+    if "source_artifacts" not in payload:
+        errors.append("rag_gate_result.source_artifacts is required.")
+    else:
+        _validate_source_artifacts(
+            payload["source_artifacts"],
+            field_name="rag_gate_result.source_artifacts",
+            errors=errors,
+            require_non_empty=True,
+        )
     return errors
 
 

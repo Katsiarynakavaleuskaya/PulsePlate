@@ -4,6 +4,8 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 from scripts.release import release_manifest
 from scripts.release import reviewer_packet_hashes
 
@@ -53,7 +55,13 @@ def _rag_payload(*, release_decision: str = "PASS") -> dict[str, object]:
         "retriever_mode": "local_tfidf",
         "generator_mode": "extractive_stub",
         "small_fixture_metric_gates_advisory": False,
-        "source_artifacts": [],
+        "source_artifacts": [
+            {
+                "kind": "metrics_summary",
+                "path": "artifacts/rag_eval/unit-test/metrics_summary.json",
+                "hash": "d" * 64,
+            }
+        ],
     }
     payload["rag_gate_result_hash"] = release_manifest.sha256_lower_hex(
         release_manifest.canonical_json_bytes(payload)
@@ -165,6 +173,19 @@ def test_invalid_supply_chain_digest_blocks_release(tmp_path: Path) -> None:
     assert "sbom_digest must use sha256:<64 lowercase hex> format." in errors
 
 
+def test_invalid_provenance_digest_blocks_release(tmp_path: Path) -> None:
+    payload = _build_manifest(tmp_path)
+    payload["supply_chain_identity"] = dict(payload["supply_chain_identity"])
+    payload["supply_chain_identity"]["provenance_digest"] = "b" * 64
+    payload["release_decision"] = "BLOCK"
+    payload["decision_reasons"] = ["invalid_provenance_digest"]
+    payload = _rehash_manifest(payload)
+
+    errors = release_manifest.validate_manifest_payload(payload)
+
+    assert "provenance_digest must use sha256:<64 lowercase hex> format." in errors
+
+
 def test_unverified_attestation_blocks_release(tmp_path: Path) -> None:
     _write_metadata_pack(tmp_path)
     rag_path = _write_rag_gate_result(tmp_path)
@@ -233,6 +254,40 @@ def test_invalid_source_artifact_kind_is_rejected(tmp_path: Path) -> None:
         "ml_identity.source_artifacts[0].kind must be a non-empty lowercase artifact kind." in error
         for error in errors
     )
+
+
+def test_rag_gate_result_metadata_is_required(tmp_path: Path) -> None:
+    _write_metadata_pack(tmp_path)
+    rag_payload = _rag_payload()
+    del rag_payload["hash_algorithm"]
+    rag_payload["canonicalization"] = "json-unsorted"
+    del rag_payload["source_artifacts"]
+    rag_payload["rag_gate_result_hash"] = release_manifest.sha256_lower_hex(
+        release_manifest.canonical_json_bytes(
+            {key: value for key, value in rag_payload.items() if key != "rag_gate_result_hash"}
+        )
+    )
+    rag_path = tmp_path / "artifacts/rag_eval/unit-test/rag_gate_result.json"
+    rag_path.parent.mkdir(parents=True, exist_ok=True)
+    rag_path.write_text(json.dumps(rag_payload, sort_keys=True) + "\n", encoding="utf-8")
+
+    with pytest.raises(release_manifest.ReleaseManifestError) as exc_info:
+        release_manifest.build_manifest_payload(
+            repo_root=tmp_path,
+            git_sha=TEST_GIT_SHA,
+            ios_build_number="100",
+            marketing_version="1.0",
+            bundle_id="app.pulseplate.PulsePlate",
+            rag_gate_result_path=rag_path,
+            sbom_digest=OCI_DIGEST,
+            provenance_digest=PROVENANCE_DIGEST,
+            attestation_status="VERIFIED",
+        )
+
+    error_text = str(exc_info.value)
+    assert "rag_gate_result.hash_algorithm must be sha256" in error_text
+    assert "rag_gate_result.canonicalization must be" in error_text
+    assert "rag_gate_result.source_artifacts is required" in error_text
 
 
 def test_schema_file_matches_emitted_payload_shape(tmp_path: Path) -> None:
