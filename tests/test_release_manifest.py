@@ -354,6 +354,53 @@ def test_cli_validate_missing_manifest_uses_controlled_error(tmp_path: Path, cap
     assert "is not readable" in output
 
 
+def test_cli_validate_invalid_utf8_manifest_uses_controlled_error(tmp_path: Path, capsys) -> None:
+    manifest_path = tmp_path / "invalid_utf8_manifest.json"
+    manifest_path.write_bytes(b"\xff\xfe")
+
+    status = release_manifest.main(["validate", "--manifest", str(manifest_path)])
+
+    output = capsys.readouterr().out
+    assert status == 1
+    assert "ERROR:" in output
+    assert "is not readable" in output
+
+
+def test_missing_reviewer_artifacts_use_controlled_error(tmp_path: Path, capsys) -> None:
+    rag_path = _write_rag_gate_result(tmp_path)
+
+    status = release_manifest.main(
+        [
+            "generate",
+            "--repo-root",
+            str(tmp_path),
+            "--git-sha",
+            TEST_GIT_SHA,
+            "--ios-build-number",
+            "100",
+            "--marketing-version",
+            "1.0",
+            "--bundle-id",
+            "app.pulseplate.PulsePlate",
+            "--rag-gate-result",
+            str(rag_path),
+            "--sbom-digest",
+            OCI_DIGEST,
+            "--provenance-digest",
+            PROVENANCE_DIGEST,
+            "--attestation-status",
+            "VERIFIED",
+            "--output",
+            str(tmp_path / "release_manifest.json"),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    assert status == 1
+    assert "ERROR:" in output
+    assert "Unable to build reviewer identity" in output
+
+
 def test_cli_generate_missing_rag_gate_result_uses_controlled_error(tmp_path: Path, capsys) -> None:
     _write_metadata_pack(tmp_path)
     missing_rag_path = tmp_path / "artifacts/rag_eval/missing/rag_gate_result.json"

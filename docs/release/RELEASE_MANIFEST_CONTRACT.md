@@ -11,8 +11,8 @@ reviewer packet identity, RAG/ML gate identity, supply-chain identity, and one
 fail-closed release-control decision.
 
 PR-3 adds a generator and validator only
-(`scripts/release/release_manifest.py:143`,
-`scripts/release/release_manifest.py:375`, `tests/test_release_manifest.py:99`).
+(`scripts/release/release_manifest.py:156`,
+`scripts/release/release_manifest.py:383`, `tests/test_release_manifest.py:107`).
 It does not add CI release gating, review-build versus production-candidate
 equivalence checks, App Store Connect uploads, backend APIs, OpenAPI changes, or
 product runtime behavior; PR-4 and PR-5 remain the scoped train entries for
@@ -133,16 +133,16 @@ This PR-3 contract does not:
 - change App Store metadata, reviewer notes, screenshots, privacy payloads, or
   Fastlane upload lanes; reviewer assets are consumed through the PR-1 hash
   helper only (`scripts/release/reviewer_packet_hashes.py:78`,
-  `scripts/release/release_manifest.py:158`);
+  `scripts/release/release_manifest.py:172`);
 - change RAG thresholds, retrieval, generation, or product runtime behavior;
   PR-3 reads the PR-2 export as an input artifact only
-  (`scripts/release/release_manifest.py:159`,
-  `scripts/release/release_manifest.py:164`);
+  (`scripts/release/release_manifest.py:175`,
+  `scripts/release/release_manifest.py:185`);
 - read App Store Connect credentials, signing material, provider credentials,
   protected GitHub environment secrets, or deployment credentials; CLI inputs are
   explicit build/supply-chain identifiers only
-  (`scripts/release/release_manifest.py:351`,
-  `scripts/release/release_manifest.py:357`);
+  (`scripts/release/release_manifest.py:369`,
+  `scripts/release/release_manifest.py:383`);
 - verify review-build versus production-candidate equivalence;
 - add CI release-decision enforcement.
 

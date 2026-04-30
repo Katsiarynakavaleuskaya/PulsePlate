@@ -50,9 +50,11 @@ def sha256_lower_hex(payload: bytes) -> str:
 
 def _load_json(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except OSError as exc:
+        raw_text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
         raise ReleaseManifestError(f"{path} is not readable: {exc}") from exc
+    try:
+        payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         raise ReleaseManifestError(f"{path} is not valid JSON: {exc}") from exc
     if not isinstance(payload, dict):
@@ -72,7 +74,10 @@ def _repo_relative_path(path: Path, *, repo_root: Path) -> str:
 def _artifact_file_hash(path: Path) -> str:
     if not path.is_file():
         raise ReleaseManifestError(f"Artifact does not exist: {path}")
-    return sha256_lower_hex(path.read_bytes())
+    try:
+        return sha256_lower_hex(path.read_bytes())
+    except OSError as exc:
+        raise ReleaseManifestError(f"Artifact is not readable: {path}: {exc}") from exc
 
 
 def _check_sha256_hex(value: Any, field_name: str, errors: list[str]) -> None:
@@ -163,7 +168,12 @@ def build_manifest_payload(
     """Build a release manifest payload with a deterministic self-hash."""
 
     resolved_root = repo_root.resolve()
-    reviewer_identity = reviewer_packet_hashes.build_reviewer_packet_hash_contract(resolved_root)
+    try:
+        reviewer_identity = reviewer_packet_hashes.build_reviewer_packet_hash_contract(
+            resolved_root
+        )
+    except (OSError, UnicodeDecodeError) as exc:
+        raise ReleaseManifestError(f"Unable to build reviewer identity: {exc}") from exc
     rag_gate_result = _load_json(rag_gate_result_path)
     rag_errors = _validate_rag_gate_result(rag_gate_result)
     if rag_errors:
