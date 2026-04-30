@@ -23,11 +23,7 @@ Python 3.12 main CI coverage at `96.99%` against the required `97.00%` gate.
 7. `bug-hunter`
 8. `agent-coordinator`
 
-## Fixed in Commit Mapping
-
-No review threads were present at PR creation time.
-
-Implementation evidence:
+## Local Evidence
 
 - `f01cdc857` -> `tests/test_mcp_pulseplate_server_coverage.py`
   - Covers unsafe optional MCP text metadata rejection.
@@ -37,6 +33,18 @@ Implementation evidence:
   - Covers invalid BMR gender rejection and core TDEE exception handling.
 - `f01cdc857` -> `tests/test_knowledge_contracts.py`
   - Covers preservation of unrelated active knowledge records during supersession.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+- Status: No review threads were present at PR creation time.
+- Actionable review comments: none at artifact creation time.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Validation
 
