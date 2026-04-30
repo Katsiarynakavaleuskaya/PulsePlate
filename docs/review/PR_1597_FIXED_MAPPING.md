@@ -30,6 +30,21 @@ Disposition: FIXED
 Commit: 36c14fec2
 Evidence: `scripts/food_source_menustat_source_decision.py`
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597#discussion_r3166891348
+Disposition: FIXED
+Commit: 6e25078dae
+Evidence: `core/food_sources/menustat_source_decision.py` now requires the
+public-web evidence surfaces and capture methods to exactly match the approved
+manual-only lists; `tests/test_food_source_menustat_source_decision.py` covers
+surface and capture-method broadening.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1597#discussion_r3166891356
+Disposition: FIXED
+Commit: 6e25078dae
+Evidence: `core/food_sources/menustat_source_decision.py` now rejects
+negative monthly budget values and values above 20 USD; the focused PR10 tests
+cover negative and over-budget inputs.
+
 ## Local Validation
 
 ```bash
