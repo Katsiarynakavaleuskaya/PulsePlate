@@ -71,8 +71,8 @@ python3 scripts/orchestration/check_agent_consistency.py
 
 ## Risks
 
-- Make source can look implementation-ready but remains non-authoritative.
-- Make copy includes unsupported public proof claims.
-- Make routing/state shell is prototype-only.
+- Source can look implementation-ready but remains non-authoritative.
+- Copy may include unsupported public proof claims.
+- Routing/state shell remains prototype-only.
 - Figma Make screenshot is unavailable through the current screenshot tool.
 - Computer Use is not surfaced as a callable tool in this session.

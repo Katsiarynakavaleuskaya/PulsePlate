@@ -26,7 +26,7 @@ the design direction is accepted.
 | `design_source` | `figma_make` |
 | `source_url` | `https://www.figma.com/make/MrztJU3CQtxhADBbtAsWJ6/PulsePlate_Web?p=f&t=5PkAftKeomh11x3R-0&fullscreen=1` |
 | `file_key_or_workspace` | `MrztJU3CQtxhADBbtAsWJ6` |
-| `node_id_or_frame_id` | `make-root` |
+| `node_id_or_frame_id` | `make-root (nodeId=0:1)` |
 | `target_surface` | `web_ios_launch_design_direction` |
 | `task_mode` | `verify` |
 | `figma_lane_tool` | `figma_native` |

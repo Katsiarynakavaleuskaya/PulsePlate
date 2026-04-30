@@ -36,11 +36,13 @@ On 2026-04-30, `make verify` was started and passed:
 - `verify-env`
 - `flake8`
 - `mypy`
-- `tests/edges tests/test_remaining_modules.py`
+- smoke tests: `tests/edges tests/test_remaining_modules.py`
 
 The full coverage/diff-cover portion was stopped by operator instruction to
 avoid local CPU overload. This lane may open as draft with narrow gate evidence,
 but it must not be claimed merge-ready from the interrupted `make verify` run.
+A documented machine-heavy exception plus current-head CI parity must be used
+instead of treating the interrupted local run as green evidence.
 
 ## Out Of Scope Confirmed
 

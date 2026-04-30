@@ -31,6 +31,9 @@ portion to avoid CPU overload. The interrupted run passed `verify-env`,
 `flake8`, `mypy`, and smoke tests before stop, but it is not green evidence.
 A documented local-heavy exception plus current-head CI parity is accepted for
 this design-doc lane. This is not a full local `make verify` pass.
+That accepted exception is the evidence for checking the merge-readiness
+checkbox that allows either full local `make verify` or a documented
+machine-heavy exception plus CI parity.
 
 ## Discussion Thread Pass
 
