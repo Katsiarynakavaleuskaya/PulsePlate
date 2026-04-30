@@ -634,19 +634,25 @@ Non-destructive promote semantics + deterministic slug hardening.
 `feat(orchestration): enrich advisory wiki query and lint without changing SoT`
 
 #### Current status
-Next substantive Rail B1 implementation slice after PR-B1 closeout.
+Active Rail B1 implementation slice via
+`docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`.
 
-#### Optional follow-on
-- orphan detection
-- stale link detection
+#### First-cut scope
+- opt-in query context for local substring search
+- deterministic index/page consistency lint
+- deterministic stale local `pages/<slug>.md` link lint
+
+#### Deferred follow-on
 - contradiction lint
-- title/heading weighting
+- title/heading weighting or ranking
 - manifest/history improvements
+- bounded reference-corpus policy
 
 #### Still out of scope
 - embeddings
 - vector DB
 - product RAG replacement
+- semantic cache
 
 ---
 

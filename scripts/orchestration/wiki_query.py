@@ -29,7 +29,20 @@ def list_pages(pages_dir: Path) -> list[dict[str, Any]]:
     return out
 
 
-def search_pages(pages_dir: Path, needle: str) -> list[dict[str, Any]]:
+def _nearest_heading(lines: list[str], index: int) -> str | None:
+    for previous in range(index, -1, -1):
+        line = lines[previous].strip()
+        if line.startswith("#"):
+            return line.lstrip("#").strip() or None
+    return None
+
+
+def search_pages(
+    pages_dir: Path,
+    needle: str,
+    *,
+    include_context: bool = False,
+) -> list[dict[str, Any]]:
     n = needle.casefold()
     hits: list[dict[str, Any]] = []
     if not pages_dir.is_dir():
@@ -37,9 +50,23 @@ def search_pages(pages_dir: Path, needle: str) -> list[dict[str, Any]]:
     for p in sorted(pages_dir.glob("*.md")):
         text = p.read_text(encoding="utf-8")
         _, body = wcs.parse_frontmatter(text)
-        lines = [i + 1 for i, line in enumerate(body.splitlines()) if n in line.casefold()]
-        if lines:
-            hits.append({"lines": lines, "slug": p.stem})
+        body_lines = body.splitlines()
+        line_indexes = [i for i, line in enumerate(body_lines) if n in line.casefold()]
+        if line_indexes:
+            hit: dict[str, Any] = {
+                "lines": [i + 1 for i in line_indexes],
+                "slug": p.stem,
+            }
+            if include_context:
+                first = line_indexes[0]
+                hit.update(
+                    {
+                        "excerpt": body_lines[first].strip(),
+                        "heading": _nearest_heading(body_lines, first),
+                        "match_count": len(line_indexes),
+                    }
+                )
+            hits.append(hit)
     return hits
 
 
@@ -60,6 +87,7 @@ def run_query(
     repo_root: Path,
     needle: str | None = None,
     slug: str | None = None,
+    include_context: bool = False,
 ) -> dict[str, Any]:
     base = wcs.corpus_base(wiki_root, corpus)
     layout = wcs.corpus_layout(base)
@@ -68,7 +96,7 @@ def run_query(
     if mode == "search":
         if not needle:
             raise ValueError("search_requires_needle")
-        return {"hits": search_pages(layout["pages"], needle)}
+        return {"hits": search_pages(layout["pages"], needle, include_context=include_context)}
     if mode == "detail":
         if not slug:
             raise ValueError("detail_requires_slug")
@@ -91,6 +119,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--repo-root", type=Path, default=None)
     p.add_argument("--needle", default=None, help="Substring for search mode")
     p.add_argument("--slug", default=None, help="Page slug for detail mode")
+    p.add_argument(
+        "--include-context",
+        action="store_true",
+        help="Include deterministic heading/excerpt metadata for search hits",
+    )
     return p.parse_args(argv)
 
 
@@ -108,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
             repo_root=repo_root,
             needle=args.needle,
             slug=args.slug,
+            include_context=args.include_context,
         )
     except FileNotFoundError as exc:
         print(json.dumps({"error": "not_found", "slug": str(exc)}, sort_keys=True), file=sys.stderr)

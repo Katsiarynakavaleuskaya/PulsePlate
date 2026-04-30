@@ -3633,19 +3633,24 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Advisory wiki query/lint enrichment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-ADVISORY-WIKI-QUERY-LINT-ENRICHMENT
+  - Target PR: PR-B3 / `codex/advisory-wiki-query-lint-enrichment-b3`
   - Area: orchestration / workforce memory / operator tooling
   - Finding Type: post-hardening follow-on
+  - Status: 🟡 In progress via PR-B3
   - Reason (EN): The compiler/hardening baseline is now present, but the next workforce slice should enrich query and lint behavior without widening into embeddings, vector search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже есть, но следующий workforce slice должен улучшать query/lint без ухода в embeddings, vector search или product-facing RAG semantics.)
   - Links:
+    - `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
+    - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
     - `scripts/orchestration/wiki_query.py`
     - `scripts/orchestration/wiki_lint.py`
   - DoD:
     - Query/lint enrichment remains non-canonical and operator-only
     - No embeddings, vector DB, or public runtime coupling are introduced
-    - Follow-on scope is explicit: richer query semantics, orphan/stale-link detection, contradiction lint, or index weighting
+    - Opt-in query context remains backward-compatible with default search output
+    - Lint covers deterministic index/page consistency and stale local page links
+    - Follow-on scope remains explicit: contradiction lint, index weighting, manifest/history improvements, and reference-corpus policy stay separate
 
 <a id="ledger-p2-advisory-wiki-reference-corpus-policy"></a>
 - [ ] P2: Advisory wiki bounded reference-corpus policy
