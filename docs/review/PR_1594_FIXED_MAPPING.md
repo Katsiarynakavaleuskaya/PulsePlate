@@ -9,6 +9,22 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
+## Merge Readiness
+
+Ready for merge: No.
+
+- Local E1 narrow gates pass: preflight, agent consistency, focused
+  `tests/core/evidence`, mypy for `core/evidence` and `tests/core/evidence`,
+  E1 diff-cover, `pre-commit run --all-files`, and push hooks.
+- Operator explicitly deferred local `make verify` because of machine CPU
+  pressure; current-head GitHub CI is the heavy signal for this lane.
+- Semantic cache, runtime wiring, DB migrations, API/OpenAPI changes, provider
+  changes, billing changes, and user-facing behavior remain out of scope.
+- Final readiness requires current-head GitHub CI with no pending required jobs,
+  strict merge-readiness guard PASS, review-thread disposition guard PASS, no
+  actionable bot comments, and the mandatory wait-window after latest bot/review
+  activity.
+
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4203461409 -> 694c6eb25
