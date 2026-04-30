@@ -66,25 +66,25 @@ Reason: This is an external review-capacity note, not an implementation request.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#discussion_r3169374925 -> 33c2d04a478999f734cc43c0892354ada48d9766
 
 Disposition: FIXED
-Commit: `33c2d04a478999f734cc43c0892354ada48d9766`
+Commit: 33c2d04a478999f734cc43c0892354ada48d9766
 Evidence: `docs/review/PR_1608_FIXED_MAPPING.md` keeps all `## Merge Readiness` checklist boxes unchecked until the final merge cycle.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#discussion_r3169374953 -> 33c2d04a478999f734cc43c0892354ada48d9766
 
 Disposition: FIXED
-Commit: `33c2d04a478999f734cc43c0892354ada48d9766`
+Commit: 33c2d04a478999f734cc43c0892354ada48d9766
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` DoD now explicitly includes CI parity, current-head CI, strict merge wrapper, and main-stability requirements.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#pullrequestreview-4206793395 -> 33c2d04a478999f734cc43c0892354ada48d9766
 
 Disposition: FIXED
-Commit: `33c2d04a478999f734cc43c0892354ada48d9766`
+Commit: 33c2d04a478999f734cc43c0892354ada48d9766
 Evidence: All actionable CodeRabbit review comments in this review are mapped to the same post-comment fix commit.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#discussion_r3169374957 -> 33c2d04a478999f734cc43c0892354ada48d9766
 
 Disposition: FIXED
-Commit: `33c2d04a478999f734cc43c0892354ada48d9766`
+Commit: 33c2d04a478999f734cc43c0892354ada48d9766
 Evidence: `frontend/src/components/marketing/__tests__/MarketingLaunchPage.test.tsx` disallowed-claim regex now catches `doctor-recommended` and `doctor recommended` variants.
 
 ## Merge Readiness
