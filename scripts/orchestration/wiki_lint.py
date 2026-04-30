@@ -37,9 +37,16 @@ def _index_page_slugs(index_path: Path) -> set[str] | None:
 def _strip_fenced_code_blocks(body: str) -> str:
     kept: list[str] = []
     in_fence = False
+    fence_marker: str | None = None
     for line in body.splitlines():
-        if line.lstrip().startswith("```"):
-            in_fence = not in_fence
+        stripped = line.lstrip()
+        if not in_fence and (stripped.startswith("```") or stripped.startswith("~~~")):
+            in_fence = True
+            fence_marker = stripped[:3]
+            continue
+        if in_fence and fence_marker is not None and stripped.startswith(fence_marker):
+            in_fence = False
+            fence_marker = None
             continue
         if not in_fence:
             kept.append(line)

@@ -50,7 +50,7 @@ Evidence:
 ## Local Full Verify
 
 Disposition: FIXED
-Commit: local validation evidence; no product/runtime code change
+Commit: `517b8e72c9b009027e0a76211a8ea73b05dfdd66`
 Evidence:
 
 - Full local `make verify` was run on 2026-04-30 before the final
