@@ -2,29 +2,28 @@
 
 ## Discussion Thread Pass
 
-- Status: No GitHub review threads existed when this artifact was created.
-- Mandatory post-open lane: `qa-engineer-agent -> bug-hunter`.
-- External bots: no actionable CodeRabbit, Sourcery, or Cubic comments were
-  available at artifact creation time.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Disposition: NOT-A-BUG
+Evidence: No human, CodeRabbit, Sourcery, or Cubic review threads existed when the PR9 mapping artifact was created.
+Reason: Initial mapping artifact exists so later review dispositions have a canonical home before any thread is resolved.
 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
 Commit: 561e65a98
-Evidence:
-- `core/food_sources/menustat_replacement.py`
-- `scripts/food_source_menustat_replacement.py`
-- `docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json`
-- `tests/test_food_source_menustat_replacement.py`
+Evidence: Added the MenuStat replacement source gate artifact, file-only validator, CLI, PR9 packet, current-pointer update, ledger update, and focused tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1590 -> 561e65a98
 
-Summary:
-- Added deterministic, file-only MenuStat replacement source gate.
-- Kept MenuStat legacy/static and all replacement candidates blocked.
-- Added safety checks for no runtime cutover, no DigitalOcean Postgres load, no
-  bulk ingest, no network, and no DB writes.
-- Added negative coverage for missing/unknown/duplicate candidates, premature
-  approvals, unsafe flags, freshness approval drift, invalid evidence refs, and
-  catalog/onboarding drift.
+Disposition: FIXED
+Commit: 64242f328
+Evidence: Added the canonical PR #1590 mapping artifact and updated the ledger target PR from `#TBD` to `#1590`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1590 -> 64242f328
+
+Disposition: FIXED
+Commit: pending
+Evidence: Pending follow-up commit will add explicit return type annotations for the `_catalog` and `_onboarding` test helpers.
 
 ## Merge Readiness Evidence
 

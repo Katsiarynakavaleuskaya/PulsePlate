@@ -18,8 +18,8 @@ from core.food_sources.menustat_replacement import (
     load_menustat_replacement_decision,
     parse_menustat_replacement_decision,
 )
-from core.food_sources.source_catalog import load_source_catalog
-from core.food_sources.source_onboarding import load_source_onboarding
+from core.food_sources.source_catalog import SourceCatalog, load_source_catalog
+from core.food_sources.source_onboarding import SourceOnboarding, load_source_onboarding
 
 _REPO_ROOT = Path(__file__).parents[1]
 _CATALOG_PATH = (
@@ -41,11 +41,11 @@ _EXPECTED_CANDIDATES = [
 ]
 
 
-def _catalog():
+def _catalog() -> SourceCatalog:
     return load_source_catalog(_CATALOG_PATH)
 
 
-def _onboarding():
+def _onboarding() -> SourceOnboarding:
     return load_source_onboarding(
         _ONBOARDING_PATH,
         catalog=_catalog(),
