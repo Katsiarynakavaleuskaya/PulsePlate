@@ -3224,7 +3224,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     state after the canonical A9 packet, task analysis, audit evidence packet,
     and review mapping landed on `main`. Future evidence refreshes must create
     a new dated packet or a separate superseding follow-up instead of rewriting
-    the immutable `2026-04-23` A9 snapshot.
+    the immutable `2026-04-23` A9 snapshot. Exception approved on 30 April
+    2026: this delayed closeout is limited to reconciling PR `#1512`
+    (`2c9d9f4f6bbee139b855944568d5a2d25cd0bc15`) ledger truth without
+    reopening the A9 evidence snapshot.
   - Reason (EN): Product differentiation requires public, evidence-based communication of currently reproducible AI reliability methods with clear claim boundaries and no medical overclaiming. The current governed proof surface is the offline logic+philosophy replay contract plus shipped runtime anchors; this lane must not imply production proof, public verification fields, or recursive execution as the canonical validated-evidence write path. (RU: Для дифференциации нужен публичный научно-достоверный пакет по AI quality-подходу с жёсткими границами claims и без медикал-оверклеймов. Текущая доказательная база в этом lane — governed offline replay contract для logic+philosophy и уже слитые runtime anchors; нельзя выдавать это за production proof, public verification truth или canonical validated-evidence write path для recursive execution.)
   - Links:
     - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
@@ -3234,7 +3237,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md`
     - `docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md`
     - `docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md`
-    - `docs/review/PR_1512_FIXED_MAPPING.md`
+    - `docs/review/PR_1512_FIXED_MAPPING.md` (merged A9 implementation mapping)
+    - `docs/review/PR_1588_FIXED_MAPPING.md` (this closeout mapping)
     - `tests/test_logic_philosophy_replay_eval.py`
   - DoD:
     - Editorial plan and evidence format are documented (metrics, corpus bounds, caveats, claim boundaries)
