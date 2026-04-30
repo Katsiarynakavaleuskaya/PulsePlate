@@ -28,14 +28,14 @@ Evidence: `frontend/src/pages/NutritionSetup/hooks.ts` was restored to the pre-P
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#qa-engineer-agent-runtime-import-scope -> 711b66be1
 
 Disposition: FIXED
-Commit: TBD
+Commit: 626ee6ee6
 Evidence: `frontend/src/stories/storybookParitySupport.tsx` now models Storybook sessions with only real backend contract states: `guest` as 401 unauthenticated, and authenticated `pro`/`vip` as `PRO`/`VIP`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-session-contract -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-session-contract -> 626ee6ee6
 
 Disposition: FIXED
-Commit: TBD
+Commit: 626ee6ee6
 Evidence: `frontend/src/components/ui/EmptyState.stories.tsx` now supplies required `title` and `description` args for preset render stories, preserving Storybook typing while keeping the rendered presets deterministic.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-empty-state-required-args -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-empty-state-required-args -> 626ee6ee6
 
 ## Local Validation Evidence
 
