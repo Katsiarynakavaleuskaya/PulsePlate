@@ -66,6 +66,11 @@ Evidence: CodeRabbit docstring coverage is not a required repository merge gate;
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported the canonical mapping artifact as compliant and only suggested optional style refinements. The artifact keeps the repo-standard PASS wording used by prior mapping files.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1594#pullrequestreview-4207236687 -> a0d62c5d3
+Disposition: FIXED
+Commit: a0d62c5d3
+Evidence: `docs/review/PR_1594_FIXED_MAPPING.md` now includes a dedicated `## Merge Readiness` section with local gate status, the operator-approved `make verify` deferral, out-of-scope blockers, and final readiness conditions.
+
 ## Post-open Agent Review
 
 `qa-engineer-agent` found that raw `upstream_ids` could bypass rail separation by
