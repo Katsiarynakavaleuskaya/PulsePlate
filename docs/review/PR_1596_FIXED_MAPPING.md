@@ -19,7 +19,7 @@ Evidence:
 - `scripts/orchestration/wiki_lint.py` adds read-only `index.md`, stale index,
   missing page, and local page-link lint checks for the advisory wiki.
 - `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`
-  records PR-B3 role order, scope boundaries, and the operator CPU exception.
+  records PR-B3 role order and scope boundaries.
 - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`,
   `docs/roadmap/BACKLOG_LEDGER.md`, and
   `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` record PR-B3
@@ -40,22 +40,23 @@ Evidence:
 - `git diff --check origin/main...HEAD` PASS
 - `pytest -q tests/test_wiki_query.py tests/test_wiki_lint.py tests/test_wiki_ingest.py tests/test_wiki_promote.py tests/test_wiki_compiler_keys.py tests/test_repo_policy_guards.py` PASS, 69 tests
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` PASS
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS
 - `pre-commit run --all-files` PASS
+- `make verify` PASS after creating the local ignored worktree symlink `.venv -> ../../.venv`; `verify-env`, lint, mypy, test-fast, full coverage pytest, and diff-cover all passed. Diff-cover reported no covered-line diff gaps.
 - commit hooks PASS
 - pre-push hooks PASS, including mypy changed-files, pip-audit,
   backend tests, full-repo bandit, and docker build test where applicable
 
-## Local Heavy Verify Deferral
+## Local Full Verify
 
-Disposition: DEFERRED
-Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-advisory-wiki-query-lint-enrichment
+Disposition: FIXED
+Commit: 517b8e72c9b009027e0a76211a8ea73b05dfdd66
 Evidence:
 
-- Full local `make verify` and local `make` targets are intentionally not part
-  of the PR-B3 local validation loop under the operator CPU exception.
-- PR-B3 uses the packet-declared narrow gates, pre-commit, current-head GitHub
-  checks, unresolved review-thread audit, and the strict merge-readiness wrapper
-  as the merge-readiness path.
+- Full local `make verify` was run on 2026-04-30 before the final
+  `origin/main` sync and passed.
+- The worktree-local `.venv` symlink is an ignored local artifact only and is
+  not part of the PR diff.
 
 ## Discussion Thread Pass
 
@@ -72,7 +73,7 @@ classified below. New actionables must be added below with one of: `FIXED`,
 Disposition: NOT-A-BUG
 Evidence: `python3 scripts/orchestration/task_bootstrap.py --goal "Post-open review for PR-B3 advisory wiki query/lint enrichment" --task-class "Orchestration" --pr-phase post_open_review` PASS; task packet `9e9c71f5b89c`.
 Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 1596 --output /tmp/pulseplate_pr_1596_review_context.json && python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1596_review_context.json --format markdown` produced one advisory large-diff planning note and no deterministic code findings.
-Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates passed, and local Make targets remain deferred by the operator CPU exception above.
+Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates passed, and full local `make verify` passed before final current-head sync.
 
 ## Fixed in Commit Mapping
 
@@ -95,6 +96,13 @@ Disposition: FIXED
 Commit: 943b2d85ffd087e364d98491b3a2a27489402483
 Evidence: The follow-up CodeRabbit review summary duplicated the same commit-SHA and tilde-fence findings; both were fixed in the same commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4205475515 -> 943b2d85ffd087e364d98491b3a2a27489402483
+
+Disposition: FIXED
+Commit: 66ca5bb203af3a11c4700776d05d386c89522810
+Evidence: `tests/test_wiki_lint.py` adds post-comment regression coverage for local page links inside longer tilde fences; combined with `scripts/orchestration/wiki_lint.py` full-width fence parsing, longer fences remain ignored during link linting.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168311639 -> 66ca5bb203af3a11c4700776d05d386c89522810
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168311656 -> 66ca5bb203af3a11c4700776d05d386c89522810
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4205575858 -> 66ca5bb203af3a11c4700776d05d386c89522810
 
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit status after the PR moved from draft to ready and did not report actionable code comments.
