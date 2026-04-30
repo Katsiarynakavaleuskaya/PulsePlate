@@ -346,6 +346,45 @@ def test_design_guard_rejects_locked_manifest_deferred_core_without_reason(
     assert "core_lock.deferred_reason is required" in result.stdout
 
 
+def test_design_guard_rejects_deferred_core_absolute_path(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "frontend/src/styles/tokens.css",
+        ":root { --pp-navy: #102A43; --pp-blue: #3B82F6; --pp-accent: #20C997; }\n",
+    )
+    export_content = "# Runtime set audit\n"
+    export_path = tmp_path / "docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md"
+    _write(export_path, export_content)
+    manifest = _locked_manifest(_sha256_text(export_content))
+    assert isinstance(manifest["core_lock"], dict)
+    manifest["core_lock"]["path"] = str(tmp_path / "missing_icon_core_v1.svg")
+
+    _write(tmp_path / "docs/design/figma-manifest.json", json.dumps(manifest, indent=2))
+
+    result = _run_design_guard(tmp_path)
+
+    assert result.returncode == 1
+    assert "core_lock.path must be repo-relative" in result.stdout
+
+
+def test_design_guard_rejects_deferred_core_repo_escaping_path(tmp_path: Path) -> None:
+    _write(
+        tmp_path / "frontend/src/styles/tokens.css",
+        ":root { --pp-navy: #102A43; --pp-blue: #3B82F6; --pp-accent: #20C997; }\n",
+    )
+    export_content = "# Runtime set audit\n"
+    _write(tmp_path / "docs/design/FIGMA_RUNTIME_SET_AUDIT_2026-04-27.md", export_content)
+    manifest = _locked_manifest(_sha256_text(export_content))
+    assert isinstance(manifest["core_lock"], dict)
+    manifest["core_lock"]["path"] = "../missing_icon_core_v1.svg"
+
+    _write(tmp_path / "docs/design/figma-manifest.json", json.dumps(manifest, indent=2))
+
+    result = _run_design_guard(tmp_path)
+
+    assert result.returncode == 1
+    assert "core_lock.path must stay within the repo root" in result.stdout
+
+
 def test_design_guard_rejects_locked_core_absolute_path(tmp_path: Path) -> None:
     _write(
         tmp_path / "frontend/src/styles/tokens.css",
