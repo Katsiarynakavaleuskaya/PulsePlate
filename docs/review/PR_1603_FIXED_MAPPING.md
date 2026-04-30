@@ -7,7 +7,11 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1603#pullrequestreview-4206040941 -> b1e5bc94a
+
+Disposition: FIXED
+Commit: b1e5bc94a
+Evidence: `.env.example` documents `ollama pull nemotron-mini` before `OLLAMA_MODEL=nemotron-mini`.
 
 ## Notes
 
