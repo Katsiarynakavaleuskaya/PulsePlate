@@ -26,13 +26,18 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- Status: PR opened for CodeRabbit / bot / human review.
-- Review threads resolved by this artifact: none yet.
-- Actionable review comments: none yet.
+- Status: CodeRabbit / bot / human review pass completed for current findings.
+- Review threads resolved by this artifact: CodeRabbit findings listed below.
+- Actionable review comments: fixed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 597e7b197
+Evidence: `tests/test_legacy_app_scheduler_non_pytest_path.py` now pins both `app` and `app_module` alias surfaces in scheduler sync-mode tests and asserts the running-loop scheduling branch without allowing the cleanup fallback path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1612#discussion_r3169886929 -> 597e7b197
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1612#pullrequestreview-4207410376 -> 597e7b197
 
 ## Merge Readiness
 
