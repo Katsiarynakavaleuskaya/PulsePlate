@@ -69,8 +69,9 @@
       "approved_runtime_authority": false,
       "authority_decision": "not_approved",
       "auxiliary_sources": [
-        "recipe_dish_corpora",
-        "restaurant_chain_menus"
+        "chain_public_nutrition_pages",
+        "edamam_food_database",
+        "spoonacular"
       ],
       "coverage_decision": "requires_dish_mapping",
       "domain": "preference_menu_planning",

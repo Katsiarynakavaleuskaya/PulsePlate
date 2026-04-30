@@ -96,7 +96,7 @@ python3 -m pytest tests/test_food_source_gap_audit.py tests/test_food_source_men
 python3 -m scripts.food_source_gap_audit --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --coverage docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json --json
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
-make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python
+make validate-changed VENV_PYTHON=.venv/bin/python
 ```
 
 Local `make verify` is intentionally deferred per operator policy for this

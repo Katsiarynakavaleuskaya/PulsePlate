@@ -90,6 +90,8 @@ def _mutate_catalog_source(source_name: str, key: str, value: object, tmp_path: 
         if isinstance(source, dict) and source.get("source") == source_name:
             source[key] = value
             break
+    else:
+        raise AssertionError(f"missing catalog source {source_name}")
     return _write_payload(tmp_path / "catalog.json", payload)
 
 
@@ -101,6 +103,8 @@ def _mutate_onboarding_source(source_name: str, key: str, value: object, tmp_pat
         if isinstance(source, dict) and source.get("source") == source_name:
             source[key] = value
             break
+    else:
+        raise AssertionError(f"missing onboarding source {source_name}")
     return _write_payload(tmp_path / "onboarding.json", payload)
 
 
@@ -352,6 +356,14 @@ def test_source_gap_audit_rejects_unknown_source_decision() -> None:
         parse_source_gap_audit(payload, catalog=_catalog(), onboarding=_onboarding())
 
 
+def test_source_gap_audit_rejects_unknown_domain_source_id() -> None:
+    payload = _audit_payload()
+    _domain(payload, "generic_food_composition")["primary_sources"] = ["not_a_source"]
+
+    with pytest.raises(SourceGapAuditError, match="primary_sources contains unknown source"):
+        parse_source_gap_audit(payload, catalog=_catalog(), onboarding=_onboarding())
+
+
 def test_source_gap_audit_cli_is_file_only_and_json(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("DATABASE_URL", "postgresql://invalid.invalid/pulseplate")
     result = subprocess.run(
@@ -381,6 +393,29 @@ def test_source_gap_audit_cli_is_file_only_and_json(monkeypatch: pytest.MonkeyPa
     assert report["scraping_allowed"] is False
 
 
+def test_source_gap_audit_cli_plain_text_success() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            _CLI_MODULE,
+            "--catalog",
+            str(_CATALOG_PATH),
+            "--onboarding",
+            str(_ONBOARDING_PATH),
+            "--coverage",
+            str(_AUDIT_PATH),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert "food_source_gap_audit: PASS" in result.stdout
+
+
 def test_source_gap_audit_cli_returns_nonzero_for_invalid_artifact(tmp_path: Path) -> None:
     payload = _audit_payload()
     payload["runtime_cutover"] = True
@@ -407,6 +442,35 @@ def test_source_gap_audit_cli_returns_nonzero_for_invalid_artifact(tmp_path: Pat
     assert result.returncode == 1
     assert report["success"] is False
     assert report["validation_errors"]
+
+
+def test_source_gap_audit_cli_plain_text_failure(tmp_path: Path) -> None:
+    payload = _audit_payload()
+    payload["network_allowed"] = True
+    audit_path = _write_payload(tmp_path / "audit.json", payload)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            _CLI_MODULE,
+            "--catalog",
+            str(_CATALOG_PATH),
+            "--onboarding",
+            str(_ONBOARDING_PATH),
+            "--coverage",
+            str(audit_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1
+    assert result.stderr == ""
+    assert "food_source_gap_audit: FAIL" in result.stdout
+    assert "Validation errors:" in result.stdout
+    assert "network_allowed" in result.stdout
+    assert "must be false" in result.stdout
 
 
 def test_source_gap_audit_core_has_no_network_or_db_imports() -> None:

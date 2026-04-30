@@ -222,6 +222,8 @@ _EXPECTED_SOURCE_GAP_DECISIONS: dict[str, dict[str, object]] = {
     },
 }
 
+_KNOWN_SOURCE_IDS = frozenset(_EXPECTED_SOURCE_GAP_DECISIONS)
+
 
 class SourceGapAuditError(ValueError):
     """Raised when the PR11 coverage/source-gap audit artifact is invalid."""
@@ -456,7 +458,22 @@ def _parse_domain_decision(value: object, context: str) -> CoverageDomainDecisio
         raise _audit_error(context, f"{decision.domain} decision mismatch: {', '.join(mismatches)}")
     if decision.approved_ingest or decision.approved_runtime_authority:
         raise _audit_error(context, f"{decision.domain} cannot approve ingest or runtime authority")
+    _validate_domain_source_ids(decision, context)
     return decision
+
+
+def _validate_domain_source_ids(decision: CoverageDomainDecision, context: str) -> None:
+    for field_name, source_ids in (
+        ("primary_sources", decision.primary_sources),
+        ("auxiliary_sources", decision.auxiliary_sources),
+    ):
+        unknown_sources = sorted(set(source_ids) - _KNOWN_SOURCE_IDS)
+        if unknown_sources:
+            raise _audit_error(
+                context,
+                f"{decision.domain} {field_name} contains unknown source id(s): "
+                f"{', '.join(unknown_sources)}",
+            )
 
 
 def _parse_source_gap_decision(value: object, context: str) -> SourceGapDecision:
