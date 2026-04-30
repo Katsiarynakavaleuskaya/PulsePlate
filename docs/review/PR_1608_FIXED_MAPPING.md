@@ -72,6 +72,12 @@ Evidence: Commit `33c2d04a478999f734cc43c0892354ada48d9766` keeps merge-readines
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#pullrequestreview-4206793395 -> 33c2d04a478999f734cc43c0892354ada48d9766
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#discussion_r3169374957 -> 33c2d04a478999f734cc43c0892354ada48d9766
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: Commit `a42f6aad6ddd17e180626cbb3af1aaa84c55b530` adds the missing implementation-notes ledger link, verifies every `Join early access` CTA, and adds an explicit return type for the marketing test render helper.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1608#pullrequestreview-4207016891 -> a42f6aad6ddd17e180626cbb3af1aaa84c55b530
+
 ## Merge Readiness
 
 - [ ] Draft PR opened
