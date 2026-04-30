@@ -1,7 +1,29 @@
 [
   {
+    "category": "HEALTH_AND_FITNESS",
+    "purposes": [
+      "APP_FUNCTIONALITY"
+    ],
     "data_protections": [
-      "DATA_NOT_COLLECTED"
+      "DATA_LINKED_TO_YOU"
+    ]
+  },
+  {
+    "category": "PURCHASES",
+    "purposes": [
+      "APP_FUNCTIONALITY"
+    ],
+    "data_protections": [
+      "DATA_LINKED_TO_YOU"
+    ]
+  },
+  {
+    "category": "USER_CONTENT",
+    "purposes": [
+      "APP_FUNCTIONALITY"
+    ],
+    "data_protections": [
+      "DATA_LINKED_TO_YOU"
     ]
   }
 ]
