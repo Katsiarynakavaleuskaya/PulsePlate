@@ -149,6 +149,9 @@ scope, export format, validation path, and owner must be documented first.
   regressions for primitives and page shells.
 - Storybook does not replace Figma as authoring lane and does not replace
   runtime token files as SoT.
+- The PR-8 Storybook parity slice is review-only: deterministic stories may
+  mirror implemented product surfaces, but they must not migrate product logic,
+  generate tokens, or create a second runtime UI rail.
 
 ## 9. Figma manifest policy
 

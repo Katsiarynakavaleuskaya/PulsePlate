@@ -10,10 +10,10 @@ import {
 } from './MarketingPrimitives';
 
 const quickActions = [
-  { label: 'Open Plate', icon: Target },
-  { label: 'Check BMI', icon: Activity },
-  { label: 'Complete Setup', icon: ShieldCheck },
-  { label: 'View Progress', icon: Sparkles },
+  { label: 'Open Plate', icon: Target, helper: 'Meal planning' },
+  { label: 'Check BMI', icon: Activity, helper: 'Baseline context' },
+  { label: 'Complete Setup', icon: ShieldCheck, helper: 'Personalization inputs' },
+  { label: 'View Progress', icon: Sparkles, helper: 'Gentle tracking' },
 ];
 
 const launchSignals = [
@@ -41,11 +41,11 @@ export function HeroSection() {
 
       <div className="ppm-hero-grid">
         <div className="ppm-hero-copy">
-          <p className="ppm-eyebrow">AI wellness coach trio</p>
-          <h1 className="ppm-hero-title">Plan meals, habits, and progress in one calm place</h1>
+          <p className="ppm-eyebrow">PulsePlate launch preview</p>
+          <h1 className="ppm-hero-title">Plan meals and progress with calmer structure</h1>
           <p className="ppm-hero-body">
-            PulsePlate pairs simple nutrition structure with FitChef guidance, progress tracking,
-            and gentle habit support for everyday wellness decisions.
+            PulsePlate brings meal planning, setup context, and progress reflection into a
+            wellness-only space that helps you decide what to do next without medical claims.
           </p>
 
           <div className="ppm-actions">
@@ -69,12 +69,12 @@ export function HeroSection() {
             </StatusPill>
             <StatusPill className="ppm-pill--premium">
               <Sparkles size={14} />
-              FitChef preview
+              Guided preview
             </StatusPill>
           </div>
         </div>
 
-        <MarketingCard className="ppm-preview" id="product-preview">
+        <MarketingCard aria-label="PulsePlate product preview" className="ppm-preview" id="product-preview">
           <div className="ppm-fitchef-hero">
             <img alt="FitChef wellness guide" className="ppm-fitchef-image" src={fitChefHero} />
             <div>
@@ -108,16 +108,19 @@ export function HeroSection() {
 
           <div className="ppm-subsection">
             <div className="ppm-preview-row">
-              <p className="ppm-subsection-title">Quick actions</p>
-              <p className="ppm-subsection-meta">Available now</p>
+              <p className="ppm-subsection-title">Launch actions</p>
+              <p className="ppm-subsection-meta">Existing routes</p>
             </div>
             <div className="ppm-action-grid" aria-hidden="true">
-              {quickActions.map(({ label, icon: Icon }) => (
+              {quickActions.map(({ label, icon: Icon, helper }) => (
                 <div key={label} className="ppm-action-card">
                   <div className="ppm-action-icon">
                     <Icon size={16} />
                   </div>
-                  <span className="ppm-action-text">{label}</span>
+                  <span className="ppm-action-copy">
+                    <span className="ppm-action-text">{label}</span>
+                    <span className="ppm-action-helper">{helper}</span>
+                  </span>
                 </div>
               ))}
             </div>
@@ -141,7 +144,7 @@ export function HeroSection() {
                 <StatusPill className="ppm-pill--neutral">Advisory</StatusPill>
               </div>
               <p className="ppm-insight-body">
-                Try pairing a simple protein target with one repeatable meal habit for the week.
+                Try pairing one repeatable meal habit with a simple weekly check-in.
               </p>
               <div className="ppm-insight-note">
                 <Droplets size={14} color="var(--pp-green)" />

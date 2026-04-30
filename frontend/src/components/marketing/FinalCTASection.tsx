@@ -9,7 +9,7 @@ export function FinalCTASection() {
         <div className="ppm-cta-grid">
           <div>
             <p className="ppm-eyebrow">Final CTA</p>
-            <h2 className="ppm-title" style={{ fontSize: 'clamp(2rem, 1.4rem + 1.8vw, 3rem)' }}>
+            <h2 className="ppm-title ppm-cta-title">
               Ready to explore PulsePlate?
             </h2>
             <p className="ppm-description">
@@ -18,7 +18,7 @@ export function FinalCTASection() {
             </p>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="ppm-cta-actions">
             <Link className={marketingButtonClasses.primary} to="/welcome-gate-v1">
               <span>See the product</span>
               <ArrowRight size={16} />

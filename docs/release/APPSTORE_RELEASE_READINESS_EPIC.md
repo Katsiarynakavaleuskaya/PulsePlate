@@ -89,7 +89,7 @@ then update this epic, the matrix, and the lane packet in the same PR.
    - Add deterministic contract tests.
 
 3. **PR-2: permission strings cleanup and capability truth**
-   - Branch: `release/appstore-readiness-pr2-permission-truth`
+   - Branch: `release/appstore-readiness-pr2-permission-purpose-strings`
    - Keep only release-used sensitive permission purpose strings.
    - Keep `NSHealthShareUsageDescription`; remove tracking and unused permission
      copy unless runtime evidence exists.
