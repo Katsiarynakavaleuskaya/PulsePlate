@@ -32,8 +32,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P0: App Store release readiness closure for full-feature launch
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P0 (App Store submission blocker)
-  - Target PR: PR-TBD-APPSTORE-READINESS-TRAIN (`release/appstore-readiness-*`)
-  - Status: 📋 Planned / PR train bootstrap in progress
+  - Target PR: PR #1582 -> PR-0 merged; PR #1591 / `release/appstore-readiness-pr1-privacy-manifest` -> PR-1 active; remaining train `release/appstore-readiness-*`
+  - Status: 🛠️ PR-0 merged in PR #1582; PR-1 active on branch `release/appstore-readiness-pr1-privacy-manifest`
   - Area: iOS / App Store / privacy / release governance
   - Finding Type: release-truth drift blocker
   - Reason (EN): The release shell must align iOS runtime, backend reachability, App Privacy, privacy manifest, permission strings, App Store assets, reviewer notes, and CI validators before public App Store submission. The fix is not to delete assets or reduce product scope; the train must preserve assets and classify each public submission surface as `SUBMIT_READY`, `IMPLEMENTATION_REQUIRED`, or `INTERNAL_REVIEW_ONLY`.
@@ -41,6 +41,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md`
     - `docs/release/APPSTORE_FEATURE_ASSET_MATRIX.md`
     - `docs/orchestration/APPSTORE_RELEASE_READINESS_TASK_PACKET_2026-04-29.md`
+    - `docs/orchestration/APPSTORE_RELEASE_READINESS_PR1_PRIVACY_PACKET_2026-04-30.md`
     - `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
     - `ios/fastlane/app_privacy_details.json`
     - `ios/PulsePlate/Services/AppConfig.swift`
@@ -372,11 +373,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR-TBD-RELEASE-CONTROL-PLANE-PR5
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: Bootstrap lane starts in branch `release/release-control-plane-pr0-bootstrap`.
+  - Status: PR-0 merged; PR-1 active in branch `release/release-control-plane-pr1-reviewer-hash`.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
     - `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
+    - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.md`
+    - `docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
     - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
     - `scripts/evals/run_rag_release_gates.py`
@@ -384,7 +387,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
   - DoD:
     - PR-0 lands governance docs, C4 release-risk context, packet, and this ledger anchor without runtime/workflow changes.
-    - PR-1 defines reviewer-packet hash contract after App Store readiness artifacts land on `main`.
+    - PR-1 defines reviewer-packet hash contract after App Store readiness artifacts land on `main`, including `reviewer_notes_hash`, `appstore_metadata_hash`, canonical UTF-8 SHA-256 rules, and schema tests.
     - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth.
     - PR-3 adds a release manifest generator and fail-closed validator.
     - PR-4 proves review-build and production-candidate equivalence by digest/hash checks.
@@ -1850,8 +1853,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1577` (PR8: `feat(food-data): add JPTN identity license gate`)
-  - Status: 🚧 Active PR8 JPTN identity/license gate lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, and PR7 Open Food Facts manifest preflight merged as PR #1572
+  - Target PR: PR #1597 (PR10: `docs(food-data): narrow MenuStat replacement source decision`)
+  - Status: 🚧 Active PR10 MenuStat source-decision cleanup lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, and PR9 MenuStat replacement gate merged as PR #1590
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -1863,10 +1866,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md`
     - `docs/orchestration/FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md`
     - `docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md`
+    - `docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md`
+    - `docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
     - `docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json`
+    - `docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json`
+    - `docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -1886,7 +1893,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - USDA Foundation, Branded, and FNDDS have deterministic manifest fixtures that pass source-specific dry-run preflight against PR2, PR3, and PR5 contracts before any USDA ingest lane opens
     - Open Food Facts has deterministic full-dump and delta/export-style manifest fixtures that pass source-specific dry-run preflight against PR2, PR3, and PR5 contracts while preserving ODbL attribution and redistribution policy before any OFF ingest lane opens
     - JPTN Food Facts has a deterministic identity/license gate that records missing provider identity, source URL, license, retrieval contract, schema/unit-normalization, attribution, and redistribution evidence while keeping JPTN blocked until verified
-    - MenuStat is not treated as an actively updating source; replacement-source decision is required before new restaurant-menu ingest
+    - MenuStat is not treated as an actively updating source; PR9 defines a deterministic replacement-source decision gate that keeps Nutritionix, FatSecret Platform, Spoonacular, and chain public nutrition pages blocked until source-specific legal, contract, cache, attribution, redistribution, freshness, schema, and rollback terms are approved
+    - PR10 narrows the PR9 interpretation: FatSecret Platform is explicitly not a PulsePlate project source; MenuStat is archival/reference-only and requires validation before use; chain public nutrition pages are the preferred budget-first research lane but remain manual-evidence-only until legal, anti-scraping, cache, attribution, freshness, schema, screenshot/evidence, and rollback governance is approved
+    - Under-$20 food/recipe APIs such as Edamam Food Database may be recorded only as adjacent review candidates and must not become source authority, API-call lanes, cache authority, or runtime/ingest surfaces without a dedicated source-specific packet
+    - Core product food database authority stays USDA-first; Open Food Facts remains auxiliary and may require a later schema/PostgreSQL review lane because upstream fields/source structure changed, while restaurant menus, dish/recipe databases, and preference-menu planning remain the active unresolved source area
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
@@ -3212,11 +3222,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-scientific-reliability-pipeline"></a>
-- [ ] P1: Scientific reliability publication packet (evidence + article mapping)
+- [x] P1: Scientific reliability publication packet (evidence + article mapping)
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (trust + GTM)
-  - Target PR: PR-A9 (`docs/ai-scientific-reliability-packet`)
-  - Status: 🟡 In progress (A9 docs-only evidence lane is active; packet and audit evidence are now the canonical delivery surface)
+  - Target PR: PR-A9 (`docs/ai-scientific-reliability-packet`, merged as PR `#1512`)
+  - Status: ✅ Closed. PR `#1512` merged on 24 April 2026 as
+    `2c9d9f4f6bbee139b855944568d5a2d25cd0bc15`; the A9 docs-only
+    evidence lane is now historical and must not be reopened as an active
+    publish lane.
+  - Closeout note: This reconciliation closes the stale in-progress ledger
+    state after the canonical A9 packet, task analysis, audit evidence packet,
+    and review mapping landed on `main`. Future evidence refreshes must create
+    a new dated packet or a separate superseding follow-up instead of rewriting
+    the immutable `2026-04-23` A9 snapshot. Exception approved on 30 April
+    2026: this delayed closeout is limited to reconciling PR `#1512`
+    (`2c9d9f4f6bbee139b855944568d5a2d25cd0bc15`) ledger truth without
+    reopening the A9 evidence snapshot.
   - Reason (EN): Product differentiation requires public, evidence-based communication of currently reproducible AI reliability methods with clear claim boundaries and no medical overclaiming. The current governed proof surface is the offline logic+philosophy replay contract plus shipped runtime anchors; this lane must not imply production proof, public verification fields, or recursive execution as the canonical validated-evidence write path. (RU: Для дифференциации нужен публичный научно-достоверный пакет по AI quality-подходу с жёсткими границами claims и без медикал-оверклеймов. Текущая доказательная база в этом lane — governed offline replay contract для logic+philosophy и уже слитые runtime anchors; нельзя выдавать это за production proof, public verification truth или canonical validated-evidence write path для recursive execution.)
   - Links:
     - docs/analysis/SCIENTIFIC_INNOVATION_ANALYSIS.md
@@ -3226,6 +3247,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md`
     - `docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md`
     - `docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md`
+    - `docs/review/PR_1512_FIXED_MAPPING.md` (merged A9 implementation mapping)
+    - `docs/review/PR_1588_FIXED_MAPPING.md` (this closeout mapping)
     - `tests/test_logic_philosophy_replay_eval.py`
   - DoD:
     - Editorial plan and evidence format are documented (metrics, corpus bounds, caveats, claim boundaries)

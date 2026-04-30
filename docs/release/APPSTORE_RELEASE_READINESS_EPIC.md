@@ -82,7 +82,7 @@ then update this epic, the matrix, and the lane packet in the same PR.
    - No runtime, metadata, asset, or privacy payload changes.
 
 2. **PR-1: privacy manifest and App Privacy truth**
-   - Branch: `release/appstore-readiness-pr1-privacy-truth`
+   - Branch: `release/appstore-readiness-pr1-privacy-manifest`
    - Add `ios/PulsePlate/PrivacyInfo.xcprivacy`.
    - Replace `DATA_NOT_COLLECTED` with App Privacy answers matching profile,
      AI, billing, and diagnostics/telemetry truth.

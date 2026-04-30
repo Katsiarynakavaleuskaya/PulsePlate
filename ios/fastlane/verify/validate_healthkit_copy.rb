@@ -91,9 +91,6 @@ if privacy_json_path.file?
       end
     end
 
-    unless data_not_collected_healthkit
-      errors << "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
-    end
   rescue JSON::ParserError
     errors << "Invalid JSON in #{privacy_json_path}"
   end

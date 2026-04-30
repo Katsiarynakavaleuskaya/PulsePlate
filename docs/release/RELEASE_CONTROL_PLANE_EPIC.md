@@ -77,6 +77,9 @@ review governance.
    - Branch: `release/release-control-plane-pr1-reviewer-hash`
    - Define how reviewer notes, metadata, and App Store readiness artifacts are hashed after they land on `main`.
    - Consume App Store readiness outputs; do not own that PR train.
+   - Contract: [`REVIEWER_PACKET_HASH_CONTRACT.md`](REVIEWER_PACKET_HASH_CONTRACT.md)
+     and [`REVIEWER_PACKET_HASH_CONTRACT.schema.json`](REVIEWER_PACKET_HASH_CONTRACT.schema.json).
+   - Helper: `scripts/release/reviewer_packet_hashes.py`.
 
 3. **PR-2: RAG/ML gate result export**
    - Branch: `release/release-control-plane-pr2-rag-gate-export`
@@ -162,3 +165,4 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
 3. Reuse existing RAG gates and Docker provenance controls.
 4. Keep the release packet internal and machine-readable.
 5. Defer MLflow, Hugging Face cards, VEX/OPA, and protected uploads to later explicitly scoped slices.
+6. PR-1 hashes reviewer notes separately from localized App Store metadata and treats App Privacy JSON as upstream context only.

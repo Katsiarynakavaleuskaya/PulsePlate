@@ -745,7 +745,7 @@ def test_validate_healthkit_copy_uses_actual_privacy_posture_for_contradictions(
     assert "NSHealthUpdateUsageDescription must be absent for read-only HealthKit" in result.stderr
     assert (
         "App privacy JSON must declare on-device HealthKit data as DATA_NOT_COLLECTED"
-        in result.stderr
+        not in result.stderr
     )
     assert (
         f"Reviewer notes contradict read-only HealthKit posture: {review_notes}"

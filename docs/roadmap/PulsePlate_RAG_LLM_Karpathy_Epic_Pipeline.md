@@ -511,6 +511,13 @@ Reduce recursive latency before broadening rollout.
 #### Goal
 Turn the AI moat into evidence-backed positioning without overclaiming.
 
+#### Current status
+Merged as PR `#1512` on 24 April 2026
+(`2c9d9f4f6bbee139b855944568d5a2d25cd0bc15`). Treat this lane as
+historical/closed; do not reopen `PR-A9` as the active publish lane. Future
+scientific-reliability refreshes require a new dated packet or separate
+superseding follow-up.
+
 #### In scope
 - governed offline replay evidence
 - claim boundaries
