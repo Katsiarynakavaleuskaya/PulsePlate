@@ -94,6 +94,32 @@ describe('PR-8 Storybook parity surfaces', () => {
     }
   });
 
+  it('does not treat Storybook hostname prefixes as the fixture origin', async () => {
+    const originalFetch = window.fetch;
+    const liveFetch = vi.fn(async () => new Response('external host'));
+    window.fetch = liveFetch as unknown as typeof window.fetch;
+
+    function SpoofedOriginProbe() {
+      useEffect(() => {
+        void fetch('https://storybook.pulseplate.local.evil.test/api/v1/pro/session');
+      }, []);
+
+      return createElement('div', null, 'Spoofed origin probe');
+    }
+
+    try {
+      render(
+        createElement(StorybookApiStub, null, createElement(SpoofedOriginProbe))
+      );
+
+      await waitFor(() => {
+        expect(liveFetch).toHaveBeenCalledTimes(1);
+      });
+    } finally {
+      window.fetch = originalFetch;
+    }
+  });
+
   it('renders the Pro paywall review surface behind the local API stub', async () => {
     const originalFetch = window.fetch;
     const liveFetch = vi.fn(async () => new Response('live backend should not be called'));

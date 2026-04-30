@@ -58,6 +58,12 @@ function storybookPathname(requestUrl: string): string {
   return new URL(requestUrl, STORYBOOK_API_BASE).pathname;
 }
 
+function isStorybookApiRequest(requestUrl: string): boolean {
+  const url = new URL(requestUrl, STORYBOOK_API_BASE);
+  const storybookOrigin = new URL(STORYBOOK_API_BASE).origin;
+  return url.origin === storybookOrigin && url.pathname.startsWith('/api/');
+}
+
 function routeStorybookResponse(requestUrl: string, sessionState: StorySessionState): Response {
   const pathname = storybookPathname(requestUrl);
 
@@ -173,8 +179,7 @@ export function StorybookApiStub({
     const stubFetch = (async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const requestUrl =
         typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
-      const pathname = storybookPathname(requestUrl);
-      if (requestUrl.startsWith(STORYBOOK_API_BASE) || pathname.startsWith('/api/')) {
+      if (isStorybookApiRequest(requestUrl)) {
         return routeStorybookResponse(requestUrl, sessionState);
       }
       return originalFetch(input, init);

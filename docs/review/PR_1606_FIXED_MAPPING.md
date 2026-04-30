@@ -37,6 +37,11 @@ Commit: 626ee6ee6
 Evidence: `frontend/src/components/ui/EmptyState.stories.tsx` now supplies required `title` and `description` args for preset render stories, preserving Storybook typing while keeping the rendered presets deterministic.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1606#bug-hunter-empty-state-required-args -> 626ee6ee6
 
+Disposition: FIXED
+Commit: TBD
+Evidence: `frontend/src/stories/storybookParitySupport.tsx` now parses request URLs and compares exact origin plus `/api/*` pathname before routing through Storybook fixtures. `frontend/src/stories/__tests__/storybookParity.test.ts` covers spoofed Storybook hostname prefixes so external hosts do not enter the fixture router.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/runs/73804421529 -> TBD
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
