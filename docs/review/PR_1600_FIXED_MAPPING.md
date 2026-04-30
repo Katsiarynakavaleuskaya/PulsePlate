@@ -28,10 +28,6 @@ Declared role order:
 6. `qa-engineer-agent`
 7. `bug-hunter`
 
-## Fixed in Commit Mapping
-
-- No actionable review comments
-
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
@@ -45,6 +41,10 @@ proof before they are resolved:
 - `FIXED`: thread URL -> commit SHA made after the comment timestamp
 - `NOT-A-BUG`: thread URL plus evidence
 - `DEFERRED`: thread URL plus backlog link
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Local Validation
 
@@ -68,9 +68,7 @@ Pre-push hooks also passed.
 
 ## Merge Readiness
 
-Draft status is intentional until:
-
-- current-head PR CI is complete
-- CodeRabbit/Sourcery/Cubic have no actionable items
-- all review threads are dispositioned
-- strict merge readiness passes
+- [ ] current-head PR CI is complete
+- [ ] CodeRabbit/Sourcery/Cubic have no actionable items
+- [ ] all review threads are dispositioned
+- [ ] strict merge readiness passes

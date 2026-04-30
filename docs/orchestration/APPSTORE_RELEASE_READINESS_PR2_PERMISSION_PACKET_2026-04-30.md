@@ -81,8 +81,8 @@ pre-commit run --all-files
 
 Heavy signal:
 
-- GitHub current-head CI for iOS unit/UI, lint, security, diff coverage, asset
-  validation, and merge readiness
+- GitHub current-head CI for iOS unit tests, lint, security, diff coverage,
+  asset validation, and merge readiness
 
 ## Stop Conditions
 
