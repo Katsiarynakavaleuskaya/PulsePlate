@@ -268,11 +268,21 @@ bash scripts/diagnose_web.sh
 
 ### Prelaunch access smoke contract
 
-До явного launch gate сайт остаётся закрытым для anonymous public traffic.
+This section is the canonical prelaunch access-smoke source of truth. Supporting
+diagnostic docs may summarize it, but should link back here instead of
+redefining the contract.
+
+До явного launch gate сайт остаётся закрытым для anonymous public traffic. The
+launch gate is the operator-approved release decision that moves this section
+into the narrow public reopen contract below; the tracked automation follow-up
+is `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-cloudflare-narrow-reopen-automation`.
 В этом состоянии `https://pulseplate.app/` может ожидаемо редиректить на
 `pulseplate.cloudflareaccess.com` или показывать Cloudflare Access login.
 Это не считается production regression для launch shell, пока публичный launch
 не одобрен отдельно.
+
+For quick triage, see `scripts/QUICK_DIAGNOSTIC.md` section
+`Вариант 0b: быстро отличить edge challenge от origin drift`.
 
 Release-truth для prelaunch проверки:
 
@@ -281,6 +291,11 @@ Release-truth для prelaunch проверки:
   `CF_ACCESS_CLIENT_SECRET`
 - staging или preview hostname, если он включён отдельно
 - local build/preview для Figma parity, copy, CTA, FitChef visual и UX
+
+Secrets hygiene: never paste `CF_ACCESS_CLIENT_ID` or
+`CF_ACCESS_CLIENT_SECRET` values into tickets, logs, PR bodies, screenshots, or
+repo files. Use environment variables or the approved secrets manager, and
+document probe configuration by secret name only.
 
 Не открывайте публичный bypass только ради smoke до launch. Публичный bypass
 для `/`, SPA routes, `/assets/*`, `/favicon*`, `/sitemap.xml`, `/privacy` и
@@ -303,9 +318,12 @@ temporary bypass для **public shell/discovery GET paths**:
 - `/legacy/bmi-calculator`
 
 Bypass must be scoped to safe HTTP methods for those public surfaces, preferably
-`GET` and `HEAD`. A CSS asset probe must return `200` with `text/css`; a
-redirect to `pulseplate.cloudflareaccess.com` means the public shell will render
-without production styles.
+`GET` and `HEAD`. Probe the concrete CSS file URL referenced by the SPA shell
+(typically a hashed `/assets/*.css` href). Require HTTP `200` and a
+`Content-Type` that starts with `text/css` so charset suffixes are accepted. Any
+Access redirect/challenge, redirect to `pulseplate.cloudflareaccess.com`,
+non-2xx status, or non-`text/css` response means the public shell will render
+without production styles and the bypass is not ready.
 
 Обязательно оставить защищёнными:
 

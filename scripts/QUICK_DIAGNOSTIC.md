@@ -58,6 +58,8 @@ bash scripts/diagnose_web.sh
 `https://pulseplate.app` может ожидаемо редиректить на
 `pulseplate.cloudflareaccess.com` или показывать Cloudflare Access login.
 Это закрытый prelaunch state, а не требование открывать сайт людям.
+Канонический контракт находится в `docs/deploy/CLOUDFLARE.md` section
+`Prelaunch access smoke contract`; этот файл только даёт быстрый triage path.
 
 До launch release-truth для web shell:
 
@@ -68,6 +70,8 @@ bash scripts/diagnose_web.sh
 
 Публичный bypass для `/`, SPA routes, `/assets/*`, `/favicon*`,
 `/sitemap.xml`, `/privacy` и `/terms` откладывается до отдельного launch gate.
+`/legacy/bmi-calculator` не входит в prelaunch bypass; он допускается только в
+temporary public reopen allowlist после launch gate.
 `/api*`, `/admin*`, private probes и service-token verification остаются
 закрытыми.
 

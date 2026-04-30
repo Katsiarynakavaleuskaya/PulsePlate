@@ -54,8 +54,11 @@ expected closed-preview state until an explicit launch gate approves anonymous
 public access.
 
 Prelaunch validation must use authenticated/operator access, Access service
-token probes, staging/preview, or local frontend build/preview. Do not treat
-the public bypass below as required for normal prelaunch smoke.
+token probes, staging/preview, or local frontend build/preview. Canonical
+prelaunch policy lives in `docs/deploy/CLOUDFLARE.md` section
+`Prelaunch access smoke contract`; this routing document only records how the
+later public reopen interacts with Caddy/SPA paths. Do not treat the public
+bypass below as required for normal prelaunch smoke.
 
 ## Temporary public reopen contract
 
@@ -73,9 +76,12 @@ bypass** only for the public shell/discovery surfaces:
 - `/legacy/bmi-calculator`
 
 The bypass must stay method-scoped to safe public requests: `GET` and `HEAD`
-only. A hashed CSS asset under `/assets/` must return `200` with
-`text/css`; any redirect to `pulseplate.cloudflareaccess.com` means the public
-SPA shell will render without production styles.
+only. Probe the concrete CSS file URL referenced by the SPA shell (typically a
+hashed `/assets/*.css` href). Require HTTP `200` and a `Content-Type` that
+starts with `text/css` so charset suffixes are accepted. Any Access
+redirect/challenge, redirect to `pulseplate.cloudflareaccess.com`, non-2xx
+status, or non-`text/css` response means the public SPA shell will render
+without production styles and the bypass is not ready.
 
 Keep these surfaces edge-protected during the reopen window:
 
@@ -88,6 +94,11 @@ Keep these surfaces edge-protected during the reopen window:
 - `/docs*`
 - `/redoc*`
 - `/debug_env`
+
+Deployment or recovery checks for `/health*` and `/ready` must run as
+authenticated/operator probes or through the Access service-token flow while
+the host is closed. Do not make those operational probes public only to satisfy
+prelaunch smoke.
 
 `/legacy/bmi-calculator` is intentionally public here because it is linked from
 the direct API probe and included in the sitemap. Other `/legacy*` paths are
