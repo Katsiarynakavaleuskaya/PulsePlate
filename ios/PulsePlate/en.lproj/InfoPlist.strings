@@ -1,11 +1,4 @@
 /* English Info.plist Localization */
 "NSHealthShareUsageDescription" = "PulsePlate reads Health nutrition and body weight data to show wellness progress and planning with your consent.";
-"NSCameraUsageDescription" = "PulsePlate needs camera access to scan product barcodes for food identification.";
-"NSLocationWhenInUseUsageDescription" = "PulsePlate needs location access to find nearby stores and local products.";
-"NSPhotoLibraryUsageDescription" = "PulsePlate needs photo library access to save and share your meal plans.";
-"NSMicrophoneUsageDescription" = "PulsePlate needs microphone access for voice commands and audio notes.";
-"NSContactsUsageDescription" = "PulsePlate needs contacts access to share meal plans with family and friends.";
-"NSFaceIDUsageDescription" = "PulsePlate uses Face ID for secure authentication and quick access to your health information.";
-"NSUserTrackingUsageDescription" = "PulsePlate may use tracking data to personalize your nutritional experience and recommendations.";
 "CFBundleDisplayName" = "PulsePlate";
 "CFBundleName" = "PulsePlate";
