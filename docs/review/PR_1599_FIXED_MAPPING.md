@@ -46,7 +46,11 @@ No review threads yet; PR is draft.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1599#pullrequestreview-4205780484 -> 539932007
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1599#discussion_r3168491432 -> 539932007
+Disposition: FIXED
+Commit: 539932007
+Evidence: `docs/DEPENDENCY_MANAGEMENT.md` distinguishes optional ML runtime from `pgvector` test tooling and points optional vector/ML runtime expansion to workflow/risk-profile tests; `docs/roadmap/BACKLOG_LEDGER.md` links detailed run timing evidence back to this canonical PR mapping artifact instead of duplicating volatile run metadata in the ledger status note.
 
 ## Deferred / Follow-ups
 
