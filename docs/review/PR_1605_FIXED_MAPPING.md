@@ -28,11 +28,10 @@ review comments must be dispositioned here first as `FIXED`, `NOT-A-BUG`, or
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909585 -> 1697feb5b
-  - Disposition: FIXED
-  - Evidence: `scripts/release/release_manifest.py` now rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`; `tests/test_release_manifest.py::test_missing_source_artifacts_are_rejected_even_with_valid_self_hash` covers recomputed self-hash bypass attempts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592 -> 1697feb5b
-  - Disposition: FIXED
-  - Evidence: `scripts/release/release_manifest.py` now validates source artifact `kind`; `tests/test_release_manifest.py::test_invalid_source_artifact_kind_is_rejected` covers missing/invalid artifact kind.
+Disposition: FIXED
+Commit: 1697feb5b
+Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts` and validates source artifact `kind`; `tests/test_release_manifest.py::test_missing_source_artifacts_are_rejected_even_with_valid_self_hash` and `tests/test_release_manifest.py::test_invalid_source_artifact_kind_is_rejected` cover both review findings.
 
 ## Validation
 
