@@ -37,12 +37,21 @@ Disposition: FIXED
 Commit: 3f26a6409
 Evidence: `core/evidence/policies.py` validates raw canonical evidence upstream ids against the target rail, `core/evidence/assets.py` applies that validation after upstream-id normalization, and `tests/core/evidence/test_assets.py` covers the bypass case.
 
+`bug-hunter` found that colon-delimited `version` values could create asset IDs
+that later failed canonical parsing, and that raw `evidence:` upstream IDs did
+not validate the 24-character lowercase hex digest shape.
+
+Disposition: FIXED
+Commit: 75dd48bb2
+Evidence: `core/evidence/policies.py` rejects colon-delimited tokens and validates raw canonical evidence upstream-id digests as 24 lowercase hex characters; `tests/core/evidence/test_assets.py` covers same-rail upstream refs, colon-token rejection, and malformed raw evidence IDs.
+
 ## Initial Implementation Commits
 
 - `64ba7a6fc` - `feat(metadata): add evidence asset registry`
 - `bc0991aa0` - `docs(review): add PR 1594 mapping`
 - `694c6eb25` - `test(evidence): harden asset registry contracts`
 - `3f26a6409` - `fix(evidence): reject cross-rail raw upstream ids`
+- `75dd48bb2` - `fix(evidence): harden evidence asset id parsing`
 
 ## Coordinator Packet
 
@@ -74,8 +83,8 @@ Mandatory post-open review lane:
 - `python3 scripts/orchestration/check_preflight.py` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `. .venv/bin/activate && pytest -q tests/core/evidence` PASS
-  (`15 passed`) after CodeRabbit test-hardening fixes and the post-open
-  `qa-engineer-agent` rail-bypass fix.
+  (`21 passed`) after CodeRabbit test-hardening fixes and the post-open
+  `qa-engineer-agent` / `bug-hunter` fixes.
 - `. .venv/bin/activate && python -m mypy --no-incremental --cache-dir=/dev/null core/evidence tests/core/evidence`
   PASS (`Success: no issues found in 6 source files`) after CodeRabbit
   test-hardening fixes.
