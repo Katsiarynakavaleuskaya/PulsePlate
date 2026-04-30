@@ -69,14 +69,26 @@ The manifest contains:
     "schema_version": "release-reviewer-packet-hashes.v1",
     "reviewer_notes_hash": "<64 lowercase hex>",
     "appstore_metadata_hash": "<64 lowercase hex>",
-    "source_artifacts": []
+    "source_artifacts": [
+      {
+        "kind": "reviewer_notes",
+        "path": "ios/fastlane/metadata/review_information/notes.txt",
+        "hash": "<64 lowercase hex>"
+      }
+    ]
   },
   "ml_identity": {
     "schema_version": "release-rag-gate-result.v1",
     "rag_gate_result_hash": "<64 lowercase hex>",
     "eval_artifact_hash": "<64 lowercase hex>",
     "release_decision": "PASS",
-    "source_artifacts": []
+    "source_artifacts": [
+      {
+        "kind": "rag_gate_result",
+        "path": "artifacts/rag_eval/release/rag_gate_result.json",
+        "hash": "<64 lowercase hex>"
+      }
+    ]
   },
   "supply_chain_identity": {
     "sbom_digest": "sha256:<64 lowercase hex>",

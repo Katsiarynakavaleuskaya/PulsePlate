@@ -205,6 +205,36 @@ def test_absolute_source_artifact_path_is_rejected(tmp_path: Path) -> None:
     )
 
 
+def test_missing_source_artifacts_are_rejected_even_with_valid_self_hash(tmp_path: Path) -> None:
+    payload = _build_manifest(tmp_path)
+    payload["reviewer_identity"] = dict(payload["reviewer_identity"])
+    del payload["reviewer_identity"]["source_artifacts"]
+    payload = _rehash_manifest(payload)
+
+    errors = release_manifest.validate_manifest_payload(payload)
+
+    assert "reviewer_identity.source_artifacts is required." in errors
+
+
+def test_invalid_source_artifact_kind_is_rejected(tmp_path: Path) -> None:
+    payload = _build_manifest(tmp_path)
+    payload["ml_identity"] = dict(payload["ml_identity"])
+    payload["ml_identity"]["source_artifacts"] = [
+        {
+            "path": "artifacts/rag_eval/unit-test/rag_gate_result.json",
+            "hash": "d" * 64,
+        }
+    ]
+    payload = _rehash_manifest(payload)
+
+    errors = release_manifest.validate_manifest_payload(payload)
+
+    assert any(
+        "ml_identity.source_artifacts[0].kind must be a non-empty lowercase artifact kind." in error
+        for error in errors
+    )
+
+
 def test_schema_file_matches_emitted_payload_shape(tmp_path: Path) -> None:
     payload = _build_manifest(tmp_path)
     schema = json.loads(

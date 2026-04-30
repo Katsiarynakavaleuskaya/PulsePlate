@@ -23,6 +23,7 @@ VERIFIED_ATTESTATION_STATUS = "VERIFIED"
 ATTESTATION_STATUSES = frozenset({"VERIFIED", "FAILED", "MISSING", "PENDING"})
 SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
 OCI_SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
+SOURCE_ARTIFACT_KIND_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 
 
 class ReleaseManifestError(ValueError):
@@ -82,19 +83,27 @@ def _check_oci_digest(value: Any, field_name: str, errors: list[str]) -> None:
         errors.append(f"{field_name} must use sha256:<64 lowercase hex> format.")
 
 
-def _source_artifact_paths_are_relative(
+def _validate_source_artifacts(
     entries: Any,
     *,
     field_name: str,
     errors: list[str],
+    require_non_empty: bool = False,
 ) -> None:
     if not isinstance(entries, list):
         errors.append(f"{field_name} must be a list.")
         return
+    if require_non_empty and not entries:
+        errors.append(f"{field_name} must contain at least one artifact.")
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
             errors.append(f"{field_name}[{index}] must be an object.")
             continue
+        kind_value = entry.get("kind")
+        if not isinstance(kind_value, str) or not SOURCE_ARTIFACT_KIND_RE.fullmatch(kind_value):
+            errors.append(
+                f"{field_name}[{index}].kind must be a non-empty lowercase artifact kind."
+            )
         path_value = entry.get("path")
         if not isinstance(path_value, str) or not path_value:
             errors.append(f"{field_name}[{index}].path must be a non-empty string.")
@@ -121,7 +130,7 @@ def _validate_rag_gate_result(payload: dict[str, Any]) -> list[str]:
         if self_hash != expected_hash:
             errors.append("rag_gate_result_hash does not match canonical payload.")
 
-    _source_artifact_paths_are_relative(
+    _validate_source_artifacts(
         payload.get("source_artifacts", []),
         field_name="rag_gate_result.source_artifacts",
         errors=errors,
@@ -268,11 +277,15 @@ def validate_manifest_payload(payload: dict[str, Any]) -> list[str]:
             "appstore_metadata_hash",
             errors,
         )
-        _source_artifact_paths_are_relative(
-            reviewer_identity.get("source_artifacts", []),
-            field_name="reviewer_identity.source_artifacts",
-            errors=errors,
-        )
+        if "source_artifacts" not in reviewer_identity:
+            errors.append("reviewer_identity.source_artifacts is required.")
+        else:
+            _validate_source_artifacts(
+                reviewer_identity["source_artifacts"],
+                field_name="reviewer_identity.source_artifacts",
+                errors=errors,
+                require_non_empty=True,
+            )
 
     ml_identity = payload.get("ml_identity")
     if not isinstance(ml_identity, dict):
@@ -286,11 +299,15 @@ def validate_manifest_payload(payload: dict[str, Any]) -> list[str]:
         _check_sha256_hex(ml_identity.get("eval_artifact_hash"), "eval_artifact_hash", errors)
         if ml_decision not in {"PASS", "NO-GO"}:
             errors.append("ml_identity.release_decision must be PASS or NO-GO.")
-        _source_artifact_paths_are_relative(
-            ml_identity.get("source_artifacts", []),
-            field_name="ml_identity.source_artifacts",
-            errors=errors,
-        )
+        if "source_artifacts" not in ml_identity:
+            errors.append("ml_identity.source_artifacts is required.")
+        else:
+            _validate_source_artifacts(
+                ml_identity["source_artifacts"],
+                field_name="ml_identity.source_artifacts",
+                errors=errors,
+                require_non_empty=True,
+            )
 
     supply_chain_identity = payload.get("supply_chain_identity")
     if not isinstance(supply_chain_identity, dict):
