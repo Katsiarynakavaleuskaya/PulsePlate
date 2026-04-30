@@ -3662,27 +3662,41 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Search: ranking, headings/title weighting, or index-first retrieval (v1 is body substring only).
 
 <a id="ledger-p2-advisory-wiki-query-lint-enrichment"></a>
-- [ ] P2: Advisory wiki query/lint enrichment
+- [x] P2: Advisory wiki query/lint enrichment
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: PR-B3 / `codex/advisory-wiki-query-lint-enrichment-b3`
   - Area: orchestration / workforce memory / operator tooling
   - Finding Type: post-hardening follow-on
-  - Status: 🟡 In progress via PR-B3
-  - Reason (EN): The compiler/hardening baseline is now present, but the next workforce slice should enrich query and lint behavior without widening into embeddings, vector search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже есть, но следующий workforce slice должен улучшать query/lint без ухода в embeddings, vector search или product-facing RAG semantics.)
+  - Status: ✅ Closed. PR-B3 merged as PR #1596 on 2026-04-30 with merge commit
+    `438d135f7ae0a07cb28549488284a40e08183c92`.
+  - Closeout note: PR #1596 completed the advisory/operator-only query/lint
+    enrichment slice without product RAG runtime, API, DTO, OpenAPI, semantic
+    cache, GraphRAG, embeddings, vector DB, Redis/GPTCache, or ContextManifest
+    scope. The next substantive Rail B1 slice remains
+    `PR-B4 — docs(orchestration): define bounded reference-corpus policy for
+    advisory wiki`.
+  - Reason (EN): The compiler/hardening baseline is now present, and PR-B3 has
+    enriched query and lint behavior without widening into embeddings, vector
+    search, or product-facing RAG semantics. (RU: Базовый compiler/hardening уже
+    есть, и PR-B3 улучшил query/lint без ухода в embeddings, vector search или
+    product-facing RAG semantics.)
   - Links:
     - `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md`
+    - `docs/review/PR_1596_FIXED_MAPPING.md`
+    - `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596`
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-local-workforce-pr-d-advisory-wiki-compiler`
     - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
     - `scripts/orchestration/wiki_query.py`
     - `scripts/orchestration/wiki_lint.py`
   - DoD:
-    - Query/lint enrichment remains non-canonical and operator-only
-    - No embeddings, vector DB, or public runtime coupling are introduced
-    - Opt-in query context remains backward-compatible with default search output
-    - Lint covers deterministic index/page consistency and stale local page links
-    - Follow-on scope remains explicit: contradiction lint, index weighting, manifest/history improvements, and reference-corpus policy stay separate
+    - ✅ Query/lint enrichment remains non-canonical and operator-only.
+    - ✅ No embeddings, vector DB, or public runtime coupling are introduced.
+    - ✅ Opt-in query context remains backward-compatible with default search output.
+    - ✅ Lint covers deterministic index/page consistency and stale local page links.
+    - ✅ Follow-on scope remains explicit: contradiction lint, index weighting,
+      manifest/history improvements, and reference-corpus policy stay separate.
 
 <a id="ledger-p2-advisory-wiki-reference-corpus-policy"></a>
 - [ ] P2: Advisory wiki bounded reference-corpus policy
