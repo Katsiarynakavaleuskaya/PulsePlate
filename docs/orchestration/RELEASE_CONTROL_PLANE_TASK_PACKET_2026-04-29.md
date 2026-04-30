@@ -177,6 +177,25 @@ sample size, git SHA, and retriever/generator modes. It reserves optional
 `mlflow_run_id` and `model_version` fields for future explicitly scoped ML
 identity integrations.
 
+### PR-3 Release Manifest Contract
+
+PR-3 defines the internal release manifest generator and fail-closed validator
+without adding CI release gating, build-equivalence enforcement, App Store
+uploads, backend APIs, OpenAPI changes, or product runtime behavior. The
+machine-readable schema and field contract live in
+[`docs/release/RELEASE_MANIFEST_CONTRACT.md`](../release/RELEASE_MANIFEST_CONTRACT.md)
+and
+[`docs/release/RELEASE_MANIFEST_CONTRACT.schema.json`](../release/RELEASE_MANIFEST_CONTRACT.schema.json).
+
+The deterministic helper is `scripts/release/release_manifest.py`. It consumes
+the PR-1 reviewer packet hash helper, an existing PR-2 `rag_gate_result.json`,
+explicit build identity values, and explicit supply-chain digest/attestation
+values. `release_manifest_hash` is SHA-256 lowercase hexadecimal over canonical
+JSON bytes excluding the self-hash. `release_decision` is `ALLOW` only when
+required identity groups are complete, RAG gate result is `PASS`, supply-chain
+digests are valid OCI `sha256:<hex>` values, and `attestation_status` is
+`VERIFIED`; otherwise it is `BLOCK` with deterministic `decision_reasons`.
+
 ## Bootstrap Commands
 
 Run from synced root before each slice:
@@ -229,7 +248,7 @@ Focused gates by future slice:
 - reviewer packet hash contract:
   `pytest -q tests/test_release_reviewer_packet_hashes.py`
 - RAG gate export: `pytest -q tests/test_rag_release_gates_runner.py`
-- release manifest: manifest schema and failure-mode tests
+- release manifest: `pytest -q tests/test_release_manifest.py`
 - build equivalence: review/prod digest mismatch tests
 - supply chain: `pytest -q tests/test_check_docker_provenance_attestation.py tests/test_python_supply_chain_controls.py`
 
