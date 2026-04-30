@@ -15,17 +15,32 @@ fixed after the comment timestamp and is mapped below.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164706825 -> 565d84c00f2f97a65ad0026853b7d8d121388749
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201341325 -> 565d84c00f2f97a65ad0026853b7d8d121388749
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164706825 -> a9f38fd9ed5fd43da09bd7fd60601d589b8e7d41
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201341325 -> a9f38fd9ed5fd43da09bd7fd60601d589b8e7d41
 Disposition: FIXED
-Commit: 565d84c00f2f97a65ad0026853b7d8d121388749
+Commit: a9f38fd9ed5fd43da09bd7fd60601d589b8e7d41
 Evidence: `.github/workflows/ci.yml:956` marks missing fast-feedback timing seed as `timing_unavailable` with `elapsed_seconds=-1` instead of falling back to `date +%s`; `tests/test_ci_workflow_pr_size_governance_contract.py:188` asserts the explicit missing-seed warning and forbids the legacy fallback.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164765312 -> 1a70c43ed5b0a3679c3b0a34da1167bbc6ebfb3d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> 1a70c43ed5b0a3679c3b0a34da1167bbc6ebfb3d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#discussion_r3164765312 -> a50f5928b43a173766328bc012a0a698603ee708
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1573#pullrequestreview-4201409535 -> a50f5928b43a173766328bc012a0a698603ee708
 Disposition: FIXED
-Commit: 1a70c43ed5b0a3679c3b0a34da1167bbc6ebfb3d
-Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:76` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
+Commit: a50f5928b43a173766328bc012a0a698603ee708
+Evidence: `docs/review/PR_1573_FIXED_MAPPING.md:82` keeps merge-readiness checkboxes unchecked until the final merge cycle, matching CodeRabbit's governance request.
+
+## Regression Stabilization Evidence
+
+- `f7f07c25d5f90821d099add4b679e43bea3c5b8a` keeps the PR aligned with
+  the already-merged payment auth override isolation fix by clearing app-level
+  `get_api_key` overrides from the canonical FastAPI app used by billing
+  resolver code.
+- `pytest -q tests/test_payment_source_contract_api.py::test_pop_app_get_api_key_overrides_removes_stale_reload_key tests/test_payment_source_contract_api.py::test_pop_app_get_api_key_overrides_scans_canonical_app tests/test_payment_source_contract_api.py::test_manual_intent_rejects_env_configured_pro_key_without_app_validator_override -vv`
+  (PASS)
+- CI-order prefix through `tests/test_payment_source_contract_api.py` using
+  `scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 2`
+  (PASS: 5683 passed, 8 skipped)
+- Rebased-head focused gate:
+  `pytest -q tests/test_payment_source_contract_api.py tests/test_repo_policy_guards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_ci_risk_profile.py tests/test_python_supply_chain_controls.py::test_ci_workflow_uses_single_direct_proxy_python_install_path_per_job`
+  (PASS)
 
 ## Initial Evidence
 
