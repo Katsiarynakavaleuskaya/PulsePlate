@@ -19,7 +19,7 @@ from typing import Any
 
 HEX_COLOR_RE = re.compile(r"#[0-9a-fA-F]{6}")
 VERSION_RE = re.compile(r"^v\d+\.\d+$")
-NODE_ID_RE = re.compile(r"^[A-Za-z0-9_.:-]+$")
+NODE_ID_RE = re.compile(r"^\d+:\d+$")
 LOCK_TYPES = {"L1", "L2", "L3", "L4"}
 CONTRACT_STATES = {"bootstrap", "locked"}
 CORE_LOCK_STATES = {"deferred", "locked"}
@@ -106,8 +106,8 @@ def validate_manifest(manifest: dict[str, Any], repo_root: Path) -> list[str]:
         errors.append("token_source must be a non-empty string path")
         token_path = None
     else:
-        token_path = repo_root / token_source
-        if not token_path.exists():
+        token_path = _resolve_repo_path(repo_root, token_source, "token_source", errors)
+        if token_path is not None and not token_path.exists():
             errors.append(f"token_source path not found: {token_source}")
             token_path = None
 
