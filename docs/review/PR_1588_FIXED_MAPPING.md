@@ -5,7 +5,8 @@
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1588>
 - Branch: `codex/a9-scientific-reliability-closeout`
 - Base observed at draft open: `ae08f299c3a6437bb6b77f8aa74baa8bfbe90565`
-- Implementation commit: `4cdd7c1f1`
+- Initial implementation commit: `4cdd7c1f1`
+- Current head after post-open governance sync: `8bb68b83e`
 
 ## Scope
 
@@ -66,18 +67,19 @@ Evidence:
   `mypy`, and `test-fast`, then entered full coverage before the operator
   disabled further Make runs for CPU protection.
 - `gh pr checks 1588 --watch=false` showed current-head docs/governance checks
-  passing or path-skipped for the draft head after commit `d7c6571d1`.
+  passing or path-skipped for head `8bb68b83e`; `lint` was still in progress
+  when this deferral was recorded.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-CodeRabbit skipped review because the PR is draft. Sourcery posted a reviewer
-guide only; it did not open actionable review threads. No human, CodeRabbit,
-Sourcery, or Cubic actionable review threads were present when this pass was
-recorded. New actionables must be added below with one of: `FIXED`,
-`NOT-A-BUG`, or `DEFERRED`.
+CodeRabbit completed its pre-merge checks with no actionable findings. Sourcery
+posted a reviewer guide only; it did not open actionable review threads. Cubic
+was neutral/skipped. No human, CodeRabbit, Sourcery, or Cubic actionable review
+threads were present when this pass was recorded. New actionables must be added
+below with one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
@@ -86,8 +88,8 @@ recorded. New actionables must be added below with one of: `FIXED`,
 ## Merge Readiness
 
 - [ ] No unresolved review threads
-- [ ] Required checks PASS on the PR current head (`gh pr checks 1588` still
-  pending after mapping push)
+- [ ] Required checks PASS on the PR current head (`lint` still pending after
+  mapping push)
 - [ ] Current-head `main` CI PASS
 - [ ] Strict merge wrapper PASS
 - [ ] Required wait window observed
