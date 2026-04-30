@@ -13,7 +13,7 @@ const tiers = [
     name: 'Free',
     positioning: 'Understand the basics',
     description:
-      'Access core wellness tools and baseline understanding. A useful starting point with real product depth.',
+      'Use the core planning surfaces and baseline context before deciding whether you need more depth.',
     items: [
       'Access Home dashboard',
       'Complete Setup',
@@ -30,14 +30,14 @@ const tiers = [
     name: 'Pro',
     positioning: 'Plan with more confidence',
     description:
-      'Add more structure and depth to your wellness planning. Unlock AI guidance and deeper product support.',
+      'Add more structure to everyday wellness planning with guided prompts and deeper progress context.',
     items: [
       'Everything in Free',
-      'AI Coach and guidance',
+      'Guided wellness prompts',
       'Deeper Progress views',
       'Weekly insights',
       'Open Plate with more structure',
-      'Premium product support',
+      'More product depth',
     ],
     label: 'Available now',
     ctaLabel: 'Explore Pro',
@@ -49,10 +49,10 @@ const tiers = [
     name: 'VIP',
     positioning: 'More personalized support and automation where available',
     description:
-      'The most personalized PulsePlate experience. Expanded customization and automation for deeper wellness guidance.',
+      'A preview lane for expanded personalization and automation when those surfaces are release-ready.',
     items: [
       'Everything in Pro',
-      'More personalized AI guidance',
+      'More personalized wellness guidance',
       'Expanded automation where available',
       'Priority support access',
       'Early access to new features',
@@ -70,7 +70,7 @@ export function TiersSection() {
     <MarketingSection id="tiers">
       <SectionHeader
         align="center"
-        description="Three honest tiers: useful Free access, calmer Pro depth, and explicitly bounded VIP expansion."
+        description="Three bounded tiers: useful Free access, calmer Pro depth, and VIP preview language without pricing or billing claims."
         eyebrow="Value / tier framing"
         title="Choose your level of support"
       />
