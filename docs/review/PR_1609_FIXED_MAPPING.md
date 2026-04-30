@@ -2,7 +2,8 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass completed for opening state
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Fixed in commit mapping created
 - [x] Coordinator-first start completed with task packet `eb56d2c8a639`
 - [x] Worktree-local pre-open coordinator bootstrap completed with task packet `eb56d2c8a639`
