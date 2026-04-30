@@ -37,6 +37,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_PACKET_2026-04-30.md`](./FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_PACKET_2026-04-30.md)
 - Current PR12 chain public nutrition pages governance:
   [`FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json`](../architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json)
+- Current PR13 per-chain legal / anti-scraping review packet:
+  [`FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md`](./FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md)
+- Current PR13 per-chain legal / anti-scraping review:
+  [`FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json`](../architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -51,4 +55,5 @@ criteria, PR2 tooling packet, PR3 source catalog, PR4 collision policy, PR5
 source-onboarding gate, PR6 USDA manifest preflight gate, PR7 Open Food Facts
 manifest preflight gate, PR8 JPTN identity/license gate, PR9 MenuStat
 replacement gate, PR10 MenuStat source-decision gate, or PR11
-coverage/source-gap audit, or PR12 chain public nutrition pages governance.
+coverage/source-gap audit, PR12 chain public nutrition pages governance, or
+PR13 per-chain legal / anti-scraping review.
