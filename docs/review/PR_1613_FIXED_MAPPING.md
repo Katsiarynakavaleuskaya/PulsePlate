@@ -23,6 +23,10 @@ Disposition: FIXED
 Commit: 716fad93
 Evidence: Closed CodeRabbit PR13 actionables by fail-closed validation for `display_decision`, `attribution_decision`, `freshness_review_status`, and `schema_review_status`; replaced duplicated report safety flags with the shared safety template; added helper return type annotations; and removed the workstation-specific validation command from this mapping. Anchors: `core/food_sources/per_chain_legal_review.py:356`, `core/food_sources/per_chain_legal_review.py:517`, `tests/test_food_source_per_chain_legal_review.py:47`, `docs/review/PR_1613_FIXED_MAPPING.md:42`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1613#issuecomment-4355440193 -> 716fad93
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1613#discussion_r3170337011 -> 716fad93
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1613#discussion_r3170337015 -> 716fad93
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1613#discussion_r3170337019 -> 716fad93
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1613#pullrequestreview-4207945736 -> 716fad93
 
 ## Merge Readiness Evidence
 
