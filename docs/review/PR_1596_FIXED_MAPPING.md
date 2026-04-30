@@ -79,7 +79,7 @@ Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates 
 
 Disposition: FIXED
 Commit: 943b2d85ffd087e364d98491b3a2a27489402483
-Evidence: `docs/review/PR_1596_FIXED_MAPPING.md` no longer contains a free-text commit value in the local heavy-verify disposition block; the lane records the operator CPU deferral instead.
+Evidence: `docs/review/PR_1596_FIXED_MAPPING.md` no longer contains a free-text commit value in the local full-verify disposition block; the lane records the concrete commit SHA and local verify evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#discussion_r3168206712 -> 943b2d85ffd087e364d98491b3a2a27489402483
 
 Disposition: FIXED
