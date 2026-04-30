@@ -17,12 +17,12 @@
 
 Disposition: FIXED
 Commit: 9eca6cb1b
-Evidence: Added PR12 chain public nutrition governance artifact, file-only validator, CLI, packet, current-pointer update, ledger update, and focused tests.
+Evidence: Added PR12 chain public nutrition governance artifact, file-only validator, CLI, packet, current-pointer update, ledger update, and focused tests. Anchors: `docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json:1`, `core/food_sources/chain_public_nutrition.py:1`, `scripts/food_source_chain_public_nutrition.py:1`, `tests/test_food_source_chain_public_nutrition.py:1`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 9eca6cb1b
 
 Disposition: FIXED
 Commit: 804de9dfa
-Evidence: Added this canonical PR #1609 mapping artifact and replaced the ledger target placeholder with PR #1609.
+Evidence: Added this canonical PR #1609 mapping artifact and replaced the ledger target placeholder with PR #1609. Anchors: `docs/review/PR_1609_FIXED_MAPPING.md:1`, `docs/roadmap/BACKLOG_LEDGER.md:1888`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 804de9dfa
 
 Disposition: FIXED
@@ -34,6 +34,11 @@ Disposition: FIXED
 Commit: 22ddff823
 Evidence: Tightened chain public nutrition governance validation from host-only checks to exact canonical nutrition URLs and added same-host non-nutrition negative coverage.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> 22ddff823
+
+Disposition: FIXED
+Commit: TBD
+Evidence: Added explicit query/fragment rejection plus `page_access` and `js_required` cross-field validation with regression tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1609 -> TBD
 
 ## Merge Readiness Evidence
 
@@ -48,7 +53,7 @@ python3 -m pytest tests/test_food_source_chain_public_nutrition.py tests/test_fo
 python3 -m scripts.food_source_chain_public_nutrition --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --coverage docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json --governance docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json --json
 pytest -q tests/test_repo_policy_guards.py
 pre-commit run --all-files
-make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python
+make validate-changed VENV_PYTHON=.venv/bin/python
 ```
 
 Local `make verify` is intentionally deferred for this food-data lane per operator-approved machine-heavy policy; GitHub current-head CI remains the heavy signal.

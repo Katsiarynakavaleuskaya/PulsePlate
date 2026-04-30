@@ -363,6 +363,8 @@ def _validate_official_url(chain_id: str, official_url: str, context: str) -> No
     parsed = urlparse(official_url)
     if parsed.scheme != "https" or not parsed.netloc:
         raise _governance_error(context, "official_url must be an https URL")
+    if parsed.query or parsed.fragment:
+        raise _governance_error(context, "official_url must not include query or fragment")
     host = parsed.netloc.lower()
     if any(fragment in host for fragment in _SOCIAL_MEDIA_HOST_FRAGMENTS):
         raise _governance_error(context, "social-media URLs cannot be official nutrition evidence")
@@ -404,6 +406,13 @@ def _parse_chain_page(value: object, context: str) -> RepresentativeChainPage:
         raise _governance_error(context, f"{page.chain_id} evidence_type is not allowed")
     if page.page_access not in {"public_web_page", "js_required_public_web_page"}:
         raise _governance_error(context, f"{page.chain_id} page_access is not allowed")
+    if (page.page_access == "js_required_public_web_page" and not page.js_required) or (
+        page.page_access == "public_web_page" and page.js_required
+    ):
+        raise _governance_error(
+            context,
+            f"{page.chain_id} page_access/js_required combination is not allowed",
+        )
     if page.authority_decision != "manual_evidence_only_not_authority":
         raise _governance_error(context, f"{page.chain_id} cannot become source authority")
     if (

@@ -345,6 +345,46 @@ def test_chain_public_nutrition_rejects_same_host_non_nutrition_page() -> None:
         )
 
 
+def test_chain_public_nutrition_rejects_query_or_fragment_url() -> None:
+    payload = _governance_payload()
+    _chain_page(payload, "starbucks_us")[
+        "official_url"
+    ] = "https://www.starbucks.com/menu/nutrition-info?utm_source=test"
+
+    with pytest.raises(ChainPublicNutritionGovernanceError, match="query or fragment"):
+        parse_chain_public_nutrition_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("page_access", "js_required"),
+    (
+        ("js_required_public_web_page", False),
+        ("public_web_page", True),
+    ),
+)
+def test_chain_public_nutrition_rejects_page_access_js_mismatch(
+    page_access: str,
+    js_required: bool,
+) -> None:
+    payload = _governance_payload()
+    page = _chain_page(payload, "chipotle_us")
+    page["page_access"] = page_access
+    page["js_required"] = js_required
+
+    with pytest.raises(ChainPublicNutritionGovernanceError, match="page_access/js_required"):
+        parse_chain_public_nutrition_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+        )
+
+
 @pytest.mark.parametrize(
     "field_name",
     (
