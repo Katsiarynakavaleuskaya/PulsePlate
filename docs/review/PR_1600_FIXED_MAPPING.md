@@ -33,7 +33,7 @@ Declared role order:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review threads were present when the draft PR opened.
+Actionable review threads were triaged after the PR moved to ready-for-review.
 
 Future actionable review threads must be listed here with disposition-specific
 proof before they are resolved:
@@ -44,7 +44,17 @@ proof before they are resolved:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168663349 -> 13e3d855e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1600#discussion_r3168686984 -> 13e3d855e
+
+Disposition: FIXED
+Commit: 13e3d855e
+Evidence: `tests/ios/test_info_plist_permission_strings.py` now scans Xcode
+Evidence: `INFOPLIST_KEY_*UsageDescription` build settings are covered.
+Evidence: localized `InfoPlist.strings` files are discovered dynamically.
+Evidence: ATT checks stay fail-closed.
+Evidence: `docs/orchestration/APPSTORE_RELEASE_READINESS_PR2_PERMISSION_PACKET_2026-04-30.md`
+Evidence: current-head CI wording now says iOS unit tests rather than iOS unit/UI.
 
 ## Local Validation
 
