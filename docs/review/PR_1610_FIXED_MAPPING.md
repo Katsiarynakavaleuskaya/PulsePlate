@@ -30,6 +30,9 @@ Evidence: `tests/test_food_source_menustat_replacement.py` annotates the paramet
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#issuecomment-4354114129 -> a9a52367e
 Disposition: FIXED
 Evidence: `tests/test_food_source_menustat_source_decision.py` annotates newly added helper and parametrized signatures.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1610#pullrequestreview-4206770024 -> a9a52367e
+Disposition: FIXED
+Evidence: `tests/test_food_source_menustat_replacement.py` and `tests/test_food_source_menustat_source_decision.py` annotate CodeRabbit-reported helper signatures.
 
 ## Local Verification
 
