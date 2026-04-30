@@ -58,6 +58,11 @@ Mapping` before resolving threads on GitHub.
 - `make verify` PASS after creating the ignored worktree-local `.venv -> ../../.venv`
   symlink; `verify-env`, flake8, mypy, smoke tests, full coverage pytest, and
   diff-cover all passed. Diff-cover reported no covered-line diff gaps.
+- After rebasing onto updated `origin/main`, the PR-scoped post-rebase gates
+  were rerun: `git diff --check` PASS, `pytest -q tests/test_repo_policy_guards.py`
+  PASS, `python3 scripts/ci/check_docs_phase1_gates.py --files ...` PASS,
+  `pre-commit run --all-files` PASS, and
+  `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS.
 - commit hooks PASS
 - pre-push hooks PASS
 
