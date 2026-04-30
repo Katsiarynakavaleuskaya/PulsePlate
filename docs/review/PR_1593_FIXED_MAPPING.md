@@ -34,15 +34,16 @@ accepted.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping initialized
+- [x] Fixed in commit mapping completed
 
 New human, CodeRabbit, Sourcery, or Cubic actionables must be added below with
 one of: `FIXED`, `NOT-A-BUG`, or `DEFERRED`.
 
 ## Fixed in Commit Mapping
 
-No review threads or bot actionables have been resolved yet.
+- No actionable review comments
 
 ## Merge Readiness
 
