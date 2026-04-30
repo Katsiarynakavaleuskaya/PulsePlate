@@ -2,8 +2,9 @@
 
 ## Discussion Thread Pass
 
-- [x] Discussion-thread pass started
+- [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping created
+- [x] Fixed in commit mapping completed
 - [x] Coordinator-first start completed with task packet `c352bce278d3`
 - [x] Post-open coordinator review completed with task packet `aa2a3128f2b9`
 - [x] Role order recorded: `agent-coordinator -> security-auditor -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> dev-operator`
