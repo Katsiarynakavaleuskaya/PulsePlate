@@ -46,6 +46,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - hero/product preview hierarchy, section rhythm, responsive layout, focus states, reduced-motion behavior, and CTA clarity are improved
     - wellness copy avoids unsupported proof, diagnosis, medical, guaranteed-outcome, pricing, billing, and store claims
     - focused frontend tests and `npm run build` pass
+    - CI parity is confirmed with no local-green / CI-red delta
+    - current-head CI is green and `check_merge_ready.py --require-auth` passes
+    - merge does not proceed while current `main` stability signals are red
     - Figma/Canva remain reference-only with no writes or generated runtime assets
 
 ### P0

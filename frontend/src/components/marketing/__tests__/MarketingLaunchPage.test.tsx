@@ -34,7 +34,7 @@ describe('PulsePlateMarketingPage', () => {
 
     expect(screen.getByText(/VIP preview language without pricing or billing claims/i)).toBeInTheDocument();
     expect(screen.getByText('Guided wellness prompts')).toBeInTheDocument();
-    expect(container).not.toHaveTextContent(/Product Hunt|#1|doctor recommended|guaranteed|diagnose/i);
+    expect(container).not.toHaveTextContent(/Product Hunt|#1|doctor[-\s]?recommended|guaranteed|diagnose/i);
     expect(container).not.toHaveTextContent(/\$\d/);
   });
 });

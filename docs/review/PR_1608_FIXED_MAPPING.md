@@ -65,10 +65,10 @@ Reason: This is an external review-capacity note, not an implementation request.
 
 ## Merge Readiness
 
-- [x] Draft PR opened
-- [x] PR promoted to ready for review
-- [x] Local narrow web/design gates passed
-- [x] Machine-heavy local `make verify` deferral documented
+- [ ] Draft PR opened
+- [ ] PR promoted to ready for review
+- [ ] Local narrow web/design gates passed
+- [ ] Machine-heavy local `make verify` deferral documented
 - [ ] PR current-head CI complete after ready-for-review promotion
-- [x] Review/bot actionables disposed
+- [ ] Review/bot actionables disposed
 - [ ] Strict merge wrapper PASS after ready-for-review promotion
