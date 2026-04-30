@@ -8,13 +8,16 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 - Status: Draft PR opened for CodeRabbit / bot / human review.
 - Review threads resolved by this artifact: none yet.
 - Actionable review comments: pending review intake.
 
 ## Fixed in Commit Mapping
 
-No review threads have been resolved yet.
+- No actionable review comments
 
 ## Local Validation Evidence
 
