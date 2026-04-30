@@ -78,14 +78,15 @@ Reason: The diff is intentionally docs/tooling scoped for PR-B3, targeted gates 
 ## Fixed in Commit Mapping
 
 Disposition: NOT-A-BUG
-Evidence: CodeRabbit skipped review because the PR is draft and did not report actionable code comments.
-Reason: Draft-skip status is advisory only; no thread was resolved.
+Evidence: CodeRabbit reported a review-rate-limit status after the PR moved from draft to ready and did not report actionable code comments.
+Reason: External bot review-rate limiting is not a code defect in this PR; no CodeRabbit actionables were available to fix.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#issuecomment-4351013003
 
 Disposition: NOT-A-BUG
-Evidence: Sourcery reported weekly rate-limit exhaustion and did not produce actionable review comments.
+Evidence: Sourcery reported weekly rate-limit exhaustion before and after the ready-for-review transition and did not produce actionable review comments.
 Reason: External rate limiting is not a code defect in this PR; no Sourcery actionables were available to fix.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4203723926
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1596#pullrequestreview-4203867988
 
 ## Merge Readiness
 
