@@ -1573,6 +1573,34 @@ def test_rag_gate_result_export_schema_and_hashes_are_deterministic(
     assert first["small_fixture_raw_gate_checks"]
 
 
+def test_rag_gate_result_schema_declares_all_emitted_fields(tmp_path: Path) -> None:
+    """The published schema must allow every key emitted by the runner."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "schema_keys"
+    run_dir.mkdir(parents=True)
+    metrics_path = run_dir / "metrics_summary.json"
+    metrics_path.write_text("{}", encoding="utf-8")
+    state = _make_release_gate_state(tmp_path, experiment_id="schema_keys")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+    payload = runner.build_rag_gate_result_export(
+        metrics_summary,
+        {"metrics_summary": str(metrics_path)},
+        run_dir=run_dir,
+    )
+    schema = json.loads(
+        Path("docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json").read_text(encoding="utf-8")
+    )
+
+    assert set(payload).issubset(schema["properties"])
+    assert set(schema["required"]).issubset(payload)
+
+
 def test_rag_gate_result_hash_changes_when_gate_result_changes(tmp_path: Path) -> None:
     """The self-hash must bind the exported gate result, not just artifacts."""
 

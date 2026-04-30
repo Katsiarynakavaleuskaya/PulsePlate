@@ -10,6 +10,8 @@
     "canonicalization",
     "rag_gate_result_hash",
     "eval_artifact_hash",
+    "experiment_id",
+    "timestamp",
     "release_decision",
     "gate_checks",
     "threshold_results",
@@ -41,6 +43,14 @@
     "eval_artifact_hash": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "experiment_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "timestamp": {
+      "type": "string",
+      "minLength": 1
     },
     "release_decision": {
       "enum": [
