@@ -4,7 +4,7 @@
 **Branch:** `release/release-control-plane-pr3-release-manifest`
 **Release-control-plane slice:** PR-3 release manifest generator and validator
 **Canonical commit:** `998664069`
-**Latest review-fix commit:** `bae29dc40`
+**Latest review-fix commit:** `688a391c7`
 
 ## Scope
 
@@ -35,9 +35,11 @@ actionable review comments must be dispositioned here first as `FIXED`,
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033954
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206288583
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206404870
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169311311
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206720073
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, wraps unreadable JSON inputs in `ReleaseManifestError`, and validates upstream RAG export `hash_algorithm`, canonicalization, and non-empty `source_artifacts`; `docs/release/RELEASE_MANIFEST_CONTRACT.md` now carries file-line evidence anchors; `tests/test_release_manifest.py` covers missing source artifacts, invalid artifact kind, unreadable inputs, invalid provenance digest, and malformed RAG gate metadata.
+Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, wraps unreadable JSON / artifact / reviewer input failures in `ReleaseManifestError`, and validates upstream RAG export `hash_algorithm`, canonicalization, and non-empty `source_artifacts`; `docs/release/RELEASE_MANIFEST_CONTRACT.md` carries refreshed file-line evidence anchors; `tests/test_release_manifest.py` covers missing source artifacts, invalid artifact kind, unreadable inputs, invalid provenance digest, and malformed RAG gate metadata.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909585 -> 1697feb5b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592 -> 1697feb5b
@@ -47,6 +49,8 @@ Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033954 -> bae29dc40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206288583 -> bae29dc40
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206404870 -> bae29dc40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169311311 -> 688a391c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206720073 -> 688a391c7
 
 ## Validation
 
@@ -64,6 +68,8 @@ Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identi
 - `pytest -q tests/test_release_manifest.py` PASS after `3a647ee35`
 - `pytest -q tests/test_release_manifest.py` PASS after `bae29dc40`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RELEASE_MANIFEST_CONTRACT.md docs/review/PR_1605_FIXED_MAPPING.md` PASS after `bae29dc40`
+- `pytest -q tests/test_release_manifest.py` PASS after `688a391c7`
+- `pre-commit run --all-files` PASS after `688a391c7`
 - Push-time hooks PASS: mypy changed files, backend pre-push, full-repo Bandit, Docker build test
 
 ## Machine-Heavy Deferral
