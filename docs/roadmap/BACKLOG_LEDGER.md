@@ -3707,19 +3707,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Advisory wiki bounded reference-corpus policy
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-ADVISORY-WIKI-REFERENCE-CORPUS-POLICY
+  - Target PR: PR-B4 / `codex/advisory-wiki-reference-corpus-policy-b4`
   - Area: orchestration / workforce memory / docs
   - Finding Type: source-boundary policy
-  - Status: 📋 Planned
-  - Reason: The workforce rail includes a bounded reference-corpus policy slice so DeepWiki or similar helper corpora can remain read-only secondary aids instead of drifting into a second source of truth.
+  - Status: 🟡 In progress via PR-B4
+  - Reason: The workforce rail includes a bounded reference-corpus policy slice
+    so DeepWiki or similar helper corpora can remain read-only secondary aids
+    instead of drifting into a second source of truth.
   - Links:
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
+    - `docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md`
+    - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
     - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
   - DoD:
-    - Reference corpora are explicitly documented as read-only helper inputs
-    - Repo artifacts remain the only canonical source of truth
-    - No embeddings, vector DB, or product-runtime coupling are introduced by this policy item
+    - Reference corpora are explicitly documented as read-only secondary aids.
+    - Repo artifacts remain the only canonical source of truth.
+    - Conflicts between reference corpora and repo artifacts resolve to repo truth.
+    - No embeddings, vector DB, product-runtime, API, DTO, OpenAPI, semantic-cache,
+      GraphRAG, Redis/GPTCache, or ContextManifest coupling is introduced.
+    - Contradiction lint, ranking/index weighting, manifest/history, and reference
+      corpus admission tooling remain separate follow-ons.
 
 <a id="ledger-p2-local-launcher-rollout-for-coordinator-first-automation"></a>
 - [ ] P2: Local launcher rollout for coordinator-first automation

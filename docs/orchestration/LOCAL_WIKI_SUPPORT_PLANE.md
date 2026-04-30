@@ -5,6 +5,10 @@
 This document describes the **advisory** local wiki compiler that sits on top of the
 experimental local support plane (`scripts/orchestration/local_support_plane.py`).
 It is **not** a second source of truth for product, orchestration, or contracts.
+The bounded reference-corpus policy for this rail is defined in
+`docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md`:
+DeepWiki or similar corpora are read-only secondary aids and cannot override repo
+source-of-truth artifacts.
 
 ## Evidence anchors (implementation)
 
