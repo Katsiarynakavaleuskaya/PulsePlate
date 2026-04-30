@@ -4,7 +4,7 @@
 **Branch:** `release/release-control-plane-pr3-release-manifest`
 **Release-control-plane slice:** PR-3 release manifest generator and validator
 **Canonical commit:** `998664069`
-**Latest review-fix commit:** `3a647ee35`
+**Latest review-fix commit:** `bae29dc40`
 
 ## Scope
 
@@ -31,9 +31,12 @@ actionable review comments must be dispositioned here first as `FIXED`,
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168909592 -> 1697feb5b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929124 -> 1697feb5b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3168929086 -> 3a647ee35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033949 -> bae29dc40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#discussion_r3169033954 -> bae29dc40
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1605#pullrequestreview-4206288583 -> bae29dc40
 Disposition: FIXED
-Commit: 1697feb5b, 3a647ee35
-Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, and wraps unreadable JSON inputs in `ReleaseManifestError`; `tests/test_release_manifest.py::test_missing_source_artifacts_are_rejected_even_with_valid_self_hash`, `tests/test_release_manifest.py::test_invalid_source_artifact_kind_is_rejected`, `tests/test_release_manifest.py::test_cli_validate_missing_manifest_uses_controlled_error`, and `tests/test_release_manifest.py::test_cli_generate_missing_rag_gate_result_uses_controlled_error` cover the review findings.
+Commit: 1697feb5b, 3a647ee35, bae29dc40
+Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identity.source_artifacts` / `ml_identity.source_artifacts`, validates source artifact `kind`, wraps unreadable JSON inputs in `ReleaseManifestError`, and validates upstream RAG export `hash_algorithm`, canonicalization, and non-empty `source_artifacts`; `docs/release/RELEASE_MANIFEST_CONTRACT.md` now carries file-line evidence anchors; `tests/test_release_manifest.py` covers missing source artifacts, invalid artifact kind, unreadable inputs, invalid provenance digest, and malformed RAG gate metadata.
 
 ## Validation
 
@@ -49,6 +52,8 @@ Evidence: `scripts/release/release_manifest.py` rejects missing `reviewer_identi
 - `pytest -q tests/test_release_manifest.py` PASS after `1697feb5b`
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RELEASE_MANIFEST_CONTRACT.md docs/release/RELEASE_MANIFEST_CONTRACT.schema.json` PASS after `1697feb5b`
 - `pytest -q tests/test_release_manifest.py` PASS after `3a647ee35`
+- `pytest -q tests/test_release_manifest.py` PASS after `bae29dc40`
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RELEASE_MANIFEST_CONTRACT.md docs/review/PR_1605_FIXED_MAPPING.md` PASS after `bae29dc40`
 - Push-time hooks PASS: mypy changed files, backend pre-push, full-repo Bandit, Docker build test
 
 ## Machine-Heavy Deferral
