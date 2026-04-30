@@ -18,34 +18,34 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 646121873
+Commit: e52bbf66e
 Evidence: `scripts/design_guard.py` validates locked `core_lock.path` through the repo-relative path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping locked core paths.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#qa-engineer-agent-core-lock-path -> 646121873
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#qa-engineer-agent-core-lock-path -> e52bbf66e
 
 Disposition: FIXED
-Commit: 12bc14f4a
+Commit: 3f23e33db
 Evidence: `scripts/design_guard.py` now validates every non-empty `core_lock.path`, including deferred core locks, before hash enforcement; `tests/test_design_invariant_guard.py` covers absolute and repo-escaping deferred core paths.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#bug-hunter-deferred-core-path -> 12bc14f4a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#bug-hunter-deferred-core-path -> 3f23e33db
 
 Disposition: FIXED
-Commit: da7e70135
+Commit: 77f270214
 Evidence: `docs/review/PR_1595_FIXED_MAPPING.md` now links deferred local heavy-gate and icon-core follow-up evidence to `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-runtime-system-web-ios-epic`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878650 -> da7e70135
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878650 -> 77f270214
 
 Disposition: FIXED
-Commit: da7e70135
+Commit: 77f270214
 Evidence: `scripts/design_guard.py` now rejects `TBD` node-id placeholders case-insensitively, and `tests/test_design_invariant_guard.py` covers lowercase `tbd_after_capture`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878653 -> da7e70135
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3166878653 -> 77f270214
 
 Disposition: FIXED
-Commit: fe6619770
+Commit: 3ff914d11
 Evidence: `scripts/design_guard.py` now requires numeric `number:number` Figma node IDs, and `tests/test_design_invariant_guard.py` covers freeform `capture_later` rejection.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230933 -> fe6619770
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230933 -> 3ff914d11
 
 Disposition: FIXED
-Commit: fe6619770
+Commit: 3ff914d11
 Evidence: `scripts/design_guard.py` now validates `token_source` through the repo-root path resolver, and `tests/test_design_invariant_guard.py` covers absolute and repo-escaping token sources.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230944 -> fe6619770
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1595#discussion_r3168230944 -> 3ff914d11
 
 ## Local Validation Evidence
 
