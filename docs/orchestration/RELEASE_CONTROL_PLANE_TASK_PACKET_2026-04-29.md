@@ -99,7 +99,7 @@ changes.
 | PR | Branch | Primary outcome | Blocking proof |
 | --- | --- | --- | --- |
 | PR-0 | `release/release-control-plane-pr0-bootstrap` | Epic, packet, C4 release-risk context, ledger anchor | docs/ledger validation and repo policy guards |
-| PR-1 | `release/release-control-plane-pr1-reviewer-hash` | Reviewer-packet hash contract consuming App Store readiness artifacts | reviewer hash schema tests |
+| PR-1 | `release/release-control-plane-pr1-reviewer-hash` | Reviewer-packet hash contract consuming App Store readiness artifacts | reviewer hash schema tests and Fastlane artifact-name discovery |
 | PR-2 | `release/release-control-plane-pr2-rag-gate-export` | RAG/ML gate result export contract over the existing eval runner | gate-result schema tests |
 | PR-3 | `release/release-control-plane-pr3-release-manifest` | Release manifest generator and validator | manifest validator tests |
 | PR-4 | `release/release-control-plane-pr4-build-equivalence` | Review build equals production-candidate equivalence check | equivalence tests |
@@ -128,6 +128,36 @@ Hash and digest format contract:
 
 PR-0 defines the contract only. It does not generate, validate, or publish the
 packet.
+
+### PR-1 Reviewer Packet Hash Contract
+
+PR-1 defines the reviewer identity fields without changing App Store metadata,
+reviewer notes, Fastlane upload behavior, or protected App Store credentials.
+The machine-readable schema and field contract live in
+[`docs/release/REVIEWER_PACKET_HASH_CONTRACT.md`](../release/REVIEWER_PACKET_HASH_CONTRACT.md)
+and
+[`docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json`](../release/REVIEWER_PACKET_HASH_CONTRACT.schema.json).
+
+Canonical upstream artifact names consumed from landed App Store readiness work:
+
+- `ios/fastlane/metadata/review_information/notes.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/name.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/subtitle.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/description.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/keywords.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/promotional_text.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/release_notes.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/privacy_url.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/support_url.txt`
+- `ios/fastlane/metadata/{en-US,ru-RU,es-ES}/marketing_url.txt`
+- `ios/fastlane/app_privacy_details.json` as upstream context only
+
+`reviewer_notes_hash` hashes only reviewer notes. `appstore_metadata_hash`
+hashes a canonical JSON manifest of localized metadata file hashes and excludes
+`review_information/**` plus App Privacy JSON. Text artifacts are decoded as
+UTF-8, line endings are normalized to LF, exactly one trailing LF is enforced,
+all other whitespace is preserved, and the resulting canonical UTF-8 bytes are
+hashed with SHA-256 lowercase hexadecimal.
 
 ## Bootstrap Commands
 
@@ -178,6 +208,8 @@ make verify
 Focused gates by future slice:
 
 - reviewer hash: Fastlane metadata/reviewer-note validators
+- reviewer packet hash contract:
+  `pytest -q tests/test_release_reviewer_packet_hashes.py`
 - RAG gate export: `pytest -q tests/test_rag_release_gates_runner.py`
 - release manifest: manifest schema and failure-mode tests
 - build equivalence: review/prod digest mismatch tests

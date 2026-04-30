@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.app/schemas/release-reviewer-packet-hashes.v1.json",
+  "title": "PulsePlate Release Reviewer Packet Hashes",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_algorithm",
+    "canonicalization",
+    "reviewer_notes_hash",
+    "appstore_metadata_hash",
+    "source_artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "release-reviewer-packet-hashes.v1"
+    },
+    "hash_algorithm": {
+      "const": "sha256"
+    },
+    "canonicalization": {
+      "const": "utf8-lf-single-trailing-newline"
+    },
+    "reviewer_notes_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "appstore_metadata_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "kind",
+          "path",
+          "hash"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "reviewer_notes",
+              "appstore_metadata",
+              "app_privacy_context"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "minLength": 1
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      }
+    }
+  }
+}
