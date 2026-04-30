@@ -16,20 +16,20 @@ Canonical review-governance artifact and PR-body mirror requirements:
 ## Implementation Evidence
 
 Disposition: FIXED
-Commit: 545bc46cb
+Commit: 146aea5e6
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` marks
 `ledger-p2-advisory-wiki-query-lint-enrichment` closed with PR #1596 and merge
 commit `438d135f7ae0a07cb28549488284a40e08183c92`.
 Reason: The stale PR-B3 ledger state is reconciled to merged live truth.
 
 Disposition: FIXED
-Commit: 545bc46cb
+Commit: 146aea5e6
 Evidence: `docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_CLOSEOUT_PACKET_2026-04-30.md`
 records closeout evidence, role order, active skills, boundaries, and validation.
 Reason: The closeout lane now has a bounded coordinator-owned packet.
 
 Disposition: FIXED
-Commit: 545bc46cb
+Commit: 146aea5e6
 Evidence: `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` marks
 PR-B3 merged and keeps PR-B4 as the next substantive Rail B1 slice.
 Reason: Epic sequencing now matches live repo truth.
@@ -42,7 +42,7 @@ Mapping` before resolving threads on GitHub.
 
 ## Initial Implementation Commit
 
-- `545bc46cb` - `docs(roadmap): close advisory wiki query-lint ledger`
+- `146aea5e6` - `docs(roadmap): close advisory wiki query-lint ledger`
 
 ## Local Validation
 
