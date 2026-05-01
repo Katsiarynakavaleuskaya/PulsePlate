@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-05-27 (manual removal)
 # Last reviewed: 2026-04-02
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md, docs/security/CVE-2026-4878-libcap2.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -278,4 +278,41 @@ ignore if {
 	cve_2025_69720_pkg_match
 	cve_2025_69720_version_match
 	cve_2025_69720_pkgid_match
+}
+
+# CVE-2026-4878 (libcap2) - no fixed release for observed Debian package at triage time
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Trivy code-scanning alert #588 reports libcap2 fixed-version unknown
+#   for `1:2.66-4+deb12u1` in the production image. No repository-level
+#   remediation path exists until Debian publishes a fixed package line or
+#   Trivy metadata reports a Fixed Version.
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-4878
+# Documented in: docs/security/CVE-2026-4878-libcap2.md
+# Removal condition: Remove when Debian publishes fixed libcap2 package / Trivy metadata gains fixed version for this package context
+
+cve_2026_4878_libcap2_version := "1:2.66-4+deb12u1"
+
+cve_2026_4878_image_reference_match if {
+	startswith(input.Image, "ghcr.io/katsiarynakavaleuskaya/pulseplate")
+}
+
+cve_2026_4878_image_reference_match if {
+	not input.Image
+}
+
+cve_2026_4878_distro_match if {
+	input.Distro == "debian"
+}
+
+cve_2026_4878_distro_match if {
+	not input.Distro
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-4878"
+	input.PkgName == "libcap2"
+	input.InstalledVersion == cve_2026_4878_libcap2_version
+	cve_2026_4878_image_reference_match
+	cve_2026_4878_distro_match
+	startswith(input.PkgID, sprintf("libcap2@%s", [cve_2026_4878_libcap2_version]))
 }
