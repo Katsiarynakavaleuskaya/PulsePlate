@@ -5,7 +5,7 @@
 
 import os
 import re
-import subprocess  # nosec B404
+import subprocess  # nosec B404: subprocess required for pytest coverage driver (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
 import sys
 import warnings
 
@@ -54,7 +54,7 @@ def run_coverage_analysis() -> bool:
             "PYTHONPATH": ".:core:app:tests",
             "VIP_MODULE_ENABLED": "true",
             "FEATURE_PREMIUM_NUTRITION": "true",
-            "API_KEY": "test_key",  # nosec B105  # Coverage analysis only
+            "API_KEY": "test_key",  # nosec B105: synthetic API key for local coverage driver only (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             "APP_ENV": "test",
             "ALLOW_DEV_API_KEY": "true",
         }
@@ -65,7 +65,7 @@ def run_coverage_analysis() -> bool:
     test_timeout = parse_timeout_env("COVERAGE_TEST_TIMEOUT", default=180)
 
     try:
-        result = subprocess.run(  # nosec B603
+        result = subprocess.run(  # nosec B603: invokes repo pytest with sys.executable argv (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             [
                 sys.executable,
                 "-m",

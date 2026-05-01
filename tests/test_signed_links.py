@@ -2,7 +2,7 @@ from signed_links import sign, verify
 
 
 def test_hmac_sign_verify_ok() -> None:
-    secret = "test-secret"  # nosec B105
+    secret = "test-secret"  # nosec B105: synthetic HMAC secret for unit test only (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
     path = "/api/v1/plan/week/export.csv"
     exp = 9_999_999_999
     sig = sign(secret, path, exp)
@@ -10,7 +10,7 @@ def test_hmac_sign_verify_ok() -> None:
 
 
 def test_hmac_verify_expired() -> None:
-    secret = "x"  # nosec B105
+    secret = "x"  # nosec B105: synthetic HMAC secret for unit test only (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
     path = "/api/x"
     exp = 100
     sig = sign(secret, path, exp)
@@ -18,7 +18,7 @@ def test_hmac_verify_expired() -> None:
 
 
 def test_hmac_verify_wrong_signature() -> None:
-    secret = "y"  # nosec B105
+    secret = "y"  # nosec B105: synthetic HMAC secret for unit test only (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
     path = "/api/y"
     exp = 200
     # Test that an invalid signature fails verification
@@ -26,7 +26,7 @@ def test_hmac_verify_wrong_signature() -> None:
 
 
 def test_hmac_verify_type_error_handled() -> None:
-    secret = "secret"  # nosec B105
+    secret = "secret"  # nosec B105: synthetic HMAC secret for unit test only (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
     path = "/api/z"
     exp = 300
     assert not verify(secret, path, exp, None)  # type: ignore[arg-type]

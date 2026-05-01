@@ -60,10 +60,14 @@ class FoodProvider(BaseProvider):
         return self.random_element(self.food_categories)
 
     def nutrition_value(self):
-        return round(random.uniform(0, 500), 2)  # nosec B311
+        return round(
+            random.uniform(0, 500), 2
+        )  # nosec B311: non-crypto synthetic nutrient values (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
 
     def food_barcode(self):
-        return "".join([str(random.randint(0, 9)) for _ in range(13)])  # nosec B311
+        return "".join(
+            [str(random.randint(0, 9)) for _ in range(13)]
+        )  # nosec B311: non-crypto synthetic barcode digits (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
 
 
 fake.add_provider(FoodProvider)
@@ -147,7 +151,9 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     validate_food_data(food)
                     normalize_food_data(food)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
             # Test with invalid data
@@ -171,13 +177,17 @@ class TestFoodDbNewRealisticCoverage:
             # Test database updates
             try:
                 update_food_database()
-            except Exception:  # nosec B110 - intentional in test for coverage
+            except (
+                Exception
+            ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 pass
 
             # Test external source sync
             try:
                 sync_external_sources()
-            except Exception:  # nosec B110 - intentional in test for coverage
+            except (
+                Exception
+            ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 pass
 
             # Test with realistic update scenarios
@@ -192,7 +202,9 @@ class TestFoodDbNewRealisticCoverage:
             for scenario in update_scenarios:
                 try:
                     update_food_database(**scenario)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
         except ImportError:
@@ -226,13 +238,17 @@ class TestFoodDbNewRealisticCoverage:
                     # Retrieve again
                     cached_again = get_cached_food(food_id)
 
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
             # Test cache clearing
             try:
                 clear_cache()
-            except Exception:  # nosec B110 - intentional in test for coverage
+            except (
+                Exception
+            ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 pass
 
         except ImportError:
@@ -254,7 +270,9 @@ class TestFoodDbNewRealisticCoverage:
             for query in usda_queries:
                 try:
                     result = fetch_from_usda(query)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
             # Test OpenFood API calls
@@ -263,7 +281,9 @@ class TestFoodDbNewRealisticCoverage:
             for barcode in openfood_barcodes:
                 try:
                     result = fetch_from_openfood(barcode)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
         except ImportError:
@@ -296,7 +316,9 @@ class TestFoodDbNewRealisticCoverage:
                     try:
                         scaled = scale_nutrition(base_nutrition, size)
                         calculated = calculate_nutrition([base_nutrition, scaled])
-                    except Exception:  # nosec B110 - intentional in test for coverage
+                    except (
+                        Exception
+                    ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                         pass
 
         except ImportError:
@@ -313,7 +335,9 @@ class TestFoodDbNewRealisticCoverage:
             for format_type in export_formats:
                 try:
                     exported = export_foods(format=format_type, limit=100)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
             # Generate realistic import data
@@ -331,7 +355,9 @@ class TestFoodDbNewRealisticCoverage:
             # Test import
             try:
                 import_foods(import_data)
-            except Exception:  # nosec B110 - intentional in test for coverage
+            except (
+                Exception
+            ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 pass
 
         except ImportError:
@@ -353,7 +379,9 @@ class TestFoodDbNewRealisticCoverage:
                 try:
                     fuzzy_results = fuzzy_search(variation)
                     exact_results = exact_search(original)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
             # Test category search
@@ -361,7 +389,9 @@ class TestFoodDbNewRealisticCoverage:
             for category in categories:
                 try:
                     category_results = category_search(category)
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
         except ImportError:

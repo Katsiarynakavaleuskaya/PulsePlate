@@ -3,7 +3,7 @@ import copy
 import json
 import logging
 import os
-import subprocess  # nosec B404
+import subprocess  # nosec B404: subprocess required for validation runner (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
 import sys
 import tempfile
 from datetime import datetime
@@ -260,7 +260,7 @@ def validate() -> int:
         Logs detailed errors if JSON parsing fails or success field is not True.
     """
     try:
-        process_result = subprocess.run(  # nosec B603
+        process_result = subprocess.run(  # nosec B603: fixed argv validate_data.py helper (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             [sys.executable, "scripts/validate_data.py", "--json"],
             capture_output=True,
             text=True,

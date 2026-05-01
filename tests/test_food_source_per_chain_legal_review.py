@@ -20,6 +20,13 @@ from core.food_sources.per_chain_legal_review import (
     build_per_chain_legal_review_report,
     load_per_chain_legal_review_governance,
     parse_per_chain_legal_review_governance,
+    _parse_date,
+    _relative_repo_path,
+    _require_bool,
+    _require_int,
+    _require_mapping,
+    _require_string,
+    _require_string_tuple,
 )
 from core.food_sources.source_catalog import SourceCatalog, load_source_catalog
 from core.food_sources.source_gap_audit import SourceGapAudit, load_source_gap_audit
@@ -355,6 +362,237 @@ def test_per_chain_legal_review_rejects_wrong_next_lane() -> None:
             payload,
             chain_public_nutrition=_chain_public_nutrition(),
         )
+
+
+def test_per_chain_legal_review_requires_mapping_payload() -> None:
+    with pytest.raises(PerChainLegalReviewError, match="must be an object"):
+        parse_per_chain_legal_review_governance(
+            payload=[1, 2, 3],
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+def test_per_chain_legal_review_rejects_invalid_require_bool_and_int_values() -> None:
+    payload = _governance_payload()
+    payload["source_download_allowed"] = 1
+
+    with pytest.raises(PerChainLegalReviewError, match="must be a boolean"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["pr12_landed_pr"] = True
+
+    with pytest.raises(PerChainLegalReviewError, match="'pr12_landed_pr' must be an integer"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+def test_per_chain_legal_review_rejects_bad_blocked_methods_payload() -> None:
+    payload = _governance_payload()
+    payload["blocked_methods"] = ["scraping", "scraping"]
+
+    with pytest.raises(PerChainLegalReviewError, match="contains duplicate value"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["blocked_methods"] = ["scraping"]
+
+    with pytest.raises(PerChainLegalReviewError, match="must be exactly"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["blocked_methods"] = [
+        1,
+        "scraping",
+        "automated_collection",
+        "api_call",
+        "download",
+        "login_or_paywall_bypass",
+        "cache_authority",
+        "redistribution",
+        "runtime_authority",
+        "public_dataset_claim",
+        "digitalocean_postgres_load",
+    ]  # pragma: allowlist secret
+
+    with pytest.raises(
+        PerChainLegalReviewError,
+        match=r"'blocked_methods\[0\]' must be a non-empty string",
+    ):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+def test_per_chain_legal_review_rejects_schema_and_reference_drift() -> None:
+    payload = _governance_payload()
+    payload["schema_version"] = "food-data-per-chain-legal-anti-scraping"
+
+    with pytest.raises(PerChainLegalReviewError, match="must look like"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["chain_public_nutrition_ref"] = "docs/architecture/other.json"
+
+    with pytest.raises(PerChainLegalReviewError, match="chain_public_nutrition_ref"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["source"] = "other_source"
+
+    with pytest.raises(
+        PerChainLegalReviewError, match="source must be chain_public_nutrition_pages"
+    ):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+def test_per_chain_legal_review_rejects_unknown_chain_id_and_keys() -> None:
+    payload = _governance_payload()
+    _review_row(payload, "mcdonalds_us")["chain_id"] = "unknown_chain"
+
+    with pytest.raises(PerChainLegalReviewError, match="unknown PR12 chain id"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    _review_row(payload, "mcdonalds_us")["chain_name"] = "wrong"
+
+    with pytest.raises(PerChainLegalReviewError, match="must match PR12"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    _review_row(payload, "mcdonalds_us")["unexpected"] = "value"
+
+    with pytest.raises(PerChainLegalReviewError, match="unexpected per-chain review keys"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+def test_per_chain_legal_review_rejects_generated_on_and_final_gate_drift() -> None:
+    payload = _governance_payload()
+    payload["generated_on"] = "2026-99-99"
+    with pytest.raises(PerChainLegalReviewError, match="generated_on must use YYYY-MM-DD"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["generated_on"] = "2026-02-30"
+    with pytest.raises(PerChainLegalReviewError, match="generated_on must use YYYY-MM-DD"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+    payload = _governance_payload()
+    payload["final_gate_decision"] = "other"
+    with pytest.raises(PerChainLegalReviewError, match="final_gate_decision must be"):
+        parse_per_chain_legal_review_governance(
+            payload,
+            chain_public_nutrition=_chain_public_nutrition(),
+        )
+
+
+def test_per_chain_legal_review_accepts_private_mapping_helpers_and_external_paths() -> None:
+    assert isinstance(_require_mapping({"a": 1}, "<test>"), dict)
+    with pytest.raises(PerChainLegalReviewError, match="all object keys must be strings"):
+        _require_mapping({1: 1}, "<test>")
+
+    assert _require_string({"x": "  y "}, "x", "<test>") == "y"
+    assert _require_bool({"x": True}, "x", "<test>") is True
+    assert _require_int({"x": 3}, "x", "<test>") == 3
+    with pytest.raises(PerChainLegalReviewError, match=r"missing non-empty string 'x'"):
+        _require_string({"x": ""}, "x", "<test>")
+
+    with pytest.raises(PerChainLegalReviewError, match=r"missing non-empty string 'x'"):
+        _require_string({"x": 1}, "x", "<test>")
+
+    with pytest.raises(PerChainLegalReviewError, match="must be a boolean"):
+        _require_bool({"x": "1"}, "x", "<test>")
+
+    with pytest.raises(PerChainLegalReviewError, match="'x' must be an integer"):
+        _require_int({"x": True}, "x", "<test>")
+
+    assert _require_string_tuple(
+        {
+            "methods": [
+                "scraping",
+                "automated_collection",
+                "api_call",
+                "download",
+                "login_or_paywall_bypass",
+                "cache_authority",
+                "redistribution",
+                "runtime_authority",
+                "public_dataset_claim",
+                "digitalocean_postgres_load",
+            ]
+        },
+        "methods",
+        "<test>",
+        expected=(
+            "scraping",
+            "automated_collection",
+            "api_call",
+            "download",
+            "login_or_paywall_bypass",
+            "cache_authority",
+            "redistribution",
+            "runtime_authority",
+            "public_dataset_claim",
+            "digitalocean_postgres_load",
+        ),
+    ) == (
+        "scraping",
+        "automated_collection",
+        "api_call",
+        "download",
+        "login_or_paywall_bypass",
+        "cache_authority",
+        "redistribution",
+        "runtime_authority",
+        "public_dataset_claim",
+        "digitalocean_postgres_load",
+    )
+
+    with pytest.raises(PerChainLegalReviewError, match="must be a list of strings"):
+        _require_string_tuple({}, "missing", "<test>", expected=())
+
+
+def test_relative_repo_path_resolves_outside_repository(tmp_path: Path) -> None:
+    outside = tmp_path / "outside.json"
+    outside.touch()
+    assert _relative_repo_path(outside).endswith("outside.json")
+    assert "outside.json" in _relative_repo_path(outside)
 
 
 def test_per_chain_legal_review_cli_outputs_json_report() -> None:

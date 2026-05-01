@@ -15,7 +15,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(ex, "export_csv"))
             if hasattr(ex, "export_json"):
                 assert callable(getattr(ex, "export_json"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_food_apis_unified_db_classes(self):
@@ -44,7 +46,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(me, "build_day"))
             if hasattr(me, "repair_day"):
                 assert callable(getattr(me, "repair_day"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_plate_functions(self):
@@ -58,7 +62,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(plate, "compute_plate"))
             if hasattr(plate, "calculate_macros"):
                 assert callable(getattr(plate, "calculate_macros"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_recommendations_functions(self):
@@ -72,7 +78,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rec, "suggest"))
             if hasattr(rec, "get_nutrition_tips"):
                 assert callable(getattr(rec, "get_nutrition_tips"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_product_finder_functions(self):
@@ -86,7 +94,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(pf, "find_products"))
             if hasattr(pf, "search_products"):
                 assert callable(getattr(pf, "search_products"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_recipe_synth_functions(self):
@@ -100,7 +110,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rs, "generate_recipe"))
             if hasattr(rs, "synthesize_recipe"):
                 assert callable(getattr(rs, "synthesize_recipe"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_targets_functions(self) -> None:
@@ -204,7 +216,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(men, "build_week"))
             if hasattr(men, "build_day"):
                 assert callable(getattr(men, "build_day"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_product_varieties_functions(self):
@@ -218,7 +232,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(pv, "get_varieties"))
             if hasattr(pv, "search_varieties"):
                 assert callable(getattr(pv, "search_varieties"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_rules_who_functions(self):
@@ -232,7 +248,9 @@ class TestCoreCoverage97Final:
                 assert callable(getattr(rw, "validate_rules"))
             if hasattr(rw, "apply_rules"):
                 assert callable(getattr(rw, "apply_rules"))
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_core_food_apis_update_manager_functions(self):

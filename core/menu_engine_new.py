@@ -168,8 +168,8 @@ def build_plate_day(
         try:
             # keep type consistent with other code paths (int kcal)
             m.kcal = int(round(m_kcal))
-        except Exception:  # nosec B110
-            # If the object is immutable, we still keep totals consistent via total_kcal.
+        except (TypeError, AttributeError):
+            # Immutable/magic mock meals may reject assignment; totals still use m_kcal.
             pass
 
         meals.append(m)

@@ -20,7 +20,7 @@ class NormalizedIssueType(Enum):
 
     INJECTION = "injection"
     # Enum member name contains "password" but it is not a secret value (Bandit B105).
-    PASSWORD_LEAK = "passwordLeak"  # nosec B105
+    PASSWORD_LEAK = "passwordLeak"  # nosec B105: taxonomy token label, not a credential (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
     DANGEROUS_INSTRUCTION = "dangerousInstruction"
     EXCEPTION_HANDLING = "exceptionHandling"
     ASYNC_ERROR = "asyncError"
@@ -183,7 +183,7 @@ class IntegratedBayesianAnalyzer:
 
     def _analyze_technical_aspects(self, code: str, test_name: str) -> List[str]:
         """Analyze technical aspects of the test."""
-        issues = analyze_technical_aspects_common(code)
+        issues: List[str] = list(analyze_technical_aspects_common(code))
         # Password checks moved to _analyze_safety_aspects for consolidated detection
         code_lower = code.lower()
         if "eval(" in code_lower:

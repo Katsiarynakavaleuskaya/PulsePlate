@@ -549,7 +549,9 @@ class TestSimpleCoverageBoost:
 
             assert region_catalog_module is not None
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     @pytest.mark.asyncio

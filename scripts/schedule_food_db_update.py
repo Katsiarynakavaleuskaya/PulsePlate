@@ -10,7 +10,7 @@ import logging
 import math
 import os
 import random
-import subprocess  # nosec B404 - controlled execution of internal script
+import subprocess  # nosec B404: subprocess module required for controlled script spawn (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
 import sys
 import time
 from dataclasses import dataclass
@@ -326,7 +326,15 @@ def calculate_backoff_delay(
     delay = min(delay, max_delay)
 
     # Add jitter: random value between -jitter_factor and +jitter_factor
-    jitter = delay * jitter_factor * (2 * random.random() - 1)  # nosec B311
+    jitter = (
+        delay
+        * jitter_factor
+        * (
+            2
+            * random.random()  # nosec B311: non-crypto scheduler jitter (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
+            - 1
+        )
+    )
     delay_with_jitter = delay + jitter
 
     # Ensure non-negative and clamp between 0.0 and max_delay
@@ -593,7 +601,7 @@ def update_food_database(
 
         try:
             # Run the build script
-            result = subprocess.run(  # nosec B603
+            result = subprocess.run(  # nosec B603: bounded argv for internal food-db script (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 [sys.executable, build_script],
                 cwd=project_root,
                 capture_output=True,

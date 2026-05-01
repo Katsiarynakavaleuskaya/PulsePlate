@@ -209,7 +209,9 @@ class TestDirectCoreFunctions:
             locale_info = get_locale_info("en")
             assert isinstance(locale_info, (dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_food_sources_functions_direct(self) -> None:
@@ -249,7 +251,9 @@ class TestDirectCoreFunctions:
             merged = merge_food_entries(food_data, food_data2)
             assert isinstance(merged, (dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_rag_functions_direct(self) -> None:
@@ -291,7 +295,9 @@ class TestDirectCoreFunctions:
             # Test adding knowledge
             add_knowledge("Protein is essential for muscle building and repair.")
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_db_functions_direct(self) -> None:
@@ -322,7 +328,9 @@ class TestDirectCoreFunctions:
             db = get_unified_food_db()
             assert db is not None or db is None
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_region_catalog_functions_direct(self) -> None:
