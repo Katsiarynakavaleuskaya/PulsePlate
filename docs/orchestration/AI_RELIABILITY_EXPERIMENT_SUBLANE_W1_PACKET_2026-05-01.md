@@ -43,7 +43,7 @@ All replay fixtures must provide outputs for all four arms. Partial arm sets are
 - **first_pass_readiness_proxy**: Composite metric requiring correctness, usefulness, zero contradictions, and zero unsupported claims
 
 ## Promotion Rule
-Result packet can only become implementation PR (`pr_packet`) after passing offline replay artifact. Specifically:
+Result packet can only become implementation PR (`pr_packet`) after passing the offline replay artifact checks. Specifically:
 - A3_combined must rank highest by readiness/correctness
 - A3_combined must improve over A0_control on readiness and correctness
 - A3_combined must not regress unsupported-claim rate or contradiction rate vs A0_control
@@ -57,7 +57,7 @@ If any metric cannot be computed deterministically, mark BLOCKED rather than inv
 - No PHI/PII in fixtures
 - No external network calls permitted
 - All data is synthetic and localized to test fixtures
-- Evaluation runs in air-gapped deterministic environment
+- Evaluation runs in an air-gapped deterministic environment
 
 ## Validation Commands
 ```bash
