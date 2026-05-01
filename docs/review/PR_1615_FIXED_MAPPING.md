@@ -47,6 +47,24 @@ Evidence: `tests/test_app_db_fallback_97.py:215` restores SessionLocal, _RAW_ENG
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1615#discussion_r3174426926 -> 96b79808f7f5cbb99196085d310c7f6912295e46
 
+Disposition: NOT-A-BUG
+
+Evidence: `tests/test_app_db_fallback_97.py:206-238` snapshots/restores `SessionLocal`, `_RAW_ENGINE`, `engine`, and env keys in `finally` after `_configure_session_bindings`; Cubic P2 matches an earlier revision.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1615#discussion_r3174446560
+
+Disposition: NOT-A-BUG
+
+Evidence: `core/menu_engine_new.py:170-171` assigns `m.kcal` under `except (TypeError, AttributeError)` only; Cubic P2 matches pre-fix bare `Exception`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1615#discussion_r3174446562
+
+Disposition: NOT-A-BUG
+
+Evidence: Cubic `pullrequestreview-4212550071` batches the two inline P2 items above; disposition is on those `discussion_r` URLs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1615#pullrequestreview-4212550071
+
 ## Validation
 
 - Canonical artifact validated via `python3 -c` importing
