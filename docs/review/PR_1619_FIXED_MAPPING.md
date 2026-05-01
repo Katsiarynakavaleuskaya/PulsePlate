@@ -22,13 +22,13 @@ Evidence: docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md:80 — grammar fix "not
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175322425
 Disposition: NOT-A-BUG
-Evidence: docs/review/PR_1619_FIXED_MAPPING.md:11-14
-Reason: Phase2 gate (`check_pr_body_phase2_gates.py`) requires checked checkboxes and `- No actionable review comments` marker. With no actionable threads and the no-actionable marker present, checkboxes are correctly checked per gate contract.
+Evidence: scripts/orchestration/review_mapping_artifact.py:30-31
+Reason: Phase2 gate requires checked checkboxes per `CHECKBOX_DISCUSSION_PASS` and `CHECKBOX_FIXED_MAPPING` in the gate script. When all review threads have dispositions (as in this artifact), checkboxes are correctly checked.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175322428 -> 62c8e36bc
 Disposition: FIXED
 Commit: 62c8e36bc
-Evidence: docs/review/PR_1619_FIXED_MAPPING.md:18 — added `- No actionable review comments` marker
+Evidence: commit 62c8e36bc added `- No actionable review comments` marker; subsequent commit dc6e4312e replaced it with actual thread dispositions
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175332957 -> dc6e4312e
 Disposition: FIXED
@@ -37,8 +37,18 @@ Evidence: docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md:312 — validation comm
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175332965
 Disposition: NOT-A-BUG
-Evidence: docs/review/PR_1619_FIXED_MAPPING.md:11-14
-Reason: Same as CodeRabbit discussion_r3175322425. Phase2 gate requires checkboxes checked; `- No actionable review comments` satisfies the mapping contract.
+Evidence: scripts/orchestration/review_mapping_artifact.py:30-31
+Reason: Same as CodeRabbit discussion_r3175322425. Phase2 gate requires checkboxes checked per gate contract when all threads have dispositions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175363290
+Disposition: FIXED
+Commit: PENDING
+Evidence: docs/review/PR_1619_FIXED_MAPPING.md — stale evidence references corrected to point to gate script and commit history
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175367065
+Disposition: FIXED
+Commit: PENDING
+Evidence: docs/review/PR_1619_FIXED_MAPPING.md:31 — stale line reference corrected to commit-based evidence
 
 ## Review-Level URLs
 
