@@ -8,11 +8,15 @@
 
 ## Discussion Thread Pass
 
-_(populated after bot reviews)_
+- [x] Discussion-thread pass completed
+
+No actionable bot review threads at time of initial push (draft PR, CodeRabbit review skipped).
 
 ## Fixed in Commit Mapping
 
-_(populated after bot reviews)_
+- [x] Fixed in commit mapping completed
+
+No FIXED dispositions required at time of initial push (no actionable threads).
 
 ## Local Validation Evidence
 
