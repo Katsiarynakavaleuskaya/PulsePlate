@@ -8,13 +8,11 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] All review threads have dispositions
 - [x] No unresolved actionable comments
 
 ## Fixed in Commit Mapping
 
-(No review threads yet — PR just opened)
-
 ## Review-Level URLs
-
-(No review-level comments yet)
