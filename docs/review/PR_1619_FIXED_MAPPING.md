@@ -40,14 +40,14 @@ Disposition: NOT-A-BUG
 Evidence: scripts/orchestration/review_mapping_artifact.py:30-31
 Reason: Same as CodeRabbit discussion_r3175322425. Phase2 gate requires checkboxes checked per gate contract when all threads have dispositions.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175363290
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175363290 -> 7f0669712
 Disposition: FIXED
-Commit: PENDING
+Commit: 7f0669712
 Evidence: docs/review/PR_1619_FIXED_MAPPING.md — stale evidence references corrected to point to gate script and commit history
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175367065
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175367065 -> 7f0669712
 Disposition: FIXED
-Commit: PENDING
+Commit: 7f0669712
 Evidence: docs/review/PR_1619_FIXED_MAPPING.md:31 — stale line reference corrected to commit-based evidence
 
 ## Review-Level URLs
