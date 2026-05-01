@@ -17,7 +17,7 @@
 
 ## Fixed in Commit Mapping
 
-<!-- No review threads to map yet; initial PR open. This section will be updated after review. -->
+- No actionable review comments
 
 ## Local Validation Evidence
 
