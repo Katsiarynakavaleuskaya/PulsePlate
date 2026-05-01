@@ -200,22 +200,42 @@ class TestAppDBFallback97:
     ) -> None:
         """Coverage branch for _configure_session_bindings in production path (line 169-171)."""
         from core import db as core_db
-        from core.db_fallback import _configure_session_bindings
+        from core.db_fallback import _configure_session_bindings, reset_fallback_state
         from sqlalchemy import create_engine
+
+        prev_session = core_db.SessionLocal
+        prev_raw = core_db._RAW_ENGINE
+        prev_engine = core_db.engine
+        prev_db_health = os.environ.get("DB_HEALTH_DEGRADED")
+        prev_fb_url = os.environ.get("DB_FALLBACK_URL")
 
         engine = create_engine("sqlite:///:memory:")
         monkeypatch.setenv("DATABASE_URL", "postgresql://canonical-db:5432/pulseplate")
 
-        _configure_session_bindings(
-            engine=engine,
-            is_production=True,
-            fallback_url="sqlite:///./prod-fallback.db",
-            env_name="production",
-        )
+        try:
+            _configure_session_bindings(
+                engine=engine,
+                is_production=True,
+                fallback_url="sqlite:///./prod-fallback.db",
+                env_name="production",
+            )
 
-        assert core_db.SessionLocal is not None
-        assert os.environ["DB_FALLBACK_URL"] == "sqlite:///./prod-fallback.db"
-        assert os.environ["DATABASE_URL"] == "postgresql://canonical-db:5432/pulseplate"
+            assert core_db.SessionLocal is not None
+            assert os.environ["DB_FALLBACK_URL"] == "sqlite:///./prod-fallback.db"
+            assert os.environ["DATABASE_URL"] == "postgresql://canonical-db:5432/pulseplate"
+        finally:
+            core_db.SessionLocal = prev_session
+            core_db._RAW_ENGINE = prev_raw
+            core_db.engine = prev_engine
+            reset_fallback_state()
+            if prev_db_health is None:
+                os.environ.pop("DB_HEALTH_DEGRADED", None)
+            else:
+                os.environ["DB_HEALTH_DEGRADED"] = prev_db_health
+            if prev_fb_url is None:
+                os.environ.pop("DB_FALLBACK_URL", None)
+            else:
+                os.environ["DB_FALLBACK_URL"] = prev_fb_url
 
     def test_fallback_state_helpers(self) -> None:
         """Cover fallback state helpers: set/clear/reset/is."""
