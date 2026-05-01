@@ -15,8 +15,9 @@
 - [x] Fixed in commit mapping completed
 
 Disposition: FIXED
-Evidence: Sourcery review addressed -- PR lane naming clarified and merged/planned PR status disambiguated.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1618#pullrequestreview-4213362538
+Commit: 22774014a
+Evidence: docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md:7 (lane naming clarified), all matrix tables updated with (merged)/(planned) annotations.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1618#pullrequestreview-4213362538 -> 22774014a
 
 ## Local Validation Evidence
 
