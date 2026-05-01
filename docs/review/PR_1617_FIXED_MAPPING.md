@@ -33,6 +33,10 @@ Disposition: NOT-A-BUG
 Evidence: `trivy/ignore-policy.rego:139` — `not input.Image` and `not input.Distro` fallbacks are the canonical repo pattern (used by libgcrypt20 CVE-2026-41989 at lines 145-157). Removing them would break suppression when Trivy does not populate these fields. The doc is now updated to describe this fallback scope accurately.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#discussion_r3174946602
 
+Disposition: FIXED
+Evidence: `trivy/ignore-policy.rego:299` — same Docker Hub image ref fix as discussion_r3174939522
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#discussion_r3174965894 -> 783a89378
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
