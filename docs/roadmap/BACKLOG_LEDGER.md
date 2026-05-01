@@ -4048,6 +4048,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Links:
     - docs/security/CVE-2026-0861-glibc.md
     - docs/security/CVE-2025-15281-glibc.md
+    - docs/security/CVE-2026-4878-libcap2.md
   - DoD:
     - Weekly monitoring for upstream fixes
     - Remove suppressions when fixed versions available
@@ -4074,6 +4075,25 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Separate security lane decides between narrow suppression and upstream/base-image remediation
     - Billing activation/persistence closeout remains explicitly out of scope for this CVE
     - Alerts `#579` and `#580` are closed or formally covered by the approved suppression policy
+
+- [ ] Remove Trivy suppression for libcap2 CVE-2026-4878
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream fix)
+  - Status: Open
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: GitHub Code Scanning alert #588 reports `libcap2` `CVE-2026-4878` at `1:2.66-4+deb12u1` with no fixed version reported by Trivy/GitHub at triage time. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` while monitoring Debian/Trivy fixed-version metadata.
+  - Links:
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/588
+    - docs/security/CVE-2026-4878-libcap2.md
+    - trivy/ignore-policy.rego
+    - .github/workflows/build.yml
+  - DoD:
+    - Debian or Trivy metadata publishes a fixed `libcap2` package context
+    - Remove suppression rule from `trivy/ignore-policy.rego`
+    - Mark `docs/security/CVE-2026-4878-libcap2.md` resolved or remove after fix
+    - Trivy Code Scanning alert #588 remains closed on `main`
 
 <a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
 - [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
