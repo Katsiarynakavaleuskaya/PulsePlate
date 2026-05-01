@@ -10,13 +10,13 @@
 
 - [x] Discussion-thread pass completed
 
-No actionable bot review threads at time of initial push (draft PR, CodeRabbit review skipped).
-
 ## Fixed in Commit Mapping
 
 - [x] Fixed in commit mapping completed
 
-No FIXED dispositions required at time of initial push (no actionable threads).
+Disposition: FIXED
+Evidence: Sourcery review addressed -- PR lane naming clarified and merged/planned PR status disambiguated.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1618#pullrequestreview-4213362538
 
 ## Local Validation Evidence
 
