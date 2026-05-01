@@ -15,9 +15,9 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175319408
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175319408 -> dc6e4312e
 Disposition: FIXED
-Commit: PENDING
+Commit: dc6e4312e
 Evidence: docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md:80 — grammar fix "not confirmed" -> "are not confirmed"
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175322425
@@ -25,14 +25,14 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1619_FIXED_MAPPING.md:11-14
 Reason: Phase2 gate (`check_pr_body_phase2_gates.py`) requires checked checkboxes and `- No actionable review comments` marker. With no actionable threads and the no-actionable marker present, checkboxes are correctly checked per gate contract.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175322428
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175322428 -> 62c8e36bc
 Disposition: FIXED
 Commit: 62c8e36bc
 Evidence: docs/review/PR_1619_FIXED_MAPPING.md:18 — added `- No actionable review comments` marker
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175332957
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175332957 -> dc6e4312e
 Disposition: FIXED
-Commit: PENDING
+Commit: dc6e4312e
 Evidence: docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md:312 — validation command fix: `rg -v` -> `! rg -q -v`
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1619#discussion_r3175332965
