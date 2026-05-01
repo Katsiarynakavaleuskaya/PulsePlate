@@ -71,7 +71,9 @@ class RecipeDB:
             candidates = [r for r in self.recipes if self._compatible(r.tags, diet_flags)]
         if not candidates:
             return None
-        return random.choice(candidates)  # nosec B311 - pseudo random ok for variety
+        return random.choice(
+            candidates
+        )  # nosec B311: non-crypto recipe variety (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
 
     def _compatible(self, recipe_flags: List[str], diet_flags: List[str]) -> bool:
         if "VEG" in diet_flags and "OMNI" in recipe_flags:
@@ -171,7 +173,15 @@ class RecipeDB:
         # первичное масштабирование
         grams = {k: max(10.0, float(v) * alpha) for k, v in grams.items()}
         # лёгкая рандомизация (±5%) для вариативности
-        grams = {k: v * (0.95 + 0.10 * random.random()) for k, v in grams.items()}  # nosec B311
+        grams = {
+            k: v
+            * (
+                0.95
+                + 0.10
+                * random.random()  # nosec B311: non-crypto portion jitter (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
+            )
+            for k, v in grams.items()
+        }
         nut = self._nutrition_for(grams)
 
         # если сильно промахнулись по цели >5%, подправим ещё раз

@@ -230,7 +230,9 @@ class TestDbMissingLinesCoverage:
                 # Simulate an exception by throwing into the generator
                 try:
                     session_gen.throw(Exception("Test exception"))
-                except Exception:  # nosec B110 - intentional in test for generator error handling
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for generator error-path coverage (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
                 # Session should still be closed

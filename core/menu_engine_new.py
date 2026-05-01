@@ -168,7 +168,9 @@ def build_plate_day(
         try:
             # keep type consistent with other code paths (int kcal)
             m.kcal = int(round(m_kcal))
-        except Exception:  # nosec B110
+        except (
+            Exception
+        ):  # nosec B110: meal scaler tolerates immutable meal objects (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             # If the object is immutable, we still keep totals consistent via total_kcal.
             pass
 

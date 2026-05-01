@@ -32,7 +32,9 @@ class TestFinalCoreCoverage:
                     result = usda.get_food_data("123")
                     assert isinstance(result, (dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_food_categories_coverage(self):
@@ -61,7 +63,9 @@ class TestFinalCoreCoverage:
             is_valid = validate_category("fruit")
             assert isinstance(is_valid, (bool, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_nutrition_analysis_coverage(self):
@@ -90,7 +94,9 @@ class TestFinalCoreCoverage:
             is_valid = validate_nutrition_data({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_config_management_coverage(self):
@@ -118,7 +124,9 @@ class TestFinalCoreCoverage:
             is_valid = validate_config({})
             assert isinstance(is_valid, (bool, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_edge_case_coverage(self):
@@ -135,7 +143,9 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pass
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
         # Test with empty strings
@@ -147,7 +157,9 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pass
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
         # Test with unicode
@@ -159,7 +171,9 @@ class TestFinalCoreCoverage:
 
         except ImportError:
             pass
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_comprehensive_core_modules(self):
@@ -191,7 +205,9 @@ class TestFinalCoreCoverage:
                 imported_count += 1
             except ImportError:
                 pass  # Module not available
-            except Exception:  # nosec B110 - intentional in test for coverage
+            except (
+                Exception
+            ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 pass  # Other import error
 
         # We should be able to import at least some core modules
@@ -213,7 +229,9 @@ class TestFinalCoreCoverage:
             improvements = suggest_meal_improvements({}, {})
             assert isinstance(improvements, (list, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_auto_repair_comprehensive(self):
@@ -243,7 +261,9 @@ class TestFinalCoreCoverage:
             priority = calculate_repair_priority({}, {})
             assert isinstance(priority, (int, float, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_plate_comprehensive(self):
@@ -273,7 +293,9 @@ class TestFinalCoreCoverage:
             recommendations = get_plate_recommendations([])
             assert isinstance(recommendations, (list, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_targets_comprehensive(self):
@@ -299,5 +321,7 @@ class TestFinalCoreCoverage:
             adjusted = adjust_for_activity_level({}, "high")
             assert isinstance(adjusted, (dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass

@@ -71,7 +71,9 @@ class TestMenuEngineNewCoverage:
             from core import menu_engine_new
 
             assert menu_engine_new is not None
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_menu_engine_new_with_functions(self) -> None:
@@ -85,7 +87,9 @@ class TestMenuEngineNewCoverage:
             # Test available functions
             if hasattr(menu_engine_new, "make_weekly_menu"):
                 assert callable(menu_engine_new.make_weekly_menu)
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
 

@@ -40,7 +40,9 @@ class TestCoreDatabaseCoverage:
             db = get_unified_food_db()
             assert db is not None or db is None
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass  # Function may have requirements we can't meet
 
     def test_food_apis_base_coverage(self) -> None:
@@ -57,7 +59,9 @@ class TestCoreDatabaseCoverage:
                 result = provider.search_food("apple")
                 assert result is not None or result is None
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_usda_api_coverage(self) -> None:
@@ -75,7 +79,9 @@ class TestCoreDatabaseCoverage:
                     result = client.search("apple")
                     assert isinstance(result, (dict, list, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_openfoodfacts_api_coverage(self) -> None:
@@ -93,7 +99,9 @@ class TestCoreDatabaseCoverage:
                     result = client.get_product("123456789")
                     assert isinstance(result, (dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_unified_db_coverage(self) -> None:
@@ -113,7 +121,9 @@ class TestCoreDatabaseCoverage:
             result = merge_food_sources([], [])
             assert isinstance(result, (list, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_update_manager_coverage(self) -> None:
@@ -167,7 +177,9 @@ class TestCoreModulesAdvanced:
             score = calculate_repair_score({}, {})
             assert isinstance(score, (int, float, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_menu_engine_advanced_coverage(self) -> None:
@@ -196,7 +208,9 @@ class TestCoreModulesAdvanced:
             is_valid = validate_menu_nutrition({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_plate_advanced_coverage(self) -> None:
@@ -221,7 +235,9 @@ class TestCoreModulesAdvanced:
             improvements = suggest_plate_improvements({})
             assert isinstance(improvements, (list, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_targets_advanced_coverage(self) -> None:
@@ -250,7 +266,9 @@ class TestCoreModulesAdvanced:
             is_valid = validate_target_ranges({})
             assert isinstance(is_valid, (bool, dict, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_i18n_advanced_coverage(self) -> None:
@@ -279,7 +297,9 @@ class TestCoreModulesAdvanced:
             formatted = format_number_locale(123.45, "en")
             assert isinstance(formatted, (str, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_rag_advanced_coverage(self) -> None:
@@ -304,5 +324,7 @@ class TestCoreModulesAdvanced:
             results = similarity_search("query", [])
             assert isinstance(results, (list, type(None)))
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass

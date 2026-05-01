@@ -221,7 +221,9 @@ def record_ws_connect(path: str, *, result: str = "accepted", reason: str = "non
             result=result.strip().lower(),
             reason=normalize_ws_close_reason(reason),
         ).inc()
-    except Exception:  # nosec B110 - best-effort observability
+    except (
+        Exception
+    ):  # nosec B110: Prometheus label updates must not break requests (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
         pass
 
 
@@ -235,7 +237,9 @@ def record_ws_message(path: str, *, direction: str, status: str = "ok") -> None:
             direction=_normalize_ws_direction(direction),
             status=status.strip().lower(),
         ).inc()
-    except Exception:  # nosec B110 - best-effort observability
+    except (
+        Exception
+    ):  # nosec B110: Prometheus label updates must not break requests (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
         pass
 
 
@@ -245,7 +249,9 @@ def inc_ws_active_connections(path: str) -> None:
         return
     try:
         metrics.ws_active_connections.labels(path=_normalize_ws_path(path)).inc()
-    except Exception:  # nosec B110 - best-effort observability
+    except (
+        Exception
+    ):  # nosec B110: Prometheus label updates must not break requests (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
         pass
 
 
@@ -255,7 +261,9 @@ def dec_ws_active_connections(path: str) -> None:
         return
     try:
         metrics.ws_active_connections.labels(path=_normalize_ws_path(path)).dec()
-    except Exception:  # nosec B110 - best-effort observability
+    except (
+        Exception
+    ):  # nosec B110: Prometheus label updates must not break requests (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
         pass
 
 
@@ -454,7 +462,9 @@ async def metrics_middleware(request: Request, call_next: RequestResponseEndpoin
                 metrics.request_duration_seconds.labels(
                     method=method, route=route_norm, status=status
                 ).observe(elapsed)
-            except Exception:  # nosec B110 - metrics are non-critical, silent failure intentional
+            except (
+                Exception
+            ):  # nosec B110: metrics are non-critical; silent degradation (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                 # Metrics recording must never affect request handling.
                 # Optional: logger.exception("Prometheus metrics recording failed")
                 # Rationale: Silent failure is intentional - metrics are non-critical

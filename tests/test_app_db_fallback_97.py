@@ -195,6 +195,28 @@ class TestAppDBFallback97:
                 truthy=self.TRUTHY,
             )
 
+    def test_configure_session_bindings_production_keeps_database_url_for_compatibility(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Coverage branch for _configure_session_bindings in production path (line 169-171)."""
+        from core import db as core_db
+        from core.db_fallback import _configure_session_bindings
+        from sqlalchemy import create_engine
+
+        engine = create_engine("sqlite:///:memory:")
+        monkeypatch.setenv("DATABASE_URL", "postgresql://canonical-db:5432/pulseplate")
+
+        _configure_session_bindings(
+            engine=engine,
+            is_production=True,
+            fallback_url="sqlite:///./prod-fallback.db",
+            env_name="production",
+        )
+
+        assert core_db.SessionLocal is not None
+        assert os.environ["DB_FALLBACK_URL"] == "sqlite:///./prod-fallback.db"
+        assert os.environ["DATABASE_URL"] == "postgresql://canonical-db:5432/pulseplate"
+
     def test_fallback_state_helpers(self) -> None:
         """Cover fallback state helpers: set/clear/reset/is."""
         import core.db_fallback as fallback_mod

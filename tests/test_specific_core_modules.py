@@ -232,7 +232,9 @@ class TestMenuEngineModule:
 
             assert isinstance(result, WeekMenu)
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_nutrition_totals(self):

@@ -7,4 +7,5 @@ ms-python.flake8
 ms-python.isort
 ms-python.python
 ms-python.vscode-pylance
+sst-dev.opencode
 Webnative.webnative

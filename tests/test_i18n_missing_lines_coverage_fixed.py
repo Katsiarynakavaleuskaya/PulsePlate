@@ -151,7 +151,9 @@ class TestI18nMissingLines:
                     # Should handle gracefully and return valid language
                     assert isinstance(result, str)
                     assert len(result) >= 2
-                except Exception:  # nosec B110 - intentional in test for coverage
+                except (
+                    Exception
+                ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                     pass
 
         except ImportError:
@@ -228,7 +230,9 @@ class TestI18nMissingLines:
                         # Should always return a valid language code
                         assert isinstance(result, str)
                         assert len(result) >= 2
-                    except Exception:  # nosec B110 - intentional in test for coverage
+                    except (
+                        Exception
+                    ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
                         pass
 
         except ImportError:

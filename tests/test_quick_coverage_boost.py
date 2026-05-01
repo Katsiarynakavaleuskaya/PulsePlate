@@ -54,7 +54,9 @@ class TestQuickCoverageBoost:
             carb = calculate_who_carb_target(70, "male", 30, False, "very_active")
             assert carb > 0
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_i18n_fallback_coverage(self):
@@ -111,7 +113,9 @@ class TestQuickCoverageBoost:
             result = merge_food_sources(None, None)
             assert isinstance(result, list)
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_auto_repair_edge_cases(self):
@@ -140,7 +144,9 @@ class TestQuickCoverageBoost:
             gaps = repair_nutrition_gaps([], extreme_targets)
             assert isinstance(gaps, list)
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_menu_engine_missing_branches(self):
@@ -172,7 +178,9 @@ class TestQuickCoverageBoost:
             result = optimize_meal_plan([], extreme_constraints)
             assert isinstance(result, list)
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_recommendations_edge_cases(self):
@@ -205,7 +213,9 @@ class TestQuickCoverageBoost:
             result = recommender.recommend_for_user(extreme_prefs, [])
             assert isinstance(result, list)
 
-        except Exception:  # nosec B110 - intentional in test for coverage
+        except (
+            Exception
+        ):  # nosec B110: intentional broad except for coverage harness (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
             pass
 
     def test_region_catalog_edge_cases(self):

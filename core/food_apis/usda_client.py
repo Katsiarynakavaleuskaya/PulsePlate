@@ -123,7 +123,7 @@ class USDAClient:
         """
         self.api_key = (
             api_key or "DEMO_KEY"
-        )  # nosec B105  # USDA provides demo access with DEMO_KEY
+        )  # nosec B105: USDA public DEMO_KEY fallback for API demos (remove-by: 2027-06-30, ref: ledger-phase2-nosec-migration)
         self.client = httpx.AsyncClient()
 
         # Common nutrient mappings (USDA nutrient IDs to our standard names)
