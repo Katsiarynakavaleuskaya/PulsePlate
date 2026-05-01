@@ -63,7 +63,7 @@ If any metric cannot be computed deterministically, mark BLOCKED rather than inv
 ```bash
 # From repo root:
 python3 scripts/orchestration/logic_philosophy_replay_eval.py \
-  --tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json \
+  --cases tests/fixtures/orchestration/logic_philosophy_replay/replay_cases.json \
   --negative-controls tests/fixtures/orchestration/logic_philosophy_replay/replay_negative_controls.json
 ```
 
