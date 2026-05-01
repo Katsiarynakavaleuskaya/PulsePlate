@@ -77,7 +77,7 @@ Every scenario from `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift`
 
 | Asset | Evidence Path | Required Validator | Current State | Classification | Next Action |
 | --- | --- | --- | --- | --- | --- |
-| AppIcon `ios-marketing` 1024x1024 | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` (line 106-110: `AppIcon-1024.png`, idiom `ios-marketing`) | `actool` validation + PNG validity check (PR-5) | `Contents.json` references `AppIcon-1024.png`; actool validation and PNG validity not confirmed | `IMPLEMENTATION_REQUIRED` | PR-5 (planned) actool validation |
+| AppIcon `ios-marketing` 1024x1024 | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` (line 106-110: `AppIcon-1024.png`, idiom `ios-marketing`) | `actool` validation + PNG validity check (PR-5) | `Contents.json` references `AppIcon-1024.png`; actool validation and PNG validity are not confirmed | `IMPLEMENTATION_REQUIRED` | PR-5 (planned) actool validation |
 | Screenshot set (7 scenarios) | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` (lines 4-11) | `ios/fastlane/Fastfile` lane `validate_assets` + dimension/color-gamut validators | Scenarios defined; only `core_value` is `SUBMIT_READY` | Mixed (`SUBMIT_READY` / `IMPLEMENTATION_REQUIRED`) | Per-scenario resolution in PR-3 through PR-8 |
 | Localized metadata (en-US, ru-RU, es-ES) | `ios/fastlane/metadata/` | `ios/fastlane/Fastfile` lane `validate_metadata_package` | Metadata directories exist; content completeness not fully validated | `IMPLEMENTATION_REQUIRED` | PR-8 (planned) metadata sync and completeness validation |
 | Reviewer notes | `ios/fastlane/metadata/review_information/notes.txt` | `ios/fastlane/Fastfile` lane `validate_metadata_package` + semantic validators | Partial coverage: wellness disclaimer (line 9), HealthKit (lines 4-6), seeded data (line 10), paywall (line 11); missing: AI disclosure, test account, feature-flag state | `IMPLEMENTATION_REQUIRED` | PR-8 (planned) complete reviewer notes |
@@ -309,5 +309,5 @@ Commands that should pass for this docs/release PR:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 pre-commit run --all-files
-git diff --name-only origin/main...HEAD | rg -v '\.md$'  # must be empty (docs-only)
+! git diff --name-only origin/main...HEAD | rg -q -v '\.md$'  # must be empty (docs-only)
 ```
