@@ -9,14 +9,16 @@
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+- Status: Sourcery reviewed. All actionable findings addressed.
+- Review threads resolved by this artifact: 1 (see mapping below).
 
 ## Fixed in Commit Mapping
 
-- [x] Fixed in commit mapping completed
-
 Disposition: FIXED
 Commit: 22774014a
-Evidence: docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md:7 (lane naming clarified), all matrix tables updated with (merged)/(planned) annotations.
+Evidence: `docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md:7` (lane naming clarified); all matrix tables updated with (merged)/(planned) annotations.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1618#pullrequestreview-4213362538 -> 22774014a
 
 ## Local Validation Evidence
