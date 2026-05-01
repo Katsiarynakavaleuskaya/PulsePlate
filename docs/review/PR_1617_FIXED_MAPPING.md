@@ -11,9 +11,9 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- Status: Draft PR opened for CodeRabbit / bot / human review.
-- Review threads resolved by this artifact: none yet (initial PR open).
-- Actionable review comments: CodeRabbit / bot / human review intake pending.
+- Status: CodeRabbit skipped (draft), Sourcery posted review guide (informational, no actionable comments).
+- Review threads resolved by this artifact: none (no actionable review threads).
+- Actionable review comments: none.
 
 ## Fixed in Commit Mapping
 
@@ -28,6 +28,18 @@
 - PASS: `pytest -q tests/test_repo_policy_guards.py`
 - PASS: `make test-fast`
 - PASS: `make lint`
+
+## Merge Readiness
+
+- [x] Local gates green (check_preflight, check_agent_consistency, pre-commit, test-fast, lint, policy guards)
+- [x] Trivy expiry check green
+- [x] CI current-head checks green (all required checks pass, 2026-05-01)
+- [x] No actionable bot comments (CodeRabbit skipped draft, Sourcery informational only)
+- [x] Canonical review artifact created
+- [x] `check_review_threads_disposition.py --require-auth` PASS
+- [x] `check_pr_merge_readiness.py` PASS
+- [x] Pre-push hooks passed (pip-audit, backend tests, bandit)
+- [ ] Wait-window elapsed after last review activity
 
 ## Deferred / Follow-ups
 
