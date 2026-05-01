@@ -69,7 +69,7 @@ planning mirror that maps each surface to the gate list.
 | Surface | Repo Evidence | User-Visible Claim | Data Collected/Shared | Permission Required? | Reviewer Note Required? | Screenshot Allowed? | Classification | Required Next Action | Backlog Link |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | HealthKit Read-Only | `ios/PulsePlate/Models/HealthKitManager.swift` | Read dietary energy, protein, carbs, fat, fiber, sugar, sodium, body mass | HealthKit data read locally (not sent to backend) | Yes (`NSHealthShareUsageDescription`) | Yes (read-only posture, optional, revocable) | No | `IMPLEMENTATION_REQUIRED` | PR-6 (planned) Swift 6 cleanup; PR-8 (planned) reviewer notes parity | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
-| Diagnostics / Telemetry | Backend observability (`app/bootstrap/metrics.py`) | App performance and error monitoring | Anonymized crash/performance telemetry | No | No (standard diagnostics) | N/A | `SUBMIT_READY` | Confirm App Privacy covers diagnostics if applicable | -- |
+| Diagnostics / Telemetry | Backend observability (`app/bootstrap/metrics.py`) | App performance and error monitoring | Anonymized crash/performance telemetry | No | No (standard diagnostics) | N/A | `IMPLEMENTATION_REQUIRED` | PR-8 (planned) confirm whether App Privacy `DIAGNOSTICS` category is needed; if collected, must be disclosed | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 
 ### App Store Assets
 
@@ -94,7 +94,7 @@ before public submission. Current state is evaluated against
 ### Wellness-Only Positioning
 
 - [x] Notes state the app does not diagnose, treat, cure, or provide medical advice
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:9`
 - [ ] Notes confirm wellness-only AI positioning (not therapy, not clinical)
   - Required in: PR-8
 
@@ -128,7 +128,7 @@ before public submission. Current state is evaluated against
 ### Test Account / Demo Flow
 
 - [x] Notes confirm screenshots use seeded test data only
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:9`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10`
 - [ ] Notes provide test account credentials if reviewer needs to test PRO/VIP flows
   - Required in: PR-8
 
@@ -182,7 +182,7 @@ Record each sensitive permission string present in release localization files.
 
 | Permission String Key | EN Value | Purpose | Used in Release Build? | Should Remain? | Reviewer Notes Must Mention? |
 | --- | --- | --- | --- | --- | --- |
-| `NSHealthShareUsageDescription` | "PulsePlate reads Health nutrition and body weight data to show wellness progress and planning with your consent." | HealthKit read-only access | Yes (`HealthKitManager.swift` uses `toShare: nil`) | Yes | Yes (already covered in reviewer notes) |
+| `NSHealthShareUsageDescription` | "PulsePlate reads Health nutrition and body weight data to show wellness progress and planning with your consent." | HealthKit read-only access | Yes (defined in `en.lproj/InfoPlist.strings` and `ru.lproj/InfoPlist.strings`; `HealthKitManager.swift` uses `toShare: nil`) | Yes | Yes (already covered in reviewer notes) |
 
 ### Removed in PR-2
 
@@ -233,7 +233,7 @@ An asset scenario may be exported for App Store submission only when all are tru
   pricing comes from StoreKit / App Store Connect truth only
   (see `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`)
 - Screenshots use seeded test data only (confirmed in reviewer notes:
-  `ios/fastlane/metadata/review_information/notes.txt:9`)
+  `ios/fastlane/metadata/review_information/notes.txt:10`)
 
 ## Blockers
 
@@ -267,8 +267,9 @@ Each links to `BACKLOG_LEDGER.md` or the epic PR train.
   - Owner: PR-6 (`release/appstore-readiness-pr6-healthkit-swift6`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [ ] **Screenshot submission policy**: No screenshot scenario policy with
-  submission status gating exists yet.
+- [ ] **Screenshot submission policy enforcement**: This matrix defines
+  classification rules; PR-4 must add Swift and Python enforcement tests
+  that gate export/submission based on these classifications.
   - Owner: PR-4 (`release/appstore-readiness-pr4-asset-gating`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
@@ -342,4 +343,5 @@ Commands that should pass for this docs/release PR:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 pre-commit run --all-files
+git diff --name-only origin/main...HEAD | rg -v '\.md$'  # must be empty (docs-only)
 ```
