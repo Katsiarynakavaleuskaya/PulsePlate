@@ -4252,7 +4252,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: AI reliability experimentation sublane for logic + philosophy offline replay
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-AI-RELIABILITY-EXPERIMENT-SUBLANE
+  - Target PR: codex/ai-reliability-experiment-sublane-w1 (placeholder)
   - Area: orchestration / experimentation / AI reliability
   - Finding Type: applied-eval lane gap
   - Reason: PulsePlate already has the governed experimentation umbrella and philosophical runtime foundation, but it still lacks one canonical offline replay + ablation packet dedicated to proving whether `logic` and `philosophy` layers actually improve answer correctness/readiness before any runtime rollout.
