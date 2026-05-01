@@ -37,6 +37,22 @@ Disposition: FIXED
 Evidence: `trivy/ignore-policy.rego:299` — same Docker Hub image ref fix as discussion_r3174939522
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#discussion_r3174965894 -> 783a89378
 
+Disposition: NOT-A-BUG
+Evidence: Sourcery review is informational guide only (no actionable findings).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#pullrequestreview-4213111285
+
+Disposition: FIXED
+Evidence: CodeRabbit review findings addressed in commit 783a89378.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#pullrequestreview-4213123695 -> 783a89378
+
+Disposition: FIXED
+Evidence: Cubic review findings addressed in commit 783a89378.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#pullrequestreview-4213146740 -> 783a89378
+
+Disposition: FIXED
+Evidence: CodeRabbit re-review after fixes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1617#pullrequestreview-4213176786 -> 783a89378
+
 ## Local Validation Evidence
 
 - PASS: `python3 scripts/orchestration/check_preflight.py`
