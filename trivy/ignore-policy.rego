@@ -297,6 +297,10 @@ cve_2026_4878_image_reference_match if {
 }
 
 cve_2026_4878_image_reference_match if {
+	startswith(input.Image, "katsiarynakavaleuskaya/pulseplate")
+}
+
+cve_2026_4878_image_reference_match if {
 	not input.Image
 }
 
