@@ -20,7 +20,7 @@ PR #1629 fixes the iOS build failure by handling `.consentRequired` in `AIInsigh
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1629#discussion_r3177030442 -> 4454d3e36
   Disposition: FIXED
   Commit: 4454d3e36
-  Evidence: docs/review/PR_1629_FIXED_MAPPING.md (mapping format corrected to canonical `- No actionable review comments`)
+  Evidence: docs/review/PR_1629_FIXED_MAPPING.md (mapping format corrected to canonical N/A marker)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1629#discussion_r3177030443 -> c609d3b80
   Disposition: FIXED
