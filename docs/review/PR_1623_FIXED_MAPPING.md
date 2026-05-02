@@ -13,8 +13,8 @@ The wellness language blocker guard only skips lines containing the inline marke
 above the forbidden-examples section, not on the individual example lines. The guard
 therefore continued to scan those lines and failed on two matches:
 
-- Line 172: `"Cure your metabolic issues"` (matched `cures? your`)
-- Line 184: `"diagnose your health"` (matched `diagnoses? your`)
+- Line 172: `"Cure your metabolic issues"` (matched `cures? your`) <!-- pulseplate-allow:blocker-example -->
+- Line 184: `"diagnose your health"` (matched `diagnoses? your`) <!-- pulseplate-allow:blocker-example -->
 
 ## Discussion Thread Pass
 
