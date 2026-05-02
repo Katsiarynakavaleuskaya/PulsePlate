@@ -61,10 +61,7 @@ def test_viewmodel_checks_consent_before_request() -> None:
 
 
 def test_disclosure_contains_required_semantics() -> None:
-    """Disclosure sheet localization must include required wellness-only semantics."""
-    en_file = IOS_APP_ROOT / "en.lproj" / "Localizable.strings"
-    assert en_file.exists()
-    text = en_file.read_text(encoding="utf-8")
+    """Disclosure sheet localization must include required wellness-only semantics in all locales."""
     required_semantics = [
         "ai_consent.point.wellness_only",
         "ai_consent.point.not_medical",
@@ -74,10 +71,14 @@ def test_disclosure_contains_required_semantics() -> None:
         "ai_consent.accept",
         "ai_consent.decline",
     ]
-    for key in required_semantics:
-        assert key in text, (
-            f"English Localizable.strings must contain key '{key}' " f"for wellness disclosure"
-        )
+    for locale in ("en", "ru", "es"):
+        locale_file = IOS_APP_ROOT / f"{locale}.lproj" / "Localizable.strings"
+        assert locale_file.exists(), f"{locale}.lproj/Localizable.strings must exist"
+        text = locale_file.read_text(encoding="utf-8")
+        for key in required_semantics:
+            assert key in text, (
+                f"{locale} Localizable.strings must contain key '{key}' " f"for wellness disclosure"
+            )
 
 
 def test_consent_store_does_not_contain_free_text_tokens() -> None:
