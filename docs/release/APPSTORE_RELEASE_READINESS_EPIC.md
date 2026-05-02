@@ -147,20 +147,28 @@ then update this epic, the matrix, and the lane packet in the same PR.
 
 ## Backend Host Decision Register
 
-`canonical_release_base_url` is intentionally unresolved in PR-0. PR-3 owns the
-operator decision and must record the final HTTPS production host before runtime
-fail-fast changes land.
+`canonical_release_base_url` was resolved in PR-7
+(`release/appstore-readiness-pr7-base-url-fail-fast`).
 
-Current repo signals:
+**Decision:** `https://pulseplate.app`
 
-- `ios/PulsePlate/Services/AppConfig.swift` falls back to
-  `https://api.pulseplate.com` in Release.
-- `ios/PulsePlate/Info-Release.plist` contains a commented example for
-  `https://api.pulseplate.app`.
+Resolved signals:
 
-PR-3 must choose one canonical host, update `Info-Release.plist`, remove the
-silent fallback, and add release-base-url validation so future documents do not
-carry competing backend hosts.
+- `ios/PulsePlate/Services/AppConfig.swift` no longer falls back to
+  `https://api.pulseplate.com` in Release. The Release path requires an explicit
+  HTTPS `BASE_URL` from `Info-Release.plist` and calls `fatalError` if the value
+  is missing, empty, non-HTTPS, or lacks a host component.
+- `ios/PulsePlate/Info-Release.plist` contains an active `BASE_URL` key set to
+  `https://pulseplate.app`.
+- Python guard `tests/ios/test_release_base_url_guard.py` enforces the plist
+  contract and blocks regression to the silent fallback.
+- Swift unit tests in `ios/PulsePlateTests/Services/AppConfigTests.swift` cover
+  the `validateReleaseBaseURL` helper that gates the `fatalError` path.
+
+If a future operator decision moves the backend to a dedicated subdomain
+(e.g. `api.pulseplate.app`), that change requires a separate PR updating
+`Info-Release.plist`, this decision register, and the Python plist guard in
+`tests/ios/test_release_base_url_guard.py`.
 
 ## Required Gates
 
