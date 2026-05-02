@@ -13,3 +13,6 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1621#discussion_r3176403877 -> ea360a796
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1621#pullrequestreview-4214752979 -> ea360a796
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1621#discussion_r3176405959 -> e831bba61
+Disposition: FIXED
+Commit: ea360a796
+Evidence: docs/release/APPSTORE_RELEASE_NOTES_TEMPLATE.md:161 (table fix), :305 (healthkit independence), :321 (nutrition independence), :345 (drift reminder), :100 (classification exception)
