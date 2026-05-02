@@ -16,10 +16,13 @@ therefore continued to scan those lines and failed on two matches:
 - Line 172: `"Cure your metabolic issues"` (matched `cures? your`)
 - Line 184: `"diagnose your health"` (matched `diagnoses? your`)
 
+## Discussion Thread Pass
+
+No actionable review comments.
+
 ## Fixed in Commit Mapping
 
-- `docs/release/APPSTORE_RELEASE_NOTES_TEMPLATE.md:172` -> bd618b56d
-- `docs/release/APPSTORE_RELEASE_NOTES_TEMPLATE.md:184` -> bd618b56d
+No actionable review comments
 
 ## Validation
 
