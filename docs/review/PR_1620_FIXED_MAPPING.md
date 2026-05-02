@@ -25,3 +25,13 @@ Reason: P0 upgrade was intentional (operator request). Alignment table (lines 26
 Disposition: NOT-A-BUG
 Evidence: scripts/orchestration/review_mapping_artifact.py:111-162
 Reason: Phase2 gate validates Discussion Thread Pass and Fixed in Commit Mapping sections only. Merge Readiness section is required in PR body (already present), not in the canonical artifact. CodeRabbit suggestion is additive but not gate-required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#pullrequestreview-4214713806
+Disposition: NOT-A-BUG
+Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:1-362
+Reason: Sourcery general advice to add how-to-update section. Audit doc is a point-in-time snapshot by design; update procedures are governed by PR train sequencing (PR-8 owns remediation). No doc change needed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#pullrequestreview-4214718734
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1620_FIXED_MAPPING.md:19-22
+Reason: Cubic parent review body summarizes the single inline comment (discussion_r3176363985) already mapped above as NOT-A-BUG. No additional action required.
