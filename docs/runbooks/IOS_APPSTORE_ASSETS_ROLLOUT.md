@@ -91,6 +91,16 @@ Purpose:
 
 Use validation-only flow before any protected upload:
 
+0. Run the unified App Store verification gate (mandatory pre-upload):
+
+       make ios-appstore-verify
+
+   This target runs all repo-local validators without App Store Connect
+   credentials or network calls. It checks release BASE_URL, AppIcon,
+   PrivacyInfo, App Privacy details, permission strings, HealthKit read-only
+   posture, AI consent, reviewer pack, screenshot policy, and StoreKit pricing
+   truth boundaries. It must pass before protected upload dispatch.
+
 1. Run implementation PR checks locally:
    - `python3 scripts/orchestration/check_preflight.py`
    - `python3 scripts/orchestration/check_agent_consistency.py`

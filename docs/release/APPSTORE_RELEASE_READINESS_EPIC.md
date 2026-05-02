@@ -156,11 +156,21 @@ then update this epic, the matrix, and the lane packet in the same PR.
       reviewer-pack guard added in `tests/ios/test_appstore_reviewer_pack_guard.py`
       (25 checks). Submission matrix and metadata audit updated.
 
-10. **PR-9: release validators in CI**
-    - Branch: `release/appstore-readiness-pr9-validation-gates`
-    - Add `make ios-appstore-verify` and Fastlane validators for privacy
-      manifest, App Privacy, screenshot policy, Release base URL, permission
-      strings, and AppIcon marketing asset.
+10. **PR-12: release validation gates**
+     - Branch: `release/appstore-readiness-pr12-validation-gates`
+     - Add `make ios-appstore-verify` as the unified repo-local validation
+       entrypoint. The gate checks release BASE_URL, AppIcon, PrivacyInfo,
+       App Privacy details, permission strings, HealthKit read-only posture,
+       AI consent, reviewer pack, screenshot policy, and StoreKit pricing
+       truth boundaries. No App Store Connect upload. No runtime changes.
+     - **Status (PR-12):** Validator script at
+       `scripts/release/check_ios_appstore_verify.py` (10 deterministic
+       checks). Makefile target `ios-appstore-verify` runs the validator
+       plus all iOS guard tests, wellness language guard, and reviewer
+       packet hash guard. Test coverage in
+       `tests/ios/test_ios_appstore_verify.py`. Release runbook updated
+       with mandatory pre-upload step. Protected upload remains
+       operator-owned.
 
 ## Out Of Scope
 
