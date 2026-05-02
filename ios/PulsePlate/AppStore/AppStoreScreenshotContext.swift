@@ -81,6 +81,7 @@ enum AppStoreScreenshotContext {
         userDefaults.set("65", forKey: "pro_profile_weight_kg")
         userDefaults.set("moderate", forKey: "pro_profile_activity")
         userDefaults.set("maintain", forKey: "pro_profile_goal")
+        userDefaults.set(true, forKey: AppStorageKeys.aiWellnessConsentAccepted)
 
     }
 

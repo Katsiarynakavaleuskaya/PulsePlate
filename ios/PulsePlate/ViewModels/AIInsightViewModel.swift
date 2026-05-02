@@ -3,6 +3,7 @@ import Observation
 
 public enum AIInsightState: Equatable {
     case idle
+    case consentRequired
     case loading
     case loaded(CBTInsightResponseDTO)
     case failed(String)
@@ -23,14 +24,17 @@ public final class AIInsightViewModel {
 
     private let service: CBTInsightServicing
     private let apiKeyProvider: @Sendable () -> String?
+    private let consentProvider: AIWellnessConsentProviding
     private var submitTask: Task<Void, Never>?
 
     init(
         service: CBTInsightServicing,
-        apiKeyProvider: @escaping @Sendable () -> String? = { nil }
+        apiKeyProvider: @escaping @Sendable () -> String? = { nil },
+        consentProvider: AIWellnessConsentProviding = AIWellnessConsentStore()
     ) {
         self.service = service
         self.apiKeyProvider = apiKeyProvider
+        self.consentProvider = consentProvider
     }
 
     public var canSubmit: Bool {
@@ -44,6 +48,11 @@ public final class AIInsightViewModel {
     }
 
     public func submit() {
+        guard consentProvider.hasAccepted() else {
+            state = .consentRequired
+            return
+        }
+
         let query = trimmedQuery
         guard !query.isEmpty else {
             state = .failed(localized("ai_insight.error.empty_query"))
@@ -75,6 +84,19 @@ public final class AIInsightViewModel {
 
     public func retry() {
         submit()
+    }
+
+    /// Called when the user accepts the wellness disclosure.
+    /// Persists consent and re-triggers submission.
+    public func acceptConsent() {
+        consentProvider.markAccepted()
+        submit()
+    }
+
+    /// Called when the user declines the wellness disclosure.
+    /// Returns to idle without sending any data.
+    public func declineConsent() {
+        state = .idle
     }
 
     private func _submit(query: String, apiKey: String) async {

@@ -2,6 +2,7 @@ import Foundation
 
 enum AppStorageKeys {
     static let appLanguage = "AppLanguage"
+    static let aiWellnessConsentAccepted = "ai_wellness_consent_accepted_v1"
 }
 
 // MARK: - PRO Nutrition Profile (Plate /daily)

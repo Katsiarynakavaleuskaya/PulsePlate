@@ -2,6 +2,7 @@ import SwiftUI
 
 struct AIInsightView: View {
     @State private var vm: AIInsightViewModel
+    @State private var showConsentSheet: Bool = false
 
     init(vm: AIInsightViewModel) {
         _vm = State(initialValue: vm)
@@ -21,6 +22,27 @@ struct AIInsightView: View {
         .background(Color.navy.ignoresSafeArea())
         .navigationTitle(localized("ai_insight.navigation.title"))
         .navigationBarTitleDisplayMode(.inline)
+        .onChange(of: vm.state) { _, newState in
+            if case .consentRequired = newState {
+                showConsentSheet = true
+            }
+        }
+        .sheet(isPresented: $showConsentSheet, onDismiss: {
+            if case .consentRequired = vm.state {
+                vm.declineConsent()
+            }
+        }) {
+            AIWellnessDisclosureSheet(
+                onAccept: {
+                    showConsentSheet = false
+                    vm.acceptConsent()
+                },
+                onDecline: {
+                    showConsentSheet = false
+                    vm.declineConsent()
+                }
+            )
+        }
     }
 
     private func localized(_ key: String) -> String {
