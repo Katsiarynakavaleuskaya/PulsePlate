@@ -21,6 +21,11 @@ added deterministic guard for read-only posture.
 ### Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176779839 -> e5ddc7fd2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176806104 -> 074686fab
+
+Disposition: FIXED
+Commit: e5ddc7fd2
+Evidence: tests/ios/test_healthkit_readonly_guard.py:45 (assert plist.exists() added)
 
 ## Merge Readiness
 
