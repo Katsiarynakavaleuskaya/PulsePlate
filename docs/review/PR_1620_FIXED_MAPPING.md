@@ -9,11 +9,19 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review threads at artifact creation time.
-This artifact must be updated after bot reviews (CodeRabbit, Sourcery, Cubic)
-complete. Any new actionable threads must be mapped here with disposition
-before merge readiness can be claimed.
-
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#discussion_r3176357834 -> c5acd9957
+Disposition: FIXED
+Commit: c5acd9957
+Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:45
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#discussion_r3176363985
+Disposition: NOT-A-BUG
+Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:261-275,290-293
+Reason: P0 upgrade was intentional (operator request). Alignment table (lines 261-266), verdict (lines 269-273), and risk table (line 293) are all consistent at P0. No conflicting sections remain.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#pullrequestreview-4214715761
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/review_mapping_artifact.py:111-162
+Reason: Phase2 gate validates Discussion Thread Pass and Fixed in Commit Mapping sections only. Merge Readiness section is required in PR body (already present), not in the canonical artifact. CodeRabbit suggestion is additive but not gate-required.
