@@ -7,6 +7,7 @@ PR #1629 fixes the iOS build failure by handling `.consentRequired` in `AIInsigh
 ## Scope
 
 - `ios/PulsePlate/Views/AIInsightView.swift`
+- `ios/PulsePlateTests/AIWellnessConsentTests.swift`
 - `tests/ios/test_ai_insight_state_exhaustiveness_guard.py`
 
 ## Discussion Thread Pass
