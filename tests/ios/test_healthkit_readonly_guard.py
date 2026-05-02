@@ -43,6 +43,7 @@ def test_no_write_permission_string_in_infoplist() -> None:
 def test_read_permission_string_present() -> None:
     """NSHealthShareUsageDescription must be present in en and ru locales."""
     for plist in (EN_INFOPLIST, RU_INFOPLIST):
+        assert plist.exists(), f"{plist} must exist for HealthKit read permission"
         content = plist.read_text(encoding="utf-8")
         assert "NSHealthShareUsageDescription" in content, (
             f"{plist.name} must contain NSHealthShareUsageDescription "
