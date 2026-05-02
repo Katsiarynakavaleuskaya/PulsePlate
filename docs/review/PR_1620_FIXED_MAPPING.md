@@ -14,7 +14,7 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#discussion_r3176357834 -> c5acd9957
 Disposition: FIXED
 Commit: c5acd9957
-Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:45
+Evidence: `git show c5acd9957 -- docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md` shows line 45 changed "nutricion" to "nutrición"
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#discussion_r3176363985
 Disposition: NOT-A-BUG
@@ -35,3 +35,13 @@ Reason: Sourcery general advice to add how-to-update section. Audit doc is a poi
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1620_FIXED_MAPPING.md:19-22
 Reason: Cubic parent review body summarizes the single inline comment (discussion_r3176363985) already mapped above as NOT-A-BUG. No additional action required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#discussion_r3176374227 -> 4d5f9fb4d
+Disposition: FIXED
+Commit: 4d5f9fb4d
+Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:46,161-165 — standardized description risk from P1 to P0 in metadata inventory table and forbidden claims verdict
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#discussion_r3176374228
+Disposition: NOT-A-BUG
+Evidence: `git show c5acd9957 -- docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md`
+Reason: Line 45 IS the evidence — commit c5acd9957 changed "nutricion" to "nutrición" on that exact line. The diff proves the fix was applied. CodeRabbit ran its verification script against stale HEAD (commit 012b5deb0, before the fix landed in c5acd9957).
