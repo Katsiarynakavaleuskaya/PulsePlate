@@ -109,6 +109,29 @@ Branch: `evals/evaluation-validity-substrate`
     - Commit: 0cbcd30f2
     - Evidence: `tests/evals/test_run_eval_validity.py:75` (added `encoding="utf-8"`)
 
+19. **r3177294161** — P2: Keep disposition-specific proof inline in mapping entries
+    - Disposition: NOT-A-BUG
+    - Evidence: AGENTS.md review governance section — `url -> sha` format is the canonical mapping line format
+    - Reason: Mapping follows canonical `- <url> -> <sha>` format per PR_ORCHESTRATION_CONTRACT_MATRIX.md; disposition detail lives in the Review Thread Dispositions section above
+
+### Bot review summaries (non-inline)
+
+20. **pullrequestreview-4215556530** — Cubic first review summary
+    - Disposition: NOT-A-BUG
+    - Reason: Review summary; all inline comments addressed individually above
+
+21. **pullrequestreview-4215560089** — CodeRabbit first review summary
+    - Disposition: NOT-A-BUG
+    - Reason: Review summary; all inline comments addressed individually above
+
+22. **pullrequestreview-4215566473** — CodeRabbit second review summary
+    - Disposition: NOT-A-BUG
+    - Reason: Review summary; all inline comments addressed individually above
+
+23. **pullrequestreview-4215586984** — Cubic second review summary (re-review after fixes)
+    - Disposition: NOT-A-BUG
+    - Reason: Re-review summary; new inline comment r3177294161 addressed as #19
+
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263714 -> 699da47691fada67396465b0fa7da9de27f38482
@@ -129,7 +152,12 @@ Branch: `evals/evaluation-validity-substrate`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177275468 -> 699da47691fada67396465b0fa7da9de27f38482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177275470 -> 699da47691fada67396465b0fa7da9de27f38482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177283292 -> 0cbcd30f2e2c4d1885e236e05262519a9394eea8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177294161
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#pullrequestreview-4215556530
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#pullrequestreview-4215560089
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#pullrequestreview-4215566473
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#pullrequestreview-4215586984
 
 ## Merge Readiness Evidence
 
-Pending current-head CI after second fix commit.
+All code quality CI checks PASS on current head. Bot reviews complete with all comments mapped.
