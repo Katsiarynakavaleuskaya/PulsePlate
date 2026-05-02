@@ -129,6 +129,25 @@ struct AIInsightView: View {
         case .idle:
             EmptyView()
 
+        case .consentRequired:
+            GlassCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("AI wellness consent required")
+                        .font(.headline)
+                        .foregroundStyle(Color.textPrimary)
+
+                    Text("Review the wellness-only AI disclosure before generating an insight.")
+                        .font(.subheadline)
+                        .foregroundStyle(Color.textSecondary)
+
+                    Button("Review disclosure") {
+                        showConsentSheet = true
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
         case .loading:
             GlassCard {
                 VStack(alignment: .leading, spacing: 12) {
