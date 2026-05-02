@@ -134,6 +134,14 @@ then update this epic, the matrix, and the lane packet in the same PR.
    - Gate first CBT insight request behind explicit wellness-only AI disclosure
      and consent.
    - Keep no-medical/no-therapy/no-crisis positioning.
+   - **Status (PR-10):** Consent gate added at `AIInsightViewModel.submit()` as
+     the first guard before any network request. `AIWellnessConsentStore` persists
+     boolean consent in UserDefaults (key `ai_wellness_consent_accepted_v1`).
+     `AIWellnessDisclosureSheet` presents wellness-only disclosure with 5 semantic
+     points. Declining returns to idle without sending data. Accepting persists
+     consent and proceeds with submit. Localized in en/ru/es. Deterministic guard
+     added in `tests/ios/test_ai_wellness_consent_guard.py` (7 checks). Swift
+     tests added in `AIWellnessConsentTests` (5 tests). CI test targets updated.
 
 9. **PR-8: reviewer notes and metadata sync**
    - Branch: `release/appstore-readiness-pr8-reviewer-pack`

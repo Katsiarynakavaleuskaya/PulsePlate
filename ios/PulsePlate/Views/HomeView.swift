@@ -194,9 +194,11 @@ struct HomeView: View {
 
     private func makeAIInsightScreen() -> some View {
         let service = DefaultCBTInsightService(apiClient: apiClient)
+        let consentStore = AIWellnessConsentStore()
         let viewModel = AIInsightViewModel(
             service: service,
-            apiKeyProvider: { ProKeyProvider.value() }
+            apiKeyProvider: { ProKeyProvider.value() },
+            consentProvider: consentStore
         )
         return AIInsightView(vm: viewModel)
     }

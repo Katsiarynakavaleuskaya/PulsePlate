@@ -210,3 +210,14 @@
 "ai_insight.error.empty_response" = "El servicio AI devolvió una respuesta vacía. Inténtalo de nuevo.";
 "ai_insight.error.unknown_generic" = "Ocurrió un error inesperado. Inténtalo de nuevo.";
 "ai_insight.retry" = "Reintentar";
+
+/* AI Wellness Consent */
+"ai_consent.title" = "AI Bienestar";
+"ai_consent.header" = "Antes de comenzar";
+"ai_consent.point.wellness_only" = "Esta función ofrece apoyo para la reflexión sobre bienestar y nutrición.";
+"ai_consent.point.not_medical" = "No es consejo médico, no es un diagnóstico, no es un tratamiento, no es terapia y no es apoyo de crisis.";
+"ai_consent.point.data_processing" = "Tu pregunta será enviada al servidor de la aplicación para su procesamiento.";
+"ai_consent.point.no_emergency" = "No envíes información de emergencia, crisis o datos médicos sensibles.";
+"ai_consent.point.voluntary" = "Puedes rechazar en cualquier momento. El análisis AI no se ejecutará sin tu consentimiento.";
+"ai_consent.accept" = "Entendido";
+"ai_consent.decline" = "Ahora no";

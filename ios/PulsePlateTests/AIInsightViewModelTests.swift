@@ -6,7 +6,7 @@ final class AIInsightViewModelTests: XCTestCase {
     func test_submit_withoutApiKey_setsFailed_andDoesNotCallService() async {
         let service = CapturingCBTInsightService(result: .failure(.unknown("unused")))
         let vm = await MainActor.run {
-            let viewModel = AIInsightViewModel(service: service, apiKeyProvider: { nil })
+            let viewModel = AIInsightViewModel(service: service, apiKeyProvider: { nil }, consentProvider: AcceptedConsentStub())
             viewModel.query = "Help me challenge a negative thought"
             return viewModel
         }
@@ -49,7 +49,8 @@ final class AIInsightViewModelTests: XCTestCase {
         let vm = await MainActor.run {
             let viewModel = AIInsightViewModel(
                 service: service,
-                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                apiKeyProvider: { "pp-placeholder" }, // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                consentProvider: AcceptedConsentStub()
             )
             viewModel.query = "How can I respond to self-criticism after overeating?"
             return viewModel
@@ -86,7 +87,8 @@ final class AIInsightViewModelTests: XCTestCase {
         let vm = await MainActor.run {
             let viewModel = AIInsightViewModel(
                 service: service,
-                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                apiKeyProvider: { "pp-placeholder" }, // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                consentProvider: AcceptedConsentStub()
             )
             viewModel.query = "I need help staying consistent"
             return viewModel
@@ -109,7 +111,8 @@ final class AIInsightViewModelTests: XCTestCase {
         let vm = await MainActor.run {
             let viewModel = AIInsightViewModel(
                 service: service,
-                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                apiKeyProvider: { "pp-placeholder" }, // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                consentProvider: AcceptedConsentStub()
             )
             viewModel.query = String(repeating: "a", count: maxQueryLength + 1)
             return viewModel
@@ -141,7 +144,7 @@ final class AIInsightViewModelTests: XCTestCase {
         let service = CapturingCBTInsightService(result: .failure(.unknown("unused")))
         let maxQueryLength = await MainActor.run { AIInsightViewModel.maxQueryLength }
         let vm = await MainActor.run {
-            let viewModel = AIInsightViewModel(service: service, apiKeyProvider: { nil })
+            let viewModel = AIInsightViewModel(service: service, apiKeyProvider: { nil }, consentProvider: AcceptedConsentStub())
             viewModel.query = String(repeating: "b", count: maxQueryLength + 25)
             return viewModel
         }
@@ -170,7 +173,8 @@ final class AIInsightViewModelTests: XCTestCase {
         let vm = await MainActor.run {
             let viewModel = AIInsightViewModel(
                 service: service,
-                apiKeyProvider: { "pp-placeholder" } // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                apiKeyProvider: { "pp-placeholder" }, // pragma: allowlist secret -- test API key sentinel / тестовый маркер ключа
+                consentProvider: AcceptedConsentStub()
             )
             viewModel.query = "Please validate this response"
             return viewModel
@@ -204,6 +208,12 @@ final class AIInsightViewModelTests: XCTestCase {
         try? await Task.sleep(for: .milliseconds(10))
         return await MainActor.run { vm.state }
     }
+}
+
+/// Pre-accepted consent provider for tests that are not testing consent flow.
+private struct AcceptedConsentStub: AIWellnessConsentProviding {
+    func hasAccepted() -> Bool { true }
+    func markAccepted() {}
 }
 
 private actor CapturingCBTInsightService: CBTInsightServicing {
