@@ -137,13 +137,13 @@ final class AIWellnessConsentTests: XCTestCase {
     private func makeResponse() -> CBTInsightResponseDTO {
         CBTInsightResponseDTO(
             insight: "Test insight",
+            ragUsed: false,
+            sources: [],
             confidence: 0.9,
             uncertainty: 0.1,
-            ragUsed: false,
-            mode: "auto_safe",
-            quotaState: "consumed",
             warnings: [],
-            sources: []
+            mode: "auto_safe",
+            quotaState: "consumed"
         )
     }
 
