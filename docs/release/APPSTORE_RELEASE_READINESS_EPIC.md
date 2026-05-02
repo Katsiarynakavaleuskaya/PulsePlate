@@ -112,8 +112,9 @@ then update this epic, the matrix, and the lane packet in the same PR.
    - Execution branch: `release/appstore-readiness-pr8-appicon-marketing-asset`
    - Repair asset catalog assignment, PNG validity, and actool warning.
    - Do not mix broader App Store asset changes.
-   - **Status (PR-8):** `AppIcon-1024.png` validated — 1024x1024, RGB, valid
-     PNG, no alpha. Deterministic guard added in
+   - **Status (PR-8):** `AppIcon-1024.png` validated — 1024x1024 PNG,
+     valid signature, correct ios-marketing declaration.
+     Deterministic guard added in
      `tests/ios/test_appicon_marketing_asset.py`. No asset changes needed.
      App Store Connect upload remains operator-owned.
 

@@ -55,7 +55,16 @@ def test_appicon_marketing_entry_is_declared_once() -> None:
     assert (
         entry.get("size") == "1024x1024"
     ), f"ios-marketing size must be 1024x1024, got {entry.get('size')}"
-    assert entry.get("filename"), "ios-marketing entry must have a non-empty filename"
+    # Modern Xcode 15+ uses "platform" instead of "scale" for ios-marketing.
+    # Accept either: scale == "1x" (legacy) or platform == "ios" (modern).
+    has_scale = entry.get("scale") == "1x"
+    has_platform = entry.get("platform") == "ios"
+    assert (
+        has_scale or has_platform
+    ), f"ios-marketing must have scale '1x' or platform 'ios', got {entry}"
+    filename = entry.get("filename", "")
+    assert filename, "ios-marketing entry must have a non-empty filename"
+    assert filename.endswith(".png"), f"ios-marketing filename must end with .png, got {filename}"
 
 
 def test_appicon_marketing_png_exists_and_is_1024_square() -> None:
