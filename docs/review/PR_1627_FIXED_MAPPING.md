@@ -13,9 +13,21 @@ added deterministic guard for read-only posture.
 * `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md` — PR-6 (HealthKit) status
 * `docs/roadmap/BACKLOG_LEDGER.md` — PR-8 merged, PR-9 active
 
-## Fixed in Commit Mapping
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
 
 - No actionable review comments
+
+## Merge Readiness
+
+* [ ] CI green
+* [ ] iOS tests green (CI)
+* [ ] No actionable bot comments remain
+* [ ] Mandatory wait-window elapsed
 
 ## Validation
 
