@@ -45,3 +45,8 @@ Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:46,161-165 — standa
 Disposition: NOT-A-BUG
 Evidence: `git show c5acd9957 -- docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md`
 Reason: Line 45 IS the evidence — commit c5acd9957 changed "nutricion" to "nutrición" on that exact line. The diff proves the fix was applied. CodeRabbit ran its verification script against stale HEAD (commit 012b5deb0, before the fix landed in c5acd9957).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1620#pullrequestreview-4214728917
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1620_FIXED_MAPPING.md:39-48
+Reason: CodeRabbit incremental review re-posted the same two findings (P0 consistency and evidence citation) that were already fixed in 4d5f9fb4d and mapped above. Both threads were resolved before this review posted. No new actionable content.
