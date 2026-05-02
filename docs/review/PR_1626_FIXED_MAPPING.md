@@ -37,6 +37,14 @@ Disposition: FIXED
 Commit: 298c5c445
 Evidence: `docs/review/PR_1626_FIXED_MAPPING.md:1` — placeholder replaced with explicit FIXED dispositions and checked checklist entries.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#pullrequestreview-4215105324
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1626_FIXED_MAPPING.md:19-40` — Disposition/Commit/Evidence lines are inline after each URL mapping, matching PR_1433 canonical format. Phase2 gates pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#discussion_r3176754007
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1626_FIXED_MAPPING.md:19-40` — mapping format is correct; Cubic flagged an outdated revision's format.
+
 ## Validation
 
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
