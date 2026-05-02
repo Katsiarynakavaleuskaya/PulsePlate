@@ -134,6 +134,11 @@ Branch: `evals/evaluation-validity-substrate`
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED (16 items), NOT-A-BUG (5 items), DEFERRED (2 items)
+Commit: 699da47691fada67396465b0fa7da9de27f38482, 0cbcd30f2e2c4d1885e236e05262519a9394eea8
+Evidence: tests/evals/conftest.py:16, scripts/evals/eval_validity_contract.py:137-139, .gitignore:242
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-evaluation-validity-substrate
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263714 -> 699da47691fada67396465b0fa7da9de27f38482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263716 -> 699da47691fada67396465b0fa7da9de27f38482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271030 -> 699da47691fada67396465b0fa7da9de27f38482
