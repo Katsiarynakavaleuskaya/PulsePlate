@@ -21,11 +21,19 @@ added deterministic guard for read-only posture.
 ### Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176779839 -> e5ddc7fd2
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176806104 -> 074686fab
+  Disposition: FIXED
+  Commit: e5ddc7fd2
+  Evidence: tests/ios/test_healthkit_readonly_guard.py:45 (assert plist.exists() added)
 
-Disposition: FIXED
-Commit: e5ddc7fd2
-Evidence: tests/ios/test_healthkit_readonly_guard.py:45 (assert plist.exists() added)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176806104 -> 30c0af9c7
+  Disposition: FIXED
+  Commit: 30c0af9c7
+  Evidence: docs/review/PR_1627_FIXED_MAPPING.md (disposition metadata added per Cubic)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176819382 -> 30c0af9c7
+  Disposition: FIXED
+  Commit: 30c0af9c7
+  Evidence: docs/review/PR_1627_FIXED_MAPPING.md (per-entry disposition format)
 
 ## Merge Readiness
 
