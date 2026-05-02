@@ -98,4 +98,6 @@ Evidence: docs/review/PR_1631_FIXED_MAPPING.md (canonical format applied)
 - [x] Cubic: PASS
 - [x] Sourcery: skipped (not applicable for this PR scope)
 - [x] CI current-head checks green (lint, test-pr, build-and-test, diff-coverage, security)
+- [x] All review threads resolved on GitHub (13/13)
 - [x] pre-commit run --all-files green
+- [x] Wait-window elapsed (threads resolved 2026-05-02T21:10Z)
