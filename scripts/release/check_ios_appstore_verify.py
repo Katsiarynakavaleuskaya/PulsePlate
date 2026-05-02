@@ -90,8 +90,12 @@ def check_release_base_url() -> Results:
         results.append((False, tag, f"File missing: {INFO_RELEASE_PLIST}"))
         return results
 
-    with open(INFO_RELEASE_PLIST, "rb") as fh:
-        plist = plistlib.load(fh)
+    try:
+        with open(INFO_RELEASE_PLIST, "rb") as fh:
+            plist = plistlib.load(fh)
+    except Exception as exc:
+        results.append((False, tag, f"Cannot parse Info-Release.plist: {exc}"))
+        return results
 
     base_url = plist.get("BASE_URL", "")
     if not base_url:
@@ -136,7 +140,12 @@ def check_appicon_marketing() -> Results:
         results.append((False, tag, f"File missing: {APPICON_CONTENTS}"))
         return results
 
-    data = json.loads(APPICON_CONTENTS.read_text(encoding="utf-8"))
+    try:
+        data = json.loads(APPICON_CONTENTS.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        results.append((False, tag, f"Invalid AppIcon Contents.json: {exc}"))
+        return results
+
     images = data.get("images", [])
     marketing = [img for img in images if img.get("idiom") == "ios-marketing"]
 
@@ -276,17 +285,22 @@ def check_permission_strings() -> Results:
 
     # Verify allowed key exists in at least en locale.
     en_strings = LPROJ_DIR / "en.lproj" / "InfoPlist.strings"
-    if en_strings.exists():
-        content = en_strings.read_text(encoding="utf-8", errors="replace")
-        if allowed_key not in content:
-            results.append(
-                (
-                    False,
-                    tag,
-                    f"{allowed_key} missing from en.lproj/InfoPlist.strings",
-                )
+    if not en_strings.exists():
+        results.append(
+            (False, tag, "en.lproj/InfoPlist.strings missing (required for permission review)")
+        )
+        return results
+
+    content = en_strings.read_text(encoding="utf-8", errors="replace")
+    if allowed_key not in content:
+        results.append(
+            (
+                False,
+                tag,
+                f"{allowed_key} missing from en.lproj/InfoPlist.strings",
             )
-            return results
+        )
+        return results
 
     results.append((True, tag, "Permission strings OK (read-only HealthKit, no write)"))
     return results

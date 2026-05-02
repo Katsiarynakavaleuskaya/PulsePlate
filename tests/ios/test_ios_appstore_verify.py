@@ -55,6 +55,7 @@ def test_validator_script_passes() -> None:
         text=True,
         capture_output=True,
         check=False,
+        timeout=60,
     )
     assert result.returncode == 0, (
         f"Validator failed (exit {result.returncode}):\n"

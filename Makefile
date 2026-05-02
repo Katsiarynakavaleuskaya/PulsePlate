@@ -544,7 +544,7 @@ ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID se
 
 ios-appstore-verify: ## Verify App Store submission readiness (repo-local, no upload)
 	@echo "$(YELLOW)Verifying iOS App Store submission readiness...$(NC)"
-	@test -x $(VENV_PYTHON) || (echo "$(RED)VENV_PYTHON missing. Run 'make venv' or set VENV_PYTHON.$(NC)" && exit 1)
+	@test -x "$(VENV_PYTHON)" || (echo "$(RED)VENV_PYTHON missing. Run 'make venv' or set VENV_PYTHON.$(NC)" && exit 1)
 	$(VENV_PYTHON) scripts/release/check_ios_appstore_verify.py
 	$(VENV_PYTHON) -m pytest -q tests/ios/
 	$(VENV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py
