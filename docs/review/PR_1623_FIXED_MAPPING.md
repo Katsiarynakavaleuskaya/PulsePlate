@@ -18,11 +18,12 @@ therefore continued to scan those lines and failed on two matches:
 
 ## Discussion Thread Pass
 
-No actionable review comments.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No actionable review comments
+- No actionable review comments
 
 ## Validation
 
