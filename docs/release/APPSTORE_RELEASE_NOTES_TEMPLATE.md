@@ -163,10 +163,10 @@ in App Store Metadata".
 
 | # | Category | Forbidden pattern | Example of violation |
 | --- | --- | --- | --- |
-| 1 | Diagnosis | Claiming the app diagnoses health conditions | "Diagnose nutritional deficiencies" | <!-- pulseplate-allow:blocker-example -->
-| 2 | Treatment | Claiming the app treats any medical condition | "Treats obesity with personalized plans" | <!-- pulseplate-allow:blocker-example -->
-| 3 | Therapy | Claiming the app provides therapy or CBT treatment | "CBT therapy sessions included" | <!-- pulseplate-allow:blocker-example -->
-| 4 | Cure | Claiming the app cures any condition | "Cure your metabolic issues" | <!-- pulseplate-allow:blocker-example -->
+| 1 | Diagnosis | Claiming the app diagnoses health conditions | "Diagnose nutritional deficiencies" |
+| 2 | Treatment | Claiming the app treats any medical condition | "Treats obesity with personalized plans" |
+| 3 | Therapy | Claiming the app provides therapy or CBT treatment | "CBT therapy sessions included" |
+| 4 | Cure | Claiming the app cures any condition | "Cure your metabolic issues" |
 | 5 | Guaranteed weight loss | Asserting definite weight-loss outcomes | "Lose 5 kg in 2 weeks" |
 | 6 | Guaranteed health outcome | Asserting definite health improvements | "Guaranteed to lower your BMI" |
 | 7 | Doctor/medical-device framing | Positioning the app as medical advice or device | "Your pocket nutritionist doctor" |
@@ -399,7 +399,7 @@ release notes.
 | Reviewer note dependency | Reviewer notes lines 3-6 (HealthKit read-only, optional, revocable) |
 | Privacy dependency | `PrivacyInfo.xcprivacy` must cover Health data; `app_privacy_details.json` must declare Health data flows |
 | Asset matrix reference | `health_progress` scenario (`IMPLEMENTATION_REQUIRED`) |
-| Special note | Block is allowed even though `health_progress` screenshot is `IMPLEMENTATION_REQUIRED` because HealthKit read access itself may be release-enabled independently of the progress UI screenshot |
+| Special note | Block is allowed even though `health_progress` screenshot is `IMPLEMENTATION_REQUIRED` because HealthKit read access itself may be release-enabled independently of the progress UI screenshot. Release-enablement is tracked independently from screenshot readiness; the SoT for feature release status is `APPSTORE_FEATURE_ASSET_MATRIX.md` and the SoT for screenshot submission status is `APPSTORE_SCREENSHOT_ASSET_GATE.md`. |
 
 ### BLOCK:nutrition_pro
 
@@ -412,7 +412,7 @@ release notes.
 | Reviewer note dependency | Reviewer notes must explain StoreKit subscription path |
 | Privacy dependency | None beyond base privacy policy |
 | Asset matrix reference | `nutrition_analysis` scenario (`IMPLEMENTATION_REQUIRED`) |
-| Special note | Block text must not mention specific pricing; use "for PRO subscribers" only |
+| Special note | Block text must not mention specific pricing; use "for PRO subscribers" only. Note: release-enablement of the PRO nutrition endpoint is tracked independently from the `nutrition_analysis` screenshot scenario; a release-enabled endpoint does not imply a submission-ready screenshot. The SoT for feature release status is `APPSTORE_FEATURE_ASSET_MATRIX.md`. |
 
 ### BLOCK:storekit_subscription
 
@@ -458,6 +458,12 @@ release notes.
 
 This matrix maps release note claim types to specific reviewer note
 requirements. Cross-references `APPSTORE_REVIEWER_SUBMISSION_MATRIX.md`.
+
+> **Drift reminder:** The "Currently covered?" column references specific line
+> numbers from `ios/fastlane/metadata/review_information/notes.txt`. These
+> references must be updated whenever reviewer notes are modified. When
+> reviewing this section, verify line references against the current content
+> of `notes.txt`.
 
 | Release note claim type | Reviewer note requirement | Submission matrix category | Currently covered? |
 | --- | --- | --- | --- |
