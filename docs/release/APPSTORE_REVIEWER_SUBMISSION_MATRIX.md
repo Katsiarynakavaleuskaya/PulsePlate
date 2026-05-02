@@ -94,48 +94,47 @@ before public submission. Current state is evaluated against
 ### Wellness-Only Positioning
 
 - [x] Notes state the app does not diagnose, treat, cure, or provide medical advice
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:9`
-- [ ] Notes confirm wellness-only AI positioning (not therapy, not clinical)
-  - Required in: PR-8
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:1`
+- [x] Notes confirm wellness-only AI positioning (not therapy, not clinical)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7-8` (PR-8)
 
 ### AI Feature Disclosure
 
-- [ ] Notes disclose that AI features use third-party LLM providers
-  - Required in: PR-7 (consent) + PR-8 (reviewer notes)
-- [ ] Notes disclose what user data is sent to the provider
-  - Required in: PR-8
-- [ ] Notes confirm user consent is required before first AI query
-  - Required in: PR-7
+- [x] Notes disclose that AI features use third-party LLM providers
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (PR-8)
+- [x] Notes disclose what user data is sent to the provider
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (PR-8)
+- [x] Notes confirm user consent is required before first AI query
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5` (PR-7 runtime + PR-8 notes)
 
 ### Third-Party/Provider Disclosure
 
-- [ ] Notes disclose if user data leaves the device/server to third-party services
-  - Required in: PR-8 (LLM provider disclosure)
+- [x] Notes disclose if user data leaves the device/server to third-party services
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (PR-8)
 
 ### Billing/Subscription Path
 
-- [ ] Notes explain StoreKit purchase flow and backend activation
-  - Partially present: `ios/fastlane/metadata/review_information/notes.txt:10-11`
-  - Required in: PR-8 (must reference App Store Connect as pricing truth)
+- [x] Notes explain StoreKit purchase flow and backend activation
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:15-18` (PR-8)
 
 ### HealthKit Read-Only Status
 
 - [x] Notes explain read-only HealthKit access
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-6`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:12-13`
 - [x] Notes confirm Health access is optional and revocable
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:6`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:15`
 
 ### Test Account / Demo Flow
 
 - [x] Notes confirm screenshots use seeded test data only
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10`
-- [ ] Notes provide test account credentials if reviewer needs to test PRO/VIP flows
-  - Required in: PR-8
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22`
+- [x] Notes provide test account placeholder for reviewer
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:21` (PR-8)
 
 ### What Is Intentionally Not Enabled
 
-- [ ] Notes list features that are in the app but not release-enabled (feature-flagged off)
-  - Required in: PR-8 (weekly plan, grocery list, AI assistant if feature-flagged)
+- [x] Notes list features that are in the app but not release-enabled (feature-flagged off)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:24-27` (PR-8)
 
 ## App Privacy Cross-Check
 
@@ -257,8 +256,8 @@ Each links to `BACKLOG_LEDGER.md` or the epic PR train.
   - Owner: PR-7 (`release/appstore-readiness-pr7-ai-consent`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [ ] **Reviewer notes incomplete**: Current reviewer notes do not cover AI
-  disclosure, third-party provider, test account, or feature-flag state.
+- [x] **Reviewer notes incomplete**: Resolved in PR-8. Reviewer notes now cover
+  AI disclosure, third-party provider, test account, and feature-flag state.
   - Owner: PR-8 (`release/appstore-readiness-pr8-reviewer-pack`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
