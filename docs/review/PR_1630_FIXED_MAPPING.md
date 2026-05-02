@@ -14,10 +14,19 @@ PR #1630 syncs App Store reviewer notes and metadata with release runtime truth.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `2f80067e3`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `25eb0fd4e`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `8e551fe2c`
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `ecb568a07`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032372 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032373 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032374 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032375 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033359 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033360 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033361 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033364
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033366 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033368 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033371
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177034366 -> `b1c171ad3`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177034367 -> `b1c171ad3`
 
 ## Validation
 
