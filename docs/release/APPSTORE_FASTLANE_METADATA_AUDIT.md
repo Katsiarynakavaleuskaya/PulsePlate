@@ -42,7 +42,7 @@ Each locale directory contains the same 9 files. Total: 27 localized files.
 | File | Purpose | App Store-Facing? | Claim Type | Current State | Risk | Required Next Action |
 | --- | --- | --- | --- | --- | --- | --- |
 | `name.txt` | App name on App Store | Yes | Brand identity | "PulsePlate" in all locales | Low | None |
-| `subtitle.txt` | App Store subtitle | Yes | Product positioning | EN: "Wellness nutrition planner"; RU: "Планировщик питания и wellness"; ES: "Plan de nutricion wellness" | Low -- wellness-only positioning | None |
+| `subtitle.txt` | App Store subtitle | Yes | Product positioning | EN: "Wellness nutrition planner"; RU: "Планировщик питания и wellness"; ES: "Plan de nutrición wellness" | Low -- wellness-only positioning | None |
 | `description.txt` | App Store long description | Yes | Feature claims, wellness disclaimer | 9 lines per locale; mentions daily nutrition, weekly progress, profile, Health data; wellness disclaimer present | P1 -- mentions features mapped to `IMPLEMENTATION_REQUIRED` screenshot scenarios | PR-8 (planned): align description features with submission-ready surfaces only |
 | `keywords.txt` | App Store search keywords | Yes | Discovery keywords | EN: "nutrition,wellness,meal planner,progress,healthkit,healthy habits"; localized equivalents | Low | None |
 | `promotional_text.txt` | App Store promotional banner | Yes | Marketing claim | Wellness-only copy in all locales | Low | None |
