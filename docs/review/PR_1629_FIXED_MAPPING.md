@@ -16,7 +16,7 @@ PR #1629 fixes the iOS build failure by handling `.consentRequired` in `AIInsigh
 
 ## Fixed in Commit Mapping
 
-No actionable review comments.
+- No actionable review comments
 
 ## Validation
 
