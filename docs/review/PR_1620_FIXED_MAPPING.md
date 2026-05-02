@@ -6,9 +6,17 @@
 
 ## Discussion Thread Pass
 
-- [x] No unresolved review threads
-- [x] No actionable bot comments
+- [x] No unresolved review threads at artifact creation time
+- [x] No actionable bot comments at artifact creation time
+
+This artifact must be updated after bot reviews (CodeRabbit, Sourcery, Cubic)
+complete. Any new actionable threads must be mapped here with disposition
+before merge readiness can be claimed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Initial implementation:
+
+- `docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md` created in commit `41f9f23ab`
+- `docs/roadmap/BACKLOG_LEDGER.md` updated (PR-4 merged, PR-5 lane added) in commit `41f9f23ab`
+- `docs/review/PR_1620_FIXED_MAPPING.md` created in commit `012b5deb0`

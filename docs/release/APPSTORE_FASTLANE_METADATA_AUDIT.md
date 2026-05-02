@@ -260,23 +260,17 @@ App Store descriptions mention these features across all locales:
 
 | Description Feature Claim | Screenshot Scenario | Gate Classification | Alignment Status |
 | --- | --- | --- | --- |
-| "review daily nutrition balance" | `nutrition_analysis` | `IMPLEMENTATION_REQUIRED` | P1 -- description implies feature; scenario not submission-ready |
-| "follow weekly wellness progress" | `health_progress` | `IMPLEMENTATION_REQUIRED` | P1 -- description implies feature; scenario not submission-ready |
-| "keep a lightweight profile" | `personalization` | `IMPLEMENTATION_REQUIRED` | P1 -- description implies feature; scenario not submission-ready |
-| "understand Health data access" | `health_progress` | `IMPLEMENTATION_REQUIRED` | P1 -- description implies feature; scenario not submission-ready |
+| "review daily nutrition balance" | `nutrition_analysis` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
+| "follow weekly wellness progress" | `health_progress` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
+| "keep a lightweight profile" | `personalization` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
+| "understand Health data access" | `health_progress` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
 | App launch / welcome flow | `core_value` | `SUBMIT_READY` | PASS |
 
 **Verdict:** Descriptions mention 4 features whose corresponding screenshot
-scenarios are `IMPLEMENTATION_REQUIRED`. The descriptions do not contain
-forbidden claims (no medical, no pricing), but they imply feature availability
-that is not yet confirmed for public submission. PR-8 must either:
-
-1. Align descriptions to mention only `SUBMIT_READY` features, or
-2. Confirm that describing future-available features is acceptable as long as
-   screenshots do not show them.
-
-This is a P1 alignment risk, not a P0 blocker, because descriptions are
-aspirational text and screenshots are the concrete asset gate.
+scenarios are `IMPLEMENTATION_REQUIRED`. This blocks public submission until
+PR-8 either proves those features are release-enabled, privacy-disclosed, and
+reviewer-note-covered, or narrows metadata copy to `SUBMIT_READY` surfaces
+only.
 
 ### Screenshot Directory State
 
@@ -296,7 +290,7 @@ Currently only `core_value` is `SUBMIT_READY`.
 | Reviewer notes missing AI disclosure | P0 | `notes.txt` has no AI/LLM mention | PR-7, PR-8 | Yes (submission) | Add AI consent gate (PR-7) and third-party LLM disclosure (PR-8) |
 | Reviewer notes missing test account | P0 | `notes.txt` has no test credentials | PR-8 | Yes (submission) | Provide test account for PRO/VIP flow review |
 | Reviewer notes missing feature flag disclosure | P0 | `notes.txt` does not list disabled features | PR-8 | Yes (submission) | Disclose feature-flagged-off flows |
-| Description implies IMPLEMENTATION_REQUIRED features | P1 | `description.txt` mentions weekly progress, profile, Health | PR-8 | No (text, not screenshot) | Align descriptions or confirm aspirational text is acceptable |
+| Description implies IMPLEMENTATION_REQUIRED features | P0 | `description.txt` mentions weekly progress, profile, Health | PR-8 | Yes (submission) | Prove features are release-enabled, privacy-disclosed, and reviewer-note-covered, or narrow copy to SUBMIT_READY surfaces |
 | Marketing URL liveness unverified | P1 | `marketing_url.txt` = `https://pulseplate.app` | PR-8 | No (pre-submission) | Verify URL returns expected content before submission |
 | Privacy URL liveness unverified | P1 | `privacy_url.txt` = `https://pulseplate.app/privacy` | PR-8 | No (pre-submission) | Verify URL is live and matches Privacy.md |
 | Support URL liveness unverified | P1 | `support_url.txt` = `https://pulseplate.app/support` | PR-8 | No (pre-submission) | Verify URL is live |
