@@ -106,7 +106,7 @@ Branch: `evals/evaluation-validity-substrate`
 
 18. **r3177283292** — Minor: Make determinism assertion encoding-explicit
     - Disposition: FIXED
-    - Commit: PENDING_SHA
+    - Commit: 0cbcd30f2
     - Evidence: `tests/evals/test_run_eval_validity.py:75` (added `encoding="utf-8"`)
 
 ## Fixed in Commit Mapping
@@ -128,7 +128,7 @@ Branch: `evals/evaluation-validity-substrate`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177275465 -> 699da47691fada67396465b0fa7da9de27f38482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177275468 -> 699da47691fada67396465b0fa7da9de27f38482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177275470 -> 699da47691fada67396465b0fa7da9de27f38482
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177283292 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177283292 -> 0cbcd30f2e2c4d1885e236e05262519a9394eea8
 
 ## Merge Readiness Evidence
 
