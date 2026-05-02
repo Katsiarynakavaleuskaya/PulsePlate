@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-05-27 (manual removal)
 # Last reviewed: 2026-04-02
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md, docs/security/CVE-2026-4878-libcap2.md
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2026-33845-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md, docs/security/CVE-2026-4878-libcap2.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -176,6 +176,52 @@ ignore if {
 	input.VulnerabilityID == "CVE-2025-14831"
 	input.PkgName == "libgnutls30"
 	input.InstalledVersion == "3.7.9-2+deb12u5"
+}
+
+# anchor:cve-2026-33845-gnutls-suppression
+# CVE-2026-33845 (GnuTLS) - no fixed release for observed Debian package at triage time
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: Trivy code-scanning alert #589 reports libgnutls30 fixed-version unknown
+#   for `3.7.9-2+deb12u5` in the production image. No repository-level
+#   remediation path exists until Debian publishes a fixed package line or
+#   Trivy metadata reports a Fixed Version.
+# Monitor: https://security-tracker.debian.org/tracker/CVE-2026-33845
+# Documented in: docs/security/CVE-2026-33845-gnutls.md
+# Removal condition: Remove when Debian publishes fixed libgnutls30 package / Trivy metadata gains fixed version for this package context
+
+cve_2026_33845_libgnutls30_version := "3.7.9-2+deb12u5"
+
+cve_2026_33845_image_reference_match if {
+	startswith(input.Image, "ghcr.io/katsiarynakavaleuskaya/pulseplate")
+}
+
+cve_2026_33845_image_reference_match if {
+	startswith(input.Image, "katsiarynakavaleuskaya/pulseplate")
+}
+
+cve_2026_33845_image_reference_match if {
+	# Fallback: Trivy sometimes omits the Image field in certain scan contexts;
+	# suppression still requires exact CVE + package + version + pkgID prefix match.
+	not input.Image
+}
+
+cve_2026_33845_distro_match if {
+	input.Distro == "debian"
+}
+
+cve_2026_33845_distro_match if {
+	# Fallback: Trivy sometimes omits the Distro field;
+	# suppression still requires exact CVE + package + version + pkgID prefix match.
+	not input.Distro
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-33845"
+	input.PkgName == "libgnutls30"
+	input.InstalledVersion == cve_2026_33845_libgnutls30_version
+	cve_2026_33845_image_reference_match
+	cve_2026_33845_distro_match
+	startswith(input.PkgID, sprintf("libgnutls30@%s", [cve_2026_33845_libgnutls30_version]))
 }
 
 # CVE-2026-3184 (util-linux family) - upstream unfixed in Debian bookworm
