@@ -33,11 +33,11 @@ PR #1628 gates first iOS AI wellness insight request behind explicit user consen
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1628#discussion_r3176902042
   Disposition: NOT-A-BUG
-  Evidence: `awaitState` uses the same polling pattern as `AIInsightViewModelTests.awaitEventuallyState` (stable in CI). Both use 200-iteration yield loop with final sleep.
+  Evidence: `ios/PulsePlateTests/AIInsightViewModelTests.swift:196` (`awaitEventuallyState` — identical 200-iteration yield+sleep polling pattern, stable in CI)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1628#discussion_r3176902043
   Disposition: NOT-A-BUG
-  Evidence: Guard tests are structural (file scanning), not behavioral. Submit ordering is tested by `AIWellnessConsentTests.test_submit_withoutConsent_setsConsentRequired` (Swift).
+  Evidence: `ios/PulsePlateTests/AIWellnessConsentTests.swift:37` (`test_submit_withoutConsent_setsConsentRequired` — Swift behavioral test proves submit ordering; Python guard is structural file scan)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1628#discussion_r3176902044 -> daced8d44
   Disposition: FIXED
