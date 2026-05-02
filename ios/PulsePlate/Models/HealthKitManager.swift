@@ -83,43 +83,13 @@ final class HealthKitManager: ObservableObject {
             throw HealthKitError.statisticsFailed
         }
 
-        func sum(_ id: HKQuantityTypeIdentifier) async throws -> Double {
-            guard let type = HKObjectType.quantityType(forIdentifier: id) else {
-                throw HealthKitError.invalidObjectType(id)
-            }
-            let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
-
-            return try await withCheckedThrowingContinuation { cont in
-                let q = HKStatisticsQuery(quantityType: type,
-                                          quantitySamplePredicate: predicate,
-                                          options: .cumulativeSum) { _, stats, err in
-                    if let err = err {
-                        cont.resume(throwing: err); return
-                    }
-                    guard let qty = stats?.sumQuantity() else {
-                        cont.resume(returning: 0.0); return
-                    }
-                    let val: Double
-                    switch id {
-                    case .dietaryEnergyConsumed: val = qty.doubleValue(for: .kilocalorie())
-                    case .dietaryProtein, .dietaryCarbohydrates, .dietaryFatTotal, .dietaryFiber, .dietarySugar:
-                        val = qty.doubleValue(for: .gram())
-                    case .dietarySodium: val = qty.doubleValue(for: .gramUnit(with: .milli))
-                    default: val = 0
-                    }
-                    cont.resume(returning: val)
-                }
-                self.healthStore.execute(q)
-            }
-        }
-
-        async let energy = sum(.dietaryEnergyConsumed)
-        async let protein = sum(.dietaryProtein)
-        async let carbs  = sum(.dietaryCarbohydrates)
-        async let fat    = sum(.dietaryFatTotal)
-        async let fiber  = sum(.dietaryFiber)
-        async let sugar  = sum(.dietarySugar)
-        async let sodium = sum(.dietarySodium)
+        async let energy = fetchSum(for: .dietaryEnergyConsumed, start: start, end: end)
+        async let protein = fetchSum(for: .dietaryProtein, start: start, end: end)
+        async let carbs  = fetchSum(for: .dietaryCarbohydrates, start: start, end: end)
+        async let fat    = fetchSum(for: .dietaryFatTotal, start: start, end: end)
+        async let fiber  = fetchSum(for: .dietaryFiber, start: start, end: end)
+        async let sugar  = fetchSum(for: .dietarySugar, start: start, end: end)
+        async let sodium = fetchSum(for: .dietarySodium, start: start, end: end)
 
         return try await DailyNutritionTotals(
             date: start,
@@ -131,6 +101,52 @@ final class HealthKitManager: ObservableObject {
             sugarG: sugar,
             sodiumMg: sodium
         )
+    }
+
+    /// Fetch cumulative sum for a single HealthKit quantity type within a date range.
+    /// Extracted from `fetchDailyTotals` to avoid local-function capture across
+    /// async boundaries (Swift 6 sendability).
+    private func fetchSum(
+        for id: HKQuantityTypeIdentifier,
+        start: Date,
+        end: Date
+    ) async throws -> Double {
+        guard let type = HKObjectType.quantityType(forIdentifier: id) else {
+            throw HealthKitError.invalidObjectType(id)
+        }
+        let predicate = HKQuery.predicateForSamples(
+            withStart: start, end: end, options: .strictStartDate
+        )
+        let store = healthStore
+
+        return try await withCheckedThrowingContinuation { cont in
+            let query = HKStatisticsQuery(
+                quantityType: type,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, stats, err in
+                if let err = err {
+                    cont.resume(throwing: err); return
+                }
+                guard let qty = stats?.sumQuantity() else {
+                    cont.resume(returning: 0.0); return
+                }
+                let val: Double
+                switch id {
+                case .dietaryEnergyConsumed:
+                    val = qty.doubleValue(for: .kilocalorie())
+                case .dietaryProtein, .dietaryCarbohydrates,
+                     .dietaryFatTotal, .dietaryFiber, .dietarySugar:
+                    val = qty.doubleValue(for: .gram())
+                case .dietarySodium:
+                    val = qty.doubleValue(for: .gramUnit(with: .milli))
+                default:
+                    val = 0
+                }
+                cont.resume(returning: val)
+            }
+            store.execute(query)
+        }
     }
 
     // MARK: - Week totals (Mon–Sun)

@@ -119,9 +119,15 @@ then update this epic, the matrix, and the lane packet in the same PR.
      App Store Connect upload remains operator-owned.
 
 7. **PR-6: HealthKit Swift 6 readiness**
-   - Branch: `release/appstore-readiness-pr6-healthkit-swift6`
+   - Branch: `release/appstore-readiness-pr9-healthkit-swift6`
    - Remove Swift 6 sendability warning.
    - Lock read-only HealthKit posture in tests and reviewer notes.
+   - **Status (PR-9):** Local function extracted to private instance method
+     (`fetchSum`) in `HealthKitManager.swift` to eliminate Swift 6 sendability
+     warning. Read-only posture preserved (`toShare: nil`). Deterministic guard
+     added in `tests/ios/test_healthkit_readonly_guard.py` (5 checks: read-only
+     auth, no write permission string, read permission present, no write
+     operations, no nested local functions).
 
 8. **PR-7: AI wellness consent**
    - Branch: `release/appstore-readiness-pr7-ai-consent`
