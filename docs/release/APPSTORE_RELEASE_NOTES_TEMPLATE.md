@@ -169,7 +169,7 @@ in App Store Metadata".
 | 1 | Diagnosis | Claiming the app diagnoses health conditions | "Diagnose nutritional deficiencies" |
 | 2 | Treatment | Claiming the app treats any medical condition | "Treats obesity with personalized plans" |
 | 3 | Therapy | Claiming the app provides therapy or CBT treatment | "CBT therapy sessions included" |
-| 4 | Cure | Claiming the app cures any condition | "Cure your metabolic issues" |
+| 4 | Cure | Claiming the app cures any condition | "Cure your metabolic issues" <!-- pulseplate-allow:blocker-example --> |
 | 5 | Guaranteed weight loss | Asserting definite weight-loss outcomes | "Lose 5 kg in 2 weeks" |
 | 6 | Guaranteed health outcome | Asserting definite health improvements | "Guaranteed to lower your BMI" |
 | 7 | Doctor/medical-device framing | Positioning the app as medical advice or device | "Your pocket nutritionist doctor" |
@@ -181,7 +181,7 @@ in App Store Metadata".
 
 Instead of forbidden patterns, use wellness-only language:
 
-- "Track your wellness journey" (not "diagnose your health")
+- "Track your wellness journey" (not "diagnose your health") <!-- pulseplate-allow:blocker-example -->
 - "Explore nutrition insights" (not "treat nutritional deficiencies")
 - "Understand your body composition" (not "cure metabolic issues")
 - "See current pricing in the app" (not "$4.99/month")
