@@ -72,7 +72,7 @@ class TestReportDeterminism:
         out2 = tmp_path / "r2.json"
         runner_main(["--input", str(RAG_SAMPLE), "--output", str(out1)])
         runner_main(["--input", str(RAG_SAMPLE), "--output", str(out2)])
-        assert out1.read_text() == out2.read_text()
+        assert out1.read_text(encoding="utf-8") == out2.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
