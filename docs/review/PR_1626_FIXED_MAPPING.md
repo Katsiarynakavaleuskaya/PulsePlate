@@ -17,13 +17,30 @@ PR #1626 triages GitHub Code Scanning alert #589 for `libgnutls30` / `CVE-2026-3
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#pullrequestreview-4215081881
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#pullrequestreview-4215081881 -> 1be7f9f4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#pullrequestreview-4215085954 -> 1be7f9f4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#discussion_r3176737683 -> 1be7f9f4f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#discussion_r3176737687 -> 1be7f9f4f
 
-Disposition: NOT-A-BUG (fallback branches) / FIXED (evidence anchors)
+## Review Thread Disposition
 
-Evidence (fallback branches): The `not input.Image` / `not input.Distro` fallback pattern is intentionally consistent with existing CVE-2026-41989 (`trivy/ignore-policy.rego:147-157`) and CVE-2026-4878 (`trivy/ignore-policy.rego:299-311`) blocks. The fallback is justified because Trivy sometimes omits these fields in certain scan contexts; the suppression still requires exact CVE + package + version + pkgID prefix match, preventing unintended suppression. Inline justification comments have been added.
+### Sourcery (pullrequestreview-4215081881)
 
-Evidence (evidence anchors): Hard-coded line numbers replaced with named anchor (`anchor:cve-2026-33845-gnutls-suppression`) and ledger anchor ID.
+Disposition: FIXED
+Commit: 1be7f9f4f
+Evidence: `trivy/ignore-policy.rego:181` — added anchor comment and fallback justification inline comments; `docs/security/CVE-2026-33845-gnutls.md:69` — evidence anchors now include named anchor reference.
+
+### CodeRabbit (discussion_r3176737683)
+
+Disposition: FIXED
+Commit: 1be7f9f4f
+Evidence: This commit updates the mapping artifact with `file:line` evidence per item.
+
+### CodeRabbit (discussion_r3176737687)
+
+Disposition: FIXED
+Commit: 1be7f9f4f
+Evidence: This commit replaces the placeholder with explicit dispositions and required checklist entries.
 
 ## Validation
 
