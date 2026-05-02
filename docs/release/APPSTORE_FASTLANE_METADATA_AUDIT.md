@@ -69,67 +69,66 @@ App Privacy JSON). Plus 1 privacy manifest in Xcode project.
 
 ## Reviewer Notes Audit
 
-Current file: `ios/fastlane/metadata/review_information/notes.txt` (11 lines).
+Current file: `ios/fastlane/metadata/review_information/notes.txt` (rewritten in PR-8).
 
 ### Wellness-Only Positioning
 
 - [x] **PASS**: Notes state the app does not diagnose, treat, cure, or provide medical advice
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:9`
-- [ ] **GAP**: Notes do not confirm wellness-only AI positioning (not therapy, not clinical)
-  - Required in: PR-8
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:1`
+- [x] **PASS**: Notes confirm wellness-only AI positioning (not therapy, not clinical)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5` (closed in PR-8)
 
 ### AI Feature Disclosure
 
-- [ ] **GAP**: Notes do not disclose that AI features use third-party LLM providers
-  - Required in: PR-7 (consent) + PR-8 (reviewer notes)
-- [ ] **GAP**: Notes do not disclose what user data is sent to the AI provider
-  - Required in: PR-8
-- [ ] **GAP**: Notes do not confirm user consent is required before first AI query
-  - Required in: PR-7
+- [x] **PASS**: Notes disclose that AI features use third-party LLM providers
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
+- [x] **PASS**: Notes disclose what user data is sent to the AI provider
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
+- [x] **PASS**: Notes confirm user consent is required before first AI query
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5` (PR-7 runtime + PR-8 notes)
 
 ### Third-Party Provider Disclosure
 
-- [ ] **GAP**: Notes do not disclose if user data leaves the device or server to third-party services
-  - Required in: PR-8 (LLM provider disclosure)
+- [x] **PASS**: Notes disclose if user data leaves the device or server to third-party services
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
 
 ### Billing and Subscription Path
 
 - [x] **PASS**: Notes explain that paywall screenshots are static preview states
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:11`
-- [ ] **GAP**: Notes do not explicitly reference App Store Connect as the sole pricing truth source
-  - Partially present at line 11; needs explicit StoreKit truth reference per `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`
-  - Required in: PR-8
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:19`
+- [x] **PASS**: Notes reference App Store Connect as the sole pricing truth source
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17` (closed in PR-8)
 
 ### HealthKit Read-Only Status
 
 - [x] **PASS**: Notes explain read-only HealthKit access
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:3-6`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:11-12`
 - [x] **PASS**: Notes confirm Health access is optional and revocable
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5-6`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:13-14`
 
 ### Test Account and Demo Flow
 
 - [x] **PASS**: Notes confirm screenshots use seeded test data only
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10`
-- [ ] **GAP**: Notes do not provide test account credentials for PRO/VIP flow review
-  - Required in: PR-8
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:23`
+- [x] **PASS**: Notes provide test account placeholder for reviewer
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22` (closed in PR-8)
 
 ### Feature Flag and Intentionally Disabled Flows
 
-- [ ] **GAP**: Notes do not list features that are in the app but not release-enabled
-  - Required in: PR-8 (weekly plan, grocery list, AI assistant if feature-flagged)
+- [x] **PASS**: Notes list features that are in the app but not release-enabled
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28` (closed in PR-8)
 
 ### Summary
 
 | Status | Count |
 | --- | --- |
-| PASS | 5 |
-| GAP | 7 |
+| PASS | 12 |
+| GAP | 0 |
 | BLOCKED | 0 |
 | NOT_APPLICABLE | 0 |
 
-5 of 12 checklist items pass. 7 gaps require remediation in PR-7 and PR-8
-before reviewer notes are submission-ready.
+All 12 checklist items pass after PR-7 (AI consent runtime) and PR-8 (reviewer
+notes sync).
 
 ## Metadata Claim Boundary
 

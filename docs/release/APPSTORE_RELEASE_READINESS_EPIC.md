@@ -144,9 +144,17 @@ then update this epic, the matrix, and the lane packet in the same PR.
      tests added in `AIWellnessConsentTests` (5 tests). CI test targets updated.
 
 9. **PR-8: reviewer notes and metadata sync**
-   - Branch: `release/appstore-readiness-pr8-reviewer-pack`
-   - Sync reviewer notes, metadata, privacy map, screenshots, feature access,
-     backend URL, StoreKit flow, HealthKit, and AI consent.
+    - Branch: `release/appstore-readiness-pr8-reviewer-pack`
+    - Sync reviewer notes, metadata, privacy map, screenshots, feature access,
+      backend URL, StoreKit flow, HealthKit, and AI consent.
+    - **Status (PR-11):** Reviewer notes rewritten with 7 sections: wellness
+      positioning, AI consent and third-party provider disclosure, HealthKit
+      read-only posture, StoreKit/billing truth, test account placeholder,
+      feature limitations, and screenshot policy. Descriptions narrowed to
+      `SUBMIT_READY` surfaces only (removed weekly wellness progress claim).
+      Release notes updated to reflect actual release train changes. Deterministic
+      reviewer-pack guard added in `tests/ios/test_appstore_reviewer_pack_guard.py`
+      (25 checks). Submission matrix and metadata audit updated.
 
 10. **PR-9: release validators in CI**
     - Branch: `release/appstore-readiness-pr9-validation-gates`

@@ -1,11 +1,28 @@
-PulsePlate is a wellness and nutrition planning app.
+PulsePlate is a wellness and nutrition planning app. It is not medical software and does not diagnose, treat, cure, or provide medical advice. It does not offer therapy, crisis support, or guaranteed health outcomes.
 
-HealthKit usage summary:
+AI wellness insight:
+- The app includes an optional AI wellness insight feature for reflective nutrition and wellness guidance.
+- Before the first AI request, users must accept an explicit wellness-only disclosure confirming the feature is not medical advice, not therapy, and not a substitute for professional care.
+- If the user declines consent, the AI feature does not run and no data is sent.
+- When the user submits a query, the free-text query and relevant profile context may be processed by the backend server and forwarded to an external AI provider family (such as xAI/Grok, OpenAI-compatible, Anthropic-compatible, or self-hosted Ollama-compatible deployments, depending on operator configuration).
+- AI output is advisory wellness text only. It is not a diagnosis, prescription, or treatment plan.
+
+HealthKit usage:
 - Read-only access to dietary energy, protein, carbohydrates, total fat, fiber, sugar, sodium, and body mass.
-- Health access is optional and explained before the user gives consent to enable it.
+- The app does not write to HealthKit.
+- Health access is optional and explained before the user grants permission.
 - Users can revoke Health access at any time in the Health app or iOS Settings.
 
-Review guidance:
-- The app does not diagnose, treat, cure, or provide medical advice.
+Billing and subscriptions:
+- Subscriptions are managed entirely by App Store and StoreKit. All pricing, trial eligibility, and renewal terms are determined by App Store Connect configuration.
+- The app does not hardcode prices, trial durations, or discount offers.
+- Paywall screenshots shown in App Store assets are static preview states and do not reflect auto-renew billing claims beyond the in-app purchase configuration in App Store Connect.
+
+Test account:
+- Reviewer test account credentials are provided directly in App Store Connect review information before each submission.
 - App Store screenshots are generated from seeded test data only. No real user data, purchases, or Health records are shown.
-- PRO/VIP paywall screenshots are static preview states for App Store marketing assets and do not reflect any auto-renew billing claim beyond the in-app purchase configuration in App Store Connect.
+
+Feature limitations:
+- Weekly meal plan, grocery list, and AI assistant screenshot scenarios are present in the repository as design assets but are classified as IMPLEMENTATION_REQUIRED and are not included in public App Store submission screenshots.
+- Only the core value (home/BMI) screenshot scenario is currently classified as SUBMIT_READY for public submission.
+- CI release validators (make ios-appstore-verify) are planned for the next PR in this release train and are not yet enforced.

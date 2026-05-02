@@ -1,8 +1,7 @@
-PulsePlate te ayuda a seguir tu nutrición, revisar señales de wellness y mantener la planificación de comidas clara y tranquila.
+PulsePlate te ayuda a entender tu balance nutricional y mantener la planificación de comidas clara y tranquila.
 
 Con PulsePlate puedes:
 - revisar el balance diario de nutrición
-- seguir el progreso semanal de wellness
 - guardar un perfil ligero para una planificación más útil
 - entender el acceso a Health antes de activarlo
 

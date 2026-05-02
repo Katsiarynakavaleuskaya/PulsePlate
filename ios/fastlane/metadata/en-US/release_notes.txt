@@ -1,1 +1,5 @@
-This release refreshes PulsePlate onboarding copy, wellness guidance, and App Store presentation.
+This release strengthens privacy and reliability:
+- AI wellness insight now requires explicit consent before first use
+- HealthKit access confirmed read-only with Swift 6 readiness
+- Backend connection enforces explicit HTTPS
+- App Store reviewer notes and metadata aligned with release truth
