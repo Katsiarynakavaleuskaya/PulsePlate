@@ -147,8 +147,8 @@ then update this epic, the matrix, and the lane packet in the same PR.
 
 ## Backend Host Decision Register
 
-`canonical_release_base_url` was resolved in PR-7
-(`release/appstore-readiness-pr7-base-url-fail-fast`).
+`canonical_release_base_url` was resolved in execution-order PR-7 (epic
+scope PR-3) on branch `release/appstore-readiness-pr7-base-url-fail-fast`.
 
 **Decision:** `https://pulseplate.app`
 

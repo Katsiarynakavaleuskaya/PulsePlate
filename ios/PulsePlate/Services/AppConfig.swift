@@ -13,7 +13,8 @@ enum AppConfig {
     ///
     /// Returns `nil` otherwise.
     static func validateReleaseBaseURL(_ raw: String?) -> URL? {
-        guard let raw, !raw.isEmpty else { return nil }
+        guard let raw = raw?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !raw.isEmpty else { return nil }
         guard let url = URL(string: raw) else { return nil }
         guard url.scheme?.lowercased() == "https" else { return nil }
         guard let host = url.host, !host.isEmpty else { return nil }
