@@ -7,8 +7,14 @@ import argparse
 import hashlib
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any
+
+if __package__ in {None, ""}:
+    # Support direct invocation from repository root:
+    # `python3 scripts/release/release_manifest.py ...`
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.release import reviewer_packet_hashes
 
