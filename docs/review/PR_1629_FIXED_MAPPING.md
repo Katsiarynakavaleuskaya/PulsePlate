@@ -9,10 +9,14 @@ PR #1629 fixes the iOS build failure by handling `.consentRequired` in `AIInsigh
 - `ios/PulsePlate/Views/AIInsightView.swift`
 - `tests/ios/test_ai_insight_state_exhaustiveness_guard.py`
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-- AIInsightView `.consentRequired` case added to `switch vm.state` -> `f8438bb3634e2276f28defd44f3c3e4d592fc1be`
-- State exhaustiveness guard test created -> `f8438bb3634e2276f28defd44f3c3e4d592fc1be`
+No actionable review comments.
 
 ## Validation
 
@@ -24,7 +28,3 @@ PR #1629 fixes the iOS build failure by handling `.consentRequired` in `AIInsigh
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
 - `pre-commit run --all-files` — PASS
 - `git diff --check` — PASS
-
-## Review Thread Disposition
-
-Populate after CodeRabbit, Sourcery, and Cubic reviews complete.
