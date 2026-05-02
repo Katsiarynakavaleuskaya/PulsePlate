@@ -7,4 +7,4 @@
 
 ## Fixed in Commit Mapping
 
-No actionable review comments yet (draft PR, pre-review).
+No actionable review comments
