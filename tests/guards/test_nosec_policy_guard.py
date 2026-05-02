@@ -132,6 +132,12 @@ def _validate_nosec_line(line: str) -> tuple[bool, str]:
         return False, "remove-by MUST NOT be 'N/A' (use a real date or fix the code)"
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", val.strip()):
         return False, "remove-by must be date YYYY-MM-DD (exact, no suffix)"
+    try:
+        remove_by_date = date.fromisoformat(val)
+    except ValueError:
+        return False, "remove-by must be a valid calendar date YYYY-MM-DD"
+    if remove_by_date < date.today():
+        return False, "remove-by date is expired; extend only if no safe code fix exists"
 
     # 4) must have ref: <issue/pr> (and not N/A)
     ref_m = REF_RE.search(line)
