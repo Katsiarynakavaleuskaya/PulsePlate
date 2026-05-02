@@ -20,7 +20,7 @@ added deterministic guard for read-only posture.
 
 ### Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176779839 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1627#discussion_r3176779839 -> e5ddc7fd2
 
 ## Merge Readiness
 
