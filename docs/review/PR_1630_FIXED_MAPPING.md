@@ -14,9 +14,10 @@ PR #1630 syncs App Store reviewer notes and metadata with release runtime truth.
 
 ## Fixed in Commit Mapping
 
-- Reviewer notes sync -> `2f80067e3`
-- Metadata descriptions and release notes sync -> `25eb0fd4e`
-- Reviewer pack guard and release docs update -> `8e551fe2c`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `2f80067e3` (reviewer notes sync)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `25eb0fd4e` (metadata descriptions and release notes sync)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `8e551fe2c` (reviewer pack guard and release docs update)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630 -> `ecb568a07` (mapping artifact)
 
 ## Validation
 

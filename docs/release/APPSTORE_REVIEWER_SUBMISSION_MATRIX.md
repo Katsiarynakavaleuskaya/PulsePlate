@@ -96,45 +96,45 @@ before public submission. Current state is evaluated against
 - [x] Notes state the app does not diagnose, treat, cure, or provide medical advice
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:1`
 - [x] Notes confirm wellness-only AI positioning (not therapy, not clinical)
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7-8` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5` (PR-8)
 
 ### AI Feature Disclosure
 
 - [x] Notes disclose that AI features use third-party LLM providers
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (PR-8)
 - [x] Notes disclose what user data is sent to the provider
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (PR-8)
 - [x] Notes confirm user consent is required before first AI query
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5` (PR-7 runtime + PR-8 notes)
 
 ### Third-Party/Provider Disclosure
 
 - [x] Notes disclose if user data leaves the device/server to third-party services
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (PR-8)
 
 ### Billing/Subscription Path
 
 - [x] Notes explain StoreKit purchase flow and backend activation
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:15-18` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17-18` (PR-8)
 
 ### HealthKit Read-Only Status
 
 - [x] Notes explain read-only HealthKit access
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:12-13`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:11-12`
 - [x] Notes confirm Health access is optional and revocable
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:15`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:13-14`
 
 ### Test Account / Demo Flow
 
 - [x] Notes confirm screenshots use seeded test data only
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:23`
 - [x] Notes provide test account placeholder for reviewer
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:21` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22` (PR-8)
 
 ### What Is Intentionally Not Enabled
 
 - [x] Notes list features that are in the app but not release-enabled (feature-flagged off)
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:24-27` (PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28` (PR-8)
 
 ## App Privacy Cross-Check
 

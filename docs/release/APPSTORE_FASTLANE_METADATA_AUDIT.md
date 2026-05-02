@@ -76,47 +76,47 @@ Current file: `ios/fastlane/metadata/review_information/notes.txt` (rewritten in
 - [x] **PASS**: Notes state the app does not diagnose, treat, cure, or provide medical advice
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:1`
 - [x] **PASS**: Notes confirm wellness-only AI positioning (not therapy, not clinical)
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7-8` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5` (closed in PR-8)
 
 ### AI Feature Disclosure
 
 - [x] **PASS**: Notes disclose that AI features use third-party LLM providers
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
 - [x] **PASS**: Notes disclose what user data is sent to the AI provider
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
 - [x] **PASS**: Notes confirm user consent is required before first AI query
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5` (PR-7 runtime + PR-8 notes)
 
 ### Third-Party Provider Disclosure
 
 - [x] **PASS**: Notes disclose if user data leaves the device or server to third-party services
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:10` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
 
 ### Billing and Subscription Path
 
 - [x] **PASS**: Notes explain that paywall screenshots are static preview states
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:19`
 - [x] **PASS**: Notes reference App Store Connect as the sole pricing truth source
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:15-16` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17` (closed in PR-8)
 
 ### HealthKit Read-Only Status
 
 - [x] **PASS**: Notes explain read-only HealthKit access
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:12-13`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:11-12`
 - [x] **PASS**: Notes confirm Health access is optional and revocable
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:15`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:13-14`
 
 ### Test Account and Demo Flow
 
 - [x] **PASS**: Notes confirm screenshots use seeded test data only
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22`
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:23`
 - [x] **PASS**: Notes provide test account placeholder for reviewer
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:21` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22` (closed in PR-8)
 
 ### Feature Flag and Intentionally Disabled Flows
 
 - [x] **PASS**: Notes list features that are in the app but not release-enabled
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:24-27` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28` (closed in PR-8)
 
 ### Summary
 
