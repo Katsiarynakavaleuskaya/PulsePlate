@@ -2037,6 +2037,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Blockers / Exit criteria:
     - Any PostgreSQL-backed history or dashboard promotion requires a separate ADR-backed follow-up lane; this PR intentionally keeps history artifact-only
     - Weekly curated datasets remain operational inputs and must stay outside git until a governed dataset-management contract is approved
+<a id="ledger-p1-evaluation-validity-substrate"></a>
+- [ ] P1: Evaluation validity substrate for invariance, mutation, and worst-case reporting
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/evaluation-validity-substrate`)
+  - Status: In progress
+  - Area: evals / RAG / judgment / measurement science
+  - Finding Type: measurement-validity gap
+  - Reason (EN): PulsePlate already has deterministic eval governance, RAG release gates, offline RAGAS, and judgment replay/adjudication, but lacks a measurement-science substrate for item-level validity, invariance, benchmark mutation, and worst-case reporting. This PR adds the foundation layer without changing production runtime.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `scripts/evals/eval_validity_contract.py`
+    - `scripts/evals/run_eval_validity.py`
+    - `data/evals/pulseplate_rag_eval_validity_sample.jsonl`
+    - `data/evals/pulseplate_judgment_eval_validity_sample.jsonl`
+    - `tests/evals/test_eval_validity_contract.py`
+    - `tests/evals/test_run_eval_validity.py`
+  - DoD:
+    - Canonical item/variant schema exists
+    - Deterministic validity runner exists
+    - Curated RAG and judgment sample fixtures exist
+    - Validity report includes invariance_score, mutation_drop, worst_case_error_rate, item_instability_index, slice_support, and unstable_items
+    - Tests cover parser, metrics, runner, malformed input, and deterministic output
+    - Existing release-gate PASS/NO-GO vocabulary is preserved
+    - No Opus/Claude runtime integration, `.claude/`, MCP, production API, frontend, iOS, billing, OpenAPI, or App Store changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
 - [ ] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
