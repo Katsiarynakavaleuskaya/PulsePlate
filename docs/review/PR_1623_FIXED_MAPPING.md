@@ -23,7 +23,17 @@ therefore continued to scan those lines and failed on two matches:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#discussion_r3176619302 -> 58e686106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#discussion_r3176621079 -> 58e686106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#discussion_r3176621082 -> 58e686106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#pullrequestreview-4214926544 -> 58e686106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#pullrequestreview-4214930647 -> 58e686106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#pullrequestreview-4214942234 -> 58e686106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1623#pullrequestreview-4214943653 -> 58e686106
+
+Disposition: FIXED
+Commit: 58e686106
+Evidence: docs/review/PR_1623_FIXED_MAPPING.md — artifact format corrected (checkboxes + canonical marker)
 
 ## Validation
 
