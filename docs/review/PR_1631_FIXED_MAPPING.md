@@ -21,6 +21,36 @@ PR #1631 adds repo-local App Store validation gates for iOS release readiness
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#pullrequestreview-4215494639
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit initial review summary (actionable threads mapped individually below)
+Reason: Top-level review container; individual threads dispositioned separately.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#pullrequestreview-4215495256
+Disposition: NOT-A-BUG
+Evidence: Cubic initial review (no actionable findings)
+Reason: Cubic review summary; no code changes required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#pullrequestreview-4215495423
+Disposition: NOT-A-BUG
+Evidence: Cubic review pass (no actionable findings)
+Reason: Cubic review summary; no code changes required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#pullrequestreview-4215501891
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit re-review after round 1 fixes
+Reason: Review summary container; individual threads dispositioned below.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#pullrequestreview-4215503128
+Disposition: NOT-A-BUG
+Evidence: Cubic re-review pass
+Reason: Cubic re-review summary; no code changes required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#pullrequestreview-4215513604
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit final review after thread resolution
+Reason: Final review summary; all threads resolved.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177198133
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature
