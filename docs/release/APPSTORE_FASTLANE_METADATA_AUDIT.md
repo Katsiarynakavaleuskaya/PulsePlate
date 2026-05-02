@@ -43,7 +43,7 @@ Each locale directory contains the same 9 files. Total: 27 localized files.
 | --- | --- | --- | --- | --- | --- | --- |
 | `name.txt` | App name on App Store | Yes | Brand identity | "PulsePlate" in all locales | Low | None |
 | `subtitle.txt` | App Store subtitle | Yes | Product positioning | EN: "Wellness nutrition planner"; RU: "Планировщик питания и wellness"; ES: "Plan de nutrición wellness" | Low -- wellness-only positioning | None |
-| `description.txt` | App Store long description | Yes | Feature claims, wellness disclaimer | 9 lines per locale; mentions daily nutrition, weekly progress, profile, Health data; wellness disclaimer present | P1 -- mentions features mapped to `IMPLEMENTATION_REQUIRED` screenshot scenarios | PR-8 (planned): align description features with submission-ready surfaces only |
+| `description.txt` | App Store long description | Yes | Feature claims, wellness disclaimer | 9 lines per locale; mentions daily nutrition, weekly progress, profile, Health data; wellness disclaimer present | P0 -- description implies `IMPLEMENTATION_REQUIRED` scenarios (see screenshot gate) | PR-8 (planned): prove release-enabled or narrow copy to `SUBMIT_READY` surfaces |
 | `keywords.txt` | App Store search keywords | Yes | Discovery keywords | EN: "nutrition,wellness,meal planner,progress,healthkit,healthy habits"; localized equivalents | Low | None |
 | `promotional_text.txt` | App Store promotional banner | Yes | Marketing claim | Wellness-only copy in all locales | Low | None |
 | `release_notes.txt` | What's New text | Yes | Version changelog | Generic refresh note in all locales | Low | PR-8 (planned): update for actual release content |
@@ -161,8 +161,8 @@ subtitles, promotional text, reviewer notes, screenshot captions):
 **Verdict:** Current metadata text does not contain forbidden claims. However,
 descriptions mention features (weekly wellness progress, Health data access)
 that are mapped to `IMPLEMENTATION_REQUIRED` screenshot scenarios. This is a
-P1 alignment risk (descriptions imply availability of features not yet
-submission-ready), not a forbidden-claim violation.
+P0 submission blocker (descriptions imply availability of features not yet
+submission-ready), though it is not a forbidden-claim violation per se.
 
 ## StoreKit and Pricing Copy Audit
 
