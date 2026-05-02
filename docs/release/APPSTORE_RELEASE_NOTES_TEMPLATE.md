@@ -98,7 +98,10 @@ Every claim in release notes must be classified before submission.
 ### Classification derivation rules
 
 1. If the feature is `IMPLEMENTATION_REQUIRED` in `APPSTORE_FEATURE_ASSET_MATRIX.md`
-   then the release note claim is `BLOCKED_FROM_RELEASE_NOTES`.
+   then the release note claim is `BLOCKED_FROM_RELEASE_NOTES`, unless a
+   documented exception exists in the block library (section 11) for cases
+   where the underlying capability is independently release-enabled but the
+   associated screenshot scenario is not yet submission-ready.
 2. If the feature is `SUBMIT_READY` and requires no special reviewer note
    then the release note claim is `SAFE_TO_MENTION`.
 3. If the feature is `SUBMIT_READY` but touches HealthKit, AI, or StoreKit
