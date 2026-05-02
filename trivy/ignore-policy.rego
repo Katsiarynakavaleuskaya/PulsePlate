@@ -178,6 +178,7 @@ ignore if {
 	input.InstalledVersion == "3.7.9-2+deb12u5"
 }
 
+# anchor:cve-2026-33845-gnutls-suppression
 # CVE-2026-33845 (GnuTLS) - no fixed release for observed Debian package at triage time
 # Review-by: 2026-05-27 (manual removal)
 # Rationale: Trivy code-scanning alert #589 reports libgnutls30 fixed-version unknown
@@ -199,6 +200,8 @@ cve_2026_33845_image_reference_match if {
 }
 
 cve_2026_33845_image_reference_match if {
+	# Fallback: Trivy sometimes omits the Image field in certain scan contexts;
+	# suppression still requires exact CVE + package + version + pkgID prefix match.
 	not input.Image
 }
 
@@ -207,6 +210,8 @@ cve_2026_33845_distro_match if {
 }
 
 cve_2026_33845_distro_match if {
+	# Fallback: Trivy sometimes omits the Distro field;
+	# suppression still requires exact CVE + package + version + pkgID prefix match.
 	not input.Distro
 }
 

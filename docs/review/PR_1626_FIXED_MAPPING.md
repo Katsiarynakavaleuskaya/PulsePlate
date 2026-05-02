@@ -10,11 +10,20 @@ PR #1626 triages GitHub Code Scanning alert #589 for `libgnutls30` / `CVE-2026-3
 - `trivy/ignore-policy.rego`
 - `docs/roadmap/BACKLOG_LEDGER.md`
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-- Security advisory doc -> `13817b833`
-- Trivy narrow suppression -> `13817b833`
-- Backlog removal follow-up -> `13817b833`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1626#pullrequestreview-4215081881
+
+Disposition: NOT-A-BUG (fallback branches) / FIXED (evidence anchors)
+
+Evidence (fallback branches): The `not input.Image` / `not input.Distro` fallback pattern is intentionally consistent with existing CVE-2026-41989 (`trivy/ignore-policy.rego:147-157`) and CVE-2026-4878 (`trivy/ignore-policy.rego:299-311`) blocks. The fallback is justified because Trivy sometimes omits these fields in certain scan contexts; the suppression still requires exact CVE + package + version + pkgID prefix match, preventing unintended suppression. Inline justification comments have been added.
+
+Evidence (evidence anchors): Hard-coded line numbers replaced with named anchor (`anchor:cve-2026-33845-gnutls-suppression`) and ledger anchor ID.
 
 ## Validation
 
@@ -25,6 +34,10 @@ PR #1626 triages GitHub Code Scanning alert #589 for `libgnutls30` / `CVE-2026-3
 - `pre-commit run --all-files` -> PASS
 - `git diff --check` -> clean
 
-## Review Thread Disposition
+## Merge Readiness
 
-Populate after CodeRabbit, Sourcery, and Cubic reviews complete.
+- [ ] CI green
+- [ ] Security policy tests green
+- [ ] Review mapping artifact complete
+- [ ] No actionable bot comments remain
+- [ ] Mandatory wait-window elapsed
