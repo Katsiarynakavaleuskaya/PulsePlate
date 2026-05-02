@@ -29,6 +29,12 @@ final class AppConfigTests: XCTestCase {
         XCTAssertEqual(url?.host, "pulseplate.app")
     }
 
+    func testUppercaseHTTPSAccepted() {
+        // RFC 3986: schemes are case-insensitive
+        let url = AppConfig.validateReleaseBaseURL("HTTPS://pulseplate.app")
+        XCTAssertNotNil(url)
+    }
+
     // MARK: - Rejected inputs
 
     func testNilRejected() {
@@ -57,5 +63,15 @@ final class AppConfigTests: XCTestCase {
 
     func testWhitespaceOnlyRejected() {
         XCTAssertNil(AppConfig.validateReleaseBaseURL("   "))
+    }
+
+    func testSchemeOnlyRejected() {
+        // "https:" parses as a valid URL with scheme but no host
+        XCTAssertNil(AppConfig.validateReleaseBaseURL("https:"))
+    }
+
+    func testSchemelessURLRejected() {
+        // No scheme → scheme is nil → rejected
+        XCTAssertNil(AppConfig.validateReleaseBaseURL("pulseplate.app"))
     }
 }
