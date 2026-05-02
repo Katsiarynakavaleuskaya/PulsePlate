@@ -32,4 +32,56 @@ PR #1630 syncs App Store reviewer notes and metadata with release runtime truth.
 
 ## Review Thread Disposition
 
-Populate after CodeRabbit, Sourcery, and Cubic reviews complete.
+### Round 1 (13 threads)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032372 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md:97` (corrected evidence line numbers)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032373 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:78` (corrected evidence line numbers)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032374 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:126` (all 12 items now PASS; line numbers corrected)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177032375 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `ios/fastlane/metadata/es-ES/description.txt:1` (Spanish accents restored)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033359 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md:78-120` (evidence line numbers corrected to match rewritten notes.txt)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033360 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md:97-134` (evidence line numbers corrected to match rewritten notes.txt)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033361 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1630_FIXED_MAPPING.md:15-18` (URL-based mapping entries added)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033364
+  Disposition: NOT-A-BUG
+  Evidence: `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md:146` — PR-8 is the epic scope number; PR-11 is the execution-order number tracked in the backlog ledger. Both conventions coexist in the release readiness epic by design.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033366 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `ios/fastlane/metadata/es-ES/description.txt:1` (Spanish accents/diacritics restored: planificación, nutrición, más, está, diseñado, atención)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033368 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `ios/fastlane/metadata/es-ES/release_notes.txt:1` (Spanish accents restored: versión, análisis, explícito, conexión)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177033371
+  Disposition: DEFERRED
+  Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature` — Locale-aware regex matching in guard is an enhancement for PR-9 validator gates. Current guard uses English-only patterns which match the reviewer notes (English file). Descriptions are checked for English-pattern medical claims which is sufficient for the current 3 locales (wellness disclaimers in RU/ES do not contain the positive claim patterns the regex targets).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177034366 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: PR body updated with `## Discussion Thread Pass` section (checked checkboxes) and URL-based mapping entries.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1630#discussion_r3177034367 -> `b1c171ad3`
+  Disposition: FIXED
+  Evidence: `docs/review/PR_1630_FIXED_MAPPING.md:15-18` (URL-based mapping entries)
