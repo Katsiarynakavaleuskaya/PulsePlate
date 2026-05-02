@@ -27,6 +27,14 @@ PR #1629 fixes the iOS build failure by handling `.consentRequired` in `AIInsigh
   Commit: c609d3b80
   Evidence: docs/review/PR_1629_FIXED_MAPPING.md:12 (`## Discussion Thread Pass` section added)
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1629#pullrequestreview-4215353001
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit summary review with nitpick suggestions; inline threads resolved above. Localization deferral is intentional (hotfix scope).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1629#pullrequestreview-4215355555
+  Disposition: NOT-A-BUG
+  Evidence: Cubic summary review pointing to inline threads already resolved above (artifact format issues fixed in 4454d3e36 and c609d3b80).
+
 ## Validation
 
 - `pytest -q tests/ios/test_ai_insight_state_exhaustiveness_guard.py` — PASS
