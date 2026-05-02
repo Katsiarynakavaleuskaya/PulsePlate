@@ -69,7 +69,7 @@ def _read_png_dimensions(path: pathlib.Path) -> Tuple[int, int]:
         if sig[:4] != b"\x89PNG":
             raise ValueError(f"Not a PNG file: {path}")
         # IHDR is always first chunk after signature.
-        _length = fh.read(4)
+        fh.read(4)  # chunk length (not needed for IHDR)
         chunk_type = fh.read(4)
         if chunk_type != b"IHDR":
             raise ValueError(f"Missing IHDR chunk: {path}")
