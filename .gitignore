@@ -239,6 +239,7 @@ yarn-error.log*
 # Agent run summaries (local artifacts; never commit)
 artifacts/agent_runs/
 artifacts/orchestration/
+artifacts/evals/
 artifacts/rag_eval/
 artifacts/security_lab/
 

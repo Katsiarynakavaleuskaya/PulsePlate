@@ -9,23 +9,19 @@ No network.  No model calls.  Pure offline deterministic.
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.evals.run_eval_validity import main as runner_main  # noqa: E402
+from scripts.evals.run_eval_validity import main as runner_main
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-RAG_SAMPLE = REPO_ROOT / "data" / "evals" / "pulseplate_rag_eval_validity_sample.jsonl"
-JUDGMENT_SAMPLE = REPO_ROOT / "data" / "evals" / "pulseplate_judgment_eval_validity_sample.jsonl"
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+RAG_SAMPLE = _REPO_ROOT / "data" / "evals" / "pulseplate_rag_eval_validity_sample.jsonl"
+JUDGMENT_SAMPLE = _REPO_ROOT / "data" / "evals" / "pulseplate_judgment_eval_validity_sample.jsonl"
 
 
 def _read_report(path: Path) -> dict[str, object]:

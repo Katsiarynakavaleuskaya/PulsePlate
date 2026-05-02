@@ -12,6 +12,7 @@ is deterministic and offline.
 
 from __future__ import annotations
 
+import math
 import statistics
 from typing import Any, Literal, Sequence, TypedDict, get_args
 
@@ -133,8 +134,12 @@ def validate_eval_outcome_record(
     if not isinstance(passed, bool):
         raise ValueError(f"EvalOutcomeRecord.passed must be bool, got {type(passed).__name__}")
     score = raw["score"]
+    if isinstance(score, bool):
+        raise ValueError("EvalOutcomeRecord.score must be numeric, got bool")
     if not isinstance(score, (int, float)):
         raise ValueError(f"EvalOutcomeRecord.score must be numeric, got {type(score).__name__}")
+    if not math.isfinite(score):
+        raise ValueError(f"EvalOutcomeRecord.score must be finite, got {score!r}")
     return EvalOutcomeRecord(
         canonical_id=str(raw["canonical_id"]),
         variant_id=str(raw["variant_id"]),
@@ -220,7 +225,12 @@ def compute_mutation_drop(
     drops: list[float] = []
     by_transform: dict[str, list[float]] = {}
     for rec in mutation_rows:
-        c_avg = canonical_avg_map.get(rec["canonical_id"], 0.0)
+        c_avg = canonical_avg_map.get(rec["canonical_id"])
+        if c_avg is None:
+            raise ValueError(
+                f"Mutation row has no canonical baseline for "
+                f"canonical_id={rec['canonical_id']!r}"
+            )
         drop = c_avg - rec["score"]
         drops.append(drop)
         by_transform.setdefault(rec["transform_type"], []).append(drop)

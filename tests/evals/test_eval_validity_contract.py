@@ -8,17 +8,12 @@ No network.  No model calls.  Pure offline deterministic.
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.evals.eval_validity_contract import (  # noqa: E402
+from scripts.evals.eval_validity_contract import (
     EvalOutcomeRecord,
     build_validity_report,
     compute_invariance_score,
@@ -184,6 +179,26 @@ class TestValidateEvalOutcomeRecord:
         with pytest.raises(ValueError, match="must be numeric"):
             validate_eval_outcome_record(raw)
 
+    def test_rejects_bool_score(self) -> None:
+        raw = _make_outcome_raw(score=True)
+        with pytest.raises(ValueError, match="got bool"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_nan_score(self) -> None:
+        raw = _make_outcome_raw(score=float("nan"))
+        with pytest.raises(ValueError, match="must be finite"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_infinity_score(self) -> None:
+        raw = _make_outcome_raw(score=float("inf"))
+        with pytest.raises(ValueError, match="must be finite"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_neg_infinity_score(self) -> None:
+        raw = _make_outcome_raw(score=float("-inf"))
+        with pytest.raises(ValueError, match="must be finite"):
+            validate_eval_outcome_record(raw)
+
 
 # ---------------------------------------------------------------------------
 # Grouping
@@ -238,6 +253,22 @@ class TestMutationDrop:
         result = compute_mutation_drop(outcomes)
         assert result["overall"] == 0.0
         assert result["by_transform"] == {}
+
+    def test_rejects_mutation_without_canonical_baseline(self) -> None:
+        """Mutation row with no matching canonical row must raise."""
+        outcomes = [
+            validate_eval_outcome_record(
+                _make_outcome_raw(
+                    canonical_id="orphan",
+                    variant_id="orphan_mut",
+                    variant_family="mutation",
+                    transform_type="missing_evidence",
+                    score=0.5,
+                )
+            ),
+        ]
+        with pytest.raises(ValueError, match="no canonical baseline"):
+            compute_mutation_drop(outcomes)
 
 
 class TestWorstCaseErrorRate:
