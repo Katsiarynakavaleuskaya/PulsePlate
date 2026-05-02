@@ -33,4 +33,32 @@ PR #1631 adds repo-local App Store validation gates for iOS release readiness
 
 ## Review Thread Disposition
 
-Populate after CodeRabbit, Sourcery, and Cubic reviews complete.
+### CodeRabbit
+
+1. **P2: Enforce complete screenshot scenario coverage**
+   - Disposition: DEFERRED
+   - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature`
+   - Reason: Enhancement for future iteration. Current check validates no overclaim (SUBMIT_READY + IMPLEMENTATION_REQUIRED contradiction). Adding canonical scenario enumeration is a follow-up.
+
+2. **P2: Detect currency-symbol price claims**
+   - Disposition: DEFERRED
+   - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature`
+   - Reason: Enhancement. Current patterns cover $, USD, EUR, RUB. Broader unicode currency symbols can be added in follow-up.
+
+3. **Add VENV_PYTHON precheck**
+   - Disposition: FIXED
+   - Commit: `c134706e4`
+   - Evidence: `Makefile:547`
+
+4. **Remove unused _length variable (F841)**
+   - Disposition: FIXED
+   - Commit: `c134706e4`
+   - Evidence: `scripts/release/check_ios_appstore_verify.py:79`
+
+### Cubic
+
+- No actionable findings.
+
+### Sourcery
+
+- Skipped (not applicable for this PR scope).
