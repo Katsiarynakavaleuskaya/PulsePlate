@@ -542,4 +542,13 @@ ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID se
 	@echo "$(YELLOW)🔐 Uploading iOS App Privacy answers...$(NC)"
 	@$(IOS_FASTLANE) upload_app_privacy
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
+ios-appstore-verify: ## Verify App Store submission readiness (repo-local, no upload)
+	@echo "$(YELLOW)Verifying iOS App Store submission readiness...$(NC)"
+	@test -x "$(VENV_PYTHON)" || (echo "$(RED)VENV_PYTHON missing. Run 'make venv' or set VENV_PYTHON.$(NC)" && exit 1)
+	$(VENV_PYTHON) scripts/release/check_ios_appstore_verify.py
+	$(VENV_PYTHON) -m pytest -q tests/ios/
+	$(VENV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py
+	$(VENV_PYTHON) -m pytest -q tests/test_release_reviewer_packet_hashes.py
+	@echo "$(GREEN)App Store submission readiness verified$(NC)"
+
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
