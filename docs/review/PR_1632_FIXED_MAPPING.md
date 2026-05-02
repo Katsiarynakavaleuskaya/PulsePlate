@@ -59,16 +59,16 @@ Branch: `evals/evaluation-validity-substrate`
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263714 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263716 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271030 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271031 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271033 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271034 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271035 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271036 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271038 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271039 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263714 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177263716 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271030 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271031 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271033 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271034 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271035 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271036 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271038 -> 699da47691fada67396465b0fa7da9de27f38482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1632#discussion_r3177271039 -> 699da47691fada67396465b0fa7da9de27f38482
 
 ## Merge Readiness Evidence
 
