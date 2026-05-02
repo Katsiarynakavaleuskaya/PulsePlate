@@ -24,4 +24,4 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1621#discussion_r3176405959
   Disposition: FIXED
   Evidence: `docs/release/APPSTORE_RELEASE_NOTES_TEMPLATE.md:100` — added exception clause to classification rule #1 for screenshot-scope-only blockers where the underlying capability is independently release-enabled
-  Commit: (pending — included in next push)
+  Commit: e831bba61
