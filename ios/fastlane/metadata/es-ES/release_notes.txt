@@ -1,1 +1,5 @@
-Esta versión actualiza la experiencia de PulsePlate, la localización y la presentación en App Store.
+Esta version refuerza la privacidad y la fiabilidad:
+- El analisis AI wellness ahora requiere consentimiento explicito antes del primer uso
+- El acceso a HealthKit confirmado como solo lectura con compatibilidad Swift 6
+- La conexion al servidor requiere HTTPS explicito
+- Metadatos y notas para el revisor alineados con la version actual
