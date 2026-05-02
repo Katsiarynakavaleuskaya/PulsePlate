@@ -24,3 +24,5 @@ Evidence: ios/PulsePlate/Services/AppConfig.swift:16, tests/ios/test_release_bas
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1622#pullrequestreview-4214871397 -> 2dc26a47a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1622#pullrequestreview-4214872696 -> 2dc26a47a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1622#pullrequestreview-4214872868 -> 2dc26a47a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1622#pullrequestreview-4214877171 -> 2dc26a47a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1622#pullrequestreview-4214882706 -> 2dc26a47a
