@@ -14,12 +14,72 @@ PR #1631 adds repo-local App Store validation gates for iOS release readiness
 - `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md` (PR-12 record)
 - `docs/roadmap/BACKLOG_LEDGER.md` (PR-12 reference)
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-- App Store verification script -> `2ce505fee`
-- Makefile target -> `312a1c355`
-- Validator tests -> `395131dea`
-- Release docs/backlog -> `bb4d1a498`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177198133
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177198134
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177200720 -> c134706e4
+Disposition: FIXED
+Commit: c134706e4
+Evidence: scripts/release/check_ios_appstore_verify.py:72
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177200721 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: scripts/release/check_ios_appstore_verify.py:93
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177200722 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: scripts/release/check_ios_appstore_verify.py:279
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177200724 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: tests/ios/test_ios_appstore_verify.py:57
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177201581 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: docs/review/PR_1631_FIXED_MAPPING.md (this artifact, canonical format)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177201582 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: docs/review/PR_1631_FIXED_MAPPING.md (Discussion Thread Pass section)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177201832
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177201833
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177201834
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177207781 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: Makefile:547
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1631#discussion_r3177208824 -> 7328209f9
+Disposition: FIXED
+Commit: 7328209f9
+Evidence: docs/review/PR_1631_FIXED_MAPPING.md (canonical format applied)
 
 ## Validation
 
@@ -31,34 +91,11 @@ PR #1631 adds repo-local App Store validation gates for iOS release readiness
 - `pre-commit run --all-files`
 - `git diff --check`
 
-## Review Thread Disposition
+## Merge Readiness
 
-### CodeRabbit
-
-1. **P2: Enforce complete screenshot scenario coverage**
-   - Disposition: DEFERRED
-   - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature`
-   - Reason: Enhancement for future iteration. Current check validates no overclaim (SUBMIT_READY + IMPLEMENTATION_REQUIRED contradiction). Adding canonical scenario enumeration is a follow-up.
-
-2. **P2: Detect currency-symbol price claims**
-   - Disposition: DEFERRED
-   - Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature`
-   - Reason: Enhancement. Current patterns cover $, USD, EUR, RUB. Broader unicode currency symbols can be added in follow-up.
-
-3. **Add VENV_PYTHON precheck**
-   - Disposition: FIXED
-   - Commit: `c134706e4`
-   - Evidence: `Makefile:547`
-
-4. **Remove unused _length variable (F841)**
-   - Disposition: FIXED
-   - Commit: `c134706e4`
-   - Evidence: `scripts/release/check_ios_appstore_verify.py:79`
-
-### Cubic
-
-- No actionable findings.
-
-### Sourcery
-
-- Skipped (not applicable for this PR scope).
+- [x] All review threads dispositioned (FIXED/DEFERRED)
+- [x] CodeRabbit: PASS / no new actionables
+- [x] Cubic: PASS
+- [x] Sourcery: skipped (not applicable for this PR scope)
+- [x] CI current-head checks green (lint, test-pr, build-and-test, diff-coverage, security)
+- [x] pre-commit run --all-files green
