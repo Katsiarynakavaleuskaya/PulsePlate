@@ -21,30 +21,6 @@ PR #1628 gates first iOS AI wellness insight request behind explicit user consen
 
 ## Fixed in Commit Mapping
 
-- AI wellness consent runtime gate -> `afe86d91a`
-  Disposition: FIXED
-  Commit: afe86d91a
-  Evidence: `ios/PulsePlate/ViewModels/AIInsightViewModel.swift:49` (consent-first guard in `submit()`)
-
-- Consent tests/guards -> `afe86d91a`
-  Disposition: FIXED
-  Commit: afe86d91a
-  Evidence: `ios/PulsePlateTests/AIWellnessConsentTests.swift` (5 tests), `pytest -q tests/ios/test_ai_wellness_consent_guard.py` (7/7 PASS)
-
-- Release docs/backlog update -> `afe86d91a`
-  Disposition: FIXED
-  Commit: afe86d91a
-  Evidence: `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md:137`, `docs/roadmap/BACKLOG_LEDGER.md:61`
-
-## Validation
-
-- `pytest -q tests/ios/test_ai_wellness_consent_guard.py` — 7/7 PASS
-- `pytest -q tests/ios/` — 33/33 PASS
-- `pytest -q tests/guards/test_wellness_language_blockers_guard.py` — PASS
-- `pre-commit run --all-files` — PASS
-
-## Review Thread Disposition
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1628#discussion_r3176900098 -> daced8d44
   Disposition: FIXED
   Commit: daced8d44
@@ -67,3 +43,10 @@ PR #1628 gates first iOS AI wellness insight request behind explicit user consen
   Disposition: FIXED
   Commit: daced8d44
   Evidence: `tests/ios/test_ai_wellness_consent_guard.py:68` (now checks en/ru/es locales)
+
+## Validation
+
+- `pytest -q tests/ios/test_ai_wellness_consent_guard.py` — 7/7 PASS
+- `pytest -q tests/ios/` — 33/33 PASS
+- `pytest -q tests/guards/test_wellness_language_blockers_guard.py` — PASS
+- `pre-commit run --all-files` — PASS
