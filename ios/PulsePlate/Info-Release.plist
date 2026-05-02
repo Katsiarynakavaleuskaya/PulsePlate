@@ -19,8 +19,8 @@
 	<!-- For production keys, use the existing ProKeyProvider.swift Keychain pattern -->
 	<!-- See: ios/PulsePlate/Services/ProKeyProvider.swift for secure storage implementation -->
 	<!-- For CI/CD: Inject secrets via build environment or secure provisioning -->
-	<!-- Example production BASE_URL (safe to hardcode): -->
-	<!-- <key>BASE_URL</key> -->
-	<!-- <string>https://api.pulseplate.app</string> -->
+	<!-- Operator decision (PR-7): canonical_release_base_url = https://pulseplate.app -->
+	<key>BASE_URL</key>
+	<string>https://pulseplate.app</string>
 </dict>
 </plist>
