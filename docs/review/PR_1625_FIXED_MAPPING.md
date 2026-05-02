@@ -18,14 +18,14 @@ Adds a deterministic guard and updates epic/backlog documentation.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#discussion_r3176697922 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#discussion_r3176703456 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#pullrequestreview-4215030526 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#pullrequestreview-4215036734 -> PENDING_SHA
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#pullrequestreview-4215036792 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#discussion_r3176697922 -> 4f15df0fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#discussion_r3176703456 -> 4f15df0fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#pullrequestreview-4215030526 -> 4f15df0fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#pullrequestreview-4215036734 -> 4f15df0fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1625#pullrequestreview-4215036792 -> 4f15df0fe
 
 Disposition: FIXED
-Commit: PENDING_SHA
+Commit: 4f15df0fe
 Evidence: tests/ios/test_appicon_marketing_asset.py (scale/platform + .png suffix checks added); docs/release/APPSTORE_RELEASE_READINESS_EPIC.md (wording trimmed to match guard scope)
 
 ## Validation
