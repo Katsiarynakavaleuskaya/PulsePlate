@@ -109,8 +109,14 @@ then update this epic, the matrix, and the lane packet in the same PR.
 
 6. **PR-5: AppIcon marketing asset fix**
    - Branch: `release/appstore-readiness-pr5-appicon`
+   - Execution branch: `release/appstore-readiness-pr8-appicon-marketing-asset`
    - Repair asset catalog assignment, PNG validity, and actool warning.
    - Do not mix broader App Store asset changes.
+   - **Status (PR-8):** `AppIcon-1024.png` validated — 1024x1024 PNG,
+     valid signature, correct ios-marketing declaration.
+     Deterministic guard added in
+     `tests/ios/test_appicon_marketing_asset.py`. No asset changes needed.
+     App Store Connect upload remains operator-owned.
 
 7. **PR-6: HealthKit Swift 6 readiness**
    - Branch: `release/appstore-readiness-pr6-healthkit-swift6`
