@@ -60,7 +60,7 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178158472
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 52fcc677f
   Evidence: docs/DEPENDENCY_MANAGEMENT.md:108-113 and requirements-rag-vector-cpu.in:8-12 — corrected wording from "force" to "prefer" and clarified that --extra-index-url adds a secondary index, with the compiled .txt lockfile as the actual deterministic contract
 
 ## Deferred / Follow-ups
