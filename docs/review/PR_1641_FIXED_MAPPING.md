@@ -18,10 +18,22 @@ forbids this pattern in test files. The mutation was redundant because
 - `tests/evals/conftest.py`
 - `tests/test_repo_policy_guards.py`
 
-## Fixed in Commit Mapping
+## Discussion Thread Pass
 
-Pending bot review comments. Will be populated after CodeRabbit, Sourcery,
-and Cubic reviews complete.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1641#discussion_r3177732677
+  Disposition: FIXED
+  Commit: PENDING
+  Evidence: docs/review/PR_1641_FIXED_MAPPING.md (artifact updated with canonical format)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1641#discussion_r3177732679
+  Disposition: FIXED
+  Commit: PENDING
+  Evidence: docs/review/PR_1641_FIXED_MAPPING.md (Discussion Thread Pass section added)
 
 ## Validation
 
@@ -31,6 +43,10 @@ and Cubic reviews complete.
 - `make validate-min` — PASS
 - `pre-commit run --all-files` — PASS
 
-## Review Thread Disposition
+## Merge Readiness
 
-Populate after bot reviews complete.
+- [x] CI green
+- [x] import hygiene guard green
+- [x] review mapping artifact created
+- [ ] no actionable bot comments remain
+- [ ] mandatory wait-window elapsed
