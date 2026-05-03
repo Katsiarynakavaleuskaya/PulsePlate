@@ -1155,6 +1155,20 @@ Source of truth:
 - `docs/contracts/API_CANONICAL_MAP.md` — operator-facing route map (current namespace and compatibility surface)
 - `docs/runbooks/ENGINEER_QUICKPATH.md` — short execution path for day-to-day engineering work
 
+## Evaluation validity PRs
+
+Evaluation-validity work MUST extend existing eval lanes instead of creating a parallel eval universe.
+
+Rules:
+- Foundation eval PRs must stay offline and deterministic.
+- Foundation eval PRs must not change production runtime behavior.
+- Validity metrics are sibling metrics and must not replace canonical release-gate PASS/NO-GO vocabulary.
+- LLM-generated fixtures are forbidden in deterministic foundation PRs.
+- Item-level artifacts are required before psychometrics, IRT, adaptive evals, or mechanistic evaluation.
+- External coding models such as Opus may be used by the operator, but MUST NOT be integrated into repo runtime, provider routing, `.claude/`, or orchestration identity.
+
+See: `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+
 ## Canonical Maps And Quick Paths
 
 Use this section as a navigation index only.

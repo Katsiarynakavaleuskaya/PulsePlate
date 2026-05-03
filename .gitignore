@@ -175,6 +175,8 @@ Thumbs.db
 data/evals/rag_weekly_*.jsonl
 # Keep the committed smoke fixture while hiding strict weekly/manual datasets.
 !data/evals/pulseplate_rag_eval_sample.jsonl
+!data/evals/pulseplate_rag_eval_validity_sample.jsonl
+!data/evals/pulseplate_judgment_eval_validity_sample.jsonl
 # Local raw food dumps (W1); keep snapshots README only
 data/raw/*
 !data/raw/snapshots/
@@ -237,6 +239,7 @@ yarn-error.log*
 # Agent run summaries (local artifacts; never commit)
 artifacts/agent_runs/
 artifacts/orchestration/
+artifacts/evals/
 artifacts/rag_eval/
 artifacts/security_lab/
 
