@@ -35,6 +35,7 @@ If it is not recorded here — it does not exist.
   - Evidence: `.devcontainer/devcontainer.json`, `.devcontainer/Dockerfile`, `.devcontainer/docker-compose.devcontainer.yml`, `Makefile`, `README.md`, `CONTRIBUTING.md`, `tests/test_devcontainer_foundation.py`
   - DoD: devcontainer files exist, no proxy secrets baked into image, `make devcontainer-bootstrap` exists, `make dc-up/dc-shell/dc-down/dc-smoke` exist, `make venv` remains, docs describe devcontainer as recommended path, iOS/Xcode stays host-native, guard tests pass
 
+Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 <a id="ledger-p2-devcontainer-ci-smoke"></a>
 - [ ] P2: Add CI devcontainer smoke job
   - Owner: @katsiaryna_kavaleuskaya
@@ -51,7 +52,6 @@ If it is not recorded here — it does not exist.
   - Reason: deferred from devcontainer foundation PR; gradually replace hardcoded `.venv/bin/python` in generic Makefile targets (test-fast, lint, typecheck, cov, diff-cov) with DEV_PYTHON; add guard test against new hardcoded `.venv/bin/python` in generic targets
   - DoD: generic targets use DEV_PYTHON, `make venv` unchanged, guard test prevents regression
 
-Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
 
 <a id="ledger-p1-web-launch-design-polish-v1"></a>
 - [ ] P1: Web launch shell design polish v1
