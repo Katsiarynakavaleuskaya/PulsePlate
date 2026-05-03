@@ -109,10 +109,17 @@ Output path: `artifacts/evals/validity_report.json` (gitignored).
 
 ## RAG Lane Integration
 
-Current state: standalone. The RAG release-gate runner
-(`scripts/evals/run_rag_release_gates.py`) does not yet export item-level
-outcome JSONL. Future PR may add optional export of per-item results in
-validity-compatible format.
+The RAG release-gate runner (`scripts/evals/run_rag_release_gates.py`) emits
+validity sidecar artifacts via `scripts/evals/rag_release_gate_validity.py`.
+Each RAG trace is mapped to an `EvalOutcomeRecord` with per-item pass/fail
+derived from the same gate B1/B2/B3 thresholds.
+
+Current limitations: only `variant_family="canonical"` rows are emitted.
+Full invariance/mutation coverage requires explicit variant families in
+future datasets and is not inferred from canonical-only rows.
+
+Sidecar artifacts remain sibling artifacts and do not override the canonical
+RAG release-gate PASS/NO-GO decision.
 
 ## Judgment Lane Integration
 
