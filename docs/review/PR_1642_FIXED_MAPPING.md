@@ -30,6 +30,11 @@ checked `steps.build.outcome == 'success'`.
 Disposition: FIXED
 Commit: b77949f96
 Evidence: docs/review/PR_1642_FIXED_MAPPING.md:28 (mapping format corrected)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1642#discussion_r3178073945
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1642#pullrequestreview-4216274296
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/review_mapping_artifact.py:111 (parser validates section-level, not per-line)
+Reason: Multiple URL->SHA lines sharing a single Disposition block is the expected canonical format
 
 ## Validation
 
@@ -44,4 +49,5 @@ Evidence: docs/review/PR_1642_FIXED_MAPPING.md:28 (mapping format corrected)
 
 | Thread | Disposition | Evidence |
 |--------|-------------|----------|
-| `#discussion_r3177853609` (Cubic: canonical mapping format) | FIXED | Commit `b77949f96` — replaced free-form mapping with `- No actionable review comments` then updated to URL->SHA format |
+| `#discussion_r3177853609` (Cubic: canonical mapping format) | FIXED | Commit `b77949f96` — mapping format corrected |
+| `#discussion_r3178073945` (Cubic: per-line disposition block) | NOT-A-BUG | `review_mapping_artifact.py:111` — parser validates section-level |
