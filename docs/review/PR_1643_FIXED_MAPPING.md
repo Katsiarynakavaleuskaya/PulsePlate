@@ -65,7 +65,7 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178169478
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 58117c356
   Evidence: docs/review/PR_1643_FIXED_MAPPING.md:39 — aligned mapping evidence wording from "force" to "prefer" for internal consistency
 
 ## Deferred / Follow-ups
