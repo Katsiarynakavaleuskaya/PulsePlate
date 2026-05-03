@@ -51,6 +51,7 @@ def test_pulseplate_mcp_wrapper_is_executable_and_fallback_order_is_safe() -> No
     assert "command -v python3" in text, "Wrapper must check python3 fallback"
     assert "exec .venv/bin/python mcp_pulseplate_server.py" in text
     assert "exec python3 mcp_pulseplate_server.py" in text
+    assert "PYTHONPATH" in text, "Wrapper must set PYTHONPATH for devcontainer"
     assert "eval " not in text, "Wrapper must not use eval"
     assert "source " not in text, "Wrapper must not source files"
 

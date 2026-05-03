@@ -5,6 +5,9 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
+# Ensure app package is importable (needed when .venv is absent).
+export PYTHONPATH="${PYTHONPATH:-$(pwd)}"
+
 if [ -x ".venv/bin/python" ]; then
   exec .venv/bin/python mcp_pulseplate_server.py
 fi
