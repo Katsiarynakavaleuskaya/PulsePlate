@@ -27,12 +27,12 @@ forbids this pattern in test files. The mutation was redundant because
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1641#discussion_r3177732677
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 3fab25392
   Evidence: docs/review/PR_1641_FIXED_MAPPING.md (artifact updated with canonical format)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1641#discussion_r3177732679
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 3fab25392
   Evidence: docs/review/PR_1641_FIXED_MAPPING.md (Discussion Thread Pass section added)
 
 ## Validation
