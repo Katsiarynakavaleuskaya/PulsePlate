@@ -113,10 +113,20 @@ Disposition: FIXED
 Commit: 2a90b415d
 Evidence: docs/review/PR_1644_FIXED_MAPPING.md — cubic review cycle 4: all threads mapped in canonical format
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178099412
+Disposition: FIXED
+Commit: 7ba1a99f8
+Evidence: docs/review/PR_1644_FIXED_MAPPING.md — unchecked premature merge readiness checkboxes per CodeRabbit
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#pullrequestreview-4216294520
+Disposition: FIXED
+Commit: 7ba1a99f8
+Evidence: docs/review/PR_1644_FIXED_MAPPING.md — CodeRabbit review cycle 3: merge readiness boxes unchecked
+
 ## Merge Readiness
 
 - [x] CI green (all canonical checks pass; iOS/coverage correctly skipped for docs/orchestration-only PR)
 - [x] Skill routing tests green (141 passed)
 - [x] Review mapping artifact created
-- [x] No actionable bot comments remain
-- [x] Mandatory wait-window elapsed
+- [ ] No actionable bot comments remain
+- [ ] Mandatory wait-window elapsed
