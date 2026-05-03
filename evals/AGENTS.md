@@ -15,6 +15,7 @@ It must never become part of request-path runtime.
 - Semantic cache, graph retrieval, and provider behavior changes are out of scope for eval bootstrap PRs
 - First evaluation surface is `/api/v1/pro/cbt/insight` unless a later packet explicitly expands scope
 - Do not create a second canonical evaluation source of truth beside `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+- The "single canonical evaluation SoT" rule applies to release-gate evaluation lanes. Sibling measurement contracts (e.g., validity, psychometrics) for different measurement concerns may exist as separate docs under `docs/evals/` provided they explicitly defer to `PULSEPLATE_RAG_RELEASE_GATES.md` for PASS/NO-GO decisions. See `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
 
 ## Companion test note
 - Eval-lane test-specific rules live in `tests/evals/AGENTS.md`

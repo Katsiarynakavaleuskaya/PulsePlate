@@ -52,3 +52,7 @@ First-class repo wrappers:
 **Skip tests:**
 
 - Set `SKIP_TESTS=1` to bypass backend tests (useful for documentation-only commits)
+
+## Evaluation validity
+
+For evaluation-validity work, follow `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`.
