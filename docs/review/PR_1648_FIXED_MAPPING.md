@@ -33,6 +33,7 @@ Evidence: docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md:140-146, docs/review/P
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1648#discussion_r3178347831 -> 26af95ed8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1648#discussion_r3178347833 -> 9b578c997
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1648#pullrequestreview-4216490689
 
 ## Merge Readiness
 
