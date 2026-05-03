@@ -105,9 +105,12 @@ without CUDA bindings.  It is derived from `requirements-rag-vector-cpu.txt` and
 is intentionally excluded from canonical CI lanes and the shared
 `requirements-profile` action values.
 
-The `.in` file uses `--extra-index-url https://download.pytorch.org/whl/cpu` to
-force CPU-only PyTorch wheel resolution.  Without this, `torch==2.11.0` from the
-default PyPI index may resolve to CUDA-enabled builds on Linux.
+The `.in` file adds `--extra-index-url https://download.pytorch.org/whl/cpu` so
+that `pip-compile` can prefer CPU-only PyTorch wheels.  Note that
+`--extra-index-url` adds a secondary index rather than replacing the default one,
+so the compiled `.txt` lockfile is the actual deterministic contract.  Without the
+extra index, `torch==2.11.0` from the default PyPI index may resolve to
+CUDA-enabled builds on Linux.
 
 If you need vector/ML runtime tooling on a machine without CUDA support, use the local CPU lockfile:
 
