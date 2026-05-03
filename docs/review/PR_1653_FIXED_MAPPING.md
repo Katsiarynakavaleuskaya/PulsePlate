@@ -20,21 +20,20 @@ PR #1653 adds a lightweight CI smoke workflow for the Docker devcontainer toolin
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1653#discussion_r3178673149
-  Disposition: NOT-A-BUG
-  Evidence: `tests/test_devcontainer_smoke_workflow.py:91` -- separate test
-  `test_devcontainer_smoke_does_not_build_production_dockerfile` already scans
-  all non-comment lines for any Dockerfile reference that is not
-  `.devcontainer/Dockerfile`. No `.devcontainer/Dockerfile.prod` exists in repo.
-  Substring match is sufficient for this contract guard.
+Disposition: NOT-A-BUG
+Evidence: `tests/test_devcontainer_smoke_workflow.py:91` separate guard test covers exact Dockerfile path exclusion; no `.devcontainer/Dockerfile.prod` exists in repo.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1653#pullrequestreview-4216754988
-  Disposition: NOT-A-BUG (Cubic review-level summary; inline comment mapped above)
+Disposition: NOT-A-BUG
+Reason: Cubic review-level summary; inline comment mapped above.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1653#pullrequestreview-4216755573
-  Disposition: NOT-A-BUG (CodeRabbit review-level summary; no actionable inline comments)
+Disposition: NOT-A-BUG
+Reason: CodeRabbit review-level summary; no actionable inline comments.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1653#pullrequestreview-4216752472
-  Disposition: NOT-A-BUG (Sourcery review-level summary; no actionable inline comments)
+Disposition: NOT-A-BUG
+Reason: Sourcery review-level summary; no actionable inline comments.
 
 ## Validation
 
