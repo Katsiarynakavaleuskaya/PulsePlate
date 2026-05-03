@@ -7,7 +7,7 @@
 
 ## Fixed in Commit Mapping
 
-No actionable review comments
+- No actionable review comments
 
 ## Summary
 
