@@ -68,6 +68,16 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
   Commit: 58117c356
   Evidence: docs/review/PR_1643_FIXED_MAPPING.md:39 — aligned mapping evidence wording from "force" to "prefer" for internal consistency
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#pullrequestreview-4216342856
+  Disposition: NOT-A-BUG
+  Evidence: Cubic re-review summary — inline comments addressed individually above (r3178158472 FIXED in 52fcc677f)
+  Reason: Summary review triggered by push; individual inline comments already mapped
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#pullrequestreview-4216351027
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit re-review summary — inline comment addressed individually above (r3178169478 FIXED in 58117c356)
+  Reason: Summary review triggered by push; individual inline comments already mapped
+
 ## Deferred / Follow-ups
 
 - No deferred items.
