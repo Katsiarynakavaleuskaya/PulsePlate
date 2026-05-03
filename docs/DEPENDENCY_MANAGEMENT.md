@@ -10,12 +10,14 @@ This project uses `pip-tools` to manage dependencies with deterministic builds.
 - `requirements-ci-lite.in` - Lightweight CI/control-plane dependencies (high-level)
 - `requirements-docker-runtime.in` - Docker production runtime dependencies (high-level)
 - `requirements-rag-vector.in` - Optional vector/ML runtime dependencies (high-level)
+- `requirements-rag-vector-cpu.in` - Optional vector/ML runtime dependencies without CUDA (local-only, high-level)
 - `requirements.txt` - Compiled production dependencies with exact versions (auto-generated)
 - `requirements-docker-runtime.txt` - Compiled Docker production runtime dependencies with exact versions (auto-generated)
 - `requirements-dev.txt` - Compiled development dependencies with exact versions (auto-generated)
 - `requirements-test.txt` - Compiled test-only dependencies with exact versions (auto-generated)
 - `requirements-ci-lite.txt` - Compiled lightweight CI/control-plane dependencies (auto-generated)
 - `requirements-rag-vector.txt` - Compiled optional vector/ML runtime dependencies (auto-generated)
+- `requirements-rag-vector-cpu.txt` - Compiled optional vector/ML runtime dependencies without CUDA (auto-generated, local-only)
 - `constraints.txt` - Additional version constraints for deterministic CI/CD builds
 
 `requirements-test.txt` keeps `pgvector` only for postgres-vector test coverage; the heavy vector/ML runtime packages remain isolated in `requirements-rag-vector.txt`.
@@ -96,6 +98,26 @@ This installer now follows a two-step flow:
 1. Download pinned artifacts into a temporary wheelhouse.
 2. Install with `--no-index --find-links <wheelhouse>` and then statically scan the target `site-packages` for executable `.pth` hooks via `scripts/ci/check_python_startup_hooks.py` without re-launching the target interpreter.
 
+### Local CPU profile (без CUDA, для разработчиков)
+
+`rag-vector-cpu` is a **local/developer-only** profile for the same ML stack
+without CUDA bindings.  It is derived from `requirements-rag-vector-cpu.txt` and
+is intentionally excluded from canonical CI lanes and the shared
+`requirements-profile` action values.
+
+The `.in` file adds `--extra-index-url https://download.pytorch.org/whl/cpu` so
+that `pip-compile` can prefer CPU-only PyTorch wheels.  Note that
+`--extra-index-url` adds a secondary index rather than replacing the default one,
+so the compiled `.txt` lockfile is the actual deterministic contract.  Without the
+extra index, `torch==2.11.0` from the default PyPI index may resolve to
+CUDA-enabled builds on Linux.
+
+If you need vector/ML runtime tooling on a machine without CUDA support, use the local CPU lockfile:
+
+```bash
+pip-sync requirements-rag-vector-cpu.txt
+```
+
 Canonical contract for shared CI/Docker/bootstrap paths:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy.
@@ -160,6 +182,7 @@ pip-compile requirements-dev.in --upgrade -o requirements-dev.txt
 
 # Update optional vector/ML runtime dependencies
 pip-compile requirements-rag-vector.in --upgrade -o requirements-rag-vector.txt
+pip-compile requirements-rag-vector-cpu.in --upgrade -o requirements-rag-vector-cpu.txt
 
 # Install updated dependencies
 pip-sync requirements-dev.txt
