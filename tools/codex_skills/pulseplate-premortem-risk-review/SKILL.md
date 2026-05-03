@@ -59,7 +59,7 @@ Do not use this skill for:
    ```bash
    python3 scripts/orchestration/check_preflight.py
    python3 scripts/orchestration/check_agent_consistency.py
-   python3 scripts/orchestration/task_bootstrap.py --goal "<goal>" --task-class "<actual-task-class>" --pr-phase pre_open
+   python3 scripts/orchestration/task_bootstrap.py --goal "<goal>" --task-class "<actual-task-class>" --pr-phase "<derived-from-target-mode>"
    ```
 
 2. Preserve the coordinator-declared role order. This skill is advisory and must not invent a parallel decision authority.

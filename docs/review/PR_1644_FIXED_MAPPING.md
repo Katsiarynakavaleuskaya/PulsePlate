@@ -13,11 +13,35 @@ Add `pulseplate-premortem-risk-review` skill for stress-testing high-downside Pu
 
 ### Fixed in Commit Mapping
 
-- Sourcery `scripts/orchestration/skill_router.py:1100` -> 43e45412c: add `pre-mortem` and `pre mortem` keyword variants
-- Sourcery `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:50` -> 43e45412c: reword "being premortemed" to standard English
-- CodeRabbit `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:63` -> 43e45412c: replace hardcoded `--task-class "Orchestration"` with placeholder
-- CodeRabbit `tests/test_skill_router.py:1817` -> 43e45412c: tighten Figma-bleed test (remove `design-system` trigger, assert both `figma` and `figma-implement-design` absent)
-- Codex connector `scripts/orchestration/skill_router.py:1079` (NOT-A-BUG: `min_score=6` is intentional high threshold; skill fires when multiple signals combine; same threshold as `pulseplate-pr-review` and `pulseplate-agent-product`)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178001793 -> de31d6e3a
+Disposition: FIXED
+Commit: de31d6e3a
+Evidence: scripts/orchestration/skill_router.py:1100 — added `pre-mortem` and `pre mortem` keyword variants
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178001795 -> de31d6e3a
+Disposition: FIXED
+Commit: de31d6e3a
+Evidence: tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:50 — reworded "being premortemed" to standard English
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178010065 -> de31d6e3a
+Disposition: FIXED
+Commit: de31d6e3a
+Evidence: tests/test_skill_router.py:1810 — removed `design-system` trigger, assert both `figma` and `figma-implement-design` absent
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178010066
+Disposition: FIXED
+Commit: de31d6e3a
+Evidence: tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:62 — replaced hardcoded `--task-class "Orchestration"` with placeholder
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178003390
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/skill_router.py:1079
+Reason: `min_score=6` is intentional high threshold; skill fires when multiple signals combine; same threshold as `pulseplate-pr-review` and `pulseplate-agent-product`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178030380
+Disposition: NOT-A-BUG
+Evidence: scripts/orchestration/skill_router.py:1079
+Reason: Repeat of min_score threshold suggestion; intentional design — see disposition for discussion_r3178003390
 
 ## Merge Readiness
 
