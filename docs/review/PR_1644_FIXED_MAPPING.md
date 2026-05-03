@@ -28,7 +28,7 @@ Disposition: FIXED
 Commit: de31d6e3a
 Evidence: tests/test_skill_router.py:1810 — removed `design-system` trigger, assert both `figma` and `figma-implement-design` absent
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178010066
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1644#discussion_r3178010066 -> de31d6e3a
 Disposition: FIXED
 Commit: de31d6e3a
 Evidence: tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:62 — replaced hardcoded `--task-class "Orchestration"` with placeholder

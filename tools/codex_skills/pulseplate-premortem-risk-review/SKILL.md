@@ -59,8 +59,13 @@ Do not use this skill for:
    ```bash
    python3 scripts/orchestration/check_preflight.py
    python3 scripts/orchestration/check_agent_consistency.py
-   python3 scripts/orchestration/task_bootstrap.py --goal "<goal>" --task-class "<actual-task-class>" --pr-phase "<derived-from-target-mode>"
+   python3 scripts/orchestration/task_bootstrap.py --goal "<goal>" --task-class "<actual-task-class>" --pr-phase "<phase>"
    ```
+
+   Allowed `--pr-phase` values: `pre_open`, `post_open`, `pre_merge`. Choose based on premortem target:
+   - `pre_open` — PR-scoped premortem before opening
+   - `post_open` — review-cycle premortem on an open PR
+   - `pre_merge` — final risk sweep before merge
 
 2. Preserve the coordinator-declared role order. This skill is advisory and must not invent a parallel decision authority.
 3. Treat `recommended_skills` and `skill_routing` from the packet as additive context, not execution permission.
