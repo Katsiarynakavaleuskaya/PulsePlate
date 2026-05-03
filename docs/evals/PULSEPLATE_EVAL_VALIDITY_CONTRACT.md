@@ -109,10 +109,17 @@ Output path: `artifacts/evals/validity_report.json` (gitignored).
 
 ## RAG Lane Integration
 
-Current state: standalone. The RAG release-gate runner
-(`scripts/evals/run_rag_release_gates.py`) does not yet export item-level
-outcome JSONL. Future PR may add optional export of per-item results in
-validity-compatible format.
+The RAG release-gate runner (`scripts/evals/run_rag_release_gates.py`) emits
+validity sidecar artifacts via `scripts/evals/rag_release_gate_validity.py`.
+Each RAG trace is mapped to an `EvalOutcomeRecord` with per-item pass/fail
+derived from the same gate B1/B2/B3 thresholds.
+
+Current limitations: only `variant_family="canonical"` rows are emitted.
+Full invariance/mutation coverage requires explicit variant families in
+future datasets and is not inferred from canonical-only rows.
+
+Sidecar artifacts remain sibling artifacts and do not override the canonical
+RAG release-gate PASS/NO-GO decision.
 
 ## Judgment Lane Integration
 
@@ -130,23 +137,23 @@ may map judgment outcomes to validity `EvalOutcomeRecord` format.
 
 ## Rollout Plan
 
-1. **PR-1 (this PR)**: Foundation substrate -- contract, runner, fixtures,
-   tests, docs.
-2. **PR-2 (deferred)**: Integration with RAG release-gate item-level
-   artifacts.
+1. **PR-1 (merged, #1632)**: Foundation substrate -- contract, runner,
+   fixtures, tests, docs.
+2. **PR-2 (current, #1648)**: RAG release-gate validity sidecar --
+   item-level artifacts emitted via adapter.
 3. **PR-3 (deferred)**: Integration with judgment eval outcome export.
 4. **PR-4+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
    adjudication, tool-use reliability.
 
 ## Deferred Follow-ups
 
+- Invariance/mutation variant families for RAG eval datasets.
 - Hybrid adjudication framework.
 - Tool-use reliability metrics.
 - Psychometrics / IRT item modeling.
 - Compositional generalization suites.
 - Mechanistic evaluation research lane.
 - Adaptive self-improving eval loop.
-- RAG release-gate item-level export integration.
 - Judgment eval outcome export integration.
 
 ## Decision Log

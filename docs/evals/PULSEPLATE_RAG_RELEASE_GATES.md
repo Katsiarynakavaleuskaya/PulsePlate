@@ -396,3 +396,58 @@ this runner with `--require-pass`.
 - no Cloudflare-native metrics database
 
 The lane is intentionally **internal-gates first**.
+
+## Validity Sidecar Artifacts
+
+<!-- markdownlint-disable MD013 -->
+
+The RAG release-gate runner emits optional **validity sidecar** artifacts
+alongside the canonical gate report.  These are informational measurement
+artifacts produced by `scripts/evals/rag_release_gate_validity.py` using the
+evaluation-validity substrate from `scripts/evals/eval_validity_contract.py`.
+
+Validity sidecar artifacts are informational measurement artifacts.  They do
+NOT override `threshold_results` or the canonical RAG release-gate PASS/NO-GO
+decision.
+
+### Sidecar files
+
+| File | Purpose |
+|------|---------|
+| `validity_items.jsonl` | One `EvalOutcomeRecord` per evaluated trace row |
+| `validity_report.json` | Validity report with invariance/mutation/worst-case metrics |
+
+### Per-item mapping
+
+Each RAG trace is mapped to an `EvalOutcomeRecord` with:
+
+- `variant_family = "canonical"` (current datasets have no invariance/mutation variants)
+- `transform_type = "none"`
+- `passed` derived from gates B1 (evidence_exact_match), B2 (NLI >= 0.85), B3 (support >= 0.80)
+- `score` = mean of the three faithfulness sub-metrics
+
+### Limitations
+
+When only canonical rows exist (no explicit invariance or mutation variants):
+
+- `invariance_score` is 0.0
+- `mutation_drop` is `{"overall": 0.0, "by_transform": {}}`
+- `item_instability_index` is 0.0
+- `unstable_items` is `[]`
+
+This is honest reporting, not a coverage gap.  Full invariance/mutation
+coverage requires explicit variant families in future datasets.
+
+### Relationship to PASS/NO-GO
+
+- Validity sidecar is a **sibling artifact**, not a release gate.
+- The canonical release decision remains `"PASS" if all(gate_checks.values()) else "NO-GO"`.
+- Sidecar metrics never override or modify the release decision.
+
+### Future follow-ups
+
+- Add invariance/mutation variant families to RAG eval datasets.
+- Add per-gate slice breakdown to validity report.
+- Integrate with judgment eval sidecar.
+
+See: `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`

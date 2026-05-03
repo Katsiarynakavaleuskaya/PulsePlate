@@ -2670,6 +2670,17 @@ async def async_main(args: argparse.Namespace) -> int:
         metrics_summary,
         template_notebook_path=config.notebook_path,
     )
+
+    # Validity sidecar: informational measurement artifacts.
+    # Does NOT change threshold_results or PASS/NO-GO release decision.
+    try:
+        from scripts.evals.rag_release_gate_validity import write_validity_sidecar
+
+        validity_sidecar = write_validity_sidecar(run_dir, traces)
+        artifacts.update(validity_sidecar)
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: validity sidecar generation failed: {exc}")
+
     _write_github_step_summary(metrics_summary, artifacts)
 
     print("PulsePlate import status:", json.dumps(imports.status, indent=2))
