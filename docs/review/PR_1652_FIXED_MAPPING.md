@@ -7,14 +7,14 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1652#discussion_r3178625722
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1652#discussion_r3178625722 -> 03afd985d
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 03afd985d
   Evidence: Discussion Thread Pass checkboxes checked in both canonical artifact and PR body.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1652#discussion_r3178625725
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1652#discussion_r3178625725 -> 03afd985d
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 03afd985d
   Evidence: Added PR #1652 to Links field in `docs/roadmap/BACKLOG_LEDGER.md:64`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1652#pullrequestreview-4216714718
