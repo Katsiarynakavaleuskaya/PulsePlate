@@ -61,7 +61,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: devx/opencode-mcp-devcontainer-compat
   - Status: In progress
   - Reason: opencode.json currently uses `.venv/bin/python` for `pulseplate-chatgpt` MCP server; works on host with .venv but not in devcontainer where .venv is absent or a symlink shim
-  - Links: `opencode.json`, `scripts/opencode/run_pulseplate_mcp.sh`, `tests/test_opencode_mcp_devcontainer_compat.py`, PR #1651
+  - Links: `opencode.json`, `scripts/opencode/run_pulseplate_mcp.sh`, `tests/test_opencode_mcp_devcontainer_compat.py`, PR #1651, PR #1652
   - Evidence: `opencode.json`, `scripts/opencode/run_pulseplate_mcp.sh`, `tests/test_opencode_mcp_devcontainer_compat.py`
   - DoD: opencode.json MCP command no longer hardcodes `.venv/bin/python`; wrapper preserves host `.venv` behavior; wrapper falls back to python3 in devcontainer; no secrets committed; Figma/Cloudflare posture unchanged; guard test exists
 
