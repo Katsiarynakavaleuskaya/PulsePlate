@@ -12,6 +12,11 @@ PR #1653 adds a lightweight CI smoke workflow for the Docker devcontainer toolin
 - `README.md` -- short CI note in devcontainer section
 - `docs/roadmap/BACKLOG_LEDGER.md` -- updated ledger entry
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
