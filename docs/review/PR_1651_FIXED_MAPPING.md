@@ -34,11 +34,16 @@
   Commit: c909dece3
   Evidence: Added `## Discussion Thread Pass` section with checked checkboxes to `docs/review/PR_1651_FIXED_MAPPING.md`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178558587 -> a7126b720
+  Disposition: FIXED
+  Commit: a7126b720
+  Evidence: `Commit: PENDING` was already replaced with actual SHA `c909dece3` in commit `a7126b720`. Cubic reviewed a stale intermediate state; current artifact has no PENDING entries. Verified: `grep -c PENDING docs/review/PR_1651_FIXED_MAPPING.md` returns 0.
+
 ## Merge Readiness
 
 - [x] All CI checks green on current head (test-pr 3.13, lint, diff-coverage, coverage-pr, OpenAPI sync, security)
 - [x] CodeRabbit: PASS (1 minor suggestion — NOT-A-BUG pre-existing)
-- [x] Cubic: PASS (5 comments — 3 FIXED, 2 NOT-A-BUG)
+- [x] Cubic: PASS (6 comments — 4 FIXED, 2 NOT-A-BUG)
 - [x] Sourcery: skipping (expected for this scope)
 - [x] No secrets committed
 - [x] Guard tests pass (7 migration + 14 policy + 10 devcontainer)
