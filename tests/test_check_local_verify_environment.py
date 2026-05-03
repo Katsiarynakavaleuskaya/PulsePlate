@@ -454,23 +454,23 @@ def test_verify_critical_make_targets_use_repo_interpreter_module_mode() -> None
     makefile_text = (REPO_ROOT / "Makefile").read_text(encoding="utf-8")
 
     expected_recipe_parts = {
-        "lint": ("$(VENV_PYTHON) -m flake8",),
+        "lint": ("$(DEV_PYTHON) -m flake8",),
         "typecheck": (
-            "$(VENV_PYTHON) -m mypy",
+            "$(DEV_PYTHON) -m mypy",
             "--no-incremental",
             "--cache-dir=/dev/null",
         ),
-        "test-fast": ("$(VENV_PYTHON) -m pytest", "tests/edges", "--maxfail=3"),
+        "test-fast": ("$(DEV_PYTHON) -m pytest", "tests/edges", "--maxfail=3"),
         "cov": (
-            "$(VENV_PYTHON) -m coverage erase",
-            "$(VENV_PYTHON) -m coverage run -m pytest -q",
-            "$(VENV_PYTHON) -m coverage report -m",
-            "$(VENV_PYTHON) -m coverage xml",
+            "$(DEV_PYTHON) -m coverage erase",
+            "$(DEV_PYTHON) -m coverage run -m pytest -q",
+            "$(DEV_PYTHON) -m coverage report -m",
+            "$(DEV_PYTHON) -m coverage xml",
         ),
         "diff-cov": (
-            "$(VENV_PYTHON) -m coverage erase",
-            "$(VENV_PYTHON) -m coverage run -m pytest -q",
-            "$(VENV_PYTHON) -m diff_cover.diff_cover_tool",
+            "$(DEV_PYTHON) -m coverage erase",
+            "$(DEV_PYTHON) -m coverage run -m pytest -q",
+            "$(DEV_PYTHON) -m diff_cover.diff_cover_tool",
             "--compare-branch=origin/main",
             "--fail-under=97",
         ),
@@ -478,6 +478,6 @@ def test_verify_critical_make_targets_use_repo_interpreter_module_mode() -> None
 
     for target_name, required_parts in expected_recipe_parts.items():
         recipe_body = _target_recipe(makefile_text, target_name)
-        assert "$(VENV_PYTHON) -m" in recipe_body
+        assert "$(DEV_PYTHON) -m" in recipe_body
         for required_part in required_parts:
             assert required_part in recipe_body

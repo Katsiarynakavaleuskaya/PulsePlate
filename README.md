@@ -63,14 +63,19 @@ make devcontainer-bootstrap
 make dev
 ```
 
-**Common commands inside container:**
+**Common commands (work in both container and host .venv):**
 
 ```bash
-make test-fast
-make validate-min
+make test-fast        # deterministic smoke subset
+make validate-min     # guards + smoke
+make lint             # flake8
+make typecheck        # mypy
+make openapi          # regenerate OpenAPI + TS types
 pre-commit run --all-files
-make openapi-check
 ```
+
+Generic developer targets use `DEV_PYTHON`, which resolves to `.venv/bin/python`
+when present or `python3` inside containers.
 
 **Legacy fallback (host-native .venv):**
 

@@ -358,7 +358,8 @@ hooks are present, or when **present** `.venv/bin` console scripts for those
 tools are broken: non-executable, dangling symlink, or an absolute shebang
 pointing at a missing or non-executable interpreter (typical after deleting a
 worktree or moving the venv). Missing console scripts are allowed—the canonical
-`make verify` recipe uses `$(VENV_PYTHON) -m ...`—but any installed wrapper must
+`make verify` recipe uses `$(DEV_PYTHON) -m ...` (generic targets) and
+`$(VENV_PYTHON)` (verify-env only)—but any installed wrapper must
 be consistent so PATH-based tools, shells, and hooks do not fail later with
 opaque “bad interpreter” errors. Shebangs using `#!/usr/bin/env ...` are not
 validated in v1. Run `make verify` from repo root and do not rely on an
