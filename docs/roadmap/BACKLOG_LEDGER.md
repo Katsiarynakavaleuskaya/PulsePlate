@@ -40,9 +40,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Add CI devcontainer smoke job
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-TBD-DEVCONTAINER-CI-SMOKE
-  - Reason: deferred from devcontainer foundation PR to keep blast radius low; path-scoped `.github/workflows/devcontainer-smoke.yml` job that builds and runs `make dc-smoke` on `.devcontainer/**` changes
-  - DoD: CI job exists, path-scoped, builds devcontainer image, runs `dc-smoke`, does not block unrelated PRs
+  - Status: In progress
+  - Branch: devx/devcontainer-ci-smoke
+  - Target PR: devx/devcontainer-ci-smoke
+  - Reason: deferred from devcontainer foundation PR to keep blast radius low; path-scoped `.github/workflows/devcontainer-smoke.yml` job that builds devcontainer image and runs `scripts/devcontainer/smoke.sh` on `.devcontainer/**` changes
+  - DoD: CI job exists, path-scoped, builds devcontainer image, runs smoke script, no secrets required, no dependency bootstrap, workflow contract tests pass, does not block unrelated PRs
+  - Evidence: `.github/workflows/devcontainer-smoke.yml`, `scripts/devcontainer/smoke.sh`, `tests/test_devcontainer_smoke_workflow.py`
 
 <a id="ledger-p2-makefile-dev-python-migration"></a>
 - [x] P2: Migrate Makefile generic targets from VENV_PYTHON to DEV_PYTHON
