@@ -1088,6 +1088,8 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         ),
         keywords=(
             "premortem",
+            "pre-mortem",
+            "pre mortem",
             "what could kill",
             "future-proof",
             "stress test this plan",

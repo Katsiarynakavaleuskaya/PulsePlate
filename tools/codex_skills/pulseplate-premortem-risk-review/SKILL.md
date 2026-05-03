@@ -47,7 +47,7 @@ Do not use this skill for:
 
 ## Inputs required
 
-- The plan, decision, or PR scope being premortemed.
+- The plan, decision, or PR scope being assessed in this premortem.
 - Changed file list or candidate paths (if PR-scoped).
 - Active coordinator packet or task packet path (if available).
 - Target mode: `pr-premortem`, `epic-premortem`, `launch-premortem`, or `decision-premortem`.
@@ -59,7 +59,7 @@ Do not use this skill for:
    ```bash
    python3 scripts/orchestration/check_preflight.py
    python3 scripts/orchestration/check_agent_consistency.py
-   python3 scripts/orchestration/task_bootstrap.py --goal "<goal>" --task-class "Orchestration" --pr-phase pre_open
+   python3 scripts/orchestration/task_bootstrap.py --goal "<goal>" --task-class "<actual-task-class>" --pr-phase pre_open
    ```
 
 2. Preserve the coordinator-declared role order. This skill is advisory and must not invent a parallel decision authority.

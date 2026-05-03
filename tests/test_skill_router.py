@@ -1802,10 +1802,10 @@ def test_skill_router_keeps_premortem_out_of_simple_typo_fix() -> None:
 
 
 def test_skill_router_premortem_does_not_force_figma_or_mcp() -> None:
-    """Premortem mentioning design risk must not pull in Figma/MCP skills by itself."""
+    """Premortem mentioning risk must not pull in Figma/MCP skills by itself."""
 
     decision = route_skills(
-        goal="Premortem this design-system automation plan for blind spots",
+        goal="Premortem this launch plan for blind spots in the rollout sequence",
         task_class="Orchestration",
         candidate_paths=["docs/orchestration/workflow.md"],
         domain="orchestration",
@@ -1814,6 +1814,7 @@ def test_skill_router_premortem_does_not_force_figma_or_mcp() -> None:
     recommended = {item["skill"] for item in decision["recommended"]}
     assert "pulseplate-premortem-risk-review" in recommended
     assert "figma-implement-design" not in recommended
+    assert "figma" not in recommended
 
 
 def test_skill_router_premortem_is_not_always_on() -> None:
