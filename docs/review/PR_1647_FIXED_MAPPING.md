@@ -15,10 +15,14 @@
   Disposition: NOT-A-BUG
   Evidence: Sourcery review approved — "changes look great", no issues found.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1647#issuecomment-4366509167
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit review — all pre-merge checks PASS, no actionable comments.
+
 ## Merge Readiness
 
 - [x] All CI checks green (or skipped where expected for config-only PR)
 - [x] No unresolved review threads
 - [x] Sourcery: PASS (no actionable items)
-- [ ] CodeRabbit: pending
-- [ ] Cubic: pending
+- [x] CodeRabbit: PASS (all pre-merge checks passed, no actionable items)
+- [x] Cubic: PASS (no actionable items)
