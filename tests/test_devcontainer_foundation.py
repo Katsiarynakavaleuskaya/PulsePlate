@@ -125,7 +125,15 @@ def test_devcontainer_compose_uses_runtime_env_file() -> None:
     )
     service = data["services"]["devcontainer"]
 
-    assert service["env_file"] == ["../.env"], "Compose service must load ../.env as runtime env"
+    # env_file uses Compose v2.24+ extended syntax: path + required: false
+    env_entries = service["env_file"]
+    assert isinstance(env_entries, list), "Compose env_file must be a list"
+    assert len(env_entries) >= 1, "Compose env_file must have at least one entry"
+    first_entry = env_entries[0]
+    if isinstance(first_entry, dict):
+        assert first_entry.get("path") == "../.env", "Compose env_file path must be ../.env"
+    else:
+        assert first_entry == "../.env", "Compose env_file must reference ../.env"
     build_cfg = service.get("build", {})
     assert (
         "args" not in build_cfg

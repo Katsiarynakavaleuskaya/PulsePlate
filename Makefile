@@ -568,6 +568,9 @@ devcontainer-bootstrap: ensure-python-proxy ## Install deps + hooks inside dev c
 		--python-executable "$$(command -v python3)" \
 		--constraints-file constraints.txt \
 		--install-dev
+	@# Create .venv shim so existing VENV_PYTHON targets work inside container
+	@mkdir -p .venv/bin
+	@ln -sf "$$(command -v python3)" .venv/bin/python
 	pre-commit install
 	pre-commit install --hook-type pre-push
 	chmod +x scripts/*.sh

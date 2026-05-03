@@ -48,8 +48,8 @@ agents, and different operating systems.
 ```bash
 cp .env.example .env          # one-time; edit to set real proxy URL
 # then: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
-# inside container:
-make devcontainer-bootstrap
+# bootstrap runs automatically on first open; re-run only if deps change:
+#   make devcontainer-bootstrap
 make dev
 ```
 
