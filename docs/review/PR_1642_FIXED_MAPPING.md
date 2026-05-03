@@ -25,7 +25,10 @@ checked `steps.build.outcome == 'success'`.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1642#discussion_r3177853609 -> b77949f96
+Disposition: FIXED
+Commit: b77949f96
+Evidence: docs/review/PR_1642_FIXED_MAPPING.md (mapping format corrected)
 
 ## Validation
 
@@ -38,4 +41,6 @@ checked `steps.build.outcome == 'success'`.
 
 ## Review Thread Disposition
 
-Pending bot reviews (CodeRabbit, Cubic). Will be populated with dispositions after reviews complete.
+| Thread | Disposition | Evidence |
+|--------|-------------|----------|
+| `#discussion_r3177853609` (Cubic: canonical mapping format) | FIXED | Commit `b77949f96` — replaced free-form mapping with `- No actionable review comments` then updated to URL->SHA format |
