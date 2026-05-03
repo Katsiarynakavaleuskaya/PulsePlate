@@ -450,7 +450,7 @@ def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) 
     temp_path = Path(temp_file_name)
     try:
         with os.fdopen(temp_file_descriptor, "wb") as file_handle:
-            with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-04-30, ref: PR-1378)
+            with urlopen(  # nosec B310: url host is allowlisted via load_emergency_wheel_manifest and payload is sha256-verified before use (remove-by: 2026-07-31, ref: PR-1378)
                 url,
                 timeout=60,
             ) as response:

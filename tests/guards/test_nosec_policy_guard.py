@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -148,6 +148,34 @@ def _validate_nosec_line(line: str) -> tuple[bool, str]:
         return False, "ref MUST NOT be 'N/A' (use PR-XXX or issue number)"
 
     return True, ""
+
+
+def _suppression_line(remove_by: str, ref: str = "PR-TEST") -> str:
+    """Build a nosec suppression line without embedding a literal suppressor in source."""
+    marker = "# " + "nosec"  # noqa: ISC003  # split to avoid self-scan
+    return f"x = 1  {marker} B101: test-only (remove-by: {remove_by}, ref: {ref})"
+
+
+def test_validate_nosec_line_rejects_expired_remove_by() -> None:
+    """Expired remove-by date must be rejected."""
+    ok, reason = _validate_nosec_line(_suppression_line("2000-01-01"))
+    assert not ok
+    assert "expired" in reason
+
+
+def test_validate_nosec_line_rejects_invalid_calendar_date() -> None:
+    """Impossible calendar date (Feb 31) must be rejected."""
+    ok, reason = _validate_nosec_line(_suppression_line("2026-02-31"))
+    assert not ok
+    assert "valid calendar date" in reason
+
+
+def test_validate_nosec_line_accepts_future_remove_by() -> None:
+    """A valid future remove-by date must pass validation."""
+    future = (date.today() + timedelta(days=30)).isoformat()
+    ok, reason = _validate_nosec_line(_suppression_line(future))
+    assert ok
+    assert reason == ""
 
 
 def test_nosec_policy_guard() -> None:
