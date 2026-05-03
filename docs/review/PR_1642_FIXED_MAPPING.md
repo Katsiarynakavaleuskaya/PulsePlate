@@ -1,0 +1,36 @@
+# PR #1642 Fixed in Commit Mapping
+
+## Summary
+
+PR #1642 fixes CD attestation verification sequencing so Docker attestation
+verification only runs after build, provenance attestation, SBOM generation,
+and SBOM attestation all succeed.
+
+## Root Cause
+
+SBOM attestation failed due to Rekor timeout (`InternalError: error creating
+tlog entry`), but verification still ran because the workflow condition only
+checked `steps.build.outcome == 'success'`.
+
+## Scope
+
+* `.github/workflows/cd.yml` — add step IDs + update verify conditions
+* `tests/test_cd_attestation_workflow_contract.py` — new contract tests
+* `tests/test_python_supply_chain_controls.py` — update existing assertion
+
+## Fixed in Commit Mapping
+
+* CD attestation verification gate + contract tests -> `b624d2400`
+
+## Validation
+
+* `pytest -q tests/test_cd_attestation_workflow_contract.py` — 3 passed
+* `pytest -q tests/test_python_supply_chain_controls.py` — 41 passed
+* `pytest -q tests/test_cd_workflow_production_deploy_gate.py` — 4 passed
+* `pytest -q tests/test_check_docker_provenance_attestation.py` — 12 passed
+* `make test-fast` — all passed
+* `pre-commit run --all-files` — 16/16 passed
+
+## Review Thread Disposition
+
+Populate after CodeRabbit, Sourcery, and Cubic reviews complete.
