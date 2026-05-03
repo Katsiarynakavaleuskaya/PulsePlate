@@ -60,6 +60,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P2
   - Target PR: PR-TBD-OPENCODE-DEVCONTAINER
   - Reason: opencode.json currently uses `.venv/bin/python` for `pulseplate-chatgpt` MCP server; works on host with .venv but not in devcontainer where .venv is absent or a symlink shim
+  - Links: `opencode.json`, PR #1651
   - DoD: opencode.json MCP command resolves to correct Python in both host .venv and container environments, guard test exists
 
 
