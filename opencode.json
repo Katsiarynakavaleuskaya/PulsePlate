@@ -15,7 +15,11 @@
     "figma": {
       "type": "remote",
       "url": "https://mcp.figma.com/mcp",
-      "enabled": true
+      "enabled": true,
+      "headers": {
+        "Authorization": "Bearer {env:FIGMA_ACCESS_TOKEN}"
+      },
+      "oauth": false
     },
     "cloudflare": {
       "type": "local",
