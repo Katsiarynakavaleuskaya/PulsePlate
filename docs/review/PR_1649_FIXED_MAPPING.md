@@ -1,4 +1,4 @@
-# PR #1648 Fixed in Commit Mapping
+# PR #1649 Fixed in Commit Mapping
 
 ## Discussion Thread Pass
 
@@ -7,7 +7,25 @@
 
 ## Fixed in Commit Mapping
 
-No review threads expected (config-only one-liner fix).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1649#issuecomment-4366607920
+  Disposition: NOT-A-BUG
+  Evidence: chatgpt-codex-connector informational comment, no actionable items.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1649#issuecomment-4366608558
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit summary comment, no code issues found.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1649#pullrequestreview-4217356584
+  Disposition: NOT-A-BUG
+  Evidence: Sourcery rate-limited, no review performed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1649#pullrequestreview-4217357022
+  Disposition: NOT-A-BUG
+  Evidence: Cubic review — "No issues found" across 2 files.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1649#discussion_r3178399817
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit suggests keeping merge-readiness unchecked until final merge. These checkboxes are in the mapping artifact for CI gate purposes and will be updated at merge time.
 
 ## Merge Readiness
 
