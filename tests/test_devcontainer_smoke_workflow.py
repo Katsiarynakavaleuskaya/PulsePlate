@@ -80,12 +80,12 @@ def test_devcontainer_smoke_builds_devcontainer_dockerfile() -> None:
     text = WORKFLOW.read_text(encoding="utf-8")
 
     assert "docker build" in text, "Workflow must contain docker build command"
-    assert "-f .devcontainer/Dockerfile" in text, (
-        "Workflow must build from .devcontainer/Dockerfile"
-    )
-    assert "pulseplate-devcontainer-smoke:ci" in text, (
-        "Workflow must tag image as pulseplate-devcontainer-smoke:ci"
-    )
+    assert (
+        "-f .devcontainer/Dockerfile" in text
+    ), "Workflow must build from .devcontainer/Dockerfile"
+    assert (
+        "pulseplate-devcontainer-smoke:ci" in text
+    ), "Workflow must tag image as pulseplate-devcontainer-smoke:ci"
 
 
 def test_devcontainer_smoke_does_not_build_production_dockerfile() -> None:
@@ -99,9 +99,9 @@ def test_devcontainer_smoke_does_not_build_production_dockerfile() -> None:
         if stripped.startswith("#"):
             continue
         if "Dockerfile" in stripped and ".devcontainer/Dockerfile" not in stripped:
-            assert False, (
-                f"Workflow references a Dockerfile that is not .devcontainer/Dockerfile: {stripped}"
-            )
+            assert (
+                False
+            ), f"Workflow references a Dockerfile that is not .devcontainer/Dockerfile: {stripped}"
 
 
 # ---------------------------------------------------------------------------
@@ -156,6 +156,6 @@ def test_devcontainer_smoke_script_checks_workdir() -> None:
     """Smoke script must verify the expected working directory."""
     text = SMOKE_SCRIPT.read_text(encoding="utf-8")
 
-    assert "/workspaces/PulsePlate" in text, (
-        "Smoke script must check /workspaces/PulsePlate workdir"
-    )
+    assert (
+        "/workspaces/PulsePlate" in text
+    ), "Smoke script must check /workspaces/PulsePlate workdir"
