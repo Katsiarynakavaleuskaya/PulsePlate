@@ -453,6 +453,7 @@ def test_release_manifest_direct_invocation_help() -> None:
         text=True,
         capture_output=True,
         check=False,
+        timeout=30,
     )
     assert result.returncode == 0, result.stderr
     assert "usage:" in result.stdout.lower()
@@ -466,6 +467,7 @@ def test_release_manifest_module_invocation_help() -> None:
         text=True,
         capture_output=True,
         check=False,
+        timeout=30,
     )
     assert result.returncode == 0, result.stderr
     assert "usage:" in result.stdout.lower()
