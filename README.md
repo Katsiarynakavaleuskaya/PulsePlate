@@ -35,6 +35,55 @@ If you are here to build, review, or deploy rather than evaluate the product sto
 
 If you need the shortest docs-only path first, you can contribute safely in Markdown without depending on the full maintainer-only backend bootstrap.
 
+### Local development with Dev Container (recommended)
+
+The recommended path for backend, web, docs, and orchestration work is the
+Docker Dev Container.  It eliminates `.venv` fragility across worktrees, cloud
+agents, and different operating systems.
+
+**Requirements:** Docker Desktop (or Docker Engine) + VS Code Dev Containers extension (or `docker compose` CLI) + `.env` copied from `.env.example` (must contain `PULSEPLATE_PYTHON_INDEX_URL` pointing to the approved private package proxy).
+
+**VS Code path:**
+
+```bash
+cp .env.example .env          # one-time; edit to set real proxy URL
+# then: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
+# inside container:
+make devcontainer-bootstrap
+make dev
+```
+
+**CLI path:**
+
+```bash
+cp .env.example .env
+make dc-up
+make dc-shell
+make devcontainer-bootstrap
+make dev
+```
+
+**Common commands inside container:**
+
+```bash
+make test-fast
+make validate-min
+pre-commit run --all-files
+make openapi-check
+```
+
+**Legacy fallback (host-native .venv):**
+
+```bash
+make venv
+source .venv/bin/activate
+make dev
+```
+
+`make venv` remains supported as a rollback/fallback path.
+
+**Note:** iOS/Xcode development remains host-native on macOS.  The Linux devcontainer is not an Xcode replacement.
+
 ## From Metrics To Meals
 
 Most nutrition apps stop at logging. PulsePlate is being built to keep going:

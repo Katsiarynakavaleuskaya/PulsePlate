@@ -31,6 +31,30 @@ sleep 2  # Allow container to start
 curl -f http://localhost:8000/health || (docker stop test; exit 1)  # Verify health check
 ```
 
+## Local Development Setup
+
+### Dev Container (recommended)
+
+The recommended path for backend/web/docs/orchestration work:
+
+```bash
+cp .env.example .env
+# VS Code: Cmd/Ctrl+Shift+P -> "Dev Containers: Reopen in Container"
+# CLI: make dc-up && make dc-shell
+make devcontainer-bootstrap
+make dev
+```
+
+### Legacy .venv fallback
+
+```bash
+make venv
+source .venv/bin/activate
+make dev
+```
+
+`make venv` remains supported.  iOS/Xcode development stays host-native on macOS.
+
 ## Network Access in Tests (CI Guard)
 
 To keep CI deterministic (no flaky 429/timeouts from real external services), CI forbids outbound HTTP(S)
