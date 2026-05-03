@@ -18,9 +18,14 @@ checked `steps.build.outcome == 'success'`.
 * `tests/test_cd_attestation_workflow_contract.py` — new contract tests
 * `tests/test_python_supply_chain_controls.py` — update existing assertion
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-* CD attestation verification gate + contract tests -> `b624d2400`
+- No actionable review comments
 
 ## Validation
 
@@ -33,4 +38,4 @@ checked `steps.build.outcome == 'success'`.
 
 ## Review Thread Disposition
 
-Populate after CodeRabbit, Sourcery, and Cubic reviews complete.
+Pending bot reviews (CodeRabbit, Cubic). Will be populated with dispositions after reviews complete.
