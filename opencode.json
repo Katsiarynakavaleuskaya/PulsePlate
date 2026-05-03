@@ -4,8 +4,7 @@
     "pulseplate-chatgpt": {
       "type": "local",
       "command": [
-        ".venv/bin/python",
-        "mcp_pulseplate_server.py"
+        "scripts/opencode/run_pulseplate_mcp.sh"
       ],
       "enabled": true,
       "environment": {
