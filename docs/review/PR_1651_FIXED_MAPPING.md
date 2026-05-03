@@ -19,19 +19,19 @@
   Disposition: NOT-A-BUG
   Evidence: `tests/test_makefile_dev_python_migration.py:35-38` — the test checks both `$(wildcard $(VENV_PYTHON))` presence AND `python3` in the DEV_PYTHON definition line context. The `python3` assertion validates the fallback branch exists. A false positive would require `python3` to disappear from the Makefile entirely, which breaks the definition.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178494238
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178494238 -> c909dece3
   Disposition: FIXED
-  Commit: PENDING
+  Commit: c909dece3
   Evidence: Added `Links:` field to backlog ledger item `ledger-p2-opencode-mcp-devcontainer-compat` at `docs/roadmap/BACKLOG_LEDGER.md:63`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178495259
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178495259 -> c909dece3
   Disposition: FIXED
-  Commit: PENDING
+  Commit: c909dece3
   Evidence: Rewrote `docs/review/PR_1651_FIXED_MAPPING.md` to use canonical `- <url>` and `- <url> -> <sha>` mapping line format per `scripts/orchestration/review_mapping_artifact.py`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178495262
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#discussion_r3178495262 -> c909dece3
   Disposition: FIXED
-  Commit: PENDING
+  Commit: c909dece3
   Evidence: Added `## Discussion Thread Pass` section with checked checkboxes to `docs/review/PR_1651_FIXED_MAPPING.md`.
 
 ## Merge Readiness
