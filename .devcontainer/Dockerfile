@@ -13,7 +13,13 @@ FROM mcr.microsoft.com/devcontainers/python:1-3.13-bookworm
 
 USER root
 
-RUN apt-get update \
+# Remove Yarn APT source shipped by Microsoft base image — the GPG key
+# (62D54FD4003F6525) is periodically expired/rotated upstream and breaks
+# apt-get update in CI.  Yarn is not needed for backend development;
+# Node.js is provided by the devcontainer Node feature instead.
+RUN rm -f /etc/apt/sources.list.d/yarn.list \
+    && rm -f /usr/share/keyrings/yarn-keyring.gpg \
+    && apt-get update \
     && apt-get install -y --no-install-recommends \
         make \
         jq \
