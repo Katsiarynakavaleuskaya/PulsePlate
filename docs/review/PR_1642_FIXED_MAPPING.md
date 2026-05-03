@@ -26,9 +26,10 @@ checked `steps.build.outcome == 'success'`.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1642#discussion_r3177853609 -> b77949f96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1642#pullrequestreview-4216082023 -> b77949f96
 Disposition: FIXED
 Commit: b77949f96
-Evidence: docs/review/PR_1642_FIXED_MAPPING.md (mapping format corrected)
+Evidence: docs/review/PR_1642_FIXED_MAPPING.md:28 (mapping format corrected)
 
 ## Validation
 
