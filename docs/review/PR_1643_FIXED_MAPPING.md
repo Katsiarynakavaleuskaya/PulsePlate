@@ -20,7 +20,7 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178009660
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 44a03e5a3
   Evidence: docs/DEPENDENCY_MANAGEMENT.md — `rag-vector-cpu` note moved from CI Install Profiles section to Local CPU profile section
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178009661
@@ -35,12 +35,12 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178013507
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 44a03e5a3
   Evidence: requirements-rag-vector-cpu.in:2 — added `--extra-index-url https://download.pytorch.org/whl/cpu` to force CPU-only torch wheel resolution
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178013509
   Disposition: FIXED
-  Commit: PENDING
+  Commit: 44a03e5a3
   Evidence: docs/DEPENDENCY_MANAGEMENT.md — `rag-vector-cpu` note moved from CI Install Profiles section to Local CPU profile section (same fix as comment r3178009660)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#pullrequestreview-4216104748
@@ -64,7 +64,7 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
 
 ## Validation
 
-- `pre-commit run --all-files` — PENDING
+- `pre-commit run --all-files` — PASS
 - `make test-fast` — PENDING (docs-only + local-only req files; no runtime impact)
 
 ## Merge Readiness
