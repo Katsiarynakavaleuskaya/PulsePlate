@@ -61,12 +61,12 @@ unit-fast:
 	python3 -m pytest -q tests
 SHELL := /bin/bash
 VENV_PYTHON ?= .venv/bin/python
-OPENAPI_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 PIP ?= $(VENV_PYTHON) -m pip
 
 # Container-aware Python: prefers .venv when present, falls back to system python3
-# inside containers.  Existing targets still use VENV_PYTHON; new container-aware
-# targets and future migration (PR-2) will use DEV_PYTHON.
+# inside containers.  Generic developer targets (test, lint, typecheck, coverage,
+# openapi) use DEV_PYTHON.  Venv-specific targets (venv, venv-sync, verify-env)
+# still use VENV_PYTHON directly.
 DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 
 # Dev Container compose settings (worktree-safe project name)
@@ -120,54 +120,52 @@ dev: ## Run uvicorn on 0.0.0.0:8001 (reload)
 ## Run tests (quiet)
 test: ## Run pytest
 	@echo "$(YELLOW)🧪 Запуск тестов...$(NC)"
-	. .venv/bin/activate && pytest -q
+	$(DEV_PYTHON) -m pytest -q
 
 ## Fast tests (deterministic smoke subset)
 test-fast: ## Run smoke tests (deterministic subset)
 	@echo "$(YELLOW)⚡ Smoke tests...$(NC)"
-	$(VENV_PYTHON) -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
+	$(DEV_PYTHON) -m pytest -q tests/edges tests/test_remaining_modules.py --maxfail=3
 
 ## Cheap deterministic local validation (guards + smoke)
 validate-min: ## Run the cheap deterministic local validation bundle
 	@echo "$(YELLOW)🧭 Running cheap local validation bundle...$(NC)"
-	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
-	$(VENV_PYTHON) -m pytest -q tests/test_repo_policy_guards.py
+	$(DEV_PYTHON) -m pytest -q tests/test_repo_policy_guards.py
 	$(MAKE) --no-print-directory test-fast
 	@echo "$(GREEN)✅ Cheap local validation bundle passed$(NC)"
 
 ## Diff-based validation for changed Python files
 validate-changed: ## Run tests inferred from changed Python files
 	@echo "$(YELLOW)🧪 Running diff-based validation for changed Python files...$(NC)"
-	@test -x $(VENV_PYTHON) || (echo "$(RED)❌ VENV_PYTHON missing. Run 'make venv' or override VENV_PYTHON first.$(NC)" && exit 1)
-	PATH="$(dir $(VENV_PYTHON)):$$PATH" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
+	VENV_PYTHON="$(DEV_PYTHON)" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
 	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
 	@echo "$(YELLOW)📊 Анализ покрытия...$(NC)"
-	$(VENV_PYTHON) -m coverage erase && $(VENV_PYTHON) -m coverage run -m pytest -q && $(VENV_PYTHON) -m coverage report -m && $(VENV_PYTHON) -m coverage xml
+	$(DEV_PYTHON) -m coverage erase && $(DEV_PYTHON) -m coverage run -m pytest -q && $(DEV_PYTHON) -m coverage report -m && $(DEV_PYTHON) -m coverage xml
 	@echo "$(GREEN)✅ Покрытие завершено$(NC)"
 
 ## Coverage check >=97%
 cov-check: ## Check coverage >= 97%
 	@echo "$(YELLOW)🎯 Проверка покрытия >=97%...$(NC)"
-	$(VENV_PYTHON) -m coverage run -m pytest && \
-	$(VENV_PYTHON) -m coverage report --fail-under=97
+	$(DEV_PYTHON) -m coverage run -m pytest && \
+	$(DEV_PYTHON) -m coverage report --fail-under=97
 	@echo "$(GREEN)✅ Покрытие соответствует требованиям$(NC)"
 
 ## Diff coverage check (PR gate, >=97% on changed lines)
 diff-cov: ## Check diff coverage >= 97% against origin/main
 	@echo "$(YELLOW)📊 Проверка diff-coverage >=97%...$(NC)"
-	$(VENV_PYTHON) -m coverage erase && \
-	$(VENV_PYTHON) -m coverage run -m pytest -q && \
-	$(VENV_PYTHON) -m coverage xml
-	$(VENV_PYTHON) -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --fail-under=97
+	$(DEV_PYTHON) -m coverage erase && \
+	$(DEV_PYTHON) -m coverage run -m pytest -q && \
+	$(DEV_PYTHON) -m coverage xml
+	$(DEV_PYTHON) -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --fail-under=97
 	@echo "$(GREEN)✅ Diff-coverage соответствует требованиям$(NC)"
 
 ## Typecheck with mypy (no cache for clean runs)
 typecheck: ## Run mypy typecheck on app and core
 	@echo "$(YELLOW)🔬 Проверка типов (mypy)...$(NC)"
-	$(VENV_PYTHON) -m mypy --no-incremental --cache-dir=/dev/null app core
+	$(DEV_PYTHON) -m mypy --no-incremental --cache-dir=/dev/null app core
 	@echo "$(GREEN)✅ Типы корректны$(NC)"
 
 ## Fail-fast local dependency parity check for make verify
@@ -305,12 +303,12 @@ endif
 ## Coverage HTML and open report (uses .coveragerc)
 cov-html: ## Generate HTML coverage and open in browser
 	@echo "$(YELLOW)📊 Создание HTML отчета...$(NC)"
-	. .venv/bin/activate && coverage erase && coverage run -m pytest && coverage html && open htmlcov/index.html
+	$(DEV_PYTHON) -m coverage erase && $(DEV_PYTHON) -m coverage run -m pytest && $(DEV_PYTHON) -m coverage html && open htmlcov/index.html
 
 ## Lint (flake8)
 lint: ## Lint with flake8
 	@echo "$(YELLOW)🔍 Проверка качества кода...$(NC)"
-	$(VENV_PYTHON) -m flake8 .
+	$(DEV_PYTHON) -m flake8 .
 
 ## Auto-fix (format + imports)
 fmt: ## Format with black and isort
@@ -459,22 +457,7 @@ smoke-8001: ## Smoke against http://127.0.0.1:8001
 
 ## Generate OpenAPI schema (backend) and regenerate frontend TypeScript types
 openapi: frontend-install ## Generate OpenAPI schema and regenerate FE types (deterministic)
-	@OPENAPI_PYTHON="$(VENV_PYTHON)"; \
-	if [ -x "$$OPENAPI_PYTHON" ]; then \
-		:; \
-	elif [ "$$CI" = "true" ] && command -v python3 >/dev/null 2>&1; then \
-		OPENAPI_PYTHON="$$(command -v python3)"; \
-	elif [ "$$CI" = "true" ] && command -v python >/dev/null 2>&1; then \
-		OPENAPI_PYTHON="$$(command -v python)"; \
-	else \
-		echo "$(RED)❌ .venv missing. Run 'make venv' first.$(NC)"; \
-		exit 1; \
-	fi; \
-	"$$OPENAPI_PYTHON" -c 'import sys; raise SystemExit(0 if sys.version_info.major == 3 else 1)' || { \
-		echo "$(RED)❌ OpenAPI fallback requires Python 3.$(NC)"; \
-		exit 1; \
-	}; \
-	PYTHONPATH=. "$$OPENAPI_PYTHON" scripts/generate_openapi.py
+	PYTHONPATH=. $(DEV_PYTHON) scripts/generate_openapi.py
 	./scripts/frontend_npm.sh --prefix frontend run generate-types
 ## Install frontend dependencies (run once or when package.json changes)
 frontend-install: ## Install frontend dependencies
@@ -553,11 +536,10 @@ ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID se
 
 ios-appstore-verify: ## Verify App Store submission readiness (repo-local, no upload)
 	@echo "$(YELLOW)Verifying iOS App Store submission readiness...$(NC)"
-	@test -x "$(VENV_PYTHON)" || (echo "$(RED)VENV_PYTHON missing. Run 'make venv' or set VENV_PYTHON.$(NC)" && exit 1)
-	$(VENV_PYTHON) scripts/release/check_ios_appstore_verify.py
-	$(VENV_PYTHON) -m pytest -q tests/ios/
-	$(VENV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py
-	$(VENV_PYTHON) -m pytest -q tests/test_release_reviewer_packet_hashes.py
+	$(DEV_PYTHON) scripts/release/check_ios_appstore_verify.py
+	$(DEV_PYTHON) -m pytest -q tests/ios/
+	$(DEV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py
+	$(DEV_PYTHON) -m pytest -q tests/test_release_reviewer_packet_hashes.py
 	@echo "$(GREEN)App Store submission readiness verified$(NC)"
 
 # --- Dev Container targets ---------------------------------------------------
