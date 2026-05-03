@@ -137,23 +137,23 @@ may map judgment outcomes to validity `EvalOutcomeRecord` format.
 
 ## Rollout Plan
 
-1. **PR-1 (this PR)**: Foundation substrate -- contract, runner, fixtures,
-   tests, docs.
-2. **PR-2 (deferred)**: Integration with RAG release-gate item-level
-   artifacts.
+1. **PR-1 (merged, #1632)**: Foundation substrate -- contract, runner,
+   fixtures, tests, docs.
+2. **PR-2 (current, #1648)**: RAG release-gate validity sidecar --
+   item-level artifacts emitted via adapter.
 3. **PR-3 (deferred)**: Integration with judgment eval outcome export.
 4. **PR-4+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
    adjudication, tool-use reliability.
 
 ## Deferred Follow-ups
 
+- Invariance/mutation variant families for RAG eval datasets.
 - Hybrid adjudication framework.
 - Tool-use reliability metrics.
 - Psychometrics / IRT item modeling.
 - Compositional generalization suites.
 - Mechanistic evaluation research lane.
 - Adaptive self-improving eval loop.
-- RAG release-gate item-level export integration.
 - Judgment eval outcome export integration.
 
 ## Decision Log
