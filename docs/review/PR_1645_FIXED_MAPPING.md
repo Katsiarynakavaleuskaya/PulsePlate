@@ -7,7 +7,7 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1645#discussion_r3178019403 -> f61a953c7
 
 ## Summary
 
