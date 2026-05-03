@@ -8,6 +8,7 @@ logic or gate thresholds.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
 - [ ] Bot reviews completed
 - [ ] All actionable comments mapped as FIXED / NOT-A-BUG / DEFERRED
 - [ ] No unresolved actionable threads remain
@@ -18,7 +19,9 @@ No review threads yet.
 
 ## Fixed in Commit Mapping
 
-Pending review comments.
+- [x] Fixed in commit mapping completed
+
+No actionable review comments yet; mapping will be updated as reviews arrive.
 
 ## Merge Readiness
 
