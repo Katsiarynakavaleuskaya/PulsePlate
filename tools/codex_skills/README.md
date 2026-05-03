@@ -31,6 +31,7 @@ Skills remain passive/discovery-only helpers and do not replace coordinator boot
 - `pulseplate-web-launch-site`
 - `pulseplate-agent-product`
 - `pulseplate-pr-review`
+- `pulseplate-premortem-risk-review`
 
 ## Cybersecurity skills (submodule)
 

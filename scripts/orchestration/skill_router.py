@@ -1068,6 +1068,40 @@ SKILL_RULES: tuple[SkillRule, ...] = (
         ),
     ),
     SkillRule(
+        skill="pulseplate-premortem-risk-review",
+        category="repo-tracked",
+        rationale=(
+            "Run premortem risk analysis on high-downside PulsePlate plans "
+            "before merge or launch to expose blind spots and failure modes."
+        ),
+        min_score=6,
+        domain_weights={"orchestration": 2, "security": 1, "qa": 1, "business": 1},
+        path_prefixes=(
+            "docs/orchestration/",
+            "docs/review/",
+            ".github/workflows/",
+            "scripts/ci/",
+            "scripts/orchestration/",
+            "ios/fastlane/",
+            "docs/security/",
+            "trivy/",
+        ),
+        keywords=(
+            "premortem",
+            "pre-mortem",
+            "pre mortem",
+            "what could kill",
+            "future-proof",
+            "stress test this plan",
+            "what am i missing",
+            "blind spots",
+            "what could go wrong",
+            "poke holes",
+            "where will this break",
+            "devil's advocate",
+        ),
+    ),
+    SkillRule(
         skill="ci-fix",
         category="global",
         rationale="CI failures should trigger the dedicated CI remediation workflow.",

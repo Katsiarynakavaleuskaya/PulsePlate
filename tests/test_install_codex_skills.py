@@ -359,6 +359,7 @@ def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
         "pulseplate-openapi-sync",
         "pulseplate-playwright-e2e",
         "pulseplate-pr-review",
+        "pulseplate-premortem-risk-review",
         "pulseplate-web-launch-site",
         "pulseplate-workflow",
     )

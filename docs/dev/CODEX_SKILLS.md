@@ -154,6 +154,7 @@ approved research-only connector contract. Evidence:
 - Build/update architecture graph artifact: `pulseplate-graphmap`
 - Run browser E2E flows (step 3 extension): `pulseplate-playwright-e2e`
 - Run coordinator-owned PR self-review before external review-bot signals: `pulseplate-pr-review` (evidence: `tools/codex_skills/pulseplate-pr-review/SKILL.md:1`, `docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md:1`)
+- Run premortem risk analysis on high-downside plans before merge or launch: `pulseplate-premortem-risk-review` (evidence: `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:1`, `scripts/orchestration/skill_router.py`)
 
 ## Project-specific whitelist
 
@@ -166,6 +167,7 @@ Recommended now for PulsePlate:
 - `pulseplate-web-launch-site` for launch-site pages, CTA funnels, waitlist/lead-capture paths, and wellness-safe public launch copy (evidence: `tools/codex_skills/pulseplate-web-launch-site/SKILL.md:8`, `tests/test_skill_router.py:657`)
 - `pulseplate-agent-product` for agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority (evidence: `tools/codex_skills/pulseplate-agent-product/SKILL.md:8`, `tests/test_skill_router.py:847`)
 - `pulseplate-pr-review` for passive, coordinator-owned PR self-review that stays advisory and preserves merge-readiness gates
+- `pulseplate-premortem-risk-review` for premortem risk analysis on high-downside plans (PR, epic, launch, security, CI/CD, AI/RAG, App Store, monetization, design decisions)
 - `docs-sync` for orchestration, runbooks, and PR support docs
 - `bug-triage` and `pulseplate-gates` for remediation and gate closure
 - `figma` as the first design-system and prototype lane
@@ -205,6 +207,7 @@ Not approved as default:
 2. Step 2: Domain skills (guards, backend endpoints, AI reports, graph map).
 3. Step 3: Browser E2E extension with Playwright (`pulseplate-playwright-e2e`) for controlled web flow automation.
 4. Step 4: Launch/product extensions (`pulseplate-design-launch-system`, `pulseplate-web-launch-site`, `pulseplate-agent-product`, `pulseplate-pr-review`) for repo-native go-to-market, agent-product, and review governance support.
+5. Step 5: Risk/decision extensions (`pulseplate-premortem-risk-review`) for premortem risk analysis on high-downside plans before merge or launch.
 
 ## Computer Use / MCP troubleshooting
 
