@@ -24,7 +24,34 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-devcontainer-foundation"></a>
+- [ ] P1: Docker devcontainer foundation for local development
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: devx/devcontainer-foundation branch
+  - Status: In progress
+  - Area: developer-experience / docker / onboarding / worktree stability
+  - Reason: local development and cloud agent worktrees are fragile under `.venv`-first bootstrap; add Docker devcontainer as recommended backend/web/devops/docs environment while keeping `make venv` as fallback
+  - Evidence: `.devcontainer/devcontainer.json`, `.devcontainer/Dockerfile`, `.devcontainer/docker-compose.devcontainer.yml`, `Makefile`, `README.md`, `CONTRIBUTING.md`, `tests/test_devcontainer_foundation.py`
+  - DoD: devcontainer files exist, no proxy secrets baked into image, `make devcontainer-bootstrap` exists, `make dc-up/dc-shell/dc-down/dc-smoke` exist, `make venv` remains, docs describe devcontainer as recommended path, iOS/Xcode stays host-native, guard tests pass
+
 Entries are sorted by priority, then theme, then title. Theme uses `Area:` when present and a deterministic title/domain fallback otherwise.
+<a id="ledger-p2-devcontainer-ci-smoke"></a>
+- [ ] P2: Add CI devcontainer smoke job
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-DEVCONTAINER-CI-SMOKE
+  - Reason: deferred from devcontainer foundation PR to keep blast radius low; path-scoped `.github/workflows/devcontainer-smoke.yml` job that builds and runs `make dc-smoke` on `.devcontainer/**` changes
+  - DoD: CI job exists, path-scoped, builds devcontainer image, runs `dc-smoke`, does not block unrelated PRs
+
+<a id="ledger-p2-makefile-dev-python-migration"></a>
+- [ ] P2: Migrate Makefile generic targets from VENV_PYTHON to DEV_PYTHON
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: devx/makefile-dev-python-migration
+  - Reason: deferred from devcontainer foundation PR; gradually replace hardcoded `.venv/bin/python` in generic Makefile targets (test-fast, lint, typecheck, cov, diff-cov) with DEV_PYTHON; add guard test against new hardcoded `.venv/bin/python` in generic targets
+  - DoD: generic targets use DEV_PYTHON, `make venv` unchanged, guard test prevents regression
+
 
 <a id="ledger-p1-web-launch-design-polish-v1"></a>
 - [ ] P1: Web launch shell design polish v1

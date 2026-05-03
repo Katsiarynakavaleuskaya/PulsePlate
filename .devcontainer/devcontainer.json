@@ -1,0 +1,45 @@
+{
+  "name": "PulsePlate Dev",
+  "dockerComposeFile": [
+    "docker-compose.devcontainer.yml"
+  ],
+  "service": "devcontainer",
+  "workspaceFolder": "/workspaces/PulsePlate",
+  "remoteUser": "vscode",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "22"
+    },
+    "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {}
+  },
+  "containerEnv": {
+    "PULSEPLATE_IN_CONTAINER": "1",
+    "PYTHONPATH": "/workspaces/PulsePlate"
+  },
+  "postCreateCommand": "make devcontainer-bootstrap",
+  "postStartCommand": "git config --global --add safe.directory /workspaces/PulsePlate",
+  "forwardPorts": [
+    8001,
+    5173
+  ],
+  "portsAttributes": {
+    "8001": {
+      "label": "PulsePlate API"
+    },
+    "5173": {
+      "label": "PulsePlate Web"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-azuretools.vscode-docker",
+        "ms-vscode.makefile-tools",
+        "github.vscode-github-actions",
+        "esbenp.prettier-vscode"
+      ]
+    }
+  }
+}

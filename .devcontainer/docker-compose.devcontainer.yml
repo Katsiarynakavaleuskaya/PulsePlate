@@ -1,0 +1,31 @@
+# ---------------------------------------------------------------------------
+# PulsePlate Dev Container — Compose service
+# ---------------------------------------------------------------------------
+# SECURITY: No secrets in this file.  .env is runtime-only (not baked into
+#           image layers).  Do not add build args for package proxy.
+# ---------------------------------------------------------------------------
+
+services:
+  devcontainer:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
+    env_file:
+      - path: ../.env
+        required: false
+    environment:
+      PYTHONPATH: /workspaces/PulsePlate
+      PULSEPLATE_IN_CONTAINER: "1"
+      APP_ENV: local
+      VIP_MODULE_ENABLED: "true"
+      WATCHFILES_FORCE_POLLING: "${WATCHFILES_FORCE_POLLING:-false}"
+    volumes:
+      - ..:/workspaces/PulsePlate:cached
+      - pulseplate-pip-cache:/home/vscode/.cache/pip
+      - pulseplate-npm-cache:/home/vscode/.npm
+    command: sleep infinity
+    working_dir: /workspaces/PulsePlate
+
+volumes:
+  pulseplate-pip-cache:
+  pulseplate-npm-cache:

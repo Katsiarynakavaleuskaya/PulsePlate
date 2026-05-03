@@ -64,6 +64,15 @@ VENV_PYTHON ?= .venv/bin/python
 OPENAPI_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 PIP ?= $(VENV_PYTHON) -m pip
 
+# Container-aware Python: prefers .venv when present, falls back to system python3
+# inside containers.  Existing targets still use VENV_PYTHON; new container-aware
+# targets and future migration (PR-2) will use DEV_PYTHON.
+DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
+
+# Dev Container compose settings (worktree-safe project name)
+COMPOSE_PROJECT_NAME ?= pulseplate-$(shell basename "$(CURDIR)" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-$$//')
+DEVCONTAINER_COMPOSE ?= .devcontainer/docker-compose.devcontainer.yml
+
 # Цвета для вывода
 GREEN := \033[0;32m
 YELLOW := \033[1;33m
@@ -551,4 +560,34 @@ ios-appstore-verify: ## Verify App Store submission readiness (repo-local, no up
 	$(VENV_PYTHON) -m pytest -q tests/test_release_reviewer_packet_hashes.py
 	@echo "$(GREEN)App Store submission readiness verified$(NC)"
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list
+# --- Dev Container targets ---------------------------------------------------
+
+devcontainer-bootstrap: ensure-python-proxy ## Install deps + hooks inside dev container
+	@echo "$(YELLOW)Installing locked deps into container Python...$(NC)"
+	python3 scripts/ci/install_locked_python_requirements.py \
+		--python-executable "$$(command -v python3)" \
+		--constraints-file constraints.txt \
+		--install-dev
+	@# Create .venv so existing VENV_PYTHON targets and activate scripts work
+	@python3 -m venv .venv --without-pip 2>/dev/null || true
+	@ln -sf "$$(command -v python3)" .venv/bin/python
+	pre-commit install
+	pre-commit install --hook-type pre-push
+	chmod +x scripts/*.sh
+	./scripts/setup_git_aliases.sh
+	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"
+
+dc-up: ## Start dev container (build + detach)
+	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build
+
+dc-shell: ## Open shell inside dev container
+	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash
+
+dc-down: ## Stop dev container
+	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" down
+
+dc-smoke: ## Verify tooling inside dev container
+	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer \
+		bash -lc "python3 --version && node --version && make --version"
+
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke
