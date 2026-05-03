@@ -55,6 +55,10 @@ make dev
 
 `make venv` remains supported.  iOS/Xcode development stays host-native on macOS.
 
+Generic developer targets (`make test`, `make lint`, `make typecheck`, `make cov`,
+`make openapi`, etc.) use `DEV_PYTHON`, which auto-detects `.venv/bin/python` or
+falls back to `python3` inside containers.  No manual activation needed.
+
 ## Network Access in Tests (CI Guard)
 
 To keep CI deterministic (no flaky 429/timeouts from real external services), CI forbids outbound HTTP(S)
