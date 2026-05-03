@@ -800,7 +800,9 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
 
     for verify_step in (staging_verify_step, production_verify_step):
         verify_script = verify_step["run"]
-        assert verify_step["if"] == "${{ always() && steps.build.outcome == 'success' }}"
+        verify_if = verify_step["if"]
+        assert "always()" in verify_if
+        assert "steps.build.outcome == 'success'" in verify_if
         assert "scripts/ci/check_docker_provenance_attestation.py" in verify_script
         assert '--repo "${{ github.repository }}"' in verify_script
         assert '--signer-workflow "${{ github.repository }}/.github/workflows/cd.yml"' in (
@@ -809,6 +811,18 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         assert '--source-ref "${{ github.ref }}"' in verify_script
         assert "docker-provenance-attestation-check.json" in verify_script
         assert "docker-provenance-attestation-check.md" in verify_script
+
+    # Staging verify must depend on all staging attestation steps
+    staging_verify_if = staging_verify_step["if"]
+    assert "steps.attest-staged-provenance.outcome == 'success'" in staging_verify_if
+    assert "steps.generate-staged-sbom.outcome == 'success'" in staging_verify_if
+    assert "steps.attest-staged-sbom.outcome == 'success'" in staging_verify_if
+
+    # Production verify must depend on all production attestation steps
+    production_verify_if = production_verify_step["if"]
+    assert "steps.attest-production-provenance.outcome == 'success'" in production_verify_if
+    assert "steps.generate-production-sbom.outcome == 'success'" in production_verify_if
+    assert "steps.attest-production-sbom.outcome == 'success'" in production_verify_if
 
     assert staging_upload_step["with"]["name"] == "docker-provenance-attestation-check-cd-staging"
     assert (
