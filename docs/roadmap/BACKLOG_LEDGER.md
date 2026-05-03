@@ -25,11 +25,11 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-p1-devcontainer-foundation"></a>
-- [ ] P1: Docker devcontainer foundation for local development
+- [x] P1: Docker devcontainer foundation for local development
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: devx/devcontainer-foundation branch
-  - Status: In progress
+  - Target PR: #1646 (merged)
+  - Status: Complete
   - Area: developer-experience / docker / onboarding / worktree stability
   - Reason: local development and cloud agent worktrees are fragile under `.venv`-first bootstrap; add Docker devcontainer as recommended backend/web/devops/docs environment while keeping `make venv` as fallback
   - Evidence: `.devcontainer/devcontainer.json`, `.devcontainer/Dockerfile`, `.devcontainer/docker-compose.devcontainer.yml`, `Makefile`, `README.md`, `CONTRIBUTING.md`, `tests/test_devcontainer_foundation.py`
@@ -45,12 +45,22 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD: CI job exists, path-scoped, builds devcontainer image, runs `dc-smoke`, does not block unrelated PRs
 
 <a id="ledger-p2-makefile-dev-python-migration"></a>
-- [ ] P2: Migrate Makefile generic targets from VENV_PYTHON to DEV_PYTHON
+- [x] P2: Migrate Makefile generic targets from VENV_PYTHON to DEV_PYTHON
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
   - Target PR: devx/makefile-dev-python-migration
+  - Status: Complete
   - Reason: deferred from devcontainer foundation PR; gradually replace hardcoded `.venv/bin/python` in generic Makefile targets (test-fast, lint, typecheck, cov, diff-cov) with DEV_PYTHON; add guard test against new hardcoded `.venv/bin/python` in generic targets
   - DoD: generic targets use DEV_PYTHON, `make venv` unchanged, guard test prevents regression
+  - Evidence: `Makefile`, `tests/test_makefile_dev_python_migration.py`, `tests/test_check_local_verify_environment.py`
+
+<a id="ledger-p2-opencode-mcp-devcontainer-compat"></a>
+- [ ] P2: OpenCode local MCP command devcontainer compatibility
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD-OPENCODE-DEVCONTAINER
+  - Reason: opencode.json currently uses `.venv/bin/python` for `pulseplate-chatgpt` MCP server; works on host with .venv but not in devcontainer where .venv is absent or a symlink shim
+  - DoD: opencode.json MCP command resolves to correct Python in both host .venv and container environments, guard test exists
 
 
 <a id="ledger-p1-web-launch-design-polish-v1"></a>
