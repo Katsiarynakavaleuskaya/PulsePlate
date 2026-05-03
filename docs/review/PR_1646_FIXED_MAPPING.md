@@ -21,7 +21,7 @@ PR #1646 adds Docker devcontainer foundation for PulsePlate local development wh
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178310427
   Disposition: FIXED
-  Commit: PENDING
+  Commit: c3efc4e78
   Evidence: docs/roadmap/BACKLOG_LEDGER.md — P2 entries moved after P1 entries to maintain priority sort order
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178310429
@@ -31,7 +31,7 @@ PR #1646 adds Docker devcontainer foundation for PulsePlate local development wh
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178331047
   Disposition: FIXED
-  Commit: PENDING
+  Commit: c3efc4e78
   Evidence: Makefile:571-573 — replaced symlink-only approach with `python3 -m venv .venv --without-pip` + symlink, so both `$(VENV_PYTHON)` and `source .venv/bin/activate` work inside container
 
 ## Deferred / Follow-ups
