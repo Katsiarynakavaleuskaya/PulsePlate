@@ -19,38 +19,38 @@ PR #1646 adds Docker devcontainer foundation for PulsePlate local development wh
 
 ### Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178310427
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178310427 -> c3efc4e78
   Disposition: FIXED
-  Commit: c3efc4e78
   Evidence: docs/roadmap/BACKLOG_LEDGER.md — P2 entries moved after P1 entries to maintain priority sort order
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178310429
   Disposition: NOT-A-BUG
-  Evidence: tests/test_devcontainer_foundation.py:70-80 — guard intentionally scopes to known dangerous patterns (INDEX_URL, TRUSTED_HOST) rather than blocking all ARGs, because devcontainer base images may declare legitimate ARGs
-  Reason: Narrowly-scoped pattern matching is intentional for foundation guard; tighter blocking can be added as follow-up if more secrets surfaces emerge
+  Evidence: tests/test_devcontainer_foundation.py:70-80 — guard intentionally scopes to known dangerous patterns (INDEX_URL, TRUSTED_HOST) rather than blocking all ARGs
+  Reason: Narrowly-scoped pattern matching is intentional for foundation guard
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178331047
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178331047 -> c3efc4e78
   Disposition: FIXED
-  Commit: c3efc4e78
-  Evidence: Makefile:571-573 — replaced symlink-only approach with `python3 -m venv .venv --without-pip` + symlink, so both `$(VENV_PYTHON)` and `source .venv/bin/activate` work inside container
+  Evidence: Makefile:571-573 — replaced symlink-only with python3 -m venv + symlink
 
-## Deferred / Follow-ups
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178335296
+  Disposition: NOT-A-BUG
+  Evidence: Cubic re-review inline — original issue addressed in c3efc4e78
+  Reason: Bot re-review on already-fixed code
 
-- [P2: CI devcontainer smoke job](docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-devcontainer-ci-smoke)
-- [P2: Makefile DEV_PYTHON migration](docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-makefile-dev-python-migration)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178335298
+  Disposition: NOT-A-BUG
+  Evidence: Cubic re-review inline — original issue addressed in c3efc4e78
+  Reason: Bot re-review on already-fixed code
 
-## Validation
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178340251
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit re-review inline — bot acknowledgment of fix
+  Reason: Bot acknowledging fix in c3efc4e78
 
-- `pytest -q tests/test_devcontainer_foundation.py` — 10/10 PASS
-- `make test-fast` — PASS
-- `pre-commit run --all-files` — PASS
-
-## Merge Readiness
-
-- [ ] CI green
-- [x] review mapping artifact created
-- [ ] no actionable bot comments remain
-- [ ] mandatory wait-window elapsed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178343971
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit acknowledgment of fix reply
+  Reason: Bot acknowledging disposition reply
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216452921
   Disposition: NOT-A-BUG
@@ -80,34 +80,32 @@ PR #1646 adds Docker devcontainer foundation for PulsePlate local development wh
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216484426
   Disposition: NOT-A-BUG
   Evidence: CodeRabbit disposition reply summary
-  Reason: Bot acknowledgment of our disposition replies
+  Reason: Bot acknowledgment of disposition replies
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216484451
   Disposition: NOT-A-BUG
   Evidence: CodeRabbit disposition reply summary
-  Reason: Bot acknowledgment of our disposition replies
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178335296
-  Disposition: NOT-A-BUG
-  Evidence: Cubic re-review inline comment — original issue addressed in c3efc4e78
-  Reason: Bot re-review on already-fixed code
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178335298
-  Disposition: NOT-A-BUG
-  Evidence: Cubic re-review inline comment — original issue addressed in c3efc4e78
-  Reason: Bot re-review on already-fixed code
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178340251
-  Disposition: NOT-A-BUG
-  Evidence: CodeRabbit re-review inline comment — bot acknowledgment of fix
-  Reason: Bot acknowledging fix in c3efc4e78
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178343971
-  Disposition: NOT-A-BUG
-  Evidence: CodeRabbit acknowledgment of fix reply
-  Reason: Bot acknowledging disposition reply
+  Reason: Bot acknowledgment of disposition replies
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216487916
   Disposition: NOT-A-BUG
-  Evidence: CodeRabbit re-review summary triggered by PR body edit
-  Reason: Summary review after body update; no new actionable items
+  Evidence: CodeRabbit re-review after PR body edit
+  Reason: Summary review; no new actionable items
+
+## Deferred / Follow-ups
+
+- [P2: CI devcontainer smoke job](docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-devcontainer-ci-smoke)
+- [P2: Makefile DEV_PYTHON migration](docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-makefile-dev-python-migration)
+
+## Validation
+
+- `pytest -q tests/test_devcontainer_foundation.py` — 10/10 PASS
+- `make test-fast` — PASS
+- `pre-commit run --all-files` — PASS
+
+## Merge Readiness
+
+- [ ] CI green
+- [x] review mapping artifact created
+- [ ] no actionable bot comments remain
+- [ ] mandatory wait-window elapsed
