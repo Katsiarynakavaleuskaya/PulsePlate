@@ -7,7 +7,6 @@
 
 Operational signals:
 - `CI` shows the main backend/shared validation lane.
-- `Codecov Upload` shows the artifact upload job that publishes coverage results.
 - `codecov` shows the latest published repository coverage snapshot.
 - Runtime probes live at `/health`, `/ready`, and `/metrics`; see `docs/deploy/OPERATIONAL_SIGNALS.md`.
 - OpenTelemetry tracing is bootstrap-gated by `OTEL_*` env vars plus `PULSE_OBS_HMAC_KEY`.
