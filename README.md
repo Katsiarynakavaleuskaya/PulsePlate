@@ -77,6 +77,10 @@ pre-commit run --all-files
 Generic developer targets use `DEV_PYTHON`, which resolves to `.venv/bin/python`
 when present or `python3` inside containers.
 
+**CI:** A lightweight Devcontainer Smoke workflow verifies the tooling image and
+base developer tools on PRs that touch `.devcontainer/` or related scripts.  It
+does not run `make devcontainer-bootstrap` or require secrets.
+
 **Legacy fallback (host-native .venv):**
 
 ```bash
