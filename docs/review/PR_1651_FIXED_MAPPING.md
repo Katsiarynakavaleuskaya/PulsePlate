@@ -17,6 +17,8 @@ PR #1651 migrates generic developer Makefile targets to `DEV_PYTHON` while prese
 - Makefile `DEV_PYTHON` migration + guard tests -> `2da617ab6`
 - README/CONTRIBUTING docs update -> `afc0abd0d`
 - Backlog ledger updates -> `f8c9c7166`
+- Review mapping artifact -> `8ee0633e2`
+- RUNBOOK/DEPENDENCY_MANAGEMENT stale refs fix (bug-hunter finding) -> `ead32d8d5`
 
 ## Validation
 
