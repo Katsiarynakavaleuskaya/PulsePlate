@@ -1,0 +1,9 @@
+-c requirements.txt
+
+# Optional vector/ML runtime profile for RAG embeddings + pgvector search.
+# CPU-only local profile: opt-in via CI/environment argument.
+# Keep feature-flagged via FEATURE_RAG_VECTOR and deterministic with fixed pins.
+sentence-transformers==5.4.1
+transformers==5.6.2
+torch==2.11.0
+pgvector==0.4.2
