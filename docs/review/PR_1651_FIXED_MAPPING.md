@@ -39,6 +39,22 @@
   Commit: a7126b720
   Evidence: `Commit: PENDING` was already replaced with actual SHA `c909dece3` in commit `a7126b720`. Cubic reviewed a stale intermediate state; current artifact has no PENDING entries. Verified: `grep -c PENDING docs/review/PR_1651_FIXED_MAPPING.md` returns 0.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#pullrequestreview-4216617255
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit review summary — 1 actionable comment (cov-html open command). Inline comment mapped above at r3178492086.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#pullrequestreview-4216618749
+  Disposition: NOT-A-BUG
+  Evidence: Cubic review summary (first pass) — 3 issues. All inline comments mapped above at r3178494234, r3178494237, r3178494238.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#pullrequestreview-4216619453
+  Disposition: NOT-A-BUG
+  Evidence: Cubic review summary (second pass) — 2 issues on mapping artifact. All inline comments mapped above at r3178495259, r3178495262.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1651#pullrequestreview-4216667962
+  Disposition: NOT-A-BUG
+  Evidence: Cubic review summary (third pass) — 1 issue about PENDING SHAs. Inline comment mapped above at r3178558587 (already fixed in a7126b720).
+
 ## Merge Readiness
 
 - [x] All CI checks green on current head (test-pr 3.13, lint, diff-coverage, coverage-pr, OpenAPI sync, security)
