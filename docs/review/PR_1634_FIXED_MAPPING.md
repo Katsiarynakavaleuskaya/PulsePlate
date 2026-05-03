@@ -14,8 +14,6 @@ validation helper and extends 9 expired TTLs found by the new guard.
 
 ## Fixed in Commit Mapping
 
-### Bot review summaries (PR-level)
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1634#pullrequestreview-4215624681
   Disposition: NOT-A-BUG
   Evidence: Sourcery rate-limited; no analysis produced. No actionable items.
@@ -23,10 +21,6 @@ validation helper and extends 9 expired TTLs found by the new guard.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1634#pullrequestreview-4215626562
   Disposition: NOT-A-BUG
   Evidence: Cubic found no issues ("No issues found across 1 file").
-
-### Inline review comments
-
-No inline review comments on this PR.
 
 ## Merge Readiness
 
