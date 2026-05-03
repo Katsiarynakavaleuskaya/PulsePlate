@@ -110,6 +110,7 @@ jobs:
           target: staging
 
       - name: Attest staged image provenance
+        id: attest-staged-provenance
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
@@ -117,6 +118,7 @@ jobs:
           push-to-registry: true
 
       - name: Generate staged image SBOM
+        id: generate-staged-sbom
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
           image: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}@${{ steps.build.outputs.digest }}
@@ -124,6 +126,7 @@ jobs:
           output-file: docker-image-sbom.spdx.json
 
       - name: Attest staged image SBOM
+        id: attest-staged-sbom
         uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
@@ -132,7 +135,14 @@ jobs:
           push-to-registry: true
 
       - name: Verify staged image attestations
-        if: ${{ always() && steps.build.outcome == 'success' }}
+        if: >-
+          ${{
+            always()
+            && steps.build.outcome == 'success'
+            && steps.attest-staged-provenance.outcome == 'success'
+            && steps.generate-staged-sbom.outcome == 'success'
+            && steps.attest-staged-sbom.outcome == 'success'
+          }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -365,6 +375,7 @@ jobs:
           target: production
 
       - name: Attest production image provenance
+        id: attest-production-provenance
         uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
@@ -372,6 +383,7 @@ jobs:
           push-to-registry: true
 
       - name: Generate production image SBOM
+        id: generate-production-sbom
         uses: anchore/sbom-action@da167eac915b4e86f08b264dbdbc867b61be6f0c # v0.20.5
         with:
           image: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}@${{ steps.build.outputs.digest }}
@@ -379,6 +391,7 @@ jobs:
           output-file: docker-image-sbom.spdx.json
 
       - name: Attest production image SBOM
+        id: attest-production-sbom
         uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
@@ -387,7 +400,14 @@ jobs:
           push-to-registry: true
 
       - name: Verify production image attestations
-        if: ${{ always() && steps.build.outcome == 'success' }}
+        if: >-
+          ${{
+            always()
+            && steps.build.outcome == 'success'
+            && steps.attest-production-provenance.outcome == 'success'
+            && steps.generate-production-sbom.outcome == 'success'
+            && steps.attest-production-sbom.outcome == 'success'
+          }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
