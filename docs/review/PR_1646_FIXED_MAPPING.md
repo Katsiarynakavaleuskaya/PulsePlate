@@ -92,6 +92,11 @@ PR #1646 adds Docker devcontainer foundation for PulsePlate local development wh
   Evidence: CodeRabbit re-review after PR body edit
   Reason: Summary review; no new actionable items
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#discussion_r3178343971
+  Disposition: NOT-A-BUG
+  Evidence: devcontainer workspace is a bind mount; host .venv is not visible inside container
+  Reason: No .venv collision between host and container
+
 ## Deferred / Follow-ups
 
 - [P2: CI devcontainer smoke job](docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-devcontainer-ci-smoke)
