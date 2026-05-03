@@ -44,7 +44,6 @@ ALLOWED_TEST_FILES_FOR_DYNAMIC_IMPORT = {
 ALLOWED_TEST_FILES_FOR_SYS_PATH_INSERT = {
     "tests/test_test_pro_access_coverage.py",
     "tests/conftest.py",
-    "tests/evals/conftest.py",  # repo root path for scripts.evals.* imports
     "tests/test_repo_policy_guards.py",  # this file (checks for the pattern)
     "tests/test_import_hygiene_guard.py",  # guard test
 }
