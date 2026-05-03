@@ -51,3 +51,38 @@ PR #1646 adds Docker devcontainer foundation for PulsePlate local development wh
 - [x] review mapping artifact created
 - [ ] no actionable bot comments remain
 - [ ] mandatory wait-window elapsed
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216452921
+  Disposition: NOT-A-BUG
+  Evidence: Sourcery review summary — rate-limited, no actionable content
+  Reason: Bot hit rate limit
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216459703
+  Disposition: NOT-A-BUG
+  Evidence: Cubic review summary — no inline actionable comments for this PR
+  Reason: Summary review; no issues found by Cubic
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216459710
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit initial review summary — inline comments mapped individually above
+  Reason: Summary review; individual comments mapped separately
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216476080
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit re-review — inline comments addressed in c3efc4e78
+  Reason: Summary triggered by push
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216480525
+  Disposition: NOT-A-BUG
+  Evidence: Cubic re-review summary — inline comments addressed
+  Reason: Summary triggered by push
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216484426
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit disposition reply summary
+  Reason: Bot acknowledgment of our disposition replies
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1646#pullrequestreview-4216484451
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit disposition reply summary
+  Reason: Bot acknowledgment of our disposition replies
