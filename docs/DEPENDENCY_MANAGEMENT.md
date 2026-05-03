@@ -38,9 +38,6 @@ need:
 - `rag-vector` is the explicit optional vector/ML runtime profile and is the
   only canonical profile that carries the heavy ML runtime stack such as
   `sentence-transformers`, `transformers`, and `torch`.
-- `rag-vector-cpu` is a local/developer profile for the same stack without CUDA
-  bindings (derived from `requirements-rag-vector-cpu.txt`) and is intentionally
-  excluded from canonical CI lanes.
 
 Generic feature/fix feedback must stay on `ci-test` or `ci-lite` unless the job
 explicitly proves it needs optional vector/ML runtime behavior. That proof must
@@ -102,6 +99,15 @@ This installer now follows a two-step flow:
 2. Install with `--no-index --find-links <wheelhouse>` and then statically scan the target `site-packages` for executable `.pth` hooks via `scripts/ci/check_python_startup_hooks.py` without re-launching the target interpreter.
 
 ### Local CPU profile (без CUDA, для разработчиков)
+
+`rag-vector-cpu` is a **local/developer-only** profile for the same ML stack
+without CUDA bindings.  It is derived from `requirements-rag-vector-cpu.txt` and
+is intentionally excluded from canonical CI lanes and the shared
+`requirements-profile` action values.
+
+The `.in` file uses `--extra-index-url https://download.pytorch.org/whl/cpu` to
+force CPU-only PyTorch wheel resolution.  Without this, `torch==2.11.0` from the
+default PyPI index may resolve to CUDA-enabled builds on Linux.
 
 If you need vector/ML runtime tooling on a machine without CUDA support, use the local CPU lockfile:
 

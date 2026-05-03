@@ -1,8 +1,13 @@
 -c requirements.txt
+--extra-index-url https://download.pytorch.org/whl/cpu
 
 # Optional vector/ML runtime profile for RAG embeddings + pgvector search.
 # CPU-only local profile: opt-in via CI/environment argument.
 # Keep feature-flagged via FEATURE_RAG_VECTOR and deterministic with fixed pins.
+#
+# NOTE: --extra-index-url above forces pip-compile to resolve torch from the
+# PyTorch CPU-only wheel index.  Without it, `torch==2.11.0` from the default
+# PyPI index may resolve to CUDA-enabled builds on Linux.
 sentence-transformers==5.4.1
 transformers==5.6.2
 torch==2.11.0

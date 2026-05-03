@@ -1,0 +1,75 @@
+# PR #1643 Fixed in Commit Mapping
+
+## Summary
+
+PR #1643 adds a CPU-only RAG/vector dependency profile (`requirements-rag-vector-cpu.in/.txt`)
+for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.md`.
+
+## Scope
+
+- `requirements-rag-vector-cpu.in` — new CPU-only `.in` file
+- `requirements-rag-vector-cpu.txt` — compiled lockfile
+- `docs/DEPENDENCY_MANAGEMENT.md` — dependency management docs
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178009660
+  Disposition: FIXED
+  Commit: PENDING
+  Evidence: docs/DEPENDENCY_MANAGEMENT.md — `rag-vector-cpu` note moved from CI Install Profiles section to Local CPU profile section
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178009661
+  Disposition: NOT-A-BUG
+  Evidence: `.github/workflows/python-dependency-submission.yml` uses `component-detection-dependency-submission-action` which auto-detects all pip files in the repo; path triggers only control when the workflow fires, not what it scans. Adding local-only dev profiles to trigger paths would cause unnecessary CI runs.
+  Reason: Local-only profile does not need CI dependency submission trigger; auto-detection covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178009662
+  Disposition: NOT-A-BUG
+  Evidence: `requirements-rag-vector.in` (the GPU sibling) also omits marshmallow. Marshmallow is not a direct or transitive dependency of the RAG/vector stack (sentence-transformers, transformers, torch, pgvector). The CVE floor rule applies to surfaces that actually use marshmallow, not every lockfile in the repo. The `-c requirements.txt` constraint covers shared pins.
+  Reason: marshmallow is not a dependency of the RAG/vector stack.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178013507
+  Disposition: FIXED
+  Commit: PENDING
+  Evidence: requirements-rag-vector-cpu.in:2 — added `--extra-index-url https://download.pytorch.org/whl/cpu` to force CPU-only torch wheel resolution
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178013509
+  Disposition: FIXED
+  Commit: PENDING
+  Evidence: docs/DEPENDENCY_MANAGEMENT.md — `rag-vector-cpu` note moved from CI Install Profiles section to Local CPU profile section (same fix as comment r3178009660)
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#pullrequestreview-4216104748
+  Disposition: NOT-A-BUG
+  Evidence: Sourcery rate-limited — no actionable review content
+  Reason: Bot hit weekly rate limit, no review comments generated
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#pullrequestreview-4216213282
+  Disposition: NOT-A-BUG
+  Evidence: CodeRabbit review summary — inline comments addressed individually above
+  Reason: Summary review; individual comments mapped separately
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#pullrequestreview-4216217185
+  Disposition: NOT-A-BUG
+  Evidence: Cubic review summary — inline comments addressed individually above
+  Reason: Summary review; individual comments mapped separately
+
+## Deferred / Follow-ups
+
+- No deferred items.
+
+## Validation
+
+- `pre-commit run --all-files` — PENDING
+- `make test-fast` — PENDING (docs-only + local-only req files; no runtime impact)
+
+## Merge Readiness
+
+- [ ] CI green
+- [ ] review mapping artifact created
+- [ ] no actionable bot comments remain
+- [ ] mandatory wait-window elapsed
