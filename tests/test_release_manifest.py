@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -435,3 +437,35 @@ def test_cli_generate_missing_rag_gate_result_uses_controlled_error(tmp_path: Pa
     assert status == 1
     assert "ERROR:" in output
     assert "is not readable" in output
+
+
+# ---------------------------------------------------------------------------
+# Invocation-mode tests (direct file + module)
+# Policy: AGENTS.md:1781 — scripts/ may use path bootstrap for standalone CLI
+# ---------------------------------------------------------------------------
+
+
+def test_release_manifest_direct_invocation_help() -> None:
+    """Direct file invocation must work from repo root."""
+    result = subprocess.run(
+        [sys.executable, "scripts/release/release_manifest.py", "--help"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout.lower()
+
+
+def test_release_manifest_module_invocation_help() -> None:
+    """Module invocation must still work."""
+    result = subprocess.run(
+        [sys.executable, "-m", "scripts.release.release_manifest", "--help"],
+        cwd=REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "usage:" in result.stdout.lower()
