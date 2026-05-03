@@ -1,0 +1,54 @@
+# ---------------------------------------------------------------------------
+# PulsePlate Devcontainer Smoke — lightweight tooling-layer CI guard
+# ---------------------------------------------------------------------------
+# Builds the devcontainer image and verifies core developer tools exist.
+# Does NOT install application dependencies, does NOT require secrets,
+# and does NOT run backend/frontend tests.
+# ---------------------------------------------------------------------------
+
+name: Devcontainer Smoke
+
+on:
+  pull_request:
+    paths:
+      - ".devcontainer/**"
+      - ".github/workflows/devcontainer-smoke.yml"
+      - "Makefile"
+      - "scripts/devcontainer/**"
+      - "scripts/opencode/**"
+      - "opencode.json"
+      - "tests/test_devcontainer_foundation.py"
+      - "tests/test_makefile_dev_python_migration.py"
+      - "tests/test_opencode_mcp_devcontainer_compat.py"
+      - "tests/test_devcontainer_smoke_workflow.py"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  devcontainer-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Build devcontainer tooling image
+        run: |
+          set -euo pipefail
+          docker build \
+            -f .devcontainer/Dockerfile \
+            -t pulseplate-devcontainer-smoke:ci \
+            .
+
+      - name: Run devcontainer tooling smoke
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e PULSEPLATE_IN_CONTAINER=1 \
+            -e PYTHONPATH=/workspaces/PulsePlate \
+            -v "$PWD:/workspaces/PulsePlate" \
+            -w /workspaces/PulsePlate \
+            pulseplate-devcontainer-smoke:ci \
+            bash scripts/devcontainer/smoke.sh
