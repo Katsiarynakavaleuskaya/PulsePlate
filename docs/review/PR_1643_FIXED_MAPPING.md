@@ -36,7 +36,7 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178013507
   Disposition: FIXED
   Commit: 44a03e5a3
-  Evidence: requirements-rag-vector-cpu.in:2 — added `--extra-index-url https://download.pytorch.org/whl/cpu` to force CPU-only torch wheel resolution
+  Evidence: requirements-rag-vector-cpu.in:2 — added `--extra-index-url https://download.pytorch.org/whl/cpu` to prefer CPU-only torch wheel resolution
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178013509
   Disposition: FIXED
@@ -62,6 +62,11 @@ for local development without CUDA. Docs updated in `docs/DEPENDENCY_MANAGEMENT.
   Disposition: FIXED
   Commit: 52fcc677f
   Evidence: docs/DEPENDENCY_MANAGEMENT.md:108-113 and requirements-rag-vector-cpu.in:8-12 — corrected wording from "force" to "prefer" and clarified that --extra-index-url adds a secondary index, with the compiled .txt lockfile as the actual deterministic contract
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1643#discussion_r3178169478
+  Disposition: FIXED
+  Commit: PENDING
+  Evidence: docs/review/PR_1643_FIXED_MAPPING.md:39 — aligned mapping evidence wording from "force" to "prefer" for internal consistency
 
 ## Deferred / Follow-ups
 
