@@ -7,7 +7,7 @@
 
 ## Fixed in Commit Mapping
 
-No actionable review comments (fresh PR, minimal deps-only fix).
+No actionable review comments
 
 ## Summary
 
