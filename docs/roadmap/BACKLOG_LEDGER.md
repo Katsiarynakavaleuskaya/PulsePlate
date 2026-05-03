@@ -42,7 +42,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P2
   - Status: In progress
   - Branch: devx/devcontainer-ci-smoke
-  - Target PR: devx/devcontainer-ci-smoke
+  - Target PR: #1653
   - Reason: deferred from devcontainer foundation PR to keep blast radius low; path-scoped `.github/workflows/devcontainer-smoke.yml` job that builds devcontainer image and runs `scripts/devcontainer/smoke.sh` on `.devcontainer/**` changes
   - DoD: CI job exists, path-scoped, builds devcontainer image, runs smoke script, no secrets required, no dependency bootstrap, workflow contract tests pass, does not block unrelated PRs
   - Evidence: `.github/workflows/devcontainer-smoke.yml`, `scripts/devcontainer/smoke.sh`, `tests/test_devcontainer_smoke_workflow.py`
