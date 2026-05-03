@@ -1731,3 +1731,109 @@ def test_privileged_docs_paths_use_analysis_envelope_for_routing() -> None:
     assert decision["envelope_mode_hint"] == "analysis"
     recommended = {item["skill"] for item in decision["recommended"]}
     assert "pulseplate-guards" in recommended
+
+
+# -- pulseplate-premortem-risk-review routing tests --
+
+
+def test_skill_router_selects_premortem_for_explicit_premortem_language() -> None:
+    """Explicit premortem trigger phrase routes the premortem risk review skill."""
+
+    skills = select_recommended_skills(
+        goal="Premortem this App Store release plan before we submit",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/workflow.md"],
+        domain="orchestration",
+    )
+
+    assert "pulseplate-premortem-risk-review" in skills
+
+
+def test_skill_router_selects_premortem_for_ci_workflow_risk_language() -> None:
+    """CI workflow risk analysis with 'what could kill' should route premortem skill."""
+
+    skills = select_recommended_skills(
+        goal="What could kill this CI workflow fix before we merge it",
+        task_class="QA",
+        candidate_paths=[".github/workflows/ci.yml", "scripts/ci/check_merge_ready.py"],
+        domain="qa",
+    )
+
+    assert "pulseplate-premortem-risk-review" in skills
+
+
+def test_skill_router_selects_premortem_for_security_stress_test() -> None:
+    """Security suppression stress-test language should route premortem skill."""
+
+    skills = select_recommended_skills(
+        goal="Stress test this plan to add a Trivy security suppression",
+        task_class="Security",
+        candidate_paths=["docs/security/CVE-2026-0861-glibc.md", "trivy/ignore-policy.rego"],
+        domain="security",
+    )
+
+    assert "pulseplate-premortem-risk-review" in skills
+
+
+def test_skill_router_selects_premortem_for_rag_eval_blind_spots() -> None:
+    """RAG eval rollout with 'what am I missing' routes premortem skill."""
+
+    skills = select_recommended_skills(
+        goal="What am I missing in this RAG eval rollout plan",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md"],
+        domain="orchestration",
+    )
+
+    assert "pulseplate-premortem-risk-review" in skills
+
+
+def test_skill_router_keeps_premortem_out_of_simple_typo_fix() -> None:
+    """Simple docs typo fix should not trigger the premortem risk review skill."""
+
+    skills = select_recommended_skills(
+        goal="Fix a typo in the README changelog section",
+        task_class="Documentation",
+        candidate_paths=["README.md"],
+        domain="docs",
+    )
+
+    assert "pulseplate-premortem-risk-review" not in skills
+
+
+def test_skill_router_premortem_does_not_force_figma_or_mcp() -> None:
+    """Premortem mentioning design risk must not pull in Figma/MCP skills by itself."""
+
+    decision = route_skills(
+        goal="Premortem this design-system automation plan for blind spots",
+        task_class="Orchestration",
+        candidate_paths=["docs/orchestration/workflow.md"],
+        domain="orchestration",
+    )
+
+    recommended = {item["skill"] for item in decision["recommended"]}
+    assert "pulseplate-premortem-risk-review" in recommended
+    assert "figma-implement-design" not in recommended
+
+
+def test_skill_router_premortem_is_not_always_on() -> None:
+    """Premortem skill must not be in ALWAYS_ON_SKILLS."""
+
+    from scripts.orchestration.skill_router import ALWAYS_ON_SKILLS
+
+    assert "pulseplate-premortem-risk-review" not in ALWAYS_ON_SKILLS
+
+
+def test_skill_router_premortem_not_excluded_in_docs_only_envelope() -> None:
+    """Premortem is useful for docs-only risk decisions; must not be in exclusion list."""
+
+    assert "pulseplate-premortem-risk-review" not in DOCS_ONLY_EXCLUDED_ROUTING_SKILLS
+
+
+def test_skill_router_premortem_skill_exists_in_rules() -> None:
+    """The premortem skill must be registered in SKILL_RULES."""
+
+    from scripts.orchestration.skill_router import SKILL_RULES
+
+    skill_names = {rule.skill for rule in SKILL_RULES}
+    assert "pulseplate-premortem-risk-review" in skill_names

@@ -70,6 +70,7 @@ Interpretation:
 - `notion-knowledge-capture`
 - `notion-spec-to-implementation`
 - `build-web-apps:stripe-best-practices`
+- `pulseplate-premortem-risk-review`
 
 ### Manual-only for now: available, but not wired into SkillRule auto-routing yet
 
@@ -101,6 +102,10 @@ Interpretation:
 ### Wave 3 — Delivered
 
 - `pulseplate-agent-product` — agent-product surfaces, operator workflows, HITL boundaries, and product handoffs that preserve coordinator authority (PR `#1565`).
+
+### Wave 4 — Risk / Decision Extensions
+
+- `pulseplate-premortem-risk-review` — premortem risk analysis on high-downside plans (PR, epic, launch, security, CI/CD, AI/RAG, App Store, monetization, design decisions). Advisory only; does not replace coordinator or merge-readiness authority. (evidence: `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md:1`, `scripts/orchestration/skill_router.py`)
 
 ## Scope of This PR Family
 
