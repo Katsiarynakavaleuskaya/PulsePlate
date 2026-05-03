@@ -2089,6 +2089,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests cover parser, metrics, runner, malformed input, and deterministic output
     - Existing release-gate PASS/NO-GO vocabulary is preserved
     - No Opus/Claude runtime integration, `.claude/`, MCP, production API, frontend, iOS, billing, OpenAPI, or App Store changes
+<a id="ledger-p1-rag-release-gate-validity-sidecar"></a>
+- [ ] P1: RAG release-gate validity sidecar integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/rag-release-gate-validity-sidecar`)
+  - Status: In progress
+  - Area: evals / RAG / release gates / measurement science
+  - Finding Type: validity-artifact integration gap
+  - Reason (EN): PR #1632 added the evaluation-validity substrate but intentionally deferred full integration with RAG release-gate artifacts. This PR adds optional validity sidecar emission to the RAG release-gate runner while preserving existing threshold results and PASS/NO-GO decisions.
+  - Links:
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `scripts/evals/rag_release_gate_validity.py`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `tests/evals/test_rag_release_gate_validity_sidecar.py`
+  - DoD:
+    - RAG release-gate runner emits validity-compatible item-level sidecar JSONL
+    - RAG release-gate runner emits validity report sidecar JSON
+    - Existing threshold_results remain canonical
+    - Existing PASS/NO-GO decision logic is unchanged
+    - Tests prove sidecar generation and no threshold/decision drift
+    - Docs explain sidecar semantics and limitations
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
 - [ ] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
