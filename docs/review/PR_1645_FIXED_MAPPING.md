@@ -8,6 +8,8 @@
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1645#discussion_r3178019403 -> f61a953c7
+  Disposition: FIXED
+  Evidence: docs/review/PR_1645_FIXED_MAPPING.md:10 — list marker added in commit f61a953c7
 
 ## Summary
 
