@@ -157,9 +157,10 @@ make verify
 clean-clone environments fail before the longer lint/typecheck/test gates. Run
 `make verify` from repo root and do not rely on an externally activated
 interpreter: `verify-env` requires the repo `.venv` interpreter itself. The
-verify-critical gates now run in interpreter-module mode via the repo `.venv`
-(for example `$(VENV_PYTHON) -m flake8`, `-m mypy`, `-m pytest`, `-m
-coverage`, and `-m diff_cover.diff_cover_tool` for `diff-cover`). Stale
+verify-critical gates now run in interpreter-module mode via `DEV_PYTHON`
+(for example `$(DEV_PYTHON) -m flake8`, `-m mypy`, `-m pytest`, `-m
+coverage`, and `-m diff_cover.diff_cover_tool` for `diff-cover`), which
+resolves to `.venv/bin/python` when present or `python3` in containers. Stale
 `.venv/bin/*` wrapper entrypoints are no longer the trust anchor for local
 merge evidence. Local bootstrap also sets `PIP_REQUIRE_VIRTUALENV=1` and uses
 `scripts/ci/install_locked_python_requirements.py --require-virtualenv`, so the
