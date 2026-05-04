@@ -22,7 +22,10 @@ from scripts.evals.eval_validity_contract import (
     validate_eval_outcome_record,
 )
 
-VARIANT_FIXTURE_PATH = Path("data/evals/pulseplate_judgment_eval_validity_variants.jsonl")
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+VARIANT_FIXTURE_PATH = (
+    _REPO_ROOT / "data" / "evals" / "pulseplate_judgment_eval_validity_variants.jsonl"
+)
 
 
 def _load_fixture() -> list[dict[str, Any]]:
