@@ -19,14 +19,16 @@ and records a deterministic blocked-version guard.
 
 ## Repo Evidence
 
-- `requirements-dev.txt:258` shows the unsafe package block now starts at
+- `requirements-dev.txt:249` shows the unsafe package block now starts at
   `setuptools==78.1.1`; the prior `pip==26.0` entry is absent.
-- `requirements-lock.txt:545` shows the unsafe package block now starts at
+- `requirements-lock.txt:211` shows the unsafe package block now starts at
   `setuptools==78.1.1`; the prior `pip==26.0.1` entry is absent.
 - `tests/fixtures/dependency_security_schema.json:15` blocks `pip<=26.0.1`
   in pinned requirement surfaces.
 - GitHub Dependabot alert `#118` maps `pip` in `requirements-dev.txt` to
   `GHSA-58qw-9mgm-455v`.
+- `tests/test_dependency_security_guard.py` includes
+  `test_repo_managed_lock_surfaces_do_not_pin_pip` to prevent future drift.
 - GitHub Dependabot alert `#119` maps `pip` in `requirements-lock.txt` to
   `GHSA-58qw-9mgm-455v`.
 
