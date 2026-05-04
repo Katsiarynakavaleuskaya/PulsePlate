@@ -112,15 +112,18 @@ def _compute_item_stats(
     registry_record: EvalItemMetadataRecord,
 ) -> EvalItemStatisticsRecord:
     """Compute descriptive statistics for one canonical item group."""
-    # Find the canonical row
-    canonical_row: EvalOutcomeRecord | None = None
-    for rec in outcomes:
-        if rec["variant_family"] == "canonical":
-            canonical_row = rec
-            break
+    if not outcomes:
+        raise ValueError(f"Empty outcomes list for canonical_id={canonical_id!r}")
 
-    if canonical_row is None:
+    # Find the canonical row (must be exactly one)
+    canonical_rows = [r for r in outcomes if r["variant_family"] == "canonical"]
+    if len(canonical_rows) == 0:
         raise ValueError(f"No canonical row found for canonical_id={canonical_id!r}")
+    if len(canonical_rows) > 1:
+        raise ValueError(
+            f"Multiple canonical rows ({len(canonical_rows)}) for " f"canonical_id={canonical_id!r}"
+        )
+    canonical_row = canonical_rows[0]
 
     canonical_score = canonical_row["score"]
     canonical_passed = canonical_row["passed"]
@@ -195,10 +198,13 @@ def build_item_statistics(
     for rec in outcomes:
         by_cid.setdefault(rec["canonical_id"], []).append(rec)
 
-    # Index registry
+    # Index registry (reject duplicates)
     registry_index: dict[str, EvalItemMetadataRecord] = {}
     for reg in registry_records:
-        registry_index[reg["canonical_id"]] = reg
+        cid = reg["canonical_id"]
+        if cid in registry_index:
+            raise ValueError(f"Duplicate canonical_id in registry: {cid!r}")
+        registry_index[cid] = reg
 
     # Validate coverage
     outcome_cids = set(by_cid.keys())
