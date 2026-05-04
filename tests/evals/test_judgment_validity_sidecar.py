@@ -270,6 +270,14 @@ class TestWriteJudgmentValiditySidecar:
         assert "judgment" in slice_support
         assert slice_support["judgment"] == 3
 
+    def test_rejects_preexisting_symlink_sidecar_target(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside.txt"
+        outside.write_text("safe", encoding="utf-8")
+        (tmp_path / JUDGMENT_VALIDITY_ITEMS_FILENAME).symlink_to(outside)
+
+        with pytest.raises(OSError):
+            write_judgment_validity_sidecar(tmp_path, _ALL_RESULTS)
+
 
 # ---------------------------------------------------------------------------
 # Guard tests

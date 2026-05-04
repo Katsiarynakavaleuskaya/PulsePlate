@@ -28,6 +28,7 @@ split, or canonical promote/defer/discard decisions.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -60,6 +61,16 @@ _PASSED_DECISIONS: frozenset[str] = frozenset({"promote", "defer"})
 
 JUDGMENT_VALIDITY_ITEMS_FILENAME = "judgment_validity_items.jsonl"
 JUDGMENT_VALIDITY_REPORT_FILENAME = "judgment_validity_report.json"
+
+
+def _safe_write_text(path: Path, content: str) -> None:
+    """Write text without following symlinks."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    fd = os.open(path, flags, 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(content)
 
 
 # ---------------------------------------------------------------------------
@@ -163,15 +174,15 @@ def write_judgment_validity_sidecar(
 
     # Write item-level outcomes.
     items_path = run_dir / JUDGMENT_VALIDITY_ITEMS_FILENAME
-    with items_path.open("w", encoding="utf-8") as fh:
-        for rec in outcomes:
-            fh.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
+    items_content = "".join(
+        json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n" for rec in outcomes
+    )
+    _safe_write_text(items_path, items_content)
 
     # Write validity report.
     report_path = run_dir / JUDGMENT_VALIDITY_REPORT_FILENAME
-    with report_path.open("w", encoding="utf-8") as fh:
-        json.dump(report, fh, indent=2, sort_keys=True, ensure_ascii=False)
-        fh.write("\n")
+    report_content = json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+    _safe_write_text(report_path, report_content)
 
     return {
         "validity_items": str(items_path),
