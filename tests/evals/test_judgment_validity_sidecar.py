@@ -314,6 +314,45 @@ class TestEdgeCases:
         assert "hard_fail" not in rec["slice_tags"]
 
 
+class TestValidationBoundary:
+    """Verify that malformed inputs propagate validator errors correctly."""
+
+    def test_non_bool_passed_raises(self) -> None:
+        """If score mapping produced a non-bool passed, validator must reject."""
+        import scripts.evals.eval_validity_contract as evc
+
+        raw: dict[str, object] = {
+            "canonical_id": "bad",
+            "variant_id": "bad",
+            "variant_family": "canonical",
+            "transform_type": "none",
+            "passed": "yes",  # non-bool
+            "score": 1.0,
+            "decision": "promote",
+            "slice_tags": ["judgment"],
+        }
+        with pytest.raises(ValueError, match="passed"):
+            evc.validate_eval_outcome_record(raw)
+
+    def test_non_finite_score_raises(self) -> None:
+        import math
+
+        import scripts.evals.eval_validity_contract as evc
+
+        raw: dict[str, object] = {
+            "canonical_id": "bad",
+            "variant_id": "bad",
+            "variant_family": "canonical",
+            "transform_type": "none",
+            "passed": True,
+            "score": math.inf,
+            "decision": "promote",
+            "slice_tags": ["judgment"],
+        }
+        with pytest.raises(ValueError, match="score"):
+            evc.validate_eval_outcome_record(raw)
+
+
 class TestNoNetworkImports:
     """Guard: sidecar adapter must not import networking libraries."""
 
