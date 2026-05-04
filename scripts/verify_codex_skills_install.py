@@ -114,7 +114,7 @@ def verify(
     if dest_dir.is_dir():
         expected_set = set(expected)
         for entry in sorted(dest_dir.iterdir()):
-            if entry.name not in expected_set and entry.is_dir():
+            if entry.name not in expected_set and (entry.is_dir() or entry.is_symlink()):
                 extra.append(entry.name)
 
     report = {

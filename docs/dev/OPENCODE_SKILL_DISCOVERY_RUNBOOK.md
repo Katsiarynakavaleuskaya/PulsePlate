@@ -13,7 +13,7 @@ deterministic diagnosis and remediation flow.
 | Layer | Path | Role |
 |-------|------|------|
 | Canonical source | `tools/codex_skills/` | Only repo SoT for PulsePlate skills |
-| Repo mirror | `.agents/skills/` | Passive discovery mirror (symlinks to source) |
+| Repo mirror | `.agents/skills/` | Passive discovery mirror (managed links/copies to source) |
 | Install contract | `docs/dev/CODEX_SKILLS.md` | Canonical install/discovery documentation |
 | Installer | `scripts/install_codex_skills.sh` | Operator-invoked installer |
 | Verifier | `scripts/verify_codex_skills_install.py` | Read-only install completeness check |
@@ -87,10 +87,15 @@ Different tools read skills from different directories:
 8. **Restart the tool** (OpenCode, Codex CLI, etc.) so newly installed skills
    are loaded.
 
-9. **Verify after install:**
+9. **Verify after install** (use the same `--target` or `--dest` as the install):
 
    ```bash
+   # official target (default):
    python3 scripts/verify_codex_skills_install.py --strict
+   # compat target:
+   python3 scripts/verify_codex_skills_install.py --target compat --strict
+   # custom destination:
+   python3 scripts/verify_codex_skills_install.py --dest /path/to/skills --strict
    ```
 
 ## Roles vs skills vs prompt protocols
