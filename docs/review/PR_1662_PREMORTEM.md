@@ -16,7 +16,7 @@ It is 6 months from now. The item statistics PR merged and created false confide
 
 **Warning signs:** Someone refers to `difficulty_band` as "item difficulty parameter" or cites `invariance_agreement_rate` as a "reliability coefficient" in a PR.
 
-**Mitigation:** Explicit doc wording ("heuristic label, not calibrated IRT estimate"); AST guard test rejects IRT vocabulary in source code.
+**Mitigation:** Explicit doc wording ("heuristic label, not calibrated IRT estimate"); AST guard test rejects IRT vocabulary in both source files (stats module + CLI runner); report output guard test rejects IRT-claiming field names in output schema.
 
 ### 2. Descriptive Stats Misread as Calibrated
 
@@ -34,7 +34,7 @@ It is 6 months from now. The item statistics PR merged and created false confide
 
 **Story:** Someone imports `build_item_statistics` from the RAG gate runner and uses instability flags to override the PASS/NO-GO decision.
 
-**Mitigation:** AST guard tests (tests 12 + 13) verify no imports of gate/judgment decision modules. Stats module does not export any decision function.
+**Mitigation:** AST guard tests (tests 12 + 13) verify no imports of gate/judgment decision modules in both source files (stats module + CLI runner). Decision-function vocabulary guard (test 14) rejects gate/decision function names in source. Stats module does not export any decision function.
 
 ### 5. Non-Deterministic Output
 
@@ -46,7 +46,7 @@ It is 6 months from now. The item statistics PR merged and created false confide
 
 **Story:** Accidental import of httpx/requests in the statistics module leaks network capabilities into an offline-only tool.
 
-**Mitigation:** AST scan test (test 1) rejects network library imports at source level.
+**Mitigation:** AST scan test (test 1) rejects network library imports at source level in both source files (stats module + CLI runner).
 
 ### 7. Docs Overclaiming Production Robustness
 

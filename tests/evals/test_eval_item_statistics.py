@@ -41,7 +41,11 @@ _JUDGMENT_FIXTURE = (
 )
 _RAG_FIXTURE = _REPO_ROOT / "data" / "evals" / "pulseplate_rag_release_gate_validity_variants.jsonl"
 _STATISTICS_MODULE = _REPO_ROOT / "scripts" / "evals" / "eval_item_statistics.py"
-_CLI_SCRIPT = _REPO_ROOT / "scripts" / "evals" / "run_eval_item_statistics.py"
+_CLI_MODULE = _REPO_ROOT / "scripts" / "evals" / "run_eval_item_statistics.py"
+_CLI_SCRIPT = _CLI_MODULE  # alias for subprocess tests
+
+# Both source files must be guarded by AST scans (FM-1, FM-4, FM-6)
+_GUARDED_MODULES = [_STATISTICS_MODULE, _CLI_MODULE]
 
 
 # ---------------------------------------------------------------------------
@@ -96,25 +100,27 @@ def _is_forbidden_module(module_name: str) -> bool:
 
 
 class TestNoNetworkImports:
-    def test_item_statistics_module_has_no_network_imports(self) -> None:
-        source = _STATISTICS_MODULE.read_text(encoding="utf-8")
+    @pytest.mark.parametrize("module_path", _GUARDED_MODULES, ids=lambda p: p.name)
+    def test_guarded_modules_have_no_network_imports(self, module_path: Path) -> None:
+        """FM-6: Neither the stats module nor the CLI runner may import network libs."""
+        source = module_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
                     assert not _is_forbidden_module(
                         alias.name
-                    ), f"eval_item_statistics.py imports network lib: {alias.name}"
+                    ), f"{module_path.name} imports network lib: {alias.name}"
             elif isinstance(node, ast.ImportFrom):
                 if node.module is not None:
                     assert not _is_forbidden_module(
                         node.module
-                    ), f"eval_item_statistics.py imports from network lib: {node.module}"
+                    ), f"{module_path.name} imports from network lib: {node.module}"
                     for alias in node.names:
                         qualified = f"{node.module}.{alias.name}"
                         assert not _is_forbidden_module(
                             qualified
-                        ), f"eval_item_statistics.py imports from network lib: {qualified}"
+                        ), f"{module_path.name} imports from network lib: {qualified}"
 
 
 # ---------------------------------------------------------------------------
@@ -143,13 +149,15 @@ _IRT_PATTERNS = frozenset(
 
 
 class TestNoIrtImports:
-    def test_item_statistics_module_has_no_irt_imports(self) -> None:
-        source = _STATISTICS_MODULE.read_text(encoding="utf-8")
+    @pytest.mark.parametrize("module_path", _GUARDED_MODULES, ids=lambda p: p.name)
+    def test_guarded_modules_have_no_irt_patterns(self, module_path: Path) -> None:
+        """FM-1: Neither the stats module nor the CLI runner may contain IRT vocabulary."""
+        source = module_path.read_text(encoding="utf-8")
         source_lower = source.lower()
         for pattern in _IRT_PATTERNS:
             assert (
                 pattern.lower() not in source_lower
-            ), f"eval_item_statistics.py contains IRT/forbidden pattern: {pattern!r}"
+            ), f"{module_path.name} contains IRT/forbidden pattern: {pattern!r}"
 
 
 # ---------------------------------------------------------------------------
@@ -296,28 +304,34 @@ class TestExpectedDecisionMatchesRegistry:
 # ---------------------------------------------------------------------------
 
 
+_FORBIDDEN_RAG_MODULES = frozenset(
+    {
+        "scripts.evals.run_rag_release_gates",
+        "scripts.evals.rag_release_gate_validity",
+    }
+)
+
+
 class TestNoRagDecisionImports:
-    def test_item_statistics_does_not_change_rag_threshold_or_decision_logic(
+    @pytest.mark.parametrize("module_path", _GUARDED_MODULES, ids=lambda p: p.name)
+    def test_guarded_modules_do_not_import_rag_gate_modules(
         self,
+        module_path: Path,
     ) -> None:
-        source = _STATISTICS_MODULE.read_text(encoding="utf-8")
+        """FM-4: Neither the stats module nor the CLI may import RAG gate modules."""
+        source = module_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        _forbidden_rag_modules = {
-            "scripts.evals.run_rag_release_gates",
-            "scripts.evals.rag_release_gate_validity",
-        }
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert alias.name not in _forbidden_rag_modules, (
-                        f"eval_item_statistics.py must not import RAG gate " f"module: {alias.name}"
-                    )
+                    assert (
+                        alias.name not in _FORBIDDEN_RAG_MODULES
+                    ), f"{module_path.name} must not import RAG gate module: {alias.name}"
             elif isinstance(node, ast.ImportFrom):
                 if node.module is not None:
-                    assert node.module not in _forbidden_rag_modules, (
-                        f"eval_item_statistics.py must not import from RAG "
-                        f"gate module: {node.module}"
-                    )
+                    assert (
+                        node.module not in _FORBIDDEN_RAG_MODULES
+                    ), f"{module_path.name} must not import from RAG gate module: {node.module}"
 
 
 # ---------------------------------------------------------------------------
@@ -325,30 +339,105 @@ class TestNoRagDecisionImports:
 # ---------------------------------------------------------------------------
 
 
+_FORBIDDEN_JUDGMENT_MODULES = frozenset(
+    {
+        "scripts.evals.judgment_validity",
+        "scripts.orchestration.judgment_eval",
+    }
+)
+
+
 class TestNoJudgmentDecisionImports:
-    def test_item_statistics_does_not_change_judgment_decision_logic(self) -> None:
-        source = _STATISTICS_MODULE.read_text(encoding="utf-8")
+    @pytest.mark.parametrize("module_path", _GUARDED_MODULES, ids=lambda p: p.name)
+    def test_guarded_modules_do_not_import_judgment_modules(
+        self,
+        module_path: Path,
+    ) -> None:
+        """FM-4: Neither the stats module nor the CLI may import judgment modules."""
+        source = module_path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        _forbidden_judgment_modules = {
-            "scripts.evals.judgment_validity",
-            "scripts.orchestration.judgment_eval",
-        }
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert alias.name not in _forbidden_judgment_modules, (
-                        f"eval_item_statistics.py must not import judgment " f"module: {alias.name}"
-                    )
+                    assert (
+                        alias.name not in _FORBIDDEN_JUDGMENT_MODULES
+                    ), f"{module_path.name} must not import judgment module: {alias.name}"
             elif isinstance(node, ast.ImportFrom):
                 if node.module is not None:
-                    assert node.module not in _forbidden_judgment_modules, (
-                        f"eval_item_statistics.py must not import from "
-                        f"judgment module: {node.module}"
-                    )
+                    assert (
+                        node.module not in _FORBIDDEN_JUDGMENT_MODULES
+                    ), f"{module_path.name} must not import from judgment module: {node.module}"
 
 
 # ---------------------------------------------------------------------------
-# 14. CLI writes report
+# 14. No decision-function vocabulary in source (FM-4 reinforcement)
+# ---------------------------------------------------------------------------
+
+_DECISION_FUNCTION_PATTERNS = frozenset(
+    {
+        "pass_no_go",
+        "evaluate_pass",
+        "evaluate_no_go",
+        "promote_item",
+        "defer_item",
+        "discard_item",
+        "gate_decision",
+        "release_decision",
+    }
+)
+
+
+class TestNoDecisionFunctionVocabulary:
+    @pytest.mark.parametrize("module_path", _GUARDED_MODULES, ids=lambda p: p.name)
+    def test_guarded_modules_have_no_decision_function_vocabulary(
+        self,
+        module_path: Path,
+    ) -> None:
+        """FM-4: Stats modules must not define or call decision functions."""
+        source = module_path.read_text(encoding="utf-8")
+        source_lower = source.lower()
+        for pattern in _DECISION_FUNCTION_PATTERNS:
+            assert (
+                pattern not in source_lower
+            ), f"{module_path.name} contains decision-function vocabulary: {pattern!r}"
+
+
+# ---------------------------------------------------------------------------
+# 15. Report output has no IRT-claiming keys (FM-1 reinforcement)
+# ---------------------------------------------------------------------------
+
+_IRT_REPORT_KEYS = frozenset(
+    {
+        "irt_difficulty",
+        "irt_discrimination",
+        "irt_information",
+        "theta_estimate",
+        "item_information",
+        "test_information",
+        "rasch_difficulty",
+        "reliability_coefficient",
+        "calibrated_difficulty",
+    }
+)
+
+
+class TestReportHasNoIrtKeys:
+    def test_item_statistics_report_has_no_irt_keys(self) -> None:
+        """FM-1: Report output must not contain IRT-claiming field names."""
+        report = _build_full_report()
+        for item in report["items"]:
+            item_keys = set(item.keys())
+            irt_found = item_keys & _IRT_REPORT_KEYS
+            assert (
+                not irt_found
+            ), f"Item {item.get('canonical_id', '?')!r} has IRT-claiming keys: {irt_found}"
+        top_keys = set(report.keys())
+        irt_top = top_keys & _IRT_REPORT_KEYS
+        assert not irt_top, f"Report envelope has IRT-claiming keys: {irt_top}"
+
+
+# ---------------------------------------------------------------------------
+# 16. CLI writes report
 # ---------------------------------------------------------------------------
 
 
@@ -387,7 +476,7 @@ class TestCliWritesReport:
 
 
 # ---------------------------------------------------------------------------
-# 15. CLI output has no timestamp
+# 17. CLI output has no timestamp
 # ---------------------------------------------------------------------------
 
 
