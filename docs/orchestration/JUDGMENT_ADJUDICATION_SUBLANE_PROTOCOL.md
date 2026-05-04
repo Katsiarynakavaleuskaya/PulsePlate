@@ -192,3 +192,8 @@ measure stability of adjudication outcomes across replay datasets. They do not
 change this sub-lane protocol. The coordinator remains the decision authority
 and promote/defer/discard remains canonical. See
 `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md` for sidecar details.
+
+Offline variant fixtures (PR-4a) add deterministic curated invariance and
+mutation families so the validity report measures robustness instead of
+canonical-only coverage. These fixtures do not change decision logic, claim
+taxonomy, or the sub-lane protocol.

@@ -2155,6 +2155,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests prove sidecar generation and no decision drift
     - Docs explain sidecar semantics and limitations
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
+<a id="ledger-p1-judgment-invariance-mutation-fixtures"></a>
+- [ ] P1: Judgment invariance and mutation fixture families
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/judgment-invariance-mutation-fixtures`)
+  - Status: In progress
+  - Area: evals / judgment / invariance / mutation / measurement science
+  - Finding Type: robustness-coverage gap
+  - Reason (EN): PR #1656 added judgment validity sidecar artifacts, but judgment datasets still need deterministic invariance and mutation variant families so the validity report measures robustness instead of canonical-only coverage.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
+    - `data/evals/pulseplate_judgment_eval_validity_variants.jsonl`
+    - `scripts/evals/judgment_validity.py`
+    - `tests/evals/test_judgment_validity_variant_families.py`
+  - DoD:
+    - Judgment fixture set includes canonical, invariance, and mutation rows
+    - Fixture rows are deterministic and curated
+    - No LLM-generated fixtures are introduced
+    - Validity report shows non-trivial invariance/mutation coverage
+    - Tests prove deterministic report output and stable unstable_items
+    - Existing claim taxonomy and promote/defer/discard logic remain unchanged
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
 - [ ] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya

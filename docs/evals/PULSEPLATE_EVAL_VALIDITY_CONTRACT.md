@@ -148,11 +148,42 @@ when hard-fail reasons are present.
 
 ### Limitations
 
-Current judgment replay datasets contain only canonical items. The validity
-report honestly shows `invariance_score=0.0`, `mutation_drop.overall=0.0`,
-and `item_instability_index=0.0` for canonical-only data. Full
-invariance/mutation coverage requires explicit variant families in future
-judgment replay datasets.
+Current judgment replay sidecar datasets (emitted by `judgment_eval.py`) contain
+only canonical items. The validity report from sidecar-emitted data shows
+`invariance_score=0.0` and `mutation_drop.overall=0.0` for canonical-only data.
+
+### Judgment Invariance and Mutation Fixtures (PR-4a)
+
+Curated deterministic variant fixture set at
+`data/evals/pulseplate_judgment_eval_validity_variants.jsonl` provides
+canonical, invariance, and mutation families so the validity report measures
+robustness instead of canonical-only coverage.
+
+Fixture families:
+
+- **canonical** -- one canonical row per group; baseline decision and score.
+- **invariance** -- semantically equivalent variants (format_rewrite,
+  context_order, surface_rewrite); expected relation: `same_decision`.
+- **mutation** -- controlled degradation variants (missing_evidence,
+  partial_support, contradicted_evidence, unsupported_claim, distractor_context,
+  absent_evidence); expected relation: `controlled_drop`.
+
+Slice tags cover `claim_type:*`, `support_status:*`, `evidence_mode:*`,
+`invariance`, and `mutation` for fine-grained breakdown.
+
+**Limitations:**
+
+- These are deterministic curated fixtures, not LLM-generated paraphrases.
+  They measure a limited surface and are not proof of full production robustness.
+- All canonical rows currently have `decision: "pass"`. Invariance for canonical
+  `"fail"` decisions is not tested in this fixture set. A future PR may add
+  canonical-fail groups if the measurement surface warrants it.
+- `invariance_score` is 1.0 for this fixture set because all invariance rows
+  match their canonical decision. Tests assert `> 0.0` to catch canonical-only
+  regressions but will not flag a drop from 1.0 to 0.8 as a failure.
+- Judgment invariance and mutation fixtures do not modify claim taxonomy,
+  claim-to-evidence records, uncertainty split, or canonical promote/defer/discard
+  decisions.
 
 ### Invariant
 
@@ -174,9 +205,11 @@ split, or canonical promote/defer/discard decisions.
    fixtures, tests, docs.
 2. **PR-2 (current, #1648)**: RAG release-gate validity sidecar --
    item-level artifacts emitted via adapter.
-3. **PR-3 (current)**: Judgment replay validity sidecar -- item-level
+3. **PR-3 (merged, #1656)**: Judgment replay validity sidecar -- item-level
    artifacts emitted via adapter, CLI wiring with graceful degradation.
-4. **PR-4+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
+4. **PR-4a (current)**: Judgment invariance and mutation fixture families --
+   deterministic curated variant fixtures for robustness measurement.
+5. **PR-4b+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
    adjudication, tool-use reliability.
 
 ## Deferred Follow-ups
