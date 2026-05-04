@@ -37,9 +37,9 @@ Disposition: NOT-A-BUG
 Evidence: scripts/evals/eval_item_registry.py:111-133
 Reason: String coercion was already removed in commit ca9aaee3c (CodeRabbit comment 1 fix). Cubic reviewed a stale commit.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182624891 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182624891 -> a8e5751ff
 Disposition: FIXED
-Commit: PENDING_SHA
+Commit: a8e5751ff
 Evidence: tests/evals/test_eval_item_metadata_registry.py:357-368 — ImportFrom guard now checks qualified names (e.g. `from urllib import request` -> `urllib.request` matched against forbidden list)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182637817
