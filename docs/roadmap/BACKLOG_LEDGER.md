@@ -2128,6 +2128,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests prove sidecar generation and no threshold/decision drift
     - Docs explain sidecar semantics and limitations
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
+<a id="ledger-p1-judgment-validity-sidecar"></a>
+- [ ] P1: Judgment replay validity sidecar integration
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/judgment-validity-sidecar`)
+  - Status: In progress
+  - Area: evals / judgment / adjudication / measurement science
+  - Finding Type: validity-artifact integration gap
+  - Reason (EN): PR #1632 added the evaluation-validity substrate and PR #1648 integrated RAG release-gate sidecars. The next rollout step in `PULSEPLATE_EVAL_VALIDITY_CONTRACT.md` is judgment eval outcome export, so judgment replay/adjudication should emit item-level validity-compatible sidecars while preserving existing promote/defer/discard semantics.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md`
+    - `core/judgment_eval.py`
+    - `scripts/evals/judgment_validity.py`
+    - `scripts/evals/eval_validity_contract.py`
+    - `scripts/orchestration/judgment_eval.py`
+    - `tests/evals/test_judgment_validity_sidecar.py`
+    - `tests/test_judgment_eval.py`
+  - DoD:
+    - Judgment replay/eval can emit validity-compatible item-level sidecar JSONL
+    - Judgment replay/eval can emit validity report sidecar JSON
+    - Existing claim taxonomy remains canonical
+    - Existing claim-to-evidence semantics remain canonical
+    - Existing promote/defer/discard decision logic is unchanged
+    - Tests prove sidecar generation and no decision drift
+    - Docs explain sidecar semantics and limitations
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
 - [ ] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
