@@ -174,12 +174,10 @@ def test_main_succeeds_when_sidecar_raises(
     )
     monkeypatch.setattr(judgment_eval, "RESULT_ARTIFACT_DIR", artifact_dir)
 
-    import scripts.evals.judgment_validity as jv_mod
-
     def _explode(*_a: object, **_kw: object) -> None:
         raise RuntimeError("sidecar boom")
 
-    monkeypatch.setattr(jv_mod, "write_judgment_validity_sidecar", _explode)
+    monkeypatch.setattr(judgment_eval, "write_judgment_validity_sidecar", _explode)
 
     exit_code = judgment_eval.main(["--input", str(input_path)])
 

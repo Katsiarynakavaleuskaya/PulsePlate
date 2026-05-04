@@ -94,6 +94,7 @@ def result_to_eval_outcome(
         Optional pack-level metadata (unused in current implementation but
         reserved for future variant-family support).
     """
+    del pack_meta  # reserved for future variant-family support
     case_id = str(result.get("case_id", "unknown"))
     decision = str(result.get("decision", "")).strip().lower()
     boundary_class = str(result.get("boundary_class", "unknown"))
