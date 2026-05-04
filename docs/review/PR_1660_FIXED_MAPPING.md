@@ -12,6 +12,14 @@ layer for RAG and judgment eval fixtures.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#pullrequestreview-4221280858 -> ca9aaee3c
+Disposition: FIXED (review summary — 3 actionable comments: type coercion, collision guard, submodule check; all fixed)
+Commit: ca9aaee3c
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#pullrequestreview-4221319433 -> 2143209dc
+Disposition: FIXED (review summary — 3 issues: non-dict guard, string coercion, ImportFrom; all addressed)
+Commit: 2143209dc
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#pullrequestreview-4221334054 -> 021a9a1c1
 Disposition: FIXED (review summary — 1 actionable comment about stale line range, addressed in commit below)
 Commit: 021a9a1c1
