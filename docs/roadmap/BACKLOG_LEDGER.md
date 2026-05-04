@@ -10726,6 +10726,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing RAG thresholds, PASS/NO-GO logic, and judgment promote/defer/discard logic remain unchanged
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store changes
 
-**Last updated:** 2026-05-04 (canonical-fail invariance fixtures PR)
+<a id="ledger-p1-eval-item-metadata-registry"></a>
+- [ ] P1: Evaluation item metadata registry for psychometric readiness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/item-metadata-registry`)
+  - Status: Opened on 4 May 2026
+  - Area: evals / measurement science / psychometric readiness
+  - Finding Type: item-metadata gap
+  - Reason: The Evaluation Science foundation now has item-level outcomes, RAG/judgment sidecars, invariance/mutation fixtures, and canonical-fail negative controls, but still lacks a registry that maps canonical_id values to stable item metadata such as lane, domain, skill dimension, difficulty band, expected decision, expected score band, fixture coverage, and anchor-item status. This registry is required before honest IRT, item weighting, adaptive evals, or psychometric modeling.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `scripts/evals/eval_item_registry.py`
+    - `data/evals/eval_item_metadata_registry.jsonl`
+    - `data/evals/pulseplate_judgment_eval_validity_variants.jsonl`
+    - `data/evals/pulseplate_rag_release_gate_validity_variants.jsonl`
+    - `tests/evals/test_eval_item_metadata_registry.py`
+  - DoD:
+    - Registry contains exactly one row per canonical_id in judgment and RAG variant fixtures
+    - Registry has no orphan canonical_id rows
+    - Registry validates lane, difficulty_band, expected_score_band, and variant_family_coverage
+    - Registry expected_decision matches fixture canonical rows
+    - Registry coverage tests are deterministic
+    - No IRT or psychometric scoring is implemented
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
+
+**Last updated:** 2026-05-04 (evaluation item metadata registry PR)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
