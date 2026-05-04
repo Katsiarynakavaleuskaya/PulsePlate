@@ -444,10 +444,23 @@ coverage requires explicit variant families in future datasets.
 - The canonical release decision remains `"PASS" if all(gate_checks.values()) else "NO-GO"`.
 - Sidecar metrics never override or modify the release decision.
 
+### Offline Variant Fixtures
+
+Offline variant fixture sets (e.g.,
+`data/evals/pulseplate_rag_release_gate_validity_variants.jsonl`) may measure
+stability of RAG release-gate outcomes under deterministic invariance and
+mutation transforms.  These fixtures:
+
+- Do not change the release-gate protocol.
+- Do not modify `threshold_results` or gate thresholds.
+- Do not override the canonical PASS/NO-GO decision.
+- Are consumed by `scripts/evals/run_eval_validity.py`, not by the release-gate
+  runner.
+
 ### Future follow-ups
 
-- Add invariance/mutation variant families to RAG eval datasets.
 - Add per-gate slice breakdown to validity report.
-- Integrate with judgment eval sidecar.
+- Add hybrid adjudication framework.
+- Add tool-use reliability metrics.
 
 See: `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`

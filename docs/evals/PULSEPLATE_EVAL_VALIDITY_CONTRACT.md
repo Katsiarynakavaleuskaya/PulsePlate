@@ -207,14 +207,48 @@ split, or canonical promote/defer/discard decisions.
    item-level artifacts emitted via adapter.
 3. **PR-3 (merged, #1656)**: Judgment replay validity sidecar -- item-level
    artifacts emitted via adapter, CLI wiring with graceful degradation.
-4. **PR-4a (current)**: Judgment invariance and mutation fixture families --
-   deterministic curated variant fixtures for robustness measurement.
-5. **PR-4b+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
-   adjudication, tool-use reliability.
+4. **PR-4a (merged, #1657)**: Judgment invariance and mutation fixture families --
+    deterministic curated variant fixtures for robustness measurement.
+5. **PR-4b (current)**: RAG release-gate invariance and mutation fixture families --
+    deterministic curated variant fixtures for RAG validity robustness measurement.
+6. **PR-5+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
+    adjudication, tool-use reliability.
+
+### RAG Release-Gate Invariance and Mutation Fixtures (PR-4b)
+
+Curated deterministic variant fixture set at
+`data/evals/pulseplate_rag_release_gate_validity_variants.jsonl` provides
+canonical, invariance, and mutation families so the RAG validity report measures
+robustness instead of canonical-only coverage.
+
+Fixture families:
+
+- **canonical** -- one canonical row per group; baseline decision and score.
+- **invariance** -- semantically equivalent variants (format_rewrite,
+  query_surface, evidence_order); expected relation: `same_decision`.
+- **mutation** -- controlled degradation variants (missing_evidence,
+  partial_support, distractor_context, contradicted_evidence, absent_evidence,
+  degraded_retrieval); expected relation: `controlled_drop`.
+
+Slice tags cover `evidence_exact_match:*`, `support_status:*`, `gate_b1`,
+`gate_b2`, `gate_b3`, `invariance`, and `mutation` for fine-grained breakdown.
+
+**Limitations:**
+
+- These are deterministic curated fixtures, not LLM-generated paraphrases.
+  They measure a limited surface and are not proof of full production robustness.
+- All canonical rows currently have `decision: "pass"`. Invariance for canonical
+  `"fail"` decisions is not tested in this fixture set. A future PR may add
+  canonical-fail groups if the measurement surface warrants it.
+- `invariance_score` is 1.0 for this fixture set because all invariance rows
+  match their canonical decision. Tests assert `> 0.0` to catch canonical-only
+  regressions but will not flag a drop from 1.0 to 0.8 as a failure.
+- RAG invariance and mutation fixtures are deterministic measurement inputs.
+  They do not modify RAG release-gate thresholds, threshold_results, or
+  canonical PASS/NO-GO decisions.
 
 ## Deferred Follow-ups
 
-- Invariance/mutation variant families for RAG eval datasets.
 - Hybrid adjudication framework.
 - Tool-use reliability metrics.
 - Psychometrics / IRT item modeling.
