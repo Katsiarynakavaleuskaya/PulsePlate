@@ -579,3 +579,33 @@ def test_blocked_version_enforcement_with_fake_surface(tmp_path: Path) -> None:
     assert violations == [
         ("some-pkg", "2.0.3", ">=2.0.0,<2.1.0")
     ], "Blocked version match should be detected."
+
+
+def test_repo_managed_lock_surfaces_do_not_pin_pip() -> None:
+    """Guard: repo-managed lock surfaces must not pin pip as an unsafe package.
+
+    pip-compile --allow-unsafe may reintroduce pip==... entries; the repo
+    security policy (GHSA-58qw-9mgm-455v-pip.md) requires these entries to
+    be absent.  This guard prevents future drift regardless of the specific
+    pip version.
+    """
+    pinned_surfaces = [
+        surface for surface in REQUIREMENT_SURFACES if not _is_constraint_style(surface)
+    ]
+
+    offenders: list[str] = []
+    for surface in pinned_surfaces:
+        if not surface.exists():
+            continue
+        pins = _pinned_versions_per_package(surface).get(
+            _normalized_package_name("pip"),
+        )
+        if pins:
+            versions = ", ".join(str(v) for v in sorted(pins))
+            offenders.append(f"{surface.name}: pip=={versions}")
+
+    assert not offenders, (
+        "Repo-managed lock surfaces must not pin pip as an unsafe package. "
+        "Remove pip==... entries instead of repinning pip. "
+        "See docs/security/GHSA-58qw-9mgm-455v-pip.md. Offenders: " + "; ".join(offenders)
+    )
