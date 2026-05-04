@@ -126,11 +126,11 @@ def main(argv: list[str] | None = None) -> int:
             pack_meta=pack_meta,
         )
         for kind, path in sorted(sidecar_paths.items()):
-            print(f"validity_{kind}: {path}", file=sys.stderr)
+            print(f"{kind}: {path}", file=sys.stderr)
     except Exception:  # noqa: BLE001 -- sidecar failure must not break eval
         # Sidecar is informational only; graceful degradation is the correct
         # behavior (same pattern as RAG sidecar in run_rag_release_gates.py).
-        pass  # nosec B110 sidecar metrics are non-critical; silent degradation is intentional (remove-by: 2026-11-01, ref: PR-1648)
+        pass  # nosec B110: sidecar metrics are non-critical; silent degradation is intentional (remove-by: 2026-11-01, ref: PR-1656)
 
     print(output_path)
     return 0

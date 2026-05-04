@@ -276,14 +276,51 @@ class TestWriteJudgmentValiditySidecar:
 # ---------------------------------------------------------------------------
 
 
+class TestEdgeCases:
+    """Edge-case coverage for missing or unusual result keys."""
+
+    def test_missing_case_id_defaults_to_unknown(self) -> None:
+        result: dict[str, object] = {
+            "decision": "promote",
+            "boundary_class": "wellness_coaching",
+            "hard_fail_reasons": [],
+        }
+        rec = result_to_eval_outcome(result)
+
+        assert rec["canonical_id"] == "unknown"
+        assert rec["variant_id"] == "unknown"
+
+    def test_missing_decision_defaults_to_empty(self) -> None:
+        result: dict[str, object] = {
+            "case_id": "no_decision",
+            "boundary_class": "wellness_coaching",
+            "hard_fail_reasons": [],
+        }
+        rec = result_to_eval_outcome(result)
+
+        assert rec["decision"] == ""
+        assert rec["passed"] is False
+        assert rec["score"] == 0.0
+
+    def test_hard_fail_reasons_none_treated_as_empty(self) -> None:
+        result: dict[str, object] = {
+            "case_id": "null_hfr",
+            "decision": "promote",
+            "boundary_class": "wellness_coaching",
+            "hard_fail_reasons": None,
+        }
+        rec = result_to_eval_outcome(result)
+
+        assert "hard_fail" not in rec["slice_tags"]
+
+
 class TestNoNetworkImports:
     """Guard: sidecar adapter must not import networking libraries."""
 
     def test_no_network_imports_in_module_source(self) -> None:
-        source_path = (
-            Path(__file__).resolve().parents[2] / "scripts" / "evals" / "judgment_validity.py"
-        )
-        source = source_path.read_text(encoding="utf-8")
+        import scripts.evals.judgment_validity as jv_mod
+
+        source = Path(jv_mod.__file__).read_text(encoding="utf-8")
 
         for forbidden in ("import urllib", "import requests", "import httpx", "import aiohttp"):
             assert (

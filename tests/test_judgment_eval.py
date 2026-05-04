@@ -159,12 +159,12 @@ def test_main_emits_validity_sidecar_alongside_artifact(
     assert "invariance_score" in report
 
 
-def test_main_succeeds_when_sidecar_import_fails(
+def test_main_succeeds_when_sidecar_raises(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """CLI must still succeed even if the validity sidecar adapter cannot be imported."""
+    """CLI must still succeed even if the validity sidecar adapter raises at runtime."""
 
     artifact_dir = tmp_path / "artifacts" / "orchestration" / "judgment" / "evals"
     input_path = tmp_path / "bundle.json"
@@ -174,10 +174,7 @@ def test_main_succeeds_when_sidecar_import_fails(
     )
     monkeypatch.setattr(judgment_eval, "RESULT_ARTIFACT_DIR", artifact_dir)
 
-    # Poison the import so the sidecar try/except catches it.
     import scripts.evals.judgment_validity as jv_mod
-
-    original_fn = jv_mod.write_judgment_validity_sidecar
 
     def _explode(*_a: object, **_kw: object) -> None:
         raise RuntimeError("sidecar boom")
@@ -189,6 +186,3 @@ def test_main_succeeds_when_sidecar_import_fails(
     assert exit_code == 0
     output_path = Path(capsys.readouterr().out.strip())
     assert output_path.exists(), "Main artifact must exist despite sidecar failure"
-
-    # Restore for other tests.
-    monkeypatch.setattr(jv_mod, "write_judgment_validity_sidecar", original_fn)
