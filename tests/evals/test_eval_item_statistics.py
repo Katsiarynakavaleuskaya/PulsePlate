@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import ast
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -26,8 +27,8 @@ from scripts.evals.eval_item_statistics import (
     build_item_statistics,
     build_item_statistics_report,
     load_fixture_outcomes,
-    write_item_statistics_report,
 )
+from scripts.evals.eval_validity_contract import EvalOutcomeRecord
 
 # ---------------------------------------------------------------------------
 # Paths (relative to repo root, resolved from this file)
@@ -48,9 +49,9 @@ _CLI_SCRIPT = _REPO_ROOT / "scripts" / "evals" / "run_eval_item_statistics.py"
 # ---------------------------------------------------------------------------
 
 
-def _load_all_outcomes() -> list[dict[str, Any]]:
+def _load_all_outcomes() -> list[EvalOutcomeRecord]:
     """Load outcomes from both judgment and RAG fixtures."""
-    outcomes: list[dict[str, Any]] = []
+    outcomes: list[EvalOutcomeRecord] = []
     outcomes.extend(load_fixture_outcomes(_JUDGMENT_FIXTURE))
     outcomes.extend(load_fixture_outcomes(_RAG_FIXTURE))
     return outcomes
@@ -419,7 +420,5 @@ class TestCliOutputHasNoTimestamp:
         assert not found, f"Report contains timestamp key(s): {found}"
 
         # Also verify no ISO-format timestamps in raw content
-        import re
-
         iso_pattern = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
         assert not iso_pattern.search(content), "Report contains ISO timestamp string"

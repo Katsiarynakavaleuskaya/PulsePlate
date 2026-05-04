@@ -35,6 +35,13 @@ from scripts.evals.eval_validity_contract import (
 )
 
 # ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_DECIMAL_PLACES = 6
+"""Rounding precision for all computed rates and means."""
+
+# ---------------------------------------------------------------------------
 # Item statistics record schema
 # ---------------------------------------------------------------------------
 
@@ -126,7 +133,9 @@ def _compute_item_stats(
         1 for r in invariance_rows if r["decision"] == canonical_decision
     )
     invariance_agreement_rate = (
-        round(invariance_agreement_count / invariance_count, 6) if invariance_count > 0 else 0.0
+        round(invariance_agreement_count / invariance_count, _DECIMAL_PLACES)
+        if invariance_count > 0
+        else 0.0
     )
 
     # Mutation stats
@@ -134,7 +143,7 @@ def _compute_item_stats(
     mutation_count = len(mutation_rows)
     if mutation_count > 0:
         drops = [canonical_score - r["score"] for r in mutation_rows]
-        mutation_mean_drop = round(statistics.mean(drops), 6)
+        mutation_mean_drop = round(statistics.mean(drops), _DECIMAL_PLACES)
     else:
         mutation_mean_drop = 0.0
 
@@ -143,7 +152,7 @@ def _compute_item_stats(
     all_scores = [r["score"] for r in outcomes]
     worst_variant_score = min(all_scores)
     pass_count = sum(1 for r in outcomes if r["passed"])
-    pass_rate = round(pass_count / variant_count, 6)
+    pass_rate = round(pass_count / variant_count, _DECIMAL_PLACES)
     decision_set = sorted(set(r["decision"] for r in outcomes))
     instability_flag = len(decision_set) > 1
 
@@ -198,18 +207,18 @@ def build_item_statistics(
     missing_from_registry = outcome_cids - registry_cids
     if missing_from_registry:
         raise ValueError(
-            f"Outcome canonical_ids missing from registry: " f"{sorted(missing_from_registry)}"
+            f"Outcome canonical_ids missing from registry: {sorted(missing_from_registry)}"
         )
 
     orphan_registry = registry_cids - outcome_cids
     if orphan_registry:
         raise ValueError(
-            f"Orphan registry canonical_ids not in outcomes: " f"{sorted(orphan_registry)}"
+            f"Orphan registry canonical_ids not in outcomes: {sorted(orphan_registry)}"
         )
 
-    # Compute stats per item, sorted by (lane, canonical_id) for determinism
+    # Compute stats per item, then sort by (lane, canonical_id) for determinism
     items: list[EvalItemStatisticsRecord] = []
-    for cid in sorted(registry_cids):
+    for cid in registry_cids:
         item_stats = _compute_item_stats(cid, by_cid[cid], registry_index[cid])
         items.append(item_stats)
 
