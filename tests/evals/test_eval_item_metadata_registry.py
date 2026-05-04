@@ -190,6 +190,8 @@ class TestRegistryExpectedDecisionMatchesFixture:
 
         judgment_canonicals = _load_fixture_canonical_rows(_JUDGMENT_FIXTURE)
         rag_canonicals = _load_fixture_canonical_rows(_RAG_FIXTURE)
+        overlap = set(judgment_canonicals) & set(rag_canonicals)
+        assert not overlap, f"canonical_id overlap between fixtures: {sorted(overlap)}"
         all_canonicals = {**judgment_canonicals, **rag_canonicals}
 
         for cid, reg_rec in index.items():
@@ -216,6 +218,8 @@ class TestRegistryVariantFamilyCoverage:
 
         judgment_families = _load_fixture_variant_families(_JUDGMENT_FIXTURE)
         rag_families = _load_fixture_variant_families(_RAG_FIXTURE)
+        overlap = set(judgment_families) & set(rag_families)
+        assert not overlap, f"canonical_id overlap between fixtures: {sorted(overlap)}"
         all_families = {**judgment_families, **rag_families}
 
         for cid, reg_rec in index.items():
@@ -330,6 +334,14 @@ _NETWORK_MODULES = frozenset(
 )
 
 
+def _is_forbidden_module(module_name: str) -> bool:
+    """Check if a module name matches or is a submodule of a forbidden network lib."""
+    return any(
+        module_name == forbidden or module_name.startswith(f"{forbidden}.")
+        for forbidden in _NETWORK_MODULES
+    )
+
+
 class TestRegistryNoNetworkImports:
     def test_eval_item_metadata_registry_does_not_import_network_libs(self) -> None:
         source = _REGISTRY_MODULE.read_text(encoding="utf-8")
@@ -337,14 +349,13 @@ class TestRegistryNoNetworkImports:
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
                 for alias in node.names:
-                    assert (
-                        alias.name not in _NETWORK_MODULES
+                    assert not _is_forbidden_module(
+                        alias.name
                     ), f"eval_item_registry.py imports network lib: {alias.name}"
             elif isinstance(node, ast.ImportFrom):
                 if node.module is not None:
-                    top_module = node.module.split(".")[0]
-                    assert (
-                        top_module not in _NETWORK_MODULES
+                    assert not _is_forbidden_module(
+                        node.module
                     ), f"eval_item_registry.py imports from network lib: {node.module}"
 
 

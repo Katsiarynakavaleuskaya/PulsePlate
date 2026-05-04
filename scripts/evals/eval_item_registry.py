@@ -105,19 +105,32 @@ def validate_eval_item_metadata_record(
             f"variant_family_coverage must be list, "
             f"got {type(raw['variant_family_coverage']).__name__}"
         )
+    if not all(isinstance(item, str) for item in raw["variant_family_coverage"]):
+        raise ValueError("variant_family_coverage must contain only strings")
+
+    for key in (
+        "canonical_id",
+        "domain",
+        "skill_dimension",
+        "expected_decision",
+        "source_fixture",
+        "notes",
+    ):
+        if not isinstance(raw[key], str):
+            raise ValueError(f"{key} must be str, got {type(raw[key]).__name__}")
 
     return EvalItemMetadataRecord(
-        canonical_id=str(raw["canonical_id"]),
+        canonical_id=raw["canonical_id"],
         lane=raw["lane"],
-        domain=str(raw["domain"]),
-        skill_dimension=str(raw["skill_dimension"]),
+        domain=raw["domain"],
+        skill_dimension=raw["skill_dimension"],
         difficulty_band=raw["difficulty_band"],
-        expected_decision=str(raw["expected_decision"]),
+        expected_decision=raw["expected_decision"],
         expected_score_band=raw["expected_score_band"],
-        variant_family_coverage=list(raw["variant_family_coverage"]),
-        anchor_item=bool(raw["anchor_item"]),
-        source_fixture=str(raw["source_fixture"]),
-        notes=str(raw["notes"]),
+        variant_family_coverage=raw["variant_family_coverage"],
+        anchor_item=raw["anchor_item"],
+        source_fixture=raw["source_fixture"],
+        notes=raw["notes"],
     )
 
 
