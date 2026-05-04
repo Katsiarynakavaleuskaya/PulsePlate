@@ -202,3 +202,9 @@ Canonical-fail invariance fixtures (PR-5) add offline negative-control groups
 where the canonical decision is a failure. Invariance rows in these groups must
 preserve the failing decision. The coordinator remains the decision authority
 and promote/defer/discard remains canonical.
+
+Judgment fixture canonical_ids are registered in the evaluation item metadata
+registry (`data/evals/eval_item_metadata_registry.jsonl`).  The registry
+records lane, domain, skill dimension, difficulty band, expected decision,
+and variant family coverage for each judgment canonical item.  It does not
+change decision logic, claim taxonomy, or the sub-lane protocol.

@@ -251,6 +251,55 @@ Slice tags cover `evidence_exact_match:*`, `support_status:*`, `gate_b1`,
   RAG release-gate thresholds, threshold_results, or canonical PASS/NO-GO
   decisions.
 
+## Evaluation Item Metadata Registry
+
+The item metadata registry (`data/evals/eval_item_metadata_registry.jsonl`) is
+a **psychometric-readiness layer**.  It records stable item metadata for future
+item weighting, IRT, and adaptive eval design, but it **does not implement
+psychometric scoring** and **does not change validity metrics, RAG release-gate
+decisions, or judgment decisions**.
+
+Registry contract: `scripts/evals/eval_item_registry.py`
+
+### Schema
+
+Each registry row is an `EvalItemMetadataRecord` with these fields:
+
+- `canonical_id` -- matches fixture canonical_id exactly.
+- `lane` -- `"rag"` or `"judgment"`.
+- `domain` -- e.g., `"claim_support"`, `"release_gate"`.
+- `skill_dimension` -- e.g., `"claim_support"`, `"retrieval_faithfulness"`,
+  `"hard_fail_detection"`, `"degraded_retrieval"`.
+- `difficulty_band` -- `"low"`, `"medium"`, `"high"` (heuristic label, not
+  calibrated IRT estimate).
+- `expected_decision` -- must match canonical fixture row decision.
+- `expected_score_band` -- `"fail"`, `"partial"`, `"pass"`.
+- `variant_family_coverage` -- actual variant families for this canonical_id.
+- `anchor_item` -- `true` for stable representative items per lane.
+- `source_fixture` -- filename of the source JSONL fixture.
+- `notes` -- human-readable notes; no IRT claims.
+
+### Coverage rules
+
+- Exactly one row per canonical_id across all variant fixtures.
+- No orphan registry rows (every registry canonical_id must be in a fixture).
+- No missing fixture canonical_ids (every fixture canonical_id must be in the
+  registry).
+
+### Limitations
+
+- Difficulty bands are explicit heuristic labels derived from observable score
+  patterns, not calibrated psychometric difficulty parameters.
+- The registry does not implement IRT, item information functions, or adaptive
+  item selection.
+- The registry does not override EvalOutcomeRecord data or validity metrics.
+
+### Future follow-up
+
+- IRT / item information modeling (requires empirical run data).
+- Item weighting based on registry metadata.
+- Adaptive item selection using registry anchors.
+
 ## Deferred Follow-ups
 
 - Hybrid adjudication framework.
