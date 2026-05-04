@@ -213,7 +213,9 @@ split, or canonical promote/defer/discard decisions.
     deterministic curated variant fixtures for robustness measurement.
 5. **PR-4b (current)**: RAG release-gate invariance and mutation fixture families --
     deterministic curated variant fixtures for RAG validity robustness measurement.
-6. **PR-5+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
+6. **PR-6 (current)**: Item statistics baseline -- descriptive per-item
+    statistics combining registry metadata with fixture outcomes.
+7. **PR-7+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
     adjudication, tool-use reliability.
 
 ### RAG Release-Gate Invariance and Mutation Fixtures (PR-4b)
@@ -300,6 +302,68 @@ Each registry row is an `EvalItemMetadataRecord` with these fields:
 - Item weighting based on registry metadata.
 - Adaptive item selection using registry anchors.
 
+## Evaluation Item Statistics Baseline
+
+The item statistics baseline (`scripts/evals/eval_item_statistics.py`) is a
+**descriptive measurement layer** over curated fixture outcomes and item metadata
+registry rows.  It is not IRT, not psychometric calibration, not an adaptive
+item selector, and not a release-gate decision source.
+
+### Script paths
+
+- Core module: `scripts/evals/eval_item_statistics.py`
+- CLI runner: `scripts/evals/run_eval_item_statistics.py`
+- Tests: `tests/evals/test_eval_item_statistics.py`
+- Output artifact: `artifacts/evals/item_statistics_report.json` (gitignored)
+
+### Per-item fields
+
+Each `EvalItemStatisticsRecord` contains:
+
+- `canonical_id`, `lane`, `domain`, `skill_dimension` -- from registry.
+- `difficulty_band`, `expected_decision`, `expected_score_band` -- from registry.
+- `variant_count` -- total outcome rows for this canonical item.
+- `canonical_score`, `canonical_passed` -- from the canonical-family outcome row.
+- `invariance_count`, `invariance_agreement_count`, `invariance_agreement_rate`
+  -- invariance stability measurement.
+- `mutation_count`, `mutation_mean_drop` -- mutation sensitivity measurement.
+- `worst_variant_score` -- minimum score across all variants.
+- `pass_rate` -- fraction of passed=True across all variants.
+- `decision_set` -- sorted unique decisions across all variants.
+- `instability_flag` -- True if more than one unique decision exists.
+- `anchor_item` -- from registry metadata.
+
+### Report envelope
+
+```json
+{
+  "schema_version": "1.0",
+  "item_count": 10,
+  "lane_counts": {"judgment": 5, "rag": 5},
+  "anchor_item_count": 2,
+  "unstable_item_count": 6,
+  "items": [...]
+}
+```
+
+### Limitations
+
+- All statistics are descriptive proportions computed from curated fixtures.
+  They are not calibrated psychometric parameters.
+- Difficulty bands are heuristic labels, not IRT difficulty estimates.
+- `invariance_agreement_rate` and `pass_rate` are simple proportions, not
+  reliability coefficients.
+- The statistics layer does not override EvalOutcomeRecord data, validity
+  metrics, RAG release-gate PASS/NO-GO decisions, or judgment
+  promote/defer/discard decisions.
+
+### Future follow-up
+
+- IRT / item information modeling requires empirical run history across
+  multiple evaluation sessions, not only curated fixtures.
+- Item weighting based on combined registry metadata and item statistics.
+- Adaptive item selection using anchor items and instability flags.
+
 ## Deferred Follow-ups
 
 - Hybrid adjudication framework.
@@ -320,4 +384,6 @@ Each registry row is an `EvalItemMetadataRecord` with these fields:
 4. TypedDict chosen over dataclass for record schemas (repo convention).
 5. Tests placed in `tests/evals/` following existing eval-test convention.
 6. Opus/Claude used only as operator coding model, never integrated into
-   runtime or orchestration identity.
+    runtime or orchestration identity.
+7. Item statistics baseline is a descriptive layer, not psychometric
+    calibration.  Future IRT requires empirical run data.
