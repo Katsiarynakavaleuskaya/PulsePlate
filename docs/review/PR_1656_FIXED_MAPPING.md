@@ -31,8 +31,6 @@ Disposition: FIXED
 Commit: e29632d42
 Evidence: scripts/orchestration/judgment_eval.py:115 -- import reverted to inside try block for graceful degradation
 
-### Review-level dispositions (parent reviews)
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1656#pullrequestreview-4217785400
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit summary review; inline actionables mapped above as discussion threads
