@@ -11,8 +11,21 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1663
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1663#discussion_r3183950424 -> d435cbb8e
+Disposition: FIXED
+Commit: d435cbb8e
+Evidence: scripts/verify_codex_skills_install.py:115
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1663#discussion_r3183971591 -> d435cbb8e
+Disposition: FIXED
+Commit: d435cbb8e
+Evidence: docs/dev/OPENCODE_SKILL_DISCOVERY_RUNBOOK.md:93
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1663#discussion_r3183971596 -> d435cbb8e
+Disposition: FIXED
+Commit: d435cbb8e
+Evidence: docs/dev/OPENCODE_SKILL_DISCOVERY_RUNBOOK.md:16
 
 ## Disposition Log
 
-_No actionable review comments at initial pass._
+All 3 review comments addressed in commit d435cbb8e.
