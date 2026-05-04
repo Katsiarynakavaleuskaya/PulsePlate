@@ -10708,7 +10708,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Canonical-fail invariance fixture coverage for judgment and RAG validity datasets
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`evals/canonical-fail-invariance-fixtures`)
+  - Target PR: PR #1659 (`evals/canonical-fail-invariance-fixtures`)
   - Status: Opened on 4 May 2026
   - Reason: PR #1657 and PR #1658 added judgment and RAG invariance/mutation variant families, but both fixture sets documented a limitation: all canonical rows had `decision: "pass"`. This PR adds canonical-fail invariance groups so invariance testing covers fail-to-fail stability.
   - Links:
