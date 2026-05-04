@@ -15,10 +15,10 @@ covering canonical, invariance, and mutation families. Companion to PR #1657
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540072 -> PENDING_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540080 -> PENDING_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181553295 -> PENDING_COMMIT
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181553321 -> PENDING_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540072 -> b9944e745f708699a73aaf09d344f484daf15ddf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540080 -> b9944e745f708699a73aaf09d344f484daf15ddf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181553295 -> b9944e745f708699a73aaf09d344f484daf15ddf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181553321 -> b9944e745f708699a73aaf09d344f484daf15ddf
 
 ## Merge Readiness Evidence
 
