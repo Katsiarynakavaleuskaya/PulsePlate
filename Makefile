@@ -70,7 +70,7 @@ PIP ?= $(VENV_PYTHON) -m pip
 DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 
 # Dev Container compose settings (worktree-safe project name)
-COMPOSE_PROJECT_NAME ?= pulseplate-$(shell basename "$(CURDIR)" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-' | sed 's/-$$//')
+COMPOSE_PROJECT_NAME ?= pulseplate
 DEVCONTAINER_COMPOSE ?= .devcontainer/docker-compose.devcontainer.yml
 
 # Цвета для вывода
