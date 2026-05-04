@@ -144,6 +144,16 @@ class TestValidateEvalVariantRecord:
         with pytest.raises(ValueError, match="Invalid expected_relation"):
             validate_eval_variant_record(raw)
 
+    def test_rejects_non_string_identifiers_and_transform_type(self) -> None:
+        raw = _make_variant_raw(canonical_id=["item_001"], variant_id={"id": "v"}, transform_type=123)
+        with pytest.raises(ValueError, match="EvalVariantRecord.canonical_id must be str"):
+            validate_eval_variant_record(raw)
+
+    def test_rejects_invalid_slice_tags_and_input_payload_types(self) -> None:
+        raw = _make_variant_raw(slice_tags="rag", input_payload=["x"])
+        with pytest.raises(ValueError, match="EvalVariantRecord.slice_tags must be list\[str\]"):
+            validate_eval_variant_record(raw)
+
 
 # ---------------------------------------------------------------------------
 # Outcome record validation
@@ -197,6 +207,16 @@ class TestValidateEvalOutcomeRecord:
     def test_rejects_neg_infinity_score(self) -> None:
         raw = _make_outcome_raw(score=float("-inf"))
         with pytest.raises(ValueError, match="must be finite"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_non_string_fields(self) -> None:
+        raw = _make_outcome_raw(canonical_id=["item_001"], transform_type={"kind": "none"}, decision=["pass"])
+        with pytest.raises(ValueError, match="EvalOutcomeRecord.canonical_id must be str"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_invalid_slice_tags_type_with_value_error(self) -> None:
+        raw = _make_outcome_raw(slice_tags="rag")
+        with pytest.raises(ValueError, match="EvalOutcomeRecord.slice_tags must be list\[str\]"):
             validate_eval_outcome_record(raw)
 
 
