@@ -359,6 +359,14 @@ class TestRegistryNoNetworkImports:
                     assert not _is_forbidden_module(
                         node.module
                     ), f"eval_item_registry.py imports from network lib: {node.module}"
+                    # Also check "from <parent> import <child>" where
+                    # "<parent>.<child>" is a forbidden module (e.g.
+                    # "from urllib import request" -> "urllib.request").
+                    for alias in node.names:
+                        qualified = f"{node.module}.{alias.name}"
+                        assert not _is_forbidden_module(
+                            qualified
+                        ), f"eval_item_registry.py imports from network lib: {qualified}"
 
 
 # ---------------------------------------------------------------------------

@@ -37,10 +37,10 @@ Disposition: NOT-A-BUG
 Evidence: scripts/evals/eval_item_registry.py:111-133
 Reason: String coercion was already removed in commit ca9aaee3c (CodeRabbit comment 1 fix). Cubic reviewed a stale commit.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182624891
-Disposition: NOT-A-BUG
-Evidence: tests/evals/test_eval_item_metadata_registry.py:340-362
-Reason: The _is_forbidden_module() helper (added in ca9aaee3c) already handles submodule matching via startswith(). The claim about `from urllib import request` bypassing the guard is about a different pattern (importing the parent then using submodule), which is an edge case not present in the registry module. The registry module uses only stdlib json and pathlib.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182624891 -> PENDING_SHA
+Disposition: FIXED
+Commit: PENDING_SHA
+Evidence: tests/evals/test_eval_item_metadata_registry.py:357-368 — ImportFrom guard now checks qualified names (e.g. `from urllib import request` -> `urllib.request` matched against forbidden list)
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182637817
 Disposition: FIXED
