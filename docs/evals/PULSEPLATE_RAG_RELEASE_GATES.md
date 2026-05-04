@@ -454,8 +454,8 @@ mutation transforms.  These fixtures:
 - Do not change the release-gate protocol.
 - Do not modify `threshold_results` or gate thresholds.
 - Do not override the canonical PASS/NO-GO decision.
-- Are consumed by `scripts/evals/run_eval_validity.py`, not by the release-gate
-  runner.
+- Can be consumed by `scripts/evals/run_eval_validity.py` when selected via
+  input path (e.g., `--input-path`), not by the release-gate runner.
 
 ### Future follow-ups
 
