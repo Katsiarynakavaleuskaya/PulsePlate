@@ -208,3 +208,9 @@ registry (`data/evals/eval_item_metadata_registry.jsonl`).  The registry
 records lane, domain, skill dimension, difficulty band, expected decision,
 and variant family coverage for each judgment canonical item.  It does not
 change decision logic, claim taxonomy, or the sub-lane protocol.
+
+The evaluation item statistics baseline (`scripts/evals/eval_item_statistics.py`)
+computes descriptive per-item statistics by combining registry metadata with
+fixture outcomes.  Item statistics do not alter promote/defer/discard decisions,
+claim taxonomy, or the judgment adjudication sub-lane protocol.  The judgment
+taxonomy remains canonical and is not overridden by descriptive statistics.

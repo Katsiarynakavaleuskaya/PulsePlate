@@ -472,6 +472,16 @@ threshold_results, gate thresholds, or the PASS/NO-GO decision.
 
 See: `scripts/evals/eval_item_registry.py`
 
+### Item Statistics Baseline
+
+The evaluation item statistics baseline (`scripts/evals/eval_item_statistics.py`)
+computes descriptive per-item statistics by combining registry metadata with
+fixture outcomes.  Item statistics are an **informational sidecar only**.  They
+do not modify `threshold_results`, gate thresholds, or the PASS/NO-GO decision.
+
+See: `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md` (section "Evaluation
+Item Statistics Baseline")
+
 ### Future follow-ups
 
 - Add per-gate slice breakdown to validity report.

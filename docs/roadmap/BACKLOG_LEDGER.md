@@ -10751,6 +10751,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No IRT or psychometric scoring is implemented
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
 
-**Last updated:** 2026-05-04 (evaluation item metadata registry merged, ledger closed)
+<a id="ledger-p1-eval-item-statistics-baseline"></a>
+- [ ] P1: Evaluation item statistics baseline for empirical-readiness
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1662 (`evals/item-statistics-baseline`)
+  - Area: evals / measurement science / psychometric readiness
+  - Finding Type: item-statistics gap
+  - Reason: Evaluation item metadata registry is present, but the project still lacks deterministic descriptive item statistics that combine registry metadata with curated fixture outcomes. This layer is required before honest item weighting, IRT, adaptive evals, or empirical calibration.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `scripts/evals/eval_item_statistics.py`
+    - `scripts/evals/run_eval_item_statistics.py`
+    - `data/evals/eval_item_metadata_registry.jsonl`
+    - `tests/evals/test_eval_item_statistics.py`
+  - DoD:
+    - Descriptive item statistics are generated deterministically from registry + fixture outcomes
+    - Report includes per-item pass_rate, invariance agreement, mutation drop, worst variant score, decision set, and instability flag
+    - RAG PASS/NO-GO logic remains unchanged
+    - Judgment promote/defer/discard logic remains unchanged
+    - No IRT or psychometric scoring is implemented
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
+
+**Last updated:** 2026-05-04 (evaluation item statistics baseline ledger entry added)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
