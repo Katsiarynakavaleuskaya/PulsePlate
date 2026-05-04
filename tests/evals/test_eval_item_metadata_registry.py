@@ -57,7 +57,12 @@ def _load_fixture_canonical_rows(path: Path) -> dict[str, dict]:
                 continue
             raw = json.loads(stripped)
             if raw.get("variant_family") == "canonical":
-                rows[raw["canonical_id"]] = raw
+                canonical_id = raw["canonical_id"]
+                if canonical_id in rows:
+                    raise ValueError(
+                        f"{path}: duplicate canonical row for canonical_id={canonical_id!r}"
+                    )
+                rows[canonical_id] = raw
     return rows
 
 
