@@ -16,6 +16,8 @@ covering canonical, invariance, and mutation families. Companion to PR #1657
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: b9944e745f708699a73aaf09d344f484daf15ddf
+Evidence: data/evals/pulseplate_rag_release_gate_validity_variants.jsonl:5,6,8 docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md:457 docs/review/PR_1658_FIXED_MAPPING.md:11-13,15-18
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540072 -> b9944e745f708699a73aaf09d344f484daf15ddf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540080 -> b9944e745f708699a73aaf09d344f484daf15ddf
