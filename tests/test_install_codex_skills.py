@@ -341,6 +341,124 @@ def test_install_codex_skills_unlink_is_side_effect_free_when_nothing_is_install
     assert not (tmp_path / ".codex" / "skills").exists()
 
 
+VERIFIER_PATH = REPO_ROOT / "scripts" / "verify_codex_skills_install.py"
+PYTHON_PATH = shutil.which("python3") or shutil.which("python")
+
+
+def _run_verifier(
+    home_root: Path,
+    *args: str,
+    extra_env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run the verifier with an isolated HOME."""
+
+    assert PYTHON_PATH is not None, "python3 is required for verifier tests"
+    env = {
+        **os.environ,
+        "HOME": str(home_root),
+    }
+    if extra_env:
+        env.update(extra_env)
+    return subprocess.run(
+        [PYTHON_PATH, str(VERIFIER_PATH), *args],
+        cwd=REPO_ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+    )
+
+
+def test_verify_codex_skills_install_passes_after_official_install(tmp_path: Path) -> None:
+    """Verifier should pass when all expected skills are installed at destination."""
+
+    _run_installer(tmp_path, "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills))
+    assert result.returncode == 0
+    assert "All expected skills are installed" in result.stdout
+
+
+def test_verify_codex_skills_install_fails_when_skill_missing(tmp_path: Path) -> None:
+    """Verifier with --strict should fail when a skill is missing from destination."""
+
+    _run_installer(tmp_path, "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+
+    # Remove one skill to create a gap
+    missing_skill = agents_skills / "pulseplate-workflow"
+    if missing_skill.is_symlink():
+        missing_skill.unlink()
+    else:
+        shutil.rmtree(missing_skill)
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--strict")
+    assert result.returncode == 1
+    assert "pulseplate-workflow" in result.stdout
+
+
+def test_verify_codex_skills_install_supports_compat_target(tmp_path: Path) -> None:
+    """Verifier should resolve compat target via CODEX_HOME."""
+
+    codex_home = tmp_path / ".codex"
+    _run_installer(tmp_path, "--target", "compat", "--no-cybersec")
+
+    result = _run_verifier(
+        tmp_path,
+        "--target",
+        "compat",
+        extra_env={"CODEX_HOME": str(codex_home)},
+    )
+    assert result.returncode == 0
+    assert "All expected skills are installed" in result.stdout
+
+
+def test_verify_codex_skills_install_supports_custom_dest(tmp_path: Path) -> None:
+    """Verifier should accept a custom --dest path."""
+
+    custom_dest = tmp_path / "custom-skills"
+    _run_installer(tmp_path, "--dest", str(custom_dest), "--no-cybersec")
+
+    result = _run_verifier(tmp_path, "--dest", str(custom_dest))
+    assert result.returncode == 0
+    assert "All expected skills are installed" in result.stdout
+
+
+def test_verify_codex_skills_install_reports_json(tmp_path: Path) -> None:
+    """Verifier --json should produce valid JSON with expected fields."""
+
+    import json as json_mod
+
+    _run_installer(tmp_path, "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--json")
+    assert result.returncode == 0
+
+    report = json_mod.loads(result.stdout)
+    # Derive expected count from repo source to avoid hardcoded fragility
+    source_dir = REPO_ROOT / "tools" / "codex_skills"
+    repo_skill_count = sum(
+        1 for d in source_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()
+    )
+    assert report["expected_count"] == repo_skill_count
+    assert report["missing_count"] == 0
+    assert report["missing"] == []
+
+
+def test_verify_codex_skills_install_is_read_only(tmp_path: Path) -> None:
+    """Verifier must not create or modify files at the destination."""
+
+    empty_dest = tmp_path / "empty-dest"
+    empty_dest.mkdir()
+
+    before = set(empty_dest.iterdir())
+    _run_verifier(tmp_path, "--dest", str(empty_dest))
+    after = set(empty_dest.iterdir())
+
+    assert before == after, "Verifier must not create files at destination"
+
+
 def test_repo_agents_skills_mirror_points_to_codex_skill_sources() -> None:
     """Repo-local .agents/skills mirror must stay aligned to tools/codex_skills sources."""
 

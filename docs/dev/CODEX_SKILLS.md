@@ -70,6 +70,13 @@ repo source of truth.
 After installation or updates, restart Codex so newly installed skills are loaded.
 This restart requirement is tooling-local only; it does not change repo orchestration semantics.
 
+## Troubleshooting
+
+If OpenCode or Codex reports fewer loaded skills than the repo contains:
+
+1. Run the verifier: `python3 scripts/verify_codex_skills_install.py --strict`
+2. See the full diagnosis flow: [`docs/dev/OPENCODE_SKILL_DISCOVERY_RUNBOOK.md`](./OPENCODE_SKILL_DISCOVERY_RUNBOOK.md)
+
 ## Host `~/.codex` (compatibility-only, not repo SoT)
 
 Machine-local Codex settings (`~/.codex/config.toml`, skills under `$CODEX_HOME/skills` with `~/.codex/skills` as the fallback) are **not**

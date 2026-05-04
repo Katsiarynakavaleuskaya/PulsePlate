@@ -111,10 +111,16 @@ Interpretation:
 
 Allowed in this alignment wave:
 
+- verify installed skill completeness against repo source of truth,
 - improve deterministic skill discovery,
 - improve additive routing quality,
 - document current/conditional/missing skill coverage,
 - record missing custom skills in backlog.
+
+## Verification
+
+- Verifier script: `scripts/verify_codex_skills_install.py`
+- Diagnosis runbook: `docs/dev/OPENCODE_SKILL_DISCOVERY_RUNBOOK.md`
 
 Not allowed in this alignment wave:
 
