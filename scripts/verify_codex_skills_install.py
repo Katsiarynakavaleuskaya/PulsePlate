@@ -60,12 +60,14 @@ def _inspect_installed_skill(dest_dir: Path, skill_name: str) -> dict[str, str]:
     skill_path = dest_dir / skill_name
     if skill_path.is_symlink():
         link_target = os.readlink(str(skill_path))
+        resolved_target = str(skill_path.resolve())
         has_skill_md = (skill_path / "SKILL.md").exists()
         return {
             "name": skill_name,
             "status": "linked" if has_skill_md else "linked_invalid",
             "type": "symlink",
             "target": link_target,
+            "resolved": resolved_target,
         }
     if skill_path.is_dir():
         has_skill_md = (skill_path / "SKILL.md").exists()
@@ -184,7 +186,11 @@ def main() -> int:
         "--no-cybersec",
         action="store_true",
         default=False,
-        help="Exclude cybersecurity skills from expected set (default behavior).",
+        help=(
+            "Exclude cybersecurity skills from expected set. "
+            "This is already the default; the flag exists for CLI "
+            "consistency with install_codex_skills.sh."
+        ),
     )
     parser.add_argument(
         "--include-cybersec",
