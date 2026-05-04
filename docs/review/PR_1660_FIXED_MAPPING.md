@@ -47,6 +47,16 @@ Disposition: FIXED
 Commit: 021a9a1c1
 Evidence: docs/review/PR_1660_FIXED_MAPPING.md — line ranges updated in this artifact revision to match current file positions
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182727140 -> 35501f99d
+Disposition: FIXED
+Commit: 35501f99d
+Evidence: tests/evals/test_eval_item_metadata_registry.py:59-64 — _load_fixture_canonical_rows() now raises ValueError on duplicate canonical_id within same fixture file
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1660#discussion_r3182727153 -> a8e5751ff
+Disposition: FIXED
+Commit: a8e5751ff
+Evidence: tests/evals/test_eval_item_metadata_registry.py:365-376 — ImportFrom guard now checks qualified names (from urllib import request -> urllib.request)
+
 ## Premortem / Bug-hunter Hardening (self-review)
 
 Commit 2143209dc addressed findings from internal premortem + bug-hunter pass:
