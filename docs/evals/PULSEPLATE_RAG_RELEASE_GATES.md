@@ -438,6 +438,11 @@ When only canonical rows exist (no explicit invariance or mutation variants):
 This is honest reporting, not a coverage gap.  Full invariance/mutation
 coverage requires explicit variant families in future datasets.
 
+Canonical-fail invariance fixtures (PR-5) add offline negative-control groups
+with `decision: "fail"` and invariance rows that preserve the failing decision.
+These fixtures do not change release-gate thresholds, threshold_results, or
+PASS/NO-GO decisions.
+
 ### Relationship to PASS/NO-GO
 
 - Validity sidecar is a **sibling artifact**, not a release gate.

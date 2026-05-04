@@ -175,15 +175,17 @@ Slice tags cover `claim_type:*`, `support_status:*`, `evidence_mode:*`,
 
 - These are deterministic curated fixtures, not LLM-generated paraphrases.
   They measure a limited surface and are not proof of full production robustness.
-- All canonical rows currently have `decision: "pass"`. Invariance for canonical
-  `"fail"` decisions is not tested in this fixture set. A future PR may add
-  canonical-fail groups if the measurement surface warrants it.
+- Canonical-fail invariance groups (PR-5) add at least one canonical row with
+  `decision: "fail"` and invariance rows that preserve the failing decision.
+  This tests fail-to-fail stability alongside the existing pass-to-pass coverage.
 - `invariance_score` is 1.0 for this fixture set because all invariance rows
   match their canonical decision. Tests assert `> 0.0` to catch canonical-only
   regressions but will not flag a drop from 1.0 to 0.8 as a failure.
-- Judgment invariance and mutation fixtures do not modify claim taxonomy,
-  claim-to-evidence records, uncertainty split, or canonical promote/defer/discard
-  decisions.
+- Canonical-fail invariance fixtures are deterministic negative-control
+  measurement inputs. They test whether known-failing canonical outcomes remain
+  failing under semantically equivalent transformations. They do not modify
+  judgment taxonomy, claim-to-evidence records, uncertainty split, or canonical
+  promote/defer/discard decisions.
 
 ### Invariant
 
@@ -237,15 +239,17 @@ Slice tags cover `evidence_exact_match:*`, `support_status:*`, `gate_b1`,
 
 - These are deterministic curated fixtures, not LLM-generated paraphrases.
   They measure a limited surface and are not proof of full production robustness.
-- All canonical rows currently have `decision: "pass"`. Invariance for canonical
-  `"fail"` decisions is not tested in this fixture set. A future PR may add
-  canonical-fail groups if the measurement surface warrants it.
+- Canonical-fail invariance groups (PR-5) add at least one canonical row with
+  `decision: "fail"` and invariance rows that preserve the failing decision.
+  This tests fail-to-fail stability alongside the existing pass-to-pass coverage.
 - `invariance_score` is 1.0 for this fixture set because all invariance rows
   match their canonical decision. Tests assert `> 0.0` to catch canonical-only
   regressions but will not flag a drop from 1.0 to 0.8 as a failure.
-- RAG invariance and mutation fixtures are deterministic measurement inputs.
-  They do not modify RAG release-gate thresholds, threshold_results, or
-  canonical PASS/NO-GO decisions.
+- Canonical-fail invariance fixtures are deterministic negative-control
+  measurement inputs. They test whether known-failing canonical outcomes remain
+  failing under semantically equivalent transformations. They do not modify
+  RAG release-gate thresholds, threshold_results, or canonical PASS/NO-GO
+  decisions.
 
 ## Deferred Follow-ups
 

@@ -197,3 +197,8 @@ Offline variant fixtures (PR-4a) add deterministic curated invariance and
 mutation families so the validity report measures robustness instead of
 canonical-only coverage. These fixtures do not change decision logic, claim
 taxonomy, or the sub-lane protocol.
+
+Canonical-fail invariance fixtures (PR-5) add offline negative-control groups
+where the canonical decision is a failure. Invariance rows in these groups must
+preserve the failing decision. The coordinator remains the decision authority
+and promote/defer/discard remains canonical.
