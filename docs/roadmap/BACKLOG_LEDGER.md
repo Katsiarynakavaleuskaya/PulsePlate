@@ -10755,7 +10755,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evaluation item statistics baseline for empirical-readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`evals/item-statistics-baseline`)
+  - Target PR: PR #1662 (`evals/item-statistics-baseline`)
   - Area: evals / measurement science / psychometric readiness
   - Finding Type: item-statistics gap
   - Reason: Evaluation item metadata registry is present, but the project still lacks deterministic descriptive item statistics that combine registry metadata with curated fixture outcomes. This layer is required before honest item weighting, IRT, adaptive evals, or empirical calibration.
