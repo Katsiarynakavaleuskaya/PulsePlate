@@ -11,8 +11,16 @@ Canonical-fail invariance fixture coverage for judgment and RAG validity dataset
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1659#discussion_r3181951781 -> 9e790f466
+Disposition: FIXED
+Commit: 9e790f466
+Evidence: tests/evals/test_judgment_validity_variant_families.py:171, tests/evals/test_judgment_validity_variant_families.py:193
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1659#discussion_r3181954445 -> 9e790f466
+Disposition: FIXED
+Commit: 9e790f466
+Evidence: tests/evals/test_rag_release_gate_validity_variant_families.py:171, tests/evals/test_rag_release_gate_validity_variant_families.py:193
 
 ## Merge Readiness Evidence
 
-Pending current-head CI and bot reviews.
+Pending current-head CI completion and wait-window.
