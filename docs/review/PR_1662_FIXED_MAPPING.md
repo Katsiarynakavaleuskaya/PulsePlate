@@ -9,9 +9,7 @@
 
 ## Fixed in Commit Mapping
 
-No actionable review comments at time of PR opening.
-
-This artifact will be updated as review threads are created and resolved.
+- No actionable review comments
 
 ## Merge Readiness
 
