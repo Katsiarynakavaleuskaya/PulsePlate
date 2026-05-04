@@ -10727,11 +10727,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store changes
 
 <a id="ledger-p1-eval-item-metadata-registry"></a>
-- [ ] P1: Evaluation item metadata registry for psychometric readiness
+- [x] P1: Evaluation item metadata registry for psychometric readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1660 (`evals/item-metadata-registry`)
-  - Status: Opened on 4 May 2026
+  - Target PR: PR #1660 (merged `b4335d405`, 2026-05-04)
+  - Status: **CLOSED** — merged 4 May 2026
   - Area: evals / measurement science / psychometric readiness
   - Finding Type: item-metadata gap
   - Reason: The Evaluation Science foundation now has item-level outcomes, RAG/judgment sidecars, invariance/mutation fixtures, and canonical-fail negative controls, but still lacks a registry that maps canonical_id values to stable item metadata such as lane, domain, skill dimension, difficulty band, expected decision, expected score band, fixture coverage, and anchor-item status. This registry is required before honest IRT, item weighting, adaptive evals, or psychometric modeling.
@@ -10751,6 +10751,6 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No IRT or psychometric scoring is implemented
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes are included
 
-**Last updated:** 2026-05-04 (evaluation item metadata registry PR)
+**Last updated:** 2026-05-04 (evaluation item metadata registry merged, ledger closed)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
