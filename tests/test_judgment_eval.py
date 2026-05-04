@@ -149,8 +149,8 @@ def test_main_emits_validity_sidecar_alongside_artifact(
     assert items_path.exists(), "Sidecar JSONL not created"
     assert report_path.exists(), "Sidecar report not created"
 
-    # Verify JSONL has at least one line per evaluated case.
-    lines = items_path.read_text(encoding="utf-8").strip().split("\n")
+    # Verify JSONL has at least one non-empty line per evaluated case.
+    lines = [ln for ln in items_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
     assert len(lines) >= 1
 
     # Verify report is valid JSON with expected keys.
@@ -184,5 +184,8 @@ def test_main_succeeds_when_sidecar_raises(
     exit_code = judgment_eval.main(["--input", str(input_path)])
 
     assert exit_code == 0
-    output_path = Path(capsys.readouterr().out.strip())
+    captured = capsys.readouterr()
+    output_path = Path(captured.out.strip())
     assert output_path.exists(), "Main artifact must exist despite sidecar failure"
+    assert "warning: validity sidecar emission failed" in captured.err
+    assert "sidecar boom" in captured.err
