@@ -70,7 +70,7 @@ Frame: It is 6 months from now. This PR merged, but OpenCode still reports fewer
 
 ## Decision
 
-`proceed` — plan is sound. All identified risks are mitigated through documentation and fallback mechanisms.
+`proceed` — plan is sound. All identified risks are mitigated through documentation, fallback mechanisms, and merge-ready premortem fixes (ddefd4c83).
 
 ## Pre-merge Checklist
 
@@ -81,3 +81,7 @@ Frame: It is 6 months from now. This PR merged, but OpenCode still reports fewer
 - [x] Stale install cleanup documented
 - [x] Tests cover pass/fail/json/compat/custom/read-only scenarios
 - [x] No runtime or provider changes
+- [x] Missing-dest diagnostic message added (premortem fix)
+- [x] Test skill count is dynamic, not hardcoded (premortem fix)
+- [x] Symlink resolve() failures handled gracefully (Cubic P2 fix)
+- [x] All 4 bot review threads resolved with FIXED disposition
