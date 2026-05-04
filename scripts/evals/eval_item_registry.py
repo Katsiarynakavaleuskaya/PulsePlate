@@ -86,6 +86,10 @@ def validate_eval_item_metadata_record(
     if missing:
         raise ValueError(f"EvalItemMetadataRecord missing keys: {sorted(missing)}")
 
+    extra = raw.keys() - _REQUIRED_KEYS
+    if extra:
+        raise ValueError(f"EvalItemMetadataRecord has unexpected keys: {sorted(extra)}")
+
     if raw["lane"] not in LANES:
         raise ValueError(f"Invalid lane={raw['lane']!r}; expected one of {LANES}")
     if raw["difficulty_band"] not in DIFFICULTY_BANDS:
@@ -204,7 +208,10 @@ def extract_canonical_ids_from_outcome_fixture(
                 continue
             raw = json.loads(stripped)
             if raw.get("variant_family") == "canonical":
-                ids.add(str(raw["canonical_id"]))
+                cid = raw["canonical_id"]
+                if not isinstance(cid, str):
+                    raise ValueError(f"{path}: canonical_id must be str, got {type(cid).__name__}")
+                ids.add(cid)
     return ids
 
 

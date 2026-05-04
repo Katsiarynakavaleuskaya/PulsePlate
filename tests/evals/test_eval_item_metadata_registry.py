@@ -15,8 +15,6 @@ import ast
 import json
 from pathlib import Path
 
-import pytest
-
 from scripts.evals.eval_item_registry import (
     DIFFICULTY_BANDS,
     LANES,
