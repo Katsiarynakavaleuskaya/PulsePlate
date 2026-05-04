@@ -171,6 +171,9 @@ def test_rag_variant_fixture_has_canonical_fail_group() -> None:
         assert (
             "canonical_fail" in r["slice_tags"]
         ), f"Canonical-fail row {r['variant_id']} missing 'canonical_fail' slice tag"
+        assert (
+            r["passed"] is False
+        ), f"Canonical-fail row {r['variant_id']} must have passed=False, got {r['passed']}"
 
 
 def test_rag_canonical_fail_invariance_preserves_failure_decision() -> None:
@@ -189,6 +192,9 @@ def test_rag_canonical_fail_invariance_preserves_failure_decision() -> None:
         if canonical_decision == "pass":
             continue  # only check canonical-fail groups
         canonical_passed = canonical[0]["passed"]
+        assert (
+            canonical_passed is False
+        ), f"Canonical-fail group {cid} must have canonical passed=False, got {canonical_passed}"
         for m in members:
             if m["variant_family"] == "invariance":
                 assert m["decision"] == canonical_decision, (
