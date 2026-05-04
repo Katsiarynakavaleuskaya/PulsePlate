@@ -10704,6 +10704,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - empty selections remain an explicit no-op with stable logs
     - workflow contract tests cover the shared helper wiring end to end
 
-**Last updated:** 2026-04-28 (PulsePlate PR review skill PR5 closeout)
+<a id="ledger-p1-canonical-fail-invariance-fixtures"></a>
+- [ ] P1: Canonical-fail invariance fixture coverage for judgment and RAG validity datasets
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/canonical-fail-invariance-fixtures`)
+  - Status: Opened on 4 May 2026
+  - Reason: PR #1657 and PR #1658 added judgment and RAG invariance/mutation variant families, but both fixture sets documented a limitation: all canonical rows had `decision: "pass"`. This PR adds canonical-fail invariance groups so invariance testing covers fail-to-fail stability.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `data/evals/pulseplate_judgment_eval_validity_variants.jsonl`
+    - `data/evals/pulseplate_rag_release_gate_validity_variants.jsonl`
+    - `tests/evals/test_judgment_validity_variant_families.py`
+    - `tests/evals/test_rag_release_gate_validity_variant_families.py`
+  - DoD:
+    - Judgment fixture set includes at least one canonical-fail group with invariance rows preserving the failing decision
+    - RAG fixture set includes at least one canonical-fail group with invariance rows preserving the failing decision
+    - Tests prove fail-to-fail invariance for both fixture sets
+    - Existing mutation_drop, unstable_items, and deterministic report tests remain green
+    - Existing RAG thresholds, PASS/NO-GO logic, and judgment promote/defer/discard logic remain unchanged
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store changes
+
+**Last updated:** 2026-05-04 (canonical-fail invariance fixtures PR)
 **Maintainer:** @katsiaryna_kavaleuskaya
 <!-- markdownlint-enable MD013 -->
