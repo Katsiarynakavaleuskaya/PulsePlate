@@ -123,9 +123,42 @@ RAG release-gate PASS/NO-GO decision.
 
 ## Judgment Lane Integration
 
-Current state: standalone. The judgment eval
-(`core/judgment_eval.py`) uses promote/defer/discard decisions. Future PR
-may map judgment outcomes to validity `EvalOutcomeRecord` format.
+Current state: **sidecar integrated** (PR-3).
+
+The FitChef judgment replay eval runner (`scripts/orchestration/judgment_eval.py`)
+now emits optional validity sidecar artifacts alongside the canonical decision
+artifact:
+
+- `judgment_validity_items.jsonl` -- one `EvalOutcomeRecord` per evaluated case.
+- `judgment_validity_report.json` -- the validity report built from those outcomes.
+
+### Decision-to-outcome mapping
+
+| Judgment decision | `passed` | `score` | Rationale |
+|-------------------|----------|---------|-----------|
+| `promote` | `True` | `1.0` | Fully supported, safe to surface. |
+| `defer` | `True` | `0.5` | Safe but under-supported; not a failure. |
+| `discard` | `False` | `0.0` | Failed safety or evidence checks. |
+
+The `decision` field in each `EvalOutcomeRecord` carries the original judgment
+string (`"promote"` / `"defer"` / `"discard"`), not a pass/fail label.
+
+Slice tags include `"judgment"`, the `boundary_class` value, and `"hard_fail"`
+when hard-fail reasons are present.
+
+### Limitations
+
+Current judgment replay datasets contain only canonical items. The validity
+report honestly shows `invariance_score=0.0`, `mutation_drop.overall=0.0`,
+and `item_instability_index=0.0` for canonical-only data. Full
+invariance/mutation coverage requires explicit variant families in future
+judgment replay datasets.
+
+### Invariant
+
+Judgment validity sidecar artifacts are informational measurement artifacts.
+They do not override claim taxonomy, claim-to-evidence records, uncertainty
+split, or canonical promote/defer/discard decisions.
 
 ## Security / Privacy Boundary
 
@@ -141,7 +174,8 @@ may map judgment outcomes to validity `EvalOutcomeRecord` format.
    fixtures, tests, docs.
 2. **PR-2 (current, #1648)**: RAG release-gate validity sidecar --
    item-level artifacts emitted via adapter.
-3. **PR-3 (deferred)**: Integration with judgment eval outcome export.
+3. **PR-3 (current)**: Judgment replay validity sidecar -- item-level
+   artifacts emitted via adapter, CLI wiring with graceful degradation.
 4. **PR-4+ (deferred)**: Psychometrics / IRT, adaptive evals, hybrid
    adjudication, tool-use reliability.
 
