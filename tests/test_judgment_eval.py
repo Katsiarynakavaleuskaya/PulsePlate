@@ -124,3 +124,71 @@ def test_main_returns_clean_error_on_write_failure(
     stderr = capsys.readouterr().err
     assert "disk full" in stderr
     assert "Traceback" not in stderr
+
+
+def test_main_emits_validity_sidecar_alongside_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI should emit validity sidecar files next to the main artifact."""
+
+    artifact_dir = tmp_path / "artifacts" / "orchestration" / "judgment" / "evals"
+    input_path = tmp_path / "bundle.json"
+    input_path.write_text(
+        json.dumps(_load_fixture("replay_cases.json"), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(judgment_eval, "RESULT_ARTIFACT_DIR", artifact_dir)
+
+    exit_code = judgment_eval.main(["--input", str(input_path)])
+
+    assert exit_code == 0
+    items_path = artifact_dir / "judgment_validity_items.jsonl"
+    report_path = artifact_dir / "judgment_validity_report.json"
+    assert items_path.exists(), "Sidecar JSONL not created"
+    assert report_path.exists(), "Sidecar report not created"
+
+    # Verify JSONL has at least one line per evaluated case.
+    lines = items_path.read_text(encoding="utf-8").strip().split("\n")
+    assert len(lines) >= 1
+
+    # Verify report is valid JSON with expected keys.
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["schema_version"] == "1.0"
+    assert "invariance_score" in report
+
+
+def test_main_succeeds_when_sidecar_import_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """CLI must still succeed even if the validity sidecar adapter cannot be imported."""
+
+    artifact_dir = tmp_path / "artifacts" / "orchestration" / "judgment" / "evals"
+    input_path = tmp_path / "bundle.json"
+    input_path.write_text(
+        json.dumps(_load_fixture("replay_cases.json"), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(judgment_eval, "RESULT_ARTIFACT_DIR", artifact_dir)
+
+    # Poison the import so the sidecar try/except catches it.
+    import scripts.evals.judgment_validity as jv_mod
+
+    original_fn = jv_mod.write_judgment_validity_sidecar
+
+    def _explode(*_a: object, **_kw: object) -> None:
+        raise RuntimeError("sidecar boom")
+
+    monkeypatch.setattr(jv_mod, "write_judgment_validity_sidecar", _explode)
+
+    exit_code = judgment_eval.main(["--input", str(input_path)])
+
+    assert exit_code == 0
+    output_path = Path(capsys.readouterr().out.strip())
+    assert output_path.exists(), "Main artifact must exist despite sidecar failure"
+
+    # Restore for other tests.
+    monkeypatch.setattr(jv_mod, "write_judgment_validity_sidecar", original_fn)

@@ -108,6 +108,30 @@ def main(argv: list[str] | None = None) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    # Validity sidecar (informational -- does not change promote/defer/discard).
+    # Follows the same graceful-degradation pattern as the RAG release-gate
+    # validity sidecar in run_rag_release_gates.py (PR #1648).
+    try:
+        from scripts.evals.judgment_validity import write_judgment_validity_sidecar
+
+        pack_meta = {
+            "bundle_id": artifact.get("bundle_id", ""),
+            "schema_version": artifact.get("schema_version", ""),
+            "mode": artifact.get("mode", ""),
+            "scenario_family": artifact.get("scenario_family", ""),
+        }
+        sidecar_paths = write_judgment_validity_sidecar(
+            run_dir=output_path.parent,
+            results=results,
+            pack_meta=pack_meta,
+        )
+        for kind, path in sorted(sidecar_paths.items()):
+            print(f"validity_{kind}: {path}", file=sys.stderr)
+    except Exception:  # noqa: BLE001 -- sidecar failure must not break eval
+        # Sidecar is informational only; graceful degradation is the correct
+        # behavior (same pattern as RAG sidecar in run_rag_release_gates.py).
+        pass  # nosec B110 sidecar metrics are non-critical; silent degradation is intentional (remove-by: 2026-11-01, ref: PR-1648)
+
     print(output_path)
     return 0
 
