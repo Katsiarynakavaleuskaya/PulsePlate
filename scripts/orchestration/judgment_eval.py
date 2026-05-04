@@ -108,6 +108,23 @@ def main(argv: list[str] | None = None) -> int:
         print(str(exc), file=sys.stderr)
         return 1
 
+    # Validity sidecar (informational -- does not change promote/defer/discard).
+    # Follows the same graceful-degradation pattern as the RAG release-gate
+    # validity sidecar in run_rag_release_gates.py (PR #1648).
+    try:
+        from scripts.evals.judgment_validity import write_judgment_validity_sidecar
+
+        sidecar_paths = write_judgment_validity_sidecar(
+            run_dir=output_path.parent,
+            results=results,
+        )
+        for kind, path in sorted(sidecar_paths.items()):
+            print(f"{kind}: {path}", file=sys.stderr)
+    except Exception as exc:  # noqa: BLE001 -- sidecar failure must not break eval
+        # Sidecar is informational only; graceful degradation is the correct
+        # behavior (same pattern as RAG sidecar in run_rag_release_gates.py).
+        print(f"warning: validity sidecar emission failed: {exc}", file=sys.stderr)
+
     print(output_path)
     return 0
 

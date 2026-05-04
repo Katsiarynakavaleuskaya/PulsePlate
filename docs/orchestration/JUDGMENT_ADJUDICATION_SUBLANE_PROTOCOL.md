@@ -184,3 +184,11 @@ coordinator packet wiring remains gated for enablement after offline eval and th
 hidden pilot.
 
 Public heavy-runtime exposure is out of scope until the hidden pilot and offline evals prove value.
+
+### Offline validity sidecars
+
+Offline judgment validity sidecars (PR-3 of the evaluation-validity epic) may
+measure stability of adjudication outcomes across replay datasets. They do not
+change this sub-lane protocol. The coordinator remains the decision authority
+and promote/defer/discard remains canonical. See
+`docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md` for sidecar details.
