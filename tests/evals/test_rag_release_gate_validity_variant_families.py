@@ -155,6 +155,79 @@ def test_mutation_rows_have_controlled_drop_or_expected_instability() -> None:
 
 
 # ------------------------------------------------------------------
+# Canonical-fail invariance: fail -> fail stability
+# ------------------------------------------------------------------
+
+
+def test_rag_variant_fixture_has_canonical_fail_group() -> None:
+    """At least one canonical row must have decision != 'pass' (canonical-fail group)."""
+    rows = _load_fixture()
+    canonical_rows = [r for r in rows if r["variant_family"] == "canonical"]
+    canonical_fail_rows = [r for r in canonical_rows if r["decision"] != "pass"]
+    assert len(canonical_fail_rows) >= 1, (
+        "No canonical-fail rows found. " "At least one canonical row must have a non-pass decision."
+    )
+    for r in canonical_fail_rows:
+        assert (
+            "canonical_fail" in r["slice_tags"]
+        ), f"Canonical-fail row {r['variant_id']} missing 'canonical_fail' slice tag"
+
+
+def test_rag_canonical_fail_invariance_preserves_failure_decision() -> None:
+    """Invariance rows in canonical-fail groups must preserve the failing decision."""
+    rows = _load_fixture()
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        groups.setdefault(r["canonical_id"], []).append(r)
+
+    fail_invariance_checked = 0
+    for cid, members in groups.items():
+        canonical = [m for m in members if m["variant_family"] == "canonical"]
+        if not canonical:
+            continue
+        canonical_decision = canonical[0]["decision"]
+        if canonical_decision == "pass":
+            continue  # only check canonical-fail groups
+        canonical_passed = canonical[0]["passed"]
+        for m in members:
+            if m["variant_family"] == "invariance":
+                assert m["decision"] == canonical_decision, (
+                    f"Canonical-fail invariance row {m['variant_id']} "
+                    f"decision={m['decision']!r} differs from canonical "
+                    f"decision={canonical_decision!r}"
+                )
+                assert m["passed"] == canonical_passed, (
+                    f"Canonical-fail invariance row {m['variant_id']} "
+                    f"passed={m['passed']} differs from canonical "
+                    f"passed={canonical_passed}"
+                )
+                fail_invariance_checked += 1
+
+    assert fail_invariance_checked > 0, "No fail-invariance rows found in canonical-fail groups"
+
+
+def test_rag_canonical_fail_group_does_not_leak_unsupported_fields() -> None:
+    """Canonical-fail rows must not introduce unsupported fixture fields."""
+    rows = _load_fixture()
+    allowed_keys = {
+        "canonical_id",
+        "variant_id",
+        "variant_family",
+        "transform_type",
+        "passed",
+        "score",
+        "decision",
+        "slice_tags",
+    }
+    for r in rows:
+        if "canonical_fail" in r.get("slice_tags", []):
+            extra = set(r.keys()) - allowed_keys
+            assert (
+                not extra
+            ), f"Canonical-fail row {r['variant_id']} has unsupported fields: {extra}"
+
+
+# ------------------------------------------------------------------
 # Validity report metrics
 # ------------------------------------------------------------------
 
