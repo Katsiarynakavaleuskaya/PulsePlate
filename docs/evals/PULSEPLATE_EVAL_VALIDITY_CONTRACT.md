@@ -171,11 +171,19 @@ Fixture families:
 Slice tags cover `claim_type:*`, `support_status:*`, `evidence_mode:*`,
 `invariance`, and `mutation` for fine-grained breakdown.
 
-**Limitations:** These are deterministic curated fixtures, not LLM-generated
-paraphrases. They measure a limited surface and are not proof of full
-production robustness. Judgment invariance and mutation fixtures do not modify
-claim taxonomy, claim-to-evidence records, uncertainty split, or canonical
-promote/defer/discard decisions.
+**Limitations:**
+
+- These are deterministic curated fixtures, not LLM-generated paraphrases.
+  They measure a limited surface and are not proof of full production robustness.
+- All canonical rows currently have `decision: "pass"`. Invariance for canonical
+  `"fail"` decisions is not tested in this fixture set. A future PR may add
+  canonical-fail groups if the measurement surface warrants it.
+- `invariance_score` is 1.0 for this fixture set because all invariance rows
+  match their canonical decision. Tests assert `> 0.0` to catch canonical-only
+  regressions but will not flag a drop from 1.0 to 0.8 as a failure.
+- Judgment invariance and mutation fixtures do not modify claim taxonomy,
+  claim-to-evidence records, uncertainty split, or canonical promote/defer/discard
+  decisions.
 
 ### Invariant
 
