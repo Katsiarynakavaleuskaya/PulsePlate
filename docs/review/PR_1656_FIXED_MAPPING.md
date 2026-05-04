@@ -11,7 +11,20 @@ Judgment replay/eval validity sidecar PR (PR-3 of evaluation validity epic).
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1656#discussion_r3179676207 -> 19e20cb83
+Disposition: FIXED
+Commit: 19e20cb83
+Evidence: scripts/orchestration/judgment_eval.py:130 -- stderr warning replaces silent pass
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1656#discussion_r3179687480 -> 19e20cb83
+Disposition: FIXED
+Commit: 19e20cb83
+Evidence: scripts/orchestration/judgment_eval.py:130 -- same fix as Cubic finding above
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1656#discussion_r3179687490 -> 19e20cb83
+Disposition: FIXED
+Commit: 19e20cb83
+Evidence: tests/test_judgment_eval.py:153 -- JSONL assertion now filters blank lines
 
 ## Merge Readiness Evidence
 
