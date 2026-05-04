@@ -11,7 +11,7 @@ Nightly CI dependency-lock unblock for unsafe `pip==26.1` drift in `requirements
 
 ### Fixed in Commit Mapping
 
-No actionable review comments.
+- No actionable review comments
 
 ## Merge Readiness
 
