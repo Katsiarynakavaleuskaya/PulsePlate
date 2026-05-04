@@ -436,7 +436,12 @@ def test_verify_codex_skills_install_reports_json(tmp_path: Path) -> None:
     assert result.returncode == 0
 
     report = json_mod.loads(result.stdout)
-    assert report["expected_count"] == 17
+    # Derive expected count from repo source to avoid hardcoded fragility
+    source_dir = REPO_ROOT / "tools" / "codex_skills"
+    repo_skill_count = sum(
+        1 for d in source_dir.iterdir() if d.is_dir() and (d / "SKILL.md").exists()
+    )
+    assert report["expected_count"] == repo_skill_count
     assert report["missing_count"] == 0
     assert report["missing"] == []
 

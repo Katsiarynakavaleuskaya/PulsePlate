@@ -137,6 +137,9 @@ def verify(
     if output_json:
         print(json.dumps(report, indent=2))
     else:
+        if not dest_dir.is_dir():
+            print(f"Destination does not exist: {dest_dir}")
+            print("  Run the installer first: scripts/install_codex_skills.sh --no-cybersec")
         print(f"Destination: {dest_dir}")
         print(f"Target: {report['target']}")
         print(f"Expected: {report['expected_count']}")
