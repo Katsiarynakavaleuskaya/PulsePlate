@@ -27,6 +27,16 @@ Disposition: FIXED
 Commit: ca9aaee3c
 Evidence: tests/evals/test_eval_item_metadata_registry.py:333-349 — added _is_forbidden_module() helper that catches submodule imports (e.g. requests.sessions)
 
+## Premortem / Bug-hunter Hardening (self-review)
+
+Commit 2143209dc addressed findings from internal premortem + bug-hunter pass:
+- BUG-1: non-dict raw input now rejected with clear ValueError (eval_item_registry.py:85)
+- BUG-3: extract_canonical_ids_from_outcome_fixture now wraps json.loads with try/except (eval_item_registry.py:209)
+- RISK-1: empty variant_family_coverage now rejected (eval_item_registry.py:113)
+- GAP-1: 13 negative validation tests added (test_eval_item_metadata_registry.py:407-480)
+- GAP-2: index_registry_by_canonical_id duplicate detection tested (test_eval_item_metadata_registry.py:487)
+- GAP-3: validate_registry_coverage error paths tested (test_eval_item_metadata_registry.py:495-505)
+
 ## Merge Readiness Evidence
 
-Pending current-head CI completion after fix commit.
+Pending current-head CI completion after hardening commit.
