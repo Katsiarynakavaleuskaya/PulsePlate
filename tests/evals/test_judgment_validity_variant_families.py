@@ -70,8 +70,15 @@ def test_judgment_variant_fixture_has_required_families() -> None:
 
 
 # ------------------------------------------------------------------
-# Canonical group structure
+# Uniqueness and canonical group structure
 # ------------------------------------------------------------------
+
+
+def test_all_variant_ids_are_unique() -> None:
+    rows = _load_fixture()
+    ids = [r["variant_id"] for r in rows]
+    duplicates = [vid for vid in ids if ids.count(vid) > 1]
+    assert not duplicates, f"Duplicate variant_ids: {sorted(set(duplicates))}"
 
 
 def test_each_canonical_group_has_exactly_one_canonical_row() -> None:
