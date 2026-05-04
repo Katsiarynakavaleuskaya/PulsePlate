@@ -39,6 +39,16 @@ Disposition: NOT-A-BUG
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:10758 — entry already reads Target PR: PR #1662
 Reason: CodeRabbit comment was against earlier push; ledger was updated before the comment was filed
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1662#pullrequestreview-4222799521
+Disposition: FIXED
+Evidence: All individual threads from this review are mapped above (r3183911259, r3183911263, r3183911268)
+Commit: 698fb2041
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1662#pullrequestreview-4222972363
+Disposition: FIXED
+Evidence: All individual threads from this review are mapped above (r3184060104, r3184060111, r3184060114)
+Commit: 6d59716db
+
 ## Merge Readiness
 
 - [ ] CI green (current-head)
