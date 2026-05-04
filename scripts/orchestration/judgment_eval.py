@@ -18,7 +18,6 @@ if str(RUNNER_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(RUNNER_REPO_ROOT))
 
 from scripts.orchestration.context_pack import REPO_ROOT
-from scripts.evals.judgment_validity import write_judgment_validity_sidecar
 from scripts.orchestration.judgment_eval_contract import (
     evaluate_fitchef_replay_pack,
     validate_fitchef_replay_pack,
@@ -113,13 +112,15 @@ def main(argv: list[str] | None = None) -> int:
     # Follows the same graceful-degradation pattern as the RAG release-gate
     # validity sidecar in run_rag_release_gates.py (PR #1648).
     try:
+        from scripts.evals.judgment_validity import write_judgment_validity_sidecar
+
         sidecar_paths = write_judgment_validity_sidecar(
             run_dir=output_path.parent,
             results=results,
         )
         for kind, path in sorted(sidecar_paths.items()):
             print(f"{kind}: {path}", file=sys.stderr)
-    except Exception as exc:  # noqa: BLE001 -- sidecar write failure must not break eval
+    except Exception as exc:  # noqa: BLE001 -- sidecar failure must not break eval
         # Sidecar is informational only; graceful degradation is the correct
         # behavior (same pattern as RAG sidecar in run_rag_release_gates.py).
         print(f"warning: validity sidecar emission failed: {exc}", file=sys.stderr)
