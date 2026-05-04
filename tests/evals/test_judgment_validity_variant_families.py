@@ -16,8 +16,6 @@ import json
 from pathlib import Path
 from typing import Any
 
-import pytest
-
 from scripts.evals.eval_validity_contract import (
     VARIANT_FAMILIES,
     build_validity_report,
