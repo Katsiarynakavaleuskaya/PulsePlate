@@ -2178,6 +2178,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests prove deterministic report output and stable unstable_items
     - Existing claim taxonomy and promote/defer/discard logic remain unchanged
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
+<a id="ledger-p1-rag-invariance-mutation-fixtures"></a>
+- [ ] P1: RAG invariance and mutation fixture families
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD (`evals/rag-invariance-mutation-fixtures`)
+  - Status: In progress
+  - Area: evals / RAG / release gates / invariance / mutation / measurement science
+  - Finding Type: robustness-coverage gap
+  - Reason (EN): The RAG validity sidecar currently emits canonical-only rows, which means invariance_score and mutation_drop cannot measure robustness. This slice adds deterministic RAG invariance and mutation fixtures so the validity report measures robustness while preserving RAG release-gate PASS/NO-GO decisions.
+  - Links:
+    - `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `data/evals/pulseplate_rag_release_gate_validity_variants.jsonl`
+    - `scripts/evals/rag_release_gate_validity.py`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `tests/evals/test_rag_release_gate_validity_variant_families.py`
+    - `tests/evals/test_rag_release_gate_validity_sidecar.py`
+  - DoD:
+    - RAG fixture set includes canonical, invariance, and mutation rows
+    - Fixture rows are deterministic and curated
+    - No LLM-generated fixtures are introduced
+    - Validity report shows non-trivial invariance/mutation coverage
+    - Tests prove deterministic report output and stable unstable_items
+    - Existing RAG release-gate thresholds remain unchanged
+    - Existing PASS/NO-GO logic remains unchanged
+    - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
 - [ ] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
