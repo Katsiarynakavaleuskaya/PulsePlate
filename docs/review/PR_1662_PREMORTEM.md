@@ -54,9 +54,33 @@ It is 6 months from now. The item statistics PR merged and created false confide
 
 **Mitigation:** Required wording includes "not IRT, not psychometric calibration, not an adaptive item selector, and not a release-gate decision source." Limitations section explicitly states stats are simple proportions.
 
+### 8. (Round 2) FileNotFoundError on Module Rename (FM-B)
+
+**Story:** `_GUARDED_MODULES` was a hard-coded list of two Path objects. If either file was renamed, parametrized AST tests crashed with `FileNotFoundError` instead of a policy-style skip.
+
+**Mitigation:** Added `.exists()` filter per repo policy (`tests/AGENTS.md`). Commit: 6d59716db.
+
+### 9. (Round 2) Bare `# type: ignore` Without Justification (FM-C)
+
+**Story:** `_make_outcome()` returned `dict[str, Any]` as `EvalOutcomeRecord` with bare `# type: ignore[return-value]`. Repo policy forbids this without justification.
+
+**Mitigation:** Replaced with `cast(EvalOutcomeRecord, base)`. Commit: 6d59716db.
+
+### 10. (Round 2) Shallow Timestamp Key Check (FM-D)
+
+**Story:** `test_item_statistics_cli_output_has_no_timestamp` only checked top-level `report.keys()`. Nested `generated_at` or `timestamp` keys would pass undetected.
+
+**Mitigation:** Recursive `_collect_all_keys()` helper now traverses all nested dicts and lists. Commit: 6d59716db.
+
+### 11. (Round 2) Missing CLI returncode Assert (FM-E)
+
+**Story:** Second CLI test (`TestCliOutputHasNoTimestamp`) didn't check `returncode == 0`. Silent CLI failure would produce misleading test results.
+
+**Mitigation:** Added `assert result.returncode == 0` and `assert output_file.exists()`. Commit: 6d59716db.
+
 ## Decision
 
-**proceed** — plan is sound as designed. All 7 failure modes have concrete mitigations implemented in code and tests.
+**proceed** — plan is sound as designed. All 11 failure modes (7 original + 4 from round 2) have concrete mitigations implemented in code and tests.
 
 ## Most Likely Failure
 
