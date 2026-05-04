@@ -70,7 +70,13 @@ PIP ?= $(VENV_PYTHON) -m pip
 DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 
 # Dev Container compose settings (worktree-safe project name)
-COMPOSE_PROJECT_NAME ?= pulseplate
+COMPOSE_PROJECT_NAME_SUFFIX := $(strip $(shell pwd -P | cksum | cut -d' ' -f1))
+ifneq ($(origin COMPOSE_PROJECT_NAME), undefined)
+else ifeq ($(COMPOSE_PROJECT_NAME_SUFFIX),)
+  $(error failed to compute stable COMPOSE_PROJECT_NAME suffix; set COMPOSE_PROJECT_NAME explicitly)
+endif
+COMPOSE_PROJECT_NAME ?= pulseplate-$(COMPOSE_PROJECT_NAME_SUFFIX)
+export COMPOSE_PROJECT_NAME
 DEVCONTAINER_COMPOSE ?= .devcontainer/docker-compose.devcontainer.yml
 
 # Цвета для вывода
@@ -139,6 +145,10 @@ validate-changed: ## Run tests inferred from changed Python files
 	@echo "$(YELLOW)🧪 Running diff-based validation for changed Python files...$(NC)"
 	VENV_PYTHON="$(DEV_PYTHON)" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
 	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
+
+pr-regression-scan: ## Run temporary PR regression scan (focused + full/main-suite fallback + current-head check)
+	@bash scripts/ci/pr_regression_scan.sh "$${PR_NUMBER:-}" "$${REPO_NAME:-}"
+
 
 ## Coverage in terminal + XML (uses .coveragerc)
 cov: ## Run coverage with pytest (term + XML)
@@ -560,16 +570,16 @@ devcontainer-bootstrap: ensure-python-proxy ## Install deps + hooks inside dev c
 	@echo "$(GREEN)Devcontainer bootstrap complete$(NC)"
 
 dc-up: ## Start dev container (build + detach)
-	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build
 
 dc-shell: ## Open shell inside dev container
-	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash
 
 dc-down: ## Stop dev container
-	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" down
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" down
 
 dc-smoke: ## Verify tooling inside dev container
-	COMPOSE_PROJECT_NAME="$(COMPOSE_PROJECT_NAME)" docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer \
+	docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer \
 		bash -lc "python3 --version && node --version && make --version"
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke
