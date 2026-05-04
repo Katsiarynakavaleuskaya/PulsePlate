@@ -139,7 +139,14 @@ def verify(
     else:
         if not dest_dir.is_dir():
             print(f"Destination does not exist: {dest_dir}")
-            print("  Run the installer first: scripts/install_codex_skills.sh --no-cybersec")
+            install_cmd = "scripts/install_codex_skills.sh"
+            if dest:
+                install_cmd += f" --dest {dest_dir}"
+            elif target == "compat":
+                install_cmd += " --target compat"
+            if not include_cybersec:
+                install_cmd += " --no-cybersec"
+            print(f"  Run the installer first: {install_cmd}")
         print(f"Destination: {dest_dir}")
         print(f"Target: {report['target']}")
         print(f"Expected: {report['expected_count']}")
