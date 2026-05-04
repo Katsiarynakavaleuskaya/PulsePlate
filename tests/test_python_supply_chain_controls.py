@@ -531,6 +531,8 @@ def test_dependency_submission_workflow_tracks_runtime_and_optional_manifests() 
     assert '"requirements-docker-runtime.txt"' in workflow_text
     assert '"requirements-rag-vector.in"' in workflow_text
     assert '"requirements-rag-vector.txt"' in workflow_text
+    assert '"requirements-rag-vector-cpu.in"' in workflow_text
+    assert '"requirements-rag-vector-cpu.txt"' in workflow_text
 
 
 def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
@@ -549,6 +551,8 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     assert "requirements-docker-runtime.txt" in ci_pip_audit_text
     assert "requirements-rag-vector.txt" in safety_audit_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
+    assert "requirements-rag-vector-cpu.txt" in safety_audit_text
+    assert "requirements-rag-vector-cpu.txt" in ci_pip_audit_text
 
 
 def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None:
@@ -587,6 +591,8 @@ def test_ci_risk_profile_tracks_runtime_and_optional_manifests() -> None:
     assert '"requirements-docker-runtime.txt"' in risk_profile_text
     assert '"requirements-rag-vector.in"' in risk_profile_text
     assert '"requirements-rag-vector.txt"' in risk_profile_text
+    assert '"requirements-rag-vector-cpu.in"' in risk_profile_text
+    assert '"requirements-rag-vector-cpu.txt"' in risk_profile_text
 
 
 def test_docker_workflows_emit_image_telemetry_artifacts() -> None:

@@ -36,6 +36,7 @@ def test_discovers_required_and_optional_manifests(tmp_path: Path) -> None:
     _write_manifest(tmp_path, "requirements.txt")
     _write_manifest(tmp_path, "requirements-docker-runtime.txt")
     _write_manifest(tmp_path, "requirements-rag-vector.txt")
+    _write_manifest(tmp_path, "requirements-rag-vector-cpu.txt")
 
     manifests = safety_audit.discover_manifests(tmp_path)
 
@@ -43,6 +44,7 @@ def test_discovers_required_and_optional_manifests(tmp_path: Path) -> None:
         "requirements.txt",
         "requirements-docker-runtime.txt",
         "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
     ]
 
 

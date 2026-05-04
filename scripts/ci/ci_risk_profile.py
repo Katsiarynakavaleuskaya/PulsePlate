@@ -52,6 +52,8 @@ BACKEND_SHARED_EXACT: tuple[str, ...] = (
     "requirements-dev.txt",
     "requirements-rag-vector.in",
     "requirements-rag-vector.txt",
+    "requirements-rag-vector-cpu.in",
+    "requirements-rag-vector-cpu.txt",
     "requirements.txt",
 )
 # Provider implementations can change auth, network, or model routing behavior,

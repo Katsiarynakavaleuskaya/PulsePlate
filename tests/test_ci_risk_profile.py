@@ -209,6 +209,16 @@ def test_generic_backend_change_hits_route_contract_safety_group() -> None:
     assert profile.contract_risk_groups == ("route_contract_safety",)
 
 
+def test_cpu_rag_manifest_change_routes_backend_and_security() -> None:
+    profile = risk_profile.build_risk_profile(
+        ["requirements-rag-vector-cpu.txt"],
+    )
+
+    assert profile.backend_shared is True
+    assert profile.run_backend_blocking is True
+    assert profile.run_security is True
+
+
 EXPECTED_ROOT_BACKEND_SHARED_MODULES = (
     "llm.py",
     "main.py",
