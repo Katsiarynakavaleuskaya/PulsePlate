@@ -6,12 +6,12 @@ Judgment invariance/mutation fixture family PR (PR-4a of evaluation validity epi
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments yet
+- No actionable review comments
 
 ## Merge Readiness Evidence
 
