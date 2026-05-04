@@ -4,14 +4,15 @@
 
 Canonical-fail invariance fixture coverage for judgment and RAG validity datasets.
 
-## Review Thread Dispositions
+## Discussion Thread Pass
 
-No review threads yet.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-Pending review comments.
+- No actionable review comments
 
 ## Merge Readiness Evidence
 
-Pending current-head CI and local validation.
+Pending current-head CI and bot reviews.
