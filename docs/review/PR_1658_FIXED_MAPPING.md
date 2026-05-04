@@ -23,6 +23,11 @@ Evidence: data/evals/pulseplate_rag_release_gate_validity_variants.jsonl:5,6,8 d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181540080 -> b9944e745f708699a73aaf09d344f484daf15ddf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181553295 -> b9944e745f708699a73aaf09d344f484daf15ddf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181553321 -> b9944e745f708699a73aaf09d344f484daf15ddf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#pullrequestreview-4220053248
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#pullrequestreview-4220069213
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#pullrequestreview-4220221167
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181676810
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1658#discussion_r3181676833
 
 ## Merge Readiness Evidence
 
