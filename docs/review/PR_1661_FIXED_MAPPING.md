@@ -17,14 +17,14 @@ Disposition: NOT-A-BUG
 Evidence: docs/roadmap/BACKLOG_LEDGER.md:10730-10734
 Reason: Sourcery suggested date format normalization. The ledger uses mixed formats by convention across 10k+ lines; normalizing one entry would be inconsistent. No action needed.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1661#pullrequestreview-4221698549 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1661#pullrequestreview-4221698549 -> 376a70686
 Disposition: FIXED
-Commit: PENDING_SHA
+Commit: 376a70686
 Evidence: docs/review/PR_1661_FIXED_MAPPING.md — evidence section updated to list both changed files
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1661#discussion_r3182954354 -> PENDING_SHA
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1661#discussion_r3182954354 -> 376a70686
 Disposition: FIXED
-Commit: PENDING_SHA
+Commit: 376a70686
 Evidence: docs/review/PR_1661_FIXED_MAPPING.md:19 — corrected to "only `.md` files changed"
 
 ## Merge Readiness Evidence
