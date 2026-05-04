@@ -12,7 +12,7 @@ after PR #1660 merge (`b4335d405`, 2026-05-04).
 
 ## Fixed in Commit Mapping
 
-No actionable review comments (docs-only ledger closure).
+- No actionable review comments
 
 ## Merge Readiness Evidence
 
