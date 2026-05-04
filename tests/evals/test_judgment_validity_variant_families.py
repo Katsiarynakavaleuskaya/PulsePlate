@@ -158,12 +158,12 @@ def test_mutation_rows_have_controlled_drop_or_expected_instability() -> None:
 
 
 def test_judgment_variant_fixture_has_canonical_fail_group() -> None:
-    """At least one canonical row must have decision != 'pass' (canonical-fail group)."""
+    """At least one canonical row must have decision == 'fail' (canonical-fail group)."""
     rows = _load_fixture()
     canonical_rows = [r for r in rows if r["variant_family"] == "canonical"]
-    canonical_fail_rows = [r for r in canonical_rows if r["decision"] != "pass"]
+    canonical_fail_rows = [r for r in canonical_rows if r["decision"] == "fail"]
     assert len(canonical_fail_rows) >= 1, (
-        "No canonical-fail rows found. " "At least one canonical row must have a non-pass decision."
+        "No canonical-fail rows found. " "At least one canonical row must have decision='fail'."
     )
     for r in canonical_fail_rows:
         assert (
@@ -187,7 +187,7 @@ def test_judgment_canonical_fail_invariance_preserves_failure_decision() -> None
         if not canonical:
             continue
         canonical_decision = canonical[0]["decision"]
-        if canonical_decision == "pass":
+        if canonical_decision != "fail":
             continue  # only check canonical-fail groups
         canonical_passed = canonical[0]["passed"]
         assert (
