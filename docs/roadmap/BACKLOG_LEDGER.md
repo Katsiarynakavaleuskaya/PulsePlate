@@ -10730,7 +10730,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evaluation item metadata registry for psychometric readiness
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD (`evals/item-metadata-registry`)
+  - Target PR: PR #1660 (`evals/item-metadata-registry`)
   - Status: Opened on 4 May 2026
   - Area: evals / measurement science / psychometric readiness
   - Finding Type: item-metadata gap
