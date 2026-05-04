@@ -4,14 +4,15 @@
 
 Nightly CI dependency-lock unblock for unsafe `pip==26.1` drift in `requirements-dev.txt`.
 
-## Review Thread Dispositions
+## Discussion Thread Pass
 
-No review threads yet.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-## Fixed in Commit Mapping
+### Fixed in Commit Mapping
 
-Pending review comments.
+No actionable review comments.
 
-## Merge Readiness Evidence
+## Merge Readiness
 
-Pending current-head CI and local validation.
+Pending current-head CI green and mandatory wait-window.
