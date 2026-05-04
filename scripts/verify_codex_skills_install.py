@@ -60,7 +60,10 @@ def _inspect_installed_skill(dest_dir: Path, skill_name: str) -> dict[str, str]:
     skill_path = dest_dir / skill_name
     if skill_path.is_symlink():
         link_target = os.readlink(str(skill_path))
-        resolved_target = str(skill_path.resolve())
+        try:
+            resolved_target = str(skill_path.resolve())
+        except (OSError, RuntimeError):
+            resolved_target = link_target
         has_skill_md = (skill_path / "SKILL.md").exists()
         return {
             "name": skill_name,
