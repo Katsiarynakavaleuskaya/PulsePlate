@@ -26,6 +26,7 @@ from scripts.evals.eval_item_statistics import (  # noqa: E402
     load_fixture_outcomes,
     write_item_statistics_report,
 )
+from scripts.evals.eval_validity_contract import EvalOutcomeRecord  # noqa: E402
 
 DEFAULT_REGISTRY_PATH = REPO_ROOT / "data" / "evals" / "eval_item_metadata_registry.jsonl"
 DEFAULT_FIXTURES = [
@@ -74,7 +75,7 @@ def main(argv: list[str] | None = None) -> None:
     registry_records = load_eval_item_registry(args.registry)
 
     # Load all fixture outcomes
-    all_outcomes = []
+    all_outcomes: list[EvalOutcomeRecord] = []
     for fp in fixture_paths:
         all_outcomes.extend(load_fixture_outcomes(fp))
 

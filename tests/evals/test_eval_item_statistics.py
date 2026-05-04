@@ -17,7 +17,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -45,7 +45,10 @@ _CLI_MODULE = _REPO_ROOT / "scripts" / "evals" / "run_eval_item_statistics.py"
 _CLI_SCRIPT = _CLI_MODULE  # alias for subprocess tests
 
 # Both source files must be guarded by AST scans (FM-1, FM-4, FM-6)
-_GUARDED_MODULES = [_STATISTICS_MODULE, _CLI_MODULE]
+# Filter by .exists() per repo policy (tests/AGENTS.md: AST scan path lists).
+_GUARDED_MODULES = [
+    module_path for module_path in (_STATISTICS_MODULE, _CLI_MODULE) if module_path.exists()
+]
 
 
 # ---------------------------------------------------------------------------
@@ -483,7 +486,7 @@ class TestCliWritesReport:
 class TestCliOutputHasNoTimestamp:
     def test_item_statistics_cli_output_has_no_timestamp(self, tmp_path: Path) -> None:
         output_file = tmp_path / "test_report_ts.json"
-        subprocess.run(
+        result = subprocess.run(
             [
                 sys.executable,
                 str(_CLI_SCRIPT),
@@ -500,14 +503,124 @@ class TestCliOutputHasNoTimestamp:
             text=True,
             timeout=30,
         )
+        assert (
+            result.returncode == 0
+        ), f"CLI failed with:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        assert output_file.exists(), "CLI did not create output file"
         content = output_file.read_text(encoding="utf-8")
 
-        # Check no timestamp-like keys in JSON
+        # Check no timestamp-like keys in JSON (recursively)
         report = json.loads(content)
         _timestamp_keys = {"timestamp", "created_at", "updated_at", "generated_at", "date"}
-        found = _timestamp_keys & set(report.keys())
+
+        def _collect_all_keys(obj: Any) -> set[str]:
+            """Recursively collect all dict keys from a JSON-like structure."""
+            keys: set[str] = set()
+            if isinstance(obj, dict):
+                keys.update(obj.keys())
+                for v in obj.values():
+                    keys.update(_collect_all_keys(v))
+            elif isinstance(obj, list):
+                for item in obj:
+                    keys.update(_collect_all_keys(item))
+            return keys
+
+        all_keys = _collect_all_keys(report)
+        found = _timestamp_keys & all_keys
         assert not found, f"Report contains timestamp key(s): {found}"
 
         # Also verify no ISO-format timestamps in raw content
         iso_pattern = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
         assert not iso_pattern.search(content), "Report contains ISO timestamp string"
+
+
+# ---------------------------------------------------------------------------
+# 18. Edge cases: data integrity guards
+# ---------------------------------------------------------------------------
+
+
+def _make_outcome(
+    canonical_id: str = "test_001",
+    variant_family: str = "canonical",
+    **overrides: Any,
+) -> EvalOutcomeRecord:
+    """Factory for minimal EvalOutcomeRecord dicts used in edge-case tests."""
+    base: dict[str, Any] = {
+        "canonical_id": canonical_id,
+        "variant_id": f"{canonical_id}_{variant_family}",
+        "variant_family": variant_family,
+        "transform_type": "none",
+        "passed": True,
+        "score": 1.0,
+        "decision": "pass",
+    }
+    base.update(overrides)
+    return cast(EvalOutcomeRecord, base)
+
+
+def _make_registry(
+    canonical_id: str = "test_001",
+    lane: str = "judgment",
+) -> dict[str, Any]:
+    """Factory for minimal EvalItemMetadataRecord dicts."""
+    return {
+        "canonical_id": canonical_id,
+        "lane": lane,
+        "domain": "test",
+        "skill_dimension": "test",
+        "difficulty_band": "medium",
+        "expected_decision": "pass",
+        "expected_score_band": "high",
+        "anchor_item": False,
+    }
+
+
+class TestEdgeCaseDataIntegrity:
+    def test_multiple_canonical_rows_raises(self) -> None:
+        """BUG-2: Multiple canonical rows for same item must raise."""
+        outcomes = [
+            _make_outcome("x", "canonical"),
+            _make_outcome("x", "canonical", variant_id="x_canonical_2"),
+        ]
+        registry = [_make_registry("x")]
+        with pytest.raises(ValueError, match="Multiple canonical rows"):
+            build_item_statistics(outcomes, registry)
+
+    def test_duplicate_registry_canonical_id_raises(self) -> None:
+        """BUG-3: Duplicate canonical_id in registry must raise."""
+        outcomes = [_make_outcome("x", "canonical")]
+        registry = [_make_registry("x"), _make_registry("x")]
+        with pytest.raises(ValueError, match="Duplicate canonical_id in registry"):
+            build_item_statistics(outcomes, registry)
+
+    def test_missing_canonical_row_raises(self) -> None:
+        """Only invariance/mutation rows, no canonical row => must raise."""
+        outcomes = [_make_outcome("x", "invariance")]
+        registry = [_make_registry("x")]
+        with pytest.raises(ValueError, match="No canonical row found"):
+            build_item_statistics(outcomes, registry)
+
+    def test_orphan_outcome_raises(self) -> None:
+        """Outcome canonical_id not in registry => must raise."""
+        outcomes = [_make_outcome("orphan", "canonical")]
+        registry = [_make_registry("other")]
+        with pytest.raises(ValueError, match="missing from registry"):
+            build_item_statistics(outcomes, registry)
+
+    def test_orphan_registry_raises(self) -> None:
+        """Registry canonical_id not in outcomes => must raise."""
+        outcomes = [_make_outcome("x", "canonical")]
+        registry = [_make_registry("x"), _make_registry("extra")]
+        with pytest.raises(ValueError, match="Orphan registry"):
+            build_item_statistics(outcomes, registry)
+
+    def test_zero_mutation_produces_zero_mean_drop(self) -> None:
+        """Items with no mutation rows should have mutation_mean_drop=0.0."""
+        outcomes = [
+            _make_outcome("x", "canonical"),
+            _make_outcome("x", "invariance", variant_id="x_inv"),
+        ]
+        registry = [_make_registry("x")]
+        items = build_item_statistics(outcomes, registry)
+        assert items[0]["mutation_count"] == 0
+        assert items[0]["mutation_mean_drop"] == 0.0
