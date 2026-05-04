@@ -82,6 +82,9 @@ def validate_eval_item_metadata_record(
     Raises ``ValueError`` on missing keys, invalid enum values, or
     wrong types.  Fail-closed: rejects unknown enum values.
     """
+    if not isinstance(raw, dict):
+        raise ValueError(f"EvalItemMetadataRecord expects dict, got {type(raw).__name__}")
+
     missing = _REQUIRED_KEYS - raw.keys()
     if missing:
         raise ValueError(f"EvalItemMetadataRecord missing keys: {sorted(missing)}")
@@ -109,6 +112,8 @@ def validate_eval_item_metadata_record(
             f"variant_family_coverage must be list, "
             f"got {type(raw['variant_family_coverage']).__name__}"
         )
+    if not raw["variant_family_coverage"]:
+        raise ValueError("variant_family_coverage must not be empty")
     if not all(isinstance(item, str) for item in raw["variant_family_coverage"]):
         raise ValueError("variant_family_coverage must contain only strings")
 
@@ -202,15 +207,20 @@ def extract_canonical_ids_from_outcome_fixture(
     """
     ids: set[str] = set()
     with path.open("r", encoding="utf-8") as fh:
-        for line in fh:
+        for line_no, line in enumerate(fh, start=1):
             stripped = line.strip()
             if not stripped:
                 continue
-            raw = json.loads(stripped)
+            try:
+                raw = json.loads(stripped)
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"{path}:{line_no}: invalid JSON: {exc}") from exc
             if raw.get("variant_family") == "canonical":
                 cid = raw["canonical_id"]
                 if not isinstance(cid, str):
-                    raise ValueError(f"{path}: canonical_id must be str, got {type(cid).__name__}")
+                    raise ValueError(
+                        f"{path}:{line_no}: canonical_id must be str, got {type(cid).__name__}"
+                    )
                 ids.add(cid)
     return ids
 

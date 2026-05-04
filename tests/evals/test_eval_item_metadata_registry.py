@@ -15,13 +15,17 @@ import ast
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.evals.eval_item_registry import (
     DIFFICULTY_BANDS,
     LANES,
     SCORE_BANDS,
+    EvalItemMetadataRecord,
     extract_canonical_ids_from_outcome_fixture,
     index_registry_by_canonical_id,
     load_eval_item_registry,
+    validate_eval_item_metadata_record,
     validate_registry_coverage,
 )
 
@@ -388,3 +392,119 @@ class TestRegistryNoIrtScoring:
             assert (
                 pattern.lower() not in source_lower
             ), f"eval_item_registry.py contains IRT pattern: {pattern!r}"
+
+
+# ---------------------------------------------------------------------------
+# 16. Negative validation tests (GAP-1)
+# ---------------------------------------------------------------------------
+
+# A valid base record for mutation in negative tests.
+_VALID_RAW: dict = {
+    "canonical_id": "test_001",
+    "lane": "rag",
+    "domain": "release_gate",
+    "skill_dimension": "retrieval_faithfulness",
+    "difficulty_band": "low",
+    "expected_decision": "pass",
+    "expected_score_band": "pass",
+    "variant_family_coverage": ["canonical"],
+    "anchor_item": True,
+    "source_fixture": "test.jsonl",
+    "notes": "Test note.",
+}
+
+
+class TestValidatorRejectsInvalidInput:
+    def test_rejects_non_dict_input(self) -> None:
+        with pytest.raises(ValueError, match="expects dict"):
+            validate_eval_item_metadata_record([1, 2, 3])  # type: ignore[arg-type]
+
+    def test_rejects_missing_key(self) -> None:
+        bad = {k: v for k, v in _VALID_RAW.items() if k != "lane"}
+        with pytest.raises(ValueError, match="missing keys"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_extra_key(self) -> None:
+        bad = {**_VALID_RAW, "extra_field": "oops"}
+        with pytest.raises(ValueError, match="unexpected keys"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_invalid_lane(self) -> None:
+        bad = {**_VALID_RAW, "lane": "unknown"}
+        with pytest.raises(ValueError, match="Invalid lane"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_invalid_difficulty_band(self) -> None:
+        bad = {**_VALID_RAW, "difficulty_band": "extreme"}
+        with pytest.raises(ValueError, match="Invalid difficulty_band"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_invalid_score_band(self) -> None:
+        bad = {**_VALID_RAW, "expected_score_band": "excellent"}
+        with pytest.raises(ValueError, match="Invalid expected_score_band"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_non_bool_anchor_item(self) -> None:
+        bad = {**_VALID_RAW, "anchor_item": "yes"}
+        with pytest.raises(ValueError, match="anchor_item must be bool"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_non_list_variant_family_coverage(self) -> None:
+        bad = {**_VALID_RAW, "variant_family_coverage": "canonical"}
+        with pytest.raises(ValueError, match="variant_family_coverage must be list"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_empty_variant_family_coverage(self) -> None:
+        bad = {**_VALID_RAW, "variant_family_coverage": []}
+        with pytest.raises(ValueError, match="variant_family_coverage must not be empty"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_non_string_items_in_variant_family_coverage(self) -> None:
+        bad = {**_VALID_RAW, "variant_family_coverage": [123]}
+        with pytest.raises(ValueError, match="variant_family_coverage must contain only strings"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_non_string_canonical_id(self) -> None:
+        bad = {**_VALID_RAW, "canonical_id": 999}
+        with pytest.raises(ValueError, match="canonical_id must be str"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_rejects_non_string_domain(self) -> None:
+        bad = {**_VALID_RAW, "domain": None}
+        with pytest.raises(ValueError, match="domain must be str"):
+            validate_eval_item_metadata_record(bad)
+
+    def test_accepts_valid_record(self) -> None:
+        result = validate_eval_item_metadata_record(dict(_VALID_RAW))
+        assert result["canonical_id"] == "test_001"
+
+
+# ---------------------------------------------------------------------------
+# 17. index_registry_by_canonical_id duplicate detection (GAP-2)
+# ---------------------------------------------------------------------------
+
+
+class TestIndexRegistryDuplicateDetection:
+    def test_index_registry_by_canonical_id_rejects_duplicates(self) -> None:
+        rec: EvalItemMetadataRecord = validate_eval_item_metadata_record(dict(_VALID_RAW))
+        with pytest.raises(ValueError, match="Duplicate canonical_id"):
+            index_registry_by_canonical_id([rec, rec])
+
+
+# ---------------------------------------------------------------------------
+# 18. validate_registry_coverage error paths (GAP-3)
+# ---------------------------------------------------------------------------
+
+
+class TestRegistryCoverageErrorPaths:
+    def test_coverage_rejects_missing_fixture_ids(self) -> None:
+        with pytest.raises(ValueError, match="missing from registry"):
+            validate_registry_coverage([], {"missing_001"})
+
+    def test_coverage_rejects_orphan_registry_ids(self) -> None:
+        rec: EvalItemMetadataRecord = validate_eval_item_metadata_record(dict(_VALID_RAW))
+        with pytest.raises(ValueError, match="Orphan registry"):
+            validate_registry_coverage([rec], set())
+
+    def test_coverage_passes_when_both_empty(self) -> None:
+        validate_registry_coverage([], set())
