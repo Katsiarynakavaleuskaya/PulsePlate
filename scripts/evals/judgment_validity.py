@@ -97,7 +97,8 @@ def result_to_eval_outcome(
     case_id = str(result.get("case_id", "unknown"))
     decision = str(result.get("decision", "")).strip().lower()
     boundary_class = str(result.get("boundary_class", "unknown"))
-    hard_fail_reasons: list[str] = result.get("hard_fail_reasons") or []
+    _raw_hfr = result.get("hard_fail_reasons")
+    hard_fail_reasons: list[str] = _raw_hfr if isinstance(_raw_hfr, list) else []
 
     score = JUDGMENT_DECISION_SCORES.get(decision, 0.0)
     passed = decision in _PASSED_DECISIONS
@@ -161,13 +162,13 @@ def write_judgment_validity_sidecar(
 
     # Write item-level outcomes.
     items_path = run_dir / JUDGMENT_VALIDITY_ITEMS_FILENAME
-    with open(items_path, "w", encoding="utf-8") as fh:
+    with items_path.open("w", encoding="utf-8") as fh:
         for rec in outcomes:
             fh.write(json.dumps(rec, ensure_ascii=False, sort_keys=True) + "\n")
 
     # Write validity report.
     report_path = run_dir / JUDGMENT_VALIDITY_REPORT_FILENAME
-    with open(report_path, "w", encoding="utf-8") as fh:
+    with report_path.open("w", encoding="utf-8") as fh:
         json.dump(report, fh, indent=2, sort_keys=True, ensure_ascii=False)
         fh.write("\n")
 

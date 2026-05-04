@@ -313,6 +313,18 @@ class TestEdgeCases:
 
         assert "hard_fail" not in rec["slice_tags"]
 
+    def test_hard_fail_reasons_non_list_treated_as_empty(self) -> None:
+        """Non-list values (e.g. string) must not trigger hard_fail tag."""
+        result: dict[str, object] = {
+            "case_id": "str_hfr",
+            "decision": "promote",
+            "boundary_class": "wellness_coaching",
+            "hard_fail_reasons": "unexpected_string_value",
+        }
+        rec = result_to_eval_outcome(result)
+
+        assert "hard_fail" not in rec["slice_tags"]
+
 
 class TestValidationBoundary:
     """Verify that malformed inputs propagate validator errors correctly."""
