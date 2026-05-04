@@ -462,6 +462,16 @@ mutation transforms.  These fixtures:
 - Can be consumed by `scripts/evals/run_eval_validity.py` when selected via
   input path (e.g., `--input-path`), not by the release-gate runner.
 
+### Item Metadata Registry
+
+RAG fixture canonical_ids are registered in the evaluation item metadata
+registry (`data/evals/eval_item_metadata_registry.jsonl`).  The registry
+records lane, domain, skill dimension, difficulty band, expected decision,
+and variant family coverage for each RAG canonical item.  It does not change
+threshold_results, gate thresholds, or the PASS/NO-GO decision.
+
+See: `scripts/evals/eval_item_registry.py`
+
 ### Future follow-ups
 
 - Add per-gate slice breakdown to validity report.
