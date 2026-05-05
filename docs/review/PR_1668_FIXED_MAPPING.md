@@ -51,6 +51,7 @@ Mapping` before resolving threads on GitHub.
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` PASS
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` PASS, 14 tests
 - `pre-commit run --all-files` PASS
+- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS; no Python files changed
 - commit hooks PASS
 - pre-push hooks PASS
 
@@ -62,6 +63,8 @@ Evidence:
 
 - Full local `make verify` is intentionally deferred under the operator-approved
   docs-only exception for this governance closeout PR.
+- The documented narrow local gate bundle passed, including
+  `make validate-changed`.
 - The PR remains blocked from merge-ready claims until current-head GitHub CI,
   review-thread disposition, PR body gates, strict merge-readiness checks, and
   the final wait-window pass.
