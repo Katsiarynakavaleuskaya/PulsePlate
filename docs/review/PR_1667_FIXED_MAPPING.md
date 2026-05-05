@@ -36,6 +36,12 @@ Disposition: NOT-A-BUG
 Evidence: CodeRabbit returned a rate-limit/service notice only; no actionable code finding was present.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#issuecomment-4374170474
 
+Disposition: FIXED
+Commit: 71574a5dfb6635aa4985cdaaa40aa6542f702601
+Evidence: tests/evals/test_eval_validity_contract.py now covers `slice_tags` lists with non-string members for both eval variant and outcome records; local validation passed with focused pytest, pre-commit, and make validate-changed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3188888265 -> 71574a5dfb6635aa4985cdaaa40aa6542f702601
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#pullrequestreview-4228567555 -> 71574a5dfb6635aa4985cdaaa40aa6542f702601
+
 ## Merge Readiness
 
 Local gates run:
