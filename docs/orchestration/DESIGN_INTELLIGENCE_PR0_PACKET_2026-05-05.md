@@ -155,3 +155,52 @@ Primary risks are handled in the premortem table and promoted into controls in t
 - PR-6: add iOS design parity audit and bounded visual sync.
 - PR-7: add design-agent workflow and PR template.
 - PR-8: add GEPA-compatible prompt/rubric evolution lane.
+
+## AGENTS.md Update Proposal
+
+Root `AGENTS.md` is not changed in PR-0 because `docs/orchestration/AGENTS.md` says initiative-specific routing should stay scoped to orchestration docs. If PR-1 or a later workflow PR promotes this pattern globally, use this exact proposed section:
+
+```markdown
+## Design Intelligence PRs
+
+For reference-driven design intelligence lanes:
+- Start with `check_preflight.py`, `task_bootstrap.py`, and coordinator routing.
+- Keep repo code/docs/tests, `/tokens`, UI vocabulary, and generated runtime mirrors as the source-of-truth chain.
+- Treat Figma as design-intent evidence only and Storybook as review/documentation only.
+- Treat external UI/UX references as read-only inputs; normalize into PulsePlate vocabulary before implementation.
+- Do not copy external assets, brands, screenshots, layouts, proprietary components, copy, or visual identity.
+- DESIGN.md, when introduced, must be generated or drift-checked from repo token/component truth and must not become a manual second SoT.
+- Future implementation PRs require screenshot, Storybook, accessibility, and platform evidence and must stay thin-client-safe unless explicitly scoped otherwise.
+```
+
+## Premortem
+
+The premortem is executed as binding controls across this PR, not only recorded here.
+
+| Risk | Failure mode | Impact | Early warning | Mitigation | Owner | Rollback |
+| --- | --- | --- | --- | --- | --- | --- |
+| External references become shadow SoT | Agents cite reference corpus as authority over repo tokens/components | Token drift and incoherent UI direction | Briefs say "match reference" without repo mapping | Runbook source precedence and promotion rules require repo normalization first | agent-coordinator | Revert reference policy docs and block future reference PR |
+| Agents copy external designs | External layout, brand, asset, or component implementation enters repo | Copyright/licensing risk and brand dilution | Manifest lacks forbidden-copy details | Schema requires `forbidden_copy_elements`, license status, normalization notes, mapped components | creative-designer / security-auditor | Revert copied material and mark source rejected |
+| DESIGN.md drifts from `/tokens` | Manual DESIGN.md becomes stale or conflicts with generated mirrors | Second design SoT | DESIGN.md edited without token/component evidence | DESIGN.md bootstrap requires generated or drift-checked output from `/tokens` and vocabulary | architecture-specialist | Revert DESIGN.md changes and require generator/checker PR |
+| Figma becomes runtime authority | Figma pages override repo implementation truth | Runtime/client drift | PR cites Figma as product truth | Figma role is read-only design-intent only; promotion requires repo PR | agent-coordinator | Revert Figma-derived claims |
+| Storybook becomes authoring authority | Storybook stories author tokens/layouts | Review lane becomes hidden runtime | Storybook-only state appears in implementation brief | Storybook role is review/documentation only | frontend-engineer | Revert Storybook-derived authoring claims |
+| Web polish mutates business logic | Later design PR changes API, auth, billing, nutrition, entitlement, or product truth | Thin-client breach | Diff includes API/client logic not in packet | PR train requires thin-client-safe implementation slices and explicit scope for privileged surfaces | frontend-engineer / architecture-specialist | Revert runtime changes and split PR |
+| iOS parity breaks App Store readiness | Visual sync changes release claims, permissions, screenshots, HealthKit, or AI disclosure | App Store rejection risk | iOS design PR touches release surfaces casually | PR-6 requires App Store-safe evidence and scoped iOS validation | qa-engineer-agent | Revert iOS visual sync and restore release posture |
+| GEPA optimizes bad metrics | Prompt evolution rewards subjective taste or noisy scoring | Unstable design automation | GEPA appears before curated fixtures | GEPA deferred to PR-8 prompt/rubric evolution over curated fixtures only | data-scientist-agent / ml-engineer-agent | Disable GEPA lane and revert eval docs |
+| Reference corpus creates licensing risk | Copied assets/copy or unclear license enters repo | Legal/copyright exposure | `license_status` is unknown but decision is adopt/adapt | Manifest and scorecard require license, attribution, legal-copy risk, forbidden-copy elements | security-auditor | Reject reference and remove derived brief |
+| Design score becomes subjective LLM taste | Scorecard lacks deterministic anchors | Inconsistent design decisions | Scores without evidence or axes | Scorecard defines axes, scale, decision thresholds, and normalization notes | data-scientist-agent | Revert scorecard usage and require deterministic checker |
+
+## Bug-Hunter Pass
+
+Initial bug-hunter controls for PR-0:
+
+- Docs-only diff guard must return empty output.
+- No generated token mirror diff is allowed.
+- No runtime UI, backend, iOS runtime, Storybook config, or Figma write is allowed.
+- Full `make verify` deferral must be stated; no merge-ready claim from local narrow gates alone.
+- `docs/review/PR_<N>_FIXED_MAPPING.md` must be added after PR number exists.
+
+Post-open mandatory lane:
+
+1. `qa-engineer-agent` verifies the narrow gate bundle and docs-only boundary.
+2. `bug-hunter` checks false-green risks, missing dispositions, token mirror drift, and Figma/reference copy loopholes.
