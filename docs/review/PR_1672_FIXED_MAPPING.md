@@ -32,13 +32,48 @@ deterministic event contracts without changing product runtime behavior.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-GraphQL review-thread check returned no review threads for PR #1672 at initial
-mapping time. CodeRabbit skipped review because the PR is draft. Sourcery posted
-a reviewer guide only, with no actionable review threads.
+Initial GraphQL review-thread check returned no review threads for PR #1672.
+After the PR was marked ready for review, CodeRabbit, Sourcery, and Cubic
+posted actionable review threads. Those threads are mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `core/evidence/events.py` rejects local-only artifact paths; `tests/core/evidence/test_events.py` covers `artifacts/agent_runs`, `artifacts/orchestration`, and `artifacts/security_lab`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191611613 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `core/evidence/events.py` rejects duplicate metadata keys after normalization; `tests/core/evidence/test_events.py` covers colliding trimmed keys.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191611620 -> c7dd02621
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191619588 -> c7dd02621
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191640740 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `core/evidence/events.py` includes sequence indexes in metadata validation paths; `tests/core/evidence/test_events.py` asserts an invalid list item reports `labels.1`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191619593 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `tests/core/evidence/test_events.py` covers naive timestamp rejection and `Z` suffix acceptance for `validate_produced_at`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191619630 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `core/evidence/events.py` rejects Windows drive-qualified source artifact paths; `tests/core/evidence/test_events.py` covers `C:/`, `C:\`, and `C:` forms.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191640734 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `docs/orchestration/contracts/EVIDENCE_EVENT_SCHEMA.md` documents allowed validation statuses: `valid`, `invalid`, `degraded`, and `deferred`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191640737 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: `core/evidence/events.py` rejects non-finite metadata floats before serialization; `tests/core/evidence/test_events.py` covers `NaN`, `Infinity`, and `-Infinity`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191640744 -> c7dd02621
 
 ## Premortem Summary
 
@@ -75,6 +110,9 @@ trust or review. Why?
 - PASS: `pre-commit run --all-files`
 - PASS: targeted pre-push mypy hook after the `FrozenJsonValue` alias fix
 - PASS: `git push -u origin codex/eval-event-schema` pre-push hooks, including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and Docker build test
+- PASS after review fixes: `.venv/bin/python -m pytest -q tests/core/evidence/test_events.py tests/core/evidence/test_assets.py tests/core/evidence/test_fingerprints.py` -> `65 passed`
+- PASS after review fixes: `pre-commit run --all-files`
+- PASS after review fixes: `make validate-changed` -> selected `tests/core/evidence/test_events.py`, `39 passed`
 
 LOCAL GAP: full local `make verify` was intentionally not run under the
 operator-approved machine-heavy exception. Current-head GitHub CI parity and
