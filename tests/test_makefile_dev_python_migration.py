@@ -11,7 +11,11 @@ Ensures that:
 from __future__ import annotations
 
 import re
+import subprocess
+import os
+from shutil import which
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MAKEFILE = REPO_ROOT / "Makefile"
@@ -19,6 +23,114 @@ MAKEFILE = REPO_ROOT / "Makefile"
 
 def _makefile_text() -> str:
     return MAKEFILE.read_text(encoding="utf-8")
+
+
+def _make_binary(name: str) -> str:
+    binary = which(name)
+    assert binary is not None, f"Required executable '{name}' must be on PATH"
+    return binary
+
+
+def _clean_make_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("COMPOSE_PROJECT_NAME", None)
+    env.pop("COMPOSE_PROJECT_NAME_SUFFIX", None)
+    return env
+
+
+def _expected_compose_project_name(cwd: Path) -> str:
+    """Compute the Makefile's default compose project name formula for a worktree."""
+    shell = _make_binary("sh")
+    result = subprocess.run(
+        ["sh", "-lc", "pwd -P | cksum | cut -d' ' -f1"],
+        executable=shell,
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
+        env=_clean_make_env(),
+    )
+    return f"pulseplate-{result.stdout.strip()}"
+
+
+def _make_compose_project_name(
+    cwd: Path,
+    *,
+    compose_project_name: str | None = None,
+) -> str:
+    """Evaluate COMPOSE_PROJECT_NAME in a temporary make invocation from a worktree."""
+    make_binary = _make_binary("make")
+    probe_makefile = cwd / "probe.mk"
+    worktree_makefile = cwd / "Makefile"
+    if not worktree_makefile.exists():
+        worktree_makefile.symlink_to(MAKEFILE)
+    probe_makefile.write_text(
+        "\n".join(
+            [
+                "include Makefile",
+                "",
+                ".PHONY: print-compose",
+                "print-compose:",
+                "\t@printf '%s\\n' \"$(COMPOSE_PROJECT_NAME)\"",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    env = _clean_make_env()
+    if compose_project_name is not None:
+        env["COMPOSE_PROJECT_NAME"] = compose_project_name
+
+    result = subprocess.run(
+        [
+            make_binary,
+            "-s",
+            "-f",
+            str(probe_makefile),
+            "-C",
+            str(cwd),
+            "print-compose",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+    )
+    return result.stdout.strip()
+
+
+def _make_compose_project_name_from_repo_root() -> str:
+    """Evaluate COMPOSE_PROJECT_NAME from the real repo root without writing there."""
+    make_binary = _make_binary("make")
+    with TemporaryDirectory() as probe_dir:
+        probe_makefile = Path(probe_dir) / "probe.mk"
+        probe_makefile.write_text(
+            "\n".join(
+                [
+                    f"include {MAKEFILE}",
+                    "",
+                    ".PHONY: print-compose",
+                    "print-compose:",
+                    "\t@printf '%s\\n' \"$(COMPOSE_PROJECT_NAME)\"",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                make_binary,
+                "-s",
+                "-f",
+                str(probe_makefile),
+                "-C",
+                str(REPO_ROOT),
+                "print-compose",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=_clean_make_env(),
+        )
+    return result.stdout.strip()
 
 
 # ---------------------------------------------------------------------------
@@ -153,3 +265,189 @@ def test_openapi_target_uses_dev_python() -> None:
 
     body = match.group("body")
     assert "$(DEV_PYTHON)" in body, "openapi target must use DEV_PYTHON"
+
+
+def test_compose_project_name_is_safe_and_deterministic() -> None:
+    """Dev-container project names must use safe shell eval + deterministic worktree uniqueness."""
+    text = _makefile_text()
+
+    assert (
+        "COMPOSE_PROJECT_NAME_SUFFIX" in text
+    ), "Makefile should define COMPOSE_PROJECT_NAME_SUFFIX"
+    suffix_match = re.search(
+        r"^COMPOSE_PROJECT_NAME_SUFFIX\s*:=\s*\$\(strip \$\(shell (?P<body>.+)\)\)$",
+        text,
+        re.MULTILINE,
+    )
+    assert suffix_match, "Makefile should define COMPOSE_PROJECT_NAME_SUFFIX via shell"
+    suffix_body = suffix_match.group("body")
+    assert suffix_body == "pwd -P | cksum | cut -d' ' -f1"
+    assert "$(CURDIR)" not in suffix_body
+    assert "basename" not in suffix_body
+
+    pattern = re.compile(r"^COMPOSE_PROJECT_NAME\s+\?=\s*(.+)$", re.MULTILINE)
+    match = pattern.search(text)
+    assert match, "COMPOSE_PROJECT_NAME must be defined"
+
+    assignment = match.group(1)
+    assert (
+        "COMPOSE_PROJECT_NAME_SUFFIX" in assignment
+    ), "COMPOSE_PROJECT_NAME default must use suffix helper variable"
+    assert "$(CURDIR)" not in assignment, "COMPOSE_PROJECT_NAME must not interpolate CURDIR"
+    assert re.fullmatch(
+        r"pulseplate-\$\((?:(?!\)).)*COMPOSE_PROJECT_NAME_SUFFIX(?:(?!\)).)*\)", assignment
+    ), "COMPOSE_PROJECT_NAME default must be derived from COMPOSE_PROJECT_NAME_SUFFIX"
+    assert assignment != "pulseplate", "COMPOSE_PROJECT_NAME must not be globally static"
+
+
+def test_compose_project_name_default_override_semantics() -> None:
+    """Preserve Make override semantics for COMPOSE_PROJECT_NAME."""
+    text = _makefile_text()
+    match = re.search(r"^COMPOSE_PROJECT_NAME\s+\?=", text, re.MULTILINE)
+    assert match is not None, "COMPOSE_PROJECT_NAME must use conditional assignment"
+    assert (
+        match.group(0).strip().startswith("COMPOSE_PROJECT_NAME ?=")
+    ), "Makefile must use '?=' assignment for environment override support"
+
+
+def test_devcontainer_dc_targets_are_intact() -> None:
+    """Devcontainer targets must still pass compose project name by environment."""
+    text = _makefile_text()
+    assert "export COMPOSE_PROJECT_NAME" in text
+
+    for target_name, expected_fragment in [
+        (
+            "dc-up",
+            'docker compose -f "$(DEVCONTAINER_COMPOSE)" up -d --build',
+        ),
+        (
+            "dc-shell",
+            'docker compose -f "$(DEVCONTAINER_COMPOSE)" exec devcontainer bash',
+        ),
+        (
+            "dc-down",
+            'docker compose -f "$(DEVCONTAINER_COMPOSE)" down',
+        ),
+        (
+            "dc-smoke",
+            'docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer',
+        ),
+    ]:
+        assert (
+            expected_fragment in text
+        ), f"{target_name} must remain intact and forward COMPOSE_PROJECT_NAME"
+
+
+def test_compose_project_name_varies_between_worktrees() -> None:
+    """Different worktrees should evaluate to different compose project names."""
+    with TemporaryDirectory() as first_dir, TemporaryDirectory() as second_dir:
+        first_worktree = Path(first_dir)
+        second_worktree = Path(second_dir)
+
+        first = _make_compose_project_name(first_worktree)
+        second = _make_compose_project_name(second_worktree)
+        expected_first = _expected_compose_project_name(first_worktree)
+        expected_second = _expected_compose_project_name(second_worktree)
+
+        assert first == expected_first
+        assert second == expected_second
+        assert re.fullmatch(r"pulseplate-[0-9]+", first) is not None
+        assert re.fullmatch(r"pulseplate-[0-9]+", second) is not None
+        assert expected_first != expected_second
+
+
+def test_compose_project_name_varies_between_sibling_worktrees() -> None:
+    """Sibling worktrees should not collide in Docker Compose project naming."""
+    with TemporaryDirectory() as root:
+        first_worktree = Path(root) / "checkout-a"
+        second_worktree = Path(root) / "checkout-b"
+        first_worktree.mkdir()
+        second_worktree.mkdir()
+
+        first = _make_compose_project_name(first_worktree)
+        second = _make_compose_project_name(second_worktree)
+
+        assert re.fullmatch(r"pulseplate-[0-9]+", first) is not None
+        assert re.fullmatch(r"pulseplate-[0-9]+", second) is not None
+        assert first != second
+
+
+def test_compose_project_name_works_from_repo_root_checkout() -> None:
+    """The actual repo root checkout should evaluate to the same safe slug shape."""
+    value = _make_compose_project_name_from_repo_root()
+
+    assert value == _expected_compose_project_name(REPO_ROOT)
+    assert re.fullmatch(r"pulseplate-[0-9]+", value) is not None
+
+
+def test_compose_project_name_stable_per_worktree() -> None:
+    """A single worktree should keep the same deterministic project name across runs."""
+    with TemporaryDirectory() as worktree:
+        name_one = _make_compose_project_name(Path(worktree))
+        name_two = _make_compose_project_name(Path(worktree))
+        assert name_one == name_two
+
+
+def test_compose_project_name_env_override_wins_for_exported_shell_env() -> None:
+    """A pre-exported project name should bypass the default worktree slug."""
+    with TemporaryDirectory() as worktree:
+        name = _make_compose_project_name(
+            Path(worktree),
+            compose_project_name="custom",
+        )
+        assert name == "custom"
+
+
+def test_compose_project_name_safe_with_special_directory_chars() -> None:
+    """Special directory characters must not alter command-evaluation semantics."""
+    with TemporaryDirectory() as root:
+        worktree = Path(root) / "sp ec;ial $() `chars` dir"
+        worktree.mkdir(parents=True, exist_ok=True)
+        value = _make_compose_project_name(worktree)
+        assert re.fullmatch(r"pulseplate-[0-9]+", value) is not None
+
+
+def test_compose_project_name_does_not_execute_path_text() -> None:
+    """A malicious-looking directory name should not execute shell payloads."""
+    with TemporaryDirectory() as root:
+        root_path = Path(root)
+        payload_name = "injection_marker"
+        worktree = root_path / f"pwn_$(touch {payload_name})"
+        worktree.mkdir(parents=True, exist_ok=True)
+        injection_marker = worktree / payload_name
+        value = _make_compose_project_name(worktree)
+        assert re.fullmatch(r"pulseplate-[0-9]+", value) is not None
+        assert not injection_marker.exists()
+
+
+def test_pr_regression_scan_make_target_forwards_repo_env() -> None:
+    """Make wrapper should forward the documented REPO env contract."""
+    text = _makefile_text()
+    assert '"$${REPO:-$${REPO_NAME:-}}"' in text
+
+
+def test_dc_targets_dont_execute_injected_override() -> None:
+    """User overrides for COMPOSE_PROJECT_NAME must remain data, never shell code."""
+    make_binary = _make_binary("make")
+    with TemporaryDirectory() as root:
+        root_path = Path(root)
+        marker = root_path / "injection_marker"
+        env = os.environ.copy()
+        env["COMPOSE_PROJECT_NAME"] = f"pwn_$(touch {marker})"
+
+        result = subprocess.run(
+            [
+                make_binary,
+                "-s",
+                "-n",
+                "-C",
+                str(REPO_ROOT),
+                "dc-up",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        assert "touch" not in result.stdout
