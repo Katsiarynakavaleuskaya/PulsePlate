@@ -4282,7 +4282,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: Open
   - Area: security / base-image / code-scanning
   - Finding Type: container base image vulnerability
-  - Reason: GitHub Code Scanning alert #589 reports `libgnutls30` `CVE-2026-33845` at `3.7.9-2+deb12u5` with no fixed version reported by Trivy/GitHub at triage time. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` while monitoring Debian/Trivy fixed-version metadata.
+  - Reason: GitHub Code Scanning alert #589 reports `libgnutls30` `CVE-2026-33845` at `3.7.9-2+deb12u5`. The CVE-2026-33846 PR upgrades the production image to the latest available bookworm-security package (`3.7.9-2+deb12u6`), but Debian still marks bookworm/bookworm-security vulnerable and reports a fixed version only for unstable `3.8.13-1` at triage time. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` while monitoring Debian/Trivy fixed-version metadata.
   - Links:
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/589
     - docs/security/CVE-2026-33845-gnutls.md
@@ -4292,6 +4292,26 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Remove suppression rule from `trivy/ignore-policy.rego`
     - Mark `docs/security/CVE-2026-33845-gnutls.md` resolved or update with remediation evidence
     - Trivy Code Scanning alert #589 remains closed on `main`
+
+<a id="ledger-p1-remove-trivy-suppression-gnutls-cve-2026-33846"></a>
+- [ ] Remove Trivy suppression for libgnutls30 CVE-2026-33846
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after upstream bookworm fix)
+  - Status: Open
+  - Area: security / base-image / code-scanning
+  - Finding Type: container base image vulnerability
+  - Reason: GitHub Code Scanning alert #590 reports `libgnutls30` `CVE-2026-33846` at `3.7.9-2+deb12u5`. This PR upgrades the production image to the latest available bookworm-security package (`3.7.9-2+deb12u6`), but Debian still marks bookworm/bookworm-security vulnerable and reports a fixed version only for unstable `3.8.13-1` at triage time. The remaining risk is covered by a narrow temporary suppression in `trivy/ignore-policy.rego`.
+  - Links:
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/590
+    - docs/security/CVE-2026-33846-gnutls.md
+    - trivy/ignore-policy.rego
+    - https://security-tracker.debian.org/tracker/CVE-2026-33846
+  - DoD:
+    - Debian bookworm publishes a fixed `libgnutls30` package context or Trivy/GitHub reports a non-empty fixed version for bookworm
+    - Remove suppression rule from `trivy/ignore-policy.rego`
+    - Mark `docs/security/CVE-2026-33846-gnutls.md` resolved or update with remediation evidence
+    - Trivy Code Scanning alert #590 remains closed on `main`
 
 <a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
 - [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
