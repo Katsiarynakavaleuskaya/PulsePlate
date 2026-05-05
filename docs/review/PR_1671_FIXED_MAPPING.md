@@ -1,4 +1,4 @@
-<!-- markdownlint-disable MD013 -->
+<!-- markdownlint-disable MD013 MD034 -->
 # PR 1671 Fixed In Commit Mapping
 
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671>
@@ -22,7 +22,17 @@ Any future actionable human or bot thread must remain unresolved until one of th
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#pullrequestreview-4231609416 -> 6ddb18ef1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#pullrequestreview-4231646568 -> 6ddb18ef1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191612468 -> 6ddb18ef1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191612476 -> 6ddb18ef1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191612482 -> 6ddb18ef1
+Disposition: FIXED
+Commit: 6ddb18ef1
+Evidence: docs/design/REFERENCE_SCORECARD.md defines total score `17` or lower as `reject` and maps scorecard decisions to manifest status.
+Evidence: docs/design/REFERENCE_MANIFEST_SCHEMA.md forbids `candidate_for_brief` when decision is `reject`, evidence is incomplete, or license/copy risk is unresolved.
+Evidence: docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md and docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md use a docs-only guard that exits `0` only when offender output is empty.
+Evidence: docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md references the runbook as the shared-control source for source hierarchy, forbidden actions, validation bundle, promotion rules, and premortem controls.
 
 ## Bootstrap Commit Mapping
 
@@ -33,6 +43,8 @@ Initial PR-0 bootstrap commits:
 - PR bootstrap -> `e6c11531f` (`docs(roadmap): add design intelligence backlog anchor`)
 - PR bootstrap -> `a6a614850` (`docs(orchestration): add AGENTS update proposal and premortem evidence`)
 - Governance artifact -> `95e15b36e` (`docs(review): add PR 1671 fixed mapping`)
+- Governance artifact -> `264c792d6` (`docs(review): align PR 1671 phase2 mapping gate`)
+- Review fixes -> `6ddb18ef1` (`docs(design): fix reference governance review findings`)
 
 ## Local Validation Evidence
 
