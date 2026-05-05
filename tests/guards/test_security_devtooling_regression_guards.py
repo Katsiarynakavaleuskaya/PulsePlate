@@ -31,6 +31,7 @@ MAKEFILE = REPO_ROOT / "Makefile"
 PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-submission.yml"
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
 LOCAL_USERS_PATH_PATTERN = re.compile(r"/Users/(?!\.\.\.)([^/\s`]+)(?:/|$)")
+DOCS_LEAKAGE_GUARD_BASE_ENV = "PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE"
 
 SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
     "requirements-rag-vector.in",
@@ -63,6 +64,61 @@ def _workflow_path_filters() -> dict[str, set[str]]:
         assert isinstance(event_block, dict), f"{event} block must be a mapping"
         filters[event] = set(event_block["paths"])
     return filters
+
+
+def _function_source(module_path: Path, function_name: str) -> str:
+    source = module_path.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    lines = source.splitlines()
+
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name == function_name:
+            assert node.end_lineno is not None
+            return "\n".join(lines[node.lineno - 1 : node.end_lineno])
+
+    raise AssertionError(f"missing function: {function_name}")
+
+
+def _git_ref_exists(ref: str) -> bool:
+    result = subprocess.run(
+        [_binary("git"), "rev-parse", "--verify", "--quiet", ref],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+    return result.returncode == 0
+
+
+def _docs_diff_base() -> str:
+    configured = os.environ.get(DOCS_LEAKAGE_GUARD_BASE_ENV, "").strip()
+    candidates = [configured, "origin/main", "main", "HEAD~1"]
+
+    for candidate in candidates:
+        if candidate and _git_ref_exists(candidate):
+            return candidate
+
+    raise AssertionError("no usable git base ref for docs leakage guard")
+
+
+def _changed_docs_diff() -> str:
+    base_ref = _docs_diff_base()
+    result = subprocess.run(
+        [
+            _binary("git"),
+            "diff",
+            "--unified=0",
+            f"{base_ref}...HEAD",
+            "--",
+            "docs",
+            "docs/review",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+
+    assert result.returncode == 0, result.stderr or result.stdout
+    return result.stdout
 
 
 def _make_print_compose_project_name(cwd: Path, env: dict[str, str]) -> str:
@@ -168,18 +224,9 @@ def test_dependency_profiles_are_covered_by_all_security_surfaces() -> None:
 
 
 def test_judgment_validity_sidecars_only_use_symlink_safe_writer() -> None:
-    source = (REPO_ROOT / "scripts/evals/judgment_validity.py").read_text(encoding="utf-8")
-    writer_source = source[
-        source.index("def write_judgment_validity_sidecar") : source.index(
-            "return {", source.index("def write_judgment_validity_sidecar")
-        )
-    ]
-    safe_writer_source = source[
-        source.index("def _safe_write_text") : source.index(
-            "# ---------------------------------------------------------------------------",
-            source.index("def _safe_write_text"),
-        )
-    ]
+    module_path = REPO_ROOT / "scripts/evals/judgment_validity.py"
+    writer_source = _function_source(module_path, "write_judgment_validity_sidecar")
+    safe_writer_source = _function_source(module_path, "_safe_write_text")
 
     assert 'getattr(os, "O_NOFOLLOW", None)' in safe_writer_source
     assert 'raise OSError("Symlink-safe writes are not supported on this platform")' in (
@@ -280,24 +327,9 @@ def test_eval_validity_contract_requires_defensive_copies_and_value_error() -> N
 
 
 def test_changed_docs_do_not_add_local_users_absolute_paths() -> None:
-    result = subprocess.run(
-        [
-            _binary("git"),
-            "diff",
-            "--unified=0",
-            "origin/main...HEAD",
-            "--",
-            "docs",
-            "docs/review",
-        ],
-        check=True,
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
     leaked_lines = [
         line
-        for line in result.stdout.splitlines()
+        for line in _changed_docs_diff().splitlines()
         if line.startswith("+")
         and not line.startswith("+++")
         and LOCAL_USERS_PATH_PATTERN.search(line)
