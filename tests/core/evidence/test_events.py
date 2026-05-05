@@ -11,6 +11,7 @@ from core.evidence.assets import EvidenceAssetRef, create_evidence_asset_ref
 from core.evidence.events import (
     EvalEventRail,
     EvalEventType,
+    EvidenceEvalEvent,
     ValidationStatus,
     create_eval_event,
     validate_produced_at,
@@ -33,7 +34,7 @@ def _asset_ref() -> EvidenceAssetRef:
     )
 
 
-def _make_event(**overrides: object):
+def _make_event(**overrides: object) -> EvidenceEvalEvent:
     params = {
         "event_type": "rag_gate_run",
         "rail": "eval",
