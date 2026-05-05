@@ -95,13 +95,13 @@ def _require_list_of_str(value: Any, *, field: str, record_name: str) -> list[st
         raise ValueError(f"{record_name}.{field} must be list[str], got {type(value).__name__}")
     if not all(isinstance(item, str) for item in value):
         raise ValueError(f"{record_name}.{field} must contain only str values")
-    return value
+    return list(value)
 
 
 def _require_dict(value: Any, *, field: str, record_name: str) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError(f"{record_name}.{field} must be dict, got {type(value).__name__}")
-    return value
+    return dict(value)
 
 
 def validate_eval_variant_record(
@@ -125,13 +125,23 @@ def validate_eval_variant_record(
             f"expected one of {EXPECTED_RELATIONS}"
         )
     return EvalVariantRecord(
-        canonical_id=_require_str(raw["canonical_id"], field="canonical_id", record_name="EvalVariantRecord"),
-        variant_id=_require_str(raw["variant_id"], field="variant_id", record_name="EvalVariantRecord"),
+        canonical_id=_require_str(
+            raw["canonical_id"], field="canonical_id", record_name="EvalVariantRecord"
+        ),
+        variant_id=_require_str(
+            raw["variant_id"], field="variant_id", record_name="EvalVariantRecord"
+        ),
         variant_family=raw["variant_family"],
-        transform_type=_require_str(raw["transform_type"], field="transform_type", record_name="EvalVariantRecord"),
+        transform_type=_require_str(
+            raw["transform_type"], field="transform_type", record_name="EvalVariantRecord"
+        ),
         expected_relation=raw["expected_relation"],
-        slice_tags=_require_list_of_str(raw["slice_tags"], field="slice_tags", record_name="EvalVariantRecord"),
-        input_payload=_require_dict(raw["input_payload"], field="input_payload", record_name="EvalVariantRecord"),
+        slice_tags=_require_list_of_str(
+            raw["slice_tags"], field="slice_tags", record_name="EvalVariantRecord"
+        ),
+        input_payload=_require_dict(
+            raw["input_payload"], field="input_payload", record_name="EvalVariantRecord"
+        ),
     )
 
 
@@ -161,14 +171,22 @@ def validate_eval_outcome_record(
     if not math.isfinite(score):
         raise ValueError(f"EvalOutcomeRecord.score must be finite, got {score!r}")
     return EvalOutcomeRecord(
-        canonical_id=_require_str(raw["canonical_id"], field="canonical_id", record_name="EvalOutcomeRecord"),
-        variant_id=_require_str(raw["variant_id"], field="variant_id", record_name="EvalOutcomeRecord"),
+        canonical_id=_require_str(
+            raw["canonical_id"], field="canonical_id", record_name="EvalOutcomeRecord"
+        ),
+        variant_id=_require_str(
+            raw["variant_id"], field="variant_id", record_name="EvalOutcomeRecord"
+        ),
         variant_family=raw["variant_family"],
-        transform_type=_require_str(raw["transform_type"], field="transform_type", record_name="EvalOutcomeRecord"),
+        transform_type=_require_str(
+            raw["transform_type"], field="transform_type", record_name="EvalOutcomeRecord"
+        ),
         passed=passed,
         score=float(score),
         decision=_require_str(raw["decision"], field="decision", record_name="EvalOutcomeRecord"),
-        slice_tags=_require_list_of_str(raw["slice_tags"], field="slice_tags", record_name="EvalOutcomeRecord"),
+        slice_tags=_require_list_of_str(
+            raw["slice_tags"], field="slice_tags", record_name="EvalOutcomeRecord"
+        ),
     )
 
 
