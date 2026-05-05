@@ -15,9 +15,9 @@ Canonical review-governance artifact for PR #1665:
 Disposition: FIXED
 Commit: 02c183294
 Evidence:
-- `tests/test_run_safety_audit.py` adds execution-level CPU Safety manifest artifact coverage and high-risk aggregate failure coverage.
-- `tests/test_python_supply_chain_controls.py` adds structured dependency-submission path assertions and behavioral `pip-audit` helper invocation coverage for `requirements-rag-vector-cpu.txt`.
-- `tests/test_ci_risk_profile.py` parametrizes CPU `.in` and `.txt` routing and checks emitted CI outputs.
+- `tests/test_run_safety_audit.py`: execution-level CPU Safety manifest artifact coverage and high-risk aggregate failure coverage.
+- `tests/test_python_supply_chain_controls.py`: structured dependency-submission path assertions and behavioral `pip-audit` helper invocation coverage for `requirements-rag-vector-cpu.txt`.
+- `tests/test_ci_risk_profile.py`: parametrized CPU `.in` and `.txt` routing and emitted CI output checks.
 
 Internal role findings fixed by commit `02c183294`:
 - Local QA finding: pip-audit inclusion was only string-tested.
@@ -40,10 +40,10 @@ Evidence: Current external bot comments are rate-limit, summary, or no-issue com
 
 ## Merge Readiness
 
-- [x] Canonical mapping artifact exists.
-- [x] Focused tests passed: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py`.
-- [x] `pre-commit run --all-files` passed.
-- [x] `make validate-changed` passed.
+- [ ] Canonical mapping artifact exists.
+- [ ] Focused tests passed: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py`.
+- [ ] `pre-commit run --all-files` passed.
+- [ ] `make validate-changed` passed.
 - [ ] Strict merge-readiness wrapper passed on current head.
 - [ ] Current-head GitHub CI parity is green.
 
