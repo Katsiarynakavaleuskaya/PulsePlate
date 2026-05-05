@@ -32,6 +32,12 @@ Evidence: Current external bot comments are rate-limit, summary, or no-issue com
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: caf8c4c45
+Evidence: `docs/review/PR_1665_FIXED_MAPPING.md` moved free-form evidence out of the parser-strict mapping block and reverted merge-readiness evidence checkboxes to unchecked until final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#discussion_r3187854836 -> caf8c4c45
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#discussion_r3187854854 -> caf8c4c45
+
 Disposition: NOT-A-BUG
 Evidence: Current external bot comments are rate-limit, summary, or no-issue comments rather than actionable code findings. Cubic reported no issues; CodeRabbit and Sourcery were rate-limited/comment-only at the inspected head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374157329
