@@ -34,11 +34,11 @@ Reason: These comments report review quota, generated summaries, or Codecov cove
 
 ## Merge Readiness
 
-- [x] Coordinator-first startup: `check_preflight.py`, `check_agent_consistency.py`, and `task_bootstrap.py` ran before edits.
-- [x] Focused sidecar tests passed locally.
-- [x] `pre-commit run --all-files`
-- [x] `make validate-changed`
-- [ ] PR body Phase2 gates.
+- [ ] Coordinator-first startup: `check_preflight.py`, `check_agent_consistency.py`, and `task_bootstrap.py` ran before edits.
+- [ ] Focused sidecar tests passed locally.
+- [ ] `pre-commit run --all-files`
+- [ ] `make validate-changed`
+- [ ] PR body Phase 2 gates.
 - [ ] Strict merge-readiness wrapper with auth.
 - [ ] Current-head GitHub CI parity after push.
 - [ ] CodeRabbit, Cubic, and Sourcery have no actionable open comments.
