@@ -49,6 +49,31 @@ Disposition: NOT-A-BUG
 Evidence: `trivy/ignore-policy.rego` intentionally keeps separate exact CVE/package/version rules for auditability, while `Dockerfile` now records the version-sync workflow and security docs/mapping use stable anchors/file-level evidence except where repo docs gates require a `file:line` anchor.
 Reason: A shared helper would reduce repetition but also widen a security-waiver surface; explicit per-CVE rules are safer for this HIGH OS-package waiver lane.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#pullrequestreview-4230601979 -> ea64e91dd
+Disposition: FIXED
+Commit: ea64e91dd
+Evidence: `Dockerfile` records the libgnutls30 version-sync workflow and explains why the package remains unpinned while exact-version Rego drift blocks security review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#pullrequestreview-4230690696 -> a94bc4595
+Disposition: FIXED
+Commit: a94bc4595
+Evidence: `docs/review/PR_1670_FIXED_MAPPING.md` keeps merge-readiness checklist items unchecked until the final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190727598 -> a94bc4595
+Disposition: FIXED
+Commit: a94bc4595
+Evidence: `docs/review/PR_1670_FIXED_MAPPING.md` keeps merge-readiness checklist items unchecked until the final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#pullrequestreview-4230719969 -> a94bc4595
+Disposition: FIXED
+Commit: a94bc4595
+Evidence: `docs/review/PR_1670_FIXED_MAPPING.md` maps `discussion_r3190650352` exactly once, with the pinning rationale folded into that single disposition block.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190753629 -> a94bc4595
+Disposition: FIXED
+Commit: a94bc4595
+Evidence: `docs/review/PR_1670_FIXED_MAPPING.md` maps `discussion_r3190650352` exactly once, with the pinning rationale folded into that single disposition block.
+
 ## Security Alert Disposition
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/590 -> da8e636a57ad5f7432b004c8a64d220449ebe481
@@ -101,15 +126,6 @@ Decision: proceed with changes; do not claim full remediation until Debian bookw
 - [ ] Review mapping artifact created
 - [ ] No actionable bot comments remain
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190727598 -> a94bc4595
-Disposition: FIXED
-Commit: a94bc4595
-Evidence: `docs/review/PR_1670_FIXED_MAPPING.md` keeps merge-readiness checklist items unchecked until the final merge cycle.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190753629 -> a94bc4595
-Disposition: FIXED
-Commit: a94bc4595
-Evidence: `docs/review/PR_1670_FIXED_MAPPING.md` now maps `discussion_r3190650352` exactly once, with the pinning rationale folded into that single disposition block.
 - [ ] Strict merge wrapper passes with auth
 - [ ] Mandatory wait-window elapsed
 
