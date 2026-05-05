@@ -40,6 +40,21 @@ posted actionable review threads. Those threads are mapped below.
 
 Disposition: FIXED
 Commit: c7dd02621
+Evidence: Sourcery review actionables are fixed by duplicate-key, sequence-index, and timestamp-validation tests; current metadata-secret tests also cover bearer-token strings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#pullrequestreview-4231654277 -> c7dd02621
+
+Disposition: FIXED
+Commit: c7dd02621
+Evidence: Cubic review actionables are fixed by Windows path, duplicate-key, validation-status docs, and non-finite metadata tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#pullrequestreview-4231676928 -> c7dd02621
+
+Disposition: FIXED
+Commit: 418f68bb
+Evidence: `tests/core/evidence/test_events.py` annotates `_make_event(...) -> EvidenceEvalEvent`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#pullrequestreview-4231704422 -> 418f68bb
+
+Disposition: FIXED
+Commit: c7dd02621
 Evidence: `core/evidence/events.py` rejects local-only artifact paths; `tests/core/evidence/test_events.py` covers `artifacts/agent_runs`, `artifacts/orchestration`, and `artifacts/security_lab`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1672#discussion_r3191611613 -> c7dd02621
 
