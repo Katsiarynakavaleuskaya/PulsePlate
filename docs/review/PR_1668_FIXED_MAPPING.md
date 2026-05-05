@@ -13,6 +13,9 @@ root `AGENTS.md`; scoped `docs/orchestration/AGENTS.md`;
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: b1d381f75b47db8b977ded391c728a37e67aa314
+Evidence: Bot review actionables were addressed in ledger and review artifact wording.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#pullrequestreview-4227832578
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#issuecomment-4378996159
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#issuecomment-4378996823
