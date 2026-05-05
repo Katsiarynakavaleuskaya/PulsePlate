@@ -30,12 +30,12 @@ PR #1670 remediates GitHub Code Scanning alert #590 for `libgnutls30` / `CVE-202
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190630293
 Disposition: FIXED
-Commit: pending-review-fix-commit
+Commit: ea64e91dd
 Evidence: `docs/security/CVE-2026-33846-gnutls.md` now uses `Python/OpenSSL-based`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190650352
 Disposition: FIXED
-Commit: pending-review-fix-commit
+Commit: ea64e91dd
 Evidence: `Dockerfile` now documents the unpinned bookworm-security workflow, exact Rego version-sync requirement, and intentional security-review blocker when image inventory and waiver version diverge.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190650352
@@ -45,12 +45,12 @@ Reason: Pinning `libgnutls30=3.7.9-2+deb12u6` would freeze the production image 
 
 - CodeRabbit review comment on `docs/review/PR_1670_FIXED_MAPPING.md` submitted 2026-05-05T18:24:10Z
 Disposition: FIXED
-Commit: pending-review-fix-commit
+Commit: ea64e91dd
 Evidence: This mapping now states that FIXED closes the GitHub alert mapping while DEFERRED tracks residual upstream distro risk until bookworm receives a true fix.
 
 - Sourcery high-level maintainability comments submitted 2026-05-05T18:18:24Z
 Disposition: FIXED
-Commit: pending-review-fix-commit
+Commit: ea64e91dd
 Evidence: `Dockerfile` now records the shared version-sync workflow, and the security docs/mapping use stable anchors/file-level evidence instead of exact line numbers for the touched GnuTLS surfaces.
 
 ## Security Alert Disposition
