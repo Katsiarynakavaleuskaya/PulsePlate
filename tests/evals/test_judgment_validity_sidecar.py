@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pytest
 
+import scripts.evals.judgment_validity as judgment_validity
 from scripts.evals.judgment_validity import (
     JUDGMENT_DECISION_SCORES,
     JUDGMENT_VALIDITY_ITEMS_FILENAME,
@@ -269,6 +270,32 @@ class TestWriteJudgmentValiditySidecar:
         slice_support = report["slice_support"]
         assert "judgment" in slice_support
         assert slice_support["judgment"] == 3
+
+    def test_rejects_preexisting_symlink_sidecar_target(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside.txt"
+        outside.write_text("safe", encoding="utf-8")
+        (tmp_path / JUDGMENT_VALIDITY_ITEMS_FILENAME).symlink_to(outside)
+
+        with pytest.raises(OSError):
+            write_judgment_validity_sidecar(tmp_path, _ALL_RESULTS)
+        assert outside.read_text(encoding="utf-8") == "safe"
+
+    def test_rejects_preexisting_symlink_report_sidecar_target(self, tmp_path: Path) -> None:
+        outside = tmp_path / "outside_report.txt"
+        outside.write_text("safe", encoding="utf-8")
+        (tmp_path / JUDGMENT_VALIDITY_REPORT_FILENAME).symlink_to(outside)
+
+        with pytest.raises(OSError):
+            write_judgment_validity_sidecar(tmp_path, _ALL_RESULTS)
+        assert outside.read_text(encoding="utf-8") == "safe"
+
+    def test_fails_closed_without_no_follow_support(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.delattr(judgment_validity.os, "O_NOFOLLOW", raising=False)
+
+        with pytest.raises(OSError, match="Symlink-safe writes are not supported on this platform"):
+            write_judgment_validity_sidecar(tmp_path, _ALL_RESULTS)
 
 
 # ---------------------------------------------------------------------------
