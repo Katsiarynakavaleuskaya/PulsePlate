@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import math
 from pathlib import Path
 from typing import cast
 
@@ -12,6 +13,7 @@ from core.evidence.events import (
     EvalEventType,
     ValidationStatus,
     create_eval_event,
+    validate_produced_at,
     validate_source_artifact,
 )
 from core.evidence.fingerprints import fingerprint_payload
@@ -174,8 +176,14 @@ def test_rejects_unknown_rail() -> None:
         "artifacts/rag_eval/../secret.json",
         "/tmp/traces.jsonl",
         "~/traces.jsonl",
+        "C:/traces.jsonl",
+        "C:\\traces.jsonl",
+        "C:traces.jsonl",
         "worktrees/agent/traces.jsonl",
         ".venv/traces.jsonl",
+        "artifacts/agent_runs/run-1.json",
+        "artifacts/orchestration/task_packets/run-1.json",
+        "artifacts/security_lab/lab-1.json",
     ],
 )
 def test_rejects_unsafe_source_artifact_paths(source_artifact: str) -> None:
@@ -200,6 +208,15 @@ def test_rejects_unknown_event_type_and_validation_status() -> None:
         _make_event(validation_status=cast(ValidationStatus, "promoted"))
 
 
+def test_validate_produced_at_rejects_naive_timestamp() -> None:
+    with pytest.raises(ValueError, match="timezone"):
+        validate_produced_at("2026-05-05T12:00:00")
+
+
+def test_validate_produced_at_accepts_z_suffix_timestamp() -> None:
+    assert validate_produced_at("2026-05-05T12:00:00Z") == "2026-05-05T12:00:00Z"
+
+
 @pytest.mark.parametrize(
     "metadata",
     [
@@ -211,6 +228,22 @@ def test_rejects_unknown_event_type_and_validation_status() -> None:
 def test_rejects_raw_secret_or_user_health_metadata(metadata: dict[str, object]) -> None:
     with pytest.raises(ValueError, match="metadata"):
         _make_event(metadata=metadata)
+
+
+def test_rejects_duplicate_metadata_keys_after_normalization() -> None:
+    with pytest.raises(ValueError, match="collides after normalization"):
+        _make_event(metadata={"metric": 1, " metric ": 2})
+
+
+@pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
+def test_rejects_non_finite_metadata_numbers(value: float) -> None:
+    with pytest.raises(ValueError, match="must be finite"):
+        _make_event(metadata={"metric": value})
+
+
+def test_metadata_sequence_errors_include_item_index() -> None:
+    with pytest.raises(ValueError, match="labels\\.1"):
+        _make_event(metadata={"labels": ["ok", object()]})
 
 
 def test_preserves_asset_refs_upstream_ids_and_metadata_defensively() -> None:

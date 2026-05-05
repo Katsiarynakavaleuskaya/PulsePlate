@@ -7,6 +7,7 @@ EN: Eval events normalize artifacts into an append-only event plane.
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -73,6 +74,12 @@ _FORBIDDEN_SOURCE_ROOTS: tuple[str, ...] = (
     "dist",
     "node_modules",
     "worktrees",
+)
+
+_FORBIDDEN_SOURCE_PREFIXES: tuple[tuple[str, ...], ...] = (
+    ("artifacts", "agent_runs"),
+    ("artifacts", "orchestration"),
+    ("artifacts", "security_lab"),
 )
 
 _FORBIDDEN_METADATA_KEY_FRAGMENTS: tuple[str, ...] = (
@@ -332,6 +339,8 @@ def validate_source_artifact(source_artifact: str) -> str:
     normalized = source_artifact.strip().replace("\\", "/")
     if not normalized:
         raise ValueError("source_artifact must be non-empty")
+    if _has_windows_drive_prefix(normalized):
+        raise ValueError("source_artifact must be repo-relative")
     if normalized.startswith("/") or normalized.startswith("~"):
         raise ValueError("source_artifact must be repo-relative")
     path = PurePosixPath(normalized)
@@ -344,7 +353,18 @@ def validate_source_artifact(source_artifact: str) -> str:
         raise ValueError("source_artifact must not contain traversal")
     if parts[0] in _FORBIDDEN_SOURCE_ROOTS:
         raise ValueError(f"source_artifact root is not allowed: {parts[0]!r}")
+    for forbidden_prefix in _FORBIDDEN_SOURCE_PREFIXES:
+        if parts[: len(forbidden_prefix)] == forbidden_prefix:
+            joined = "/".join(forbidden_prefix)
+            raise ValueError(f"source_artifact path is not allowed: {joined!r}")
     return path.as_posix()
+
+
+def _has_windows_drive_prefix(path: str) -> bool:
+    """Return True for Windows drive-qualified paths such as C:/x or C:x."""
+
+    first_segment = path.split("/", maxsplit=1)[0]
+    return len(first_segment) >= 2 and first_segment[0].isalpha() and first_segment[1] == ":"
 
 
 def validate_produced_at(produced_at: str) -> str:
@@ -389,13 +409,20 @@ def _freeze_json_value(
 
     if isinstance(value, Mapping):
         items: list[tuple[str, FrozenJsonValue]] = []
-        for key, item in sorted(value.items()):
+        normalized_items: list[tuple[str, JsonValue]] = []
+        seen_keys: set[str] = set()
+        for key, item in value.items():
             if not isinstance(key, str):
                 raise ValueError("metadata keys must be strings")
             normalized_key = key.strip()
             if not normalized_key:
                 raise ValueError("metadata keys must be non-empty")
+            if normalized_key in seen_keys:
+                raise ValueError(f"metadata key collides after normalization: {normalized_key!r}")
+            seen_keys.add(normalized_key)
             _validate_metadata_key(normalized_key)
+            normalized_items.append((normalized_key, item))
+        for normalized_key, item in sorted(normalized_items, key=lambda pair: pair[0]):
             items.append(
                 (
                     normalized_key,
@@ -404,11 +431,21 @@ def _freeze_json_value(
             )
         return _FrozenJsonObject(tuple(items))
     if isinstance(value, Sequence) and not isinstance(value, str):
-        return _FrozenJsonArray(tuple(_freeze_json_value(item, path=path) for item in value))
+        return _FrozenJsonArray(
+            tuple(
+                _freeze_json_value(item, path=path + (str(index),))
+                for index, item in enumerate(value)
+            )
+        )
     if isinstance(value, str):
         _validate_metadata_string(value)
         return value
-    if value is None or isinstance(value, (bool, int, float)):
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            location = ".".join(path) or "<root>"
+            raise ValueError(f"metadata value at {location} must be finite")
         return value
     raise ValueError(f"metadata value at {'.'.join(path) or '<root>'} must be JSON-compatible")
 

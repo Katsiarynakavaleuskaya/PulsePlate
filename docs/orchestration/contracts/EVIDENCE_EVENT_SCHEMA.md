@@ -63,6 +63,13 @@ Supported event rails:
 - `control_plane`
 - `eval`
 
+Supported validation statuses:
+
+- `valid`
+- `invalid`
+- `degraded`
+- `deferred`
+
 ## Deterministic Identity
 
 `event_id` is derived from canonical event identity fields, including event type,
