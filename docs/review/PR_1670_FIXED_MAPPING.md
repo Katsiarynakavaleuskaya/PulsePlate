@@ -28,14 +28,39 @@ PR #1670 remediates GitHub Code Scanning alert #590 for `libgnutls30` / `CVE-202
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190630293
+Disposition: FIXED
+Commit: pending-review-fix-commit
+Evidence: `docs/security/CVE-2026-33846-gnutls.md` now uses `Python/OpenSSL-based`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190650352
+Disposition: FIXED
+Commit: pending-review-fix-commit
+Evidence: `Dockerfile` now documents the unpinned bookworm-security workflow, exact Rego version-sync requirement, and intentional security-review blocker when image inventory and waiver version diverge.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#discussion_r3190650352
+Disposition: NOT-A-BUG
+Evidence: `Dockerfile` intentionally keeps `libgnutls30` unpinned so rebuilds pull the newest available bookworm-security package; `trivy/ignore-policy.rego` remains exact-version scoped so package drift surfaces for security review rather than being silently waived.
+Reason: Pinning `libgnutls30=3.7.9-2+deb12u6` would freeze the production image on today's vulnerable package and work against the remediation order for future Debian security updates.
+
+- CodeRabbit review comment on `docs/review/PR_1670_FIXED_MAPPING.md` submitted 2026-05-05T18:24:10Z
+Disposition: FIXED
+Commit: pending-review-fix-commit
+Evidence: This mapping now states that FIXED closes the GitHub alert mapping while DEFERRED tracks residual upstream distro risk until bookworm receives a true fix.
+
+- Sourcery high-level maintainability comments submitted 2026-05-05T18:18:24Z
+Disposition: FIXED
+Commit: pending-review-fix-commit
+Evidence: `Dockerfile` now records the shared version-sync workflow, and the security docs/mapping use stable anchors/file-level evidence instead of exact line numbers for the touched GnuTLS surfaces.
 
 ## Security Alert Disposition
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/590 -> da8e636a57ad5f7432b004c8a64d220449ebe481
 Disposition: FIXED
 Commit: da8e636a57ad5f7432b004c8a64d220449ebe481
-Evidence: `Dockerfile:136` and `Dockerfile:146` explicitly install `libgnutls30` from bookworm-security; local production image inventory shows `libgnutls30:arm64 3.7.9-2+deb12u6`; `docs/security/CVE-2026-33846-gnutls.md` documents the remaining upstream-unfixed bookworm risk.
+Evidence: The runtime security-hardening package install block in `Dockerfile` explicitly installs `libgnutls30` from bookworm-security; local production image inventory shows `libgnutls30:arm64 3.7.9-2+deb12u6`; `docs/security/CVE-2026-33846-gnutls.md` documents the remaining upstream-unfixed bookworm risk.
+
+Alert #590 uses two dispositions because FIXED means the GitHub alert mapping is closed by commit `da8e636a57ad5f7432b004c8a64d220449ebe481`, while DEFERRED means residual upstream distro risk remains tracked in `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-gnutls-cve-2026-33846` and `docs/security/CVE-2026-33846-gnutls.md` until bookworm receives a true fixed package.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/590 -> da8e636a57ad5f7432b004c8a64d220449ebe481
 Disposition: DEFERRED
