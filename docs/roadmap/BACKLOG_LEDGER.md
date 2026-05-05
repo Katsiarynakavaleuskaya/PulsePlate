@@ -1171,8 +1171,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reference-driven design intelligence wave for web and iOS
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
-  - Target PR: PR-TBD (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`)
-  - Status: PR-0 bootstrap planned; do not mark closed until the PR lands and is merged
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`)
+  - Status: PR-0 bootstrap open; do not mark closed until the PR lands and is merged
   - Area: design / web / iOS / agentic workflow / reference corpus
   - Finding Type: reference-driven design intelligence bootstrap and governance
   - Anchor: `ledger-p1-design-intelligence-wave`
