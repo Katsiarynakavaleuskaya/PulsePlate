@@ -8,9 +8,9 @@ Canonical review-governance artifact for PR #1665:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-## Fixed in Commit Mapping
+## Review Evidence
 
-### Actionable findings fixed by this PR
+### Actionable internal findings fixed by this PR
 
 Disposition: FIXED
 Commit: 02c183294
@@ -25,15 +25,18 @@ Internal role findings fixed by commit `02c183294`:
 - Local QA finding: CPU `.in` risk routing was untested.
 - Local bug-hunter finding: Safety CPU coverage lacked execution proof.
 
-### Existing bot comments
+### Existing bot comments reviewed
 
 Disposition: NOT-A-BUG
 Evidence: Current external bot comments are rate-limit, summary, or no-issue comments rather than actionable code findings. Cubic reported no issues; CodeRabbit and Sourcery were rate-limited/comment-only at the inspected head.
 
-Mappings:
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374157329>
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374157741>
-- <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374254089>
+## Fixed in Commit Mapping
+
+Disposition: NOT-A-BUG
+Evidence: Current external bot comments are rate-limit, summary, or no-issue comments rather than actionable code findings. Cubic reported no issues; CodeRabbit and Sourcery were rate-limited/comment-only at the inspected head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374157329
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374157741
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1665#issuecomment-4374254089
 
 ## Merge Readiness
 
