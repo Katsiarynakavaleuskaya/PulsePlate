@@ -20,7 +20,6 @@
 Disposition: FIXED
 Commit: 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 Evidence: `_safe_write_text()` now fails closed when `os.O_NOFOLLOW` is unavailable; sidecar symlink tests cover both items/report targets and assert the outside target remains unchanged. Focused pytest passed with `28 passed`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#discussion_r3184241197 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#discussion_r3184257890 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#pullrequestreview-4223185713 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
@@ -28,7 +27,7 @@ Evidence: `_safe_write_text()` now fails closed when `os.O_NOFOLLOW` is unavaila
 
 Disposition: NOT-A-BUG
 Evidence: Non-actionable service/rate-limit or coverage summary comments; no code change requested.
-
+Reason: These comments report review quota, generated summaries, or Codecov coverage status rather than actionable code defects.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#issuecomment-4374159015
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#issuecomment-4374159985
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#issuecomment-4374195204
