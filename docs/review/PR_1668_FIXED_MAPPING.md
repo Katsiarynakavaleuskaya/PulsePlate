@@ -3,8 +3,8 @@
 ## Discussion Thread Pass
 
 Canonical review-governance artifact and PR-body mirror requirements:
-`AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
-`docs/orchestration/AGENTS.md`.
+root `AGENTS.md`; scoped `docs/orchestration/AGENTS.md`;
+`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
@@ -13,19 +13,21 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#pullrequestreview-4227832578
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#issuecomment-4378996159
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#issuecomment-4378996823
 
 ## Implementation Evidence
 
 Disposition: FIXED
-Commit: 639432636
+Commit: 6394326368dded649b0164baf8c84067b4413fe6
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` marks
 `ledger-p2-advisory-wiki-reference-corpus-policy` closed with PR #1607 and merge
 commit `07e11f4147bd75d20f8994175a9545782e02b04a`.
 Reason: The stale PR-B4 ledger state is reconciled to merged live truth.
 
 Disposition: FIXED
-Commit: 639432636
+Commit: 6394326368dded649b0164baf8c84067b4413fe6
 Evidence: `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` marks
 PR-B4 as historical / merged and records PR #1607 as the canonical landed
 policy evidence.
@@ -34,14 +36,16 @@ is active implementation scope.
 
 ## Review Notes
 
-No actionable human, CodeRabbit, Sourcery, or Cubic review comments are present
-at artifact creation. Record every later actionable comment in `Fixed in Commit
-Mapping` before resolving threads on GitHub.
+At artifact creation, no actionable human, CodeRabbit, Sourcery, or Cubic
+review comments were present. The initial CodeRabbit walkthrough and Sourcery
+review guide are mapped as `NOT-A-BUG` because they summarize the docs-only
+closeout diff and request no change. Record every later actionable comment in
+`Fixed in Commit Mapping` before resolving threads on GitHub.
 
 ## Post-Open Role Review
 
 Disposition: FIXED
-Commit: 782b94c4f
+Commit: 782b94c4fe5d59e8f26437de1f1f2e89b9b0cde0
 Evidence: `qa-engineer-agent` identified missing `make validate-changed`
 evidence for the docs-only `make verify` deferral; the command passed and this
 artifact now records it in `Local Validation` and `Local Full Verify`.
@@ -57,7 +61,7 @@ PR is draft or current-head CI is pending.
 
 ## Initial Implementation Commit
 
-- `639432636` - `docs(roadmap): close PR-B4 reference-corpus lane`
+- `6394326368dded649b0164baf8c84067b4413fe6` - `docs(roadmap): close PR-B4 reference-corpus lane`
 
 ## Local Validation
 
@@ -66,9 +70,10 @@ PR is draft or current-head CI is pending.
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Close PR-B4 bounded reference-corpus policy lane after merged implementation" --task-class "Orchestration" --pr-phase pre_open` PASS; task packet `742a7551dba9`
 - `git diff --check` PASS
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` PASS, 14 tests
+- `python -m pytest -q tests/test_repo_policy_guards.py` through the repo
+  virtualenv PASS, 14 tests
 - `pre-commit run --all-files` PASS
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` PASS; no Python files changed
+- `VENV_PYTHON=<repo-venv-python> make validate-changed` PASS; no Python files changed
 - commit hooks PASS
 - pre-push hooks PASS
 
@@ -101,7 +106,8 @@ Evidence:
 ## Merge Readiness
 
 Merge-readiness contract:
-`AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
+root `AGENTS.md`; scoped `docs/orchestration/AGENTS.md`;
+`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
 - [ ] Required checks PASS with no pending required jobs
 - [ ] No unresolved review threads

@@ -3928,6 +3928,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     reference-corpus policy is now landed as Rail B1 advisory/wiki governance
     only, with no product runtime truth, semantic-cache, embeddings, vector DB,
     GraphRAG, Redis/GPTCache, or ContextManifest implementation scope.
+    Delayed closeout exception approved by operator on 2026-05-05 for
+    governance-only ledger/epic reconciliation after the merged PR #1607
+    implementation; this exception does not reopen PR-B4 implementation scope.
   - Reason: The workforce rail includes a bounded reference-corpus policy slice
     so DeepWiki or similar helper corpora can remain read-only secondary aids
     instead of drifting into a second source of truth.
