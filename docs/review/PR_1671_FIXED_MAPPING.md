@@ -29,6 +29,8 @@ Any future actionable human or bot thread must remain unresolved until one of th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191612482 -> 6ddb18ef1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#pullrequestreview-4231650902 -> 760349209
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191616598 -> 760349209
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#pullrequestreview-4231699115 -> dabae3927
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191662453 -> dabae3927
 Disposition: FIXED
 Commit: 6ddb18ef1
 Evidence: docs/design/REFERENCE_SCORECARD.md defines total score `17` or lower as `reject` and maps scorecard decisions to manifest status.
@@ -36,7 +38,9 @@ Evidence: docs/design/REFERENCE_MANIFEST_SCHEMA.md forbids `candidate_for_brief`
 Evidence: docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md and docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md use a docs-only guard that exits `0` only when offender output is empty.
 Evidence: docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md references the runbook as the shared-control source for source hierarchy, forbidden actions, validation bundle, promotion rules, and premortem controls.
 Commit: 760349209
-Evidence: docs/design/REFERENCE_MANIFEST_SCHEMA.md requires `required_visual_checks` with `icon-silhouette-check` and `required_export_gates` with `design-guard`.
+Evidence: docs/design/REFERENCE_MANIFEST_SCHEMA.md requires exact visual-governance keys `icon-silhouette-check` and `design-guard`.
+Commit: dabae3927
+Evidence: docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md and docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md include executable wellness-language blocker and philosophy-validator gates.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191616603
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1671_FIXED_MAPPING.md keeps `- [x] Discussion-thread pass completed` and `- [x] Fixed in commit mapping completed` under `## Discussion Thread Pass`.
@@ -53,6 +57,7 @@ Initial PR-0 bootstrap commits:
 - Governance artifact -> `264c792d6` (`docs(review): align PR 1671 phase2 mapping gate`)
 - Review fixes -> `6ddb18ef1` (`docs(design): fix reference governance review findings`)
 - Review fixes -> `760349209` (`docs(design): encode visual governance gates in reference schema`)
+- Review fixes -> `dabae3927` (`docs(design): add wellness and philosophy guard gates`)
 
 ## Local Validation Evidence
 
