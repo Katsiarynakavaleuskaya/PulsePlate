@@ -26,6 +26,7 @@ Evidence: scripts/evals/eval_validity_contract.py now returns defensive shallow 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3184245567 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3184277278 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3184277291 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#pullrequestreview-4223228686 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery returned a weekly rate-limit notice only; no code finding or requested change was present.
