@@ -60,6 +60,22 @@ Thread mapping:
 
 - Pre-open preventive PR; no review thread URL to map.
 
+### Local gate false-positive correction
+
+Disposition: FIXED
+Commit: 2194a3a3a
+Evidence:
+
+- `make validate-changed` exposed that the new docs leakage guard blocked the
+  intentional placeholder `/Users/...` in policy text.
+- `tests/guards/test_security_devtooling_regression_guards.py` now uses a
+  local absolute path regex that allows the placeholder while still rejecting
+  real `/Users/<name>/...` paths.
+
+Thread mapping:
+
+- Local pre-push gate finding; no review thread URL to map.
+
 ## Merge Readiness
 
 Local gates run before opening PR:
