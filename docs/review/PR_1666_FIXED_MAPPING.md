@@ -25,6 +25,13 @@ Evidence: `_safe_write_text()` now fails closed when `os.O_NOFOLLOW` is unavaila
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#pullrequestreview-4223185713 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#pullrequestreview-4223206641 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 
+Disposition: FIXED
+Commit: a07f74c03e8ccc4bb83934c0d2539409b53f93a4
+Evidence: Merge-readiness checkboxes in this artifact remain unchecked until the final merge cycle; the gate label now uses `Phase 2`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#discussion_r3188473577 -> a07f74c03e8ccc4bb83934c0d2539409b53f93a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#discussion_r3188473596 -> a07f74c03e8ccc4bb83934c0d2539409b53f93a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#pullrequestreview-4228033431 -> a07f74c03e8ccc4bb83934c0d2539409b53f93a4
+
 Disposition: NOT-A-BUG
 Evidence: Non-actionable service/rate-limit or coverage summary comments; no code change requested.
 Reason: These comments report review quota, generated summaries, or Codecov coverage status rather than actionable code defects.
