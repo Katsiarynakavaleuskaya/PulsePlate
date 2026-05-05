@@ -53,7 +53,11 @@ def _expected_compose_project_name(cwd: Path) -> str:
     return f"pulseplate-{result.stdout.strip()}"
 
 
-def _make_compose_project_name(cwd: Path) -> str:
+def _make_compose_project_name(
+    cwd: Path,
+    *,
+    compose_project_name: str | None = None,
+) -> str:
     """Evaluate COMPOSE_PROJECT_NAME in a temporary make invocation from a worktree."""
     make_binary = _make_binary("make")
     probe_makefile = cwd / "probe.mk"
@@ -72,6 +76,10 @@ def _make_compose_project_name(cwd: Path) -> str:
         ),
         encoding="utf-8",
     )
+    env = _clean_make_env()
+    if compose_project_name is not None:
+        env["COMPOSE_PROJECT_NAME"] = compose_project_name
+
     result = subprocess.run(
         [
             make_binary,
@@ -85,8 +93,43 @@ def _make_compose_project_name(cwd: Path) -> str:
         capture_output=True,
         text=True,
         check=True,
-        env=_clean_make_env(),
+        env=env,
     )
+    return result.stdout.strip()
+
+
+def _make_compose_project_name_from_repo_root() -> str:
+    """Evaluate COMPOSE_PROJECT_NAME from the real repo root without writing there."""
+    make_binary = _make_binary("make")
+    with TemporaryDirectory() as probe_dir:
+        probe_makefile = Path(probe_dir) / "probe.mk"
+        probe_makefile.write_text(
+            "\n".join(
+                [
+                    f"include {MAKEFILE}",
+                    "",
+                    ".PHONY: print-compose",
+                    "print-compose:",
+                    "\t@printf '%s\\n' \"$(COMPOSE_PROJECT_NAME)\"",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            [
+                make_binary,
+                "-s",
+                "-f",
+                str(probe_makefile),
+                "-C",
+                str(REPO_ROOT),
+                "print-compose",
+            ],
+            capture_output=True,
+            text=True,
+            check=True,
+            env=_clean_make_env(),
+        )
     return result.stdout.strip()
 
 
@@ -313,12 +356,46 @@ def test_compose_project_name_varies_between_worktrees() -> None:
         assert expected_first != expected_second
 
 
+def test_compose_project_name_varies_between_sibling_worktrees() -> None:
+    """Sibling worktrees should not collide in Docker Compose project naming."""
+    with TemporaryDirectory() as root:
+        first_worktree = Path(root) / "checkout-a"
+        second_worktree = Path(root) / "checkout-b"
+        first_worktree.mkdir()
+        second_worktree.mkdir()
+
+        first = _make_compose_project_name(first_worktree)
+        second = _make_compose_project_name(second_worktree)
+
+        assert re.fullmatch(r"pulseplate-[0-9]+", first) is not None
+        assert re.fullmatch(r"pulseplate-[0-9]+", second) is not None
+        assert first != second
+
+
+def test_compose_project_name_works_from_repo_root_checkout() -> None:
+    """The actual repo root checkout should evaluate to the same safe slug shape."""
+    value = _make_compose_project_name_from_repo_root()
+
+    assert value == _expected_compose_project_name(REPO_ROOT)
+    assert re.fullmatch(r"pulseplate-[0-9]+", value) is not None
+
+
 def test_compose_project_name_stable_per_worktree() -> None:
     """A single worktree should keep the same deterministic project name across runs."""
     with TemporaryDirectory() as worktree:
         name_one = _make_compose_project_name(Path(worktree))
         name_two = _make_compose_project_name(Path(worktree))
         assert name_one == name_two
+
+
+def test_compose_project_name_env_override_wins_for_exported_shell_env() -> None:
+    """A pre-exported project name should bypass the default worktree slug."""
+    with TemporaryDirectory() as worktree:
+        name = _make_compose_project_name(
+            Path(worktree),
+            compose_project_name="custom",
+        )
+        assert name == "custom"
 
 
 def test_compose_project_name_safe_with_special_directory_chars() -> None:

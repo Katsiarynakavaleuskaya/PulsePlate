@@ -63,6 +63,7 @@ def _run_scan_with_stubbed_tools(
         env["PR_SCAN_TEST_LOG"] = str(log_path)
         env["GH_TOKEN"] = "dummy-token"
         env["RUN_MAIN_SUITE"] = "0"
+        env["SKIP_CURRENT_HEAD_CHECK"] = "0"
         if repo_env is None:
             env.pop("REPO", None)
         else:
