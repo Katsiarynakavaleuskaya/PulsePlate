@@ -3917,13 +3917,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       manifest/history improvements, and reference-corpus policy stay separate.
 
 <a id="ledger-p2-advisory-wiki-reference-corpus-policy"></a>
-- [ ] P2: Advisory wiki bounded reference-corpus policy
+- [x] P2: Advisory wiki bounded reference-corpus policy
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2
-  - Target PR: PR-B4 / `codex/advisory-wiki-reference-corpus-policy-b4`
+  - Target PR: PR-B4 / `codex/advisory-wiki-reference-corpus-policy-b4` (merged as PR #1607)
   - Area: orchestration / workforce memory / docs
   - Finding Type: source-boundary policy
-  - Status: 🟡 In progress via PR-B4
+  - Status: ✅ Closed. PR #1607 merged on 2026-04-30 as
+    `07e11f4147bd75d20f8994175a9545782e02b04a`; the bounded
+    reference-corpus policy is now landed as Rail B1 advisory/wiki governance
+    only, with no product runtime truth, semantic-cache, embeddings, vector DB,
+    GraphRAG, Redis/GPTCache, or ContextManifest implementation scope.
+    Delayed closeout exception approved by operator on 2026-05-05 for
+    governance-only ledger/epic reconciliation after the merged PR #1607
+    implementation; this exception does not reopen PR-B4 implementation scope.
   - Reason: The workforce rail includes a bounded reference-corpus policy slice
     so DeepWiki or similar helper corpora can remain read-only secondary aids
     instead of drifting into a second source of truth.
@@ -3931,15 +3938,16 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md`
     - `docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md`
     - `docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`
+    - `docs/review/PR_1607_FIXED_MAPPING.md`
     - `docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`
     - `docs/orchestration/AUTOMATION_READINESS_MATRIX.md`
   - DoD:
-    - Reference corpora are explicitly documented as read-only secondary aids.
-    - Repo artifacts remain the only canonical source of truth.
-    - Conflicts between reference corpora and repo artifacts resolve to repo truth.
-    - No embeddings, vector DB, product-runtime, API, DTO, OpenAPI, semantic-cache,
-      GraphRAG, Redis/GPTCache, or ContextManifest coupling is introduced.
-    - Contradiction lint, ranking/index weighting, manifest/history, and reference
+    - ✅ Reference corpora are explicitly documented as read-only secondary aids.
+    - ✅ Repo artifacts remain the only canonical source of truth.
+    - ✅ Conflicts between reference corpora and repo artifacts resolve to repo truth.
+    - ✅ No embeddings, vector DB, product-runtime, API, DTO, OpenAPI, semantic-cache,
+      GraphRAG, Redis/GPTCache, or ContextManifest coupling was introduced.
+    - ✅ Contradiction lint, ranking/index weighting, manifest/history, and reference
       corpus admission tooling remain separate follow-ons.
 
 <a id="ledger-p2-local-launcher-rollout-for-coordinator-first-automation"></a>
