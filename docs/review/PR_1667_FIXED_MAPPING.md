@@ -3,6 +3,8 @@
 ## Discussion Thread Pass
 
 Status: COMPLETE
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 PR phase: post_open_review remediation
 Scope lock: eval validity schema validation, focused tests, governance, and merge-readiness only.
 
@@ -19,8 +21,7 @@ Role order executed:
 
 Disposition: FIXED
 Commit: b6e1ae03d6906c117791c7dbfd90e62889f7db96
-Evidence: scripts/evals/eval_validity_contract.py now returns defensive shallow copies from `_require_list_of_str` and `_require_dict` only after strict type validation; tests/evals/test_eval_validity_contract.py covers variant/outcome slice tag aliasing, variant input payload aliasing, malformed slice tag strings, and malformed string fields.
-Validation: `.venv/bin/python -m pytest -q tests/evals/test_eval_validity_contract.py`; `pre-commit run --all-files`; `make validate-changed`.
+Evidence: scripts/evals/eval_validity_contract.py now returns defensive shallow copies from `_require_list_of_str` and `_require_dict` only after strict type validation; tests/evals/test_eval_validity_contract.py covers variant/outcome slice tag aliasing, variant input payload aliasing, malformed slice tag strings, and malformed string fields; local validation passed with focused pytest, pre-commit, and make validate-changed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3184245561 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3184245567 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1667#discussion_r3184277278 -> b6e1ae03d6906c117791c7dbfd90e62889f7db96
