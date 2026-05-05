@@ -117,6 +117,10 @@ Primary risks are handled in the premortem table and promoted into controls in t
 - No generated token mirror diff.
 - Normal PR opened after local narrow gates pass; not draft.
 
+## Split Justification
+
+PR-0 intentionally lands the runbook, packet, reference manifest schema, scorecard, DESIGN.md bootstrap, backlog anchor, and fixed mapping together because those docs form one cross-referenced bootstrap contract. Splitting them would create partial governance states, such as a schema without scorecard thresholds, a packet without source-precedence rules, or a backlog anchor without the external-reference policy. Runtime implementation remains deferred to later PRs.
+
 ## Commit Breakdown
 
 1. `docs(design): add design intelligence runbook`
