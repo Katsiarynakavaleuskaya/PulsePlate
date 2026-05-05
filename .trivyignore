@@ -161,11 +161,11 @@ CVE-2025-29088
 
 ## CVE-2025-9820 – GnuTLS GNUTLS-SA-2025-11-18
 ##
-## This CVE affects GnuTLS library. Our application does NOT use GnuTLS:
+## This CVE affects GnuTLS library. Our application does NOT use GnuTLS directly:
 ##
-## 1. libgnutls30 is NOT installed in python:3.13-slim container (verified)
-## 2. No dependencies in requirements.txt reference GnuTLS
-## 3. Python's SSL/TLS uses OpenSSL, not GnuTLS
+## 1. libgnutls30 is installed in the Debian production image because `apt` depends on it
+## 2. No Python dependencies in requirements.txt reference GnuTLS
+## 3. Python's application TLS uses OpenSSL, not GnuTLS
 ##
 ## Debian Security Assessment:
 ##   - Severity: UNKNOWN (Debian marks as "Minor issue")
@@ -176,15 +176,14 @@ CVE-2025-29088
 ## Source: https://security-tracker.debian.org/tracker/CVE-2025-9820
 ## Advisory: https://www.gnutls.org/security-new.html#GNUTLS-SA-2025-11-18
 ##
-## This is likely a stale scan result or phantom dependency detection.
-## GnuTLS is not part of our application's dependency tree. Even if it
-## were present as a transitive dependency, Debian marks this as minor
-## and does not require a security update.
+## This is not a phantom package. It is an OS package retained for Debian apt.
+## GnuTLS is not part of our application's Python dependency tree, and Debian
+## marks this CVE as minor with no security advisory required.
 ##
 ## Our application:
 ## - Uses Python's standard ssl module (OpenSSL-based)
-## - Does not import or link against GnuTLS
-## - Has zero attack surface for this GnuTLS-specific vulnerability
+## - Does not import GnuTLS from application code
+## - Does not expose GnuTLS/DTLS runtime protocol handling
 
 CVE-2025-9820
 

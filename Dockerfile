@@ -133,12 +133,23 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # Revisit when bookworm publishes a fixed package.
 #
 # Security hardening:
-# Explicitly install openssl/libssl3 to pull the latest available versions from bookworm-security.
-# Do not remove unless Trivy alerts are resolved and the base image consistently ships updated OpenSSL.
+# Explicitly install libgnutls30, alongside the existing OpenSSL packages, to pull
+# the latest available version from bookworm-security. The
+# python:3.13.6-slim-bookworm base image is expected to ship bookworm-security
+# apt sources; if Debian advances libgnutls30, keep this unpinned install on the
+# newest security package and update the exact-version Rego waiver only after
+# checking the new package's CVE status. A mismatch between image inventory and
+# trivy/ignore-policy.rego is an intentional security-review blocker.
+# libgnutls30 is retained because apt depends on it; installing it here prevents
+# the production image from keeping a stale base-layer GnuTLS package.
+# CVE-2026-33846 is still vulnerable in bookworm-security as of 2026-05-05, so the
+# residual HIGH finding is tracked by a narrow Trivy policy waiver instead of a bare ignore.
+# Do not remove unless Trivy alerts are resolved and the base image consistently ships updated TLS packages.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         ca-certificates \
         libc6 \
+        libgnutls30 \
         libssl3 \
         openssl \
     && rm -rf /var/lib/apt/lists/* \
