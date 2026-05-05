@@ -111,7 +111,7 @@ References may contribute only derived, normalized metadata and an explicit `ado
 - `status=candidate_for_brief` requires scorecard decision `adopt` or `adapt`; it is forbidden when the decision is `reject`.
 - `adopt` is allowed only for abstract patterns already compatible with PulsePlate tokens/components.
 - `adapt` is the default for useful references with any legal, brand, copy, layout, or platform risk.
-- `reject` is mandatory when a reference requires copying protected assets, brand identity, exact layout, proprietary components, unsupported medical claims, or unverified monetization copy.
+- When a reference requires copying protected assets, brand identity, exact layout, proprietary components, unsupported medical claims, or unverified monetization copy, `reject` is mandatory.
 - Every `component_patterns` entry must map to PulsePlate vocabulary before implementation.
 - Every future implementation brief must cite the manifest record and scorecard decision.
 - `icon-silhouette-check` must be `passed` or `not_applicable` before any Results/Evidence finalization.
