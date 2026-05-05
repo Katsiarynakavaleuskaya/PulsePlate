@@ -14,6 +14,7 @@ from __future__ import annotations
 import ast
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 from typing import Any
@@ -29,6 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MAKEFILE = REPO_ROOT / "Makefile"
 PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-submission.yml"
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
+LOCAL_USERS_PATH_PATTERN = re.compile(r"/Users/(?!\.\.\.)([^/\s`]+)(?:/|$)")
 
 SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
     "requirements-rag-vector.in",
@@ -296,7 +298,9 @@ def test_changed_docs_do_not_add_local_users_absolute_paths() -> None:
     leaked_lines = [
         line
         for line in result.stdout.splitlines()
-        if line.startswith("+") and not line.startswith("+++") and "/Users/" in line
+        if line.startswith("+")
+        and not line.startswith("+++")
+        and LOCAL_USERS_PATH_PATTERN.search(line)
     ]
 
     assert leaked_lines == []
