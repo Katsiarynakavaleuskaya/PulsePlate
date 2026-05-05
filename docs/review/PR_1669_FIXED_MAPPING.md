@@ -53,7 +53,7 @@ Commit: 2194a3a3a
 Evidence:
 
 - `make validate-changed` exposed that the new docs leakage guard blocked the intentional placeholder `/Users/...` in policy text.
-- `tests/guards/test_security_devtooling_regression_guards.py` now uses a local absolute path regex that allows the placeholder while still rejecting real `/Users/<name>/...` paths.
+- `tests/guards/test_security_devtooling_regression_guards.py` now uses a local absolute path regex that allows the placeholder while still rejecting real machine-local absolute paths.
 
 ### Mapping artifact update
 
