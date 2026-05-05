@@ -4,10 +4,13 @@
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671>
 - Branch: `docs/design-intelligence-wave-v1`
 - Title: `docs(design): open reference-driven design intelligence wave for web and iOS`
-- Current mapped head at artifact creation: `a6a61485022d7939a9a7777ef9a39a532431965f`
+- Last validated head before Phase2 mirror fix: `95e15b36e82e0a0bf03a84a6527d2e13aad5c4e9`
 - Status: PR opened as normal review PR, not draft.
 
 ## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 No GitHub review discussion threads were resolved at PR open.
 
@@ -17,7 +20,11 @@ Any future actionable human or bot thread must remain unresolved until one of th
 - `NOT-A-BUG` with evidence.
 - `DEFERRED` with a backlog link and PR-body follow-up note.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Bootstrap Commit Mapping
 
 Initial PR-0 bootstrap commits:
 
@@ -25,8 +32,7 @@ Initial PR-0 bootstrap commits:
 - PR bootstrap -> `acd214b2e` (`docs(design): add PR0 packet and external reference contracts`)
 - PR bootstrap -> `e6c11531f` (`docs(roadmap): add design intelligence backlog anchor`)
 - PR bootstrap -> `a6a614850` (`docs(orchestration): add AGENTS update proposal and premortem evidence`)
-
-No resolved actionable review thread is mapped yet.
+- Governance artifact -> `95e15b36e` (`docs(review): add PR 1671 fixed mapping`)
 
 ## Local Validation Evidence
 
