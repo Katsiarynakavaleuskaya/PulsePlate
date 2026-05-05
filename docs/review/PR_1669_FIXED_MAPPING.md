@@ -4,23 +4,13 @@ PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1669
 Branch: `test/security-devtooling-regression-guards`
 Title: `test(guards): add regression guards for dev tooling and eval artifact safety`
 
-## Summary
-
-Preventive guard PR for the security/dev-tooling regression classes found across
-PR #1664, PR #1665, PR #1666, and PR #1667.
-
-Scope is guard/tests/docs only:
-
-- Makefile compose project-name shell-safety regression guard.
-- Optional RAG/vector dependency-profile security coverage guard.
-- Eval sidecar symlink-safe fail-closed write guard.
-- Eval validity strict validation and defensive-copy guard.
-- Diff-scoped docs local `/Users/...` path leakage guard.
-- Minimal AGENTS/dependency policy documentation.
-
 ## Discussion Thread Pass
 
-No external review threads existed at PR open time.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+No external review threads existed at PR open time. Later CodeRabbit, Cubic, or
+Sourcery actionables must be added here before any thread resolution.
 
 Role order used:
 
@@ -44,7 +34,7 @@ In-scope premortem fixes applied:
 - Eval validator guard against coercive casts and mutable aliasing regressions.
 - Diff-scoped docs path leakage guard to avoid historical `/Users/...` false positives.
 
-## Fixed in Commit Mapping
+## Review Evidence
 
 ### Preventive guard implementation
 
@@ -56,25 +46,26 @@ Evidence:
 - `AGENTS.md` and `scripts/AGENTS.md` document eval/dev-tooling regression policy.
 - `docs/DEPENDENCY_MANAGEMENT.md` documents the optional RAG/vector profile security coverage registry.
 
-Thread mapping:
-
-- Pre-open preventive PR; no review thread URL to map.
-
 ### Local gate false-positive correction
 
 Disposition: FIXED
 Commit: 2194a3a3a
 Evidence:
 
-- `make validate-changed` exposed that the new docs leakage guard blocked the
-  intentional placeholder `/Users/...` in policy text.
-- `tests/guards/test_security_devtooling_regression_guards.py` now uses a
-  local absolute path regex that allows the placeholder while still rejecting
-  real `/Users/<name>/...` paths.
+- `make validate-changed` exposed that the new docs leakage guard blocked the intentional placeholder `/Users/...` in policy text.
+- `tests/guards/test_security_devtooling_regression_guards.py` now uses a local absolute path regex that allows the placeholder while still rejecting real `/Users/<name>/...` paths.
 
-Thread mapping:
+### Mapping artifact update
 
-- Local pre-push gate finding; no review thread URL to map.
+Disposition: FIXED
+Commit: 9045512ee
+Evidence:
+
+- `docs/review/PR_1669_FIXED_MAPPING.md` records the PR-numbered governance artifact and local gate evidence.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Merge Readiness
 
@@ -85,7 +76,7 @@ Local gates run before opening PR:
 - `. .venv/bin/activate && python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py tests/test_makefile_dev_python_migration.py tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py tests/evals/test_judgment_validity_sidecar.py tests/evals/test_eval_validity_contract.py` -> PASS
 - `pre-commit run --all-files` -> PASS after black reformatted `tests/guards/test_security_devtooling_regression_guards.py` and the hook was rerun cleanly
 - `make validate-changed` -> PASS; after commit it ran `tests/guards/test_security_devtooling_regression_guards.py` and reported `10 passed`
-- Push pre-push hooks -> PASS, including `pip-audit`, backend pre-push pytest, full-repo Bandit, and docker build test
+- Push pre-push hooks -> PASS, including `pip-audit`, backend pre-push pytest, full-repo Bandit, and docker build test where path filters attached it
 
 Full local `make verify` was not run by operator-approved machine-heavy exception
 for guard/CI tooling PRs. Heavy-suite parity must come from current-head GitHub
