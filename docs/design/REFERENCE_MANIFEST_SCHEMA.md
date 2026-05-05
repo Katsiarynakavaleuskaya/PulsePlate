@@ -25,6 +25,19 @@ References may contribute only derived, normalized metadata and an explicit `ado
 - `rejected`: source is blocked by fit, safety, license, copy, accessibility, legal, or implementation risk.
 - `candidate_for_brief`: source may inform a future brief after scorecard approval and repo promotion.
 
+## Scorecard Decision Mapping
+
+`adopt_adapt_reject_decision` and `status` must stay aligned:
+
+| Scorecard decision | Allowed `status` values | Rule |
+| --- | --- | --- |
+| not scored / incomplete evidence | `read_only` | No brief influence until evidence is complete |
+| `reject` | `rejected` | Blocked references cannot be `candidate_for_brief` |
+| `adapt` | `normalized`, `candidate_for_brief` | `candidate_for_brief` requires resolved license/copy risk, forbidden-copy elements, normalization notes, and mapped PulsePlate components |
+| `adopt` | `normalized`, `candidate_for_brief` | `candidate_for_brief` requires existing PulsePlate token/component fit and no unresolved hard-risk axis |
+
+`status=candidate_for_brief` is never allowed with `adopt_adapt_reject_decision=reject`, incomplete evidence, or unresolved license/copy risk.
+
 ## Required Fields
 
 | Field | Type | Required | Meaning |
@@ -90,7 +103,8 @@ References may contribute only derived, normalized metadata and an explicit `ado
 ## Validation Rules
 
 - `source_url` must never be used as implementation authority.
-- `license_status=unknown` cannot pair with `status=candidate_for_brief` unless `forbidden_copy_elements` is explicit and the scorecard says `adapt` or `reject`.
+- `license_status=unknown` cannot pair with `status=candidate_for_brief`; keep the reference `read_only` or `normalized` until license/copy risk is resolved.
+- `status=candidate_for_brief` requires scorecard decision `adopt` or `adapt`; it is forbidden when the decision is `reject`.
 - `adopt` is allowed only for abstract patterns already compatible with PulsePlate tokens/components.
 - `adapt` is the default for useful references with any legal, brand, copy, layout, or platform risk.
 - `reject` is mandatory when a reference requires copying protected assets, brand identity, exact layout, proprietary components, unsupported medical claims, or unverified monetization copy.

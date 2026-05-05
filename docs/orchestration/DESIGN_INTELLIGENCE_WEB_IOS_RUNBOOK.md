@@ -212,7 +212,8 @@ make design-guard
 npm --prefix frontend run tokens:check
 npm --prefix frontend run build-storybook
 make validate-changed
-git diff --name-only origin/main...HEAD | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$"
+non_docs="$(git diff --name-only origin/main...HEAD | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$" || true)"
+test -z "$non_docs"
 pre-commit run --all-files
 git status --short
 ```
@@ -220,6 +221,8 @@ git status --short
 If `npm --prefix frontend run build-storybook` creates `frontend/storybook-static/`, remove that untracked local artifact before continuing.
 
 Full local `make verify` is intentionally not run for PR-0 by operator machine-budget decision. This does not create a merge-ready claim. Merge readiness still depends on current-head CI, fixed mapping, review-bot pass/no-actionables, unresolved thread disposition, and the mandatory wait-window.
+
+These validation commands are the canonical PR-0 local bundle for this wave. The PR-0 packet references this runbook for the shared source-of-truth hierarchy, forbidden-action list, validation bundle, and premortem controls so those controls do not drift between documents.
 
 ## Promotion Rules
 

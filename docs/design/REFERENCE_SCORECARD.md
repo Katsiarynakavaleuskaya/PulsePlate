@@ -18,7 +18,7 @@ Every scored reference must end with one of:
 - `adapt`: useful direction, but must be transformed into PulsePlate-specific vocabulary, tokens, copy, and layout.
 - `reject`: blocked by brand fit, legal risk, accessibility risk, wellness risk, implementation cost, or copy risk.
 
-Default decision is `adapt` unless a reference is clearly safe and already maps to existing PulsePlate contracts.
+Default decision is `adapt` only after the reference has enough evidence to score. Incomplete evidence stays `read_only` in the manifest. A low score is a `reject`, not an implicit `adapt`.
 
 ## Scoring Scale
 
@@ -52,9 +52,23 @@ Use integers `0` through `3`.
 
 - `reject` if any of these axes score `0`: trust / wellness-safe tone, accessibility risk, App Store / legal risk, copy risk.
 - `reject` if `forbidden_copy_elements` cannot be separated from the useful pattern.
+- `reject` if total score is `17` or lower, even when no hard-reject axis is `0`.
 - `adapt` if total score is `18` through `29` and no hard reject axis is `0`.
 - `adopt` if total score is `30` or higher, all hard-risk axes are at least `2`, and the pattern maps to existing PulsePlate components/tokens.
 - `read_only` remains the status when evidence is incomplete.
+
+## Manifest Decision Mapping
+
+Scorecard decisions drive manifest status transitions:
+
+| Scorecard result | Allowed manifest status | Required handling |
+| --- | --- | --- |
+| incomplete evidence | `read_only` | Keep as inspection-only; do not score into a brief |
+| `reject` | `rejected` | Record risk reason and forbidden-copy elements; cannot become `candidate_for_brief` |
+| `adapt` | `normalized` or `candidate_for_brief` | `candidate_for_brief` requires complete license, attribution, legal-copy, forbidden-copy, component mapping, and normalization notes |
+| `adopt` | `normalized` or `candidate_for_brief` | `candidate_for_brief` requires existing PulsePlate token/component fit and no hard-risk axis below `2` |
+
+`status=candidate_for_brief` is forbidden when the scorecard decision is `reject`, when evidence is incomplete, or when license/copy risk fields are unresolved.
 
 ## Scorecard Record
 

@@ -13,6 +13,8 @@ PR-0 starts the PulsePlate design intelligence wave with repo-first governance f
 
 This PR is not a redesign. It creates the rules future PRs must follow before any automation or implementation can use external references.
 
+Shared controls live in `docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md`: source-of-truth hierarchy, forbidden actions, validation bundle, promotion rules, and premortem controls. This packet records the PR-specific plan and evidence and should not fork those shared controls.
+
 ## Goal
 
 Create the canonical packet and contracts that let future PulsePlate agents compare web/iOS surfaces against strong real-world references without creating a second source of truth.
@@ -75,7 +77,8 @@ make design-guard
 npm --prefix frontend run tokens:check
 npm --prefix frontend run build-storybook
 make validate-changed
-git diff --name-only origin/main...HEAD | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$"
+non_docs="$(git diff --name-only origin/main...HEAD | rg -v "\.md$|README\.md$|AGENTS\.md$|RUNBOOK_AGENT\.md$|DEPLOYMENT\.md$" || true)"
+test -z "$non_docs"
 git diff -- frontend/src/styles/tokens.css frontend/src/styles/tokens.ts ios/PulsePlate/DesignSystem/DesignTokens.generated.swift
 pre-commit run --all-files
 git status --short
@@ -130,7 +133,7 @@ Primary risks are handled in the premortem table and promoted into controls in t
 - [ ] `npm --prefix frontend run build-storybook`
 - [ ] Remove `frontend/storybook-static/` if generated
 - [ ] `make validate-changed`
-- [ ] docs-only diff guard returns empty output
+- [ ] docs-only diff guard exits `0` only when the non-docs offender list is empty
 - [ ] generated token mirror diff check returns empty output
 - [ ] `pre-commit run --all-files`
 - [ ] `git status --short`
