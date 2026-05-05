@@ -15,13 +15,27 @@ from core.evidence.fingerprints import (
     build_idempotency_key,
     fingerprint_payload,
 )
+from core.evidence.events import (
+    EvidenceEvalEvent,
+    EvalEventProducer,
+    EvalEventRail,
+    EvalEventType,
+    ValidationStatus,
+    create_eval_event,
+)
 
 __all__ = [
     "AssetType",
     "EvidenceAssetRef",
+    "EvidenceEvalEvent",
+    "EvalEventProducer",
+    "EvalEventRail",
+    "EvalEventType",
     "Rail",
+    "ValidationStatus",
     "build_asset_id",
     "build_idempotency_key",
     "create_evidence_asset_ref",
+    "create_eval_event",
     "fingerprint_payload",
 ]
