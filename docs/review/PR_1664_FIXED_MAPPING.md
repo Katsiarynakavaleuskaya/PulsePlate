@@ -16,7 +16,7 @@ Evidence: Makefile:73, tests/test_makefile_dev_python_migration.py:34-90
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1664#pullrequestreview-4223199248 -> 3aba1852f
 
 Disposition: FIXED
-Commit: 1f15132ce
+Commit: see mapping entries below
 Evidence: scripts/ci/pr_regression_scan.sh:45, tests/test_makefile_dev_python_migration.py:334, tests/test_pr_regression_scan.py:75
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1664#pullrequestreview-4225106857 -> 1f15132ce
