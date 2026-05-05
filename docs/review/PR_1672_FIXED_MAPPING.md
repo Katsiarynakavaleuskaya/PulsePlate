@@ -29,18 +29,16 @@ deterministic event contracts without changing product runtime behavior.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-No human, CodeRabbit, Sourcery, or Cubic review threads had been triaged at the
-time this initial mapping artifact was created. Keep these checkboxes open
-until post-open review comments are inspected and dispositioned.
+GraphQL review-thread check returned no review threads for PR #1672 at initial
+mapping time. CodeRabbit skipped review because the PR is draft. Sourcery posted
+a reviewer guide only, with no actionable review threads.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads are mapped yet. Add each resolved actionable thread
-with disposition-specific proof after the comment exists and after the fixing
-commit, if any, lands.
+- No actionable review comments
 
 ## Premortem Summary
 
