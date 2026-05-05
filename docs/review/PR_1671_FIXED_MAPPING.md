@@ -31,6 +31,7 @@ Any future actionable human or bot thread must remain unresolved until one of th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191616598 -> 760349209
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#pullrequestreview-4231699115 -> dabae3927
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191662453 -> dabae3927
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#pullrequestreview-4231724665 -> fae063c77
 Disposition: FIXED
 Commit: 6ddb18ef1
 Evidence: docs/design/REFERENCE_SCORECARD.md defines total score `17` or lower as `reject` and maps scorecard decisions to manifest status.
@@ -41,6 +42,8 @@ Commit: 760349209
 Evidence: docs/design/REFERENCE_MANIFEST_SCHEMA.md requires exact visual-governance keys `icon-silhouette-check` and `design-guard`.
 Commit: dabae3927
 Evidence: docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md and docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md include executable wellness-language blocker and philosophy-validator gates.
+Commit: fae063c77
+Evidence: docs/design/REFERENCE_MANIFEST_SCHEMA.md rewords the rejection rule while preserving the mandatory `reject` condition.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1671#discussion_r3191616603
 Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1671_FIXED_MAPPING.md keeps `- [x] Discussion-thread pass completed` and `- [x] Fixed in commit mapping completed` under `## Discussion Thread Pass`.
@@ -58,6 +61,7 @@ Initial PR-0 bootstrap commits:
 - Review fixes -> `6ddb18ef1` (`docs(design): fix reference governance review findings`)
 - Review fixes -> `760349209` (`docs(design): encode visual governance gates in reference schema`)
 - Review fixes -> `dabae3927` (`docs(design): add wellness and philosophy guard gates`)
+- Review fixes -> `fae063c77` (`docs(design): clarify reference rejection rule`)
 
 ## Local Validation Evidence
 
