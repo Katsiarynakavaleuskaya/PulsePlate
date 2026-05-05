@@ -13,7 +13,7 @@ set -euo pipefail
 #   scripts/ci/pr_regression_scan.sh [PR_NUMBER] [REPO]
 # Defaults:
 #   PR_NUMBER: from $PR_NUMBER env var
-#   REPO: GITHUB_REPOSITORY or Katsiarynakavaleuskaya/PulsePlate
+#   REPO: CLI arg, REPO env, GITHUB_REPOSITORY, or Katsiarynakavaleuskaya/PulsePlate
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
@@ -26,7 +26,7 @@ Usage:
 
 Environment variables:
   PR_NUMBER (default: from arg or environment)
-  GITHUB_REPOSITORY / REPO (default: Katsiarynakavaleuskaya/PulsePlate)
+  REPO (default: from CLI arg, REPO env, GITHUB_REPOSITORY, or Katsiarynakavaleuskaya/PulsePlate)
   SKIP_CURRENT_HEAD_CHECK (default: 0)
   RUN_MAIN_SUITE (default: 1)  # run sharded main-suite baseline
   PYTHON_VERSION (default: 3.13)
@@ -42,7 +42,7 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
 fi
 
 PR_NUMBER="${1:-${PR_NUMBER:-${GH_PR_NUMBER:-}}}"
-REPO="${2:-${GITHUB_REPOSITORY:-Katsiarynakavaleuskaya/PulsePlate}}"
+REPO="${2:-${REPO:-${GITHUB_REPOSITORY:-Katsiarynakavaleuskaya/PulsePlate}}}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.13}"
 RUN_MAIN_SUITE="${RUN_MAIN_SUITE:-1}"
 MAIN_SHARD_COUNT="${MAIN_SHARD_COUNT:-2}"

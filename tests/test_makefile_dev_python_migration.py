@@ -231,6 +231,17 @@ def test_compose_project_name_is_safe_and_deterministic() -> None:
     assert (
         "COMPOSE_PROJECT_NAME_SUFFIX" in text
     ), "Makefile should define COMPOSE_PROJECT_NAME_SUFFIX"
+    suffix_match = re.search(
+        r"^COMPOSE_PROJECT_NAME_SUFFIX\s*:=\s*\$\(strip \$\(shell (?P<body>.+)\)\)$",
+        text,
+        re.MULTILINE,
+    )
+    assert suffix_match, "Makefile should define COMPOSE_PROJECT_NAME_SUFFIX via shell"
+    suffix_body = suffix_match.group("body")
+    assert suffix_body == "pwd -P | cksum | cut -d' ' -f1"
+    assert "$(CURDIR)" not in suffix_body
+    assert "basename" not in suffix_body
+
     pattern = re.compile(r"^COMPOSE_PROJECT_NAME\s+\?=\s*(.+)$", re.MULTILINE)
     match = pattern.search(text)
     assert match, "COMPOSE_PROJECT_NAME must be defined"
@@ -323,12 +334,19 @@ def test_compose_project_name_does_not_execute_path_text() -> None:
     """A malicious-looking directory name should not execute shell payloads."""
     with TemporaryDirectory() as root:
         root_path = Path(root)
-        injection_marker = root_path / "injection_marker"
-        worktree = root_path / f"pwn_$(touch {injection_marker.name})"
+        payload_name = "injection_marker"
+        worktree = root_path / f"pwn_$(touch {payload_name})"
         worktree.mkdir(parents=True, exist_ok=True)
+        injection_marker = worktree / payload_name
         value = _make_compose_project_name(worktree)
         assert re.fullmatch(r"pulseplate-[0-9]+", value) is not None
         assert not injection_marker.exists()
+
+
+def test_pr_regression_scan_make_target_forwards_repo_env() -> None:
+    """Make wrapper should forward the documented REPO env contract."""
+    text = _makefile_text()
+    assert '"$${REPO:-$${REPO_NAME:-}}"' in text
 
 
 def test_dc_targets_dont_execute_injected_override() -> None:

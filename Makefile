@@ -148,7 +148,7 @@ validate-changed: ## Run tests inferred from changed Python files
 	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
 
 pr-regression-scan: ## Run temporary PR regression scan (focused + full/main-suite fallback + current-head check)
-	@bash scripts/ci/pr_regression_scan.sh "$${PR_NUMBER:-}" "$${REPO_NAME:-}"
+	@bash scripts/ci/pr_regression_scan.sh "$${PR_NUMBER:-}" "$${REPO:-$${REPO_NAME:-}}"
 
 
 ## Coverage in terminal + XML (uses .coveragerc)
