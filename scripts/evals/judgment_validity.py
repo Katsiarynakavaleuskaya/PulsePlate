@@ -65,9 +65,11 @@ JUDGMENT_VALIDITY_REPORT_FILENAME = "judgment_validity_report.json"
 
 def _safe_write_text(path: Path, content: str) -> None:
     """Write text without following symlinks."""
+    no_follow = getattr(os, "O_NOFOLLOW", None)
+    if no_follow is None:
+        raise OSError("Symlink-safe writes are not supported on this platform")
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
-    if hasattr(os, "O_NOFOLLOW"):
-        flags |= os.O_NOFOLLOW
+    flags |= no_follow
     fd = os.open(path, flags, 0o600)
     with os.fdopen(fd, "w", encoding="utf-8") as fh:
         fh.write(content)
