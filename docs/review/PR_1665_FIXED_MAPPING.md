@@ -39,8 +39,8 @@ Mappings:
 
 - [x] Canonical mapping artifact exists.
 - [x] Focused tests passed: `.venv/bin/python -m pytest -q tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py`.
-- [ ] `pre-commit run --all-files` passed.
-- [ ] `make validate-changed` passed.
+- [x] `pre-commit run --all-files` passed.
+- [x] `make validate-changed` passed.
 - [ ] Strict merge-readiness wrapper passed on current head.
 - [ ] Current-head GitHub CI parity is green.
 
