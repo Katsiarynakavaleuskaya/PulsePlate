@@ -5,6 +5,8 @@
 - [x] Reviewed current actionable CodeRabbit, Cubic, Sourcery, Codex, and coverage comments for PR #1666.
 - [x] Fixed valid security/test findings before mapping them.
 - [x] Kept scope limited to judgment-validity sidecar write safety, focused tests, and governance.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Review Evidence
 
@@ -16,11 +18,13 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `13b837d6dd0903bd628c1cdde848bec5a7c2245c`
+Commit: 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 Evidence: `_safe_write_text()` now fails closed when `os.O_NOFOLLOW` is unavailable; sidecar symlink tests cover both items/report targets and assert the outside target remains unchanged. Focused pytest passed with `28 passed`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#discussion_r3184241197 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#discussion_r3184257890 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#pullrequestreview-4223185713 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1666#pullrequestreview-4223206641 -> 13b837d6dd0903bd628c1cdde848bec5a7c2245c
 
 Disposition: NOT-A-BUG
 Evidence: Non-actionable service/rate-limit or coverage summary comments; no code change requested.
