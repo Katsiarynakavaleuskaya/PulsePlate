@@ -9,8 +9,8 @@ Title: `test(guards): add regression guards for dev tooling and eval artifact sa
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No external review threads existed at PR open time. Later CodeRabbit, Cubic, or
-Sourcery actionables must be added here before any thread resolution.
+Sourcery high-level review feedback was reviewed and mapped below. CodeRabbit
+reported no actionable comments, and Cubic reported no issues.
 
 Role order used:
 
@@ -33,6 +33,9 @@ In-scope premortem fixes applied:
 - Source-level invariant that predictable judgment sidecars use `_safe_write_text()`.
 - Eval validator guard against coercive casts and mutable aliasing regressions.
 - Diff-scoped docs path leakage guard to avoid historical `/Users/...` false positives.
+- Sourcery feedback hardened the guard implementation itself: source checks now
+  use AST-backed function extraction instead of brittle string slicing, and docs
+  diff base selection is configurable with local fallbacks.
 
 ## Review Evidence
 
@@ -63,9 +66,21 @@ Evidence:
 
 - `docs/review/PR_1669_FIXED_MAPPING.md` records the PR-numbered governance artifact and local gate evidence.
 
+### Sourcery guard robustness review
+
+Disposition: FIXED
+Commit: f8f7c5796
+Evidence:
+
+- `tests/guards/test_security_devtooling_regression_guards.py` now extracts guarded writer functions through `ast.FunctionDef` line spans instead of `str.index`.
+- `tests/guards/test_security_devtooling_regression_guards.py` now supports `PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE` and falls back across available local git refs before diffing docs changes.
+
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: f8f7c5796
+Evidence: `tests/guards/test_security_devtooling_regression_guards.py` replaces brittle source slicing and hard-coded docs diff base behavior in response to Sourcery review feedback.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1669#pullrequestreview-4230017026 -> f8f7c5796
 
 ## Merge Readiness
 
@@ -76,6 +91,9 @@ Local gates run before opening PR:
 - `. .venv/bin/activate && python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py tests/test_makefile_dev_python_migration.py tests/test_run_safety_audit.py tests/test_python_supply_chain_controls.py tests/test_ci_risk_profile.py tests/evals/test_judgment_validity_sidecar.py tests/evals/test_eval_validity_contract.py` -> PASS
 - `pre-commit run --all-files` -> PASS after black reformatted `tests/guards/test_security_devtooling_regression_guards.py` and the hook was rerun cleanly
 - `make validate-changed` -> PASS; after commit it ran `tests/guards/test_security_devtooling_regression_guards.py` and reported `10 passed`
+- `. .venv/bin/activate && python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py` -> PASS after Sourcery robustness fix; reported `10 passed`
+- `pre-commit run --all-files` -> PASS after Sourcery robustness fix
+- `make validate-changed` -> PASS after Sourcery robustness fix; reported `10 passed`
 - Push pre-push hooks -> PASS, including `pip-audit`, backend pre-push pytest, full-repo Bandit, and docker build test where path filters attached it
 
 Full local `make verify` was not run by operator-approved machine-heavy exception
