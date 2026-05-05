@@ -128,6 +128,24 @@ class TestValidateEvalVariantRecord:
         assert rec["canonical_id"] == "item_001"
         assert rec["variant_family"] == "canonical"
 
+    def test_slice_tags_are_defensive_copy(self) -> None:
+        raw = _make_variant_raw(slice_tags=["rag"])
+        rec = validate_eval_variant_record(raw)
+
+        raw["slice_tags"].append("mutated")
+
+        assert rec["slice_tags"] == ["rag"]
+
+    def test_input_payload_is_defensive_copy(self) -> None:
+        payload = {"query": "test"}
+        raw = _make_variant_raw(input_payload=payload)
+        rec = validate_eval_variant_record(raw)
+
+        payload["query"] = "changed"
+        payload["extra"] = "mutated"
+
+        assert rec["input_payload"] == {"query": "test"}
+
     def test_rejects_invalid_family(self) -> None:
         raw = _make_variant_raw(variant_family="bogus")
         with pytest.raises(ValueError, match="Invalid variant_family"):
@@ -144,6 +162,38 @@ class TestValidateEvalVariantRecord:
         with pytest.raises(ValueError, match="Invalid expected_relation"):
             validate_eval_variant_record(raw)
 
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("canonical_id", ["item_001"]),
+            ("variant_id", {"id": "v"}),
+            ("transform_type", 123),
+        ],
+    )
+    def test_rejects_non_string_identifiers_and_transform_type(
+        self, field: str, value: object
+    ) -> None:
+        raw = _make_variant_raw(**{field: value})
+        with pytest.raises(ValueError, match=rf"EvalVariantRecord.{field} must be str"):
+            validate_eval_variant_record(raw)
+
+    def test_rejects_invalid_slice_tags_type_with_value_error(self) -> None:
+        raw = _make_variant_raw(slice_tags="rag")
+        with pytest.raises(ValueError, match=r"EvalVariantRecord.slice_tags must be list\[str\]"):
+            validate_eval_variant_record(raw)
+
+    def test_rejects_slice_tags_with_non_string_elements(self) -> None:
+        raw = _make_variant_raw(slice_tags=["rag", 1])
+        with pytest.raises(
+            ValueError, match="EvalVariantRecord.slice_tags must contain only str values"
+        ):
+            validate_eval_variant_record(raw)
+
+    def test_rejects_invalid_input_payload_type(self) -> None:
+        raw = _make_variant_raw(input_payload=["x"])
+        with pytest.raises(ValueError, match="EvalVariantRecord.input_payload must be dict"):
+            validate_eval_variant_record(raw)
+
 
 # ---------------------------------------------------------------------------
 # Outcome record validation
@@ -157,6 +207,14 @@ class TestValidateEvalOutcomeRecord:
         rec = validate_eval_outcome_record(raw)
         assert rec["passed"] is True
         assert rec["score"] == 1.0
+
+    def test_slice_tags_are_defensive_copy(self) -> None:
+        raw = _make_outcome_raw(slice_tags=["rag"])
+        rec = validate_eval_outcome_record(raw)
+
+        raw["slice_tags"].append("mutated")
+
+        assert rec["slice_tags"] == ["rag"]
 
     def test_rejects_invalid_family(self) -> None:
         raw = _make_outcome_raw(variant_family="bogus")
@@ -197,6 +255,32 @@ class TestValidateEvalOutcomeRecord:
     def test_rejects_neg_infinity_score(self) -> None:
         raw = _make_outcome_raw(score=float("-inf"))
         with pytest.raises(ValueError, match="must be finite"):
+            validate_eval_outcome_record(raw)
+
+    @pytest.mark.parametrize(
+        ("field", "value"),
+        [
+            ("canonical_id", ["item_001"]),
+            ("variant_id", {"id": "v"}),
+            ("transform_type", {"kind": "none"}),
+            ("decision", ["pass"]),
+        ],
+    )
+    def test_rejects_non_string_fields(self, field: str, value: object) -> None:
+        raw = _make_outcome_raw(**{field: value})
+        with pytest.raises(ValueError, match=rf"EvalOutcomeRecord.{field} must be str"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_invalid_slice_tags_type_with_value_error(self) -> None:
+        raw = _make_outcome_raw(slice_tags="rag")
+        with pytest.raises(ValueError, match=r"EvalOutcomeRecord.slice_tags must be list\[str\]"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_slice_tags_with_non_string_elements(self) -> None:
+        raw = _make_outcome_raw(slice_tags=["rag", 1])
+        with pytest.raises(
+            ValueError, match="EvalOutcomeRecord.slice_tags must contain only str values"
+        ):
             validate_eval_outcome_record(raw)
 
 
