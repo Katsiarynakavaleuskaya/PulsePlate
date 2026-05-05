@@ -16,6 +16,7 @@ REQUIRED_MANIFEST = "requirements.txt"
 OPTIONAL_MANIFESTS: tuple[str, ...] = (
     "requirements-docker-runtime.txt",
     "requirements-rag-vector.txt",
+    "requirements-rag-vector-cpu.txt",
 )
 HIGH_RISK_SEVERITIES = {"HIGH", "CRITICAL", "UNKNOWN"}
 SAFETY_BINARY = "safety"

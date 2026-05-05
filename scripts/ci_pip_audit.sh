@@ -18,6 +18,9 @@ fi
 if [[ -f "requirements-rag-vector.txt" ]]; then
   manifests+=("requirements-rag-vector.txt")
 fi
+if [[ -f "requirements-rag-vector-cpu.txt" ]]; then
+  manifests+=("requirements-rag-vector-cpu.txt")
+fi
 
 for manifest in "${manifests[@]}"; do
   stem="${manifest%.txt}"

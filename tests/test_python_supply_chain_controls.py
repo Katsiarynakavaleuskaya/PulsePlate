@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
+import subprocess
 
 import pytest
 import yaml
@@ -523,14 +525,19 @@ def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
 
 
 def test_dependency_submission_workflow_tracks_runtime_and_optional_manifests() -> None:
-    workflow_text = (
-        REPO_ROOT / ".github" / "workflows" / "python-dependency-submission.yml"
-    ).read_text(encoding="utf-8")
+    workflow_events = _workflow_events(".github/workflows/python-dependency-submission.yml")
+    expected_paths = {
+        "requirements-docker-runtime.in",
+        "requirements-docker-runtime.txt",
+        "requirements-rag-vector.in",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.in",
+        "requirements-rag-vector-cpu.txt",
+    }
 
-    assert '"requirements-docker-runtime.in"' in workflow_text
-    assert '"requirements-docker-runtime.txt"' in workflow_text
-    assert '"requirements-rag-vector.in"' in workflow_text
-    assert '"requirements-rag-vector.txt"' in workflow_text
+    for event_name in ("push", "pull_request"):
+        event_paths = set(workflow_events[event_name]["paths"])
+        assert expected_paths <= event_paths
 
 
 def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
@@ -549,6 +556,68 @@ def test_security_scan_workflow_audits_runtime_and_optional_manifests() -> None:
     assert "requirements-docker-runtime.txt" in ci_pip_audit_text
     assert "requirements-rag-vector.txt" in safety_audit_text
     assert "requirements-rag-vector.txt" in ci_pip_audit_text
+    assert "requirements-rag-vector-cpu.txt" in safety_audit_text
+    assert "requirements-rag-vector-cpu.txt" in ci_pip_audit_text
+
+
+def test_pip_audit_helper_invokes_cpu_rag_vector_manifest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_bin = tmp_path / "bin"
+    fake_bin.mkdir()
+    log_path = tmp_path / "pip-audit-args.log"
+    fake_pip_audit = fake_bin / "pip-audit"
+    fake_pip_audit.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$*" >> "${PIP_AUDIT_LOG}"
+output=""
+while [[ "$#" -gt 0 ]]; do
+  case "$1" in
+    -o)
+      output="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+if [[ -n "${output}" ]]; then
+  printf '{}\n' > "${output}"
+fi
+""",
+        encoding="utf-8",
+    )
+    fake_pip_audit.chmod(0o755)
+    for manifest in (
+        "requirements.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+    ):
+        (tmp_path / manifest).write_text("example==1.0.0\n", encoding="utf-8")
+
+    env = os.environ.copy()
+    env["CI"] = "1"
+    env["PATH"] = f"{fake_bin}{os.pathsep}{env['PATH']}"
+    env["PIP_AUDIT_LOG"] = str(log_path)
+
+    result = subprocess.run(
+        [str(REPO_ROOT / "scripts" / "ci_pip_audit.sh")],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert (
+        "-r requirements-rag-vector-cpu.txt -f json -o pip-audit-requirements-rag-vector-cpu.json"
+        in log_path.read_text(encoding="utf-8")
+    )
+    assert (tmp_path / "pip-audit-requirements-rag-vector-cpu.json").exists()
 
 
 def test_safety_dependency_audit_uses_shared_helper_without_shell_loop() -> None:
@@ -587,6 +656,8 @@ def test_ci_risk_profile_tracks_runtime_and_optional_manifests() -> None:
     assert '"requirements-docker-runtime.txt"' in risk_profile_text
     assert '"requirements-rag-vector.in"' in risk_profile_text
     assert '"requirements-rag-vector.txt"' in risk_profile_text
+    assert '"requirements-rag-vector-cpu.in"' in risk_profile_text
+    assert '"requirements-rag-vector-cpu.txt"' in risk_profile_text
 
 
 def test_docker_workflows_emit_image_telemetry_artifacts() -> None:
