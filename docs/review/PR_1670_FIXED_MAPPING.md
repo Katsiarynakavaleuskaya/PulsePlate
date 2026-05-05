@@ -43,15 +43,15 @@ Disposition: NOT-A-BUG
 Evidence: `Dockerfile` intentionally keeps `libgnutls30` unpinned so rebuilds pull the newest available bookworm-security package; `trivy/ignore-policy.rego` remains exact-version scoped so package drift surfaces for security review rather than being silently waived.
 Reason: Pinning `libgnutls30=3.7.9-2+deb12u6` would freeze the production image on today's vulnerable package and work against the remediation order for future Debian security updates.
 
-- CodeRabbit review comment on `docs/review/PR_1670_FIXED_MAPPING.md` submitted 2026-05-05T18:24:10Z
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#pullrequestreview-4230613375 -> ea64e91dd
 Disposition: FIXED
 Commit: ea64e91dd
 Evidence: This mapping now states that FIXED closes the GitHub alert mapping while DEFERRED tracks residual upstream distro risk until bookworm receives a true fix.
 
-- Sourcery high-level maintainability comments submitted 2026-05-05T18:18:24Z
-Disposition: FIXED
-Commit: ea64e91dd
-Evidence: `Dockerfile` now records the shared version-sync workflow, and the security docs/mapping use stable anchors/file-level evidence instead of exact line numbers for the touched GnuTLS surfaces.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1670#pullrequestreview-4230581506
+Disposition: NOT-A-BUG
+Evidence: `trivy/ignore-policy.rego` intentionally keeps separate exact CVE/package/version rules for auditability, while `Dockerfile` now records the version-sync workflow and security docs/mapping use stable anchors/file-level evidence except where repo docs gates require a `file:line` anchor.
+Reason: A shared helper would reduce repetition but also widen a security-waiver surface; explicit per-CVE rules are safer for this HIGH OS-package waiver lane.
 
 ## Security Alert Disposition
 
