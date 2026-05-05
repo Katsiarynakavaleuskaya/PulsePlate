@@ -8,7 +8,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open `qa-engineer-agent -> bug-hunter` review pass completed
+- [x] Post-open `qa-engineer-agent -> bug-hunter` review pass completed
 - [ ] Review threads audited after bot/human activity
 
 ## Fixed in Commit Mapping
@@ -37,6 +37,23 @@ is active implementation scope.
 No actionable human, CodeRabbit, Sourcery, or Cubic review comments are present
 at artifact creation. Record every later actionable comment in `Fixed in Commit
 Mapping` before resolving threads on GitHub.
+
+## Post-Open Role Review
+
+Disposition: FIXED
+Commit: 782b94c4f
+Evidence: `qa-engineer-agent` identified missing `make validate-changed`
+evidence for the docs-only `make verify` deferral; the command passed and this
+artifact now records it in `Local Validation` and `Local Full Verify`.
+Reason: The narrow local gate bundle must be complete before current-head CI is
+used as the heavy-suite signal.
+
+Disposition: NOT-A-BUG
+Evidence: `python3 scripts/orchestration/task_bootstrap.py --goal "Post-open review for PR-B4 closeout lane" --task-class "Orchestration" --pr-phase post_open_review` PASS; task packet `7c5e4eae0456`.
+Evidence: `python3 scripts/orchestration/pr_review_context.py --pr 1668 --output /tmp/pulseplate_pr_1668_review_context.json && python3 scripts/orchestration/pr_review_report.py --context /tmp/pulseplate_pr_1668_review_context.json --format markdown` produced no deterministic findings.
+Evidence: `bug-hunter` review on head `782b94c4fe5d59e8f26437de1f1f2e89b9b0cde0` reported no findings after the validation-evidence fix.
+Reason: The diff remains docs-only and does not claim merge-readiness while the
+PR is draft or current-head CI is pending.
 
 ## Initial Implementation Commit
 
