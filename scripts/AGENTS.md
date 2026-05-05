@@ -56,3 +56,16 @@ First-class repo wrappers:
 ## Evaluation validity
 
 For evaluation-validity work, follow `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`.
+Eval artifact sidecars with predictable filenames must use symlink-safe,
+fail-closed writers. Eval JSONL validators must reject malformed fields with
+`ValueError`, must not coerce raw values into accepted schema fields, and must
+defensively copy validated mutable containers.
+
+## Security/dev-tooling regression guards
+
+When touching Makefile devcontainer project-name generation, dependency audit
+helpers, dependency-submission filters, CI risk routing, or eval artifact
+writers, update the focused guards in
+`tests/guards/test_security_devtooling_regression_guards.py`. Optional
+RAG/vector dependency profiles must be covered consistently by Safety,
+pip-audit, Python dependency submission, and CI risk-profile routing.
