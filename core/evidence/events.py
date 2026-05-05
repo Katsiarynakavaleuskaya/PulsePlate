@@ -344,11 +344,7 @@ def validate_source_artifact(source_artifact: str) -> str:
     if normalized.startswith("/") or normalized.startswith("~"):
         raise ValueError("source_artifact must be repo-relative")
     path = PurePosixPath(normalized)
-    if path.is_absolute():
-        raise ValueError("source_artifact must be repo-relative")
     parts = path.parts
-    if not parts:
-        raise ValueError("source_artifact must be non-empty")
     if any(part in {"", ".", ".."} for part in parts):
         raise ValueError("source_artifact must not contain traversal")
     if parts[0] in _FORBIDDEN_SOURCE_ROOTS:

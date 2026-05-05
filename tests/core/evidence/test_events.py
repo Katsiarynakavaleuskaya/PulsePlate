@@ -173,6 +173,7 @@ def test_rejects_unknown_rail() -> None:
 @pytest.mark.parametrize(
     "source_artifact",
     [
+        " ",
         "../traces.jsonl",
         "artifacts/rag_eval/../secret.json",
         "/tmp/traces.jsonl",
@@ -202,6 +203,11 @@ def test_rejects_missing_idempotency_key() -> None:
         _make_event(idempotency_key=" ")
 
 
+def test_rejects_idempotency_key_with_whitespace() -> None:
+    with pytest.raises(ValueError, match="idempotency_key"):
+        _make_event(idempotency_key="idem key")
+
+
 def test_rejects_unknown_event_type_and_validation_status() -> None:
     with pytest.raises(ValueError, match="unsupported event_type"):
         _make_event(event_type=cast(EvalEventType, "semantic_cache_hit"))
@@ -212,6 +218,11 @@ def test_rejects_unknown_event_type_and_validation_status() -> None:
 def test_validate_produced_at_rejects_naive_timestamp() -> None:
     with pytest.raises(ValueError, match="timezone"):
         validate_produced_at("2026-05-05T12:00:00")
+
+
+def test_validate_produced_at_rejects_empty_timestamp() -> None:
+    with pytest.raises(ValueError, match="produced_at"):
+        validate_produced_at(" ")
 
 
 def test_validate_produced_at_accepts_z_suffix_timestamp() -> None:
@@ -234,6 +245,18 @@ def test_rejects_raw_secret_or_user_health_metadata(metadata: dict[str, object])
 def test_rejects_duplicate_metadata_keys_after_normalization() -> None:
     with pytest.raises(ValueError, match="collides after normalization"):
         _make_event(metadata={"metric": 1, " metric ": 2})
+
+
+def test_rejects_non_string_metadata_key() -> None:
+    metadata = cast(dict[str, object], {1: "bad"})
+
+    with pytest.raises(ValueError, match="metadata keys must be strings"):
+        _make_event(metadata=metadata)
+
+
+def test_rejects_empty_metadata_key_after_normalization() -> None:
+    with pytest.raises(ValueError, match="metadata keys must be non-empty"):
+        _make_event(metadata={" ": "bad"})
 
 
 @pytest.mark.parametrize("value", [math.nan, math.inf, -math.inf])
