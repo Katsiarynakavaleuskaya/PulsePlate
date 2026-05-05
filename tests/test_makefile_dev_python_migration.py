@@ -31,29 +31,62 @@ def _make_binary(name: str) -> str:
     return binary
 
 
+def _clean_make_env() -> dict[str, str]:
+    env = os.environ.copy()
+    env.pop("COMPOSE_PROJECT_NAME", None)
+    env.pop("COMPOSE_PROJECT_NAME_SUFFIX", None)
+    return env
+
+
+def _expected_compose_project_name(cwd: Path) -> str:
+    """Compute the Makefile's default compose project name formula for a worktree."""
+    shell = _make_binary("sh")
+    result = subprocess.run(
+        ["sh", "-lc", "pwd -P | cksum | cut -d' ' -f1"],
+        executable=shell,
+        cwd=str(cwd),
+        capture_output=True,
+        text=True,
+        check=True,
+        env=_clean_make_env(),
+    )
+    return f"pulseplate-{result.stdout.strip()}"
+
+
 def _make_compose_project_name(cwd: Path) -> str:
     """Evaluate COMPOSE_PROJECT_NAME in a temporary make invocation from a worktree."""
     make_binary = _make_binary("make")
-    with TemporaryDirectory() as probe_dir:
-        probe_makefile = Path(probe_dir) / "probe.mk"
-        probe_makefile.write_text(
-            f"""include {MAKEFILE}\n\n.PHONY: print-compose\nprint-compose:\n\t@printf '%s\\n' \"$(COMPOSE_PROJECT_NAME)\"\n""",
-            encoding="utf-8",
-        )
-        result = subprocess.run(
+    probe_makefile = cwd / "probe.mk"
+    worktree_makefile = cwd / "Makefile"
+    if not worktree_makefile.exists():
+        worktree_makefile.symlink_to(MAKEFILE)
+    probe_makefile.write_text(
+        "\n".join(
             [
-                make_binary,
-                "-s",
-                "-f",
-                str(probe_makefile),
-                "-C",
-                str(cwd),
-                "print-compose",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
+                "include Makefile",
+                "",
+                ".PHONY: print-compose",
+                "print-compose:",
+                "\t@printf '%s\\n' \"$(COMPOSE_PROJECT_NAME)\"",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [
+            make_binary,
+            "-s",
+            "-f",
+            str(probe_makefile),
+            "-C",
+            str(cwd),
+            "print-compose",
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=_clean_make_env(),
+    )
     return result.stdout.strip()
 
 
@@ -254,12 +287,19 @@ def test_devcontainer_dc_targets_are_intact() -> None:
 def test_compose_project_name_varies_between_worktrees() -> None:
     """Different worktrees should evaluate to different compose project names."""
     with TemporaryDirectory() as first_dir, TemporaryDirectory() as second_dir:
-        first = _make_compose_project_name(Path(first_dir))
-        second = _make_compose_project_name(Path(second_dir))
+        first_worktree = Path(first_dir)
+        second_worktree = Path(second_dir)
 
-        assert first != second
+        first = _make_compose_project_name(first_worktree)
+        second = _make_compose_project_name(second_worktree)
+        expected_first = _expected_compose_project_name(first_worktree)
+        expected_second = _expected_compose_project_name(second_worktree)
+
+        assert first == expected_first
+        assert second == expected_second
         assert re.fullmatch(r"pulseplate-[0-9]+", first) is not None
         assert re.fullmatch(r"pulseplate-[0-9]+", second) is not None
+        assert expected_first != expected_second
 
 
 def test_compose_project_name_stable_per_worktree() -> None:

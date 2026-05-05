@@ -71,11 +71,12 @@ DEV_PYTHON ?= $(if $(wildcard $(VENV_PYTHON)),$(VENV_PYTHON),python3)
 
 # Dev Container compose settings (worktree-safe project name)
 COMPOSE_PROJECT_NAME_SUFFIX := $(strip $(shell pwd -P | cksum | cut -d' ' -f1))
-ifneq ($(origin COMPOSE_PROJECT_NAME), undefined)
-else ifeq ($(COMPOSE_PROJECT_NAME_SUFFIX),)
+ifeq ($(origin COMPOSE_PROJECT_NAME), undefined)
+ifeq ($(COMPOSE_PROJECT_NAME_SUFFIX),)
   $(error failed to compute stable COMPOSE_PROJECT_NAME suffix; set COMPOSE_PROJECT_NAME explicitly)
 endif
 COMPOSE_PROJECT_NAME ?= pulseplate-$(COMPOSE_PROJECT_NAME_SUFFIX)
+endif
 export COMPOSE_PROJECT_NAME
 DEVCONTAINER_COMPOSE ?= .devcontainer/docker-compose.devcontainer.yml
 
