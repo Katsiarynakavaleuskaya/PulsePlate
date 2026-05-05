@@ -81,3 +81,8 @@ Decision: proceed with changes; do not claim full remediation until Debian bookw
 - [ ] No actionable bot comments remain
 - [ ] Strict merge wrapper passes with auth
 - [ ] Mandatory wait-window elapsed
+
+## Phase2 Body Mirror Follow-up
+
+- PASS: `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(cat /tmp/gnutls-pr-body-live.md)" --pr-number 1670` after updating the live PR body to include the exact required checklist item `Discussion-thread pass completed`.
+- Reason: the first PR-body CI run used an older event body snapshot with extra wording after the required checklist text; live body now matches the Phase2 contract.
