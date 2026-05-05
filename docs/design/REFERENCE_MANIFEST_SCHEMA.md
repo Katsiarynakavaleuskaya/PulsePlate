@@ -66,8 +66,8 @@ References may contribute only derived, normalized metadata and an explicit `ado
 | `normalization_notes` | string | yes | How external terms were mapped into PulsePlate vocabulary |
 | `mapped_pulseplate_components` | array | yes | Canonical component ids/names from `UI_COMPONENT_VOCABULARY` |
 | `forbidden_copy_elements` | array | yes | Assets/layouts/copy/brand elements that must not be copied |
-| `required_visual_checks` | array | yes | Required checks before Results/Evidence finalization; must include `icon-silhouette-check` |
-| `required_export_gates` | array | yes | Required gates before design exports or icon-core lock updates; must include `design-guard` |
+| `icon-silhouette-check` | string | yes | Verification status required before finalizing Results/Evidence artifacts; use `required`, `passed`, `not_applicable`, or `blocked` |
+| `design-guard` | string | yes | Export-gate status required before design exports or icon-core lock updates; use `required`, `passed`, `not_applicable`, or `blocked` |
 | `status` | string | yes | `read_only`, `normalized`, `rejected`, or `candidate_for_brief` |
 
 ## Example Shape
@@ -98,8 +98,8 @@ References may contribute only derived, normalized metadata and an explicit `ado
   "normalization_notes": "External 'pill filter' maps to PulsePlate segmented-control.",
   "mapped_pulseplate_components": ["card", "badge", "segmented-control"],
   "forbidden_copy_elements": ["screenshot", "brand name", "exact layout", "testimonial copy"],
-  "required_visual_checks": ["icon-silhouette-check"],
-  "required_export_gates": ["design-guard"],
+  "icon-silhouette-check": "required",
+  "design-guard": "required",
   "status": "normalized"
 }
 ```
@@ -114,8 +114,8 @@ References may contribute only derived, normalized metadata and an explicit `ado
 - `reject` is mandatory when a reference requires copying protected assets, brand identity, exact layout, proprietary components, unsupported medical claims, or unverified monetization copy.
 - Every `component_patterns` entry must map to PulsePlate vocabulary before implementation.
 - Every future implementation brief must cite the manifest record and scorecard decision.
-- `required_visual_checks` must include `icon-silhouette-check` before any Results/Evidence finalization.
-- `required_export_gates` must include `design-guard` before any design export or icon-core lock update.
+- `icon-silhouette-check` must be `passed` or `not_applicable` before any Results/Evidence finalization.
+- `design-guard` must be `passed` or `not_applicable` before any design export or icon-core lock update.
 
 ## Source Policy Encoding
 

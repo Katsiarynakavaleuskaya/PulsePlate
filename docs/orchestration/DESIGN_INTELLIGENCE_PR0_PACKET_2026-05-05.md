@@ -68,6 +68,8 @@ Required local narrow bundle:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open
+python3 -m pytest -q --confcutdir=tests/guards tests/guards/test_wellness_language_blockers_guard.py
+python3 -m pytest -q --noconftest tests/test_philosophy_validator.py
 markdownlint docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md \
   docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md \
   docs/design/REFERENCE_MANIFEST_SCHEMA.md \
@@ -127,6 +129,8 @@ Primary risks are handled in the premortem table and promoted into controls in t
 - [ ] `python3 scripts/orchestration/check_preflight.py`
 - [ ] `python3 scripts/orchestration/check_agent_consistency.py`
 - [ ] `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open`
+- [ ] `python3 -m pytest -q --confcutdir=tests/guards tests/guards/test_wellness_language_blockers_guard.py`
+- [ ] `python3 -m pytest -q --noconftest tests/test_philosophy_validator.py`
 - [ ] `markdownlint` on changed Markdown files
 - [ ] `make design-guard`
 - [ ] `npm --prefix frontend run tokens:check`

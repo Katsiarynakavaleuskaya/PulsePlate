@@ -203,6 +203,8 @@ PR-0 local narrow bundle:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open
+python3 -m pytest -q --confcutdir=tests/guards tests/guards/test_wellness_language_blockers_guard.py
+python3 -m pytest -q --noconftest tests/test_philosophy_validator.py
 markdownlint docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md \
   docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md \
   docs/design/REFERENCE_MANIFEST_SCHEMA.md \
@@ -223,6 +225,8 @@ If `npm --prefix frontend run build-storybook` creates `frontend/storybook-stati
 Full local `make verify` is intentionally not run for PR-0 by operator machine-budget decision. This does not create a merge-ready claim. Merge readiness still depends on current-head CI, fixed mapping, review-bot pass/no-actionables, unresolved thread disposition, and the mandatory wait-window.
 
 These validation commands are the canonical PR-0 local bundle for this wave. The PR-0 packet references this runbook for the shared source-of-truth hierarchy, forbidden-action list, validation bundle, and premortem controls so those controls do not drift between documents.
+
+The wellness-language blocker and philosophy-validator tests are blocking gates for this lane. They keep PR-0 copy and future LLM-derived design briefs inside wellness-only, trust-safe product boundaries before any reference output can influence product work.
 
 ## Promotion Rules
 
