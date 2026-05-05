@@ -81,6 +81,7 @@ Disposition: FIXED
 Commit: f8f7c5796
 Evidence: `tests/guards/test_security_devtooling_regression_guards.py` replaces brittle source slicing and hard-coded docs diff base behavior in response to Sourcery review feedback.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1669#pullrequestreview-4230017026 -> f8f7c5796
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1669#discussion_r3190144728 -> f8f7c5796
 
 ## Merge Readiness
 
