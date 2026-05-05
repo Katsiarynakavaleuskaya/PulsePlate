@@ -1167,6 +1167,38 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - If figma-manifest unification is chosen, the schema/version/validation owner is documented; if not chosen, docs explicitly keep it informational
     - Active design-system docs continue to reference one governance path only
 
+<a id="ledger-p1-design-intelligence-wave"></a>
+- [ ] P1: Reference-driven design intelligence wave for web and iOS
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`)
+  - Status: PR-0 bootstrap open; do not mark closed until the PR lands and is merged
+  - Area: design / web / iOS / agentic workflow / reference corpus
+  - Finding Type: reference-driven design intelligence bootstrap and governance
+  - Anchor: `ledger-p1-design-intelligence-wave`
+  - Reason: Web and iOS design automation needs a governed layer for external
+    reference intake, DESIGN.md bootstrap, scoring, Figma/Storybook evidence,
+    and controlled future implementation PRs without creating a second design
+    source of truth.
+  - Links:
+    - `docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md`
+    - `docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md`
+    - `docs/design/REFERENCE_MANIFEST_SCHEMA.md`
+    - `docs/design/REFERENCE_SCORECARD.md`
+    - `docs/design/PULSEPLATE_DESIGN_MD_BOOTSTRAP.md`
+  - DoD:
+    - PR-0 runbook and packet exist
+    - External reference policy exists
+    - Reference manifest schema exists
+    - Reference scorecard exists
+    - DESIGN.md bootstrap exists
+    - External references are read-only
+    - Future implementation PRs require screenshot / Storybook / a11y evidence
+    - AGENTS.md update proposal included
+    - No runtime UI mutation in PR-0
+    - Premortem risks are converted into binding controls across the runbook,
+      packet, schema, scorecard, and DESIGN.md bootstrap
+
 <a id="ledger-p1-design-runtime-system-web-ios-epic"></a>
 - [x] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
   - Owner: @katsiaryna_kavaleuskaya
