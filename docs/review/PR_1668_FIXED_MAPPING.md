@@ -16,6 +16,10 @@ root `AGENTS.md`; scoped `docs/orchestration/AGENTS.md`;
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#pullrequestreview-4227832578
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#issuecomment-4378996159
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#issuecomment-4378996823
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#discussion_r3188330641 -> b1d381f75b47db8b977ded391c728a37e67aa314
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#pullrequestreview-4227845241 -> b1d381f75b47db8b977ded391c728a37e67aa314
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#pullrequestreview-4227863481 -> b1d381f75b47db8b977ded391c728a37e67aa314
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1668#discussion_r3188344581 -> b1d381f75b47db8b977ded391c728a37e67aa314
 
 ## Implementation Evidence
 
@@ -51,6 +55,28 @@ evidence for the docs-only `make verify` deferral; the command passed and this
 artifact now records it in `Local Validation` and `Local Full Verify`.
 Reason: The narrow local gate bundle must be complete before current-head CI is
 used as the heavy-suite signal.
+
+Disposition: FIXED
+Commit: b1d381f75b47db8b977ded391c728a37e67aa314
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` records the delayed closeout
+exception approved by the operator on 2026-05-05 for governance-only
+ledger/epic reconciliation after PR #1607.
+Reason: CodeRabbit requested explicit delayed-closeout traceability for the
+closed PR-B4 ledger item.
+
+Disposition: FIXED
+Commit: b1d381f75b47db8b977ded391c728a37e67aa314
+Evidence: This artifact now distinguishes root `AGENTS.md` from scoped
+`docs/orchestration/AGENTS.md` and uses full commit SHAs in commit evidence.
+Reason: Sourcery requested clearer canonical instruction references and
+consistent commit identifiers.
+
+Disposition: FIXED
+Commit: b1d381f75b47db8b977ded391c728a37e67aa314
+Evidence: `Local Validation` now records portable validation commands without a
+machine-local absolute Python path.
+Reason: Cubic identified the absolute local Python path as less portable in the
+review artifact.
 
 Disposition: NOT-A-BUG
 Evidence: `python3 scripts/orchestration/task_bootstrap.py --goal "Post-open review for PR-B4 closeout lane" --task-class "Orchestration" --pr-phase post_open_review` PASS; task packet `7c5e4eae0456`.
