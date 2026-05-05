@@ -68,9 +68,12 @@ def test_run_audit_emits_per_manifest_artifacts(
 ) -> None:
     _write_manifest(tmp_path, "requirements.txt")
     _write_manifest(tmp_path, "requirements-docker-runtime.txt")
+    _write_manifest(tmp_path, "requirements-rag-vector-cpu.txt")
     output_dir = tmp_path / "reports"
+    commands: list[list[str]] = []
 
     def fake_run(command: list[str], **_: Any) -> SimpleNamespace:
+        commands.append(command)
         report_path = Path(command[command.index("--save-json") + 1])
         _write_report(report_path, [])
         return SimpleNamespace(returncode=0, stdout="safety output\n", stderr="")
@@ -86,10 +89,37 @@ def test_run_audit_emits_per_manifest_artifacts(
         "safety-requirements-docker-runtime.json",
         "safety-requirements-docker-runtime.log",
         "safety-requirements-docker-runtime.txt",
+        "safety-requirements-rag-vector-cpu.json",
+        "safety-requirements-rag-vector-cpu.log",
+        "safety-requirements-rag-vector-cpu.txt",
         "safety-requirements.json",
         "safety-requirements.log",
         "safety-requirements.txt",
     ]
+    assert any(
+        "requirements-rag-vector-cpu.txt" in str(command_part)
+        for command in commands
+        for command_part in command
+    )
+
+
+def test_cpu_rag_vector_manifest_high_risk_finding_fails_aggregate(tmp_path: Path) -> None:
+    report_path = tmp_path / "safety-requirements-rag-vector-cpu.json"
+    summary_path = tmp_path / "safety-requirements-rag-vector-cpu.txt"
+    _write_report(report_path, ["HIGH"])
+
+    analysis = safety_audit.analyze_report(report_path, summary_path)
+    result = safety_audit.ManifestAuditResult(
+        manifest=tmp_path / "requirements-rag-vector-cpu.txt",
+        report_json=report_path,
+        report_txt=summary_path,
+        console_log=tmp_path / "safety-requirements-rag-vector-cpu.log",
+        safety_exit_code=64,
+        analysis=analysis,
+    )
+
+    assert analysis.status == safety_audit.PARSE_BLOCKING
+    assert safety_audit.exit_code_for_results([result]) == 1
 
 
 def test_run_audit_removes_stale_report_before_safety_execution(
