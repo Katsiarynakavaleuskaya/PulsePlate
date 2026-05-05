@@ -1166,6 +1166,10 @@ Rules:
 - LLM-generated fixtures are forbidden in deterministic foundation PRs.
 - Item-level artifacts are required before psychometrics, IRT, adaptive evals, or mechanistic evaluation.
 - External coding models such as Opus may be used by the operator, but MUST NOT be integrated into repo runtime, provider routing, `.claude/`, or orchestration identity.
+- Eval artifact sidecars with predictable filenames must use symlink-safe,
+  fail-closed writes. Eval JSONL validators must reject malformed fields with
+  `ValueError`, avoid coercive casts for accepted schema fields, and
+  defensively copy mutable validated containers.
 
 See: `docs/evals/PULSEPLATE_EVAL_VALIDITY_CONTRACT.md`
 

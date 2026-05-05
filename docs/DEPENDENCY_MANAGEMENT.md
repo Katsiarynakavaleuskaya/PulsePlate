@@ -118,6 +118,25 @@ If you need vector/ML runtime tooling on a machine without CUDA support, use the
 pip-sync requirements-rag-vector-cpu.txt
 ```
 
+### Security coverage registry for optional RAG/vector profiles
+
+Optional RAG/vector dependency profiles are high-risk supply-chain surfaces even
+when they are local-only or excluded from default runtime installs. The current
+security coverage registry is:
+
+- `requirements-rag-vector.in`
+- `requirements-rag-vector.txt`
+- `requirements-rag-vector-cpu.in`
+- `requirements-rag-vector-cpu.txt`
+
+Every file in this registry must be covered consistently by Python dependency
+submission path filters and CI risk-profile routing. Every compiled lockfile in
+this registry must also be covered by the shared Safety audit helper and the
+pip-audit helper. The guard
+`tests/guards/test_security_devtooling_regression_guards.py` fails if a future
+`requirements-rag-vector*` profile is added without updating all security
+surfaces.
+
 Canonical contract for shared CI/Docker/bootstrap paths:
 
 - `PULSEPLATE_PYTHON_INDEX_URL` is mandatory and must point to the approved private package proxy.
