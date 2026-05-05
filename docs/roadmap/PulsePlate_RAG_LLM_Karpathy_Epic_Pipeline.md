@@ -667,7 +667,13 @@ Closeout reconciliation packet:
 `docs(orchestration): define bounded reference-corpus policy for advisory wiki`
 
 #### Current status
-Active docs/governance Rail B1 slice after PR-B3 closeout/reconciliation.
+Historical / merged Rail B1 docs-governance slice.
+
+PR-B4 merged as PR #1607 on 2026-04-30 with merge commit
+`07e11f4147bd75d20f8994175a9545782e02b04a`. The canonical packet remains
+`docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md`;
+review-governance evidence remains in `docs/review/PR_1607_FIXED_MAPPING.md`.
+No PR-B4 implementation scope remains open.
 
 #### Canonical packet
 `docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md`
