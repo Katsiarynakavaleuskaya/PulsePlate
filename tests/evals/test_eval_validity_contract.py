@@ -182,6 +182,13 @@ class TestValidateEvalVariantRecord:
         with pytest.raises(ValueError, match=r"EvalVariantRecord.slice_tags must be list\[str\]"):
             validate_eval_variant_record(raw)
 
+    def test_rejects_slice_tags_with_non_string_elements(self) -> None:
+        raw = _make_variant_raw(slice_tags=["rag", 1])
+        with pytest.raises(
+            ValueError, match="EvalVariantRecord.slice_tags must contain only str values"
+        ):
+            validate_eval_variant_record(raw)
+
     def test_rejects_invalid_input_payload_type(self) -> None:
         raw = _make_variant_raw(input_payload=["x"])
         with pytest.raises(ValueError, match="EvalVariantRecord.input_payload must be dict"):
@@ -267,6 +274,13 @@ class TestValidateEvalOutcomeRecord:
     def test_rejects_invalid_slice_tags_type_with_value_error(self) -> None:
         raw = _make_outcome_raw(slice_tags="rag")
         with pytest.raises(ValueError, match=r"EvalOutcomeRecord.slice_tags must be list\[str\]"):
+            validate_eval_outcome_record(raw)
+
+    def test_rejects_slice_tags_with_non_string_elements(self) -> None:
+        raw = _make_outcome_raw(slice_tags=["rag", 1])
+        with pytest.raises(
+            ValueError, match="EvalOutcomeRecord.slice_tags must contain only str values"
+        ):
             validate_eval_outcome_record(raw)
 
 
