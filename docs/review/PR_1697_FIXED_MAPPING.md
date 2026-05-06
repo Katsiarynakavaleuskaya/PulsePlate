@@ -90,6 +90,8 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 - `e65ca8a16` fixes Sourcery review feedback by stabilizing forbidden-claim labels,
   switching rollout contract validation to regex anchors, and sharing the semantic-cache
   import guard helper.
+- `4a1d07219` fixes Cubic review feedback by broadening raw prompt/response
+  forbidden-claim detection and closing keyword-argument dynamic import bypasses.
 
 ## Pre-push checklist
 
@@ -120,7 +122,7 @@ None. Existing semantic-cache and Evidence Graph invariants already cover this d
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery feedback was fixed and mapped below.
+Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery and Cubic feedback were fixed and mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -129,6 +131,12 @@ Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-eng
 Disposition: FIXED
 Commit: e65ca8a16
 Evidence: `scripts/ci/check_semantic_cache_gate.py:46`, `scripts/ci/check_semantic_cache_gate.py:101`, `tests/test_semantic_cache_gate.py:189`, `tests/helpers/semantic_cache_import_guard.py:23`; focused checker/tests/mypy/validate-changed passed locally after the fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239609396 -> 4a1d07219
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197534582 -> 4a1d07219
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197534596 -> 4a1d07219
+Disposition: FIXED
+Commit: 4a1d07219
+Evidence: `scripts/ci/check_semantic_cache_gate.py:90`, `scripts/ci/check_semantic_cache_gate.py:91`, `tests/test_semantic_cache_gate.py:244`, `tests/test_semantic_cache_gate.py:328`, `tests/helpers/semantic_cache_import_guard.py:60`; focused checker/tests/mypy/validate-changed passed locally after the fix.
 
 ## Merge Readiness
 
