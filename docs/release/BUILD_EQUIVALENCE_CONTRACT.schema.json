@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.app/schemas/release-build-equivalence.v1.json",
+  "title": "PulsePlate Build Equivalence Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_algorithm",
+    "canonicalization",
+    "decision",
+    "reason_codes",
+    "mismatch_details",
+    "compared_fields",
+    "release_manifest_hash",
+    "tool_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "release-build-equivalence.v1"
+    },
+    "hash_algorithm": {
+      "const": "sha256"
+    },
+    "canonicalization": {
+      "const": "json-sorted-compact-utf8-single-trailing-newline"
+    },
+    "decision": {
+      "enum": [
+        "EQUIVALENT",
+        "BLOCK"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "mismatch_details": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mismatch_detail"
+      }
+    },
+    "compared_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "release_manifest_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tool_version": {
+      "const": "release-build-equivalence.v1"
+    }
+  },
+  "$defs": {
+    "mismatch_detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "reason_code"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_build": {},
+        "production_candidate": {},
+        "release_manifest": {}
+      }
+    }
+  }
+}
