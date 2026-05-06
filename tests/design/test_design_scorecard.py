@@ -210,6 +210,65 @@ def test_missing_responsive_overflow_and_motion_evidence_lowers_score(tmp_path: 
     assert scorecard["status"] == "warn"
 
 
+def test_placeholder_scalar_evidence_does_not_receive_presence_credit(tmp_path: Path):
+    module = load_scorecard_module()
+    repo_root = make_temp_repo(tmp_path)
+    manifest_path = repo_root / "placeholder-evidence.json"
+    write_json(
+        manifest_path,
+        valid_web_manifest(
+            accessibility_evidence={"placeholder": None},
+            copy_safety_evidence={"placeholder": False},
+            motion_evidence={"placeholder": 0},
+            overflow_evidence={"nested": {"placeholder": None}},
+            responsive_evidence={"items": [False, 0, None]},
+            tabbar_or_navigation_evidence={"placeholder": 0},
+        ),
+    )
+
+    scorecard = module.score_path(manifest_path, repo_root=repo_root)
+    dimensions = {item["id"]: item for item in scorecard["dimensions"]}
+
+    assert dimensions["accessibility_evidence"]["status"] == "warn"
+    assert dimensions["accessibility_evidence"]["score"] == 0
+    assert dimensions["responsive_evidence"]["score"] == 0
+    assert dimensions["copy_safety"]["score"] == 0
+    assert dimensions["navigation_evidence"]["score"] == 0
+    assert dimensions["overflow_evidence"]["score"] == 0
+    assert dimensions["motion_evidence"]["score"] == 0
+    assert scorecard["status"] == "fail"
+    assert scorecard["recommendation"] == "rejected"
+
+
+def test_nested_non_empty_string_evidence_receives_presence_credit(tmp_path: Path):
+    module = load_scorecard_module()
+    repo_root = make_temp_repo(tmp_path)
+    manifest_path = repo_root / "nested-evidence.json"
+    write_json(
+        manifest_path,
+        valid_web_manifest(
+            accessibility_evidence={"nested": [None, {"actual": "Focus ring captured"}]},
+        ),
+    )
+
+    scorecard = module.score_path(manifest_path, repo_root=repo_root)
+    dimensions = {item["id"]: item for item in scorecard["dimensions"]}
+
+    assert dimensions["accessibility_evidence"]["score"] == 10
+
+
+def test_design_evidence_helper_is_shared():
+    scorecard_source = MODULE_PATH.read_text(encoding="utf-8")
+    evidence_source = (REPO_ROOT / "scripts/design/screen_evidence_pack.py").read_text(
+        encoding="utf-8"
+    )
+    helper_source = (REPO_ROOT / "scripts/design/evidence_utils.py").read_text(encoding="utf-8")
+
+    assert "def _has_meaningful_evidence_value" not in scorecard_source
+    assert "def _has_meaningful_evidence_value" not in evidence_source
+    assert "def _has_meaningful_evidence_value" in helper_source
+
+
 def test_score_dir_scores_all_sample_evidence_manifests():
     module = load_scorecard_module()
 
