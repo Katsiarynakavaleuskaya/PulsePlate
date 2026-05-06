@@ -103,14 +103,14 @@ Semantic cache belongs only to the product AI runtime rail.
 
 Semantic cache is not advisory wiki, not workforce memory, not a second source
 of truth, not billing/auth/entitlement truth, and not a compliance/legal output
-cache.
+cache, and not user-account truth surfaces.
 
 If the gate opens later, rollout order is fixed:
-1. docs contract
-2. exact/fuzzy cache
-3. bounded semantic cache for `/insight`
-4. observability / false-hit guardrails
-5. Redis/GPTCache backend only later
+1. SC-G1 rollout gate contract
+2. SC-G2 exact/fuzzy cache scaffold
+3. SC-G3 observability and false-hit harness
+4. SC-G4 bounded `/insight` semantic-cache experiment
+5. SC-G5 backend selection
 """,
         encoding="utf-8",
     )
@@ -124,3 +124,35 @@ If the gate opens later, rollout order is fixed:
         "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md: "
         "invalid marker SEMANTIC_CACHE_GATE_STATUS: expected closed, got open"
     ]
+
+
+def test_phase1_guard_does_not_run_semantic_cache_gate_for_unrelated_roadmap_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    roadmap_doc = tmp_path / "docs" / "roadmap" / "UNRELATED.md"
+    roadmap_doc.parent.mkdir(parents=True)
+    roadmap_doc.write_text("Semantic cache is active.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=["docs/roadmap/UNRELATED.md"])
+
+    assert errors == []
+
+
+def test_phase1_guard_runs_semantic_cache_checker_for_rollout_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = tmp_path / "docs" / "orchestration" / "contracts" / "SEMANTIC_CACHE_ROLLOUT_GATE.md"
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        "# Contract\n\nSemantic cache is now open.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=["docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md"]
+    )
+
+    assert any("rollout contract missing required phrase" in error for error in errors)
+    assert any("forbidden semantic-cache claim" in error for error in errors)
