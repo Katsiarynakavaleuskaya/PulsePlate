@@ -110,6 +110,14 @@ SOT_DRIFT_PATTERNS = [
     r"\boverrides?\b.{0,40}\b(repo|tokens|runtime|backend|openapi|ui vocabulary)\b",
 ]
 
+NARRATIVE_SOT_FIELDS = {
+    "accessibility_notes",
+    "motion_notes",
+    "normalization_notes",
+    "monetization_notes",
+    "wellness_safety_notes",
+}
+
 NEGATION_MARKERS = (
     "avoid",
     "no ",
@@ -138,6 +146,8 @@ def _load_json(path: Path) -> dict[str, Any]:
     try:
         with path.open(encoding="utf-8") as handle:
             data = json.load(handle)
+    except UnicodeDecodeError as exc:
+        raise ManifestError(f"{path}: invalid UTF-8: {exc.reason}") from exc
     except json.JSONDecodeError as exc:
         raise ManifestError(f"{path}: invalid JSON: {exc.msg}") from exc
     except OSError as exc:
@@ -152,6 +162,8 @@ def _load_component_terms(repo_root: Path) -> set[str]:
     try:
         with path.open(encoding="utf-8") as handle:
             data = json.load(handle)
+    except UnicodeDecodeError as exc:
+        raise ManifestError(f"{VOCABULARY_PATH}: invalid UTF-8: {exc.reason}") from exc
     except json.JSONDecodeError as exc:
         raise ManifestError(f"{VOCABULARY_PATH}: invalid JSON: {exc.msg}") from exc
     except OSError as exc:
@@ -177,6 +189,8 @@ def _load_component_ids(repo_root: Path) -> set[str]:
     try:
         with path.open(encoding="utf-8") as handle:
             data = json.load(handle)
+    except UnicodeDecodeError as exc:
+        raise ManifestError(f"{VOCABULARY_PATH}: invalid UTF-8: {exc.reason}") from exc
     except json.JSONDecodeError as exc:
         raise ManifestError(f"{VOCABULARY_PATH}: invalid JSON: {exc.msg}") from exc
     except OSError as exc:
@@ -212,6 +226,11 @@ def _field_text(record: dict[str, Any], *, exclude: set[str] | None = None) -> s
         if key in excluded:
             continue
         parts.append(_stringify(record[key]))
+    return "\n".join(parts).lower()
+
+
+def _narrative_text(record: dict[str, Any]) -> str:
+    parts = [_stringify(record[field]) for field in sorted(NARRATIVE_SOT_FIELDS) if field in record]
     return "\n".join(parts).lower()
 
 
@@ -310,7 +329,7 @@ def _validate_wellness_safety(record: dict[str, Any], errors: list[str]) -> None
 
 
 def _validate_source_of_truth(record: dict[str, Any], errors: list[str]) -> None:
-    text = _field_text(record)
+    text = _narrative_text(record)
     if "read-only" in text or "read only" in text or "non-canonical" in text:
         pass
     else:
@@ -420,7 +439,11 @@ def run(argv: list[str] | None = None, *, repo_root: Path = REPO_ROOT) -> int:
 
     if args.command == "normalize":
         path = _repo_path(args.path, repo_root)
-        record = _load_json(path)
+        try:
+            record = _load_json(path)
+        except ManifestError as exc:
+            _print_errors([str(exc)], sys.stderr)
+            return 1
         errors = validate_record(record, repo_root=repo_root)
         if errors:
             _print_errors([f"{path}: {error}" for error in errors], sys.stderr)

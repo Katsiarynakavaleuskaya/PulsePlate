@@ -1171,7 +1171,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reference-driven design intelligence wave for web and iOS
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
-  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR-2 `feat(design): add external reference manifest and normalization tooling` (`feat/design-reference-manifest-tooling-v1`)
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` (`feat/design-reference-manifest-tooling-v1`)
   - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 active on branch `feat/design-reference-manifest-tooling-v1` to add external reference manifest validation and normalization tooling. Do not close the wave or mark PR-3/PR-4/PR-5/PR-6 complete in this PR.
   - Area: design / web / iOS / agentic workflow / reference corpus
   - Finding Type: reference-driven design intelligence bootstrap and governance

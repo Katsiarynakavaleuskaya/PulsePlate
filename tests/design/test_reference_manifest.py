@@ -247,6 +247,21 @@ def test_malformed_json_reports_deterministic_error(tmp_path, capsys):
     assert "Traceback" not in captured.err
 
 
+def test_normalize_malformed_json_reports_deterministic_error(tmp_path, capsys):
+    module = load_manifest_module()
+    repo_root = make_temp_repo(tmp_path)
+    path = repo_root / "broken.json"
+    path.write_text("{not json", encoding="utf-8")
+
+    result = module.run(["normalize", str(path)], repo_root=repo_root)
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "ERROR:" in captured.err
+    assert "invalid JSON" in captured.err
+    assert "Traceback" not in captured.err
+
+
 def test_malformed_component_vocabulary_reports_validation_error(tmp_path, capsys):
     module = load_manifest_module()
     repo_root = make_temp_repo(tmp_path)
@@ -262,6 +277,30 @@ def test_malformed_component_vocabulary_reports_validation_error(tmp_path, capsy
     assert "ERROR:" in captured.err
     assert "ui_component_vocabulary.json: invalid JSON" in captured.err
     assert "Traceback" not in captured.err
+
+
+def test_malformed_component_vocabulary_utf8_reports_validation_error(tmp_path, capsys):
+    module = load_manifest_module()
+    repo_root = make_temp_repo(tmp_path)
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary_path.write_bytes(b"\xff\xfe\xfa")
+    manifest_path = repo_root / "manifest.json"
+    write_record(manifest_path, valid_record())
+
+    result = module.run(["validate", str(manifest_path)], repo_root=repo_root)
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "ERROR:" in captured.err
+    assert "ui_component_vocabulary.json: invalid UTF-8" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_source_of_truth_scan_ignores_untrusted_metadata_url():
+    module = load_manifest_module()
+    record = valid_record(source_url="https://example.invalid/source-of-truth-gallery")
+
+    assert module.validate_record(record, repo_root=REPO_ROOT) == []
 
 
 def test_validate_dir_validates_every_json_file(tmp_path, capsys):
