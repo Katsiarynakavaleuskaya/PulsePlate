@@ -23,7 +23,15 @@ This PR protects PulsePlate from premature semantic-cache rollout, stale or fals
 
 ## Out of scope
 
-No semantic cache implementation, Redis, GPTCache, embeddings, vector search, `/insight` runtime cache, provider changes, RAG behavior changes, FastAPI routes, OpenAPI, DB migrations, frontend/iOS/design changes, GraphRAG, advisory wiki runtime authority, online eval, judge calibration, goldens, dashboards, or release-control-plane changes.
+No changes to:
+
+- Semantic cache implementation, Redis, GPTCache, embeddings, or vector search.
+- `/insight` runtime cache, provider behavior, or RAG behavior.
+- FastAPI routes, OpenAPI, or DB migrations.
+- Frontend, iOS, or design files.
+- GraphRAG or advisory wiki runtime authority.
+- Online eval, judge calibration, goldens, or dashboards.
+- Release-control-plane behavior.
 
 ## Files touched
 

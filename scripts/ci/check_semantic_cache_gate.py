@@ -87,7 +87,7 @@ FORBIDDEN_CLAIM_PATTERNS = (
         "Redis semantic cache approved",
         re.compile(r"\bredis\s+semantic\s+cache\s+(?:is\s+)?approved\b"),
     ),
-    ("cache raw prompt", re.compile(r"\bcache\s+raw\s+prompts?\b")),
+    ("cache raw prompt", re.compile(r"\bcache\s+raw\s+(?:model\s+)?prompts?\b")),
     ("cache raw response", re.compile(r"\bcache\s+raw\s+(?:model\s+)?responses?\b")),
     ("cache secrets", re.compile(r"\bcache\s+secrets?\b")),
     ("cache user health data", re.compile(r"\bcache\s+user\s+health\s+data\b")),
@@ -179,6 +179,35 @@ def _forbidden_claim_errors(text: str) -> list[str]:
     ]
 
 
+def _validate_rollout_order(
+    normalized: str,
+    *,
+    missing_prefix: str,
+    out_of_order_prefix: str,
+) -> list[str]:
+    errors: list[str] = []
+    positions: dict[str, int] = {}
+
+    for phrase in ROLLOUT_ORDER:
+        normalized_phrase = _normalize_text(phrase)
+        index = normalized.find(normalized_phrase)
+        if index == -1:
+            errors.append(f"{missing_prefix}: {phrase}")
+            continue
+        positions[phrase] = index
+
+    previous_index = -1
+    for phrase in ROLLOUT_ORDER:
+        current_index = positions.get(phrase)
+        if current_index is None:
+            continue
+        if current_index <= previous_index:
+            errors.append(f"{out_of_order_prefix}: {phrase}")
+        previous_index = current_index
+
+    return errors
+
+
 def validate_semantic_cache_gate(text: str) -> list[str]:
     """Return stable validation errors for unsafe semantic-cache gate docs."""
     errors: list[str] = []
@@ -199,19 +228,13 @@ def validate_semantic_cache_gate(text: str) -> list[str]:
         if _normalize_text(phrase) not in normalized:
             errors.append(f"missing required phrase: {phrase}")
 
-    normalized_rollout = normalized
-    search_start = 0
-    previous_index = -1
-    for phrase in ROLLOUT_ORDER:
-        normalized_phrase = _normalize_text(phrase)
-        index = normalized_rollout.find(normalized_phrase, search_start)
-        if index == -1:
-            errors.append(f"missing rollout order item: {phrase}")
-            continue
-        if index <= previous_index:
-            errors.append(f"rollout order item out of order: {phrase}")
-        previous_index = index
-        search_start = index + len(normalized_phrase)
+    errors.extend(
+        _validate_rollout_order(
+            normalized,
+            missing_prefix="missing rollout order item",
+            out_of_order_prefix="rollout order item out of order",
+        )
+    )
 
     errors.extend(_forbidden_claim_errors(text))
 
@@ -227,18 +250,13 @@ def validate_semantic_cache_rollout_contract(text: str) -> list[str]:
         if not pattern.search(normalized):
             errors.append(f"rollout contract missing anchor: {label}")
 
-    search_start = 0
-    previous_index = -1
-    for phrase in ROLLOUT_ORDER:
-        normalized_phrase = _normalize_text(phrase)
-        index = normalized.find(normalized_phrase, search_start)
-        if index == -1:
-            errors.append(f"rollout contract missing phase: {phrase}")
-            continue
-        if index <= previous_index:
-            errors.append(f"rollout contract phase out of order: {phrase}")
-        previous_index = index
-        search_start = index + len(normalized_phrase)
+    errors.extend(
+        _validate_rollout_order(
+            normalized,
+            missing_prefix="rollout contract missing phase",
+            out_of_order_prefix="rollout contract phase out of order",
+        )
+    )
 
     errors.extend(_forbidden_claim_errors(text))
 

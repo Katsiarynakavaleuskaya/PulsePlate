@@ -245,6 +245,7 @@ def test_checker_fails_if_advisory_wiki_is_product_cache_source(tmp_path: Path) 
     "claim",
     [
         "Cache raw prompts.",
+        "Cache raw model prompts.",
         "Cache raw model responses.",
     ],
 )
@@ -269,6 +270,28 @@ def test_checker_fails_if_rollout_order_is_missing(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "missing rollout order item: SC-G3 observability and false-hit harness" in result.stderr
+
+
+def test_checker_fails_if_rollout_order_uses_late_duplicate_to_mask_drift(
+    tmp_path: Path,
+) -> None:
+    doc = _write_doc(
+        tmp_path,
+        _valid_doc().replace(
+            "2. SC-G2 exact/fuzzy cache scaffold\n"
+            "3. SC-G3 observability and false-hit harness\n",
+            "3. SC-G3 observability and false-hit harness\n"
+            "2. SC-G2 exact/fuzzy cache scaffold\n"
+            "2. SC-G2 exact/fuzzy cache scaffold\n",
+        ),
+    )
+
+    result = _run_checker(doc)
+
+    assert result.returncode == 1
+    assert "rollout order item out of order: SC-G3 observability and false-hit harness" in (
+        result.stderr
+    )
 
 
 def test_checker_accepts_rollout_order_case_variation(tmp_path: Path) -> None:
@@ -331,6 +354,21 @@ def test_import_guard_rejects_keyword_argument_dynamic_import(tmp_path: Path) ->
         "import importlib\n"
         "__import__(name='providers')\n"
         "importlib.import_module(name='redis')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError):
+        assert_no_forbidden_semantic_cache_imports(guarded_file)
+
+
+def test_import_guard_rejects_direct_and_relative_dynamic_imports(tmp_path: Path) -> None:
+    guarded_file = tmp_path / "guarded.py"
+    guarded_file.write_text(
+        "import importlib as loader\n"
+        "from importlib import import_module\n"
+        "from . import app\n"
+        "loader.import_module(name='providers')\n"
+        "import_module('redis')\n",
         encoding="utf-8",
     )
 

@@ -23,12 +23,19 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
 def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     imports: list[str] = []
+    import_aliases: dict[str, str] = {}
 
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imports.extend(alias.name for alias in node.names)
+            for alias in node.names:
+                imports.append(alias.name)
+                import_aliases[alias.asname or alias.name.split(".")[0]] = alias.name
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.append(node.module)
+            for alias in node.names:
+                import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+        elif isinstance(node, ast.ImportFrom):
+            imports.extend(alias.name for alias in node.names)
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
@@ -41,10 +48,17 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "import_module"
+            and isinstance(node.func.value, ast.Name)
+            and import_aliases.get(node.func.value.id) == "importlib"
         ):
             name = _constant_string_argument(node)
             if name is not None:
                 imports.append(name)
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if import_aliases.get(node.func.id) == "importlib.import_module":
+                name = _constant_string_argument(node)
+                if name is not None:
+                    imports.append(name)
 
     offenders = [
         name
