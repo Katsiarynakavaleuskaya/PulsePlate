@@ -95,21 +95,25 @@ Frame: It is 6 months from now. PR-5 merged, but a production release proceeded 
 
 **Risk:** Invalid evidence files are treated as absent or ignored.
 
-**Inspection:** `_load_evidence(...)` reports `malformed_*` reason codes and returns `BLOCK`.
+**Inspection:** `_load_evidence(...)` reports `malformed_*` reason codes and returns `BLOCK`. Post-open review also found that existing files containing `{}` bypassed validation because empty dictionaries were treated as falsey.
 
-**Disposition:** NOT-A-BUG
+**Disposition:** FIXED
 
-**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_block_on_malformed_json`.
+**Commit:** `62b0a2bc2`
+
+**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_block_on_malformed_json` and `test_empty_evidence_objects_are_invalid_not_allowed`.
 
 ### 9. Checker accepts invalid digest/hash format
 
 **Risk:** A non-OCI digest or malformed SHA-256 hash bypasses release evidence checks.
 
-**Inspection:** The checker reuses release-manifest regexes and maps digest/hash validation failures to `unsupported_digest_format`.
+**Inspection:** The checker reuses release-manifest regexes and maps digest/hash validation failures to `unsupported_digest_format`. Post-open review also found the output schema was too strict for blocked malformed summary strings.
 
-**Disposition:** NOT-A-BUG
+**Disposition:** FIXED
 
-**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_block_on_invalid_digest_format`.
+**Commit:** `62b0a2bc2`
+
+**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_block_on_invalid_digest_format` and `test_schema_allows_raw_malformed_summary_values_for_block_outputs`.
 
 ### 10. Reason ordering is nondeterministic
 
@@ -183,14 +187,14 @@ Unresolved P0/P1: none.
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
-- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`19 passed`)
+- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`22 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_release_manifest.py` PASS (`20 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_build_equivalence.py` PASS (`22 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_rag_release_gates_runner.py` PASS (`48 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_check_docker_provenance_attestation.py` PASS (`12 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_repo_policy_guards.py` PASS (`14 passed`)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json docs/release/RELEASE_CONTROL_PLANE_EPIC.md docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md docs/roadmap/BACKLOG_LEDGER.md` PASS
-- `make validate-changed` PASS (`41 passed`)
+- `make validate-changed` PASS (`44 passed`)
 - `pre-commit run --all-files` PASS
 - Pre-push hook PASS
 
