@@ -100,7 +100,7 @@ review governance.
 
 5. **PR-4: review build equals production candidate**
    - Branch: `release/release-control-plane-pr4-build-equivalence`
-   - Active PR-4 slice.
+   - Merged as PR #1679 on 2026-05-06.
    - Add digest/hash equivalence checks so the reviewed build and production candidate cannot silently diverge.
    - Contract: [`BUILD_EQUIVALENCE_CONTRACT.md`](BUILD_EQUIVALENCE_CONTRACT.md)
      and [`BUILD_EQUIVALENCE_CONTRACT.schema.json`](BUILD_EQUIVALENCE_CONTRACT.schema.json).
@@ -108,8 +108,12 @@ review governance.
 
 6. **PR-5: CI release decision integration**
    - Branch: `release/release-control-plane-pr5-ci-gates`
-   - Add focused CI gates for release packet, RAG gate result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.
-   - Deferred until PR-4 has landed; PR-4 must not add CI fail-closed enforcement.
+   - Active PR-5 slice.
+   - Add focused CI gates for release manifest, RAG gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.
+   - Contract: [`RELEASE_CONTROL_PLANE_CI_GATE.md`](RELEASE_CONTROL_PLANE_CI_GATE.md)
+     and [`RELEASE_CONTROL_PLANE_CI_GATE.schema.json`](RELEASE_CONTROL_PLANE_CI_GATE.schema.json).
+   - Helper: `scripts/ci/check_release_control_plane.py`.
+   - Protected App Store upload and App Store Connect execution remain out of scope.
 
 ## Boundaries
 
@@ -183,3 +187,6 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
    and production-candidate identity through digest/hash comparison only. It
    leaves CI fail-closed enforcement to PR-5 and does not treat branch names,
    tags, or human labels as equivalence evidence.
+9. PR-5 adds the CI release-decision checker and a non-secret fixture validation
+   job, while protected production artifact wiring and upload execution remain
+   later explicitly scoped protected-environment work.

@@ -461,8 +461,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/RELEASE_MANIFEST_CONTRACT.schema.json`
     - `docs/release/BUILD_EQUIVALENCE_CONTRACT.md`
     - `docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json`
+    - `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md`
+    - `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json`
     - `scripts/release/release_manifest.py`
     - `scripts/release/build_equivalence.py`
+    - `scripts/ci/check_release_control_plane.py`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
     - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
     - `scripts/evals/run_rag_release_gates.py`

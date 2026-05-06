@@ -102,8 +102,8 @@ changes.
 | PR-1 | `release/release-control-plane-pr1-reviewer-hash` | Reviewer-packet hash contract consuming App Store readiness artifacts | reviewer hash schema tests and Fastlane artifact-name discovery |
 | PR-2 | `release/release-control-plane-pr2-rag-gate-export` | RAG/ML gate result export contract over the existing eval runner | gate-result schema tests |
 | PR-3 | `release/release-control-plane-pr3-release-manifest` | Release manifest generator and validator, merged as PR #1605 | manifest validator tests |
-| PR-4 | `release/release-control-plane-pr4-build-equivalence` | Active review build equals production-candidate equivalence check | equivalence tests |
-| PR-5 | `release/release-control-plane-pr5-ci-gates` | Deferred CI integration for release packet, gate result, SBOM/provenance references, and fail-closed decision | focused CI/workflow contract tests |
+| PR-4 | `release/release-control-plane-pr4-build-equivalence` | Merged review build equals production-candidate equivalence check in PR #1679 | equivalence tests |
+| PR-5 | `release/release-control-plane-pr5-ci-gates` | Active CI integration for release packet, gate result, build equivalence, SBOM/provenance references, and fail-closed decision | focused CI/workflow contract tests |
 
 ## Release Packet Contract
 
@@ -214,8 +214,27 @@ snapshots when present. It returns `EQUIVALENT` only when all required fields
 match; otherwise it returns `BLOCK` with deterministic `reason_codes` and
 `mismatch_details`. PR-4 does not add GitHub Actions enforcement, protected App
 Store upload automation, Fastlane mutation, runtime behavior, OpenAPI changes,
-RAG behavior changes, semantic cache, or product-facing behavior. PR-5 remains
-the deferred CI fail-closed enforcement slice.
+RAG behavior changes, semantic cache, or product-facing behavior. PR-5 owns the
+focused CI fail-closed enforcement slice.
+
+### PR-5 Release Control Plane CI Gate
+
+PR-5 defines a deterministic CI checker that consumes the PR-3 release manifest,
+PR-2 RAG gate result, PR-4 build-equivalence result, and supply-chain identity
+references. The machine-readable schema and field contract live in
+[`docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md`](../release/RELEASE_CONTROL_PLANE_CI_GATE.md)
+and
+[`docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json`](../release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json).
+
+The deterministic helper is `scripts/ci/check_release_control_plane.py`. It
+returns `ALLOW` only when the release manifest is `ALLOW`, the RAG gate result
+is `PASS`, the build-equivalence decision is `EQUIVALENT`, supply-chain digests
+are valid, attestation is `VERIFIED`, and evidence hashes/identity fields match.
+Otherwise it returns `BLOCK` with deterministic reason codes. The workflow
+integration is a non-secret fixture validation job because protected production
+artifact wiring is not available in this slice. PR-5 does not add App Store
+Connect execution, Fastlane upload mutation, runtime/API/OpenAPI/iOS changes,
+RAG behavior changes, semantic cache, GraphRAG, or product-facing behavior.
 
 ## Bootstrap Commands
 
