@@ -30,7 +30,6 @@ from core.evidence.policies import (
     validate_non_empty_token,
 )
 from core.evidence.promotion_ledger import (
-    ALLOWED_PROMOTION_DECISIONS,
     PromotionDecision,
     PromotionLedgerEntry,
     validate_promotion_decision,

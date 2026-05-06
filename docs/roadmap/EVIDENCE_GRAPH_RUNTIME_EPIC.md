@@ -91,8 +91,9 @@ for later slices.
    - Depends on PR-E1, PR-E2, and PR-E3.
    - No LLM call, hidden bypass flag, runtime writer, semantic cache, GraphRAG,
      or advisory-wiki authority.
-   - Done when admission can block execute/promote/serve decisions before any
-     side effect and all blocking reasons are deterministic and test-covered.
+   - Done when the contract can produce deterministic non-allowing decisions
+     for execute/promote/serve candidates before any side effect; runtime
+     integration remains deferred to a separate wiring PR.
 
 5. **PR-E5: Advisory wiki evidence bridge**
    - Backlog owner: [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime).
