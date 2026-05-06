@@ -303,6 +303,13 @@ def test_source_of_truth_scan_ignores_untrusted_metadata_url():
     assert module.validate_record(record, repo_root=REPO_ROOT) == []
 
 
+def test_copy_risk_scan_ignores_untrusted_metadata_url():
+    module = load_manifest_module()
+    record = valid_record(source_url="https://example.invalid/copy-screenshot-layout")
+
+    assert module.validate_record(record, repo_root=REPO_ROOT) == []
+
+
 def test_validate_dir_validates_every_json_file(tmp_path, capsys):
     module = load_manifest_module()
     repo_root = make_temp_repo(tmp_path)

@@ -309,7 +309,7 @@ def _validate_component_mapping(record: dict[str, Any], repo_root: Path, errors:
 
 
 def _validate_copy_risk(record: dict[str, Any], errors: list[str]) -> None:
-    text = _field_text(record, exclude={"forbidden_copy_elements", "legal_copy_risks"})
+    text = _narrative_text(record)
     for pattern in DIRECT_COPY_PATTERNS:
         if re.search(pattern, text):
             errors.append("direct-copy intent is forbidden")
