@@ -7,9 +7,9 @@
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1684#discussion_r3195834923 -> de5a2889e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1684#discussion_r3195834923 -> 3e6217da2
 Disposition: FIXED
-Commit: de5a2889e
+Commit: 3e6217da2
 Evidence: `.github/workflows/frontend-ci.yml` removes workflow-level OIDC permission; `frontend/vite.config.ts` removes `oidc.useGitHubOIDC` and keeps token-based Codecov upload.
 
 ## Merge Readiness
