@@ -136,6 +136,7 @@ wire E4 carefully without treating it as semantic-cache approval.
 - `1fff9eae9` - `docs(review): add PR 1678 fixed mapping`
 - `e7b72d4d9` - `test(evidence): close admission review gaps`
 - `3b0b4a497` - `fix(evidence): tighten admission decision validation`
+- `767747fed` - `test(evidence): cover admission fail-closed branches`
 
 ## Pre-push Checklist
 
