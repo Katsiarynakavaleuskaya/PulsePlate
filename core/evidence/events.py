@@ -345,7 +345,7 @@ def validate_source_artifact(source_artifact: str) -> str:
         raise ValueError("source_artifact must be repo-relative")
     path = PurePosixPath(normalized)
     parts = path.parts
-    if any(part in {"", ".", ".."} for part in parts):
+    if not parts or any(part in {"", ".", ".."} for part in parts):
         raise ValueError("source_artifact must not contain traversal")
     if parts[0] in _FORBIDDEN_SOURCE_ROOTS:
         raise ValueError(f"source_artifact root is not allowed: {parts[0]!r}")
