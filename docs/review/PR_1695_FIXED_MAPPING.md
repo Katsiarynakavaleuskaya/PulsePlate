@@ -20,6 +20,7 @@ Current actionable bot/human review comments have been classified below before a
 Disposition: FIXED
 Commit: 843b66c1e
 Evidence: `tests/test_no_bmi_math_outside_core.py` adds number-before-context and mixed-case BMI threshold examples requested by Sourcery.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#discussion_r3197335778 -> 843b66c1e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-3449071804 -> 843b66c1e
 
 ## Review Dispositions
