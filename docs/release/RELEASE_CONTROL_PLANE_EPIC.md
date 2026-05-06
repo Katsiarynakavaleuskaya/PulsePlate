@@ -108,12 +108,22 @@ review governance.
 
 6. **PR-5: CI release decision integration**
    - Branch: `release/release-control-plane-pr5-ci-gates`
-   - Active PR-5 slice.
+   - Merged as PR #1682 on 2026-05-06.
    - Add focused CI gates for release manifest, RAG gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.
    - Contract: [`RELEASE_CONTROL_PLANE_CI_GATE.md`](RELEASE_CONTROL_PLANE_CI_GATE.md)
      and [`RELEASE_CONTROL_PLANE_CI_GATE.schema.json`](RELEASE_CONTROL_PLANE_CI_GATE.schema.json).
    - Helper: `scripts/ci/check_release_control_plane.py`.
    - Protected App Store upload and App Store Connect execution remain out of scope.
+
+7. **PR-6: production release evidence artifact wiring**
+   - Branch: `release/release-control-plane-pr6-production-artifact-wiring`
+   - Active PR-6 slice.
+   - Wire real production release-control-plane evidence artifacts into the production tag path before deploy.
+   - Contract: [`PRODUCTION_RELEASE_EVIDENCE_WIRING.md`](PRODUCTION_RELEASE_EVIDENCE_WIRING.md).
+   - Production deploy requires downloaded real `release_manifest.json`,
+     `rag_gate_result.json`, and `build_equivalence_result.json` evidence.
+   - Fixtures remain test/main validation only and must not be used in the production tag path.
+   - Protected App Store upload automation, Fastlane mutation, and App Store Connect execution remain out of scope.
 
 ## Boundaries
 
@@ -190,3 +200,7 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
 9. PR-5 adds the CI release-decision checker and a non-secret fixture validation
    job, while protected production artifact wiring and upload execution remain
    later explicitly scoped protected-environment work.
+10. PR-6 wires real release-control-plane evidence artifacts into the
+    production tag workflow path and keeps upload execution deferred. It does
+    not generate fake production evidence, and production deploy must fail
+    closed when required evidence cannot be downloaded or validated.

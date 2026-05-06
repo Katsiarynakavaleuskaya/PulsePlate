@@ -445,10 +445,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Release automation control plane for C4, App Store Review, ML gates, and supply chain
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 -> PR-TBD-RELEASE-CONTROL-PLANE-PR5 (`release/release-control-plane-pr5-ci-gates`)
+  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 -> PR #1682 -> PR-TBD-RELEASE-CONTROL-PLANE-PR6 (`release/release-control-plane-pr6-production-artifact-wiring`)
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 is active on branch `release/release-control-plane-pr5-ci-gates` for CI fail-closed release-decision integration. PR #1692 enforces the production tag gate against real evidence paths and intentionally blocks production tags until protected release evidence is supplied. Future protected artifact publication/upload and App Store Connect execution remain out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
+  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 merged in PR #1682 on 2026-05-06; PR-6 merged in PR #1688 on 2026-05-06; PR #1692 enforces the production tag path fail-closed against PR-6 real evidence wiring and intentionally blocks production tags until protected release evidence is supplied. Future protected artifact publication/upload automation and App Store Connect execution remain out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
@@ -477,7 +477,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth, including `rag_gate_result_hash`, `eval_artifact_hash`, existing `PASS` / `NO-GO` eval decision fields, and safe artifact references.
     - PR-3 adds a release manifest generator and fail-closed validator. Completed by PR #1605.
     - PR-4 proves review-build and production-candidate equivalence by digest/hash checks. Completed by PR #1679.
-    - PR-5 integrates focused CI gates for manifest, ML gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Active in `release/release-control-plane-pr5-ci-gates`; PR #1692 wires the production tag path fail-closed, while protected artifact publication/upload and App Store Connect execution remain deferred follow-ups.
+    - PR-5 integrates focused CI gates for manifest, ML gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Completed by PR #1682.
+    - PR-6 wires real production release evidence artifacts into the production tag workflow path, requiring release manifest, RAG gate result, build-equivalence result, and supply-chain identity evidence before production deploy can treat the release-control-plane gate as `ALLOW`. Completed by PR #1688.
+    - PR #1692 closes the production gate bypass by preserving the PR-6 real-evidence wiring as the deploy dependency and documenting that missing protected evidence is a release stop, while protected artifact publication/upload automation and App Store Connect execution remain deferred follow-ups.
 
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
@@ -1177,8 +1179,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reference-driven design intelligence wave for web and iOS
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
-  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` -> PR #1683 / PR-3 `feat(design): add screen evidence pack for web and iOS review surfaces` -> PR-4 `feat(design): add deterministic design scorecard checks` (`feat/design-scorecard-checks-v1`)
-  - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 merged in PR #1680 with reference manifest validation and normalization tooling; PR-3 merged in PR #1683 with metadata-only screen evidence pack validation for web and iOS review surfaces; PR-4 active on branch `feat/design-scorecard-checks-v1` to add deterministic evidence-quality scorecard checks. Do not close the wave or mark PR-5/PR-6/PR-7/PR-8 complete in this PR.
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` -> PR #1683 / PR-3 `feat(design): add screen evidence pack for web and iOS review surfaces` -> PR #1686 / PR-4 `feat(design): add deterministic design scorecard checks` -> PR-5 acceptance brief `docs/design-web-launch-brief-pr5`
+  - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 merged in PR #1680 with reference manifest validation and normalization tooling; PR-3 merged in PR #1683 with metadata-only screen evidence pack validation for web and iOS review surfaces; PR-4 merged in PR #1686 with deterministic evidence-quality scorecard checks; PR-5 acceptance brief active on branch `docs/design-web-launch-brief-pr5` to decide whether the already-polished web launch shell needs implementation. Current decision: web shell accepted with deferred minor follow-up, no PR-5 frontend implementation unless a future bounded gap is found. Do not close the wave or mark PR-6/PR-7/PR-8 complete in this PR.
   - Area: design / web / iOS / agentic workflow / reference corpus
   - Finding Type: reference-driven design intelligence bootstrap and governance
   - Anchor: `ledger-p1-design-intelligence-wave`
@@ -2306,10 +2308,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evidence Graph Runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI runtime governance / evidence lineage)
-  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current slice: PR-E5 (`codex/evidence-advisory-wiki-bridge`)
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `docs/semantic-cache-gate-reconciliation`
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
-  - Status: Active PR-E5 advisory wiki evidence bridge; E0/E1/E2/E3/E4 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, semantic cache remains blocked behind a dedicated gate, and the next Evidence Graph follow-up is operator-selected after E5
+  - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers
   - Remove-by: 2026-06-30
   - Reason (EN): PulsePlate already has strong RAG runtime, verification, knowledge-promotion, eval-gate, advisory-wiki, and plugin/control-plane foundations, but evidence-bearing artifacts are still governed mostly through task packets, gate outputs, and lane-specific docs rather than one asset/evidence graph. This umbrella freezes the rail boundaries and PR train needed to make eval runs, context bundles, verification bundles, knowledge candidates, knowledge records, and gate reports first-class assets with lineage, idempotency, replay, fingerprints, policy versions, and admission decisions.
   - Links:
@@ -2324,13 +2326,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - DoD:
     - One canonical Evidence Graph Runtime epic doc exists and defines the PR-E0 -> PR-E5 train
     - Rail A product runtime, Rail B1 advisory wiki / compiled memory, and Rail B2 plugin/control-plane boundaries are explicit
-    - Semantic cache remains blocked until evidence asset lineage, replay-safe promotion, and metadata admission gates exist
+    - Semantic cache remains blocked until evidence asset lineage, replay-safe promotion, metadata admission gates, observability, false-hit guardrails, rollout contract, current-head CI governance, and a dedicated gate-open PR exist
     - Downstream PR acceptance criteria cover asset registry, eval event schema, promotion ledger/replay, active metadata admission, and advisory wiki evidence bridge
     - PR-E0 remains docs/governance only with no public API, DB migration, endpoint, OpenAPI, billing, provider, semantic-cache, GraphRAG, or user-facing runtime behavior change
     - PR-E2 adds a deterministic schema-only eval event contract and documentation without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, or promotion/replay logic
     - PR-E3 adds deterministic promotion ledger and dry-run replay contracts without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, eval runners, or persistent writers
     - PR-E4 adds deterministic `allow_execute`, `allow_promote`, and `allow_serve` metadata admission contracts without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, eval runners, or side effects
     - PR-E5 links existing advisory wiki artifacts to advisory evidence assets and advisory admission metadata without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, wiki compiler rewrites, runtime rail mapping, eval runners, or product-serving authority
+    - Semantic-cache gate reconciliation keeps the gate closed with deterministic markers and a CI checker so E1-E5 cannot be misread as cache approval
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API

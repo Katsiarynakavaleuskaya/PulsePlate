@@ -97,26 +97,32 @@ Stable reason codes:
 
 ## CI Integration
 
-The CD workflow runs `release-control-plane-gate` on production tag pushes before
-any production image build or deploy job can run. The job invokes this checker
-against the real release evidence paths under `artifacts/release/` and
-`artifacts/rag_eval/release/`; it does not generate fixture evidence or treat
-synthetic files as production proof.
+The CD workflow keeps a non-secret `release-control-plane-fixture-gate` for
+`main` validation only. Production tag deploys use the PR-6
+`release-control-plane-production-evidence` job instead. That job downloads the
+operator-selected real release evidence artifact, checks the source run
+provenance, verifies that the release manifest git SHA matches the production
+tag commit, and invokes this checker against:
 
-Production jobs declare the gate in `needs`, so GitHub Actions dependency
-semantics make a `BLOCK` decision (or any missing/malformed evidence) stop the
-production build, deploy configuration, SSH deploy, and self-hosted deploy paths
-fail-closed. Real `release_manifest.json`, `rag_gate_result.json`, and
-`build_equivalence_result.json` must therefore be present and internally
-coherent before a production tag can proceed.
+- `release-control-plane/release_manifest.json`
+- `release-control-plane/rag_gate_result.json`
+- `release-control-plane/build_equivalence_result.json`
+
+Production deploy jobs declare `release-control-plane-production-evidence` in
+`needs`, so GitHub Actions dependency semantics make a `BLOCK` decision, a
+missing artifact, malformed evidence, stale git SHA, or failed evidence run stop
+SSH and self-hosted deploy paths fail-closed. Real `release_manifest.json`,
+`rag_gate_result.json`, and `build_equivalence_result.json` must therefore be
+present and internally coherent before a production tag can proceed.
 
 ### Protected Artifact Requirement
 
-PR #1692 intentionally keeps the real artifact producer/downloader out of scope.
+PR #1692 keeps protected artifact publication automation out of scope.
 Production tag runs are expected to block until the protected release
-environment supplies these three real evidence files at the exact paths above.
-This is the safe default: missing evidence is a release stop, not an advisory
-warning or fixture fallback.
+environment points `RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID` and
+`RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME` at a governed release-evidence
+workflow artifact with the exact layout above. This is the safe default:
+missing evidence is a release stop, not an advisory warning or fixture fallback.
 
 Operators preparing a production tag must publish or restore the approved
 release-control-plane artifacts before this gate runs. The follow-up for

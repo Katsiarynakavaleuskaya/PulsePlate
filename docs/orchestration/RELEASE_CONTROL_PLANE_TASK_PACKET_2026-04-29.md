@@ -60,7 +60,7 @@ exists in the agent inventory.
 Mandatory post-open review lane:
 
 ```text
-qa-engineer-agent -> bug-hunter
+qa-engineer-agent -> bug-hunter -> premortem-facilitator
 ```
 
 ## Recommended Skills
@@ -103,7 +103,8 @@ changes.
 | PR-2 | `release/release-control-plane-pr2-rag-gate-export` | RAG/ML gate result export contract over the existing eval runner | gate-result schema tests |
 | PR-3 | `release/release-control-plane-pr3-release-manifest` | Release manifest generator and validator, merged as PR #1605 | manifest validator tests |
 | PR-4 | `release/release-control-plane-pr4-build-equivalence` | Merged review build equals production-candidate equivalence check in PR #1679 | equivalence tests |
-| PR-5 | `release/release-control-plane-pr5-ci-gates` | Active CI integration for release packet, gate result, build equivalence, SBOM/provenance references, and fail-closed decision | focused CI/workflow contract tests |
+| PR-5 | `release/release-control-plane-pr5-ci-gates` | Merged CI integration for release packet, gate result, build equivalence, SBOM/provenance references, and fail-closed decision in PR #1682 | focused CI/workflow contract tests |
+| PR-6 | `release/release-control-plane-pr6-production-artifact-wiring` | Active production tag wiring for real release-control-plane evidence artifacts | production workflow contract tests |
 
 ## Release Packet Contract
 
@@ -235,6 +236,35 @@ integration is a non-secret fixture validation job because protected production
 artifact wiring is not available in this slice. PR-5 does not add App Store
 Connect execution, Fastlane upload mutation, runtime/API/OpenAPI/iOS changes,
 RAG behavior changes, semantic cache, GraphRAG, or product-facing behavior.
+
+### PR-6 Production Release Evidence Wiring
+
+PR-6 wires real production release-control-plane evidence artifacts into the
+production tag path before deploy. The machine-readable operator contract lives
+in
+[`docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md`](../release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md).
+
+The CD workflow resolves `RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID` and
+`RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME` from production environment or
+repository Actions variables when production deploy is active. It downloads the
+named artifact from the named run and requires this layout:
+
+```text
+release-control-plane/
+  release_manifest.json
+  rag_gate_result.json
+  build_equivalence_result.json
+```
+
+The production evidence job invokes `scripts/ci/check_release_control_plane.py`
+against those real artifacts and uploads
+`release_control_plane_ci_gate.json` plus `release_control_plane_ci_gate.md` as
+workflow evidence. Production deploy depends on this gate when deploy is active.
+
+PR-6 does not create fake production evidence, does not use fixtures in the
+production tag path, does not add App Store Connect execution, does not mutate
+Fastlane protected upload behavior, and does not change runtime/API/OpenAPI/iOS,
+RAG, billing, semantic cache, GraphRAG, or product-facing behavior.
 
 ## Bootstrap Commands
 

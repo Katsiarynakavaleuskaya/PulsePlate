@@ -612,39 +612,45 @@ def test_cli_writes_json_and_markdown_outputs(tmp_path: Path, capsys) -> None:
     assert "- Decision: `ALLOW`" in markdown_out.read_text(encoding="utf-8")
 
 
-# These workflow/docs assertions intentionally guard PR-5 textual integration
+# These workflow/docs assertions intentionally guard PR-5/PR-6 textual integration
 # points. If the workflow contract grows, migrate them to YAML/schema parsing.
 def test_workflow_integration_does_not_require_app_store_secrets() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
-    marker = "release-control-plane-gate:"
+    marker = "release-control-plane-production-evidence:"
     assert marker in workflow
-    job_block = workflow.split(marker, 1)[1].split("\n  build-production:", 1)[0]
+    job_block = workflow.split(marker, 1)[1].split("\n  deploy-production:", 1)[0]
 
     forbidden_terms = ("APP_STORE", "FASTLANE", "MATCH_PASSWORD", "ASC_", "APPSTORE")
     assert not any(term in job_block for term in forbidden_terms)
-    assert "secrets." not in job_block
+    assert "secrets.GITHUB_TOKEN" in job_block
+    assert "APP_STORE" not in job_block
 
 
 def test_workflow_integration_enforces_real_evidence_before_production_paths() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
-    gate_job = workflow.split("release-control-plane-gate:", 1)[1].split(
-        "\n  build-production:",
+    gate_job = workflow.split("release-control-plane-production-evidence:", 1)[1].split(
+        "\n  deploy-production:",
         1,
     )[0]
-    production_jobs = workflow.split("\n  build-production:", 1)[1]
+    production_jobs = workflow.split("\n  deploy-production:", 1)[1]
 
-    assert "release-control-plane-fixture" not in workflow
-    assert "Build release-control-plane fixture evidence" not in workflow
-    assert "--release-manifest artifacts/release/release_manifest.json" in gate_job
-    assert "--rag-gate-result artifacts/rag_eval/release/rag_gate_result.json" in gate_job
-    assert "--build-equivalence artifacts/release/build_equivalence_result.json" in gate_job
-    assert "needs: production-gates" in gate_job
+    assert "release-control-plane-fixture-gate" in workflow
+    assert "if: github.ref == 'refs/heads/main'" in workflow
+    assert "release-control-plane-fixture-gate" not in production_jobs
+    assert "tests/fixtures" not in gate_job
+    assert "gh run download" in gate_job
+    assert "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" in gate_job
+    assert "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in gate_job
+    assert "release_manifest.json" in gate_job
+    assert "rag_gate_result.json" in gate_job
+    assert "build_equivalence_result.json" in gate_job
+    assert "Release manifest git SHA does not match production tag commit" in gate_job
     assert "continue-on-error" not in gate_job
     assert "actions/upload-artifact@" in gate_job
-    assert "release-control-plane-gate-cd-production" in gate_job
+    assert "release-control-plane-ci-gate-cd-production" in gate_job
     assert "release_control_plane_ci_gate.json" in gate_job
     assert "release_control_plane_ci_gate.md" in gate_job
-    assert "release-control-plane-gate" in production_jobs
+    assert "release-control-plane-production-evidence" in production_jobs
     assert "app store connect" not in gate_job.lower()
 
 
@@ -652,19 +658,20 @@ def test_workflow_docs_record_operator_evidence_requirement() -> None:
     docs = (REPO_ROOT / "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md").read_text(encoding="utf-8")
     ledger = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
 
-    assert "PR #1692 intentionally keeps the real artifact producer/downloader out of scope" in docs
+    assert "PR #1692 keeps protected artifact publication automation out of scope" in docs
     assert "missing evidence is a release stop" in docs
     assert "ledger-p1-release-control-plane" in docs
-    assert "PR #1692 enforces the production tag gate against real evidence paths" in ledger
-    assert "protected artifact publication/upload" in ledger
+    assert "PR #1692 enforces the production tag path fail-closed" in ledger
+    assert "protected artifact publication/upload automation" in ledger
 
 
-def test_ledger_marks_pr4_merged_and_pr5_active() -> None:
+def test_ledger_marks_pr4_pr5_pr6_state() -> None:
     ledger = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
 
     assert "PR-4 merged in PR #1679 on 2026-05-06" in ledger
-    assert "PR-5 is active on branch `release/release-control-plane-pr5-ci-gates`" in ledger
-    assert "protected artifact publication/upload and App Store Connect execution" in ledger
+    assert "PR-5 merged in PR #1682 on 2026-05-06" in ledger
+    assert "PR-6 merged in PR #1688 on 2026-05-06" in ledger
+    assert "PR #1692 closes the production gate bypass" in ledger
     assert "full App Store readiness is not complete" in ledger
 
 
