@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import re
 import sys
@@ -13,6 +14,17 @@ from typing import Any, TextIO
 REPO_ROOT = Path(__file__).resolve().parents[2]
 VOCABULARY_PATH = Path("docs/design/ui_component_vocabulary.json")
 LOCAL_ARTIFACT_PREFIX = "artifacts/design/screen_evidence/"
+
+try:
+    from evidence_utils import _has_meaningful_evidence_value
+except ModuleNotFoundError:
+    evidence_utils_path = Path(__file__).with_name("evidence_utils.py")
+    spec = importlib.util.spec_from_file_location("evidence_utils", evidence_utils_path)
+    if spec is None or spec.loader is None:
+        raise
+    evidence_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(evidence_utils)
+    _has_meaningful_evidence_value = evidence_utils._has_meaningful_evidence_value
 
 REQUIRED_FIELDS = [
     "evidence_id",
@@ -329,16 +341,6 @@ def _validate_wellness_copy(record: dict[str, Any], errors: list[str]) -> None:
                     "therapy, emergency, crisis, guaranteed outcome, or medical claims"
                 )
                 return
-
-
-def _has_meaningful_evidence_value(value: Any) -> bool:
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, list):
-        return any(_has_meaningful_evidence_value(item) for item in value)
-    if isinstance(value, dict):
-        return any(_has_meaningful_evidence_value(item) for item in value.values())
-    return False
 
 
 def _dict_has_evidence(value: Any) -> bool:

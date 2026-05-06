@@ -95,14 +95,16 @@ def _stringify(value: Any) -> str:
     return str(value)
 
 
-def _has_meaningful_evidence_value(value: Any) -> bool:
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, list):
-        return any(_has_meaningful_evidence_value(item) for item in value)
-    if isinstance(value, dict):
-        return any(_has_meaningful_evidence_value(item) for item in value.values())
-    return False
+try:
+    from evidence_utils import _has_meaningful_evidence_value
+except ModuleNotFoundError:
+    evidence_utils_path = Path(__file__).with_name("evidence_utils.py")
+    spec = importlib.util.spec_from_file_location("evidence_utils", evidence_utils_path)
+    if spec is None or spec.loader is None:
+        raise
+    evidence_utils = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(evidence_utils)
+    _has_meaningful_evidence_value = evidence_utils._has_meaningful_evidence_value
 
 
 def _dict_has_evidence(value: Any) -> bool:

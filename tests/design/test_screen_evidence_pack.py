@@ -259,6 +259,18 @@ def test_validated_status_rejects_placeholder_scalar_evidence():
     assert "status=validated requires non-empty tabbar_or_navigation_evidence" in errors
 
 
+def test_validated_status_accepts_nested_non_empty_string_evidence():
+    module = load_evidence_module()
+    manifest = valid_manifest(
+        accessibility_evidence={"nested": [None, {"actual": "Focus ring captured"}]},
+        status="validated",
+    )
+
+    errors = module.validate_record(manifest, repo_root=REPO_ROOT)
+
+    assert "status=validated requires non-empty accessibility_evidence" not in errors
+
+
 def test_ios_automated_capture_requires_ios_artifact_path():
     module = load_evidence_module()
     manifest = valid_manifest(platform="ios", capture_mode="automated", route_or_screen="Home")
