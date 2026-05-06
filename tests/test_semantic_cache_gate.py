@@ -99,6 +99,22 @@ def test_checker_fails_if_runtime_allowed_marker_true(tmp_path: Path) -> None:
     assert "invalid marker SEMANTIC_CACHE_ALLOWED_RUNTIME" in result.stderr
 
 
+def test_checker_reports_full_hyphenated_marker_value(tmp_path: Path) -> None:
+    doc = _write_doc(
+        tmp_path,
+        _valid_doc().replace(
+            "SEMANTIC_CACHE_GATE_STATUS: closed",
+            "SEMANTIC_CACHE_GATE_STATUS: fail-closed",
+        ),
+    )
+
+    result = _run_checker(doc)
+
+    assert result.returncode == 1
+    assert "invalid marker SEMANTIC_CACHE_GATE_STATUS" in result.stderr
+    assert "got fail-closed" in result.stderr
+
+
 @pytest.mark.parametrize(
     "replacement,expected",
     [
@@ -175,6 +191,19 @@ def test_checker_fails_if_rollout_order_is_missing(tmp_path: Path) -> None:
 
     assert result.returncode == 1
     assert "missing rollout order item: bounded semantic cache for `/insight`" in result.stderr
+
+
+def test_checker_accepts_rollout_order_case_variation(tmp_path: Path) -> None:
+    doc = _write_doc(
+        tmp_path,
+        _valid_doc()
+        .replace("observability / false-hit guardrails", "Observability / false-hit guardrails")
+        .replace("Redis/GPTCache backend only later", "redis/gptcache backend only later"),
+    )
+
+    result = _run_checker(doc)
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_checker_has_no_runtime_provider_cache_or_eval_imports() -> None:

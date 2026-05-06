@@ -51,7 +51,7 @@ FORBIDDEN_CLAIMS = (
     "redis semantic cache approved",
 )
 
-MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>[^-]+?)\s*-->")
+MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 
 
 def _normalize_text(text: str) -> str:
@@ -84,17 +84,19 @@ def validate_semantic_cache_gate(text: str) -> list[str]:
         if _normalize_text(phrase) not in normalized:
             errors.append(f"missing required phrase: {phrase}")
 
+    normalized_rollout = normalized
     search_start = 0
     previous_index = -1
     for phrase in ROLLOUT_ORDER:
-        index = text.find(phrase, search_start)
+        normalized_phrase = _normalize_text(phrase)
+        index = normalized_rollout.find(normalized_phrase, search_start)
         if index == -1:
             errors.append(f"missing rollout order item: {phrase}")
             continue
         if index <= previous_index:
             errors.append(f"rollout order item out of order: {phrase}")
         previous_index = index
-        search_start = index + len(phrase)
+        search_start = index + len(normalized_phrase)
 
     for claim in FORBIDDEN_CLAIMS:
         if claim in normalized:
