@@ -8,11 +8,19 @@
 
 Fixes the BMI guard false positive where `normalized_score >= 0.85` in design scorecard tooling was incorrectly detected as BMI/WHR threshold context.
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Current actionable bot/human review comments have been classified below before any merge-readiness claim.
+
 ## Fixed in Commit Mapping
 
-- Guard context matching made token-aware and separator-aware: `8f7b2e11b`
-- Regression coverage for design scorecard `normalized_score` false positive and real BMI/WHR threshold examples: `f82ade615`
-- Sourcery mixed-case / number-before-context BMI regression coverage: `843b66c1e`
+Disposition: FIXED
+Commit: 843b66c1e
+Evidence: `tests/test_no_bmi_math_outside_core.py` adds number-before-context and mixed-case BMI threshold examples requested by Sourcery.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-3449071804 -> 843b66c1e
 
 ## Review Dispositions
 
