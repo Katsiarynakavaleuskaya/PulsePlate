@@ -17,6 +17,7 @@ from core.evidence.events import (
 from core.evidence.fingerprints import fingerprint_payload
 from core.evidence.promotion_ledger import (
     PromotionDecision,
+    PromotionLedgerEntry,
     create_promotion_ledger_entry,
 )
 
@@ -116,6 +117,16 @@ def test_rejects_blank_policy_version() -> None:
 def test_rejects_unsupported_validation_status() -> None:
     with pytest.raises(ValueError, match="unsupported validation_status"):
         _entry(validation_status=cast(ValidationStatus, "promoted"))
+
+
+def test_rejects_invalid_ledger_status_for_promoting_decision() -> None:
+    with pytest.raises(ValueError, match="valid validation_status"):
+        _entry(validation_status="degraded")
+
+
+def test_rejects_non_eval_event_source() -> None:
+    with pytest.raises(ValueError, match="EvidenceEvalEvent"):
+        _entry(source_event=object())
 
 
 def test_rejects_invalid_source_event_for_promote_or_supersede() -> None:
@@ -275,6 +286,39 @@ def test_stable_serialization_and_ledger_entry_id() -> None:
 def test_rejects_non_deterministic_or_mismatched_ledger_entry_id() -> None:
     with pytest.raises(ValueError, match="ledger_entry_id"):
         _entry(ledger_entry_id="promotion-ledger:not-the-derived-id")
+
+
+def test_rejects_identity_whitespace_and_invalid_ledger_prefix() -> None:
+    source = _source_event()
+
+    with pytest.raises(ValueError, match="source_event_id"):
+        PromotionLedgerEntry(
+            promotion_id="promotion-rag-gate-1",
+            source_event_id="event with whitespace",
+            source_event_type=source.event_type,
+            source_event_fingerprint=source.fingerprint,
+            decision="promote",
+            idempotency_key="idem:promotion-rag-gate-whitespace",
+            policy_version=source.policy_version,
+            producer=_producer(),
+            produced_at=_FIXED_TIMESTAMP,
+            validation_status="valid",
+        )
+    with pytest.raises(ValueError, match="ledger_entry_id"):
+        _entry(ledger_entry_id="not-promotion-ledger")
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {" ": 1},
+        {"finite": float("inf")},
+        {"unsupported": cast(Any, object())},
+    ],
+)
+def test_rejects_empty_nonfinite_or_unsupported_metadata(metadata: dict[str, Any]) -> None:
+    with pytest.raises(ValueError, match="metadata"):
+        _entry(metadata=metadata)
 
 
 def test_promotion_ledger_module_does_not_import_runtime_surfaces() -> None:

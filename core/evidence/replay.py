@@ -129,8 +129,6 @@ def dry_run_replay(
         elif entry.decision == "defer":
             deferred.append(entry.ledger_entry_id)
             applied.append(entry.ledger_entry_id)
-        else:
-            conflict.append(entry.ledger_entry_id)
 
     return PromotionReplaySummary(
         candidate_entry_ids=candidate_ids,

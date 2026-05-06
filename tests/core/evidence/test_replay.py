@@ -140,6 +140,23 @@ def test_existing_active_scope_collision_fails_closed() -> None:
         dry_run_replay(existing_entries=(first, second))
 
 
+def test_candidate_promote_against_existing_active_scope_is_conflict() -> None:
+    existing = _entry(run_id="1", promotion_id="promotion-shared")
+    candidate = _entry(
+        run_id="2",
+        promotion_id="promotion-shared",
+        idempotency_key="idem:promotion-shared-candidate",
+    )
+
+    summary = dry_run_replay(
+        existing_entries=(existing,),
+        candidate_entries=(candidate,),
+    )
+
+    assert summary.diff.added == ()
+    assert summary.diff.conflict == (candidate.ledger_entry_id,)
+
+
 def test_same_promotion_scope_conflict_is_non_promoting() -> None:
     first = _entry(run_id="1", promotion_id="promotion-shared")
     second = _entry(
