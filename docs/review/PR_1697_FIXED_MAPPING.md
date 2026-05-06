@@ -103,6 +103,9 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 - `71bd1dc85` fixes CodeRabbit review feedback by enforcing first-occurrence
   rollout phase ordering, closing direct/relative import guard bypasses, and
   improving fixed-mapping readability.
+- `27ba93516` maps CodeRabbit feedback in the canonical fixed mapping artifact.
+- `727cefbda` fixes CodeRabbit follow-up feedback by closing the
+  `from package import submodule` semantic-cache import guard bypass.
 
 ## Pre-push checklist
 
@@ -133,7 +136,7 @@ None. Existing semantic-cache and Evidence Graph invariants already cover this d
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery, Codex, and Cubic feedback were fixed and mapped below.
+Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery, Codex, Cubic, and CodeRabbit feedback were fixed or dispositioned and mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -155,6 +158,15 @@ Evidence: `scripts/ci/check_semantic_cache_gate.py:90`, `scripts/ci/check_semant
 Disposition: FIXED
 Commit: 71bd1dc85
 Evidence: `scripts/ci/check_semantic_cache_gate.py:184`, `scripts/ci/check_semantic_cache_gate.py:217`, `tests/test_semantic_cache_gate.py:263`, `tests/helpers/semantic_cache_import_guard.py:23`, `docs/review/PR_1697_FIXED_MAPPING.md:24`; focused checker/tests/mypy/validate-changed passed locally after the fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197699569
+Disposition: NOT-A-BUG
+Evidence: PR #1697 is explicitly scoped as docs + deterministic guard/test, not docs-only; PR body includes `## Split Justification`, `pr_scope_guard` passed on current-head CI, and this artifact lists the executable checker/test scope in `Scope` and `Files touched`.
+Reason: The comment applies a docs-only rule, but the operator-approved plan and PR body classify this lane as docs + deterministic guard/test. No runtime/cache/provider/RAG implementation files are touched.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239806990 -> 727cefbda
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197699573 -> 727cefbda
+Disposition: FIXED
+Commit: 727cefbda
+Evidence: `tests/helpers/semantic_cache_import_guard.py:33`, `tests/test_semantic_cache_gate.py:379`; focused checker/tests/mypy/validate-changed and pre-commit passed locally after the fix.
 
 ## Merge Readiness
 
