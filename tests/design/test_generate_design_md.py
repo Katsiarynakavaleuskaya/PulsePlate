@@ -110,6 +110,15 @@ def test_check_passes_after_regeneration(tmp_path, capsys):
     assert "OK: docs/design/DESIGN.md is up to date." in captured.out
 
 
+def test_check_passes_against_committed_design_md(capsys):
+    module = load_generator_module()
+
+    assert module.run(["--check"], repo_root=REPO_ROOT) == 0
+    captured = capsys.readouterr()
+
+    assert "OK: docs/design/DESIGN.md is up to date." in captured.out
+
+
 def test_output_is_deterministic_across_repeated_runs():
     module = load_generator_module()
 
