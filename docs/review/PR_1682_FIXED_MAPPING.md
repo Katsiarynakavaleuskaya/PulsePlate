@@ -4,7 +4,7 @@
 **Branch:** `release/release-control-plane-pr5-ci-gates`
 **Release-control-plane slice:** PR-5 CI release decision integration
 **Canonical commit:** `eb798b4d9`
-**Latest review-fix commit:** `62b0a2bc2`
+**Latest review-fix commit:** `78a800f7f`
 
 ## Scope
 
@@ -20,7 +20,7 @@ iOS runtime, RAG behavior, semantic cache, GraphRAG, or product-facing behavior.
 - [x] Fixed in commit mapping completed
 
 Post-open discussion pass completed for comments visible through 2026-05-06
-12:25 UTC. No human or bot review thread has been resolved without disposition
+12:59 UTC. No human or bot review thread has been resolved without disposition
 evidence. New comments after this timestamp require a new pass before merge.
 
 ## Fixed in Commit Mapping
@@ -75,6 +75,16 @@ Disposition: FIXED
 Commit: 62b0a2bc2
 Evidence: The Cubic P2 schema finding is fixed by relaxing the malformed summary fields in `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json` and covering the behavior in `tests/test_release_control_plane_ci_gate.py`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#discussion_r3195517017 -> 78a800f7f
+Disposition: FIXED
+Commit: 78a800f7f
+Evidence: `scripts/ci/check_release_control_plane.py` now rejects incoherent build-equivalence payloads where `decision == "EQUIVALENT"` but `reason_codes` or `mismatch_details` contain findings; `tests/test_release_control_plane_ci_gate.py::test_block_when_equivalent_build_equivalence_has_mismatch_findings` covers the fail-closed path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#discussion_r3195517031 -> 78a800f7f
+Disposition: FIXED
+Commit: 78a800f7f
+Evidence: `scripts/ci/check_release_control_plane.py` now validates embedded evidence paths with `PurePosixPath` parts and rejects absolute paths or `..` escapes even when the string begins with `artifacts/`; `tests/test_release_control_plane_ci_gate.py::test_evidence_paths_reject_parent_directory_escape` covers `artifacts/../leak.json`.
+
 ## Split Justification
 
 This PR is intentionally one release-control-plane slice because the fail-closed
@@ -99,7 +109,7 @@ Artifact: [`docs/review/PR_1682_PREMORTEM.md`](PR_1682_PREMORTEM.md)
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Release control plane PR-5: CI release decision integration" --task-class Orchestration --pr-phase pre_open --path docs/roadmap/BACKLOG_LEDGER.md --path docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md --path scripts/ci/check_release_control_plane.py --path tests/test_release_control_plane_ci_gate.py --path docs/release/RELEASE_CONTROL_PLANE_EPIC.md --path docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md --path .github/workflows/cd.yml --requested-agent ...` PASS, packet `0ddd1b459d6d`
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Release control plane PR-5 post-open review: CI decision integration" --task-class Orchestration --pr-phase post_open_review --requested-agent qa-engineer-agent --requested-agent bug-hunter --requested-agent premortem-facilitator --requested-agent security-auditor` PASS, packet `f6116f0353a4`
-- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`22 passed`)
+- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`24 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_release_manifest.py` PASS (`20 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_build_equivalence.py` PASS (`22 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_rag_release_gates_runner.py` PASS (`48 passed`)

@@ -25,11 +25,13 @@ Frame: It is 6 months from now. PR-5 merged, but a production release proceeded 
 
 **Risk:** The CI checker trusts manifest labels and ignores PR-4 build-equivalence output.
 
-**Inspection:** `check_release_control_plane.py` requires `build_equivalence.decision == "EQUIVALENT"` and returns `build_equivalence_not_equivalent` otherwise.
+**Inspection:** `check_release_control_plane.py` requires `build_equivalence.decision == "EQUIVALENT"` and returns `build_equivalence_not_equivalent` otherwise. Post-open review found that a contradictory payload with `decision == "EQUIVALENT"` plus non-empty findings could still pass.
 
-**Disposition:** NOT-A-BUG
+**Disposition:** FIXED
 
-**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_block_when_build_equivalence_blocks` asserts `BLOCK`, `build_equivalence_not_equivalent`, and `build_identity_mismatch`.
+**Commit:** `78a800f7f`
+
+**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_block_when_build_equivalence_blocks` asserts `BLOCK`, `build_equivalence_not_equivalent`, and `build_identity_mismatch`. `tests/test_release_control_plane_ci_gate.py::test_block_when_equivalent_build_equivalence_has_mismatch_findings` asserts contradictory `EQUIVALENT` payloads return `BLOCK`.
 
 ### 2. Gate ALLOWs when RAG gate is NO-GO
 
@@ -167,6 +169,18 @@ Frame: It is 6 months from now. PR-5 merged, but a production release proceeded 
 
 **Evidence:** `scripts/ci/check_release_control_plane.py` now type-checks `_sha256_file(...)` without `Any` leakage; `. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_release_control_plane.py` passed; subsequent `make validate-changed`, `pre-commit run --all-files`, and pre-push hooks passed.
 
+### 15. Embedded evidence paths escape `artifacts/`
+
+**Risk:** A release evidence payload points to `artifacts/../outside.json`, bypasses the string prefix guard, and makes the CI gate trust metadata outside allowed artifact locations.
+
+**Inspection:** Post-open review found the path guard used a string prefix check and did not normalize POSIX path parts.
+
+**Disposition:** FIXED
+
+**Commit:** `78a800f7f`
+
+**Evidence:** `scripts/ci/check_release_control_plane.py` now rejects absolute paths, non-`artifacts` roots, and any `..` path part using `PurePosixPath`; `tests/test_release_control_plane_ci_gate.py::test_evidence_paths_reject_parent_directory_escape` covers `artifacts/../leak.json`.
+
 ## Synthesis
 
 Most likely failure: protected production artifact wiring is mistaken as complete because fixture validation exists.
@@ -187,7 +201,7 @@ Unresolved P0/P1: none.
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
-- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`22 passed`)
+- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`24 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_release_manifest.py` PASS (`20 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_build_equivalence.py` PASS (`22 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_rag_release_gates_runner.py` PASS (`48 passed`)
