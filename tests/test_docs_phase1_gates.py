@@ -81,3 +81,46 @@ def test_phase1_guard_accepts_dot_prefixed_file_anchor(
 
     errors = gates.check_docs_phase1_guards(markdown_files=["docs/audit/sample.md"])
     assert errors == []
+
+
+def test_phase1_guard_runs_semantic_cache_gate_for_gate_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    gate_doc = tmp_path / "docs" / "roadmap" / "PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate_doc.parent.mkdir(parents=True)
+    gate_doc.write_text(
+        """# PulsePlate Semantic Cache Gate and Plan
+
+<!-- SEMANTIC_CACHE_GATE_STATUS: open -->
+<!-- SEMANTIC_CACHE_ALLOWED_RUNTIME: false -->
+<!-- SEMANTIC_CACHE_IMPLEMENTATION_ALLOWED: false -->
+<!-- SEMANTIC_CACHE_REQUIRES_DEDICATED_GATE: true -->
+
+Semantic cache remains gate-closed until a reviewed gate-open PR changes these
+markers and documents current-head CI governance.
+
+Semantic cache belongs only to the product AI runtime rail.
+
+Semantic cache is not advisory wiki, not workforce memory, not a second source
+of truth, not billing/auth/entitlement truth, and not a compliance/legal output
+cache.
+
+If the gate opens later, rollout order is fixed:
+1. docs contract
+2. exact/fuzzy cache
+3. bounded semantic cache for `/insight`
+4. observability / false-hit guardrails
+5. Redis/GPTCache backend only later
+""",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=["docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"]
+    )
+
+    assert errors == [
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md: "
+        "invalid marker SEMANTIC_CACHE_GATE_STATUS: expected closed, got open"
+    ]

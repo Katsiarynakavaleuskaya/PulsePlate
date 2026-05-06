@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
+import importlib.util
 import re
 from pathlib import Path
+from typing import cast
 
 PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
 EVIDENCE_ANCHOR_RE = re.compile(
@@ -15,6 +18,21 @@ EVIDENCE_ANCHOR_RE = re.compile(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+CHECKER_PATH = Path(__file__).resolve().with_name("check_semantic_cache_gate.py")
+SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+SemanticCacheGateValidator = Callable[[str], list[str]]
+
+
+def _load_semantic_cache_gate_validator() -> SemanticCacheGateValidator:
+    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    validator = getattr(module, "validate_semantic_cache_gate", None)
+    if not callable(validator):
+        raise RuntimeError("semantic-cache gate checker missing validate_semantic_cache_gate")
+    return cast(SemanticCacheGateValidator, validator)
 
 
 def _read_text(relpath: str) -> str:
@@ -50,6 +68,10 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                 f"{relpath}: missing `file:line` evidence anchor "
                 "(example: `tests/test_repo_policy_guards.py:264`)."
             )
+
+        if relpath == SEMANTIC_CACHE_GATE_DOC:
+            validate_semantic_cache_gate = _load_semantic_cache_gate_validator()
+            errors.extend(f"{relpath}: {error}" for error in validate_semantic_cache_gate(content))
 
     return errors
 
