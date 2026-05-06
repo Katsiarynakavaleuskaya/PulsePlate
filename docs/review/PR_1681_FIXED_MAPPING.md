@@ -225,6 +225,8 @@ mutation, semantic cache, GraphRAG, or runtime rail authority.
 - CodeRabbit review noted advisory serve scope is metadata-only; disposition is
   NOT-A-BUG because E5 is a pure advisory bridge and must not widen E4 serve
   policy or product runtime behavior.
+- CodeRabbit review flagged mapping checkbox governance; fixed by a
+  post-comment docs/governance repair before final merge-readiness.
 
 ## Fixed in Commit Mapping
 
