@@ -161,6 +161,10 @@ N/A. No agent instruction changes were needed.
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `facb35b81` hardens marker parsing and adds regression coverage for hyphenated marker values. `bb6fc3071` wires semantic-cache validation into Docs Phase1 gates and adds regression coverage for unsafe marker changes. `2cc69d457` preserves direct-script execution for the CI docs gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#pullrequestreview-4237008649
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196267076
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196271692
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#pullrequestreview-4237008649 -> facb35b81
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196267076 -> facb35b81
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196271692 -> 2cc69d457
