@@ -1,0 +1,57 @@
+{
+  "accessibility_notes": "Synthetic derived notes: component grouping must preserve semantic labels, focus order, keyboard support, and touch target comfort.",
+  "adopt_adapt_reject_decision": "adapt",
+  "attribution_required": false,
+  "component_patterns": [
+    "button",
+    "card",
+    "segmented_control",
+    "tabs"
+  ],
+  "design-guard": "required",
+  "forbidden_copy_elements": [
+    "external brand",
+    "exact layout",
+    "marketing copy",
+    "proprietary component implementation",
+    "screenshot"
+  ],
+  "icon-silhouette-check": "not_applicable",
+  "layout_patterns": [
+    "component taxonomy grouping",
+    "navigation plus content"
+  ],
+  "legal_copy_risks": [
+    "component implementation details must not be copied",
+    "source taxonomy labels require PulsePlate vocabulary normalization"
+  ],
+  "license_status": "restricted",
+  "mapped_pulseplate_components": [
+    "button",
+    "card",
+    "segmented_control",
+    "tabs"
+  ],
+  "monetization_notes": "Synthetic read-only non-canonical evidence only; does not create pricing, billing, entitlement, or App Store truth.",
+  "motion_notes": "Synthetic derived metadata: state transitions need reduced-motion-safe alternatives.",
+  "normalization_notes": "Synthetic read-only non-canonical evidence: generic component taxonomy maps to PulsePlate segmented_control, tabs, card, and button ids.",
+  "palette_archetype": "neutral surface system with restrained status accents",
+  "platform": [
+    "cross_platform",
+    "web"
+  ],
+  "product_category": "design system",
+  "radius_profile": "subtle",
+  "reference_id": "open-design-component-taxonomy-synthetic-001",
+  "source_name": "Open design synthetic component taxonomy metadata",
+  "source_url": "https://example.invalid/open-design-component-taxonomy-synthetic",
+  "spacing_density": "comfortable",
+  "status": "normalized",
+  "surface_type": [
+    "settings",
+    "dashboard"
+  ],
+  "typography_archetype": "structured labels with clear section hierarchy",
+  "visual_archetype": "repo-normalized component taxonomy",
+  "wellness_safety_notes": "Synthetic read-only non-canonical evidence; no diagnostic, treatment, therapy, crisis, emergency, medical, or guaranteed outcome claims."
+}

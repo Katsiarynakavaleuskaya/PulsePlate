@@ -117,6 +117,18 @@ References may contribute only derived, normalized metadata and an explicit `ado
 - `icon-silhouette-check` must be `passed` or `not_applicable` before any Results/Evidence finalization.
 - `design-guard` must be `passed` or `not_applicable` before any design export or icon-core lock update.
 
+## PR-2 Tooling
+
+`scripts/design/reference_manifest.py` provides the first repo-local deterministic checker for this schema:
+
+```bash
+python3 scripts/design/reference_manifest.py validate <path>
+python3 scripts/design/reference_manifest.py validate-dir <dir>
+python3 scripts/design/reference_manifest.py normalize <path>
+```
+
+The checker validates manifest shape, status/decision alignment, license and copy-risk controls, wellness-only wording, and PulsePlate component vocabulary mappings. It does not crawl external sources, score references, import assets, write Figma/Canva, or promote any reference into runtime truth.
+
 ## Source Policy Encoding
 
 - Refero Styles: read-only benchmark corpus; no copying.
