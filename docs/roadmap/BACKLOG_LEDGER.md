@@ -70,11 +70,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 
 
 <a id="ledger-p1-web-launch-design-polish-v1"></a>
-- [x] P1: Web launch shell design polish v1
+- [ ] P1: Web launch shell design polish v1
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1608 / `codex/web-launch-design-polish-v1` (merged)
-  - Status: Complete
+  - Status: In progress; PR #1608 merged, keep open until same-day docs-only closeout after PR #1674
   - Area: web / launch / design system
   - Finding Type: design handoff implementation
   - Reason (EN): PR #1593 accepted the Figma Make `PulsePlate_Web` packet as reference-only design direction. The public launch shell now needs a bounded repo-first polish pass for `/` and `/marketing` using existing tokens/components, wellness-safe copy, and no Figma/Canva runtime authority.
@@ -84,7 +84,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/figma/orchestration/sessions/2026-04-30_web_launch_design_polish_v1/02_DESIGN_IMPLEMENTATION_NOTES.md`
     - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
     - `frontend/src/components/marketing/`
-  - Evidence: PR #1608 merged on 2026-04-30 (`25d5cb954b11278700bf399434b98338b6a501b6`); PR #1608 fixed mapping recorded focused frontend tests, build evidence, and the reference-only Figma/Canva boundary. Follow-up branch `feat/web-launch-shell-polish-v2` revalidated `/` and `/marketing` render behavior with no tabbar or horizontal-overflow regression before closing this stale ledger state.
+  - Evidence: PR #1608 merged on 2026-04-30 (`25d5cb954b11278700bf399434b98338b6a501b6`); PR #1608 fixed mapping recorded the focused frontend tests, build evidence, and the reference-only Figma/Canva boundary. Follow-up branch `feat/web-launch-shell-polish-v2` revalidated `/` and `/marketing` render behavior with no tabbar or horizontal-overflow regression, but this mixed-scope PR intentionally leaves final ledger closure to a same-day docs-only closeout after merge.
   - DoD:
     - `/` and `/marketing` still render the public launch shell and keep the tabbar hidden
     - launch page polish uses repo tokens/components and existing routes only

@@ -10,14 +10,12 @@ configuration, or external reference intake.
 
 ## Discussion Thread Pass
 
-Status: pending external review.
-
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No GitHub review threads were present when this artifact was created. Future CodeRabbit,
-Sourcery, Cubic, human, or CI findings must be added here with disposition evidence before
-threads are resolved.
+GitHub review threads were inspected and mapped below. Future CodeRabbit, Sourcery, Cubic,
+human, or CI findings must be added here with disposition evidence before threads are
+resolved.
 
 ## Fixed in Commit Mapping
 
