@@ -86,6 +86,10 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 
 - `fc63aded4` docs/checker/tests for SC-G1 semantic-cache rollout gate contract.
 - `bab416651` adds the canonical PR #1697 fixed-mapping artifact.
+- `9e1f1d962` aligns the mapping artifact with Phase2 parser gates.
+- `e65ca8a16` fixes Sourcery review feedback by stabilizing forbidden-claim labels,
+  switching rollout contract validation to regex anchors, and sharing the semantic-cache
+  import guard helper.
 
 ## Pre-push checklist
 
@@ -116,11 +120,15 @@ None. Existing semantic-cache and Evidence Graph invariants already cover this d
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads at artifact creation. Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`.
+Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery feedback was fixed and mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239573839 -> e65ca8a16
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197502775 -> e65ca8a16
+Disposition: FIXED
+Commit: e65ca8a16
+Evidence: `scripts/ci/check_semantic_cache_gate.py:46`, `scripts/ci/check_semantic_cache_gate.py:101`, `tests/test_semantic_cache_gate.py:189`, `tests/helpers/semantic_cache_import_guard.py:23`; focused checker/tests/mypy/validate-changed passed locally after the fix.
 
 ## Merge Readiness
 
