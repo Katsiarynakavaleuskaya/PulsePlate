@@ -39,6 +39,8 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 ### Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235600795 -> 72544e57c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235682587 -> 5b5c08a95
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235691089 -> 5b5c08a95
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195008771 -> 72544e57c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195008797 -> 72544e57c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087415 -> 5b5c08a95
