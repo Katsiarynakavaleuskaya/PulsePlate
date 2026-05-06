@@ -11,6 +11,8 @@ This artifact records review dispositions and bounded evidence. It is not a subs
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Pre-open role order completed: `agent-coordinator`, `creative-designer`, `frontend-engineer`, `architecture-specialist`, `security-auditor`, `qa-engineer-agent`, `bug-hunter`, `data-scientist-agent`.
 - [x] Post-open bootstrap completed: `artifacts/orchestration/task_packets/6a4d73f5b0fb.json`.
 - [x] Fixed in commit mapping initialized.
