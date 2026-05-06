@@ -97,17 +97,15 @@ Stable reason codes:
 
 ## CI Integration
 
-PR-5 wires a non-secret fixture validation job into the release-control-plane CI
-surface so the checker contract is exercised without requiring protected App
-Store credentials or production release artifacts.
+The CD workflow runs `release-control-plane-gate` on production tag pushes before
+any production image build or deploy job can run. The job invokes this checker
+against the real release evidence paths under `artifacts/release/` and
+`artifacts/rag_eval/release/`; it does not generate fixture evidence or treat
+synthetic files as production proof.
 
-Production tag enforcement remains fail-closed at the checker level, but
-protected-environment artifact wiring is a follow-up because current CI does not
-yet publish real `release_manifest.json`, `rag_gate_result.json`, and
-`build_equivalence_result.json` into the production deploy path. The fixture job
-must not be interpreted as fake production evidence and must not be placed under
-`artifacts/release/`.
-
-Deferred protected-environment follow-up: wire real release evidence artifacts
-into the production tag path before production deploy, then invoke this checker
-against those real artifacts.
+Production jobs declare the gate in `needs`, so GitHub Actions dependency
+semantics make a `BLOCK` decision (or any missing/malformed evidence) stop the
+production build, deploy configuration, SSH deploy, and self-hosted deploy paths
+fail-closed. Real `release_manifest.json`, `rag_gate_result.json`, and
+`build_equivalence_result.json` must therefore be present and internally
+coherent before a production tag can proceed.

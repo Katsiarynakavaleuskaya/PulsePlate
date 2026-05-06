@@ -616,26 +616,31 @@ def test_cli_writes_json_and_markdown_outputs(tmp_path: Path, capsys) -> None:
 # points. If the workflow contract grows, migrate them to YAML/schema parsing.
 def test_workflow_integration_does_not_require_app_store_secrets() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
-    marker = "release-control-plane-fixture-gate:"
+    marker = "release-control-plane-gate:"
     assert marker in workflow
-    job_block = workflow.split(marker, 1)[1].split("\n  production-gates:", 1)[0]
+    job_block = workflow.split(marker, 1)[1].split("\n  build-production:", 1)[0]
 
     forbidden_terms = ("APP_STORE", "FASTLANE", "MATCH_PASSWORD", "ASC_", "APPSTORE")
     assert not any(term in job_block for term in forbidden_terms)
     assert "secrets." not in job_block
 
 
-def test_workflow_integration_does_not_alter_app_store_upload_behavior() -> None:
+def test_workflow_integration_enforces_real_evidence_before_production_paths() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
-    fixture_job = workflow.split("release-control-plane-fixture-gate:", 1)[1].split(
-        "\n  production-gates:",
+    gate_job = workflow.split("release-control-plane-gate:", 1)[1].split(
+        "\n  build-production:",
         1,
     )[0]
-    deploy_jobs = workflow.split("\n  deploy-production:", 1)[1]
+    production_jobs = workflow.split("\n  build-production:", 1)[1]
 
-    assert "upload" not in fixture_job.lower()
-    assert "app store connect" not in fixture_job.lower()
-    assert "release-control-plane-fixture-gate" not in deploy_jobs
+    assert "release-control-plane-fixture" not in workflow
+    assert "Build release-control-plane fixture evidence" not in workflow
+    assert "--release-manifest artifacts/release/release_manifest.json" in gate_job
+    assert "--rag-gate-result artifacts/rag_eval/release/rag_gate_result.json" in gate_job
+    assert "--build-equivalence artifacts/release/build_equivalence_result.json" in gate_job
+    assert "needs: production-gates" in gate_job
+    assert "release-control-plane-gate" in production_jobs
+    assert "app store connect" not in gate_job.lower()
 
 
 def test_ledger_marks_pr4_merged_and_pr5_active() -> None:

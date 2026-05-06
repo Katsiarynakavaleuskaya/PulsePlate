@@ -920,10 +920,24 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
     assert production_step_names.index("Verify production image attestations") < (
         production_step_names.index("Upload production attestation verification artifact")
     )
+    assert cd_workflow["jobs"]["release-control-plane-gate"]["needs"] == "production-gates"
+    assert cd_workflow["jobs"]["build-production"]["needs"] == [
+        "production-gates",
+        "release-control-plane-gate",
+    ]
     assert cd_workflow["jobs"]["production-deploy-config"]["needs"] == [
         "production-gates",
+        "release-control-plane-gate",
         "build-production",
     ]
+    expected_deploy_needs = [
+        "production-gates",
+        "release-control-plane-gate",
+        "build-production",
+        "production-deploy-config",
+    ]
+    assert cd_workflow["jobs"]["deploy-production"]["needs"] == expected_deploy_needs
+    assert cd_workflow["jobs"]["deploy-production-self-hosted"]["needs"] == expected_deploy_needs
 
 
 def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:
