@@ -237,6 +237,28 @@ def test_validated_status_requires_non_empty_evidence():
     assert "status=validated requires token_mirror_paths_checked" in errors
 
 
+def test_validated_status_rejects_placeholder_scalar_evidence():
+    module = load_evidence_module()
+    manifest = valid_manifest(
+        accessibility_evidence={"placeholder": None},
+        copy_safety_evidence={"placeholder": False},
+        motion_evidence={"placeholder": 0},
+        overflow_evidence={"nested": {"placeholder": None}},
+        responsive_evidence={"items": [False, 0, None]},
+        status="validated",
+        tabbar_or_navigation_evidence={"placeholder": 0},
+    )
+
+    errors = module.validate_record(manifest, repo_root=REPO_ROOT)
+
+    assert "status=validated requires non-empty accessibility_evidence" in errors
+    assert "status=validated requires non-empty copy_safety_evidence" in errors
+    assert "status=validated requires non-empty motion_evidence" in errors
+    assert "status=validated requires non-empty overflow_evidence" in errors
+    assert "status=validated requires non-empty responsive_evidence" in errors
+    assert "status=validated requires non-empty tabbar_or_navigation_evidence" in errors
+
+
 def test_ios_automated_capture_requires_ios_artifact_path():
     module = load_evidence_module()
     manifest = valid_manifest(platform="ios", capture_mode="automated", route_or_screen="Home")

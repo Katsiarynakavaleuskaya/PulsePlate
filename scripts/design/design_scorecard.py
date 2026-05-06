@@ -95,10 +95,20 @@ def _stringify(value: Any) -> str:
     return str(value)
 
 
+def _has_meaningful_evidence_value(value: Any) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list):
+        return any(_has_meaningful_evidence_value(item) for item in value)
+    if isinstance(value, dict):
+        return any(_has_meaningful_evidence_value(item) for item in value.values())
+    return False
+
+
 def _dict_has_evidence(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
-    return any(bool(_stringify(item).strip()) for item in value.values())
+    return any(_has_meaningful_evidence_value(item) for item in value.values())
 
 
 def _dimension(
