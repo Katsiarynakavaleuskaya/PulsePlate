@@ -445,10 +445,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Release automation control plane for C4, App Store Review, ML gates, and supply chain
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 (`release/release-control-plane-pr4-build-equivalence`) -> PR-TBD-RELEASE-CONTROL-PLANE-PR5
+  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 -> PR-TBD-RELEASE-CONTROL-PLANE-PR5 (`release/release-control-plane-pr5-ci-gates`)
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 active in PR #1679 on branch `release/release-control-plane-pr4-build-equivalence`; PR-5 remains deferred for CI fail-closed enforcement. The release-control-plane epic is not complete and is not production-ready.
+  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 is active on branch `release/release-control-plane-pr5-ci-gates` for CI fail-closed release-decision integration. Future protected upload and App Store Connect execution remain out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
@@ -461,8 +461,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/RELEASE_MANIFEST_CONTRACT.schema.json`
     - `docs/release/BUILD_EQUIVALENCE_CONTRACT.md`
     - `docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json`
+    - `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md`
+    - `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json`
     - `scripts/release/release_manifest.py`
     - `scripts/release/build_equivalence.py`
+    - `scripts/ci/check_release_control_plane.py`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
     - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
     - `scripts/evals/run_rag_release_gates.py`
@@ -473,8 +476,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-1 defines reviewer-packet hash contract after App Store readiness artifacts land on `main`, including `reviewer_notes_hash`, `appstore_metadata_hash`, canonical UTF-8 SHA-256 rules, and schema tests.
     - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth, including `rag_gate_result_hash`, `eval_artifact_hash`, existing `PASS` / `NO-GO` eval decision fields, and safe artifact references.
     - PR-3 adds a release manifest generator and fail-closed validator. Completed by PR #1605.
-    - PR-4 proves review-build and production-candidate equivalence by digest/hash checks. Active in `release/release-control-plane-pr4-build-equivalence`.
-    - PR-5 integrates focused CI gates for manifest, ML gate result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Deferred until PR-4 merges; PR-4 must not add CI fail-closed enforcement.
+    - PR-4 proves review-build and production-candidate equivalence by digest/hash checks. Completed by PR #1679.
+    - PR-5 integrates focused CI gates for manifest, ML gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Active in `release/release-control-plane-pr5-ci-gates`; protected upload and App Store Connect execution remain deferred follow-ups.
 
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
