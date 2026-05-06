@@ -245,6 +245,27 @@ def test_constructor_rejects_non_canonical_identity_fields() -> None:
         )
 
 
+def test_constructor_rejects_non_advisory_authority_flag() -> None:
+    canonical = _artifact()
+
+    with pytest.raises(ValueError, match="advisory_only"):
+        AdvisoryWikiArtifactRef(
+            artifact_id=canonical.artifact_id,
+            corpus=canonical.corpus,
+            slug=canonical.slug,
+            source_rel_path=canonical.source_rel_path,
+            page_path=canonical.page_path,
+            promoted_path=canonical.promoted_path,
+            content_hash=canonical.content_hash,
+            policy_version=canonical.policy_version,
+            idempotency_key=canonical.idempotency_key,
+            advisory_only=False,
+            promoted=canonical.promoted,
+            upstream_ids=canonical.upstream_ids,
+            metadata=canonical.metadata,
+        )
+
+
 def test_metadata_and_upstream_ids_are_defensively_copied() -> None:
     metadata: dict[str, Any] = {"advisory_only": True, "labels": ["one"]}
     upstream_ids = ["z", "a"]
@@ -311,6 +332,30 @@ def test_rejects_path_like_metadata_values(value: str) -> None:
         _artifact(metadata={"advisory_only": True, "note": value})
 
 
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"advisory_only": 0},
+        {"advisory_only": True, "score": float("nan")},
+        cast(dict[str, Any], {123: "value"}),
+        {" ": "value"},
+        {"advisory_only": True, "note": object()},
+        {"advisory_only": True, "nested": ["safe", {"note": "docs/path"}]},
+        {"runtime_context": {"nested": "source of truth"}},
+        {"authority_claims": ["neutral", "runtime"]},
+    ],
+)
+def test_rejects_additional_unsafe_metadata_shapes(metadata: dict[str, Any]) -> None:
+    with pytest.raises(ValueError):
+        _artifact(metadata=metadata)
+
+
+@pytest.mark.parametrize("value", ["docs/", "notes.md"])
+def test_rejects_metadata_values_that_look_like_path_prefix_or_suffix(value: str) -> None:
+    with pytest.raises(ValueError, match="path-like"):
+        _artifact(metadata={"advisory_only": True, "note": value})
+
+
 def test_policy_blocks_unapproved_corpus_and_asset_type() -> None:
     policy = WikiEvidenceBridgePolicy(policy_version="policy-e5", allowed_corpora=("ops",))
 
@@ -329,6 +374,67 @@ def test_policy_blocks_unapproved_corpus_and_asset_type() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "policy_kwargs",
+    [
+        {"advisory_only_enforced": False},
+        {"allowed_corpora": ()},
+        {"allowed_admission_statuses": ()},
+        {"allowed_admission_statuses": ("valid", "unknown")},
+        {"allowed_asset_types": ()},
+        {"allowed_asset_types": ("knowledge_candidate", "runtime_bundle")},
+    ],
+)
+def test_policy_rejects_invalid_contract_settings(policy_kwargs: dict[str, Any]) -> None:
+    kwargs: dict[str, Any] = {
+        "policy_version": "policy-e5",
+        "allowed_corpora": ("project_internal",),
+    }
+    kwargs.update(policy_kwargs)
+    with pytest.raises(ValueError):
+        WikiEvidenceBridgePolicy(**kwargs)
+
+
+@pytest.mark.parametrize(
+    ("policy_kwargs", "message"),
+    [
+        ({"policy_version": "policy-other", "allowed_corpora": ("project_internal",)}, "policy"),
+        (
+            {
+                "policy_version": "policy-e5",
+                "allowed_corpora": ("project_internal",),
+                "require_content_hash": False,
+            },
+            "content_hash",
+        ),
+        (
+            {
+                "policy_version": "policy-e5",
+                "allowed_corpora": ("project_internal",),
+                "require_source_rel_path": False,
+            },
+            "source_rel_path",
+        ),
+        (
+            {
+                "policy_version": "policy-e5",
+                "allowed_corpora": ("project_internal",),
+                "allow_promoted_only": True,
+            },
+            "promoted",
+        ),
+    ],
+)
+def test_policy_enforcement_rejects_mismatched_or_unsafe_policy(
+    policy_kwargs: dict[str, Any],
+    message: str,
+) -> None:
+    policy = WikiEvidenceBridgePolicy(**policy_kwargs)
+
+    with pytest.raises(ValueError, match=message):
+        _artifact(policy=policy, promoted=False)
+
+
 def test_admission_adapter_requires_explicit_allowed_status() -> None:
     artifact = _artifact()
 
@@ -340,6 +446,54 @@ def test_admission_adapter_requires_explicit_allowed_status() -> None:
             verification_rate=1.0,
             fallback_rate=0.0,
             validation_status="degraded",
+        )
+
+
+def test_mapping_helpers_reject_non_artifact_inputs() -> None:
+    with pytest.raises(TypeError, match="AdvisoryWikiArtifactRef"):
+        wiki_artifact_to_evidence_asset_ref(cast(AdvisoryWikiArtifactRef, object()))
+
+    with pytest.raises(TypeError, match="AdvisoryWikiArtifactRef"):
+        wiki_artifact_to_admission_input(
+            cast(AdvisoryWikiArtifactRef, object()),
+            produced_at=_PRODUCED_AT,
+            coverage_rate=1.0,
+            verification_rate=1.0,
+            fallback_rate=0.0,
+        )
+
+
+@pytest.mark.parametrize("field", ["corpus", "slug"])
+@pytest.mark.parametrize("value", ["bad/value", "bad\\value", "bad..value", "."])
+def test_rejects_non_sluglike_corpus_and_slug_values(field: str, value: str) -> None:
+    with pytest.raises(ValueError):
+        _artifact(**{field: value})
+
+
+@pytest.mark.parametrize("content_hash", ["not-sha", "sha256:not-sha", f"sha256:{'a' * 63}"])
+def test_rejects_malformed_content_hash(content_hash: str) -> None:
+    with pytest.raises(ValueError, match="sha256"):
+        _artifact(content_hash=content_hash)
+
+
+def test_rejects_identity_values_with_whitespace() -> None:
+    canonical = _artifact()
+
+    with pytest.raises(ValueError, match="whitespace"):
+        AdvisoryWikiArtifactRef(
+            artifact_id="advisory-wiki:bad value",
+            corpus=canonical.corpus,
+            slug=canonical.slug,
+            source_rel_path=canonical.source_rel_path,
+            page_path=canonical.page_path,
+            promoted_path=canonical.promoted_path,
+            content_hash=canonical.content_hash,
+            policy_version=canonical.policy_version,
+            idempotency_key=canonical.idempotency_key,
+            advisory_only=True,
+            promoted=canonical.promoted,
+            upstream_ids=canonical.upstream_ids,
+            metadata=canonical.metadata,
         )
 
 
