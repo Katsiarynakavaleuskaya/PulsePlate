@@ -175,6 +175,39 @@ def test_admission_input_can_be_created_from_eval_event() -> None:
     assert admission_input.metadata["event_metadata"] == event.metadata
 
 
+def test_admission_adapter_preserves_source_and_admission_metadata() -> None:
+    event = _source_event()
+    admission_input = admission_input_from_eval_event(
+        event=event,
+        coverage_rate=0.9,
+        verification_rate=0.95,
+        fallback_rate=0.02,
+        metadata={"operator_note": "reviewed"},
+    )
+
+    assert admission_input.metadata == {
+        "admission_metadata": {"operator_note": "reviewed"},
+        "event_metadata": event.metadata,
+    }
+
+
+def test_admission_adapters_reject_wrong_source_contracts() -> None:
+    with pytest.raises(ValueError, match="EvidenceEvalEvent"):
+        admission_input_from_eval_event(
+            event=cast(EvidenceEvalEvent, object()),
+            coverage_rate=0.9,
+            verification_rate=0.95,
+            fallback_rate=0.02,
+        )
+    with pytest.raises(ValueError, match="PromotionLedgerEntry"):
+        admission_input_from_ledger_entry(
+            entry=cast(Any, object()),
+            coverage_rate=0.9,
+            verification_rate=0.95,
+            fallback_rate=0.02,
+        )
+
+
 def test_eval_event_adapter_preserves_source_metadata_for_admission_safety() -> None:
     event = _source_event(
         idempotency_key="idem:rag-gate-run-unsafe-e4-metadata",
@@ -269,6 +302,17 @@ def test_admission_blocks_execute_degraded_status_without_degraded_policy() -> N
 
     assert decision.allowed is False
     assert "execute_requires_degraded_policy" in decision.blocking_reasons
+
+
+def test_admission_blocks_status_not_allowed() -> None:
+    decision = decide_allow_execute(
+        admission_input=_input(validation_status="degraded"),
+        policy=_policy(),
+        now=_NOW,
+    )
+
+    assert decision.allowed is False
+    assert "validation_status_not_allowed" in decision.blocking_reasons
 
 
 def test_admission_blocks_promote_when_verification_below_threshold() -> None:
@@ -408,6 +452,12 @@ def test_admission_rejects_non_finite_or_out_of_range_metrics(metric_value: floa
         _input(coverage_rate=metric_value)
 
 
+@pytest.mark.parametrize("metric_value", [True, "0.5"])
+def test_admission_rejects_non_numeric_metric_types(metric_value: object) -> None:
+    with pytest.raises(ValueError, match="coverage_rate"):
+        _input(coverage_rate=cast(float, metric_value))
+
+
 def test_admission_rejects_unsupported_event_type_and_decision_by_policy() -> None:
     event_blocked = decide_allow_execute(
         admission_input=_input(event_type="ragas_report"),
@@ -441,6 +491,30 @@ def test_admission_rejects_policy_mismatch_and_bad_policy_values() -> None:
         _policy(stale_after_seconds=-1)
     with pytest.raises(ValueError, match="allow_degraded"):
         _policy(allow_degraded=cast(Any, "yes"))
+
+
+def test_admission_rejects_identity_whitespace_and_empty_degraded_reason() -> None:
+    with pytest.raises(ValueError, match="target_id"):
+        _input(target_id="eval-event:bad token")
+    with pytest.raises(ValueError, match="degraded_reason"):
+        _input(degraded_reason=" ")
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        cast(dict[str, object], {1: "bad"}),
+        {" ": "bad"},
+        {"label": "first", " Label ": "second"},
+        {"metric": float("inf")},
+        {"unsupported": object()},
+    ],
+)
+def test_admission_rejects_non_string_empty_colliding_or_unsupported_metadata(
+    metadata: dict[str, object],
+) -> None:
+    with pytest.raises(ValueError, match="metadata"):
+        _input(metadata=metadata)
 
 
 def test_admission_preserves_metadata_upstreams_and_decision_metadata_defensively() -> None:

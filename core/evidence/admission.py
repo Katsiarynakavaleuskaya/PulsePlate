@@ -778,10 +778,7 @@ def _staleness_state(
 def _parse_timestamp(value: str) -> datetime:
     """Parse an already validated timezone-aware ISO timestamp."""
 
-    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
-    if parsed.tzinfo is None:
-        raise ValueError("timestamp must include timezone")
-    return parsed
+    return datetime.fromisoformat(value.replace("Z", "+00:00"))
 
 
 def _policy_identity_payload(policy: AdmissionPolicy) -> dict[str, JsonValue]:
@@ -851,20 +848,19 @@ def _validate_metadata_safe_text(name: str, value: str) -> str:
 
 
 def _normalize_reason_codes(reason_codes: tuple[str, ...]) -> tuple[str, ...]:
-    """Normalize reason codes and reject collisions after normalization."""
+    """Normalize generated reason codes deterministically."""
 
-    normalized_codes: list[str] = []
-    seen: set[str] = set()
-    for reason_code in reason_codes:
-        normalized = validate_non_empty_token(
-            "reason_code",
-            reason_code.strip().lower(),
+    return tuple(
+        sorted(
+            {
+                validate_non_empty_token(
+                    "reason_code",
+                    reason_code.strip().lower(),
+                )
+                for reason_code in reason_codes
+            }
         )
-        if normalized in seen:
-            raise ValueError("reason_codes collide after normalization")
-        seen.add(normalized)
-        normalized_codes.append(normalized)
-    return tuple(sorted(normalized_codes))
+    )
 
 
 def _freeze_metadata(metadata: Mapping[str, JsonValue]) -> _FrozenJsonObject:
