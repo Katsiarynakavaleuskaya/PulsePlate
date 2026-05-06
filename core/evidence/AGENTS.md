@@ -51,7 +51,9 @@ promotion/serve actions, but this package must not perform those actions.
 
 ## E5 advisory wiki bridge
 
-E5 bridge logic must stay pure deterministic mapping only.
+E5 bridge logic must stay pure, deterministic mapping only. Reviewers must
+verify that wiki bridge changes do not introduce compiler behavior, runtime
+authority, local support-plane mutation, or product-truth claims.
 
 Allowed:
 
