@@ -72,7 +72,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Web launch shell design polish v1
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR #1608 / `codex/web-launch-design-polish-v1` (merged)
+  - Target PR: PR #1608 / `codex/web-launch-design-polish-v1` (merged); PR #1674 / `feat/web-launch-shell-polish-v2` (merged)
   - Status: Complete / Closed
   - Area: web / launch / design system
   - Finding Type: design handoff implementation
@@ -83,7 +83,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/figma/orchestration/sessions/2026-04-30_web_launch_design_polish_v1/02_DESIGN_IMPLEMENTATION_NOTES.md`
     - `frontend/src/pages/Marketing/PulsePlateMarketingPage.tsx`
     - `frontend/src/components/marketing/`
-  - Evidence: PR #1608 merged on 2026-04-30 (`25d5cb954b11278700bf399434b98338b6a501b6`); PR #1608 fixed mapping recorded the focused frontend tests, build evidence, and the reference-only Figma/Canva boundary. PR #1674 merged on 2026-05-06 (`b7fdd245591ad811170ec1d23002081b5978fbe2`) and revalidated `/` and `/marketing` render behavior with no tabbar or horizontal-overflow regression. This docs-only closeout records the completed web launch polish lane only; Figma/Canva remained reference-only, no runtime work is included here, and Design Intelligence PR-1, reference manifest tooling, screen evidence pack, deterministic scorecard, and iOS visual parity remain separate follow-ups.
+  - Evidence: PR #1608 merged on 2026-04-30 (`25d5cb954b11278700bf399434b98338b6a501b6`); PR #1608 fixed mapping recorded the focused frontend tests, build evidence, and the reference-only Figma/Canva boundary. PR #1674 merged on 2026-05-06 (`b7fdd245591ad811170ec1d23002081b5978fbe2`) and revalidated `/` and `/marketing` render behavior with no tabbar or horizontal-overflow regression. This docs-only closeout records the completed web launch polish lane only; Figma/Canva remain reference-only, no runtime work is included here, and Design Intelligence PR-1, reference manifest tooling, screen evidence pack, deterministic scorecard, and iOS visual parity remain separate follow-ups.
   - DoD:
     - `/` and `/marketing` still render the public launch shell and keep the tabbar hidden
     - launch page polish uses repo tokens/components and existing routes only
