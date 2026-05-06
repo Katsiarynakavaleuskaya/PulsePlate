@@ -59,11 +59,31 @@ strict merge-readiness remain required before merge.
 Disposition: FIXED
 Commit: 13d165f81
 Evidence: core/evidence/promotion_ledger.py metadata key validation now reports path context, normalizes keys case-insensitively, and tests/core/evidence/test_promotion_ledger.py covers key collisions plus Windows path metadata rejection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#discussion_r3193898908 -> 13d165f81
+Disposition: FIXED
+Commit: 13d165f81
+Evidence: core/evidence/promotion_ledger.py includes metadata key path context for nested key validation errors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#discussion_r3193898930 -> 13d165f81
+Disposition: FIXED
+Commit: 13d165f81
+Evidence: tests/core/evidence/test_promotion_ledger.py covers metadata key normalization collisions and Windows-style path metadata rejection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#discussion_r3193903328 -> ab3bd46f8
+Disposition: FIXED
+Commit: ab3bd46f8
+Evidence: core/evidence/replay.py requires an active replay target before accepting supersede; tests/core/evidence/test_replay.py covers candidate and existing orphan supersede handling.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#pullrequestreview-4234351988 -> ab3bd46f8
 Disposition: FIXED
 Commit: ab3bd46f8
 Evidence: core/evidence/replay.py reports candidate orphan supersession as conflict and fails closed on orphan existing supersession; tests/core/evidence/test_replay.py covers both paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#discussion_r3193951021 -> ab3bd46f8
+Disposition: FIXED
+Commit: ab3bd46f8
+Evidence: core/evidence/replay.py reports candidate orphan supersession as conflict and fails closed on orphan existing supersession; tests/core/evidence/test_replay.py covers both paths.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#pullrequestreview-4234449600 -> 13d165f81
+Disposition: FIXED
+Commit: 13d165f81
+Evidence: core/evidence/replay.py checks duplicate idempotency before supersede scope validation; tests/core/evidence/test_replay.py covers duplicate supersede replay without conflict.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#discussion_r3194014399 -> 13d165f81
 Disposition: FIXED
 Commit: 13d165f81
 Evidence: core/evidence/replay.py checks duplicate idempotency before supersede scope validation; tests/core/evidence/test_replay.py covers duplicate supersede replay without conflict.
