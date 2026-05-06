@@ -642,8 +642,15 @@ def test_ledger_marks_pr4_merged_and_pr5_active() -> None:
     ledger = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
 
     assert "PR-4 merged in PR #1679 on 2026-05-06" in ledger
-    assert "PR-5 is active on branch `release/release-control-plane-pr5-ci-gates`" in ledger
-    assert "Future protected upload and App Store Connect execution remain out of scope" in ledger
+    assert "PR-5 merged in PR #1682 on 2026-05-06" in ledger
+    assert (
+        "PR-6 is active on branch `release/release-control-plane-pr6-production-artifact-wiring`"
+        in ledger
+    )
+    assert (
+        "Future protected upload automation and App Store Connect execution remain out of scope"
+        in ledger
+    )
     assert "full App Store readiness is not complete" in ledger
 
 
