@@ -14,6 +14,9 @@ coverage:
         threshold: 1%
         # Don't block PR if patch coverage dips; our diff-coverage job is the real gate
         informational: true
+bundle_analysis:
+  warning_threshold: "5%"
+  status: "informational"
 ignore:
   - "example_nutrition_api.py"
   - "quick_coverage_check.py"

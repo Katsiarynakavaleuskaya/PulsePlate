@@ -165,6 +165,9 @@ jobs:
         # env vars наследуются из job-level env
 
       - name: Build frontend
+        env:
+          CODECOV_BUNDLE_ANALYSIS: "true"
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         run: npm run build
 
       - name: Verify Tailwind CSS utilities
