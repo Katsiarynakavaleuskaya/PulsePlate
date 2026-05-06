@@ -122,7 +122,7 @@ None. Existing semantic-cache and Evidence Graph invariants already cover this d
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery and Cubic feedback were fixed and mapped below.
+Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`. Sourcery, Codex, and Cubic feedback were fixed and mapped below.
 
 ## Fixed in Commit Mapping
 
@@ -132,6 +132,7 @@ Disposition: FIXED
 Commit: e65ca8a16
 Evidence: `scripts/ci/check_semantic_cache_gate.py:46`, `scripts/ci/check_semantic_cache_gate.py:101`, `tests/test_semantic_cache_gate.py:189`, `tests/helpers/semantic_cache_import_guard.py:23`; focused checker/tests/mypy/validate-changed passed locally after the fix.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239609396 -> 4a1d07219
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197509415 -> 4a1d07219
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197534582 -> 4a1d07219
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197534596 -> 4a1d07219
 Disposition: FIXED
