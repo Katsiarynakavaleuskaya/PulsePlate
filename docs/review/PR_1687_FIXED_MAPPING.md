@@ -52,8 +52,8 @@ Passed locally:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 .venv/bin/python scripts/ci/check_semantic_cache_gate.py
-.venv/bin/python -m pytest -q tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py
-.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_semantic_cache_gate.py tests/test_semantic_cache_gate.py
+.venv/bin/python -m pytest -q tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_repo_policy_guards.py
+MYPYPATH=. .venv/bin/python -m mypy --explicit-package-bases --no-incremental --cache-dir=/dev/null scripts/ci/check_semantic_cache_gate.py scripts/ci/check_docs_phase1_gates.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py
 make validate-changed
 pre-commit run --all-files
 ```
@@ -80,9 +80,11 @@ machine-heavy exception.
   semantic-cache gate doc the checked marker source and linking roadmap/backlog
   wording to that gate.
 - Checker is brittle: mitigated by exact marker/phrase checks and narrow
-  dangerous-claim checks instead of NLP parsing.
+  dangerous-claim checks instead of NLP parsing; review feedback hardened
+  marker parsing for hyphenated future values and normalized rollout-order
+  matching.
 - Checker is too weak: mitigated by marker, status, rollout-order,
-  forbidden-claim, and import-boundary tests.
+  forbidden-claim, import-boundary, and docs Phase1 wiring tests.
 - Runtime/provider/cache imports drift in: mitigated by AST import guard.
 - Runtime/cache files are modified by accident: fixed by keeping this PR to
   docs, checker, and tests only.
@@ -113,6 +115,8 @@ gate-open PR and current-head CI governance.
 ## Commit breakdown
 
 - `f8aff50e6` - `docs(ai-runtime): reconcile semantic cache gate`
+- `facb35b81` - `fix(ci): harden semantic cache gate parser`
+- `bb6fc3071` - `fix(ci): enforce semantic cache gate in docs checks`
 
 ## Pre-push checklist
 
@@ -153,7 +157,17 @@ N/A. No agent instruction changes were needed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at artifact creation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196267076 -> `facb35b81`
+  - Disposition: FIXED
+  - Evidence: `scripts/ci/check_semantic_cache_gate.py` parses marker values up
+    to the `-->` terminator; `tests/test_semantic_cache_gate.py` proves the
+    full `fail-closed` marker value is reported.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196271692 -> `bb6fc3071`
+  - Disposition: FIXED
+  - Evidence: `scripts/ci/check_docs_phase1_gates.py` invokes
+    `validate_semantic_cache_gate(...)` for the semantic-cache gate document;
+    `tests/test_docs_phase1_gates.py` proves unsafe marker changes fail through
+    Docs Phase1 gates.
 
 ## Merge Readiness
 
