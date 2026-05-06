@@ -171,6 +171,13 @@ def test_production_tag_workflow_includes_release_control_plane_evidence_gate() 
     assert production_job["needs"] == ["build-production", "production-deploy-config"]
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" in download_script
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in download_script
+    assert 'gh run view "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID"' in download_script
+    assert "--json status,conclusion,headSha,event,workflowName,url" in download_script
+    assert 'run_status" != "completed"' in download_script
+    assert 'run_conclusion" != "success"' in download_script
+    assert 'run_head_sha" != "$tag_commit"' in download_script
+    assert 'run_event" != "workflow_dispatch"' in download_script
+    assert '"Release Control Plane"' in download_script
     assert 'gh run download "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID"' in download_script
     assert '--name "$RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME"' in download_script
     assert "scripts/ci/check_release_control_plane.py" in validate_script
@@ -322,6 +329,24 @@ def test_production_job_rejects_evidence_for_different_tag_commit() -> None:
     assert 'if [ "$manifest_git_sha" != "$tag_commit" ]; then' in validate_script
     assert "Release manifest git SHA does not match production tag commit" in validate_script
     assert "exit 1" in validate_script
+
+
+def test_production_job_verifies_evidence_run_provenance_before_download() -> None:
+    workflow = _load_cd_workflow()
+    production_job = _job(workflow, "release-control-plane-production-evidence")
+    download_script = _step_run(
+        production_job,
+        "Download production release-control-plane evidence artifact",
+    )
+
+    assert "gh run view" in download_script
+    assert "--json status,conclusion,headSha,event,workflowName,url" in download_script
+    assert download_script.index("gh run view") < download_script.index("gh run download")
+    assert 'run_status" != "completed"' in download_script
+    assert 'run_conclusion" != "success"' in download_script
+    assert 'run_head_sha" != "$tag_commit"' in download_script
+    assert 'run_event" != "workflow_dispatch"' in download_script
+    assert "workflow name is not an approved release-evidence producer" in download_script
 
 
 def test_evidence_git_sha_mismatch_blocks(tmp_path: Path) -> None:

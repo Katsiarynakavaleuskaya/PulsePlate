@@ -726,6 +726,46 @@ jobs:
               exit 1
               ;;
           esac
+          tag_commit="$(git rev-parse "${GITHUB_REF#refs/tags/}^{commit}")"
+          run_metadata="$(
+            gh run view "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" \
+              --json status,conclusion,headSha,event,workflowName,url \
+              --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+          )"
+          IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+          if [ "$run_status" != "completed" ]; then
+            echo "❌ Release-control-plane evidence run is not completed: ${run_status:-unset}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_conclusion" != "success" ]; then
+            echo "❌ Release-control-plane evidence run did not succeed: ${run_conclusion:-unset}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_head_sha" != "$tag_commit" ]; then
+            echo "❌ Release-control-plane evidence run head SHA does not match production tag commit"
+            echo "run headSha=${run_head_sha:-unset}"
+            echo "tag commit=${tag_commit}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_event" != "workflow_dispatch" ]; then
+            echo "❌ Release-control-plane evidence run must be produced by a governed manual release-evidence workflow_dispatch run"
+            echo "run event=${run_event:-unset}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          case "$run_workflow_name" in
+            *"Release Control Plane"*|*"release-control-plane"*)
+              ;;
+            *)
+              echo "❌ Release-control-plane evidence run workflow name is not an approved release-evidence producer"
+              echo "workflowName=${run_workflow_name:-unset}"
+              echo "run url=${run_url:-unset}"
+              exit 1
+              ;;
+          esac
           evidence_root="${RUNNER_TEMP}/release-control-plane-production-evidence"
           mkdir -p "$evidence_root"
           gh run download "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" \

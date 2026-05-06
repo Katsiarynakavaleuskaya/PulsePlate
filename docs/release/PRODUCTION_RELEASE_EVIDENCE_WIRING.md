@@ -27,6 +27,18 @@ When `WEB_IOS_RELEASE_READY=true`, `PRODUCTION_ENV_READY=true`, and
 `PROD_DEPLOY_MODE` requests production deploy, both variables are required.
 Missing or malformed values fail closed before deploy.
 
+Before downloading the configured artifact, the CD workflow verifies the source
+run metadata with GitHub Actions:
+
+- `status == "completed"`
+- `conclusion == "success"`
+- `headSha` matches the production tag commit
+- `event == "workflow_dispatch"`
+- `workflowName` contains `Release Control Plane` or `release-control-plane`
+
+This keeps production deploy from trusting an artifact produced by an arbitrary
+same-repository run, failed run, scheduled run, or fixture validation lane.
+
 ## Required Artifact Layout
 
 The downloaded artifact must contain this exact directory:
@@ -76,6 +88,10 @@ Production deploy must not proceed when:
 
 - `RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID` is missing or not numeric;
 - `RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME` is missing or names a fixture;
+- the configured source run is not completed successfully;
+- the configured source run head SHA does not match the production tag commit;
+- the configured source run is not a governed `workflow_dispatch`
+  release-control-plane producer;
 - the configured artifact cannot be downloaded;
 - any required file is absent from `release-control-plane/`;
 - any evidence JSON is malformed;
