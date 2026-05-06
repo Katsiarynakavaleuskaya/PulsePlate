@@ -17,7 +17,7 @@ This artifact records review dispositions and bounded evidence. It is not a subs
 
 ## Fixed in Commit Mapping
 
-- No external actionable review comments at initial mapping creation.
+No external actionable review comments existed at initial mapping creation.
 
 ## Review Dispositions
 
