@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # PulsePlate Evidence Graph Runtime Epic
 
-**Status:** PR-E4 active metadata admission gates
+**Status:** PR-E5 advisory wiki evidence bridge
 **Date:** 2026-04-28 (`America/New_York`)
 **Canonical backlog anchor:** [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime)
 
@@ -99,9 +99,12 @@ for later slices.
    - Backlog owner: [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime).
    - Link advisory wiki artifacts to evidence assets while preserving the rule
      that wiki pages are planning memory, not runtime truth.
-   - May proceed after PR-E1/PR-E2 scope is stable.
-   - Done when wiki manifests/lints link to evidence assets without granting
-     runtime authority to wiki pages.
+   - Proceeds after PR-E1/PR-E2/PR-E3/PR-E4 contracts are stable.
+   - No wiki compiler rewrite, product RAG change, eval runner, semantic cache,
+     GraphRAG, runtime rail mapping, or advisory wiki authority.
+   - Done when existing wiki artifact metadata can map to advisory evidence
+     assets and advisory admission inputs without granting runtime authority to
+     wiki pages.
 
 ## Sequencing
 
@@ -111,10 +114,9 @@ PR-E0 first:
   docs/roadmap/BACKLOG_LEDGER.md
   AGENTS.md invariant
 
-Then parallel-capable:
+Then:
   PR-E1 asset registry contracts
   PR-E2 eval event schema
-  PR-E5 advisory wiki evidence bridge
 
 After PR-E1 + PR-E2:
   PR-E3 promotion ledger and replay
@@ -124,6 +126,9 @@ After PR-E1 + PR-E2 + PR-E3:
 
 After PR-E4:
   PR-E5 advisory wiki evidence bridge
+
+After PR-E5:
+  operator-selected follow-up; semantic cache still requires a dedicated gate
 ```
 
 ## Hard Boundaries

@@ -48,3 +48,30 @@ Forbidden:
 
 Admission decisions are gates, not side effects. They may block future
 promotion/serve actions, but this package must not perform those actions.
+
+## E5 advisory wiki bridge
+
+E5 bridge logic must stay pure deterministic mapping only.
+
+Allowed:
+
+- advisory wiki artifact reference dataclasses
+- advisory `EvidenceAssetRef` mapping
+- advisory admission metadata adapters
+- deterministic IDs, fingerprints, idempotency keys, and serialization
+- metadata/path safety validation
+
+Forbidden:
+
+- wiki compiler rewrites
+- local support-plane mutation imports
+- `scripts/orchestration` imports
+- wiki ingest/promote/query/lint CLI imports
+- runtime writes or product serving behavior
+- runtime rail mapping for wiki artifacts
+- semantic cache, Redis, GPTCache, or GraphRAG imports
+- advisory wiki as product/runtime/eval source of truth
+
+Advisory wiki artifacts are workforce memory. They may be linked to advisory
+evidence assets for lineage and review, but they must not become canonical
+repo/runtime/DB/OpenAPI/test truth.
