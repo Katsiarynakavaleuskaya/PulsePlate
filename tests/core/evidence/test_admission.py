@@ -171,6 +171,41 @@ def test_admission_input_can_be_created_from_eval_event() -> None:
     assert admission_input.target_id == event.event_id
     assert admission_input.source_event_id == event.event_id
     assert admission_input.event_type == "rag_gate_run"
+    assert admission_input.metadata["event_metadata"] == event.metadata
+
+
+def test_eval_event_adapter_preserves_source_metadata_for_admission_safety() -> None:
+    event = _source_event(
+        idempotency_key="idem:rag-gate-run-unsafe-e4-metadata",
+        metadata={"prompt": "unsafe but accepted by E2"},
+    )
+
+    with pytest.raises(ValueError, match="metadata key"):
+        admission_input_from_eval_event(
+            event=event,
+            coverage_rate=0.9,
+            verification_rate=0.95,
+            fallback_rate=0.02,
+        )
+
+
+@pytest.mark.parametrize(
+    "metadata_key",
+    ["query_text", "answer_text", "raw_query", "question_text"],
+)
+def test_eval_event_adapter_rejects_raw_eval_row_text_aliases(metadata_key: str) -> None:
+    event = _source_event(
+        idempotency_key=f"idem:rag-gate-run-{metadata_key}",
+        metadata={metadata_key: "Need help with spiraling thoughts"},
+    )
+
+    with pytest.raises(ValueError, match="metadata key"):
+        admission_input_from_eval_event(
+            event=event,
+            coverage_rate=0.9,
+            verification_rate=0.95,
+            fallback_rate=0.02,
+        )
 
 
 def test_admission_blocks_execute_with_malformed_fingerprint() -> None:
@@ -222,6 +257,17 @@ def test_admission_blocks_promote_when_status_is_not_valid(status: str) -> None:
 
     assert decision.allowed is False
     assert "promote_requires_valid_status" in decision.blocking_reasons
+
+
+def test_admission_blocks_execute_degraded_status_without_degraded_policy() -> None:
+    decision = decide_allow_execute(
+        admission_input=_input(validation_status="degraded"),
+        policy=_policy(allowed_validation_statuses=("valid", "degraded")),
+        now=_NOW,
+    )
+
+    assert decision.allowed is False
+    assert "execute_requires_degraded_policy" in decision.blocking_reasons
 
 
 def test_admission_blocks_promote_when_verification_below_threshold() -> None:
@@ -405,6 +451,8 @@ def test_admission_preserves_metadata_upstreams_and_decision_metadata_defensivel
     metadata["labels"].append("mutated")
     metadata["stats"]["coverage"] = 0.1
     upstream_ids.append("mutated")
+    returned_input_metadata = cast(dict[str, Any], admission_input.metadata)
+    returned_input_metadata["labels"].append("mutated-view")
 
     decision = decide_allow_execute(
         admission_input=admission_input,

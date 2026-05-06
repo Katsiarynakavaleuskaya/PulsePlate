@@ -67,14 +67,20 @@ _FORBIDDEN_METADATA_KEY_FRAGMENTS: tuple[str, ...] = (
     "api_key",
     "apikey",
     "access_token",
+    "answer_text",
     "health_payload",
     "medical_record",
     "password",
     "prompt",
+    "prompt_text",
+    "question_text",
+    "query_text",
     "raw_prompt",
+    "raw_query",
     "raw_response",
     "refresh_token",
     "response",
+    "response_text",
     "secret",
     "user_health",
     "user_payload",
@@ -88,7 +94,9 @@ _FORBIDDEN_METADATA_STRING_FRAGMENTS: tuple[str, ...] = (
     "password=",
     "private key",
     "prompt:",
+    "query:",
     "raw prompt",
+    "raw query",
     "raw response",
     "response:",
     "sk-",
@@ -521,6 +529,12 @@ def decide_admission(
             policy=policy,
             blocking_reasons=blocking_reasons,
         )
+    elif normalized_action == _EXECUTE_ACTION:
+        _append_execute_reasons(
+            admission_input=admission_input,
+            policy=policy,
+            blocking_reasons=blocking_reasons,
+        )
     elif normalized_action == _SERVE_ACTION:
         _append_serve_reasons(
             admission_input=admission_input,
@@ -599,7 +613,11 @@ def admission_input_from_eval_event(
         upstream_ids=event.upstream_ids,
         source_event_id=event.event_id,
         event_type=event.event_type,
-        metadata=metadata,
+        metadata=_merge_source_metadata(
+            source_key="event_metadata",
+            source_metadata=event.metadata,
+            metadata=metadata,
+        ),
     )
 
 
@@ -633,7 +651,11 @@ def admission_input_from_ledger_entry(
         promotion_id=entry.promotion_id,
         event_type=entry.source_event_type,
         promotion_decision=entry.decision,
-        metadata=metadata,
+        metadata=_merge_source_metadata(
+            source_key="ledger_metadata",
+            source_metadata=entry.metadata,
+            metadata=metadata,
+        ),
     )
 
 
@@ -684,6 +706,18 @@ def validate_admission_target_type(
     if target_type not in ALLOWED_ADMISSION_TARGET_TYPES:
         raise ValueError(f"unsupported admission target_type: {target_type!r}")
     return target_type
+
+
+def _append_execute_reasons(
+    *,
+    admission_input: AdmissionInput,
+    policy: AdmissionPolicy,
+    blocking_reasons: list[str],
+) -> None:
+    """Append execute-specific blocking reasons."""
+
+    if admission_input.validation_status != "valid" and not policy.allow_degraded:
+        blocking_reasons.append("execute_requires_degraded_policy")
 
 
 def _append_promote_reasons(
@@ -759,6 +793,22 @@ def _policy_identity_payload(policy: AdmissionPolicy) -> dict[str, JsonValue]:
         "policy_version": policy.policy_version,
         "stale_after_seconds": policy.stale_after_seconds,
     }
+
+
+def _merge_source_metadata(
+    *,
+    source_key: str,
+    source_metadata: Mapping[str, JsonValue],
+    metadata: Mapping[str, JsonValue] | None,
+) -> dict[str, JsonValue]:
+    """Preserve source metadata so adapters cannot bypass admission safety."""
+
+    payload: dict[str, JsonValue] = {
+        source_key: dict(source_metadata),
+    }
+    if metadata is not None:
+        payload["admission_metadata"] = dict(metadata)
+    return payload
 
 
 def _validate_metric(name: str, value: float) -> float:
