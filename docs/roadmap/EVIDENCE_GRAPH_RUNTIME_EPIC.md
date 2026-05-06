@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # PulsePlate Evidence Graph Runtime Epic
 
-**Status:** PR-E0 governance umbrella
+**Status:** PR-E3 promotion ledger and replay scaffold
 **Date:** 2026-04-28 (`America/New_York`)
 **Canonical backlog anchor:** [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime)
 
@@ -72,14 +72,16 @@ for later slices.
    - Done when JSONL events carry `event_id`, asset reference, created time,
      policy version, and append-only writer coverage.
 
-3. **PR-E3: Knowledge promotion ledger and replay**
+3. **PR-E3: Evidence promotion ledger and replay scaffold**
    - Backlog owner: [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime).
-   - Add append-only promotion events, idempotency keys, deterministic
-     supersession, dry-run replay, and promotion diff reporting.
+   - Add deterministic promotion ledger entries, idempotency keys,
+     supersession, dry-run replay, and promotion diff reporting over normalized
+     eval events from PR-E2.
    - Depends on PR-E1 and PR-E2.
-   - No user-facing runtime changes.
-   - Done when replay is idempotent, invalid verification bundles fail closed,
-     and dry-run replay reports deterministic diffs.
+   - No user-facing runtime changes, persistent writers, eval runners,
+     semantic cache, GraphRAG, or advisory-wiki authority.
+   - Done when replay is idempotent, invalid/degraded source events cannot be
+     promoted silently, and dry-run replay reports deterministic diffs.
 
 4. **PR-E4: Active metadata admission**
    - Backlog owner: [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime).
