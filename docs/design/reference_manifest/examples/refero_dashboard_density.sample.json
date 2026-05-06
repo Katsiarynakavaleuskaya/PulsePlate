@@ -1,0 +1,57 @@
+{
+  "accessibility_notes": "Synthetic derived notes: verify contrast, visible focus, keyboard traversal, touch target comfort, and non-color-only state communication before any future brief.",
+  "adopt_adapt_reject_decision": "adapt",
+  "attribution_required": false,
+  "component_patterns": [
+    "badge",
+    "button",
+    "card",
+    "progress"
+  ],
+  "design-guard": "required",
+  "forbidden_copy_elements": [
+    "external brand",
+    "exact layout",
+    "marketing copy",
+    "proprietary component implementation",
+    "screenshot"
+  ],
+  "icon-silhouette-check": "not_applicable",
+  "layout_patterns": [
+    "summary plus detail",
+    "stacked dashboard grouping"
+  ],
+  "legal_copy_risks": [
+    "brand-specific wording must not be copied",
+    "testimonial or ranking claims remain forbidden"
+  ],
+  "license_status": "unknown",
+  "mapped_pulseplate_components": [
+    "badge",
+    "button",
+    "card",
+    "progress"
+  ],
+  "monetization_notes": "Synthetic read-only non-canonical evidence may inform value framing later; pricing, billing, and entitlement truth remain repo/backend/store-owned.",
+  "motion_notes": "Synthetic derived metadata: use subtle transitions only and preserve reduced-motion fallback.",
+  "normalization_notes": "Synthetic read-only non-canonical evidence: dashboard density maps to PulsePlate card, badge, progress, and button vocabulary without copying source layout.",
+  "palette_archetype": "derived dark foundation with controlled accent",
+  "platform": [
+    "web",
+    "ios"
+  ],
+  "product_category": "wellness planning",
+  "radius_profile": "medium",
+  "reference_id": "refero-dashboard-density-synthetic-001",
+  "source_name": "Refero Styles synthetic dashboard density metadata",
+  "source_url": "https://example.invalid/refero-dashboard-density-synthetic",
+  "spacing_density": "balanced",
+  "status": "read_only",
+  "surface_type": [
+    "dashboard",
+    "onboarding"
+  ],
+  "typography_archetype": "clear hierarchy with compact labels",
+  "visual_archetype": "calm premium planning dashboard",
+  "wellness_safety_notes": "Synthetic read-only non-canonical evidence; avoid diagnostic, treatment, therapy, crisis, emergency, medical, and guaranteed outcome claims."
+}
