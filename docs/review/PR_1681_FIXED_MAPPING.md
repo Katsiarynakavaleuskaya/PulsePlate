@@ -95,6 +95,10 @@ machine-heavy exception.
   `AdmissionInput`.
 - Semantic cache scope drift: fixed by explicit docs/backlog deferral.
 - Raw payload/secret risk: fixed by metadata safety checks and tests.
+- Byte-like raw payload risk: fixed by rejecting `bytes`, `bytearray`, and
+  `memoryview` before generic sequence handling. Evidence:
+  `core/evidence/wiki_bridge.py`; regression tests in
+  `tests/core/evidence/test_wiki_bridge.py`.
 - Path traversal/current-directory risk: fixed by path safety checks and tests.
 - Mutation risk: fixed by defensive-copy tests.
 - Checklist-only risk: code/tests/docs were changed before this mapping artifact.
@@ -125,6 +129,7 @@ advisory review/query/promotion workflows only.
 ## Commit breakdown
 
 - `e2b067db4` - `feat(evidence): add advisory wiki bridge`
+- `f7b04d1e5` - `fix(evidence): reject byte-like wiki metadata`
 
 ## Pre-push checklist
 
