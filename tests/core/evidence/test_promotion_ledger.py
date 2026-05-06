@@ -224,6 +224,17 @@ def test_preserves_metadata_defensively() -> None:
     assert entry.metadata == {"labels": ["rag", "gate"], "stats": {"sample_size": 2}}
 
 
+def test_metadata_keys_are_normalized_and_collision_checked_with_path_context() -> None:
+    entry = _entry(metadata={" Labels ": ["rag"], "STATS": {" Sample_Size ": 2}})
+
+    assert entry.metadata == {"labels": ["rag"], "stats": {"sample_size": 2}}
+
+    with pytest.raises(ValueError, match=r"metadata key at stats\.sample_size"):
+        _entry(metadata={"stats": {" Sample_Size ": 2, "sample_size": 3}})
+    with pytest.raises(ValueError, match=r"metadata key at 1"):
+        _entry(metadata=cast(dict[str, Any], {1: "bad"}))
+
+
 @pytest.mark.parametrize(
     "metadata",
     [
@@ -235,6 +246,7 @@ def test_preserves_metadata_defensively() -> None:
         {"notes": cast(Any, b"raw-bytes")},
         {"token_like": "Bearer abc"},
         {"artifact": "artifacts/rag_eval/run-1/traces.jsonl"},
+        {"note": "C:/Users/example/eval.json"},
     ],
 )
 def test_rejects_raw_prompt_response_secret_user_health_or_path_metadata(

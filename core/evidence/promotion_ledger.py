@@ -448,13 +448,16 @@ def _freeze_json_value(
         normalized_items: list[tuple[str, JsonValue]] = []
         seen_keys: set[str] = set()
         for key, item in value.items():
+            key_path = ".".join(path + (str(key),)) or "<root>"
             if not isinstance(key, str):
-                raise ValueError("metadata keys must be strings")
-            normalized_key = key.strip()
+                raise ValueError(f"metadata key at {key_path} must be a string")
+            normalized_key = key.strip().lower()
             if not normalized_key:
-                raise ValueError("metadata keys must be non-empty")
+                raise ValueError(f"metadata key at {key_path} must be non-empty")
             if normalized_key in seen_keys:
-                raise ValueError(f"metadata key collides after normalization: {normalized_key!r}")
+                raise ValueError(
+                    f"metadata key at {key_path} collides after normalization: {normalized_key!r}"
+                )
             seen_keys.add(normalized_key)
             _validate_metadata_key(normalized_key)
             normalized_items.append((normalized_key, item))

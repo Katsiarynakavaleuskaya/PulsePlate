@@ -91,6 +91,26 @@ def test_duplicate_idempotency_key_is_reported_as_duplicate() -> None:
     assert summary.diff.duplicate == (entry.ledger_entry_id,)
 
 
+def test_duplicate_supersede_is_reported_before_scope_validation() -> None:
+    existing = _entry(run_id="1")
+    superseding = _entry(
+        run_id="2",
+        promotion_id=existing.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-existing-duplicate",
+        supersedes=(existing.ledger_entry_id,),
+    )
+
+    summary = dry_run_replay(
+        existing_entries=(existing,),
+        candidate_entries=(superseding, superseding),
+    )
+
+    assert summary.diff.superseded == (superseding.ledger_entry_id,)
+    assert summary.diff.duplicate == (superseding.ledger_entry_id,)
+    assert summary.diff.conflict == ()
+
+
 def test_idempotency_collision_is_reported_as_conflict() -> None:
     first = _entry(run_id="1", idempotency_key="idem:collision")
     second = _entry(run_id="2", idempotency_key="idem:collision")

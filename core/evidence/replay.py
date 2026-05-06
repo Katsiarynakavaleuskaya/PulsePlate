@@ -89,12 +89,6 @@ def dry_run_replay(
     applied = list(existing_ids)
 
     for entry in candidates:
-        if entry.decision == "supersede":
-            active_entry = active_by_scope.get(entry.promotion_id)
-            if active_entry is None or active_entry.ledger_entry_id not in entry.supersedes:
-                conflict.append(entry.ledger_entry_id)
-                continue
-
         seen_entry = seen_idempotency.get(entry.idempotency_key)
         if seen_entry is not None:
             if seen_entry.ledger_entry_id == entry.ledger_entry_id:
@@ -109,6 +103,11 @@ def dry_run_replay(
             continue
 
         active_entry = active_by_scope.get(entry.promotion_id)
+        if entry.decision == "supersede" and (
+            active_entry is None or active_entry.ledger_entry_id not in entry.supersedes
+        ):
+            conflict.append(entry.ledger_entry_id)
+            continue
         if entry.decision == "promote" and active_entry is not None:
             conflict.append(entry.ledger_entry_id)
             continue
