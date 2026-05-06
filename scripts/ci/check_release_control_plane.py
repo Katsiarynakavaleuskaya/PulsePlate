@@ -7,7 +7,7 @@ import argparse
 from dataclasses import dataclass
 import json
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 if __package__ in {None, ""}:
@@ -22,8 +22,6 @@ SCHEMA_VERSION = "release-control-plane-ci-gate.v1"
 ALLOW_DECISION = "ALLOW"
 BLOCK_DECISION = "BLOCK"
 TOOL_VERSION = SCHEMA_VERSION
-ALLOWED_EVIDENCE_PATH_PREFIXES = ("artifacts/",)
-
 REASON_ORDER = {
     "missing_release_manifest": 10,
     "malformed_release_manifest": 20,
@@ -242,6 +240,21 @@ def _validate_build_equivalence_result(payload: dict[str, Any]) -> list[Finding]
     ):
         findings.append(Finding("build_equivalence.reason_codes", "invalid_build_equivalence"))
 
+    mismatch_details = payload.get("mismatch_details")
+    if not isinstance(mismatch_details, list):
+        findings.append(Finding("build_equivalence.mismatch_details", "invalid_build_equivalence"))
+
+    if payload.get("decision") == build_equivalence.EQUIVALENT_DECISION:
+        if reason_codes or mismatch_details:
+            findings.append(
+                Finding(
+                    "build_equivalence.decision",
+                    "invalid_build_equivalence",
+                    payload.get("decision"),
+                )
+            )
+        return findings
+
     if payload.get("decision") != build_equivalence.EQUIVALENT_DECISION:
         findings.append(
             Finding(
@@ -250,7 +263,6 @@ def _validate_build_equivalence_result(payload: dict[str, Any]) -> list[Finding]
                 payload.get("decision"),
             )
         )
-        mismatch_details = payload.get("mismatch_details")
         if isinstance(mismatch_details, list):
             if any(
                 isinstance(item, dict) and str(item.get("field", "")).startswith("build_identity.")
@@ -272,8 +284,11 @@ def _validate_allowed_artifact_paths(entries: Any, *, field_name: str) -> list[F
         path_value = entry.get("path")
         if not isinstance(path_value, str):
             continue
-        if Path(path_value).is_absolute() or not path_value.startswith(
-            ALLOWED_EVIDENCE_PATH_PREFIXES
+        normalized_path = PurePosixPath(path_value)
+        if (
+            normalized_path.is_absolute()
+            or normalized_path.parts[:1] != ("artifacts",)
+            or ".." in normalized_path.parts
         ):
             findings.append(
                 Finding(

@@ -289,6 +289,25 @@ def test_block_when_build_equivalence_blocks(tmp_path: Path) -> None:
     assert "build_identity_mismatch" in decision["reason_codes"]
 
 
+def test_block_when_equivalent_build_equivalence_has_mismatch_findings(tmp_path: Path) -> None:
+    manifest_payload, rag_payload = _build_manifest(tmp_path)
+    build_payload = _build_equivalence_result(manifest_payload)
+    build_payload["reason_codes"] = ["git_sha_mismatch"]
+    build_payload["mismatch_details"] = [
+        {"field": "build_identity.git_sha", "reason_code": "git_sha_mismatch"}
+    ]
+
+    decision = _decision(
+        tmp_path,
+        manifest_payload=manifest_payload,
+        rag_payload=rag_payload,
+        build_payload=build_payload,
+    )
+
+    assert decision["decision"] == "BLOCK"
+    assert "invalid_build_equivalence" in decision["reason_codes"]
+
+
 def test_block_when_attestation_not_verified(tmp_path: Path) -> None:
     manifest_payload, rag_payload = _build_manifest(tmp_path, attestation_status="PENDING")
     build_payload = _build_equivalence_result(manifest_payload)
@@ -390,6 +409,27 @@ def test_evidence_paths_must_stay_under_artifacts(tmp_path: Path) -> None:
         {
             "kind": "metrics_summary",
             "path": "tmp/not-artifacts/metrics.json",
+            "hash": "d" * 64,
+        }
+    ]
+    rag_payload["rag_gate_result_hash"] = release_manifest.sha256_lower_hex(
+        release_manifest.canonical_json_bytes(
+            {key: value for key, value in rag_payload.items() if key != "rag_gate_result_hash"}
+        )
+    )
+
+    decision = _decision(tmp_path, manifest_payload=manifest_payload, rag_payload=rag_payload)
+
+    assert decision["decision"] == "BLOCK"
+    assert "evidence_path_outside_allowed_artifacts" in decision["reason_codes"]
+
+
+def test_evidence_paths_reject_parent_directory_escape(tmp_path: Path) -> None:
+    manifest_payload, rag_payload = _build_manifest(tmp_path)
+    rag_payload["source_artifacts"] = [
+        {
+            "kind": "metrics_summary",
+            "path": "artifacts/../leak.json",
             "hash": "d" * 64,
         }
     ]
