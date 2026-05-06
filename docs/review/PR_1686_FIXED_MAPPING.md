@@ -60,14 +60,15 @@ Premortem reviewed the actual code/docs/tests diff.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- Codex and Cubic actionable review threads were reviewed and fixed in code/tests.
-- CodeRabbit/Sourcery/Cubic dispositions: Cubic actionable fixed; CodeRabbit/Sourcery pending final no-actionables check.
+- Codex and Cubic actionable review comments were reviewed and fixed in code/tests.
+- CodeRabbit/Sourcery/Cubic dispositions: Cubic actionable fixed; CodeRabbit and Sourcery reported no actionables in current-head checks.
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1686#discussion_r3195955116 -> 2f9991e81
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1686#discussion_r3195955128 -> 2f9991e81
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1686#discussion_r3195972169 -> 2f9991e81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1686#pullrequestreview-4236668931 -> 2f9991e81
 Disposition: FIXED
 Commit: 2f9991e81
 Evidence: `scripts/design/design_scorecard.py` catches PR-3 evidence loader errors and validates aggregate scorecard totals/status/recommendation; `tests/design/test_design_scorecard.py` covers malformed evidence, tampered scorecards, and removes `sys.path.insert`.
