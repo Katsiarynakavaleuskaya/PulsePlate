@@ -499,6 +499,9 @@ def test_bmi_thresholds_re_matches_real_bmi_and_whr_contexts() -> None:
         "waist hip ratio 0.90",
         "waist_hip_ratio = 0.90",
         "0.85 is the whr threshold",
+        "25.0 is the normal BMI threshold",
+        "25.0 is the Normal BMI Threshold",
+        "normal Bmi threshold 25.0",
     )
     for case in matching_cases:
         assert BMI_THRESHOLDS_RE.search(case) is not None, f"Should match: {case}"
