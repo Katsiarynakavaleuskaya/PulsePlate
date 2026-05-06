@@ -487,6 +487,23 @@ def test_bmi_thresholds_re_matches_new_whr_thresholds() -> None:
     ), "Should match 0.85 in waist hip ratio context"
 
 
+def test_bmi_thresholds_re_matches_real_bmi_and_whr_contexts() -> None:
+    """Test that token-aware matching still detects real BMI/WHR thresholds."""
+    matching_cases = (
+        "normal threshold 25.0",
+        "BMI threshold 30.0",
+        "BMI_THRESHOLD = 25.0",
+        "bmi_category_normal = 25.0",
+        "WHR_THRESHOLD: float = 0.90",
+        "whr threshold 0.85",
+        "waist hip ratio 0.90",
+        "waist_hip_ratio = 0.90",
+        "0.85 is the whr threshold",
+    )
+    for case in matching_cases:
+        assert BMI_THRESHOLDS_RE.search(case) is not None, f"Should match: {case}"
+
+
 def test_bmi_thresholds_re_does_not_match_nearby_non_whr_thresholds() -> None:
     """Test that BMI_THRESHOLDS_RE does not match near-miss values (0.89/0.86)."""
     assert (
@@ -518,6 +535,17 @@ def test_bmi_thresholds_re_does_not_match_non_bmi_whr_context() -> None:
     assert (
         BMI_THRESHOLDS_RE.search("value 0.85 is recorded") is None
     ), "Should not match 0.85 without BMI/WHR keyword"
+
+
+def test_bmi_thresholds_re_does_not_match_design_scorecard_normalized_score() -> None:
+    """Test that scorecard normalized_score thresholds are not BMI/WHR context."""
+    non_matching_cases = (
+        "normalized_score >= 0.85",
+        "elif normalized_score >= 0.85:",
+        "scorecard normalized_score 0.85",
+    )
+    for case in non_matching_cases:
+        assert BMI_THRESHOLDS_RE.search(case) is None, f"Should not match: {case}"
 
 
 def test_docstring_tracker_mismatched_quotes_does_not_close() -> None:
