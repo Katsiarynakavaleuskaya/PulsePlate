@@ -235,11 +235,71 @@ def test_missing_review_identity_blocks(tmp_path: Path) -> None:
     assert "missing_review_build_identity" in decision["reason_codes"]
 
 
+def test_missing_review_identity_file_writes_block_decision(tmp_path: Path, capsys) -> None:
+    manifest_payload = _build_manifest(tmp_path)
+    manifest_path = tmp_path / "release_manifest.json"
+    review_path = tmp_path / "missing-review.json"
+    production_path = tmp_path / "production.json"
+    output_path = tmp_path / "equivalence.json"
+    _write_json(manifest_path, manifest_payload)
+    _write_json(production_path, _build_identity(manifest_payload))
+
+    status = build_equivalence.main(
+        [
+            "--review-build",
+            str(review_path),
+            "--production-candidate",
+            str(production_path),
+            "--release-manifest",
+            str(manifest_path),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    decision = json.loads(output_path.read_text(encoding="utf-8"))
+    assert status == 1
+    assert "BLOCK:" in output
+    assert decision["decision"] == "BLOCK"
+    assert "missing_review_build_identity" in decision["reason_codes"]
+
+
 def test_missing_production_identity_blocks(tmp_path: Path) -> None:
     manifest_payload = _build_manifest(tmp_path)
 
     decision = _decision(manifest_payload, production_payload={})
 
+    assert decision["decision"] == "BLOCK"
+    assert "missing_production_candidate_identity" in decision["reason_codes"]
+
+
+def test_missing_production_identity_file_writes_block_decision(tmp_path: Path, capsys) -> None:
+    manifest_payload = _build_manifest(tmp_path)
+    manifest_path = tmp_path / "release_manifest.json"
+    review_path = tmp_path / "review.json"
+    production_path = tmp_path / "missing-production.json"
+    output_path = tmp_path / "equivalence.json"
+    _write_json(manifest_path, manifest_payload)
+    _write_json(review_path, _build_identity(manifest_payload))
+
+    status = build_equivalence.main(
+        [
+            "--review-build",
+            str(review_path),
+            "--production-candidate",
+            str(production_path),
+            "--release-manifest",
+            str(manifest_path),
+            "--output",
+            str(output_path),
+        ]
+    )
+
+    output = capsys.readouterr().out
+    decision = json.loads(output_path.read_text(encoding="utf-8"))
+    assert status == 1
+    assert "BLOCK:" in output
     assert decision["decision"] == "BLOCK"
     assert "missing_production_candidate_identity" in decision["reason_codes"]
 
@@ -325,6 +385,25 @@ def test_optional_identity_mismatch_blocks(tmp_path: Path) -> None:
 
     assert decision["decision"] == "BLOCK"
     assert "ml_identity_mismatch" in decision["reason_codes"]
+
+
+def test_manifest_identity_snapshots_are_required_for_equivalence(tmp_path: Path) -> None:
+    manifest_payload = _build_manifest(tmp_path)
+    review_payload = _build_identity(manifest_payload, include_optional_groups=False)
+    production_payload = _build_identity(manifest_payload, include_optional_groups=False)
+
+    decision = _decision(
+        manifest_payload,
+        review_payload=review_payload,
+        production_payload=production_payload,
+    )
+
+    assert decision["decision"] == "BLOCK"
+    assert decision["reason_codes"] == [
+        "reviewer_identity_mismatch",
+        "ml_identity_mismatch",
+        "supply_chain_identity_mismatch",
+    ]
 
 
 def test_attestation_not_verified_blocks(tmp_path: Path) -> None:

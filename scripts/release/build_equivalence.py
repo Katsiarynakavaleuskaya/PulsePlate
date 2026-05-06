@@ -110,6 +110,14 @@ def _load_json(path: Path, *, label: str) -> dict[str, Any]:
     return payload
 
 
+def _load_optional_identity_json(path: Path, *, label: str) -> dict[str, Any]:
+    """Load a build identity artifact, returning empty payload when absent."""
+
+    if not path.exists():
+        return {}
+    return _load_json(path, label=label)
+
+
 def _stable_reason_codes(mismatches: list[Mismatch]) -> list[str]:
     reason_codes = {mismatch.reason_code for mismatch in mismatches}
     return sorted(reason_codes, key=lambda reason: (REASON_ORDER.get(reason, 10_000), reason))
@@ -297,7 +305,11 @@ def _compare_optional_identity_groups(
         "supply_chain_identity": "supply_chain_identity_mismatch",
     }
     for group_name in OPTIONAL_IDENTITY_GROUPS:
-        if group_name not in review_payload and group_name not in production_payload:
+        if (
+            group_name not in manifest_payload
+            and group_name not in review_payload
+            and group_name not in production_payload
+        ):
             continue
         review_value = review_payload.get(group_name)
         production_value = production_payload.get(group_name)
@@ -390,8 +402,11 @@ def compare_build_files(
 ) -> dict[str, Any]:
     """Load input files and return a deterministic build equivalence decision."""
 
-    review_payload = _load_json(review_build_path, label="review build identity")
-    production_payload = _load_json(
+    review_payload = _load_optional_identity_json(
+        review_build_path,
+        label="review build identity",
+    )
+    production_payload = _load_optional_identity_json(
         production_candidate_path,
         label="production candidate identity",
     )
