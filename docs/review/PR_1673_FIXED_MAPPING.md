@@ -48,9 +48,17 @@ strict merge-readiness remain required before merge.
 | Raw prompt/health/secret metadata | FIXED | Ledger metadata safety rejects prompt/response/user-health/secret/path-like payloads. |
 | Semantic cache/GraphRAG side door | FIXED | AST import guards block cache, semantic-cache, GraphRAG, wiki/support-plane, runtime, DB, provider, and eval-runner imports. |
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed in Commit Mapping
 
-- No GitHub review thread URLs existed when this mapping artifact was first added.
+- No actionable review comments
+
+## Sidecar Review Findings
+
 - Coordinator sidecar finding: validate source event id before upstream normalization -> `d57a5b5af`
   - Evidence: `core/evidence/promotion_ledger.py` validates `source_event.event_id` and `source_event.fingerprint` before lineage normalization.
 - Coordinator sidecar finding: factory did not accept `ledger_entry_id` passthrough used by deterministic-id tests -> `d57a5b5af`
@@ -79,13 +87,6 @@ strict merge-readiness remain required before merge.
 - QA sidecar finding: fixed mapping artifact is not in canonical Phase2 format -> ab3bd46f8
   - Disposition: FIXED
   - Evidence: this artifact now includes `## Discussion Thread Pass` and canonical no-thread mapping language.
-
-## Discussion Thread Pass
-
-- [x] GitHub review threads inspected at mapping creation time.
-- [x] No GitHub review thread URLs existed when this mapping artifact was first added.
-- [x] Sidecar QA/bug-hunter findings are mapped above as local review findings with dispositions and evidence.
-- [x] No actionable GitHub review comments are resolved by this artifact.
 
 ## Merge Readiness
 
