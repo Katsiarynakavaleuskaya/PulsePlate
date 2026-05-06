@@ -19,6 +19,7 @@ from core.evidence.policies import (
     normalize_upstream_ids,
     validate_fingerprint,
     validate_non_empty_token,
+    validate_upstream_ids_for_rail,
 )
 
 WikiBridgeAssetType: TypeAlias = Literal[
@@ -29,7 +30,8 @@ JsonValue: TypeAlias = JsonScalar | Mapping[str, "JsonValue"] | Sequence["JsonVa
 FrozenJson: TypeAlias = JsonScalar | tuple["FrozenJson", ...] | tuple[tuple[str, "FrozenJson"], ...]
 
 _SHA256_RE = re.compile(r"^(?:sha256:)?[0-9a-fA-F]{64}$")
-_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:[/\\]")
+_WINDOWS_DRIVE_RE = re.compile(r"^[A-Za-z]:")
+_URI_SCHEME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _CURRENT_DIR_VALUES = {".", "./", "./."}
 _FORBIDDEN_METADATA_KEY_FRAGMENTS = (
     "access_token",
@@ -226,7 +228,9 @@ class AdvisoryWikiArtifactRef:
         )
         object.__setattr__(self, "advisory_only", True)
         object.__setattr__(self, "promoted", bool(promoted))
-        object.__setattr__(self, "upstream_ids", normalize_upstream_ids(tuple(upstream_ids)))
+        normalized_upstream_ids = normalize_upstream_ids(tuple(upstream_ids))
+        validate_upstream_ids_for_rail(rail="advisory", upstream_ids=normalized_upstream_ids)
+        object.__setattr__(self, "upstream_ids", normalized_upstream_ids)
         object.__setattr__(self, "_metadata", _freeze_metadata(metadata or {}))
 
     @property
@@ -285,6 +289,7 @@ def create_advisory_wiki_artifact_ref(
         else _validate_bridge_path("promoted_path", promoted_path, allow_docs_authority=False)
     )
     normalized_upstream_ids = normalize_upstream_ids(tuple(upstream_ids))
+    validate_upstream_ids_for_rail(rail="advisory", upstream_ids=normalized_upstream_ids)
     _validate_policy(policy, normalized_policy_version, normalized_corpus, bool(promoted))
 
     identity_payload: dict[str, JsonValue] = {
@@ -473,7 +478,14 @@ def _validate_bridge_path(
     normalized = raw.replace("\\", "/")
     if normalized in _CURRENT_DIR_VALUES:
         raise ValueError(f"{field_name} must not reference current directory")
-    if normalized.startswith("/") or normalized.startswith("~") or _WINDOWS_DRIVE_RE.match(raw):
+    first_segment = normalized.split("/", maxsplit=1)[0]
+    if (
+        normalized.startswith("/")
+        or normalized.startswith("~")
+        or _WINDOWS_DRIVE_RE.match(raw)
+        or _URI_SCHEME_RE.match(raw)
+        or ":" in first_segment
+    ):
         raise ValueError(f"{field_name} must be repo-relative")
     path = PurePosixPath(normalized)
     parts = path.parts
@@ -553,12 +565,14 @@ def _validate_metadata_string(value: str, key_path: tuple[str, ...]) -> None:
 def _metadata_value_claims_authority(value: JsonValue) -> bool:
     if isinstance(value, bool):
         return value
+    if isinstance(value, (int, float)):
+        return value != 0
     if isinstance(value, str):
         lower = value.strip().lower()
         return any(fragment in lower for fragment in _AUTHORITY_VALUE_FRAGMENTS)
     if isinstance(value, Mapping):
         return any(_metadata_value_claims_authority(child) for child in value.values())
-    if isinstance(value, Sequence) and not isinstance(value, bytes):
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray, memoryview)):
         return any(_metadata_value_claims_authority(child) for child in value)
     return False
 
@@ -568,7 +582,7 @@ def _freeze_json(value: JsonValue) -> FrozenJson:
         return value
     if isinstance(value, Mapping):
         return tuple((key, _freeze_json(child)) for key, child in sorted(value.items()))
-    if isinstance(value, Sequence) and not isinstance(value, bytes):
+    if isinstance(value, Sequence) and not isinstance(value, (bytes, bytearray, memoryview)):
         return tuple(_freeze_json(child) for child in value)
     raise ValueError("metadata must be JSON-compatible")
 

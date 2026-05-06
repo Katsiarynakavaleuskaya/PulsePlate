@@ -68,7 +68,21 @@ def test_rejects_blank_required_identity_fields(field: str) -> None:
         _artifact(**{field: " "})
 
 
-@pytest.mark.parametrize("unsafe_path", ["../x", "/tmp/x", "~/x", "C:/x", ".", "./", "./."])
+@pytest.mark.parametrize(
+    "unsafe_path",
+    [
+        "../x",
+        "/tmp/x",
+        "~/x",
+        "C:/x",
+        "C:relative/path.md",
+        "file://tmp/x.md",
+        "https://example.com/x.md",
+        ".",
+        "./",
+        "./.",
+    ],
+)
 @pytest.mark.parametrize("field", ["source_rel_path", "page_path", "promoted_path"])
 def test_rejects_unsafe_paths(field: str, unsafe_path: str) -> None:
     with pytest.raises(ValueError):
@@ -113,6 +127,9 @@ def test_rejects_raw_prompt_response_query_user_health_secret_metadata(
         {"source_of_truth": "runtime"},
         {"product_truth": "authoritative"},
         {"advisory_only": False},
+        {"runtime": 1},
+        {"canonical": 1.0},
+        {"source_of_truth": [0, 1]},
     ],
 )
 def test_rejects_runtime_or_canonical_authority_claims(metadata: dict[str, object]) -> None:
@@ -134,6 +151,13 @@ def test_runtime_rail_mapping_is_not_available() -> None:
     assert asset.rail == "advisory"
     with pytest.raises(ValueError):
         _artifact(metadata={"rail": "runtime"})
+
+
+def test_rejects_runtime_evidence_upstreams_before_admission_mapping() -> None:
+    runtime_upstream = "evidence:knowledge_candidate:runtime:v1:aaaaaaaaaaaaaaaaaaaaaaaa"
+
+    with pytest.raises(ValueError, match="cross-rail"):
+        _artifact(upstream_ids=[runtime_upstream])
 
 
 def test_advisory_only_flag_survives_asset_and_admission_adapter() -> None:
