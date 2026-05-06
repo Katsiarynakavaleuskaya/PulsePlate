@@ -1,0 +1,226 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.app/schemas/release-control-plane-ci-gate.v1.json",
+  "title": "PulsePlate Release Control Plane CI Gate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_algorithm",
+    "canonicalization",
+    "decision",
+    "reason_codes",
+    "mismatch_details",
+    "checked_artifacts",
+    "evidence_hashes",
+    "evidence_digests",
+    "release_manifest_hash",
+    "build_equivalence_decision",
+    "rag_gate_decision",
+    "attestation_status",
+    "tool_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "release-control-plane-ci-gate.v1"
+    },
+    "hash_algorithm": {
+      "const": "sha256"
+    },
+    "canonicalization": {
+      "const": "json-sorted-compact-utf8-single-trailing-newline"
+    },
+    "decision": {
+      "enum": [
+        "ALLOW",
+        "BLOCK"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reason_code"
+      }
+    },
+    "mismatch_details": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mismatch_detail"
+      }
+    },
+    "checked_artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release_manifest",
+        "rag_gate_result",
+        "build_equivalence"
+      ],
+      "properties": {
+        "release_manifest": {
+          "$ref": "#/$defs/checked_artifact"
+        },
+        "rag_gate_result": {
+          "$ref": "#/$defs/checked_artifact"
+        },
+        "build_equivalence": {
+          "$ref": "#/$defs/checked_artifact"
+        }
+      }
+    },
+    "evidence_hashes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release_manifest",
+        "rag_gate_result",
+        "build_equivalence"
+      ],
+      "properties": {
+        "release_manifest": {
+          "$ref": "#/$defs/nullable_sha256_hex"
+        },
+        "rag_gate_result": {
+          "$ref": "#/$defs/nullable_sha256_hex"
+        },
+        "build_equivalence": {
+          "$ref": "#/$defs/nullable_sha256_hex"
+        }
+      }
+    },
+    "evidence_digests": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sbom_digest",
+        "provenance_digest"
+      ],
+      "properties": {
+        "sbom_digest": {
+          "$ref": "#/$defs/nullable_oci_digest"
+        },
+        "provenance_digest": {
+          "$ref": "#/$defs/nullable_oci_digest"
+        }
+      }
+    },
+    "release_manifest_hash": {
+      "$ref": "#/$defs/nullable_sha256_hex"
+    },
+    "build_equivalence_decision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "EQUIVALENT",
+        "BLOCK",
+        null
+      ]
+    },
+    "rag_gate_decision": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "PASS",
+        "NO-GO",
+        null
+      ]
+    },
+    "attestation_status": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "enum": [
+        "VERIFIED",
+        "FAILED",
+        "MISSING",
+        "PENDING",
+        null
+      ]
+    },
+    "tool_version": {
+      "const": "release-control-plane-ci-gate.v1"
+    }
+  },
+  "$defs": {
+    "nullable_sha256_hex": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "nullable_oci_digest": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "checked_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/nullable_sha256_hex"
+        }
+      }
+    },
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "missing_release_manifest",
+        "malformed_release_manifest",
+        "invalid_release_manifest",
+        "release_manifest_block",
+        "missing_rag_gate_result",
+        "malformed_rag_gate_result",
+        "invalid_rag_gate_result",
+        "rag_gate_result_not_pass",
+        "missing_build_equivalence",
+        "malformed_build_equivalence",
+        "invalid_build_equivalence",
+        "build_equivalence_not_equivalent",
+        "missing_sbom_digest",
+        "missing_provenance_digest",
+        "attestation_not_verified",
+        "unsupported_digest_format",
+        "release_manifest_hash_mismatch",
+        "git_sha_mismatch",
+        "build_identity_mismatch",
+        "evidence_path_outside_allowed_artifacts"
+      ]
+    },
+    "mismatch_detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "reason_code"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_code": {
+          "$ref": "#/$defs/reason_code"
+        },
+        "detail": {}
+      }
+    }
+  }
+}
