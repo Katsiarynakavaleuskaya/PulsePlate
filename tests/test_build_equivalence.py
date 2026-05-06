@@ -464,9 +464,9 @@ def test_ledger_release_control_plane_state_is_reconciled() -> None:
     ledger_text = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
 
     assert "PR-3 merged in PR #1605" in ledger_text
+    assert "PR-4 merged in PR #1679 on 2026-05-06" in ledger_text
+    assert "PR-5 is active on branch `release/release-control-plane-pr5-ci-gates`" in ledger_text
     assert (
-        "PR-4 active in PR #1679 on branch `release/release-control-plane-pr4-build-equivalence`"
-        in ledger_text
+        "Future protected upload and App Store Connect execution remain out of scope" in ledger_text
     )
-    assert "PR-5 remains deferred for CI fail-closed enforcement" in ledger_text
     assert "not production-ready" in ledger_text
