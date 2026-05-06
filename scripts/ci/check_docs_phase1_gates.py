@@ -4,6 +4,8 @@ import argparse
 import re
 from pathlib import Path
 
+from scripts.ci.check_semantic_cache_gate import validate_semantic_cache_gate
+
 PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
 EVIDENCE_ANCHOR_RE = re.compile(
     r"(?:^|(?<=\s)|(?<=`)|(?<=\())"
@@ -15,6 +17,7 @@ EVIDENCE_ANCHOR_RE = re.compile(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
 
 
 def _read_text(relpath: str) -> str:
@@ -50,6 +53,9 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                 f"{relpath}: missing `file:line` evidence anchor "
                 "(example: `tests/test_repo_policy_guards.py:264`)."
             )
+
+        if relpath == SEMANTIC_CACHE_GATE_DOC:
+            errors.extend(f"{relpath}: {error}" for error in validate_semantic_cache_gate(content))
 
     return errors
 
