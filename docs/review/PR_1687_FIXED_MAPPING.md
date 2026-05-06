@@ -117,6 +117,7 @@ gate-open PR and current-head CI governance.
 - `f8aff50e6` - `docs(ai-runtime): reconcile semantic cache gate`
 - `facb35b81` - `fix(ci): harden semantic cache gate parser`
 - `bb6fc3071` - `fix(ci): enforce semantic cache gate in docs checks`
+- `2cc69d457` - `fix(ci): support direct docs gate execution`
 
 ## Pre-push checklist
 
@@ -157,17 +158,10 @@ N/A. No agent instruction changes were needed.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196267076 -> `facb35b81`
-  - Disposition: FIXED
-  - Evidence: `scripts/ci/check_semantic_cache_gate.py` parses marker values up
-    to the `-->` terminator; `tests/test_semantic_cache_gate.py` proves the
-    full `fail-closed` marker value is reported.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196271692 -> `bb6fc3071`
-  - Disposition: FIXED
-  - Evidence: `scripts/ci/check_docs_phase1_gates.py` invokes
-    `validate_semantic_cache_gate(...)` for the semantic-cache gate document;
-    `tests/test_docs_phase1_gates.py` proves unsafe marker changes fail through
-    Docs Phase1 gates.
+Disposition: FIXED
+Evidence: `facb35b81` hardens marker parsing and adds regression coverage for hyphenated marker values. `bb6fc3071` wires semantic-cache validation into Docs Phase1 gates and adds regression coverage for unsafe marker changes. `2cc69d457` preserves direct-script execution for the CI docs gate.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196267076 -> facb35b81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1687#discussion_r3196271692 -> 2cc69d457
 
 ## Merge Readiness
 
