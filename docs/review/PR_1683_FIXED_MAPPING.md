@@ -24,11 +24,11 @@ Notes:
 - `python3 scripts/design/screen_evidence_pack.py validate-dir docs/design/screen_evidence/examples`
 - `python3 scripts/design/screen_evidence_pack.py summarize docs/design/screen_evidence/examples/web_marketing.sample.json`
 - `python3 scripts/design/screen_evidence_pack.py web-plan --routes / /marketing --out /tmp/pulseplate-screen-evidence-plan`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/design/test_screen_evidence_pack.py`
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+- `. .venv/bin/activate && python -m pytest -q tests/design/test_screen_evidence_pack.py`
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
 - `make design-guard`
 - `make tokens-check` with temporary root frontend `node_modules` symlink removed after the gate; no token mirror diff remained.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`
+- `PATH=.venv/bin:$PATH pre-commit run --all-files`
 - Pre-push hooks also passed during `git push`.
 
 ## Premortem Risk Review
