@@ -6,8 +6,8 @@ Title: `feat(design): generate PulsePlate DESIGN.md from token and component con
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after review activity
-- [ ] Fixed in commit mapping completed after actionable review activity
+- [ ] Discussion-thread pass completed after final review activity
+- [x] Fixed in commit mapping updated for current actionable review activity
 - [x] Initial post-open mapping artifact created
 
 ## Local Evidence
@@ -17,7 +17,7 @@ Title: `feat(design): generate PulsePlate DESIGN.md from token and component con
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` -> PASS (`artifacts/orchestration/task_packets/d04b13a19d79.json`, local/gitignored)
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` -> PASS (`artifacts/orchestration/task_packets/6e8763ad465a.json`, local/gitignored)
 - `python3 scripts/design/generate_design_md.py --check` -> PASS
-- `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` -> PASS
+- `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` -> PASS (8 tests)
 - `make validate-changed` -> PASS
 - `make design-guard` -> PASS
 - `make tokens-check` -> PASS
@@ -31,14 +31,20 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - `3867daba2b8ed98cef19ccccb752391bf93c4981` -> `feat(design): add generated DESIGN.md contract`
 - `cd5506192d406627a78390b63c3a01a5f36d1c27` -> `test(design): cover DESIGN.md generation and drift checks`
 - `8975611a4520942d580891ff6d1c4d611bd2eb4d` -> `docs(design): update design intelligence PR1 status`
+- `ca7781754808fec0441d391e8eee5e7221f9044c` -> `docs(review): add pr 1677 fixed mapping`
+- `af6d9c5c417de6c0c9e17ea3fa5e945213408507` -> `test(design): cover missing DESIGN.md drift check`
 
 ## Review Threads
 
-No actionable review threads were present when this artifact was created.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
 
 ## Dispositions
 
-No FIXED / NOT-A-BUG / DEFERRED review dispositions have been recorded yet.
+Disposition: FIXED
+
+- Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669
+- Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+- Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`, and `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` passes with 8 tests.
 
 ## Premortem
 
