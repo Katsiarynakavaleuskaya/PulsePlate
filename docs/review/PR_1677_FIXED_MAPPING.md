@@ -53,6 +53,7 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533935 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235305792
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235137212 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
 
@@ -60,57 +61,62 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4234981793 -> af6d9c5c417de6c0c9e17ea3fa5e945213408507
-Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+Commit: af6d9c5c417de6c0c9e17ea3fa5e945213408507
 Evidence: Sourcery review contained one testing suggestion, fixed by adding the missing DESIGN.md `--check` failure test.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> af6d9c5c417de6c0c9e17ea3fa5e945213408507
-Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+Commit: af6d9c5c417de6c0c9e17ea3fa5e945213408507
 Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504 -> d9f5b7a661c8428ff3761076229d458a734ea07c
-Commit: `d9f5b7a661c8428ff3761076229d458a734ea07c`
+Commit: d9f5b7a661c8428ff3761076229d458a734ea07c
 Evidence: `tests/design/test_generate_design_md.py` runs `module.run(["--check"], repo_root=REPO_ROOT)` against the committed repo file.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235004898 -> a8f652d2c144080187c807de3732656ebbdaf844
-Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
+Commit: a8f652d2c144080187c807de3732656ebbdaf844
 Evidence: Cubic review contained one component-table accuracy issue, fixed by adding deterministic runtime repo evidence for known UI primitives.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908 -> a8f652d2c144080187c807de3732656ebbdaf844
-Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
+Commit: a8f652d2c144080187c807de3732656ebbdaf844
 Evidence: `scripts/design/generate_design_md.py` now combines vocabulary metadata with deterministic repo evidence for known UI primitives.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235063205 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
-Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 Evidence: CodeRabbit actionable review items were fixed across mapping checkboxes, ledger PR traceability, forbidden dynamic import removal, and duplicate component-id hardening.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
-Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 Evidence: `docs/review/PR_1677_FIXED_MAPPING.md` marks the discussion-thread pass and fixed-mapping checkboxes with exact canonical labels.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533935 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
-Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` names PR #1677 in the active PR-1 target/status lines.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
-Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 Evidence: `tests/design/test_generate_design_md.py` uses `runpy.run_path` and a `SimpleNamespace` wrapper instead of forbidden dynamic import helpers.
+
+Disposition: NOT-A-BUG
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235305792
+Evidence: CodeRabbit status check is PASS on current head, repo `pre-commit run --all-files` passes, and current-head CI docs/tooling gates pass.
+Reason: CodeRabbit's docstring coverage item is a third-party advisory warning, not a repo-required gate for this narrow generated-doc tooling PR. Adding broad docstrings is not necessary to satisfy the PR-1 source-of-truth and drift-check contract.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235137212 -> fc3a8aec35f468b5a827af0125a88b2d8ff95070
-Commit: `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+Commit: fc3a8aec35f468b5a827af0125a88b2d8ff95070
 Evidence: Cubic review contained one declared-path trust issue, fixed by verifying declared component paths before accepting them as repo evidence.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> fc3a8aec35f468b5a827af0125a88b2d8ff95070
-Commit: `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+Commit: fc3a8aec35f468b5a827af0125a88b2d8ff95070
 Evidence: `_component_repo_evidence` verifies declared repo component paths exist before trusting them and falls back to runtime evidence when available.
 
 ## Dispositions
@@ -118,49 +124,49 @@ Evidence: `_component_repo_evidence` verifies declared repo component paths exis
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669
-- Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+- Commit: af6d9c5c417de6c0c9e17ea3fa5e945213408507
 - Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`, and `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` passes with 9 tests.
 
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504
-- Commit: `d9f5b7a661c8428ff3761076229d458a734ea07c`
+- Commit: d9f5b7a661c8428ff3761076229d458a734ea07c
 - Evidence: `tests/design/test_generate_design_md.py` adds `test_check_passes_against_committed_design_md`, which runs `module.run(["--check"], repo_root=REPO_ROOT)` against the committed repo file.
 
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908
-- Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
+- Commit: a8f652d2c144080187c807de3732656ebbdaf844
 - Evidence: `scripts/design/generate_design_md.py` now combines vocabulary metadata with deterministic repo evidence for known UI primitives, `docs/design/DESIGN.md` no longer marks existing `Alert`, `Select`, `Tabs`, `Textarea`, `Tooltip`, and related primitives as `missing`/`none`, and `tests/design/test_generate_design_md.py` asserts the `Select` runtime evidence row.
 
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909
-- Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 - Evidence: `docs/review/PR_1677_FIXED_MAPPING.md` marks the discussion-thread pass checkbox after current actionable CodeRabbit, Cubic, Sourcery, and Codex comments were mapped with dispositions.
 
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533935
-- Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now names PR #1677 in the active PR-1 target/status lines without closing the design intelligence wave or later PRs.
 
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943
-- Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 - Evidence: `tests/design/test_generate_design_md.py` replaces forbidden `importlib.util` dynamic loading with `runpy.run_path` and a `SimpleNamespace` wrapper.
 
 Disposition: FIXED
 
 - Review note: CodeRabbit duplicate component-id hardening note in `scripts/design/generate_design_md.py`.
-- Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- Commit: acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 - Evidence: `_load_components` now rejects duplicate component ids with `ValueError`, and `tests/design/test_generate_design_md.py` adds `test_duplicate_component_ids_fail_closed`.
 
 Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773
-- Commit: `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+- Commit: fc3a8aec35f468b5a827af0125a88b2d8ff95070
 - Evidence: `scripts/design/generate_design_md.py` verifies declared `existing_repo_component` paths before trusting them, falls back to runtime primitive evidence when available, and `tests/design/test_generate_design_md.py` adds `test_stale_declared_component_path_uses_runtime_fallback`.
 
 ## Premortem
