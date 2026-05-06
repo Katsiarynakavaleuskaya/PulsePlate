@@ -23,14 +23,14 @@ GraphQL review-thread inspection found one unresolved Sourcery thread on
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1693#discussion_r3196525841 -> PENDING_FINAL_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1693#discussion_r3196525841 -> 26cf10485157c6533f92d465068b87b98934829f
 Disposition: FIXED
-Commit: PENDING_FINAL_COMMIT
+Commit: 26cf10485157c6533f92d465068b87b98934829f
 Evidence: `_has_meaningful_evidence_value` is centralized in `scripts/design/evidence_utils.py`; both design modules import it; `tests/design/test_design_scorecard.py::test_design_evidence_helper_is_shared` guards against duplicated helper definitions.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1693#pullrequestreview-4238091452 -> PENDING_FINAL_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1693#pullrequestreview-4238091452 -> 26cf10485157c6533f92d465068b87b98934829f
 Disposition: FIXED
-Commit: PENDING_FINAL_COMMIT
+Commit: 26cf10485157c6533f92d465068b87b98934829f
 Evidence: Sourcery's review summary maps to `discussion_r3196525841`, fixed by the shared helper module and duplicate-helper guard test.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1693#issuecomment-4390340906
