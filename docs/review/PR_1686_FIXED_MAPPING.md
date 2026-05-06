@@ -65,7 +65,7 @@ Premortem reviewed the actual code/docs/tests diff.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads were present when this artifact was created.
+- No actionable review comments
 
 ## Merge Readiness
 
