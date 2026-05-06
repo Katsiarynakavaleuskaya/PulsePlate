@@ -16,14 +16,24 @@ This artifact records review dispositions and bounded evidence. It is not a subs
 - [x] Pre-open role order completed: `agent-coordinator`, `creative-designer`, `frontend-engineer`, `architecture-specialist`, `security-auditor`, `qa-engineer-agent`, `bug-hunter`, `data-scientist-agent`.
 - [x] Post-open bootstrap completed: `artifacts/orchestration/task_packets/6a4d73f5b0fb.json`.
 - [x] Fixed in commit mapping initialized.
-- External CodeRabbit, Sourcery, Cubic, and human comments must be dispositioned here if they appear.
+- External CodeRabbit, Sourcery, Cubic, and human comments are dispositioned below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- Sourcery review submitted 2026-05-06T20:16:55Z -> `2d9b232b3`
 
 ## Review Dispositions
 
+- Sourcery finding: FIXED.
+  - Commit: `2d9b232b3`
+  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` now validates theme token aliases through public `Color` API descriptions instead of reading and string-scanning `ShapeStyle+Theme.swift`.
+- Sourcery finding: FIXED.
+  - Commit: `2d9b232b3`
+  - Evidence: `ios/PulsePlate/Extensions/ShapeStyle+Theme.swift` documents that `liquidGlass` intentionally reuses `PPDesignTokens.ColorToken.surfaceElevated` until `/tokens` promotes a dedicated liquid-glass token.
+- Cubic review: NOT-A-BUG.
+  - Evidence: cubic reported no issues at commit `1e65f0d1d2c02b883515225b342c32c4fa01b11b`.
+- CodeRabbit comment: NOT-A-BUG.
+  - Evidence: CodeRabbit posted review-in-progress/finishing-touch automation only, with no actionable defect.
 - Internal coordinator finding: FIXED before mapping.
   - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records PR-5 merged in #1689 and PR-6 active on `feat/ios-design-parity-audit-v1`.
 - Internal coordinator/architecture finding: FIXED before mapping.
@@ -44,6 +54,7 @@ This artifact records review dispositions and bounded evidence. It is not a subs
 - `python3 scripts/design/design_scorecard.py validate-score docs/design/design_scorecard/examples/ios_home.scorecard.sample.json` -> PASS
 - `python3 scripts/design/design_scorecard.py summarize docs/design/design_scorecard/examples/ios_home.scorecard.sample.json` -> PASS
 - `IOS_DESTINATION='platform=iOS Simulator,id=E9439FE9-610A-4BC8-A93C-D36D6603D8E7' IOS_ONLY_TESTING='PulsePlateTests/DesignSystemAccessibilityContractTests' make ios-test` -> PASS, 5 tests, 0 failures
+- `IOS_DESTINATION='platform=iOS Simulator,id=E9439FE9-610A-4BC8-A93C-D36D6603D8E7' IOS_ONLY_TESTING='PulsePlateTests/DesignSystemAccessibilityContractTests' make ios-test` -> PASS after Sourcery fix, 5 tests, 0 failures
 - `make validate-changed` -> PASS
 - `make design-guard` -> PASS
 - `make tokens-check` -> PASS after local worktree `.venv` symlink and `npm --prefix frontend ci` restored missing local dependencies
