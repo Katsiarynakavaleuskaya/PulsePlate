@@ -85,6 +85,7 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 ## Commit breakdown
 
 - `fc63aded4` docs/checker/tests for SC-G1 semantic-cache rollout gate contract.
+- `bab416651` adds the canonical PR #1697 fixed-mapping artifact.
 
 ## Pre-push checklist
 
@@ -112,11 +113,14 @@ None. Existing semantic-cache and Evidence Graph invariants already cover this d
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No review threads at artifact creation. Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-engineer-agent` and `bug-hunter`.
 
-### Fixed in Commit Mapping
+## Fixed in Commit Mapping
 
-No review-thread mappings at artifact creation.
+- No actionable review comments
 
 ## Merge Readiness
 
