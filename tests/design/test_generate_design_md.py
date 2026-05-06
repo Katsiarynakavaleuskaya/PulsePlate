@@ -87,6 +87,18 @@ def test_check_fails_on_drift(tmp_path, capsys):
     assert "Run: python3 scripts/design/generate_design_md.py" in captured.err
 
 
+def test_check_fails_when_design_md_missing(tmp_path, capsys):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+
+    result = module.run(["--check"], repo_root=repo_root)
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "ERROR: docs/design/DESIGN.md is missing." in captured.err
+    assert "Run: python3 scripts/design/generate_design_md.py" in captured.err
+
+
 def test_check_passes_after_regeneration(tmp_path, capsys):
     module = load_generator_module()
     repo_root = make_temp_repo(tmp_path)
