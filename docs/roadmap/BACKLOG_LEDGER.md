@@ -445,7 +445,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Release automation control plane for C4, App Store Review, ML gates, and supply chain
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 -> PR #1682 -> PR-TBD-RELEASE-CONTROL-PLANE-PR6 (`release/release-control-plane-pr6-production-artifact-wiring`)
+  - Target PR: PR-0 -> PR-1 -> PR-2 -> PR-3 (PR #1605) -> PR-4 (PR #1679) -> PR-5 (PR #1682) -> PR-6 (PR #1688) -> PR #1692
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
   - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 merged in PR #1682 on 2026-05-06; PR-6 merged in PR #1688 on 2026-05-06; PR #1692 enforces the production tag path fail-closed against PR-6 real evidence wiring and intentionally blocks production tags until protected release evidence is supplied. Future protected artifact publication/upload automation and App Store Connect execution remain out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
