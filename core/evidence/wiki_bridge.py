@@ -196,9 +196,6 @@ class AdvisoryWikiArtifactRef:
         normalized_hash = _normalize_content_hash(content_hash)
         validate_fingerprint(normalized_hash)
 
-        object.__setattr__(
-            self, "artifact_id", _validate_non_empty_identifier(artifact_id, "artifact_id")
-        )
         object.__setattr__(self, "corpus", _validate_sluglike_token(corpus, "corpus"))
         object.__setattr__(self, "slug", _validate_sluglike_token(slug, "slug"))
         object.__setattr__(
@@ -221,15 +218,30 @@ class AdvisoryWikiArtifactRef:
         object.__setattr__(
             self, "policy_version", validate_non_empty_token("policy_version", policy_version)
         )
-        object.__setattr__(
-            self,
-            "idempotency_key",
-            _validate_non_empty_identifier(idempotency_key, "idempotency_key"),
-        )
         object.__setattr__(self, "advisory_only", True)
         object.__setattr__(self, "promoted", bool(promoted))
         normalized_upstream_ids = normalize_upstream_ids(tuple(upstream_ids))
         validate_upstream_ids_for_rail(rail="advisory", upstream_ids=normalized_upstream_ids)
+        computed_artifact_id, computed_idempotency_key = _build_artifact_identity(
+            corpus=self.corpus,
+            slug=self.slug,
+            source_rel_path=self.source_rel_path,
+            page_path=self.page_path,
+            promoted_path=self.promoted_path,
+            content_hash=self.content_hash,
+            policy_version=self.policy_version,
+            promoted=self.promoted,
+            upstream_ids=normalized_upstream_ids,
+        )
+        if _validate_non_empty_identifier(artifact_id, "artifact_id") != computed_artifact_id:
+            raise ValueError("artifact_id must match deterministic wiki artifact identity")
+        if (
+            _validate_non_empty_identifier(idempotency_key, "idempotency_key")
+            != computed_idempotency_key
+        ):
+            raise ValueError("idempotency_key must match deterministic wiki artifact identity")
+        object.__setattr__(self, "artifact_id", computed_artifact_id)
+        object.__setattr__(self, "idempotency_key", computed_idempotency_key)
         object.__setattr__(self, "upstream_ids", normalized_upstream_ids)
         object.__setattr__(self, "_metadata", _freeze_metadata(metadata or {}))
 
@@ -292,21 +304,17 @@ def create_advisory_wiki_artifact_ref(
     validate_upstream_ids_for_rail(rail="advisory", upstream_ids=normalized_upstream_ids)
     _validate_policy(policy, normalized_policy_version, normalized_corpus, bool(promoted))
 
-    identity_payload: dict[str, JsonValue] = {
-        "advisory_only": True,
-        "content_hash": normalized_hash,
-        "corpus": normalized_corpus,
-        "page_path": normalized_page_path,
-        "policy_version": normalized_policy_version,
-        "promoted": bool(promoted),
-        "promoted_path": normalized_promoted_path,
-        "slug": normalized_slug,
-        "source_rel_path": normalized_source_path,
-        "upstream_ids": list(normalized_upstream_ids),
-    }
-    digest = fingerprint_payload(identity_payload).removeprefix("sha256:")
-    artifact_id = f"advisory-wiki:{digest[:24]}"
-    idempotency_key = f"idem:advisory-wiki:{digest}"
+    artifact_id, idempotency_key = _build_artifact_identity(
+        corpus=normalized_corpus,
+        slug=normalized_slug,
+        source_rel_path=normalized_source_path,
+        page_path=normalized_page_path,
+        promoted_path=normalized_promoted_path,
+        content_hash=normalized_hash,
+        policy_version=normalized_policy_version,
+        promoted=bool(promoted),
+        upstream_ids=normalized_upstream_ids,
+    )
     return AdvisoryWikiArtifactRef(
         artifact_id=artifact_id,
         corpus=normalized_corpus,
@@ -415,6 +423,34 @@ def wiki_artifact_to_admission_input(
         upstream_ids=artifact.upstream_ids,
         metadata=admission_metadata,
     )
+
+
+def _build_artifact_identity(
+    *,
+    corpus: str,
+    slug: str,
+    source_rel_path: str,
+    page_path: str,
+    promoted_path: str | None,
+    content_hash: str,
+    policy_version: str,
+    promoted: bool,
+    upstream_ids: tuple[str, ...],
+) -> tuple[str, str]:
+    identity_payload: dict[str, JsonValue] = {
+        "advisory_only": True,
+        "content_hash": content_hash,
+        "corpus": corpus,
+        "page_path": page_path,
+        "policy_version": policy_version,
+        "promoted": promoted,
+        "promoted_path": promoted_path,
+        "slug": slug,
+        "source_rel_path": source_rel_path,
+        "upstream_ids": list(upstream_ids),
+    }
+    digest = fingerprint_payload(identity_payload).removeprefix("sha256:")
+    return f"advisory-wiki:{digest[:24]}", f"idem:advisory-wiki:{digest}"
 
 
 def _validate_policy(

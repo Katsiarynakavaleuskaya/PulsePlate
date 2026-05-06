@@ -187,6 +187,44 @@ def test_idempotency_key_artifact_id_and_serialization_are_deterministic() -> No
     assert first.to_json() == second.to_json()
 
 
+def test_constructor_rejects_non_canonical_identity_fields() -> None:
+    canonical = _artifact()
+
+    with pytest.raises(ValueError, match="artifact_id must match deterministic"):
+        AdvisoryWikiArtifactRef(
+            artifact_id="advisory-wiki:wrong",
+            corpus=canonical.corpus,
+            slug=canonical.slug,
+            source_rel_path=canonical.source_rel_path,
+            page_path=canonical.page_path,
+            promoted_path=canonical.promoted_path,
+            content_hash=canonical.content_hash,
+            policy_version=canonical.policy_version,
+            idempotency_key=canonical.idempotency_key,
+            advisory_only=True,
+            promoted=canonical.promoted,
+            upstream_ids=canonical.upstream_ids,
+            metadata=canonical.metadata,
+        )
+
+    with pytest.raises(ValueError, match="idempotency_key must match deterministic"):
+        AdvisoryWikiArtifactRef(
+            artifact_id=canonical.artifact_id,
+            corpus=canonical.corpus,
+            slug=canonical.slug,
+            source_rel_path=canonical.source_rel_path,
+            page_path=canonical.page_path,
+            promoted_path=canonical.promoted_path,
+            content_hash=canonical.content_hash,
+            policy_version=canonical.policy_version,
+            idempotency_key="idem:wrong",
+            advisory_only=True,
+            promoted=canonical.promoted,
+            upstream_ids=canonical.upstream_ids,
+            metadata=canonical.metadata,
+        )
+
+
 def test_metadata_and_upstream_ids_are_defensively_copied() -> None:
     metadata: dict[str, Any] = {"advisory_only": True, "labels": ["one"]}
     upstream_ids = ["z", "a"]
