@@ -14,7 +14,7 @@ scope.
 - [x] Internal QA / bug-hunter / security / premortem pass completed against
   actual changed files.
 - [x] Premortem P0/P1 findings fixed before mapping.
-- [ ] External bot/human discussion-thread pass completed.
+- [x] External bot/human discussion-thread pass completed.
 
 ## Fixed in Commit Mapping
 
@@ -45,6 +45,23 @@ Evidence:
 - Focused validation after the fix:
   `. .venv/bin/activate && pytest -q tests/test_production_release_evidence_wiring.py tests/test_release_control_plane_ci_gate.py tests/test_build_equivalence.py`
   PASS (`61 passed`).
+
+### Codex review: require evidence to match the current release
+
+Thread: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1688#discussion_r3196349030>
+
+Disposition: FIXED
+Commit: `0bc019fd0`
+Evidence:
+
+- `.github/workflows/cd.yml` now resolves the production tag commit and fails
+  closed when the downloaded `release_manifest.json` `build_identity.git_sha`
+  differs from that tag commit.
+- `tests/test_production_release_evidence_wiring.py::test_production_job_rejects_evidence_for_different_tag_commit`
+  covers the exact stale-evidence failure mode from the review thread.
+- Follow-up hardening in `38676dde6` also verifies the evidence source run
+  provenance before download: completed, successful, matching head SHA,
+  `workflow_dispatch`, and release-control-plane workflow naming.
 
 ## Validation
 
