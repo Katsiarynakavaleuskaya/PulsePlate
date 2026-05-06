@@ -1174,8 +1174,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reference-driven design intelligence wave for web and iOS
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
-  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` -> PR-3 `feat(design): add screen evidence pack for web and iOS review surfaces` (`feat/design-screen-evidence-pack-v1`)
-  - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 merged in PR #1680 with reference manifest validation and normalization tooling; PR-3 active on branch `feat/design-screen-evidence-pack-v1` to add metadata-only screen evidence pack validation for web and iOS review surfaces. Do not close the wave or mark PR-4/PR-5/PR-6/PR-7/PR-8 complete in this PR.
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` -> PR #1683 / PR-3 `feat(design): add screen evidence pack for web and iOS review surfaces` -> PR-4 `feat(design): add deterministic design scorecard checks` (`feat/design-scorecard-checks-v1`)
+  - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 merged in PR #1680 with reference manifest validation and normalization tooling; PR-3 merged in PR #1683 with metadata-only screen evidence pack validation for web and iOS review surfaces; PR-4 active on branch `feat/design-scorecard-checks-v1` to add deterministic evidence-quality scorecard checks. Do not close the wave or mark PR-5/PR-6/PR-7/PR-8 complete in this PR.
   - Area: design / web / iOS / agentic workflow / reference corpus
   - Finding Type: reference-driven design intelligence bootstrap and governance
   - Anchor: `ledger-p1-design-intelligence-wave`
@@ -1191,6 +1191,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/design/PULSEPLATE_DESIGN_MD_BOOTSTRAP.md`
     - `docs/design/DESIGN.md` (PR-1 generated semantic wrapper; non-canonical)
     - `docs/design/SCREEN_EVIDENCE_PACK_SCHEMA.md` (PR-3 screen evidence metadata schema; non-canonical)
+    - `docs/design/DESIGN_SCORECARD_CHECKS.md` (PR-4 deterministic scorecard checks; non-canonical)
   - DoD:
     - PR-0 runbook and packet exist
     - External reference policy exists
