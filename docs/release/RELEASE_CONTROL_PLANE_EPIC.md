@@ -91,6 +91,7 @@ review governance.
 
 4. **PR-3: release manifest generator and validator**
    - Branch: `release/release-control-plane-pr3-release-manifest`
+   - Merged as PR #1605 on 2026-04-30.
    - Generate and validate the internal release packet.
    - Fail closed on missing required identity groups.
    - Contract: [`RELEASE_MANIFEST_CONTRACT.md`](RELEASE_MANIFEST_CONTRACT.md)
@@ -99,11 +100,16 @@ review governance.
 
 5. **PR-4: review build equals production candidate**
    - Branch: `release/release-control-plane-pr4-build-equivalence`
+   - Active PR-4 slice.
    - Add digest/hash equivalence checks so the reviewed build and production candidate cannot silently diverge.
+   - Contract: [`BUILD_EQUIVALENCE_CONTRACT.md`](BUILD_EQUIVALENCE_CONTRACT.md)
+     and [`BUILD_EQUIVALENCE_CONTRACT.schema.json`](BUILD_EQUIVALENCE_CONTRACT.schema.json).
+   - Helper: `scripts/release/build_equivalence.py`.
 
 6. **PR-5: CI release decision integration**
    - Branch: `release/release-control-plane-pr5-ci-gates`
    - Add focused CI gates for release packet, RAG gate result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision.
+   - Deferred until PR-4 has landed; PR-4 must not add CI fail-closed enforcement.
 
 ## Boundaries
 
@@ -173,3 +179,7 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
 5. Defer MLflow, Hugging Face cards, VEX/OPA, and protected uploads to later explicitly scoped slices.
 6. PR-1 hashes reviewer notes separately from localized App Store metadata and treats App Privacy JSON as upstream context only.
 7. PR-3 keeps the release manifest internal and fail-closed, but leaves CI enforcement to PR-5 and build equivalence to PR-4.
+8. PR-4 keeps build equivalence internal and deterministic, proving review-build
+   and production-candidate identity through digest/hash comparison only. It
+   leaves CI fail-closed enforcement to PR-5 and does not treat branch names,
+   tags, or human labels as equivalence evidence.

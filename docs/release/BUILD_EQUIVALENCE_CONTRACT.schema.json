@@ -1,0 +1,120 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://pulseplate.app/schemas/release-build-equivalence.v1.json",
+  "title": "PulsePlate Build Equivalence Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "hash_algorithm",
+    "canonicalization",
+    "decision",
+    "reason_codes",
+    "mismatch_details",
+    "compared_fields",
+    "release_manifest_hash",
+    "tool_version"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "release-build-equivalence.v1"
+    },
+    "hash_algorithm": {
+      "const": "sha256"
+    },
+    "canonicalization": {
+      "const": "json-sorted-compact-utf8-single-trailing-newline"
+    },
+    "decision": {
+      "enum": [
+        "EQUIVALENT",
+        "BLOCK"
+      ]
+    },
+    "reason_codes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/reason_code"
+      }
+    },
+    "mismatch_details": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/mismatch_detail"
+      }
+    },
+    "compared_fields": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/compared_field"
+      }
+    },
+    "release_manifest_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "tool_version": {
+      "const": "release-build-equivalence.v1"
+    }
+  },
+  "$defs": {
+    "reason_code": {
+      "type": "string",
+      "enum": [
+        "missing_review_build_identity",
+        "missing_production_candidate_identity",
+        "malformed_review_build_identity",
+        "malformed_production_candidate_identity",
+        "invalid_release_manifest",
+        "git_sha_mismatch",
+        "bundle_id_mismatch",
+        "marketing_version_mismatch",
+        "ios_build_number_mismatch",
+        "review_build_digest_mismatch",
+        "release_manifest_hash_mismatch",
+        "reviewer_identity_mismatch",
+        "ml_identity_mismatch",
+        "supply_chain_identity_mismatch",
+        "unsupported_digest_format",
+        "attestation_not_verified"
+      ]
+    },
+    "compared_field": {
+      "type": "string",
+      "enum": [
+        "build_identity.git_sha",
+        "build_identity.bundle_id",
+        "build_identity.marketing_version",
+        "build_identity.ios_build_number",
+        "artifact_digest",
+        "release_manifest_hash",
+        "reviewer_identity",
+        "ml_identity",
+        "supply_chain_identity"
+      ]
+    },
+    "mismatch_detail": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "reason_code"
+      ],
+      "properties": {
+        "field": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason_code": {
+          "type": "string",
+          "minLength": 1
+        },
+        "review_build": {},
+        "production_candidate": {},
+        "release_manifest": {}
+      }
+    }
+  }
+}
