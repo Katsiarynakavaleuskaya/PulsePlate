@@ -1174,8 +1174,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reference-driven design intelligence wave for web and iOS
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
-  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`)
-  - Status: PR-0 bootstrap open; do not mark closed until the PR lands and is merged
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` (`feat/design-md-generator-v1`)
+  - Status: PR-0 merged in PR #1671; PR-1 active in PR #1677 on branch `feat/design-md-generator-v1` to add generated/drift-checked `docs/design/DESIGN.md`. Do not close the wave or mark PR-2/PR-3/PR-4/PR-5/PR-6 complete in this PR.
   - Area: design / web / iOS / agentic workflow / reference corpus
   - Finding Type: reference-driven design intelligence bootstrap and governance
   - Anchor: `ledger-p1-design-intelligence-wave`
@@ -1189,6 +1189,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/design/REFERENCE_MANIFEST_SCHEMA.md`
     - `docs/design/REFERENCE_SCORECARD.md`
     - `docs/design/PULSEPLATE_DESIGN_MD_BOOTSTRAP.md`
+    - `docs/design/DESIGN.md` (PR-1 generated semantic wrapper; non-canonical)
   - DoD:
     - PR-0 runbook and packet exist
     - External reference policy exists
