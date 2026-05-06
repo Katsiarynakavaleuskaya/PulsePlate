@@ -13,7 +13,6 @@ export default defineConfig({
       enableBundleAnalysis: enableCodecovBundleAnalysis,
       gitService: "github",
       telemetry: false,
-      uploadToken: process.env.CODECOV_TOKEN,
     }),
   ],
   test: {
