@@ -55,7 +55,18 @@ strict merge-readiness remain required before merge.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#pullrequestreview-4234281123 -> 13d165f81
+Disposition: FIXED
+Commit: 13d165f81
+Evidence: core/evidence/promotion_ledger.py metadata key validation now reports path context, normalizes keys case-insensitively, and tests/core/evidence/test_promotion_ledger.py covers key collisions plus Windows path metadata rejection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#pullrequestreview-4234351988 -> ab3bd46f8
+Disposition: FIXED
+Commit: ab3bd46f8
+Evidence: core/evidence/replay.py reports candidate orphan supersession as conflict and fails closed on orphan existing supersession; tests/core/evidence/test_replay.py covers both paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1673#pullrequestreview-4234449600 -> 13d165f81
+Disposition: FIXED
+Commit: 13d165f81
+Evidence: core/evidence/replay.py checks duplicate idempotency before supersede scope validation; tests/core/evidence/test_replay.py covers duplicate supersede replay without conflict.
 
 ## Sidecar Review Findings
 
