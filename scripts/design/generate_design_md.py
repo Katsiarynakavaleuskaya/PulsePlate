@@ -44,6 +44,13 @@ AUTOMATION_MODULES = [
     ),
 ]
 
+ALLOWED_COMPONENT_EVIDENCE_PREFIXES = (
+    Path("frontend/src/components"),
+    Path("frontend/src/features"),
+    Path("frontend/src/pages"),
+)
+
+
 RUNTIME_COMPONENT_FALLBACKS = {
     "alert": "frontend/src/components/ui/Alert.tsx",
     "checkbox": "frontend/src/components/ui/Checkbox.tsx",
@@ -78,19 +85,42 @@ def _load_components(repo_root: Path) -> list[dict[str, object]]:
     return sorted(components, key=lambda item: str(item["id"]))
 
 
+def _is_valid_component_evidence_path(declared_component: str, repo_root: Path) -> bool:
+    declared_path = Path(declared_component)
+    if declared_path.is_absolute() or ".." in declared_path.parts:
+        return False
+
+    candidate = (repo_root / declared_path).resolve(strict=False)
+    try:
+        repo_relative_candidate = candidate.relative_to(repo_root)
+    except ValueError:
+        return False
+
+    return any(
+        repo_relative_candidate.is_relative_to(allowed_prefix)
+        for allowed_prefix in ALLOWED_COMPONENT_EVIDENCE_PREFIXES
+    )
+
+
 def _component_repo_evidence(item: dict[str, object], repo_root: Path) -> tuple[str, str]:
     declared_component = item.get("existing_repo_component")
     declared_status = str(item.get("missing_status", "unknown"))
-    if isinstance(declared_component, str) and declared_component:
-        if (repo_root / declared_component).exists():
-            return declared_status, declared_component
+    resolved_repo_root = repo_root.resolve(strict=False)
+    declared_component_path = (
+        declared_component if isinstance(declared_component, str) and declared_component else None
+    )
+    if declared_component_path:
+        if not _is_valid_component_evidence_path(declared_component_path, resolved_repo_root):
+            return "invalid-declared-path", "none"
+        if (repo_root / declared_component_path).exists():
+            return declared_status, declared_component_path
 
     fallback_path = RUNTIME_COMPONENT_FALLBACKS.get(str(item["id"]))
     if fallback_path and (repo_root / fallback_path).exists():
         return "existing-runtime-detected", fallback_path
 
-    if isinstance(declared_component, str) and declared_component:
-        return "declared-path-missing", declared_component
+    if declared_component_path:
+        return "declared-path-missing", declared_component_path
 
     return declared_status, "none"
 

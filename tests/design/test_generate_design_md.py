@@ -98,6 +98,70 @@ def test_stale_declared_component_path_uses_runtime_fallback(tmp_path):
     ) in output
 
 
+def test_declared_absolute_component_path_is_rejected(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    external_component = tmp_path / "external_component.tsx"
+    external_component.write_text("export function External() {}\n", encoding="utf-8")
+    fallback_path = repo_root / "frontend/src/components/ui/Select.tsx"
+    fallback_path.parent.mkdir(parents=True)
+    fallback_path.write_text("export function Select() {}\n", encoding="utf-8")
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    for item in vocabulary:
+        if item["id"] == "select":
+            item["existing_repo_component"] = str(external_component)
+            item["missing_status"] = "existing"
+            break
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    output = module.render_design_md(repo_root)
+
+    assert str(external_component) not in output
+    assert "frontend/src/components/ui/Select.tsx" not in output
+    assert "| select | select | invalid-declared-path | `none` |" in output
+
+
+def test_declared_traversal_component_path_is_rejected(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    external_component = tmp_path / "outside_component.tsx"
+    external_component.write_text("export function Outside() {}\n", encoding="utf-8")
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    for item in vocabulary:
+        if item["id"] == "button":
+            item["existing_repo_component"] = "../outside_component.tsx"
+            item["missing_status"] = "existing"
+            break
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    output = module.render_design_md(repo_root)
+
+    assert "../outside_component.tsx" not in output
+    assert "| button | button | invalid-declared-path | `none` |" in output
+
+
+def test_declared_in_repo_non_frontend_component_path_is_rejected(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    disallowed_component = repo_root / "docs/design/not_a_component.tsx"
+    disallowed_component.write_text("export const x = 1;\n", encoding="utf-8")
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    for item in vocabulary:
+        if item["id"] == "button":
+            item["existing_repo_component"] = "docs/design/not_a_component.tsx"
+            item["missing_status"] = "existing"
+            break
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    output = module.render_design_md(repo_root)
+
+    assert "docs/design/not_a_component.tsx" not in output
+    assert "| button | button | invalid-declared-path | `none` |" in output
+
+
 def test_generated_design_md_classifies_automation_as_internal_modules():
     module = load_generator_module()
 
