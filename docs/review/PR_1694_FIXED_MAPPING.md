@@ -22,6 +22,7 @@ This artifact records review dispositions and bounded evidence. It is not a subs
 
 Disposition: FIXED
 Commit: see mapping entries below
+Evidence: Review comments were fixed in the mapped code/test/docs commits before mapping updates.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239225856 -> 2d9b232b3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239299983 -> 2d9b232b3
