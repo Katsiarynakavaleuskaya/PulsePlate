@@ -173,16 +173,19 @@ knowledge promotion.
 
 ## Discussion Thread Pass
 
-- [x] Post-open `qa-engineer-agent -> bug-hunter` sidecar review pass completed.
-- [ ] CodeRabbit/Sourcery/Cubic actionables pending live review truth after latest push.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Post-open `qa-engineer-agent -> bug-hunter` sidecar review pass completed.
+CodeRabbit/Sourcery/Cubic final no-actionables check remains required before
+merge readiness.
 
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#pullrequestreview-4235099053 -> e7b72d4d9
 Disposition: FIXED
 Commit: e7b72d4d9
-Evidence: `tests/core/evidence/test_admission.py` now mutates the returned
-`AdmissionInput.metadata` view and asserts subsequent reads are unchanged.
+Evidence: `tests/core/evidence/test_admission.py` mutates the returned `AdmissionInput.metadata` view and asserts subsequent reads are unchanged.
 
 ## Sidecar Review Findings
 
