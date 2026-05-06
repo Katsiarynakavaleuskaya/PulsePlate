@@ -167,6 +167,9 @@ advisory review/query/promotion workflows only.
 - `b7efbfa2d` - `docs(agents): update instructions`
 - `ccb5c0630` - `docs(review): map PR 1681 review threads`
 - `7bc213ff4` - `test(evidence): cover wiki bridge guards`
+- `cd0b8b4a1` - `docs(review): record PR 1681 coverage fix`
+- `abc3c9563` - `docs(review): map CodeRabbit aggregate review`
+- `1967ab477` - `fix(evidence): remove unused wiki bridge import`
 
 ## Pre-push checklist
 
@@ -259,6 +262,11 @@ Disposition: NOT-A-BUG
 Evidence: Aggregate CodeRabbit review actionables are represented by the individual inline discussion URLs mapped above.
 Reason: The review-level URL has no separate actionable beyond those inline comments; it is included for merge-readiness governance completeness.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#pullrequestreview-4235839249
+
+Disposition: FIXED
+Commit: 1967ab477
+Evidence: `core/evidence/wiki_bridge.py` removed the unused `Any` import reported in the aggregate CodeRabbit review; focused wiki bridge tests and narrow mypy passed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#pullrequestreview-4236389688 -> 1967ab477
 
 ## Merge Readiness
 
