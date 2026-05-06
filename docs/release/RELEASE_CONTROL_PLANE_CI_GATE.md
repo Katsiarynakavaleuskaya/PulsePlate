@@ -109,3 +109,16 @@ production build, deploy configuration, SSH deploy, and self-hosted deploy paths
 fail-closed. Real `release_manifest.json`, `rag_gate_result.json`, and
 `build_equivalence_result.json` must therefore be present and internally
 coherent before a production tag can proceed.
+
+### Protected Artifact Requirement
+
+PR #1692 intentionally keeps the real artifact producer/downloader out of scope.
+Production tag runs are expected to block until the protected release
+environment supplies these three real evidence files at the exact paths above.
+This is the safe default: missing evidence is a release stop, not an advisory
+warning or fixture fallback.
+
+Operators preparing a production tag must publish or restore the approved
+release-control-plane artifacts before this gate runs. The follow-up for
+protected artifact publication remains tracked in
+`docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-release-control-plane`.

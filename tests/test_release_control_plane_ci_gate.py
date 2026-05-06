@@ -639,8 +639,24 @@ def test_workflow_integration_enforces_real_evidence_before_production_paths() -
     assert "--rag-gate-result artifacts/rag_eval/release/rag_gate_result.json" in gate_job
     assert "--build-equivalence artifacts/release/build_equivalence_result.json" in gate_job
     assert "needs: production-gates" in gate_job
+    assert "continue-on-error" not in gate_job
+    assert "actions/upload-artifact@" in gate_job
+    assert "release-control-plane-gate-cd-production" in gate_job
+    assert "release_control_plane_ci_gate.json" in gate_job
+    assert "release_control_plane_ci_gate.md" in gate_job
     assert "release-control-plane-gate" in production_jobs
     assert "app store connect" not in gate_job.lower()
+
+
+def test_workflow_docs_record_operator_evidence_requirement() -> None:
+    docs = (REPO_ROOT / "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md").read_text(encoding="utf-8")
+    ledger = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
+
+    assert "PR #1692 intentionally keeps the real artifact producer/downloader out of scope" in docs
+    assert "missing evidence is a release stop" in docs
+    assert "ledger-p1-release-control-plane" in docs
+    assert "PR #1692 enforces the production tag gate against real evidence paths" in ledger
+    assert "protected artifact publication/upload" in ledger
 
 
 def test_ledger_marks_pr4_merged_and_pr5_active() -> None:
@@ -648,7 +664,7 @@ def test_ledger_marks_pr4_merged_and_pr5_active() -> None:
 
     assert "PR-4 merged in PR #1679 on 2026-05-06" in ledger
     assert "PR-5 is active on branch `release/release-control-plane-pr5-ci-gates`" in ledger
-    assert "Future protected upload and App Store Connect execution remain out of scope" in ledger
+    assert "protected artifact publication/upload and App Store Connect execution" in ledger
     assert "full App Store readiness is not complete" in ledger
 
 

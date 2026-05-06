@@ -448,7 +448,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 -> PR-TBD-RELEASE-CONTROL-PLANE-PR5 (`release/release-control-plane-pr5-ci-gates`)
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 is active on branch `release/release-control-plane-pr5-ci-gates` for CI fail-closed release-decision integration. Future protected upload and App Store Connect execution remain out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
+  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 is active on branch `release/release-control-plane-pr5-ci-gates` for CI fail-closed release-decision integration. PR #1692 enforces the production tag gate against real evidence paths and intentionally blocks production tags until protected release evidence is supplied. Future protected artifact publication/upload and App Store Connect execution remain out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
@@ -477,7 +477,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-2 exports a stable RAG/ML gate-result schema from the existing release-gate runner without creating a second eval source of truth, including `rag_gate_result_hash`, `eval_artifact_hash`, existing `PASS` / `NO-GO` eval decision fields, and safe artifact references.
     - PR-3 adds a release manifest generator and fail-closed validator. Completed by PR #1605.
     - PR-4 proves review-build and production-candidate equivalence by digest/hash checks. Completed by PR #1679.
-    - PR-5 integrates focused CI gates for manifest, ML gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Active in `release/release-control-plane-pr5-ci-gates`; protected upload and App Store Connect execution remain deferred follow-ups.
+    - PR-5 integrates focused CI gates for manifest, ML gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Active in `release/release-control-plane-pr5-ci-gates`; PR #1692 wires the production tag path fail-closed, while protected artifact publication/upload and App Store Connect execution remain deferred follow-ups.
 
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder
