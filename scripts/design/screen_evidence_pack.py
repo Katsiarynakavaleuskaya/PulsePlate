@@ -272,7 +272,9 @@ def _validate_source_of_truth(record: dict[str, Any], errors: list[str]) -> None
         return
     for pattern in SOT_AUTHORITY_PATTERNS:
         for match in re.finditer(pattern, text):
-            if not _has_negation_near(text, match.start()):
+            match_text = match.group(0).lower()
+            has_in_match_negation = any(marker in match_text for marker in NEGATION_MARKERS)
+            if not has_in_match_negation and not _has_negation_near(text, match.start()):
                 errors.append("screen evidence must not become a source of truth")
                 return
 
@@ -282,6 +284,8 @@ def _validate_components(record: dict[str, Any], repo_root: Path, errors: list[s
         return
     known_ids = _load_component_ids(repo_root)
     for component_id in record["component_ids"]:
+        if not isinstance(component_id, str):
+            continue
         if component_id not in known_ids:
             errors.append(f"unknown PulsePlate component id: {component_id}")
 

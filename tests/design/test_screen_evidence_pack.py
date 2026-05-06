@@ -139,6 +139,18 @@ def test_source_of_truth_but_overrides_wording_fails():
     assert "screen evidence must not become a source of truth" in errors
 
 
+def test_negated_source_of_truth_wording_passes():
+    module = load_evidence_module()
+    manifest = valid_manifest(
+        source_of_truth_note=(
+            "Screen evidence is review evidence only and is not source of truth; "
+            "repo runtime code wins."
+        )
+    )
+
+    assert module.validate_record(manifest, repo_root=REPO_ROOT) == []
+
+
 def test_unknown_component_ids_fail():
     module = load_evidence_module()
     manifest = valid_manifest(component_ids=["button", "invented_component"])
@@ -146,6 +158,15 @@ def test_unknown_component_ids_fail():
     errors = module.validate_record(manifest, repo_root=REPO_ROOT)
 
     assert "unknown PulsePlate component id: invented_component" in errors
+
+
+def test_malformed_component_ids_return_validation_errors():
+    module = load_evidence_module()
+    manifest = valid_manifest(component_ids=["button", {}])
+
+    errors = module.validate_record(manifest, repo_root=REPO_ROOT)
+
+    assert "component_ids must contain only non-empty strings" in errors
 
 
 def test_committed_binary_artifact_paths_fail():
