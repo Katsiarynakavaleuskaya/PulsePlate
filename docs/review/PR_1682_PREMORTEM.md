@@ -121,11 +121,13 @@ Frame: It is 6 months from now. PR-5 merged, but a production release proceeded 
 
 **Risk:** CI evidence changes across runs, making review and mapping unreliable.
 
-**Inspection:** `REASON_ORDER`, `_stable_reason_codes(...)`, and `_stable_findings(...)` define deterministic ordering.
+**Inspection:** `REASON_ORDER`, `_stable_reason_codes(...)`, and `_stable_findings(...)` define deterministic ordering. Post-open review found that `_stable_findings(...)` did not fully break ties when multiple findings shared the same reason code and field.
 
-**Disposition:** NOT-A-BUG
+**Disposition:** FIXED
 
-**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_reason_code_ordering_is_deterministic` and `test_output_json_is_deterministic`.
+**Commit:** `54b893af9`
+
+**Evidence:** `tests/test_release_control_plane_ci_gate.py::test_reason_code_ordering_is_deterministic`, `test_output_json_is_deterministic`, and `test_mismatch_details_sorting_uses_detail_tiebreaker`.
 
 ### 11. Fixture evidence leaks into production release path
 
@@ -181,6 +183,18 @@ Frame: It is 6 months from now. PR-5 merged, but a production release proceeded 
 
 **Evidence:** `scripts/ci/check_release_control_plane.py` now rejects absolute paths, non-`artifacts` roots, and any `..` path part using `PurePosixPath`; `tests/test_release_control_plane_ci_gate.py::test_evidence_paths_reject_parent_directory_escape` covers `artifacts/../leak.json`.
 
+### 16. Evidence hashes do not match validated bytes
+
+**Risk:** The checker validates one file read, then re-reads the same path for `checked_artifacts` and `evidence_hashes`, allowing a race where the recorded digest is not the validated evidence.
+
+**Inspection:** Post-open review found `_load_evidence(...)` parsed one read while output hash fields re-opened paths later.
+
+**Disposition:** FIXED
+
+**Commit:** `54b893af9`
+
+**Evidence:** `_load_evidence(...)` now returns the SHA-256 digest of the parsed bytes and the final payload uses that digest without re-reading evidence files; `tests/test_release_control_plane_ci_gate.py::test_evidence_hashes_use_loaded_bytes` mutates a file after the initial read and proves the output hash stays tied to the loaded bytes.
+
 ## Synthesis
 
 Most likely failure: protected production artifact wiring is mistaken as complete because fixture validation exists.
@@ -201,7 +215,7 @@ Unresolved P0/P1: none.
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
-- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`24 passed`)
+- `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`26 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_release_manifest.py` PASS (`20 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_build_equivalence.py` PASS (`22 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_rag_release_gates_runner.py` PASS (`48 passed`)
