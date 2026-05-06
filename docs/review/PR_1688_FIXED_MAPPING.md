@@ -10,13 +10,19 @@ scope.
 
 ## Discussion Thread Pass
 
-- [x] Initial post-open coordinator bootstrap completed.
-- [x] Internal QA / bug-hunter / security / premortem pass completed against
-  actual changed files.
-- [x] Premortem P0/P1 findings fixed before mapping.
+- [x] Discussion-thread pass completed
 - [x] External bot/human discussion-thread pass completed.
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1688#discussion_r3196349030 -> 0bc019fd0
+
+Disposition: FIXED
+Commit: 0bc019fd0
+Evidence: `.github/workflows/cd.yml` compares `release_manifest.json` `build_identity.git_sha` with the production tag commit; `tests/test_production_release_evidence_wiring.py::test_production_job_rejects_evidence_for_different_tag_commit` covers the stale-evidence failure mode. Follow-up hardening commit: 38676dde6.
+
+## Premortem Finding Dispositions
 
 ### Internal Premortem: production evidence artifact could belong to a different tag commit
 
