@@ -137,6 +137,7 @@ wire E4 carefully without treating it as semantic-cache approval.
 - `e7b72d4d9` - `test(evidence): close admission review gaps`
 - `3b0b4a497` - `fix(evidence): tighten admission decision validation`
 - `767747fed` - `test(evidence): cover admission fail-closed branches`
+- `38fe2b04d` - `fix(evidence): address admission review comments`
 
 ## Pre-push Checklist
 
@@ -192,6 +193,26 @@ Evidence: `tests/core/evidence/test_admission.py` mutates the returned `Admissio
 Disposition: FIXED
 Commit: 3b0b4a497
 Evidence: Cubic identified decision timestamp and `allow_degraded` validation risks; `core/evidence/admission.py` now validates `allow_degraded` as a strict bool and sets `AdmissionDecision.produced_at` from explicit `now`, while `tests/core/evidence/test_admission.py` covers both paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194605225 -> 3b0b4a497
+Disposition: FIXED
+Commit: 3b0b4a497
+Evidence: `core/evidence/admission.py` validates `AdmissionPolicy.allow_degraded` as strict bool, and `tests/core/evidence/test_admission.py` rejects non-bool truthy degraded policy values.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194605231 -> 3b0b4a497
+Disposition: FIXED
+Commit: 3b0b4a497
+Evidence: `core/evidence/admission.py` sets `AdmissionDecision.produced_at` from explicit decision `now`, and `tests/core/evidence/test_admission.py` covers decision-time output.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#pullrequestreview-4235246205 -> 38fe2b04d
+Disposition: FIXED
+Commit: 38fe2b04d
+Evidence: `core/evidence/admission.py` removes the unused promotion-decision import, and `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md` clarifies E4 as contract-level admission with runtime wiring deferred.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194694058 -> 38fe2b04d
+Disposition: FIXED
+Commit: 38fe2b04d
+Evidence: `core/evidence/admission.py` removes the unused `ALLOWED_PROMOTION_DECISIONS` import while preserving required promotion ledger imports.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194694074 -> 38fe2b04d
+Disposition: FIXED
+Commit: 38fe2b04d
+Evidence: `docs/roadmap/EVIDENCE_GRAPH_RUNTIME_EPIC.md` now states E4 produces deterministic contract-level blocking decisions and defers runtime integration to a separate wiring PR.
 
 ## Sidecar Review Findings
 
