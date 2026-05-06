@@ -125,7 +125,7 @@ Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669
 - Commit: af6d9c5c417de6c0c9e17ea3fa5e945213408507
-- Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`, and `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` passes with 9 tests.
+- Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`, and `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` passes with 11 tests.
 
 Disposition: FIXED
 
