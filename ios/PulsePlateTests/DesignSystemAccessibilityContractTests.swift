@@ -29,4 +29,16 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         XCTAssertEqual(PPButtonSize.md.minHeight, PPDesignTokens.Spacing.touchTarget)
         XCTAssertEqual(PPButtonSize.lg.minHeight, 48)
     }
+
+    func testShapeStyleThemeUsesDesignTokenFacade() {
+        XCTAssertEqual(Color.surface, PPDesignTokens.ColorToken.surface)
+        XCTAssertEqual(
+            Color.surfaceElevated,
+            PPDesignTokens.ColorToken.surfaceElevated
+        )
+        XCTAssertEqual(
+            Color.liquidGlass,
+            PPDesignTokens.ColorToken.liquidGlass
+        )
+    }
 }

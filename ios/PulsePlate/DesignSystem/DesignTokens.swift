@@ -25,6 +25,8 @@ enum PPDesignTokens {
         static let surfaceElevated = GeneratedDesignTokens.ColorToken.surfaceElevated
         static let surfaceHighlight = GeneratedDesignTokens.ColorToken.surfaceHighlight
         static let strokeSubtle = GeneratedDesignTokens.ColorToken.strokeSubtle
+        /// Alias for glass surfaces until `/tokens` promotes a dedicated liquid-glass token.
+        static let liquidGlass = surfaceElevated
 
         static let primary = GeneratedDesignTokens.ColorToken.primary
         static let primaryForeground = GeneratedDesignTokens.ColorToken.primaryForeground
