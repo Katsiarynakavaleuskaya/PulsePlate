@@ -147,6 +147,23 @@ validate-changed: ## Run tests inferred from changed Python files
 	VENV_PYTHON="$(DEV_PYTHON)" BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh
 	@echo "$(GREEN)✅ Diff-based validation completed$(NC)"
 
+pr-start: ## Start a governed PR lane in an isolated worktree
+	@test -n "$$GOAL" || (printf "$(RED)❌ Set GOAL='<task goal>'.$(NC)\n" && exit 2)
+	@test -n "$$TASK_CLASS" || (printf "$(RED)❌ Set TASK_CLASS='<task class>'.$(NC)\n" && exit 2)
+	@test -n "$$BRANCH" || (printf "$(RED)❌ Set BRANCH='codex/<slug>'.$(NC)\n" && exit 2)
+	@test -n "$$WORKTREE" || (printf "$(RED)❌ Set WORKTREE='worktrees/<slug>'.$(NC)\n" && exit 2)
+	@bash scripts/orchestration/start_pr_lane.sh \
+		--goal "$$GOAL" \
+		--task-class "$$TASK_CLASS" \
+		--branch "$$BRANCH" \
+		--worktree "$$WORKTREE" \
+		$${PATH_ARGS:-} \
+		$${REQUESTED_AGENT_ARGS:-} \
+		$${PLUGIN_ARGS:-} \
+		$${PR_PHASE:+--pr-phase "$$PR_PHASE"} \
+		$${BASE_REF:+--base "$$BASE_REF"} \
+		$${DRY_RUN:+--dry-run}
+
 pr-regression-scan: ## Run temporary PR regression scan (focused + full/main-suite fallback + current-head check)
 	@bash scripts/ci/pr_regression_scan.sh "$${PR_NUMBER:-}" "$${REPO:-$${REPO_NAME:-}}"
 
@@ -583,4 +600,4 @@ dc-smoke: ## Verify tooling inside dev container
 	docker compose -f "$(DEVCONTAINER_COMPOSE)" run --rm devcontainer \
 		bash -lc "python3 --version && node --version && make --version"
 
-.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke
+.PHONY: all help venv venv-sync setup-automation dev test test-fast validate-min validate-changed pr-start pr-regression-scan cov cov-check cov-html lint fmt fmt-check security pre-commit quick-check auto-push safe-push feature sync-main status clean check-all fix-all ci smoke-auto smoke-8000 smoke-8001 docker-build docker-build-dev docker-run docker-run-dev docker-stop docker-clean docker-logs docker-shell bandit-full diff-cov typecheck verify verify-env openapi frontend-install openapi-check ios-test ios-snapshot ios-appstore-validate ios-appstore-upload ios-appstore-upload-privacy ios-appstore-verify icon-silhouette-lock icon-silhouette-check icon-core-validate design-guard tokens-build tokens-check design-validate design-execute design-verify design-list devcontainer-bootstrap dc-up dc-shell dc-down dc-smoke

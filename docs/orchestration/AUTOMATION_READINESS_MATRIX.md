@@ -43,13 +43,15 @@ new Codex session to start with bootstrap logic before the first response.
 
 Owned by repo-tracked scripts:
 
+- `scripts/orchestration/start_pr_lane.sh`
 - `scripts/orchestration/task_bootstrap.py`
 - `scripts/orchestration/skill_router.py`
 - `scripts/orchestration/native_subagent_bridge.py`
 - related deterministic tests
 
-This layer can provide canonical task packets and explainable routing once it is
-invoked, but it still depends on an execution surface calling it.
+This layer can create an operator-invoked PR lane worktree and provide
+canonical task packets plus explainable routing once it is invoked, but it
+still depends on an execution surface calling it.
 
 ### Local launcher / wrapper layer
 
@@ -61,6 +63,9 @@ Owned outside repo source of truth:
 
 Optional **repo companion** (operator-invoked only; not host auto-start):
 
+- `scripts/orchestration/start_pr_lane.sh` creates an isolated PR worktree, runs
+  analyze preflight, invokes `task_bootstrap.py`, and prints a non-blocking
+  plugin/runtime checklist when the operator explicitly runs it.
 - `scripts/orchestration/local_session_bootstrap.sh` runs `check_preflight.py --mode analyze` and prints the next step to invoke `task_bootstrap.py` (see script output and `--help`).
 
 This is the layer that can actually make coordinator-first bootstrap happen at
@@ -85,6 +90,7 @@ unconditionally guaranteed by Markdown alone.
 | Capability | Repo policy | Repo engine | Local launcher needed | Host/runtime dependency | Current truth |
 |------------|-------------|-------------|------------------------|-------------------------|---------------|
 | Coordinator-first task handling | Yes | Partial | Usually yes | Yes | Policy-required, not guaranteed raw-session auto-start |
+| PR lane worktree + bootstrap start | Yes | Yes | No for manual invocation; yes for raw-session auto-start | Low | Repo wrapper-enforced once `start_pr_lane.sh` is invoked |
 | Bootstrap task packet generation | Yes | Yes | No for manual invocation; yes for auto-start | Low | Deterministic once invoked |
 | Skill auto-selection | Yes | Yes | Yes for raw-session auto-start | Medium | Automatic after bootstrap, not at raw chat start |
 | Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
@@ -111,6 +117,8 @@ Current approved wording:
 - Coordinator-first is **policy-required**.
 - Manual `agent-coordinator` invocation remains mandatory when launcher/runtime
   auto-capture is unavailable.
+- PR lane worktree startup is **repo wrapper-enforced once invoked** through
+  `scripts/orchestration/start_pr_lane.sh`; it is not raw-session auto-start.
 - Bootstrap packet generation is **deterministic once invoked**.
 - Skill routing is **automatic after bootstrap**, not automatic at raw chat start.
 - Bug-hunter post-open pass is **deterministic once invoked** via
@@ -231,8 +239,9 @@ Out:
 
 Operator path today (repo companion, **not** a guarantee of raw-session auto-start):
 
-1. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147` runs analyze preflight and `scripts/orchestration/local_session_bootstrap.sh:154-166` renders the follow-up command without executing it. For flag-specific option handling, use the script's `--help` output.
-2. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
+1. `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>" --path "<scope>"` from a clean checkout synced with `origin/main` — creates the isolated PR worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the plugin/runtime checklist plus packet summary.
+2. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147` runs analyze preflight and `scripts/orchestration/local_session_bootstrap.sh:154-166` renders the follow-up command without executing it. For flag-specific option handling, use the script's `--help` output.
+3. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
 
 In:
 
@@ -242,6 +251,8 @@ In:
 
 Out:
 
+- host plugin installation or raw-session auto-start guarantees from repo
+  scripts alone.
 - repo source-of-truth mutation used as a substitute for launcher/runtime
   support.
 
