@@ -318,6 +318,26 @@ def test_block_on_malformed_json(tmp_path: Path) -> None:
     assert "malformed_rag_gate_result" in decision["reason_codes"]
 
 
+def test_empty_evidence_objects_are_invalid_not_allowed(tmp_path: Path) -> None:
+    manifest_path, rag_path, build_path = _write_evidence(
+        tmp_path,
+        manifest_payload={},
+        rag_payload={},
+        build_payload={},
+    )
+
+    decision = check_release_control_plane.check_release_control_plane_files(
+        release_manifest_path=manifest_path,
+        rag_gate_result_path=rag_path,
+        build_equivalence_path=build_path,
+    )
+
+    assert decision["decision"] == "BLOCK"
+    assert "invalid_release_manifest" in decision["reason_codes"]
+    assert "invalid_rag_gate_result" in decision["reason_codes"]
+    assert "invalid_build_equivalence" in decision["reason_codes"]
+
+
 def test_block_on_invalid_digest_format(tmp_path: Path) -> None:
     manifest_payload, rag_payload = _build_manifest(tmp_path)
     manifest_payload["supply_chain_identity"] = dict(manifest_payload["supply_chain_identity"])
@@ -438,6 +458,35 @@ def test_output_json_is_deterministic(tmp_path: Path) -> None:
     assert first_output.read_text(encoding="utf-8").endswith("\n")
 
 
+def test_schema_allows_raw_malformed_summary_values_for_block_outputs(tmp_path: Path) -> None:
+    schema = json.loads(
+        (REPO_ROOT / "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest_payload, rag_payload = _build_manifest(tmp_path)
+    rag_payload["release_decision"] = "MALFORMED"
+    build_payload = _build_equivalence_result(manifest_payload)
+    build_payload["decision"] = "MAYBE"
+    manifest_payload["supply_chain_identity"] = dict(manifest_payload["supply_chain_identity"])
+    manifest_payload["supply_chain_identity"]["attestation_status"] = "BROKEN"
+
+    decision = _decision(
+        tmp_path,
+        manifest_payload=manifest_payload,
+        rag_payload=rag_payload,
+        build_payload=build_payload,
+    )
+
+    assert decision["decision"] == "BLOCK"
+    assert decision["build_equivalence_decision"] == "MAYBE"
+    assert decision["rag_gate_decision"] == "MALFORMED"
+    assert decision["attestation_status"] == "BROKEN"
+    assert schema["properties"]["build_equivalence_decision"] == {"type": ["string", "null"]}
+    assert schema["properties"]["rag_gate_decision"] == {"type": ["string", "null"]}
+    assert schema["properties"]["attestation_status"] == {"type": ["string", "null"]}
+
+
 def test_cli_writes_json_and_markdown_outputs(tmp_path: Path, capsys) -> None:
     manifest_path, rag_path, build_path = _write_evidence(tmp_path)
     json_out = tmp_path / "gate.json"
@@ -464,6 +513,8 @@ def test_cli_writes_json_and_markdown_outputs(tmp_path: Path, capsys) -> None:
     assert "- Decision: `ALLOW`" in markdown_out.read_text(encoding="utf-8")
 
 
+# These workflow/docs assertions intentionally guard PR-5 textual integration
+# points. If the workflow contract grows, migrate them to YAML/schema parsing.
 def test_workflow_integration_does_not_require_app_store_secrets() -> None:
     workflow = (REPO_ROOT / ".github/workflows/cd.yml").read_text(encoding="utf-8")
     marker = "release-control-plane-fixture-gate:"

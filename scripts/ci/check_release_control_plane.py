@@ -292,11 +292,11 @@ def _cross_evidence_findings(
     build_equivalence_payload: dict[str, Any] | None,
 ) -> list[Finding]:
     findings: list[Finding] = []
-    if not manifest_payload:
+    if manifest_payload is None:
         return findings
 
     manifest_hash = manifest_payload.get("release_manifest_hash")
-    if build_equivalence_payload:
+    if build_equivalence_payload is not None:
         build_manifest_hash = build_equivalence_payload.get("release_manifest_hash")
         if manifest_hash != build_manifest_hash:
             findings.append(
@@ -316,7 +316,7 @@ def _cross_evidence_findings(
             )
         )
 
-    if not rag_payload or not isinstance(ml_identity, dict):
+    if rag_payload is None or not isinstance(ml_identity, dict):
         return findings
 
     hash_pairs = (
@@ -376,11 +376,11 @@ def build_release_control_plane_decision(
     """Return a deterministic fail-closed release-control-plane decision."""
 
     findings = list(load_findings or [])
-    if release_manifest_payload:
+    if release_manifest_payload is not None:
         findings.extend(_validate_release_manifest(release_manifest_payload))
-    if rag_gate_result_payload:
+    if rag_gate_result_payload is not None:
         findings.extend(_validate_rag_gate_result(rag_gate_result_payload))
-    if build_equivalence_payload:
+    if build_equivalence_payload is not None:
         findings.extend(_validate_build_equivalence_result(build_equivalence_payload))
     findings.extend(
         _cross_evidence_findings(
@@ -392,13 +392,13 @@ def build_release_control_plane_decision(
 
     reason_codes = _stable_reason_codes(findings)
     manifest_hash = None
-    if release_manifest_payload:
+    if release_manifest_payload is not None:
         value = release_manifest_payload.get("release_manifest_hash")
         if isinstance(value, str) and release_manifest.SHA256_HEX_RE.fullmatch(value):
             manifest_hash = value
 
     supply_chain_identity = {}
-    if release_manifest_payload and isinstance(
+    if release_manifest_payload is not None and isinstance(
         release_manifest_payload.get("supply_chain_identity"), dict
     ):
         supply_chain_identity = release_manifest_payload["supply_chain_identity"]

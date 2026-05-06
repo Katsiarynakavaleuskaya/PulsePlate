@@ -50,6 +50,10 @@ The JSON output is stable sorted JSON with a trailing newline and contains:
 - `attestation_status`
 - `tool_version`
 
+The summary fields preserve the raw upstream string when malformed evidence is
+present so blocked CI artifacts can show the exact bad value that caused the
+failure.
+
 Schema: [`RELEASE_CONTROL_PLANE_CI_GATE.schema.json`](RELEASE_CONTROL_PLANE_CI_GATE.schema.json).
 
 ## Allow Rule

@@ -112,35 +112,18 @@
       "type": [
         "string",
         "null"
-      ],
-      "enum": [
-        "EQUIVALENT",
-        "BLOCK",
-        null
       ]
     },
     "rag_gate_decision": {
       "type": [
         "string",
         "null"
-      ],
-      "enum": [
-        "PASS",
-        "NO-GO",
-        null
       ]
     },
     "attestation_status": {
       "type": [
         "string",
         "null"
-      ],
-      "enum": [
-        "VERIFIED",
-        "FAILED",
-        "MISSING",
-        "PENDING",
-        null
       ]
     },
     "tool_version": {
