@@ -61,9 +61,10 @@ Premortem reviewed actual code/docs/tests diff.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1683#discussion_r3195503186 -> 0f97f4ec7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1683#discussion_r3195503198 -> 0f97f4ec7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1683#discussion_r3195537356 -> 1ca9cab4c
 Disposition: FIXED
-Commit: 0f97f4ec7
-Evidence: `scripts/design/screen_evidence_pack.py` guards malformed component ids and negated source-of-truth wording; `tests/design/test_screen_evidence_pack.py` covers both regressions.
+Commit: 0f97f4ec7; 1ca9cab4c
+Evidence: `scripts/design/screen_evidence_pack.py` guards malformed component ids and negated source-of-truth wording; `tests/design/test_screen_evidence_pack.py` covers both regressions; `docs/review/PR_1683_FIXED_MAPPING.md` uses portable repo-relative evidence commands.
 
 ## Internal Premortem Fixes
 
