@@ -193,6 +193,10 @@ Evidence: `tests/core/evidence/test_admission.py` mutates the returned `Admissio
 Disposition: FIXED
 Commit: 3b0b4a497
 Evidence: Cubic identified decision timestamp and `allow_degraded` validation risks; `core/evidence/admission.py` now validates `allow_degraded` as a strict bool and sets `AdmissionDecision.produced_at` from explicit `now`, while `tests/core/evidence/test_admission.py` covers both paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194572157 -> 3b0b4a497
+Disposition: FIXED
+Commit: 3b0b4a497
+Evidence: `core/evidence/admission.py` rejects non-bool `AdmissionPolicy.allow_degraded`, and `tests/core/evidence/test_admission.py` covers string truthy degraded policy rejection.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194605225 -> 3b0b4a497
 Disposition: FIXED
 Commit: 3b0b4a497
