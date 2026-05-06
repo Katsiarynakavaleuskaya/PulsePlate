@@ -63,6 +63,7 @@ def _load_components(repo_root: Path) -> list[dict[str, object]]:
     if not isinstance(data, list):
         raise ValueError(f"{VOCABULARY_PATH} must contain a JSON array")
     components: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
     for item in data:
         if not isinstance(item, dict):
             raise ValueError(f"{VOCABULARY_PATH} entries must be objects")
@@ -70,6 +71,9 @@ def _load_components(repo_root: Path) -> list[dict[str, object]]:
         canonical_name = item.get("canonical_name")
         if not isinstance(component_id, str) or not isinstance(canonical_name, str):
             raise ValueError("component vocabulary entries require string id and canonical_name")
+        if component_id in seen_ids:
+            raise ValueError(f"duplicate component id in {VOCABULARY_PATH}: {component_id}")
+        seen_ids.add(component_id)
         components.append(item)
     return sorted(components, key=lambda item: str(item["id"]))
 

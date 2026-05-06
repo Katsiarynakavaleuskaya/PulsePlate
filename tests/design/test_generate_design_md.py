@@ -1,20 +1,19 @@
 from __future__ import annotations
 
-import importlib.util
+import json
+import runpy
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = REPO_ROOT / "scripts/design/generate_design_md.py"
 
 
-def load_generator_module():
-    spec = importlib.util.spec_from_file_location("generate_design_md", MODULE_PATH)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def load_generator_module() -> SimpleNamespace:
+    return SimpleNamespace(**runpy.run_path(str(MODULE_PATH)))
 
 
 def make_temp_repo(tmp_path: Path) -> Path:
@@ -61,6 +60,18 @@ def test_generated_design_md_includes_canonical_component_vocabulary():
         "| select | select | existing-runtime-detected | "
         "`frontend/src/components/ui/Select.tsx` |"
     ) in output
+
+
+def test_duplicate_component_ids_fail_closed(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    vocabulary.append(dict(vocabulary[0]))
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="duplicate component id"):
+        module.render_design_md(repo_root)
 
 
 def test_generated_design_md_classifies_automation_as_internal_modules():
