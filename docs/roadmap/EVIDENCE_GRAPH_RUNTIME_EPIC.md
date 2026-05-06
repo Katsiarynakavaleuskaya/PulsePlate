@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # PulsePlate Evidence Graph Runtime Epic
 
-**Status:** PR-E3 promotion ledger and replay scaffold
+**Status:** PR-E4 active metadata admission gates
 **Date:** 2026-04-28 (`America/New_York`)
 **Canonical backlog anchor:** [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime)
 
@@ -89,9 +89,11 @@ for later slices.
      `allow_serve` using stale-upstream, policy, degraded-reason, fallback-rate,
      coverage, verification, and fingerprint checks.
    - Depends on PR-E1, PR-E2, and PR-E3.
-   - No LLM call or hidden bypass flag.
-   - Done when admission can block promotion before writes and all blocking
-     reasons are deterministic and test-covered.
+   - No LLM call, hidden bypass flag, runtime writer, semantic cache, GraphRAG,
+     or advisory-wiki authority.
+   - Done when the contract can produce deterministic non-allowing decisions
+     for execute/promote/serve candidates before any side effect; runtime
+     integration remains deferred to a separate wiring PR.
 
 5. **PR-E5: Advisory wiki evidence bridge**
    - Backlog owner: [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime).
@@ -119,6 +121,9 @@ After PR-E1 + PR-E2:
 
 After PR-E1 + PR-E2 + PR-E3:
   PR-E4 active metadata admission
+
+After PR-E4:
+  PR-E5 advisory wiki evidence bridge
 ```
 
 ## Hard Boundaries
