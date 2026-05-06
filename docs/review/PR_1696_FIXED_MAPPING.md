@@ -5,6 +5,8 @@ Canonical fixed/disposition mapping for
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] PR opened; no human or bot review threads were present when this artifact
   was created.
 - [x] Post-open review bootstrap packet generated:
@@ -15,7 +17,7 @@ Canonical fixed/disposition mapping for
 
 ## Fixed in Commit Mapping
 
-No review threads yet.
+- No actionable review comments
 
 ## Merge Readiness
 
