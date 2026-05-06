@@ -12,6 +12,7 @@ Fixes the BMI guard false positive where `normalized_score >= 0.85` in design sc
 
 - Guard context matching made token-aware and separator-aware: `8f7b2e11b`
 - Regression coverage for design scorecard `normalized_score` false positive and real BMI/WHR threshold examples: `f82ade615`
+- Sourcery mixed-case / number-before-context BMI regression coverage: `843b66c1e`
 
 ## Review Dispositions
 
@@ -27,6 +28,12 @@ Fixes the BMI guard false positive where `normalized_score >= 0.85` in design sc
 - Disposition: FIXED
 - Commit: `f82ade615`
 - Evidence: focused regression cases in `tests/test_no_bmi_math_outside_core.py`.
+
+## Bot Review Findings
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-3449071804 -> `843b66c1e`
+  - Disposition: FIXED
+  - Evidence: `tests/test_no_bmi_math_outside_core.py` adds number-before-context and mixed-case BMI threshold examples.
 
 ## Validation
 
