@@ -4,17 +4,17 @@ import SwiftUI
 extension ShapeStyle where Self == Color {
     /// Surface color for cards and containers (light overlay on navy background)
     static var surface: Color {
-        Color.white.opacity(0.08)
+        PPDesignTokens.ColorToken.surface
     }
 
     /// Elevated surface color for floating elements
     static var surfaceElevated: Color {
-        Color.white.opacity(0.12)
+        PPDesignTokens.ColorToken.surfaceElevated
     }
 
     /// Liquid glass effect for glassmorphism UI
     static var liquidGlass: Color {
-        Color.white.opacity(0.15)
+        PPDesignTokens.ColorToken.surfaceElevated
     }
 }
 

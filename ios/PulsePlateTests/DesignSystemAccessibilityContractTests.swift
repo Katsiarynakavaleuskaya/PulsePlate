@@ -29,4 +29,17 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         XCTAssertEqual(PPButtonSize.md.minHeight, PPDesignTokens.Spacing.touchTarget)
         XCTAssertEqual(PPButtonSize.lg.minHeight, 48)
     }
+
+    func testShapeStyleThemeUsesDesignTokenFacade() throws {
+        let repoRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let themePath = repoRoot
+            .appendingPathComponent("PulsePlate/Extensions/ShapeStyle+Theme.swift")
+        let source = try String(contentsOf: themePath, encoding: .utf8)
+
+        XCTAssertTrue(source.contains("PPDesignTokens.ColorToken.surface"))
+        XCTAssertTrue(source.contains("PPDesignTokens.ColorToken.surfaceElevated"))
+        XCTAssertFalse(source.contains("Color.white.opacity("))
+    }
 }
