@@ -46,8 +46,16 @@ from core.evidence.replay import (
     PromotionReplaySummary,
     dry_run_replay,
 )
+from core.evidence.wiki_bridge import (
+    AdvisoryWikiArtifactRef,
+    WikiEvidenceBridgePolicy,
+    create_advisory_wiki_artifact_ref,
+    wiki_artifact_to_admission_input,
+    wiki_artifact_to_evidence_asset_ref,
+)
 
 __all__ = [
+    "AdvisoryWikiArtifactRef",
     "AdmissionAction",
     "AdmissionDecision",
     "AdmissionInput",
@@ -65,10 +73,12 @@ __all__ = [
     "PromotionReplaySummary",
     "Rail",
     "ValidationStatus",
+    "WikiEvidenceBridgePolicy",
     "admission_input_from_eval_event",
     "admission_input_from_ledger_entry",
     "build_asset_id",
     "build_idempotency_key",
+    "create_advisory_wiki_artifact_ref",
     "create_evidence_asset_ref",
     "create_eval_event",
     "create_promotion_ledger_entry",
@@ -78,4 +88,6 @@ __all__ = [
     "decide_allow_serve",
     "dry_run_replay",
     "fingerprint_payload",
+    "wiki_artifact_to_admission_input",
+    "wiki_artifact_to_evidence_asset_ref",
 ]
