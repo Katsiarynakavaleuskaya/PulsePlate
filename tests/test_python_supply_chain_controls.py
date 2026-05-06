@@ -393,6 +393,26 @@ def test_frontend_ci_workflow_uses_ci_lite_python_setup() -> None:
             assert expected_path in event_paths
 
 
+def test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build() -> None:
+    build_step = _workflow_step_by_name(
+        ".github/workflows/frontend-ci.yml",
+        "build-and-test",
+        "Build frontend",
+    )
+    build_env = build_step.get("env")
+    vite_config = (REPO_ROOT / "frontend" / "vite.config.ts").read_text(encoding="utf-8")
+
+    assert isinstance(build_env, dict)
+    assert "CODECOV_TOKEN" not in build_env
+    assert "secrets.CODECOV_TOKEN" not in str(build_step)
+    assert build_env["CODECOV_BUNDLE_ANALYSIS"] == (
+        "${{ github.event_name == 'push' && github.ref == "
+        "'refs/heads/main' && 'true' || 'false' }}"
+    )
+    assert "uploadToken" not in vite_config
+    assert "process.env.CODECOV_TOKEN" not in vite_config
+
+
 def test_test_dependency_profile_is_split_from_dev_tooling() -> None:
     requirements_test = (REPO_ROOT / "requirements-test.txt").read_text(encoding="utf-8")
 
