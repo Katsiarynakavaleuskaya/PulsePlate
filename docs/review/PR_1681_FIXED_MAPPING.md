@@ -71,6 +71,14 @@ Also passed during pre-push:
 - full-repo Bandit
 - Docker build test
 
+Also passed after diff-coverage remediation:
+
+```bash
+rm -f .coverage coverage.xml && .venv/bin/python -m coverage run -m pytest -q tests/core/evidence/test_wiki_bridge.py && .venv/bin/python -m coverage xml -o coverage.xml && .venv/bin/diff-cover coverage.xml --compare-branch origin/main --fail-under 97 --exclude 'tests/**' --exclude '*.md' --exclude '*.yml' --exclude '*.yaml' --exclude '*.toml' --exclude '*.txt'
+```
+
+Result: `core/evidence/wiki_bridge.py` diff coverage 97.2%.
+
 Full `make verify` was intentionally not run under the operator-approved
 machine-heavy exception.
 
@@ -112,6 +120,9 @@ machine-heavy exception.
   the advisory `EvidenceAssetRef` identity instead of the source wiki artifact
   identity. Evidence: `core/evidence/wiki_bridge.py`; regression tests in
   `tests/core/evidence/test_wiki_bridge.py`.
+- Diff-coverage regression risk: fixed by adding branch coverage for policy,
+  constructor, helper type/path, metadata recursion, and artifact mapping guard
+  branches in `tests/core/evidence/test_wiki_bridge.py`.
 - Numeric authority-claim risk: fixed by treating truthy numeric authority
   metadata as a forbidden authority claim. Evidence:
   `core/evidence/wiki_bridge.py`; regression test in
@@ -154,6 +165,8 @@ advisory review/query/promotion workflows only.
 - `85154507f` - `fix(evidence): enforce wiki artifact identity`
 - `2c09b8a32` - `fix(evidence): target wiki admission assets`
 - `b7efbfa2d` - `docs(agents): update instructions`
+- `ccb5c0630` - `docs(review): map PR 1681 review threads`
+- `7bc213ff4` - `test(evidence): cover wiki bridge guards`
 
 ## Pre-push checklist
 
