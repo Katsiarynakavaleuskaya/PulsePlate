@@ -44,15 +44,24 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 
 ## Review Threads
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4234981793 -> `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504 -> `d9f5b7a661c8428ff3761076229d458a734ea07c`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235004898 -> `a8f652d2c144080187c807de3732656ebbdaf844`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908 -> `a8f652d2c144080187c807de3732656ebbdaf844`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235063205 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533935 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235137212 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
 
 ## Fixed in Commit Mapping
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4234981793 -> af6d9c5c417de6c0c9e17ea3fa5e945213408507
+Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+Evidence: Sourcery review contained one testing suggestion, fixed by adding the missing DESIGN.md `--check` failure test.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> af6d9c5c417de6c0c9e17ea3fa5e945213408507
@@ -65,9 +74,19 @@ Commit: `d9f5b7a661c8428ff3761076229d458a734ea07c`
 Evidence: `tests/design/test_generate_design_md.py` runs `module.run(["--check"], repo_root=REPO_ROOT)` against the committed repo file.
 
 Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235004898 -> a8f652d2c144080187c807de3732656ebbdaf844
+Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
+Evidence: Cubic review contained one component-table accuracy issue, fixed by adding deterministic runtime repo evidence for known UI primitives.
+
+Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908 -> a8f652d2c144080187c807de3732656ebbdaf844
 Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
 Evidence: `scripts/design/generate_design_md.py` now combines vocabulary metadata with deterministic repo evidence for known UI primitives.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235063205 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
+Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Evidence: CodeRabbit actionable review items were fixed across mapping checkboxes, ledger PR traceability, forbidden dynamic import removal, and duplicate component-id hardening.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
@@ -83,6 +102,11 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
 Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 Evidence: `tests/design/test_generate_design_md.py` uses `runpy.run_path` and a `SimpleNamespace` wrapper instead of forbidden dynamic import helpers.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235137212 -> fc3a8aec35f468b5a827af0125a88b2d8ff95070
+Commit: `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+Evidence: Cubic review contained one declared-path trust issue, fixed by verifying declared component paths before accepting them as repo evidence.
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> fc3a8aec35f468b5a827af0125a88b2d8ff95070
