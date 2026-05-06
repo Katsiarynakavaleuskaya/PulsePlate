@@ -135,6 +135,7 @@ wire E4 carefully without treating it as semantic-cache approval.
 - `79dbda67a` - `feat(evidence): add active metadata admission gates`
 - `1fff9eae9` - `docs(review): add PR 1678 fixed mapping`
 - `e7b72d4d9` - `test(evidence): close admission review gaps`
+- `3b0b4a497` - `fix(evidence): tighten admission decision validation`
 
 ## Pre-push Checklist
 
@@ -186,6 +187,10 @@ merge readiness.
 Disposition: FIXED
 Commit: e7b72d4d9
 Evidence: `tests/core/evidence/test_admission.py` mutates the returned `AdmissionInput.metadata` view and asserts subsequent reads are unchanged.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#pullrequestreview-4235145977 -> 3b0b4a497
+Disposition: FIXED
+Commit: 3b0b4a497
+Evidence: Cubic identified decision timestamp and `allow_degraded` validation risks; `core/evidence/admission.py` now validates `allow_degraded` as a strict bool and sets `AdmissionDecision.produced_at` from explicit `now`, while `tests/core/evidence/test_admission.py` covers both paths.
 
 ## Sidecar Review Findings
 
