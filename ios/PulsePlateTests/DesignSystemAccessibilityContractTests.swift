@@ -30,16 +30,15 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
         XCTAssertEqual(PPButtonSize.lg.minHeight, 48)
     }
 
-    func testShapeStyleThemeUsesDesignTokenFacade() throws {
-        let repoRoot = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let themePath = repoRoot
-            .appendingPathComponent("PulsePlate/Extensions/ShapeStyle+Theme.swift")
-        let source = try String(contentsOf: themePath, encoding: .utf8)
-
-        XCTAssertTrue(source.contains("PPDesignTokens.ColorToken.surface"))
-        XCTAssertTrue(source.contains("PPDesignTokens.ColorToken.surfaceElevated"))
-        XCTAssertFalse(source.contains("Color.white.opacity("))
+    func testShapeStyleThemeUsesDesignTokenFacade() {
+        XCTAssertEqual(String(describing: Color.surface), String(describing: PPDesignTokens.ColorToken.surface))
+        XCTAssertEqual(
+            String(describing: Color.surfaceElevated),
+            String(describing: PPDesignTokens.ColorToken.surfaceElevated)
+        )
+        XCTAssertEqual(
+            String(describing: Color.liquidGlass),
+            String(describing: PPDesignTokens.ColorToken.surfaceElevated)
+        )
     }
 }

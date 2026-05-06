@@ -12,7 +12,10 @@ extension ShapeStyle where Self == Color {
         PPDesignTokens.ColorToken.surfaceElevated
     }
 
-    /// Liquid glass effect for glassmorphism UI
+    /// Liquid glass effect for glassmorphism UI.
+    ///
+    /// Until `/tokens` promotes a dedicated liquid-glass token, reuse the
+    /// elevated surface token so iOS does not carry a separate opacity source.
     static var liquidGlass: Color {
         PPDesignTokens.ColorToken.surfaceElevated
     }
