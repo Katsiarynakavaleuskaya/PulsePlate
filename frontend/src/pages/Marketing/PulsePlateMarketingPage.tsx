@@ -24,7 +24,7 @@ export default function PulsePlateMarketingPage(): JSX.Element {
     }, []);
 
     return (
-        <main className="ppm-page">
+        <main className="ppm-page" data-testid="marketing-page">
             <HeroSection />
             <ProductStatusBand />
             <HowItWorksSection />
