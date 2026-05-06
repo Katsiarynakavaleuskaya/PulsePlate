@@ -495,3 +495,12 @@ def test_ledger_marks_pr4_merged_and_pr5_active() -> None:
     assert "PR-5 is active on branch `release/release-control-plane-pr5-ci-gates`" in ledger
     assert "Future protected upload and App Store Connect execution remain out of scope" in ledger
     assert "full App Store readiness is not complete" in ledger
+
+
+def test_pr1682_premortem_artifact_has_no_unresolved_p0_p1_findings() -> None:
+    premortem = (REPO_ROOT / "docs/review/PR_1682_PREMORTEM.md").read_text(encoding="utf-8")
+
+    assert "Unresolved P0/P1: none." in premortem
+    assert "scripts/ci/check_release_control_plane.py" in premortem
+    assert "tests/test_release_control_plane_ci_gate.py" in premortem
+    assert ".github/workflows/cd.yml" in premortem
