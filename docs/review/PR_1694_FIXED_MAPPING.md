@@ -26,6 +26,7 @@ Commit: see mapping entries below
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239225856 -> 2d9b232b3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239299983 -> 2d9b232b3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239369796 -> 97d1109aa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239392668 -> 97d1109aa
 
 ## Review Dispositions
 
@@ -37,6 +38,9 @@ Commit: see mapping entries below
   - Evidence: `ios/PulsePlate/Extensions/ShapeStyle+Theme.swift` documents that `liquidGlass` intentionally reuses `PPDesignTokens.ColorToken.surfaceElevated` until `/tokens` promotes a dedicated liquid-glass token.
 - Cubic review: NOT-A-BUG.
   - Evidence: cubic reported no issues at commit `1e65f0d1d2c02b883515225b342c32c4fa01b11b`.
+- Cubic finding: FIXED.
+  - Commit: `97d1109aa`
+  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` now compares `Color` values directly instead of comparing `String(describing:)` output.
 - CodeRabbit finding: FIXED.
   - Commit: `2d9b232b3`
   - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` no longer uses substring source scans, so the previous exact-token matching concern is obsolete through the public API test rewrite.
