@@ -101,9 +101,9 @@ changes.
 | PR-0 | `release/release-control-plane-pr0-bootstrap` | Epic, packet, C4 release-risk context, ledger anchor | docs/ledger validation and repo policy guards |
 | PR-1 | `release/release-control-plane-pr1-reviewer-hash` | Reviewer-packet hash contract consuming App Store readiness artifacts | reviewer hash schema tests and Fastlane artifact-name discovery |
 | PR-2 | `release/release-control-plane-pr2-rag-gate-export` | RAG/ML gate result export contract over the existing eval runner | gate-result schema tests |
-| PR-3 | `release/release-control-plane-pr3-release-manifest` | Release manifest generator and validator | manifest validator tests |
-| PR-4 | `release/release-control-plane-pr4-build-equivalence` | Review build equals production-candidate equivalence check | equivalence tests |
-| PR-5 | `release/release-control-plane-pr5-ci-gates` | CI integration for release packet, gate result, SBOM/provenance references, and fail-closed decision | focused CI/workflow contract tests |
+| PR-3 | `release/release-control-plane-pr3-release-manifest` | Release manifest generator and validator, merged as PR #1605 | manifest validator tests |
+| PR-4 | `release/release-control-plane-pr4-build-equivalence` | Active review build equals production-candidate equivalence check | equivalence tests |
+| PR-5 | `release/release-control-plane-pr5-ci-gates` | Deferred CI integration for release packet, gate result, SBOM/provenance references, and fail-closed decision | focused CI/workflow contract tests |
 
 ## Release Packet Contract
 
@@ -196,6 +196,27 @@ required identity groups are complete, RAG gate result is `PASS`, supply-chain
 digests are valid OCI `sha256:<hex>` values, and `attestation_status` is
 `VERIFIED`; otherwise it is `BLOCK` with deterministic `decision_reasons`.
 
+### PR-4 Build Equivalence Contract
+
+PR-4 defines an internal deterministic checker that compares App Review build
+identity and production-candidate build identity against the PR-3
+`release-manifest.v1` contract. The machine-readable schema and field contract
+live in
+[`docs/release/BUILD_EQUIVALENCE_CONTRACT.md`](../release/BUILD_EQUIVALENCE_CONTRACT.md)
+and
+[`docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json`](../release/BUILD_EQUIVALENCE_CONTRACT.schema.json).
+
+The deterministic helper is `scripts/release/build_equivalence.py`. It consumes
+explicit review-build identity, production-candidate identity, and release
+manifest JSON paths. It compares build identity, artifact digest,
+`release_manifest_hash`, and optional reviewer, ML, and supply-chain identity
+snapshots when present. It returns `EQUIVALENT` only when all required fields
+match; otherwise it returns `BLOCK` with deterministic `reason_codes` and
+`mismatch_details`. PR-4 does not add GitHub Actions enforcement, protected App
+Store upload automation, Fastlane mutation, runtime behavior, OpenAPI changes,
+RAG behavior changes, semantic cache, or product-facing behavior. PR-5 remains
+the deferred CI fail-closed enforcement slice.
+
 ## Bootstrap Commands
 
 Run from synced root before each slice:
@@ -249,7 +270,7 @@ Focused gates by future slice:
   `pytest -q tests/test_release_reviewer_packet_hashes.py`
 - RAG gate export: `pytest -q tests/test_rag_release_gates_runner.py`
 - release manifest: `pytest -q tests/test_release_manifest.py`
-- build equivalence: review/prod digest mismatch tests
+- build equivalence: `pytest -q tests/test_build_equivalence.py`
 - supply chain: `pytest -q tests/test_check_docker_provenance_attestation.py tests/test_python_supply_chain_controls.py`
 
 Full `make verify` remains the default before readiness claims unless the
