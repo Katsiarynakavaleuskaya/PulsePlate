@@ -91,6 +91,10 @@ machine-heavy exception.
   asset mapping, and docs.
 - Local support-plane import risk: fixed by AST import guard.
 - Runtime rail mapping risk: fixed by hardcoded advisory rail.
+- Runtime upstream leakage risk: fixed by validating wiki artifact upstream IDs
+  against advisory rail policy before asset/admission mapping. Evidence:
+  `core/evidence/wiki_bridge.py`; regression test in
+  `tests/core/evidence/test_wiki_bridge.py`.
 - E1/E4 bypass risk: fixed by using `create_evidence_asset_ref` and
   `AdmissionInput`.
 - Semantic cache scope drift: fixed by explicit docs/backlog deferral.
@@ -99,7 +103,14 @@ machine-heavy exception.
   `memoryview` before generic sequence handling. Evidence:
   `core/evidence/wiki_bridge.py`; regression tests in
   `tests/core/evidence/test_wiki_bridge.py`.
+- Numeric authority-claim risk: fixed by treating truthy numeric authority
+  metadata as a forbidden authority claim. Evidence:
+  `core/evidence/wiki_bridge.py`; regression test in
+  `tests/core/evidence/test_wiki_bridge.py`.
 - Path traversal/current-directory risk: fixed by path safety checks and tests.
+- URI and drive-relative path risk: fixed by rejecting URI schemes and
+  drive-qualified first path segments. Evidence: `core/evidence/wiki_bridge.py`;
+  regression tests in `tests/core/evidence/test_wiki_bridge.py`.
 - Mutation risk: fixed by defensive-copy tests.
 - Checklist-only risk: code/tests/docs were changed before this mapping artifact.
 
@@ -130,6 +141,7 @@ advisory review/query/promotion workflows only.
 
 - `e2b067db4` - `feat(evidence): add advisory wiki bridge`
 - `f7b04d1e5` - `fix(evidence): reject byte-like wiki metadata`
+- `c5cd925a9` - `fix(evidence): harden wiki bridge safety checks`
 
 ## Pre-push checklist
 
