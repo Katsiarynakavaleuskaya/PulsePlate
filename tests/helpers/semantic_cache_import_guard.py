@@ -33,20 +33,18 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
             and node.func.id == "__import__"
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
         ):
-            imports.append(node.args[0].value)
+            name = _constant_string_argument(node)
+            if name is not None:
+                imports.append(name)
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
             and node.func.attr == "import_module"
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
         ):
-            imports.append(node.args[0].value)
+            name = _constant_string_argument(node)
+            if name is not None:
+                imports.append(name)
 
     offenders = [
         name
@@ -57,3 +55,16 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
         )
     ]
     assert offenders == []
+
+
+def _constant_string_argument(node: ast.Call) -> str | None:
+    if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
+        return node.args[0].value
+
+    for keyword in node.keywords:
+        if keyword.arg == "name" and isinstance(keyword.value, ast.Constant):
+            value = keyword.value.value
+            if isinstance(value, str):
+                return value
+
+    return None

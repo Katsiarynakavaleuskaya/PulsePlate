@@ -241,6 +241,24 @@ def test_checker_fails_if_advisory_wiki_is_product_cache_source(tmp_path: Path) 
     assert "forbidden semantic-cache claim: advisory wiki feeds product cache" in result.stderr
 
 
+@pytest.mark.parametrize(
+    "claim",
+    [
+        "Cache raw prompts.",
+        "Cache raw model responses.",
+    ],
+)
+def test_checker_fails_if_doc_allows_raw_prompt_or_response_cache(
+    tmp_path: Path, claim: str
+) -> None:
+    doc = _write_doc(tmp_path, _valid_doc() + f"\n{claim}\n")
+
+    result = _run_checker(doc)
+
+    assert result.returncode == 1
+    assert "forbidden semantic-cache claim" in result.stderr
+
+
 def test_checker_fails_if_rollout_order_is_missing(tmp_path: Path) -> None:
     doc = _write_doc(
         tmp_path,
@@ -305,3 +323,16 @@ def test_checker_fails_if_rollout_contract_contains_dangerous_claim(tmp_path: Pa
 
 def test_checker_has_no_runtime_provider_cache_or_eval_imports() -> None:
     assert_no_forbidden_semantic_cache_imports(CHECKER)
+
+
+def test_import_guard_rejects_keyword_argument_dynamic_import(tmp_path: Path) -> None:
+    guarded_file = tmp_path / "guarded.py"
+    guarded_file.write_text(
+        "import importlib\n"
+        "__import__(name='providers')\n"
+        "importlib.import_module(name='redis')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError):
+        assert_no_forbidden_semantic_cache_imports(guarded_file)
