@@ -21,24 +21,29 @@ disposition evidence before threads are resolved.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#discussion_r3194102477 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#discussion_r3194102477 -> 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Disposition: FIXED
-Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Commit: 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses present-tense `Figma/Canva remain reference-only`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#pullrequestreview-4234555177 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#pullrequestreview-4234555177 -> 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Disposition: FIXED
-Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Commit: 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Evidence: Sourcery review finding is mapped above with the same fix commit.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#discussion_r3194108918 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#issuecomment-4386400275
+Disposition: NOT-A-BUG
+Evidence: Sourcery generated a reviewer guide comment; the actionable Sourcery review thread is mapped above and fixed in `docs/roadmap/BACKLOG_LEDGER.md`.
+Reason: The issue comment itself is review guidance, not a separate implementation request.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#discussion_r3194108918 -> 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Disposition: FIXED
-Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Commit: 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now lists both merged target PRs, PR #1608 and PR #1674.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#pullrequestreview-4234562810 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#pullrequestreview-4234562810 -> 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Disposition: FIXED
-Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Commit: 79a6607f2f4225f0ac673330245a2f7b02862b6e
 Evidence: CodeRabbit review finding is mapped above with the same fix commit.
 
 ## Internal Review Findings
