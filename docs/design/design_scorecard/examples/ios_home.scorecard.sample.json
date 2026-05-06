@@ -1,0 +1,95 @@
+{
+  "blocking_failures": [],
+  "dimensions": [
+    {
+      "id": "source_truth_compliance",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Evidence source-of-truth note passed PR-3 validation."
+    },
+    {
+      "id": "artifact_hygiene",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Artifact path policy passed PR-3 validation."
+    },
+    {
+      "id": "component_vocabulary_integrity",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Mapped component ids passed PR-3 vocabulary validation."
+    },
+    {
+      "id": "token_evidence",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Platform token mirror evidence is present."
+    },
+    {
+      "id": "accessibility_evidence",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Accessibility evidence metadata is present; this does not claim WCAG pass."
+    },
+    {
+      "id": "responsive_evidence",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Responsive evidence metadata is present."
+    },
+    {
+      "id": "copy_safety",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Copy-safety evidence passed PR-3 wellness validation."
+    },
+    {
+      "id": "navigation_evidence",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Navigation or tabbar evidence metadata is present."
+    },
+    {
+      "id": "overflow_evidence",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Overflow evidence metadata is present."
+    },
+    {
+      "id": "motion_evidence",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "Motion or reduced-motion evidence metadata is present."
+    },
+    {
+      "id": "platform_metadata",
+      "max_score": 10,
+      "score": 10,
+      "status": "pass",
+      "summary": "iOS screen and device metadata are present."
+    }
+  ],
+  "generated_by": "scripts/design/design_scorecard.py",
+  "max_score": 110,
+  "normalized_score": 1.0,
+  "platform": "ios",
+  "recommendation": "usable_for_pr5_pr6_brief",
+  "route_or_screen": "Home",
+  "scorecard_id": "design-scorecard::ios-home-sample",
+  "source_evidence_id": "ios-home-sample",
+  "source_of_truth_note": "Design scorecards are deterministic review evidence only, non-canonical, and not source of truth; repo tokens, UI vocabulary, backend/OpenAPI contracts, tests, and runtime code win.",
+  "status": "pass",
+  "surface_id": "ios:home",
+  "total_score": 110,
+  "warnings": []
+}
