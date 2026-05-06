@@ -1,0 +1,54 @@
+{
+  "a11y_artifact_path": "",
+  "accessibility_evidence": {
+    "voiceover": "Sample metadata requires VoiceOver label review in a future local capture.",
+    "touch_target": "Sample metadata requires touch target review in a future local capture."
+  },
+  "artifact_policy": "committed_sample_metadata",
+  "capture_mode": "sample",
+  "component_ids": [
+    "button",
+    "card",
+    "navigation_tab_bar",
+    "progress"
+  ],
+  "copy_safety_evidence": {
+    "wellness_boundary": "Review evidence only; avoid diagnosis, treatment, therapy, crisis, medical, and guaranteed outcome claims."
+  },
+  "dom_artifact_path": "",
+  "evidence_id": "ios-home-sample",
+  "generated_at_policy": "omitted",
+  "generated_by": "synthetic PR-3 sample metadata",
+  "ios_simulator_artifact_path": "",
+  "locale": "en-US",
+  "motion_evidence": {
+    "reduced_motion": "Sample metadata requires reduced-motion review if animation is present."
+  },
+  "overflow_evidence": {
+    "clipping": "Sample metadata requires clipping and dynamic type review in a future local capture."
+  },
+  "platform": "ios",
+  "responsive_evidence": {
+    "device_target": "Sample metadata describes an iPhone review surface template only."
+  },
+  "route_or_screen": "Home",
+  "screenshot_artifact_path": "",
+  "source_of_truth_note": "Screen evidence is review evidence only, non-canonical, and not source of truth; repo tokens, UI vocabulary, backend/OpenAPI contracts, tests, and runtime code win.",
+  "status": "sample",
+  "storybook_artifact_path": "",
+  "surface_id": "ios:home",
+  "surface_name": "iOS Home",
+  "tabbar_or_navigation_evidence": {
+    "tabbar": "Sample metadata requires tabbar presence and active-state review in a future local capture."
+  },
+  "theme": "repo-default",
+  "token_mirror_paths_checked": [
+    "ios/PulsePlate/DesignSystem/DesignTokens.generated.swift"
+  ],
+  "viewport": "iPhone-template",
+  "warnings": [
+    "sample metadata only",
+    "no simulator artifact committed",
+    "no iOS runtime mutation"
+  ]
+}
