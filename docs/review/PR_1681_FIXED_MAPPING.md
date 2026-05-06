@@ -170,6 +170,7 @@ advisory review/query/promotion workflows only.
 - `cd0b8b4a1` - `docs(review): record PR 1681 coverage fix`
 - `abc3c9563` - `docs(review): map CodeRabbit aggregate review`
 - `1967ab477` - `fix(evidence): remove unused wiki bridge import`
+- `78f0ab8dd` - `docs(review): repair PR 1681 mapping evidence`
 
 ## Pre-push checklist
 
@@ -251,9 +252,9 @@ Evidence: `core/evidence/wiki_bridge.py` rejects neutral-key runtime/canonical a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235955 -> c5cd925a9
 
 Disposition: FIXED
-Commit: 11dc14dc6
+Commit: 78f0ab8dd
 Evidence: `docs/review/PR_1681_FIXED_MAPPING.md` restored the required checkboxes and normalized the artifact before thread resolution.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235962 -> 11dc14dc6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235962 -> 78f0ab8dd
 
 Disposition: NOT-A-BUG
 Evidence: E5 remains a pure advisory bridge; the adapter metadata preserves `serve_scope=advisory_review_only`, the admission input now targets advisory EvidenceAssetRef identity, and product runtime serve enforcement remains outside this PR by scope.
