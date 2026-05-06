@@ -18,7 +18,7 @@ Title: `feat(design): add external reference manifest and normalization tooling`
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` -> PASS (`artifacts/orchestration/task_packets/d7a5d322a084.json`, local/gitignored)
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` -> PASS (`artifacts/orchestration/task_packets/40281bf2d2e6.json`, local/gitignored)
 - `python3 scripts/design/reference_manifest.py validate-dir docs/design/reference_manifest/examples` -> PASS
-- `. .venv/bin/activate && python3 -m pytest -q tests/design/test_reference_manifest.py` -> PASS (27 tests)
+- `. .venv/bin/activate && python3 -m pytest -q tests/design/test_reference_manifest.py` -> PASS (28 tests)
 - `make validate-changed` -> PASS
 - `make design-guard` -> PASS
 - `make tokens-check` -> PASS
@@ -35,6 +35,8 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - `4d4fe5672dcdc425d45915cd92dcff1e77561043` -> `docs(design): add reference manifest examples and wave status`
 - `72544e57c` -> `fix(design): close reference manifest review gaps`
 - `5b5c08a95` -> `fix(design): close reference manifest bot review gaps`
+- `e759dc7af` -> `docs(review): map pr 1680 bot review summaries`
+- `3b30deaf8` -> `fix(design): scope reference copy-risk scanning`
 
 ### Fixed in Commit Mapping
 
@@ -47,6 +49,7 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087430 -> 5b5c08a95
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087435 -> 5b5c08a95
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195095771 -> 5b5c08a95
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195158612 -> 3b30deaf8
 
 Disposition: FIXED
 Commit: 72544e57c
@@ -71,6 +74,10 @@ Evidence: CodeRabbit flagged malformed `normalize` input producing traceback; `s
 Disposition: FIXED
 Commit: 5b5c08a95
 Evidence: Cubic flagged malformed UTF-8 vocabulary reads; `scripts/design/reference_manifest.py` now converts `UnicodeDecodeError` into deterministic `ManifestError`, and `tests/design/test_reference_manifest.py` covers malformed UTF-8 vocabulary without traceback.
+
+Disposition: FIXED
+Commit: 3b30deaf8
+Evidence: CodeRabbit flagged direct-copy scanning over untrusted metadata; `scripts/design/reference_manifest.py` now scopes copy-risk scanning to trusted narrative fields, and `tests/design/test_reference_manifest.py` covers a metadata URL containing copy/screenshot wording without triggering validation.
 
 ## Premortem Fix Evidence
 
