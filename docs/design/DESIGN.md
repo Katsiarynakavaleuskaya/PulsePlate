@@ -60,19 +60,21 @@ Do not promote raw hex values from prompts, Figma, screenshots, external referen
 
 Canonical component vocabulary comes from `docs/design/ui_component_vocabulary.json`. Agents must use existing ids and names; do not invent component vocabulary in prompts, DESIGN.md edits, external reference notes, or implementation briefs.
 
+The component table combines vocabulary metadata with deterministic repo evidence for known UI primitive paths. If a vocabulary status conflicts with runtime code, runtime repo truth wins and the vocabulary should be reconciled in a later reviewed PR; DESIGN.md must not be used as the authority to delete or invent components.
+
 Canonical component ids:
 
 `alert`, `badge`, `button`, `card`, `checkbox`, `dialog`, `dropdown_menu`, `empty_state`, `form_field`, `hero`, `input`, `mobile_menu`, `navigation_tab_bar`, `progress`, `radio_group`, `segmented_control`, `select`, `skeleton`, `stats_card`, `stepper_progress_indicator`, `tabs`, `textarea`, `toggle`, `tooltip`
 
-| Id | Canonical name | Status | Repo component |
+| Id | Canonical name | Status | Repo component evidence |
 | --- | --- | --- | --- |
-| alert | alert | missing | `none` |
+| alert | alert | existing-runtime-detected | `frontend/src/components/ui/Alert.tsx` |
 | badge | badge | specialized-existing | `frontend/src/components/VipBadge.tsx` |
 | button | button | existing | `frontend/src/components/ui/Button.tsx` |
 | card | card | existing | `frontend/src/components/ui/Card.tsx` |
-| checkbox | checkbox | missing | `none` |
+| checkbox | checkbox | existing-runtime-detected | `frontend/src/components/ui/Checkbox.tsx` |
 | dialog | dialog | existing | `frontend/src/components/ui/Dialog.tsx` |
-| dropdown_menu | dropdown-menu | missing | `none` |
+| dropdown_menu | dropdown-menu | existing-runtime-detected | `frontend/src/components/ui/DropdownMenu.tsx` |
 | empty_state | empty-state | existing | `frontend/src/components/ui/EmptyState.tsx` |
 | form_field | form-field | existing | `frontend/src/components/ui/FormField.tsx` |
 | hero | hero | specialized-existing | `frontend/src/pages/Home.tsx` |
@@ -80,16 +82,16 @@ Canonical component ids:
 | mobile_menu | mobile-menu | existing | `frontend/src/components/ui/MobileMenu.tsx` |
 | navigation_tab_bar | navigation/tab-bar | existing | `frontend/src/components/TabBar.tsx` |
 | progress | progress | specialized-existing | `frontend/src/features/progress/LiveProgressIndicator.tsx` |
-| radio_group | radio-group | missing | `none` |
+| radio_group | radio-group | existing-runtime-detected | `frontend/src/components/ui/RadioGroup.tsx` |
 | segmented_control | segmented-control | existing | `frontend/src/components/ui/SegmentedControl.tsx` |
-| select | select | missing | `none` |
+| select | select | existing-runtime-detected | `frontend/src/components/ui/Select.tsx` |
 | skeleton | skeleton | existing | `frontend/src/components/ui/Skeleton.tsx` |
 | stats_card | stats-card | specialized-existing | `frontend/src/pages/NutritionSetup/MacroCards.tsx` |
 | stepper_progress_indicator | stepper/progress-indicator | missing-primitive-existing-flow | `frontend/src/pages/NutritionSetup/SetupForm.tsx` |
-| tabs | tabs | missing | `none` |
-| textarea | textarea | missing | `none` |
+| tabs | tabs | existing-runtime-detected | `frontend/src/components/ui/Tabs.tsx` |
+| textarea | textarea | existing-runtime-detected | `frontend/src/components/ui/Textarea.tsx` |
 | toggle | toggle | existing | `frontend/src/components/ui/Toggle.tsx` |
-| tooltip | tooltip | missing | `none` |
+| tooltip | tooltip | existing-runtime-detected | `frontend/src/components/ui/Tooltip.tsx` |
 
 ## Screen Grammar
 

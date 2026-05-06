@@ -44,6 +44,17 @@ AUTOMATION_MODULES = [
     ),
 ]
 
+RUNTIME_COMPONENT_FALLBACKS = {
+    "alert": "frontend/src/components/ui/Alert.tsx",
+    "checkbox": "frontend/src/components/ui/Checkbox.tsx",
+    "dropdown_menu": "frontend/src/components/ui/DropdownMenu.tsx",
+    "radio_group": "frontend/src/components/ui/RadioGroup.tsx",
+    "select": "frontend/src/components/ui/Select.tsx",
+    "tabs": "frontend/src/components/ui/Tabs.tsx",
+    "textarea": "frontend/src/components/ui/Textarea.tsx",
+    "tooltip": "frontend/src/components/ui/Tooltip.tsx",
+}
+
 
 def _load_components(repo_root: Path) -> list[dict[str, object]]:
     path = repo_root / VOCABULARY_PATH
@@ -63,18 +74,31 @@ def _load_components(repo_root: Path) -> list[dict[str, object]]:
     return sorted(components, key=lambda item: str(item["id"]))
 
 
-def _component_table(components: Iterable[dict[str, object]]) -> str:
+def _component_repo_evidence(item: dict[str, object], repo_root: Path) -> tuple[str, str]:
+    declared_component = item.get("existing_repo_component")
+    declared_status = str(item.get("missing_status", "unknown"))
+    if isinstance(declared_component, str) and declared_component:
+        return declared_status, declared_component
+
+    fallback_path = RUNTIME_COMPONENT_FALLBACKS.get(str(item["id"]))
+    if fallback_path and (repo_root / fallback_path).exists():
+        return "existing-runtime-detected", fallback_path
+
+    return declared_status, "none"
+
+
+def _component_table(components: Iterable[dict[str, object]], repo_root: Path) -> str:
     rows = [
-        "| Id | Canonical name | Status | Repo component |",
+        "| Id | Canonical name | Status | Repo component evidence |",
         "| --- | --- | --- | --- |",
     ]
     for item in components:
-        repo_component = item.get("existing_repo_component") or "none"
+        status, repo_component = _component_repo_evidence(item, repo_root)
         rows.append(
             "| {id} | {name} | {status} | `{repo}` |".format(
                 id=item["id"],
                 name=item["canonical_name"],
-                status=item.get("missing_status", "unknown"),
+                status=status,
                 repo=repo_component,
             )
         )
@@ -150,11 +174,13 @@ Do not promote raw hex values from prompts, Figma, screenshots, external referen
 
 Canonical component vocabulary comes from `docs/design/ui_component_vocabulary.json`. Agents must use existing ids and names; do not invent component vocabulary in prompts, DESIGN.md edits, external reference notes, or implementation briefs.
 
+The component table combines vocabulary metadata with deterministic repo evidence for known UI primitive paths. If a vocabulary status conflicts with runtime code, runtime repo truth wins and the vocabulary should be reconciled in a later reviewed PR; DESIGN.md must not be used as the authority to delete or invent components.
+
 Canonical component ids:
 
 {component_ids}
 
-{_component_table(components)}
+{_component_table(components, repo_root)}
 
 ## Screen Grammar
 

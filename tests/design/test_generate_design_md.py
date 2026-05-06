@@ -57,6 +57,10 @@ def test_generated_design_md_includes_canonical_component_vocabulary():
     assert "`button`" in output
     assert "`segmented_control`" in output
     assert "| navigation_tab_bar | navigation/tab-bar | existing |" in output
+    assert (
+        "| select | select | existing-runtime-detected | "
+        "`frontend/src/components/ui/Select.tsx` |"
+    ) in output
 
 
 def test_generated_design_md_classifies_automation_as_internal_modules():
