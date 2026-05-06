@@ -77,11 +77,24 @@ _NUMERIC_THRESHOLDS = (
     r")"
 )
 
+_BMI_THRESHOLD_CONTEXT = (
+    r"(?:"
+    r"(?<![A-Za-z0-9])bmi(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])category(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])threshold(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])underweight(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])normal(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])overweight(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])obesity(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])healthy(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])whr(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])waist(?![A-Za-z0-9]).*(?<![A-Za-z0-9])hip(?![A-Za-z0-9])"
+    r")"
+)
+
 BMI_THRESHOLDS_RE = re.compile(
-    rf"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip).*"
-    rf"\b{_NUMERIC_THRESHOLDS}\b|"
-    rf"\b{_NUMERIC_THRESHOLDS}\b.*"
-    rf"(bmi|category|threshold|underweight|normal|overweight|obesity|healthy|whr|waist.*hip)",
+    rf"{_BMI_THRESHOLD_CONTEXT}.*\b{_NUMERIC_THRESHOLDS}\b|"
+    rf"\b{_NUMERIC_THRESHOLDS}\b.*{_BMI_THRESHOLD_CONTEXT}",
     re.IGNORECASE,
 )
 
