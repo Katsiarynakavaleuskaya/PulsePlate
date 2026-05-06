@@ -466,12 +466,10 @@ def test_ledger_release_control_plane_state_is_reconciled() -> None:
     assert "PR-3 merged in PR #1605" in ledger_text
     assert "PR-4 merged in PR #1679 on 2026-05-06" in ledger_text
     assert "PR-5 merged in PR #1682 on 2026-05-06" in ledger_text
+    assert "PR-6 merged in PR #1688 on 2026-05-06" in ledger_text
+    assert "PR #1692 closes the production gate bypass" in ledger_text
     assert (
-        "PR-6 is active on branch `release/release-control-plane-pr6-production-artifact-wiring`"
-        in ledger_text
-    )
-    assert (
-        "Future protected upload automation and App Store Connect execution remain out of scope"
+        "Future protected artifact publication/upload automation and App Store Connect execution"
         in ledger_text
     )
     assert "not production-ready" in ledger_text

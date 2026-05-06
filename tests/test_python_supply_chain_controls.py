@@ -944,6 +944,14 @@ def test_push_to_registry_workflows_restore_signed_attestations_on_publish_lanes
         "production-gates",
         "build-production",
     ]
+    expected_deploy_needs = [
+        "production-gates",
+        "build-production",
+        "production-deploy-config",
+        "release-control-plane-production-evidence",
+    ]
+    assert cd_workflow["jobs"]["deploy-production"]["needs"] == expected_deploy_needs
+    assert cd_workflow["jobs"]["deploy-production-self-hosted"]["needs"] == expected_deploy_needs
 
 
 def test_checked_in_docker_image_baseline_seed_has_expected_schema() -> None:

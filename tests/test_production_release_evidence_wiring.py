@@ -369,16 +369,13 @@ def test_evidence_git_sha_mismatch_blocks(tmp_path: Path) -> None:
     assert "git_sha_mismatch" in decision["reason_codes"]
 
 
-def test_ledger_marks_pr5_merged_and_pr6_active() -> None:
+def test_ledger_marks_pr5_and_pr6_merged() -> None:
     ledger = (REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md").read_text(encoding="utf-8")
 
     assert "PR-5 merged in PR #1682 on 2026-05-06" in ledger
+    assert "PR-6 merged in PR #1688 on 2026-05-06" in ledger
     assert (
-        "PR-6 is active on branch `release/release-control-plane-pr6-production-artifact-wiring`"
-        in ledger
-    )
-    assert (
-        "Future protected upload automation and App Store Connect execution remain out of scope"
+        "Future protected artifact publication/upload automation and App Store Connect execution"
         in ledger
     )
     assert "full App Store readiness is not complete" in ledger
