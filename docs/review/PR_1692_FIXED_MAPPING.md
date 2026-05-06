@@ -33,15 +33,15 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery generated a review summary/reviewer guide and did not leave an actionable code or docs finding for PR #1692.
 Reason: Reviewer-guide comments are advisory context, not repository defects.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1692#discussion_r3197342311 -> 117a362e0cb87b6cfa8f03af7a4c407777cce19b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1692#discussion_r3197342311 -> 117a362e0faf5a0381493876bc0b7460edc48fcc
 Disposition: FIXED
-Commit: 117a362e0cb87b6cfa8f03af7a4c407777cce19b
+Commit: 117a362e0faf5a0381493876bc0b7460edc48fcc
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` Target PR now traces PR-0 through PR-6 (PR #1688) and PR #1692 instead of leaving a PR-6 placeholder.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1692#pullrequestreview-4239386679 -> 117a362e0cb87b6cfa8f03af7a4c407777cce19b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1692#pullrequestreview-4239386679 -> 117a362e0faf5a0381493876bc0b7460edc48fcc
 Disposition: FIXED
-Commit: 117a362e0cb87b6cfa8f03af7a4c407777cce19b
-Evidence: The CodeRabbit review's actionable ledger traceability comment was fixed in `docs/roadmap/BACKLOG_LEDGER.md` by commit `117a362e0cb87b6cfa8f03af7a4c407777cce19b`.
+Commit: 117a362e0faf5a0381493876bc0b7460edc48fcc
+Evidence: The CodeRabbit review's actionable ledger traceability comment was fixed in `docs/roadmap/BACKLOG_LEDGER.md` by commit `117a362e0faf5a0381493876bc0b7460edc48fcc`.
 
 ## Premortem
 
