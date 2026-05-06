@@ -13,7 +13,7 @@ Notes:
 
 - Initial implementation review completed before PR open.
 - Post-open coordinator bootstrap completed.
-- No actionable review threads were open when this artifact was created.
+- Codex review comments were triaged and fixed.
 - [ ] Re-check CodeRabbit/Sourcery/Cubic after they comment.
 - [ ] Re-check GitHub review threads before merge-readiness.
 
@@ -59,7 +59,11 @@ Premortem reviewed actual code/docs/tests diff.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1683#discussion_r3195503186 -> 0f97f4ec7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1683#discussion_r3195503198 -> 0f97f4ec7
+Disposition: FIXED
+Commit: 0f97f4ec7
+Evidence: `scripts/design/screen_evidence_pack.py` guards malformed component ids and negated source-of-truth wording; `tests/design/test_screen_evidence_pack.py` covers both regressions.
 
 ## Internal Premortem Fixes
 
