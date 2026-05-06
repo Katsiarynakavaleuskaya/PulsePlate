@@ -71,7 +71,7 @@ normalize_scope_path() {
         ""|"."|".."|../*|*/../*|*/..|/*)
             die_usage "--path must stay inside the repo without parent traversal: ${raw_path}"
             ;;
-        artifacts/agent_runs|artifacts/agent_runs/*|artifacts/orchestration|artifacts/orchestration/*|artifacts/security_lab|artifacts/security_lab/*|worktrees|worktrees/*|.venv|.venv/*|.pytest_cache|.pytest_cache/*|.mypy_cache|.mypy_cache/*|.ruff_cache|.ruff_cache/*|node_modules|node_modules/*|dist|dist/*|build|build/*)
+        artifacts/agent_runs|artifacts/agent_runs/*|artifacts/orchestration|artifacts/orchestration/*|artifacts/security_lab|artifacts/security_lab/*|worktrees|worktrees/*|.venv|.venv/*|.pytest_cache|.pytest_cache/*|.mypy_cache|.mypy_cache/*|.ruff_cache|.ruff_cache/*|node_modules|node_modules/*|dist|dist/*|build|build/*|.DS_Store|.coverage|coverage.*)
             die_usage "--path points at a local-only artifact/cache surface: ${raw_path}"
             ;;
     esac
@@ -209,11 +209,12 @@ if [[ -z "${TASK_CLASS}" ]]; then die_usage "--task-class is required"; fi
 if [[ -z "${BRANCH}" ]]; then die_usage "--branch is required"; fi
 if [[ -z "${WORKTREE_REL}" ]]; then die_usage "--worktree is required"; fi
 
-case "${BRANCH}" in
-    main|master|origin/*|refs/*|""|*..*|*~*|*^*|*:*)
-        die_usage "--branch must be a new local branch name, got: ${BRANCH}"
-        ;;
-esac
+if [[ "${BRANCH}" == "main" || "${BRANCH}" == "master" || "${BRANCH}" == origin/* || "${BRANCH}" == refs/* ]]; then
+    die_usage "--branch must be a new local branch name, got: ${BRANCH}"
+fi
+if ! git check-ref-format --branch "${BRANCH}" >/dev/null; then
+    die_usage "--branch must be a valid branch name, got: ${BRANCH}"
+fi
 
 WORKTREE_ABS="${REPO_ROOT}/${WORKTREE_REL}"
 
@@ -278,15 +279,25 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
 
 (
     cd "${WORKTREE_ABS}"
-    python3 scripts/orchestration/check_preflight.py --mode analyze ${PATH_ARGS[@]+"${PATH_ARGS[@]}"}
-    BOOTSTRAP_OUTPUT="$(
-        python3 scripts/orchestration/task_bootstrap.py \
-            --goal "${GOAL}" \
-            --task-class "${TASK_CLASS}" \
-            --pr-phase "${PR_PHASE}" \
-            ${PATH_ARGS[@]+"${PATH_ARGS[@]}"} \
-            ${REQUESTED_ARGS[@]+"${REQUESTED_ARGS[@]}"}
-    )"
+    preflight_cmd=(python3 scripts/orchestration/check_preflight.py --mode analyze)
+    if ((${#PATH_ARGS[@]})); then
+        preflight_cmd+=("${PATH_ARGS[@]}")
+    fi
+    "${preflight_cmd[@]}"
+
+    bootstrap_cmd=(
+        python3 scripts/orchestration/task_bootstrap.py
+        --goal "${GOAL}"
+        --task-class "${TASK_CLASS}"
+        --pr-phase "${PR_PHASE}"
+    )
+    if ((${#PATH_ARGS[@]})); then
+        bootstrap_cmd+=("${PATH_ARGS[@]}")
+    fi
+    if ((${#REQUESTED_ARGS[@]})); then
+        bootstrap_cmd+=("${REQUESTED_ARGS[@]}")
+    fi
+    BOOTSTRAP_OUTPUT="$("${bootstrap_cmd[@]}")"
     echo "${BOOTSTRAP_OUTPUT}"
     echo ""
     BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" python3 - <<'PY'

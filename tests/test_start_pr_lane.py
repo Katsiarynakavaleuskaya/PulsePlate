@@ -147,6 +147,9 @@ def test_start_pr_lane_rejects_local_only_scope_paths() -> None:
         "artifacts/security_lab/report.json",
         ".venv/bin/python",
         "worktrees/other-lane",
+        ".DS_Store",
+        ".coverage",
+        "coverage.xml",
     ):
         result = run_start(*_required_args(), "--path", blocked_path, "--dry-run")
 
@@ -155,23 +158,48 @@ def test_start_pr_lane_rejects_local_only_scope_paths() -> None:
         assert "PulsePlate PR lane start" not in result.stdout
 
 
+def test_start_pr_lane_rejects_parent_traversal_scope_paths() -> None:
+    """Task scope paths must stay inside tracked repo surfaces."""
+
+    blocked_path_errors = {
+        "../secrets.json": "--path must stay inside the repo without parent traversal",
+        "../../outside-repo": "--path must stay inside the repo without parent traversal",
+        "/tmp/session.json": "--path must be repo-relative or under repo root",
+    }
+
+    for blocked_path, expected_error in blocked_path_errors.items():
+        result = run_start(*_required_args(), "--path", blocked_path, "--dry-run")
+
+        assert result.returncode == 2
+        assert expected_error in result.stderr
+        assert "PulsePlate PR lane start" not in result.stdout
+
+
 def test_start_pr_lane_rejects_bad_worktree_paths() -> None:
     """The lane worktree itself must be inside repo worktrees/."""
 
-    result = run_start(
-        "--goal",
-        "Start governed PR lane",
-        "--task-class",
-        "pr_governance",
-        "--branch",
-        "codex/example-pr-lane",
-        "--worktree",
-        "tmp/example-pr-lane",
-        "--dry-run",
-    )
+    blocked_worktree_errors = {
+        "tmp/example-pr-lane": "--worktree must be under worktrees/",
+        "../example-pr-lane": "--worktree must stay inside the repo without parent traversal",
+        "../../outside-repo/example-pr-lane": "--worktree must stay inside the repo without parent traversal",
+        "/tmp/example-pr-lane": "--worktree must be repo-relative or under repo root",
+    }
 
-    assert result.returncode == 2
-    assert "--worktree must be under worktrees/" in result.stderr
+    for blocked_worktree, expected_error in blocked_worktree_errors.items():
+        result = run_start(
+            "--goal",
+            "Start governed PR lane",
+            "--task-class",
+            "pr_governance",
+            "--branch",
+            "codex/example-pr-lane",
+            "--worktree",
+            blocked_worktree,
+            "--dry-run",
+        )
+
+        assert result.returncode == 2
+        assert expected_error in result.stderr
 
 
 def test_start_pr_lane_rejects_branch_ref_like_names() -> None:
@@ -191,3 +219,22 @@ def test_start_pr_lane_rejects_branch_ref_like_names() -> None:
 
     assert result.returncode == 2
     assert "--branch must be a new local branch name" in result.stderr
+
+
+def test_start_pr_lane_rejects_git_invalid_branch_names() -> None:
+    """Branch validation should match git refname rules."""
+
+    result = run_start(
+        "--goal",
+        "Start governed PR lane",
+        "--task-class",
+        "pr_governance",
+        "--branch",
+        "bad branch name",
+        "--worktree",
+        "worktrees/example-pr-lane",
+        "--dry-run",
+    )
+
+    assert result.returncode == 2
+    assert "--branch must be a valid branch name" in result.stderr
