@@ -41,41 +41,56 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 ### Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235600795 -> 72544e57c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235682587 -> 5b5c08a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235691089 -> 5b5c08a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235756295 -> 3b30deaf8
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195008771 -> 72544e57c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195008797 -> 72544e57c
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087415 -> 5b5c08a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087430 -> 5b5c08a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087435 -> 5b5c08a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195095771 -> 5b5c08a95
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195158612 -> 3b30deaf8
+Disposition: FIXED
+Commit: 72544e57c
+Evidence: Cubic review summary was fixed by the resolved discussion thread fixes in `scripts/design/reference_manifest.py` and `tests/design/test_reference_manifest.py`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235682587 -> 5b5c08a95
+Disposition: FIXED
+Commit: 5b5c08a95
+Evidence: CodeRabbit review summary was fixed by adding PR #1680 ledger traceability, source-of-truth metadata scan narrowing, and deterministic normalize error handling.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235691089 -> 5b5c08a95
+Disposition: FIXED
+Commit: 5b5c08a95
+Evidence: Cubic review summary was fixed by deterministic malformed UTF-8 vocabulary handling in `scripts/design/reference_manifest.py` with coverage in `tests/design/test_reference_manifest.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#pullrequestreview-4235756295 -> 3b30deaf8
+Disposition: FIXED
+Commit: 3b30deaf8
+Evidence: CodeRabbit review summary repeated the direct-copy metadata scanning finding; `scripts/design/reference_manifest.py` now scopes `_validate_copy_risk` to trusted narrative fields, covered by `tests/design/test_reference_manifest.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195008771 -> 72544e57c
 Disposition: FIXED
 Commit: 72544e57c
 Evidence: Cubic flagged asymmetric status/decision validation; `scripts/design/reference_manifest.py` now rejects `status=rejected` unless `adopt_adapt_reject_decision=reject`, and `tests/design/test_reference_manifest.py` covers the contradictory rejected/adapt state.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195008797 -> 72544e57c
 Disposition: FIXED
 Commit: 72544e57c
 Evidence: Cubic flagged vocabulary load failures escaping deterministic validation; `scripts/design/reference_manifest.py` now converts vocabulary JSON/read failures into `ManifestError` validation errors, and `tests/design/test_reference_manifest.py` asserts malformed vocabulary returns `ERROR:` without traceback.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087415 -> 5b5c08a95
 Disposition: FIXED
 Commit: 5b5c08a95
 Evidence: CodeRabbit flagged missing PR-2 traceability; `docs/roadmap/BACKLOG_LEDGER.md` now names PR #1680 in the Design Intelligence Target PR chain.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087430 -> 5b5c08a95
 Disposition: FIXED
 Commit: 5b5c08a95
 Evidence: CodeRabbit flagged source-of-truth scanning over untrusted metadata; `scripts/design/reference_manifest.py` now scans only trusted narrative policy fields, and `tests/design/test_reference_manifest.py` covers a `source_url` containing source-of-truth wording without influencing validation.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195087435 -> 5b5c08a95
 Disposition: FIXED
 Commit: 5b5c08a95
 Evidence: CodeRabbit flagged malformed `normalize` input producing traceback; `scripts/design/reference_manifest.py` now catches `ManifestError` in the `normalize` path, and `tests/design/test_reference_manifest.py` covers deterministic `ERROR:` output without traceback.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195095771 -> 5b5c08a95
 Disposition: FIXED
 Commit: 5b5c08a95
 Evidence: Cubic flagged malformed UTF-8 vocabulary reads; `scripts/design/reference_manifest.py` now converts `UnicodeDecodeError` into deterministic `ManifestError`, and `tests/design/test_reference_manifest.py` covers malformed UTF-8 vocabulary without traceback.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1680#discussion_r3195158612 -> 3b30deaf8
 Disposition: FIXED
 Commit: 3b30deaf8
 Evidence: CodeRabbit flagged direct-copy scanning over untrusted metadata; `scripts/design/reference_manifest.py` now scopes copy-risk scanning to trusted narrative fields, and `tests/design/test_reference_manifest.py` covers a metadata URL containing copy/screenshot wording without triggering validation.
