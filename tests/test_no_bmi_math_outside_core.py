@@ -80,6 +80,7 @@ _NUMERIC_THRESHOLDS = (
 _BMI_THRESHOLD_CONTEXT = (
     r"(?:"
     r"(?<![A-Za-z0-9])bmi(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])(?:bmi|whr)(?-i:[A-Z])[A-Za-z0-9]*(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])category(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])threshold(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])underweight(?![A-Za-z0-9])|"
@@ -88,6 +89,7 @@ _BMI_THRESHOLD_CONTEXT = (
     r"(?<![A-Za-z0-9])obesity(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])healthy(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])whr(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])waist(?-i:[A-Z])ip(?:(?-i:[A-Z])[A-Za-z0-9]*)?(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])waist(?![A-Za-z0-9]).*(?<![A-Za-z0-9])hip(?![A-Za-z0-9])"
     r")"
 )
@@ -495,6 +497,8 @@ def test_bmi_thresholds_re_matches_real_bmi_and_whr_contexts() -> None:
         "BMI_THRESHOLD = 25.0",
         "bmi_category_normal = 25.0",
         "WHR_THRESHOLD: float = 0.90",
+        "BMIThreshold = 25.0",
+        "waistHipRatioThreshold = 0.90",
         "whr threshold 0.85",
         "waist hip ratio 0.90",
         "waist_hip_ratio = 0.90",
@@ -546,6 +550,7 @@ def test_bmi_thresholds_re_does_not_match_design_scorecard_normalized_score() ->
         "normalized_score >= 0.85",
         "elif normalized_score >= 0.85:",
         "scorecard normalized_score 0.85",
+        "normalizedScore >= 0.85",
     )
     for case in non_matching_cases:
         assert BMI_THRESHOLDS_RE.search(case) is None, f"Should not match: {case}"
