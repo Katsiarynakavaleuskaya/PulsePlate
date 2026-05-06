@@ -16,11 +16,12 @@ iOS runtime, RAG behavior, semantic cache, GraphRAG, or product-facing behavior.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-Post-open review is in progress. No human or bot review thread has been
-resolved without disposition evidence.
+Post-open discussion pass completed for comments visible through 2026-05-06
+12:25 UTC. No human or bot review thread has been resolved without disposition
+evidence. New comments after this timestamp require a new pass before merge.
 
 ## Fixed in Commit Mapping
 
@@ -28,6 +29,26 @@ resolved without disposition evidence.
 Disposition: FIXED
 Commit: eb798b4d9
 Evidence: Pre-push MyPy found `_sha256_file(...)` returning an `Any`-typed value in `scripts/ci/check_release_control_plane.py`; commit `eb798b4d9` fixed the type boundary without suppression. Evidence commands after the fix: `. .venv/bin/activate && mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_release_control_plane.py` PASS, `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`19 passed`), `make validate-changed` PASS (`41 passed`), `pre-commit run --all-files` PASS, and pre-push hooks PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#issuecomment-4387819794
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit initially skipped because PR #1682 was draft. The PR was marked ready for review and CodeRabbit was explicitly requested with `@coderabbitai review` at https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#issuecomment-4387880259.
+Reason: Draft-skip status is review orchestration state, not a code defect.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#issuecomment-4387881022
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit acknowledged the explicit review trigger and reported review in progress.
+Reason: This is a bot status acknowledgement, not an actionable code or docs finding.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#pullrequestreview-4235933131
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a weekly rate limit and did not provide code findings.
+Reason: External review quota state is not an actionable repo defect.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#pullrequestreview-4235967433
+Disposition: NOT-A-BUG
+Evidence: Sourcery repeated the weekly rate-limit comment after the PR was marked ready.
+Reason: External review quota state is not an actionable repo defect.
 
 ## Premortem
 
