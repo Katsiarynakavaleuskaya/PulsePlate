@@ -12,12 +12,55 @@ Canonical fixed/disposition mapping for
 - [x] Post-open review bootstrap packet generated:
   `artifacts/orchestration/task_packets/b8b8644d7480.json` (local,
   gitignored evidence).
-- [ ] Re-run if any human, CodeRabbit, Sourcery, Cubic, or GitHub bot review
-  event appears before merge readiness.
+- [x] Post-open Sourcery, Codex, and Cubic bot review comments inspected and
+  dispositioned below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#pullrequestreview-4239509630 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:212, scripts/orchestration/start_pr_lane.sh:282, tests/test_start_pr_lane.py:161
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#discussion_r3197445963 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:212, tests/test_start_pr_lane.py:224
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#discussion_r3197445985 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: tests/test_start_pr_lane.py:161
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#discussion_r3197445994 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: tests/test_start_pr_lane.py:178
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#pullrequestreview-4239523980 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:74, tests/test_start_pr_lane.py:150
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#discussion_r3197458660 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:74, tests/test_start_pr_lane.py:150
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#pullrequestreview-4239530694 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:282, scripts/orchestration/start_pr_lane.sh:288
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#discussion_r3197464600 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:288, scripts/orchestration/start_pr_lane.sh:300
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1696#discussion_r3197464603 -> 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Disposition: FIXED
+Commit: 38b3f6f46d1fbdf52245f57150b7e05691347ca1
+Evidence: scripts/orchestration/start_pr_lane.sh:282, scripts/orchestration/start_pr_lane.sh:286
 
 ## Merge Readiness
 
