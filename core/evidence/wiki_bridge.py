@@ -8,7 +8,7 @@ import re
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import PurePosixPath
-from typing import Any, Literal, TypeAlias, cast
+from typing import Literal, TypeAlias, cast
 
 from core.evidence.admission import AdmissionInput, ValidationStatus
 from core.evidence.assets import EvidenceAssetRef, create_evidence_asset_ref
