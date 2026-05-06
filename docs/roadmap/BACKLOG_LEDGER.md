@@ -2297,10 +2297,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evidence Graph Runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI runtime governance / evidence lineage)
-  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current slice: PR-E3 (`codex/evidence-promotion-ledger-replay`)
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current slice: PR-E4 (`codex/evidence-active-metadata-admission`)
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
-  - Status: Active PR-E3 promotion ledger + dry-run replay scaffold; E0/E1/E2 are baseline, #1666/#1667 eval-sidecar hardening is baseline, and PR-E4 active metadata admission remains next after E3
+  - Status: Active PR-E4 metadata admission gates; E0/E1/E2/E3 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and PR-E5 advisory wiki evidence bridge remains next after E4
   - Remove-by: 2026-06-30
   - Reason (EN): PulsePlate already has strong RAG runtime, verification, knowledge-promotion, eval-gate, advisory-wiki, and plugin/control-plane foundations, but evidence-bearing artifacts are still governed mostly through task packets, gate outputs, and lane-specific docs rather than one asset/evidence graph. This umbrella freezes the rail boundaries and PR train needed to make eval runs, context bundles, verification bundles, knowledge candidates, knowledge records, and gate reports first-class assets with lineage, idempotency, replay, fingerprints, policy versions, and admission decisions.
   - Links:
@@ -2320,6 +2320,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-E0 remains docs/governance only with no public API, DB migration, endpoint, OpenAPI, billing, provider, semantic-cache, GraphRAG, or user-facing runtime behavior change
     - PR-E2 adds a deterministic schema-only eval event contract and documentation without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, or promotion/replay logic
     - PR-E3 adds deterministic promotion ledger and dry-run replay contracts without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, eval runners, or persistent writers
+    - PR-E4 adds deterministic `allow_execute`, `allow_promote`, and `allow_serve` metadata admission contracts without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, eval runners, or side effects
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API

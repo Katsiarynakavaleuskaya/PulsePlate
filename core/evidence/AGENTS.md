@@ -21,3 +21,30 @@ or advisory wiki modules from this package.
 E3 promotion ledger/replay changes may add append-only promotion contracts and
 dry-run replay summaries only. They must not write files, call runtime stores,
 create promotion side effects, or duplicate `core/knowledge/promotion.py`.
+
+## E4 active metadata admission
+
+E4 admission logic must stay pure and deterministic.
+
+Allowed:
+
+- policy/input/decision dataclasses
+- deterministic `allow_execute`, `allow_promote`, and `allow_serve` decisions
+- explicit `now` / timestamp input
+- `reason_codes`, `blocking_reasons`, and `warnings`
+- metadata validation
+
+Forbidden:
+
+- runtime writes
+- DB/session access
+- provider calls
+- FastAPI/router imports
+- eval runner imports
+- semantic cache, Redis, or GPTCache imports
+- GraphRAG runtime imports
+- advisory wiki/local support-plane imports
+- product knowledge-promotion rewrites
+
+Admission decisions are gates, not side effects. They may block future
+promotion/serve actions, but this package must not perform those actions.

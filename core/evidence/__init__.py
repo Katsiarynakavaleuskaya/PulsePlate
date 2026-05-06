@@ -4,6 +4,19 @@ RU: Канонические контракты evidence asset registry.
 EN: Canonical evidence asset registry contracts.
 """
 
+from core.evidence.admission import (
+    AdmissionAction,
+    AdmissionDecision,
+    AdmissionInput,
+    AdmissionPolicy,
+    AdmissionTargetType,
+    admission_input_from_eval_event,
+    admission_input_from_ledger_entry,
+    decide_admission,
+    decide_allow_execute,
+    decide_allow_promote,
+    decide_allow_serve,
+)
 from core.evidence.assets import (
     AssetType,
     EvidenceAssetRef,
@@ -35,6 +48,11 @@ from core.evidence.replay import (
 )
 
 __all__ = [
+    "AdmissionAction",
+    "AdmissionDecision",
+    "AdmissionInput",
+    "AdmissionPolicy",
+    "AdmissionTargetType",
     "AssetType",
     "EvidenceAssetRef",
     "EvidenceEvalEvent",
@@ -47,11 +65,17 @@ __all__ = [
     "PromotionReplaySummary",
     "Rail",
     "ValidationStatus",
+    "admission_input_from_eval_event",
+    "admission_input_from_ledger_entry",
     "build_asset_id",
     "build_idempotency_key",
     "create_evidence_asset_ref",
     "create_eval_event",
     "create_promotion_ledger_entry",
+    "decide_admission",
+    "decide_allow_execute",
+    "decide_allow_promote",
+    "decide_allow_serve",
     "dry_run_replay",
     "fingerprint_payload",
 ]
