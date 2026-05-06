@@ -20,7 +20,11 @@ This artifact records review dispositions and bounded evidence. It is not a subs
 
 ## Fixed in Commit Mapping
 
-- Sourcery review submitted 2026-05-06T20:16:55Z -> `2d9b232b3`
+Disposition: FIXED
+Commit: see mapping entries below
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239225856 -> 2d9b232b3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239299983 -> 2d9b232b3
 
 ## Review Dispositions
 
@@ -32,8 +36,9 @@ This artifact records review dispositions and bounded evidence. It is not a subs
   - Evidence: `ios/PulsePlate/Extensions/ShapeStyle+Theme.swift` documents that `liquidGlass` intentionally reuses `PPDesignTokens.ColorToken.surfaceElevated` until `/tokens` promotes a dedicated liquid-glass token.
 - Cubic review: NOT-A-BUG.
   - Evidence: cubic reported no issues at commit `1e65f0d1d2c02b883515225b342c32c4fa01b11b`.
-- CodeRabbit comment: NOT-A-BUG.
-  - Evidence: CodeRabbit posted review-in-progress/finishing-touch automation only, with no actionable defect.
+- CodeRabbit finding: FIXED.
+  - Commit: `2d9b232b3`
+  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` no longer uses substring source scans, so the previous exact-token matching concern is obsolete through the public API test rewrite.
 - Internal coordinator finding: FIXED before mapping.
   - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records PR-5 merged in #1689 and PR-6 active on `feat/ios-design-parity-audit-v1`.
 - Internal coordinator/architecture finding: FIXED before mapping.
