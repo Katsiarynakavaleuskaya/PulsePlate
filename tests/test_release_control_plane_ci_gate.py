@@ -498,6 +498,62 @@ def test_output_json_is_deterministic(tmp_path: Path) -> None:
     assert first_output.read_text(encoding="utf-8").endswith("\n")
 
 
+def test_evidence_hashes_use_loaded_bytes(tmp_path: Path, monkeypatch) -> None:
+    manifest_path, rag_path, build_path = _write_evidence(tmp_path)
+    loaded_rag_hash = release_manifest.sha256_lower_hex(rag_path.read_bytes())
+    real_read_bytes = Path.read_bytes
+    mutated = False
+
+    def racing_read(path: Path) -> bytes:
+        nonlocal mutated
+        raw_bytes = real_read_bytes(path)
+        if path == rag_path and not mutated:
+            mutated = True
+            rag_path.write_text('{"schema_version":"mutated-after-read"}\n', encoding="utf-8")
+        return raw_bytes
+
+    monkeypatch.setattr(Path, "read_bytes", racing_read)
+
+    decision = check_release_control_plane.check_release_control_plane_files(
+        release_manifest_path=manifest_path,
+        rag_gate_result_path=rag_path,
+        build_equivalence_path=build_path,
+    )
+
+    assert mutated
+    assert decision["checked_artifacts"]["rag_gate_result"]["sha256"] == loaded_rag_hash
+    assert decision["evidence_hashes"]["rag_gate_result"] == loaded_rag_hash
+    assert loaded_rag_hash != release_manifest.sha256_lower_hex(rag_path.read_bytes())
+
+
+def test_mismatch_details_sorting_uses_detail_tiebreaker() -> None:
+    findings = [
+        check_release_control_plane.Finding(
+            "build_equivalence.decision",
+            "invalid_build_equivalence",
+            {"payload": "b"},
+        ),
+        check_release_control_plane.Finding(
+            "build_equivalence.decision",
+            "invalid_build_equivalence",
+            {"payload": "a"},
+        ),
+    ]
+
+    assert check_release_control_plane._stable_findings(findings) == [  # noqa: SLF001
+        {
+            "field": "build_equivalence.decision",
+            "reason_code": "invalid_build_equivalence",
+            "detail": {"payload": "a"},
+        },
+        {
+            "field": "build_equivalence.decision",
+            "reason_code": "invalid_build_equivalence",
+            "detail": {"payload": "b"},
+        },
+    ]
+
+
 def test_schema_allows_raw_malformed_summary_values_for_block_outputs(tmp_path: Path) -> None:
     schema = json.loads(
         (REPO_ROOT / "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json").read_text(

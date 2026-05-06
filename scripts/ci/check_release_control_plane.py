@@ -66,27 +66,33 @@ class Finding:
 
 def _load_evidence(
     path: Path, *, missing_reason: str, malformed_reason: str
-) -> tuple[dict[str, Any] | None, list[Finding]]:
+) -> tuple[dict[str, Any] | None, list[Finding], str | None]:
     findings: list[Finding] = []
     if not path.exists():
         findings.append(Finding(str(path), missing_reason))
-        return None, findings
+        return None, findings, None
     try:
-        raw_text = path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError) as exc:
+        raw_bytes = path.read_bytes()
+    except OSError as exc:
         findings.append(Finding(str(path), malformed_reason, str(exc)))
-        return None, findings
+        return None, findings, None
+    file_hash = release_manifest.sha256_lower_hex(raw_bytes)
+    try:
+        raw_text = raw_bytes.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        findings.append(Finding(str(path), malformed_reason, str(exc)))
+        return None, findings, None
     try:
         payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         findings.append(Finding(str(path), malformed_reason, str(exc)))
-        return None, findings
+        return None, findings, None
     if not isinstance(payload, dict):
         findings.append(
             Finding(str(path), malformed_reason, "top-level JSON value must be an object")
         )
-        return None, findings
-    return payload, findings
+        return None, findings, None
+    return payload, findings, file_hash
 
 
 def _stable_reason_codes(findings: list[Finding]) -> list[str]:
@@ -101,27 +107,23 @@ def _stable_findings(findings: list[Finding]) -> list[dict[str, Any]]:
         finding.as_payload()
         for finding in sorted(
             findings,
-            key=lambda item: (REASON_ORDER.get(item.reason_code, 10_000), item.field),
+            key=lambda item: (
+                REASON_ORDER.get(item.reason_code, 10_000),
+                item.field,
+                (
+                    json.dumps(item.detail, ensure_ascii=False, sort_keys=True)
+                    if item.detail is not None
+                    else ""
+                ),
+            ),
         )
     ]
 
 
-def _sha256_file(path: Path) -> str | None:
-    if not path.exists() or not path.is_file():
-        return None
-    try:
-        digest = release_manifest.sha256_lower_hex(path.read_bytes())
-    except OSError:
-        return None
-    if not isinstance(digest, str):
-        return None
-    return digest
-
-
-def _artifact_entry(path: Path) -> dict[str, Any]:
+def _artifact_entry(path: Path, file_hash: str | None) -> dict[str, Any]:
     return {
         "path": path.as_posix(),
-        "sha256": _sha256_file(path),
+        "sha256": file_hash,
     }
 
 
@@ -386,6 +388,9 @@ def build_release_control_plane_decision(
     release_manifest_path: Path,
     rag_gate_result_path: Path,
     build_equivalence_path: Path,
+    release_manifest_file_hash: str | None = None,
+    rag_gate_result_file_hash: str | None = None,
+    build_equivalence_file_hash: str | None = None,
     load_findings: list[Finding] | None = None,
 ) -> dict[str, Any]:
     """Return a deterministic fail-closed release-control-plane decision."""
@@ -426,14 +431,23 @@ def build_release_control_plane_decision(
         "reason_codes": reason_codes,
         "mismatch_details": _stable_findings(findings),
         "checked_artifacts": {
-            "release_manifest": _artifact_entry(release_manifest_path),
-            "rag_gate_result": _artifact_entry(rag_gate_result_path),
-            "build_equivalence": _artifact_entry(build_equivalence_path),
+            "release_manifest": _artifact_entry(
+                release_manifest_path,
+                release_manifest_file_hash,
+            ),
+            "rag_gate_result": _artifact_entry(
+                rag_gate_result_path,
+                rag_gate_result_file_hash,
+            ),
+            "build_equivalence": _artifact_entry(
+                build_equivalence_path,
+                build_equivalence_file_hash,
+            ),
         },
         "evidence_hashes": {
-            "release_manifest": _sha256_file(release_manifest_path),
-            "rag_gate_result": _sha256_file(rag_gate_result_path),
-            "build_equivalence": _sha256_file(build_equivalence_path),
+            "release_manifest": release_manifest_file_hash,
+            "rag_gate_result": rag_gate_result_file_hash,
+            "build_equivalence": build_equivalence_file_hash,
         },
         "evidence_digests": {
             "sbom_digest": supply_chain_identity.get("sbom_digest"),
@@ -455,17 +469,17 @@ def check_release_control_plane_files(
 ) -> dict[str, Any]:
     """Load evidence files and return the deterministic CI gate payload."""
 
-    manifest_payload, manifest_findings = _load_evidence(
+    manifest_payload, manifest_findings, manifest_file_hash = _load_evidence(
         release_manifest_path,
         missing_reason="missing_release_manifest",
         malformed_reason="malformed_release_manifest",
     )
-    rag_payload, rag_findings = _load_evidence(
+    rag_payload, rag_findings, rag_file_hash = _load_evidence(
         rag_gate_result_path,
         missing_reason="missing_rag_gate_result",
         malformed_reason="malformed_rag_gate_result",
     )
-    build_payload, build_findings = _load_evidence(
+    build_payload, build_findings, build_file_hash = _load_evidence(
         build_equivalence_path,
         missing_reason="missing_build_equivalence",
         malformed_reason="malformed_build_equivalence",
@@ -477,6 +491,9 @@ def check_release_control_plane_files(
         release_manifest_path=release_manifest_path,
         rag_gate_result_path=rag_gate_result_path,
         build_equivalence_path=build_equivalence_path,
+        release_manifest_file_hash=manifest_file_hash,
+        rag_gate_result_file_hash=rag_file_hash,
+        build_equivalence_file_hash=build_file_hash,
         load_findings=[*manifest_findings, *rag_findings, *build_findings],
     )
 
