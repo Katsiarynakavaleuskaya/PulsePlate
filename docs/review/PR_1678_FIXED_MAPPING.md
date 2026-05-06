@@ -189,6 +189,10 @@ merge readiness.
 Disposition: FIXED
 Commit: e7b72d4d9
 Evidence: `tests/core/evidence/test_admission.py` mutates the returned `AdmissionInput.metadata` view and asserts subsequent reads are unchanged.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#discussion_r3194564127 -> e7b72d4d9
+Disposition: FIXED
+Commit: e7b72d4d9
+Evidence: `tests/core/evidence/test_admission.py` mutates the returned `AdmissionInput.metadata` dict and verifies later reads are unchanged.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#pullrequestreview-4235145977 -> 3b0b4a497
 Disposition: FIXED
 Commit: 3b0b4a497
