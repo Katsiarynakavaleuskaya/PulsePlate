@@ -103,6 +103,15 @@ machine-heavy exception.
   `memoryview` before generic sequence handling. Evidence:
   `core/evidence/wiki_bridge.py`; regression tests in
   `tests/core/evidence/test_wiki_bridge.py`.
+- Non-canonical public constructor risk: fixed by recomputing advisory wiki
+  artifact identity inside `AdvisoryWikiArtifactRef.__init__` and rejecting
+  mismatched caller-provided `artifact_id` or `idempotency_key`. Evidence:
+  `core/evidence/wiki_bridge.py`; regression tests in
+  `tests/core/evidence/test_wiki_bridge.py`.
+- Admission target identity risk: fixed by making the admission adapter target
+  the advisory `EvidenceAssetRef` identity instead of the source wiki artifact
+  identity. Evidence: `core/evidence/wiki_bridge.py`; regression tests in
+  `tests/core/evidence/test_wiki_bridge.py`.
 - Numeric authority-claim risk: fixed by treating truthy numeric authority
   metadata as a forbidden authority claim. Evidence:
   `core/evidence/wiki_bridge.py`; regression test in
@@ -142,6 +151,9 @@ advisory review/query/promotion workflows only.
 - `e2b067db4` - `feat(evidence): add advisory wiki bridge`
 - `f7b04d1e5` - `fix(evidence): reject byte-like wiki metadata`
 - `c5cd925a9` - `fix(evidence): harden wiki bridge safety checks`
+- `85154507f` - `fix(evidence): enforce wiki artifact identity`
+- `2c09b8a32` - `fix(evidence): target wiki admission assets`
+- `b7efbfa2d` - `docs(agents): update instructions`
 
 ## Pre-push checklist
 
@@ -185,11 +197,50 @@ mutation, semantic cache, GraphRAG, or runtime rail authority.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Initial PR opening. No review threads yet.
+- QA lane found byte-like metadata bypass; fixed in code/tests.
+- Bug-hunter lane found URI/drive-relative paths, runtime upstream, and numeric
+  authority-claim bypasses; fixed in code/tests.
+- Codex review found that admission inputs targeted source wiki artifact
+  identity instead of advisory EvidenceAssetRef identity; fixed in code/tests.
+- CodeRabbit review requested canonical constructor identity enforcement; fixed
+  in code/tests.
+- CodeRabbit review requested a scoped AGENTS commit titled
+  `docs(agents): update instructions`; fixed with that commit title.
+- CodeRabbit review noted advisory serve scope is metadata-only; disposition is
+  NOT-A-BUG because E5 is a pure advisory bridge and must not widen E4 serve
+  policy or product runtime behavior.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 2c09b8a32
+Evidence: `wiki_artifact_to_admission_input(...)` targets advisory `EvidenceAssetRef` identity; `tests/core/evidence/test_wiki_bridge.py` covers target ID, fingerprint, idempotency key, and upstream identity.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195195608 -> 2c09b8a32
+
+Disposition: FIXED
+Commit: b7efbfa2d
+Evidence: `core/evidence/AGENTS.md` E5 reviewer guidance was clarified in the commit titled `docs(agents): update instructions`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235932 -> b7efbfa2d
+
+Disposition: FIXED
+Commit: 85154507f
+Evidence: `AdvisoryWikiArtifactRef.__init__` recomputes canonical identity and rejects mismatched caller-provided `artifact_id` / `idempotency_key`; `tests/core/evidence/test_wiki_bridge.py` covers both mismatches.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235937 -> 85154507f
+
+Disposition: FIXED
+Commit: c5cd925a9
+Evidence: `core/evidence/wiki_bridge.py` rejects neutral-key runtime/canonical authority claims, URI paths, drive-relative paths, runtime evidence upstreams, and truthy numeric authority claims; `tests/core/evidence/test_wiki_bridge.py` covers the regressions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235955 -> c5cd925a9
+
+Disposition: FIXED
+Commit: 11dc14dc6
+Evidence: `docs/review/PR_1681_FIXED_MAPPING.md` restored the required checkboxes and normalized the artifact before thread resolution.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235962 -> 11dc14dc6
+
+Disposition: NOT-A-BUG
+Evidence: E5 remains a pure advisory bridge; the adapter metadata preserves `serve_scope=advisory_review_only`, the admission input now targets advisory EvidenceAssetRef identity, and product runtime serve enforcement remains outside this PR by scope.
+Reason: Adding a top-level E4 serve-scope policy would widen E4 admission contracts and product-serving semantics, which is explicitly out of scope for PR-E5.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235953
 
 ## Merge Readiness
 
