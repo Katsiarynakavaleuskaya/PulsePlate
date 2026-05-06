@@ -98,6 +98,46 @@ def test_stale_declared_component_path_uses_runtime_fallback(tmp_path):
     ) in output
 
 
+def test_declared_absolute_component_path_is_rejected(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    external_component = tmp_path / "external_component.tsx"
+    external_component.write_text("export function External() {}\n", encoding="utf-8")
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    for item in vocabulary:
+        if item["id"] == "button":
+            item["existing_repo_component"] = str(external_component)
+            item["missing_status"] = "existing"
+            break
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    output = module.render_design_md(repo_root)
+
+    assert str(external_component) not in output
+    assert "| button | button | invalid-declared-path | `none` |" in output
+
+
+def test_declared_traversal_component_path_is_rejected(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    external_component = tmp_path / "outside_component.tsx"
+    external_component.write_text("export function Outside() {}\n", encoding="utf-8")
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    for item in vocabulary:
+        if item["id"] == "button":
+            item["existing_repo_component"] = "../outside_component.tsx"
+            item["missing_status"] = "existing"
+            break
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    output = module.render_design_md(repo_root)
+
+    assert "../outside_component.tsx" not in output
+    assert "| button | button | invalid-declared-path | `none` |" in output
+
+
 def test_generated_design_md_classifies_automation_as_internal_modules():
     module = load_generator_module()
 

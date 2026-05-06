@@ -44,6 +44,13 @@ AUTOMATION_MODULES = [
     ),
 ]
 
+ALLOWED_COMPONENT_EVIDENCE_PREFIXES = (
+    Path("frontend/src/components"),
+    Path("frontend/src/features"),
+    Path("frontend/src/pages"),
+)
+
+
 RUNTIME_COMPONENT_FALLBACKS = {
     "alert": "frontend/src/components/ui/Alert.tsx",
     "checkbox": "frontend/src/components/ui/Checkbox.tsx",
@@ -78,10 +85,34 @@ def _load_components(repo_root: Path) -> list[dict[str, object]]:
     return sorted(components, key=lambda item: str(item["id"]))
 
 
+def _is_valid_component_evidence_path(declared_component: str, repo_root: Path) -> bool:
+    declared_path = Path(declared_component)
+    if declared_path.is_absolute() or ".." in declared_path.parts:
+        return False
+
+    candidate = (repo_root / declared_path).resolve(strict=False)
+    resolved_repo_root = repo_root.resolve(strict=False)
+    try:
+        repo_relative_candidate = candidate.relative_to(resolved_repo_root)
+    except ValueError:
+        return False
+
+    return any(
+        repo_relative_candidate == allowed_prefix
+        or repo_relative_candidate.is_relative_to(allowed_prefix)
+        for allowed_prefix in ALLOWED_COMPONENT_EVIDENCE_PREFIXES
+    )
+
+
 def _component_repo_evidence(item: dict[str, object], repo_root: Path) -> tuple[str, str]:
     declared_component = item.get("existing_repo_component")
     declared_status = str(item.get("missing_status", "unknown"))
-    if isinstance(declared_component, str) and declared_component:
+    valid_declared_component = (
+        isinstance(declared_component, str)
+        and bool(declared_component)
+        and _is_valid_component_evidence_path(declared_component, repo_root)
+    )
+    if valid_declared_component:
         if (repo_root / declared_component).exists():
             return declared_status, declared_component
 
@@ -89,8 +120,11 @@ def _component_repo_evidence(item: dict[str, object], repo_root: Path) -> tuple[
     if fallback_path and (repo_root / fallback_path).exists():
         return "existing-runtime-detected", fallback_path
 
-    if isinstance(declared_component, str) and declared_component:
+    if valid_declared_component:
         return "declared-path-missing", declared_component
+
+    if isinstance(declared_component, str) and declared_component:
+        return "invalid-declared-path", "none"
 
     return declared_status, "none"
 
