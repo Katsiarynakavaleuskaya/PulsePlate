@@ -50,6 +50,21 @@ Disposition: NOT-A-BUG
 Evidence: Sourcery repeated the weekly rate-limit comment after the PR was marked ready.
 Reason: External review quota state is not an actionable repo defect.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682
+Disposition: NOT-A-BUG
+Evidence: Cubic current-head status is PASS for PR #1682.
+Reason: No Cubic actionable finding is present to fix.
+
+## Split Justification
+
+This PR is intentionally one release-control-plane slice because the fail-closed
+CI checker, schema contract, workflow fixture integration, focused tests, ledger
+reconciliation, premortem artifact, and fixed-mapping artifact must land
+together for PR-5 governance to be reviewable and deterministic. Splitting the
+checker from the contract or tests would create a temporary release-governance
+state where CI evidence semantics are either undocumented or untested. Protected
+production artifact wiring remains deferred as a separate follow-up.
+
 ## Premortem
 
 - [x] Premortem pass completed against actual changed files
