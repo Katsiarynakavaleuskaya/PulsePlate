@@ -7,6 +7,7 @@ Title: `feat(design): generate PulsePlate DESIGN.md from token and component con
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed after final review activity
+- [x] Fixed in commit mapping completed
 - [x] Fixed in commit mapping updated for current actionable review activity
 - [x] Initial post-open mapping artifact created
 
@@ -17,7 +18,7 @@ Title: `feat(design): generate PulsePlate DESIGN.md from token and component con
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` -> PASS (`artifacts/orchestration/task_packets/d04b13a19d79.json`, local/gitignored)
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` -> PASS (`artifacts/orchestration/task_packets/6e8763ad465a.json`, local/gitignored)
 - `python3 scripts/design/generate_design_md.py --check` -> PASS
-- `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` -> PASS (10 tests)
+- `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` -> PASS (11 tests)
 - `make validate-changed` -> PASS
 - `make design-guard` -> PASS
 - `make tokens-check` -> PASS
@@ -38,6 +39,8 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - `a8f652d2c144080187c807de3732656ebbdaf844` -> `fix(design): reconcile DESIGN.md component evidence`
 - `18d215ed2d9d0f545700d062e804990a79d1e541` -> `docs(review): map pr 1677 cubic feedback`
 - `acbc4c6dddaa362b94b1c2ace3afff3e274383fc` -> `fix(design): address PR1677 review hardening`
+- `890264dddb969efba93b7fbd6ab28a1cca902b84` -> `docs(review): map pr 1677 coderabbit feedback`
+- `fc3a8aec35f468b5a827af0125a88b2d8ff95070` -> `fix(design): verify declared component evidence paths`
 
 ## Review Threads
 
@@ -47,6 +50,44 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533935 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943 -> `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> af6d9c5c417de6c0c9e17ea3fa5e945213408507
+Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504 -> d9f5b7a661c8428ff3761076229d458a734ea07c
+Commit: `d9f5b7a661c8428ff3761076229d458a734ea07c`
+Evidence: `tests/design/test_generate_design_md.py` runs `module.run(["--check"], repo_root=REPO_ROOT)` against the committed repo file.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908 -> a8f652d2c144080187c807de3732656ebbdaf844
+Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
+Evidence: `scripts/design/generate_design_md.py` now combines vocabulary metadata with deterministic repo evidence for known UI primitives.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533909 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
+Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Evidence: `docs/review/PR_1677_FIXED_MAPPING.md` marks the discussion-thread pass and fixed-mapping checkboxes with exact canonical labels.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533935 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
+Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` names PR #1677 in the active PR-1 target/status lines.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194533943 -> acbc4c6dddaa362b94b1c2ace3afff3e274383fc
+Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
+Evidence: `tests/design/test_generate_design_md.py` uses `runpy.run_path` and a `SimpleNamespace` wrapper instead of forbidden dynamic import helpers.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> fc3a8aec35f468b5a827af0125a88b2d8ff95070
+Commit: `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+Evidence: `_component_repo_evidence` verifies declared repo component paths exist before trusting them and falls back to runtime evidence when available.
 
 ## Dispositions
 
@@ -92,6 +133,12 @@ Disposition: FIXED
 - Commit: `acbc4c6dddaa362b94b1c2ace3afff3e274383fc`
 - Evidence: `_load_components` now rejects duplicate component ids with `ValueError`, and `tests/design/test_generate_design_md.py` adds `test_duplicate_component_ids_fail_closed`.
 
+Disposition: FIXED
+
+- Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773
+- Commit: `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+- Evidence: `scripts/design/generate_design_md.py` verifies declared `existing_repo_component` paths before trusting them, falls back to runtime primitive evidence when available, and `tests/design/test_generate_design_md.py` adds `test_stale_declared_component_path_uses_runtime_fallback`.
+
 ## Premortem
 
 Premortem reviewed the actual PR diff and confirmed:
@@ -104,6 +151,7 @@ Premortem reviewed the actual PR diff and confirmed:
 - No frontend, iOS, backend, OpenAPI, billing, auth, compliance, App Store, deploy, Figma, Canva, crawler, PR-2 reference manifest tooling, PR-3 evidence pack, or PR-4 scorecard implementation is included.
 - Cubic's component-table risk was fixed in the generator by adding runtime repo evidence while preserving repo truth precedence.
 - CodeRabbit's current actionable feedback was fixed in code/docs/mapping before updating this artifact.
+- Cubic's declared-path trust risk was fixed by verifying declared component paths before accepting them.
 
 ## Bug-Hunter Pass
 
@@ -115,6 +163,7 @@ Bug-hunter checks covered:
 - component vocabulary grounding,
 - component table runtime evidence for existing UI primitives,
 - duplicate component-id fail-closed behavior,
+- stale declared component paths fall back to runtime evidence when available,
 - no external reference ingestion,
 - no Figma/Canva writes,
 - no token mirror diff,
