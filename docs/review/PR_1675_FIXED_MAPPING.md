@@ -21,7 +21,25 @@ disposition evidence before threads are resolved.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#discussion_r3194102477 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Disposition: FIXED
+Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses present-tense `Figma/Canva remain reference-only`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#pullrequestreview-4234555177 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Disposition: FIXED
+Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Evidence: Sourcery review finding is mapped above with the same fix commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#discussion_r3194108918 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Disposition: FIXED
+Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now lists both merged target PRs, PR #1608 and PR #1674.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1675#pullrequestreview-4234562810 -> 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Disposition: FIXED
+Commit: 79a6607f2ce1c7e4ebc2c6d42085b07a7fb39e0b
+Evidence: CodeRabbit review finding is mapped above with the same fix commit.
 
 ## Internal Review Findings
 
