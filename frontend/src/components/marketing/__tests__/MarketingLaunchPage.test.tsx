@@ -14,6 +14,7 @@ describe('PulsePlateMarketingPage', () => {
   it('renders the polished wellness-safe launch hero and existing CTAs', () => {
     renderMarketingPage();
 
+    expect(screen.getByTestId('marketing-page')).toBeInTheDocument();
     expect(
       screen.getByRole('heading', {
         level: 1,

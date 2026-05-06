@@ -308,6 +308,10 @@
   gap: 1rem;
 }
 
+.ppm-preview-row > * {
+  min-width: 0;
+}
+
 .ppm-grid-2,
 .ppm-status-grid,
 .ppm-surfaces-grid,
@@ -752,7 +756,18 @@
     flex-direction: column;
   }
 
-  .ppm-actions .ppm-btn {
+  .ppm-actions .ppm-btn,
+  .ppm-cta-actions .ppm-btn {
     width: 100%;
+  }
+
+  .ppm-pill {
+    justify-content: center;
+    min-height: 2.75rem;
+  }
+
+  .ppm-hero-title {
+    font-size: 2.6rem;
+    line-height: 1;
   }
 }
