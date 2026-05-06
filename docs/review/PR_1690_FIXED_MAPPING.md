@@ -22,7 +22,7 @@ instruction. This PR uses bounded checks and `make validate-changed`.
 ### Internal premortem findings
 
 Disposition: FIXED
-Commit: 4d8d0ca29369931fc89ec93fd4813c24803ae9fe
+Commit: e1f351b2adfef854529c8dc62c1e1aaeb4a3b40b
 Evidence:
 
 - `tests/test_python_supply_chain_controls.py::test_frontend_build_keeps_codecov_token_out_of_branch_controlled_build`
