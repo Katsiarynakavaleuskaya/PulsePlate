@@ -25,6 +25,7 @@ Commit: see mapping entries below
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239225856 -> 2d9b232b3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239299983 -> 2d9b232b3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1694#pullrequestreview-4239369796 -> 97d1109aa
 
 ## Review Dispositions
 
@@ -39,12 +40,15 @@ Commit: see mapping entries below
 - CodeRabbit finding: FIXED.
   - Commit: `2d9b232b3`
   - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` no longer uses substring source scans, so the previous exact-token matching concern is obsolete through the public API test rewrite.
+- CodeRabbit finding: FIXED.
+  - Commit: `97d1109aa`
+  - Evidence: `ios/PulsePlate/DesignSystem/DesignTokens.swift` adds an explicit `PPDesignTokens.ColorToken.liquidGlass` facade alias, `ios/PulsePlate/Extensions/ShapeStyle+Theme.swift` uses it, and `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` compares `Color` values directly.
 - Internal coordinator finding: FIXED before mapping.
   - Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now records PR-5 merged in #1689 and PR-6 active on `feat/ios-design-parity-audit-v1`.
 - Internal coordinator/architecture finding: FIXED before mapping.
   - Evidence: `docs/design/IOS_VISUAL_PARITY_PR6_AUDIT.md` and `docs/orchestration/DESIGN_INTELLIGENCE_PR6_IOS_PARITY_PACKET_2026-05-06.md` explicitly document the expected token-parity visual delta from local `0.08` surface alias to generated-token-backed `0.10`.
 - Internal QA finding: FIXED before mapping.
-  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` rejects any remaining `Color.white.opacity(` in `ShapeStyle+Theme.swift`, covering the former `liquidGlass` hardcoded alias as well as `surface` and `surfaceElevated`.
+  - Evidence: `ios/PulsePlateTests/DesignSystemAccessibilityContractTests.swift` verifies public `Color` aliases match `PPDesignTokens.ColorToken` aliases.
 - Internal bug-hunter finding: FIXED before mapping.
   - Evidence: `docs/design/IOS_VISUAL_PARITY_PR6_AUDIT.md` and `docs/orchestration/DESIGN_INTELLIGENCE_PR6_IOS_PARITY_PACKET_2026-05-06.md` explicitly state the next Design Intelligence lane is PR-7 design-agent workflow and PR template, while live iOS capture remains separate unless later scoped.
 - Internal premortem: NOT-A-BUG after actual diff review.
@@ -80,7 +84,7 @@ Premortem reviewed the actual docs/code/tests diff.
 - Risk: iOS code gains local product truth.
   - Decision: No BMI, nutrition, coaching, entitlement, StoreKit, backend, OpenAPI, HealthKit, or App Store logic changed.
 - Risk: broad redesign leaks into PR-6.
-  - Decision: Code diff is bounded to `ShapeStyle+Theme.swift` token facade aliases and one focused iOS contract test.
+  - Decision: Code diff is bounded to `ShapeStyle+Theme.swift` token facade aliases, a `DesignTokens.swift` facade alias, and one focused iOS contract test.
 - Risk: mapping substitutes for fixes.
   - Decision: QA and bug-hunter findings were fixed in code/docs before this mapping artifact was created.
 
