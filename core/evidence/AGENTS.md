@@ -14,6 +14,10 @@ Evidence Graph Runtime changes must preserve this separation:
 - Karpathy/advisory wiki is workforce memory only and must not become
   product-runtime or eval-event source of truth.
 
-For E2-style work, keep `core/evidence/` pure and deterministic. Do not import
-FastAPI, providers, DB/session state, Redis/cache modules, eval runners, or
-advisory wiki modules from this package.
+For E2/E3-style work, keep `core/evidence/` pure and deterministic. Do not
+import FastAPI, providers, DB/session state, Redis/cache modules, eval runners,
+or advisory wiki modules from this package.
+
+E3 promotion ledger/replay changes may add append-only promotion contracts and
+dry-run replay summaries only. They must not write files, call runtime stores,
+create promotion side effects, or duplicate `core/knowledge/promotion.py`.

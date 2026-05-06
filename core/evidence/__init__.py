@@ -23,6 +23,16 @@ from core.evidence.events import (
     ValidationStatus,
     create_eval_event,
 )
+from core.evidence.promotion_ledger import (
+    PromotionDecision,
+    PromotionLedgerEntry,
+    create_promotion_ledger_entry,
+)
+from core.evidence.replay import (
+    PromotionDiff,
+    PromotionReplaySummary,
+    dry_run_replay,
+)
 
 __all__ = [
     "AssetType",
@@ -31,11 +41,17 @@ __all__ = [
     "EvalEventProducer",
     "EvalEventRail",
     "EvalEventType",
+    "PromotionDecision",
+    "PromotionDiff",
+    "PromotionLedgerEntry",
+    "PromotionReplaySummary",
     "Rail",
     "ValidationStatus",
     "build_asset_id",
     "build_idempotency_key",
     "create_evidence_asset_ref",
     "create_eval_event",
+    "create_promotion_ledger_entry",
+    "dry_run_replay",
     "fingerprint_payload",
 ]
