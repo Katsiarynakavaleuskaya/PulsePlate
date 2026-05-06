@@ -1,12 +1,26 @@
 # PulsePlate Semantic Cache Gate and Plan
 
-**Last reconciled:** 10 April 2026
+**Last reconciled:** 6 May 2026
 **Rail:** Product AI runtime rail only
-**Status:** Deferred optimization gate, not active execution scope
+**Status:** Gate-closed deferred optimization, not active execution scope
+
+<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->
+<!-- SEMANTIC_CACHE_ALLOWED_RUNTIME: false -->
+<!-- SEMANTIC_CACHE_IMPLEMENTATION_ALLOWED: false -->
+<!-- SEMANTIC_CACHE_REQUIRES_DEDICATED_GATE: true -->
 
 ## Summary
 
 Semantic cache is **not** part of the current active Wave 6 train.
+
+Evidence Graph E1-E5 reduced future cache risk by adding evidence asset
+lineage, eval events, replay contracts, admission contracts, and advisory wiki
+bridge boundaries. Those contracts do not open this gate by themselves.
+
+Semantic cache remains gate-closed until a reviewed gate-open PR changes the
+machine-checkable markers above and includes product AI runtime scope,
+replay-safe lineage, admission policy, observability, false-hit guardrails,
+rollout contract, and current-head CI governance.
 
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
@@ -37,10 +51,11 @@ Do **not** start semantic cache work before all the following are true:
 Semantic cache belongs only to the **product AI runtime rail**.
 
 It must not be mixed into:
-- Karpathy/advisory/wiki rail
-- workforce memory
-- billing/auth/entitlement truth
-- compliance-sensitive outputs
+- not advisory wiki
+- not workforce memory
+- not a second source of truth
+- not billing/auth/entitlement truth
+- not a compliance/legal output cache
 - user-account truth surfaces
 
 ## Future Rollout Order
@@ -50,8 +65,8 @@ If the gate opens later, the rollout order is fixed:
 1. docs contract for insight runtime caching semantics
 2. exact/fuzzy cache
 3. bounded semantic cache for `/insight`
-4. observability and false-hit guardrails
-5. only then Redis/GPTCache backend
+4. observability / false-hit guardrails
+5. Redis/GPTCache backend only later
 
 ## First-Pass Safety Limits
 

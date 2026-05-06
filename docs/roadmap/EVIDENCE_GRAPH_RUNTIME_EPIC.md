@@ -1,7 +1,7 @@
 <!-- markdownlint-disable MD013 -->
 # PulsePlate Evidence Graph Runtime Epic
 
-**Status:** PR-E5 advisory wiki evidence bridge
+**Status:** PR-E5 merged; semantic-cache gate reconciliation current
 **Date:** 2026-04-28 (`America/New_York`)
 **Canonical backlog anchor:** [`ledger-p1-evidence-graph-runtime`](./BACKLOG_LEDGER.md#ledger-p1-evidence-graph-runtime)
 
@@ -128,6 +128,9 @@ After PR-E4:
   PR-E5 advisory wiki evidence bridge
 
 After PR-E5:
+  docs(ai-runtime): reconcile semantic cache gate after Evidence Graph E5
+
+After semantic-cache gate reconciliation:
   operator-selected follow-up; semantic cache still requires a dedicated gate
 ```
 
@@ -149,6 +152,11 @@ promotion, and metadata admission gates exist and a dedicated semantic-cache
 gate explicitly opens. Evidence: `AGENTS.md:354`,
 `docs/roadmap/BACKLOG_LEDGER.md:1964`, and
 `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`.
+
+Evidence Graph E1-E5 reduces the risk of a future cache rollout but does not
+approve cache implementation. The gate remains closed until the dedicated
+semantic-cache gate document changes its machine-checkable markers through a
+reviewed gate-open PR.
 
 ## Role Order
 
