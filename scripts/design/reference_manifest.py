@@ -85,9 +85,12 @@ EXPORT_GATE_VALUES = {"required", "passed", "not_applicable", "blocked"}
 DIRECT_COPY_PATTERNS = [
     r"\bcopy\b.{0,40}\b(screenshot|asset|brand|exact layout|layout|component|marketing text|copy)\b",
     r"\bclone\b.{0,40}\b(screenshot|asset|brand|exact layout|layout|component|marketing text|copy)\b",
+    r"\bduplicate\b.{0,40}\b(screenshot|asset|brand|exact layout|layout|component|marketing text|copy|brand style)\b",
     r"\breuse\b.{0,40}\b(screenshot|asset|brand|exact layout|layout|component|marketing text|copy)\b",
     r"\breplicate\b.{0,40}\b(screenshot|asset|brand|exact layout|layout|component|marketing text|copy)\b",
     r"\buse\b.{0,40}\b(external brand|vendor brand|proprietary component|copied marketing text)\b",
+    r"\b(screenshot|asset|brand|exact layout|vendor layout|layout|component|marketing text|copy)\b.{0,60}\b(copy|copied|clone|duplicate|duplicated|reuse|replicate|implementation reference)\b",
+    r"\b(use|treat)\b.{0,40}\b(screenshot|asset|external brand|vendor brand|exact screenshot|exact layout|vendor layout)\b.{0,40}\b(implementation reference|implementation authority|runtime authority)\b",
 ]
 
 WELLNESS_CLAIM_TERMS = [
@@ -132,11 +135,36 @@ def _repo_path(path: str | Path, repo_root: Path) -> Path:
 
 
 def _load_json(path: Path) -> dict[str, Any]:
-    with path.open(encoding="utf-8") as handle:
-        data = json.load(handle)
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ManifestError(f"{path}: invalid JSON: {exc.msg}") from exc
+    except OSError as exc:
+        raise ManifestError(f"{path}: cannot read manifest: {exc}") from exc
     if not isinstance(data, dict):
         raise ManifestError(f"{path}: manifest must be a JSON object")
     return data
+
+
+def _load_component_terms(repo_root: Path) -> set[str]:
+    path = repo_root / VOCABULARY_PATH
+    with path.open(encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, list):
+        raise ManifestError(f"{VOCABULARY_PATH}: expected JSON array")
+    component_terms: set[str] = set()
+    for item in data:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
+            raise ManifestError(f"{VOCABULARY_PATH}: every component requires a string id")
+        component_terms.add(item["id"])
+        canonical_name = item.get("canonical_name")
+        if isinstance(canonical_name, str):
+            component_terms.add(canonical_name)
+        aliases = item.get("aliases", [])
+        if isinstance(aliases, list):
+            component_terms.update(alias for alias in aliases if isinstance(alias, str))
+    return component_terms
 
 
 def _load_component_ids(repo_root: Path) -> set[str]:
@@ -145,12 +173,9 @@ def _load_component_ids(repo_root: Path) -> set[str]:
         data = json.load(handle)
     if not isinstance(data, list):
         raise ManifestError(f"{VOCABULARY_PATH}: expected JSON array")
-    component_ids: set[str] = set()
-    for item in data:
-        if not isinstance(item, dict) or not isinstance(item.get("id"), str):
-            raise ManifestError(f"{VOCABULARY_PATH}: every component requires a string id")
-        component_ids.add(item["id"])
-    return component_ids
+    return {
+        item["id"] for item in data if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
 
 
 def _stringify(value: Any) -> str:
@@ -238,10 +263,14 @@ def _validate_status_alignment(record: dict[str, Any], errors: list[str]) -> Non
 
 
 def _validate_component_mapping(record: dict[str, Any], repo_root: Path, errors: list[str]) -> None:
+    component_terms = _load_component_terms(repo_root)
     component_ids = _load_component_ids(repo_root)
     for component_id in record.get("mapped_pulseplate_components", []):
         if component_id not in component_ids:
             errors.append(f"unknown PulsePlate component mapping: {component_id}")
+    for component_pattern in record.get("component_patterns", []):
+        if component_pattern not in component_terms:
+            errors.append(f"unknown PulsePlate component pattern: {component_pattern}")
 
 
 def _validate_copy_risk(record: dict[str, Any], errors: list[str]) -> None:
@@ -292,7 +321,10 @@ def validate_record(record: dict[str, Any], *, repo_root: Path = REPO_ROOT) -> l
 
 
 def validate_path(path: Path, *, repo_root: Path = REPO_ROOT) -> list[str]:
-    record = _load_json(path)
+    try:
+        record = _load_json(path)
+    except ManifestError as exc:
+        return [str(exc)]
     return [f"{path}: {error}" for error in validate_record(record, repo_root=repo_root)]
 
 
