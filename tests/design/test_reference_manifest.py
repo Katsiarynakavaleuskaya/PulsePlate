@@ -132,6 +132,15 @@ def test_rejected_reference_requires_rejected_status():
     assert "adopt_adapt_reject_decision=reject requires status=rejected" in errors
 
 
+def test_rejected_status_requires_reject_decision():
+    module = load_manifest_module()
+    record = valid_record(adopt_adapt_reject_decision="adapt", status="rejected")
+
+    errors = module.validate_record(record, repo_root=REPO_ROOT)
+
+    assert "status=rejected requires adopt_adapt_reject_decision=reject" in errors
+
+
 def test_unknown_license_cannot_be_candidate_for_brief():
     module = load_manifest_module()
     record = valid_record(license_status="unknown", status="candidate_for_brief")
@@ -235,6 +244,23 @@ def test_malformed_json_reports_deterministic_error(tmp_path, capsys):
     assert result == 1
     assert "ERROR:" in captured.err
     assert "invalid JSON" in captured.err
+    assert "Traceback" not in captured.err
+
+
+def test_malformed_component_vocabulary_reports_validation_error(tmp_path, capsys):
+    module = load_manifest_module()
+    repo_root = make_temp_repo(tmp_path)
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary_path.write_text("{not json", encoding="utf-8")
+    manifest_path = repo_root / "manifest.json"
+    write_record(manifest_path, valid_record())
+
+    result = module.run(["validate", str(manifest_path)], repo_root=repo_root)
+    captured = capsys.readouterr()
+
+    assert result == 1
+    assert "ERROR:" in captured.err
+    assert "ui_component_vocabulary.json: invalid JSON" in captured.err
     assert "Traceback" not in captured.err
 
 

@@ -149,8 +149,13 @@ def _load_json(path: Path) -> dict[str, Any]:
 
 def _load_component_terms(repo_root: Path) -> set[str]:
     path = repo_root / VOCABULARY_PATH
-    with path.open(encoding="utf-8") as handle:
-        data = json.load(handle)
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ManifestError(f"{VOCABULARY_PATH}: invalid JSON: {exc.msg}") from exc
+    except OSError as exc:
+        raise ManifestError(f"{VOCABULARY_PATH}: cannot read vocabulary: {exc}") from exc
     if not isinstance(data, list):
         raise ManifestError(f"{VOCABULARY_PATH}: expected JSON array")
     component_terms: set[str] = set()
@@ -169,8 +174,13 @@ def _load_component_terms(repo_root: Path) -> set[str]:
 
 def _load_component_ids(repo_root: Path) -> set[str]:
     path = repo_root / VOCABULARY_PATH
-    with path.open(encoding="utf-8") as handle:
-        data = json.load(handle)
+    try:
+        with path.open(encoding="utf-8") as handle:
+            data = json.load(handle)
+    except json.JSONDecodeError as exc:
+        raise ManifestError(f"{VOCABULARY_PATH}: invalid JSON: {exc.msg}") from exc
+    except OSError as exc:
+        raise ManifestError(f"{VOCABULARY_PATH}: cannot read vocabulary: {exc}") from exc
     if not isinstance(data, list):
         raise ManifestError(f"{VOCABULARY_PATH}: expected JSON array")
     return {
@@ -247,6 +257,8 @@ def _validate_status_alignment(record: dict[str, Any], errors: list[str]) -> Non
     license_status = record.get("license_status")
     if decision == "reject" and status != "rejected":
         errors.append("adopt_adapt_reject_decision=reject requires status=rejected")
+    if status == "rejected" and decision != "reject":
+        errors.append("status=rejected requires adopt_adapt_reject_decision=reject")
     if status == "candidate_for_brief":
         if decision not in {"adopt", "adapt"}:
             errors.append("status=candidate_for_brief requires decision adopt or adapt")
@@ -263,8 +275,12 @@ def _validate_status_alignment(record: dict[str, Any], errors: list[str]) -> Non
 
 
 def _validate_component_mapping(record: dict[str, Any], repo_root: Path, errors: list[str]) -> None:
-    component_terms = _load_component_terms(repo_root)
-    component_ids = _load_component_ids(repo_root)
+    try:
+        component_terms = _load_component_terms(repo_root)
+        component_ids = _load_component_ids(repo_root)
+    except ManifestError as exc:
+        errors.append(str(exc))
+        return
     for component_id in record.get("mapped_pulseplate_components", []):
         if component_id not in component_ids:
             errors.append(f"unknown PulsePlate component mapping: {component_id}")
