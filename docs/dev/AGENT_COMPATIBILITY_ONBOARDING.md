@@ -10,9 +10,11 @@ Read these in order:
 2. [`docs/ENGINEERING_LESSONS.md`](../ENGINEERING_LESSONS.md)
 3. [`RUNBOOK_AGENT.md`](../../RUNBOOK_AGENT.md)
 4. the nearest scoped `AGENTS.md` for the files you touch
-5. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
-6. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
-7. this guide for tool-specific setup notes
+5. for a new PR lane, run the repo-level starter:
+   `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>"`
+6. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
+7. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
+8. this guide for tool-specific setup notes
 
 ## Cursor
 
@@ -31,7 +33,24 @@ Suggested first action in Cursor:
 
 Policy and routing are **deterministic only after** you run the repo entrypoints (`check_preflight.py`, then `task_bootstrap.py`). Markdown and skills do **not** auto-start a coordinator-first session on the host.
 
-Optional first command from repo root:
+Preferred first command for a new PR lane from a clean, synced repo root:
+
+```bash
+scripts/orchestration/start_pr_lane.sh \
+  --goal "<short goal>" \
+  --task-class "<task_class>" \
+  --branch "codex/<slug>" \
+  --worktree "worktrees/<slug>" \
+  --path "<touched-path>"
+```
+
+This creates the isolated worktree, runs analyze preflight, runs
+`task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist plus
+the bootstrap packet summary. It does not push, open a PR, or install host
+plugins.
+
+Optional raw-session helper when you only need preflight plus a printed
+bootstrap recipe:
 
 ```bash
 scripts/orchestration/local_session_bootstrap.sh
@@ -57,6 +76,8 @@ scripts/install_codex_skills.sh --no-cybersec
   `scripts/install_codex_skills.sh --only-cybersec --copy-cybersec`
 - After install or updates, restart Codex so the new skills load
 - Full skill map and policy notes live in [`docs/dev/CODEX_SKILLS.md`](./CODEX_SKILLS.md)
+- Preferred repo-root PR lane starter (isolated worktree + preflight + packet):
+  `scripts/orchestration/start_pr_lane.sh`
 - Optional repo-root helper (preflight analyze + printed `task_bootstrap.py` recipe):
   `scripts/orchestration/local_session_bootstrap.sh`
 - Host-only `~/.codex/config.toml` is outside repo SoT; optional template:

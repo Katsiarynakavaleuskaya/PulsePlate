@@ -109,9 +109,11 @@ The user should not have to name skills manually for normal project work, but
 that routing comes from the canonical bootstrap/orchestration path, not from
 this document by itself.
 
-**Raw session note:** nothing in this file runs at host session start. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) to run analyze preflight and print the selected `task_bootstrap.py` command, then invoke that command so routing and `recommended_skills` are produced deterministically. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147` (analyze preflight) and `scripts/orchestration/local_session_bootstrap.sh:154-166` (printed task bootstrap command).
+**Raw session note:** nothing in this file runs at host session start. For a new PR lane, prefer `scripts/orchestration/start_pr_lane.sh` from a clean checkout synced with `origin/main`; it creates the isolated worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the packet summary plus plugin/runtime checklist. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) only when you need analyze preflight and a printed `task_bootstrap.py` command without creating a worktree. Evidence for the weaker helper: `scripts/orchestration/local_session_bootstrap.sh:145-147` (analyze preflight) and `scripts/orchestration/local_session_bootstrap.sh:154-166` (printed task bootstrap command).
 
 **Launcher vs skills:** If you use an opt-in machine launcher (see [`docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md)), run preflight/bootstrap **before** relying on installed skills or manual task work. **Skills do not replace** `task_bootstrap.py`; they complement routing after a packet exists.
+
+**Plugins vs skills:** external plugins such as Browser Use, Computer Use, GitHub, Hugging Face, Life Science Research, Plugin Eval, and CodeRabbit are operator/runtime checklist items. The repo starter may print them to make availability explicit, but it does not install them, fail closed when they are unavailable, or treat them as product/runtime truth. Repo-native skill selection still comes from `task_bootstrap.py` `recommended_skills`.
 
 **Non-interference contract:** skills remain passive/discovery-only helpers. They do not:
 

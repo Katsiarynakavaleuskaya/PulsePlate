@@ -13,6 +13,9 @@ developers or CI. Repository markdown and templates do not auto-start sessions o
 **Canonical example (sanitized):** [`docs/templates/pulseplate-coordinator-launch.example.sh`](../templates/pulseplate-coordinator-launch.example.sh)
 
 **Related SoT:** [`docs/orchestration/AUTOMATION_READINESS_MATRIX.md`](../orchestration/AUTOMATION_READINESS_MATRIX.md),
+[`scripts/orchestration/start_pr_lane.sh`](../../scripts/orchestration/start_pr_lane.sh)
+(repo PR-lane starter; creates an isolated worktree and invokes the canonical
+preflight/bootstrap flow when the operator runs it),
 [`scripts/orchestration/local_session_bootstrap.sh`](../../scripts/orchestration/local_session_bootstrap.sh)
 (repo bridge; runs analyze preflight and prints the selected bootstrap recipe only).
 
@@ -43,6 +46,20 @@ than by an ephemeral PR packet path.
 into the repository.
 
 ## Use
+
+For ordinary manual repo work, prefer the repo-level PR lane starter first:
+
+```bash
+scripts/orchestration/start_pr_lane.sh \
+  --goal "Close machine-local launcher gap for coordinator-first startup" \
+  --task-class "pr_governance" \
+  --branch "codex/local-launcher-rollout" \
+  --worktree "worktrees/local-launcher-rollout" \
+  --path docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md
+```
+
+This repo starter is still operator-invoked. It does not install host plugins,
+edit `~/.codex/config.toml`, push branches, or open pull requests.
 
 Run from any directory inside the repo (so `git rev-parse --show-toplevel` resolves), or set
 `PULSEPLATE_REPO_ROOT` to the clone root and run from elsewhere.
@@ -81,6 +98,22 @@ Run these **before** opening the docs companion PR (or re-run after template cha
 Expect: preflight exit 0, bootstrap writes task packet under gitignored `artifacts/orchestration/task_packets/`.
 
 ## Repo bridge smoke
+
+### PR lane starter smoke
+
+```bash
+scripts/orchestration/start_pr_lane.sh \
+  --goal "Close machine-local launcher gap for coordinator-first startup" \
+  --task-class "pr_governance" \
+  --branch "codex/local-launcher-rollout-smoke" \
+  --worktree "worktrees/local-launcher-rollout-smoke" \
+  --path docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md \
+  --dry-run
+```
+
+Expect: dry-run output lists the `git worktree add`, `check_preflight.py`, and
+`task_bootstrap.py` commands plus the plugin/runtime checklist. Remove
+`--dry-run` only from a clean checkout synced to `origin/main`.
 
 The repo helper is intentionally weaker than the installed host wrapper: it does not execute
 `task_bootstrap.py`, but it can validate the selected options and print the exact command to run
@@ -183,6 +216,7 @@ recreate; do not touch tracked repo files except through intentional PR changes.
 ## Known limits
 
 - **Bash 3.2 / `set -u`:** the canonical template uses `${ARRAY[@]+"${ARRAY[@]}"}` so empty `--path` / `--requested-agent` lists do not trip unbound-variable errors.
+- **Repo PR starter:** `scripts/orchestration/start_pr_lane.sh` is a repo command, not a host startup hook. It must be run explicitly and treats plugin availability as an operator checklist, not a fail-closed dependency.
 - **Bash-only** in the canonical template; zsh/fish parity is a follow-up if needed.
 - **No Windows launcher** in this slice; parity is deferred unless documented separately.
 - **No CI enforcement:** hosts opt in individually.
