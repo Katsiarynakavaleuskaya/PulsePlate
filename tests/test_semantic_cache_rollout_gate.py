@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import ast
 import json
 from pathlib import Path
 import subprocess
 import sys
 
 import pytest
+
+from tests.helpers.semantic_cache_import_guard import assert_no_forbidden_semantic_cache_imports
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER = REPO_ROOT / "scripts" / "ci" / "check_semantic_cache_gate.py"
@@ -239,51 +240,4 @@ def test_checker_fails_if_contract_phase_is_missing(tmp_path: Path) -> None:
 
 
 def test_checker_has_no_runtime_provider_cache_or_eval_imports() -> None:
-    tree = ast.parse(CHECKER.read_text(encoding="utf-8"))
-    forbidden_prefixes = (
-        "app",
-        "legacy_app",
-        "providers",
-        "llm",
-        "fastapi",
-        "sqlalchemy",
-        "redis",
-        "cache",
-        "semantic_cache",
-        "gptcache",
-        "scripts.evals",
-        "evals",
-        "core.rag",
-    )
-    imports: list[str] = []
-    dynamic_imports: list[str] = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            imports.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imports.append(node.module)
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "__import__"
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
-            dynamic_imports.append(node.args[0].value)
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr == "import_module"
-            and node.args
-            and isinstance(node.args[0], ast.Constant)
-            and isinstance(node.args[0].value, str)
-        ):
-            dynamic_imports.append(node.args[0].value)
-
-    offenders = [
-        name
-        for name in imports + dynamic_imports
-        if any(name == prefix or name.startswith(f"{prefix}.") for prefix in forbidden_prefixes)
-    ]
-    assert offenders == []
+    assert_no_forbidden_semantic_cache_imports(CHECKER)

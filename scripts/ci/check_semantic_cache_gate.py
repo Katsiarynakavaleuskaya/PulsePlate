@@ -43,14 +43,14 @@ ROLLOUT_ORDER = (
 
 FORBIDDEN_CLAIM_PATTERNS = (
     (
-        "semantic cache implemented/active/enabled/open/approved",
+        "semantic cache live claim",
         re.compile(
             r"\bsemantic\s+cache\s+(?:(?:is|has\s+been)\s+)?(?:now\s+)?"
             r"(?:implemented|active|enabled|open|approved|ready)\b"
         ),
     ),
     (
-        "semantic-cache implemented/active/enabled/open/approved",
+        "semantic-cache live claim",
         re.compile(
             r"\bsemantic-cache\s+(?:(?:is|has\s+been)\s+)?(?:now\s+)?"
             r"(?:implemented|active|enabled|open|approved|ready)\b"
@@ -98,48 +98,54 @@ FORBIDDEN_CLAIM_PATTERNS = (
     ),
 )
 
-CONTRACT_REQUIRED_PHRASES = (
-    "does not open the semantic-cache gate",
-    "does not implement semantic cache",
-    "gate remains closed",
-    "product AI runtime rail only",
-    "feature-flagged",
-    "off by default",
-    "SC-G1 rollout gate contract",
-    "SC-G2 exact/fuzzy cache scaffold",
-    "SC-G3 observability and false-hit harness",
-    "SC-G4 bounded `/insight` semantic-cache experiment",
-    "SC-G5 backend selection",
-    "exact duplicate hit",
-    "normalized fuzzy hit",
-    "semantic false positive",
-    "stale-source hit",
-    "policy-version mismatch hit",
-    "model-version mismatch hit",
-    "user-context leakage hit",
-    "eligible_hit_rate",
-    "served_hit_rate",
-    "false_hit_rate",
-    "cache_precision_proxy",
-    "stale_answer_rate",
-    "fallback_rate",
-    "p50/p95 latency_saved",
-    "provider_calls_avoided",
-    "cost_saved",
-    "quota_consumption_delta",
-    "kill switch",
-    "no-cache fallback path",
-    "purge/invalidation path",
-    "blocked cache surfaces",
-    "advisory wiki pages as product truth",
-    "billing/auth/entitlement",
-    "legal/compliance outputs",
-    "user-account truth",
-    "raw prompts",
-    "raw model responses",
-    "Evidence Graph linkage",
-    "admission decision IDs",
-    "promotion/replay lineage",
+CONTRACT_REQUIRED_ANCHORS = (
+    ("gate does not open", re.compile(r"\bdoes not open (?:the )?semantic-cache gate\b")),
+    ("no cache implementation", re.compile(r"\bdoes not implement semantic cache\b")),
+    ("gate remains closed", re.compile(r"\bgate remains closed\b")),
+    ("product AI runtime rail only", re.compile(r"\bproduct ai runtime rail only\b")),
+    ("feature flag", re.compile(r"\bfeature-flagged\b")),
+    ("off by default", re.compile(r"\boff by default\b")),
+    ("SC-G1 rollout gate contract", re.compile(r"\bsc-g1 rollout gate contract\b")),
+    ("SC-G2 exact/fuzzy cache scaffold", re.compile(r"\bsc-g2 exact/fuzzy cache scaffold\b")),
+    (
+        "SC-G3 observability and false-hit harness",
+        re.compile(r"\bsc-g3 observability and false-hit harness\b"),
+    ),
+    (
+        "SC-G4 bounded insight semantic-cache experiment",
+        re.compile(r"\bsc-g4 bounded /insight semantic-cache experiment\b"),
+    ),
+    ("SC-G5 backend selection", re.compile(r"\bsc-g5 backend selection\b")),
+    ("exact duplicate hit", re.compile(r"\bexact duplicate hit\b")),
+    ("normalized fuzzy hit", re.compile(r"\bnormalized fuzzy hit\b")),
+    ("semantic false positive", re.compile(r"\bsemantic false positive\b")),
+    ("stale-source hit", re.compile(r"\bstale-source hit\b")),
+    ("policy-version mismatch hit", re.compile(r"\bpolicy-version mismatch hit\b")),
+    ("model-version mismatch hit", re.compile(r"\bmodel-version mismatch hit\b")),
+    ("user-context leakage hit", re.compile(r"\buser-context leakage hit\b")),
+    ("eligible_hit_rate", re.compile(r"\beligible_hit_rate\b")),
+    ("served_hit_rate", re.compile(r"\bserved_hit_rate\b")),
+    ("false_hit_rate", re.compile(r"\bfalse_hit_rate\b")),
+    ("cache_precision_proxy", re.compile(r"\bcache_precision_proxy\b")),
+    ("stale_answer_rate", re.compile(r"\bstale_answer_rate\b")),
+    ("fallback_rate", re.compile(r"\bfallback_rate\b")),
+    ("p50/p95 latency_saved", re.compile(r"\bp50/p95 latency_saved\b")),
+    ("provider_calls_avoided", re.compile(r"\bprovider_calls_avoided\b")),
+    ("cost_saved", re.compile(r"\bcost_saved\b")),
+    ("quota_consumption_delta", re.compile(r"\bquota_consumption_delta\b")),
+    ("kill switch", re.compile(r"\bkill switch\b")),
+    ("no-cache fallback path", re.compile(r"\bno-cache fallback path\b")),
+    ("purge/invalidation path", re.compile(r"\bpurge/invalidation path\b")),
+    ("blocked cache surfaces", re.compile(r"\bblocked cache surfaces\b")),
+    ("advisory wiki product truth block", re.compile(r"\badvisory wiki pages as product truth\b")),
+    ("billing/auth/entitlement block", re.compile(r"\bbilling/auth/entitlement\b")),
+    ("legal/compliance outputs block", re.compile(r"\blegal/compliance outputs\b")),
+    ("user-account truth block", re.compile(r"\buser-account truth\b")),
+    ("raw prompts block", re.compile(r"\braw prompts\b")),
+    ("raw model responses block", re.compile(r"\braw model responses\b")),
+    ("Evidence Graph linkage", re.compile(r"\bevidence graph linkage\b")),
+    ("admission decision IDs", re.compile(r"\badmission decision ids\b")),
+    ("promotion/replay lineage", re.compile(r"\bpromotion/replay lineage\b")),
 )
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
@@ -148,7 +154,7 @@ MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?
 def _normalize_text(text: str) -> str:
     text = text.lower()
     text = text.replace("–", "-").replace("—", "-").replace("‑", "-")
-    text = re.sub(r"[*_`]+", "", text)
+    text = re.sub(r"[*`]+", "", text)
     text = re.sub(r"[/]+", "/", text)
     return re.sub(r"\s+", " ", text)
 
@@ -217,9 +223,9 @@ def validate_semantic_cache_rollout_contract(text: str) -> list[str]:
     errors: list[str] = []
     normalized = _normalize_text(text)
 
-    for phrase in CONTRACT_REQUIRED_PHRASES:
-        if _normalize_text(phrase) not in normalized:
-            errors.append(f"rollout contract missing required phrase: {phrase}")
+    for label, pattern in CONTRACT_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"rollout contract missing anchor: {label}")
 
     search_start = 0
     previous_index = -1

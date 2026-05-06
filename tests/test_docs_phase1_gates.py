@@ -154,5 +154,5 @@ def test_phase1_guard_runs_semantic_cache_checker_for_rollout_contract(
         markdown_files=["docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md"]
     )
 
-    assert any("rollout contract missing required phrase" in error for error in errors)
+    assert any("rollout contract missing anchor" in error for error in errors)
     assert any("forbidden semantic-cache claim" in error for error in errors)
