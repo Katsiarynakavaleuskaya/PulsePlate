@@ -112,9 +112,12 @@ def _sha256_file(path: Path) -> str | None:
     if not path.exists() or not path.is_file():
         return None
     try:
-        return release_manifest.sha256_lower_hex(path.read_bytes())
+        digest = release_manifest.sha256_lower_hex(path.read_bytes())
     except OSError:
         return None
+    if not isinstance(digest, str):
+        return None
+    return digest
 
 
 def _artifact_entry(path: Path) -> dict[str, Any]:
