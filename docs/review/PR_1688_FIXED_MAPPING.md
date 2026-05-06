@@ -50,7 +50,7 @@ Evidence:
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
-- `. .venv/bin/activate && pytest -q tests/test_production_release_evidence_wiring.py` PASS (`12 passed`)
+- `. .venv/bin/activate && pytest -q tests/test_production_release_evidence_wiring.py` PASS (`13 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_release_control_plane_ci_gate.py` PASS (`26 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_release_manifest.py` PASS (`20 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_build_equivalence.py` PASS (`22 passed`)
@@ -58,10 +58,8 @@ Evidence:
 - `. .venv/bin/activate && pytest -q tests/test_check_docker_provenance_attestation.py` PASS (`12 passed`)
 - `. .venv/bin/activate && pytest -q tests/test_repo_policy_guards.py` PASS (`14 passed`)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md docs/release/RELEASE_CONTROL_PLANE_EPIC.md docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md docs/roadmap/BACKLOG_LEDGER.md` PASS
-- `make validate-changed` PASS (`59 passed`) before the source-run
-  provenance fix; rerun required after review artifact commits.
-- `pre-commit run --all-files` PASS before the source-run provenance fix; rerun
-  required after review artifact commits.
+- `make validate-changed` PASS (`61 passed`)
+- `pre-commit run --all-files` PASS
 - Pre-push hooks PASS before PR open.
 
 ## Machine-Heavy Deferral

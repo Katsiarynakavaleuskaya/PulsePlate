@@ -174,9 +174,9 @@ Unresolved P2: none.
 
 - `python3 scripts/orchestration/check_preflight.py` PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS
-- `. .venv/bin/activate && pytest -q tests/test_production_release_evidence_wiring.py` PASS (`12 passed`) before the source-run provenance fix
+- `. .venv/bin/activate && pytest -q tests/test_production_release_evidence_wiring.py` PASS (`13 passed`) after all premortem fixes
 - `. .venv/bin/activate && pytest -q tests/test_production_release_evidence_wiring.py tests/test_release_control_plane_ci_gate.py tests/test_build_equivalence.py` PASS (`61 passed`) after the source-run provenance fix
 - Bounded release-control-plane suite PASS before the premortem fix (`11`, `26`, `20`, `22`, `48`, `12`, and `14` passing test groups)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md docs/release/RELEASE_CONTROL_PLANE_EPIC.md docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md docs/roadmap/BACKLOG_LEDGER.md` PASS
-- `make validate-changed` PASS (`59 passed`) before the premortem fix; rerun required after this artifact lands.
-- `pre-commit run --all-files` PASS before the premortem fix; rerun required after this artifact lands.
+- `make validate-changed` PASS (`61 passed`) after all premortem/review artifact changes.
+- `pre-commit run --all-files` PASS after all premortem/review artifact changes.
