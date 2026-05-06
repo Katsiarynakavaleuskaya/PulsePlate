@@ -124,6 +124,7 @@ def test_admission_allows_valid_execute_input() -> None:
     assert decision.action == "execute"
     assert decision.reason_codes == ("execute_allowed",)
     assert decision.blocking_reasons == ()
+    assert decision.produced_at == _NOW
     assert decision.decision_id.startswith("admission-decision:")
 
 
@@ -438,6 +439,8 @@ def test_admission_rejects_policy_mismatch_and_bad_policy_values() -> None:
         )
     with pytest.raises(ValueError, match="stale_after_seconds"):
         _policy(stale_after_seconds=-1)
+    with pytest.raises(ValueError, match="allow_degraded"):
+        _policy(allow_degraded=cast(Any, "yes"))
 
 
 def test_admission_preserves_metadata_upstreams_and_decision_metadata_defensively() -> None:

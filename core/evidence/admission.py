@@ -175,6 +175,8 @@ class AdmissionPolicy:
             "max_fallback_rate",
             _validate_metric("max_fallback_rate", self.max_fallback_rate),
         )
+        if not isinstance(self.allow_degraded, bool):
+            raise ValueError("allow_degraded must be a boolean")
         if self.stale_after_seconds < 0:
             raise ValueError("stale_after_seconds must be non-negative")
         object.__setattr__(
@@ -564,6 +566,7 @@ def decide_admission(
         target_type=admission_input.target_type,
         fingerprint=admission_input.fingerprint,
         idempotency_key=admission_input.idempotency_key,
+        produced_at=now_timestamp,
         reason_codes=normalized_reason_codes,
         blocking_reasons=normalized_blocking_reasons,
         warnings=normalized_warnings,
@@ -577,7 +580,7 @@ def decide_admission(
         target_type=admission_input.target_type,
         fingerprint=admission_input.fingerprint,
         idempotency_key=admission_input.idempotency_key,
-        produced_at=admission_input.produced_at,
+        produced_at=now_timestamp,
         reason_codes=normalized_reason_codes,
         blocking_reasons=normalized_blocking_reasons,
         warnings=normalized_warnings,
@@ -668,6 +671,7 @@ def build_admission_decision_id(
     target_type: AdmissionTargetType,
     fingerprint: str,
     idempotency_key: str,
+    produced_at: str,
     reason_codes: tuple[str, ...],
     blocking_reasons: tuple[str, ...],
     warnings: tuple[str, ...],
@@ -681,6 +685,7 @@ def build_admission_decision_id(
         "fingerprint": fingerprint,
         "idempotency_key": idempotency_key,
         "policy_version": policy_version,
+        "produced_at": produced_at,
         "reason_codes": list(reason_codes),
         "target_id": target_id,
         "target_type": target_type,
