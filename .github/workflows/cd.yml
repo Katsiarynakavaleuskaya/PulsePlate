@@ -64,6 +64,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Free disk space (Ubuntu hosted runner)
         run: |
@@ -239,7 +241,7 @@ jobs:
           exit 1
 
   release-control-plane-fixture-gate:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -566,6 +568,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deploy_mode: ${{ steps.resolve.outputs.deploy_mode }}
+      evidence_artifact_name: ${{ steps.resolve.outputs.evidence_artifact_name }}
+      evidence_run_id: ${{ steps.resolve.outputs.evidence_run_id }}
       release_ready: ${{ steps.resolve.outputs.release_ready }}
       should_deploy: ${{ steps.resolve.outputs.should_deploy }}
     steps:
@@ -637,6 +641,16 @@ jobs:
           fi
           env_ready="${env_ready:-false}"
 
+          evidence_run_id="$(get_actions_variable "environments/production/variables" "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID")"
+          if [ -z "$evidence_run_id" ]; then
+            evidence_run_id="$(get_actions_variable "actions/variables" "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID")"
+          fi
+
+          evidence_artifact_name="$(get_actions_variable "environments/production/variables" "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME")"
+          if [ -z "$evidence_artifact_name" ]; then
+            evidence_artifact_name="$(get_actions_variable "actions/variables" "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME")"
+          fi
+
           case "$deploy_mode" in
             "")
               ;;
@@ -657,6 +671,14 @@ jobs:
             fi
             if [ "$env_ready" = "true" ]; then
               should_deploy=true
+              if [ -z "$evidence_run_id" ]; then
+                echo "❌ RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID is required when production deploy is active"
+                exit 1
+              fi
+              if [ -z "$evidence_artifact_name" ]; then
+                echo "❌ RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME is required when production deploy is active"
+                exit 1
+              fi
             else
               echo "Production deploy remains build-only: PRODUCTION_ENV_READY=true is required after host bootstrap confirms \$DEPLOY_DIR/.env exists."
             fi
@@ -664,18 +686,167 @@ jobs:
 
           {
             echo "deploy_mode=$deploy_mode"
+            echo "evidence_artifact_name=$evidence_artifact_name"
+            echo "evidence_run_id=$evidence_run_id"
             echo "release_ready=$release_ready"
             echo "env_ready=$env_ready"
             echo "should_deploy=$should_deploy"
           } >> "$GITHUB_OUTPUT"
           echo "Resolved production deploy config: release_ready=$release_ready env_ready=$env_ready deploy_mode=${deploy_mode:-unset} should_deploy=$should_deploy"
 
+  release-control-plane-production-evidence:
+    if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true'
+    needs: [build-production, production-deploy-config]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Download production release-control-plane evidence artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME: ${{ needs.production-deploy-config.outputs.evidence_artifact_name }}
+          RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID: ${{ needs.production-deploy-config.outputs.evidence_run_id }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" in
+            ''|*[!0-9]*)
+              echo "❌ RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID must be a numeric GitHub Actions run id"
+              exit 1
+              ;;
+          esac
+          case "$RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in
+            ''|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*)
+              echo "❌ RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME must name real production evidence"
+              exit 1
+              ;;
+          esac
+          tag_commit="$(git rev-parse "${GITHUB_REF#refs/tags/}^{commit}")"
+          run_metadata="$(
+            gh run view "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" \
+              --json status,conclusion,headSha,event,workflowName,url \
+              --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+          )"
+          IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+          if [ "$run_status" != "completed" ]; then
+            echo "❌ Release-control-plane evidence run is not completed: ${run_status:-unset}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_conclusion" != "success" ]; then
+            echo "❌ Release-control-plane evidence run did not succeed: ${run_conclusion:-unset}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_head_sha" != "$tag_commit" ]; then
+            echo "❌ Release-control-plane evidence run head SHA does not match production tag commit"
+            echo "run headSha=${run_head_sha:-unset}"
+            echo "tag commit=${tag_commit}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_event" != "workflow_dispatch" ]; then
+            echo "❌ Release-control-plane evidence run must be produced by a governed manual release-evidence workflow_dispatch run"
+            echo "run event=${run_event:-unset}"
+            echo "run url=${run_url:-unset}"
+            exit 1
+          fi
+          case "$run_workflow_name" in
+            *"Release Control Plane"*|*"release-control-plane"*)
+              ;;
+            *)
+              echo "❌ Release-control-plane evidence run workflow name is not an approved release-evidence producer"
+              echo "workflowName=${run_workflow_name:-unset}"
+              echo "run url=${run_url:-unset}"
+              exit 1
+              ;;
+          esac
+          evidence_root="${RUNNER_TEMP}/release-control-plane-production-evidence"
+          mkdir -p "$evidence_root"
+          gh run download "$RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" \
+            --name "$RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" \
+            --dir "$evidence_root"
+          {
+            echo "RELEASE_CONTROL_PLANE_EVIDENCE_ROOT=$evidence_root"
+            echo "RELEASE_CONTROL_PLANE_OUTPUT_ROOT=${RUNNER_TEMP}/release-control-plane-production-gate"
+          } >> "$GITHUB_ENV"
+
+      - name: Validate production release-control-plane evidence
+        run: |
+          set -euo pipefail
+          evidence_dir="${RELEASE_CONTROL_PLANE_EVIDENCE_ROOT}/release-control-plane"
+          output_dir="${RELEASE_CONTROL_PLANE_OUTPUT_ROOT}"
+          mkdir -p "$output_dir"
+          for required_file in \
+            release_manifest.json \
+            rag_gate_result.json \
+            build_equivalence_result.json
+          do
+            if [ ! -f "${evidence_dir}/${required_file}" ]; then
+              echo "❌ Missing production release-control-plane evidence: ${evidence_dir}/${required_file}"
+              exit 1
+            fi
+          done
+          tag_commit="$(git rev-parse "${GITHUB_REF#refs/tags/}^{commit}")"
+          manifest_git_sha="$(
+            python3 - "${evidence_dir}/release_manifest.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          build_identity = payload.get("build_identity")
+          if not isinstance(build_identity, dict):
+              raise SystemExit("missing build_identity")
+          git_sha = build_identity.get("git_sha")
+          if not isinstance(git_sha, str) or not git_sha:
+              raise SystemExit("missing build_identity.git_sha")
+          print(git_sha)
+          PY
+          )"
+          if [ "$manifest_git_sha" != "$tag_commit" ]; then
+            echo "❌ Release manifest git SHA does not match production tag commit"
+            echo "manifest git_sha=${manifest_git_sha}"
+            echo "tag commit=${tag_commit}"
+            exit 1
+          fi
+          python3 scripts/ci/check_release_control_plane.py \
+            --release-manifest "${evidence_dir}/release_manifest.json" \
+            --rag-gate-result "${evidence_dir}/rag_gate_result.json" \
+            --build-equivalence "${evidence_dir}/build_equivalence_result.json" \
+            --json-out "${output_dir}/release_control_plane_ci_gate.json" \
+            --markdown-out "${output_dir}/release_control_plane_ci_gate.md"
+
+      - name: Publish production release-control-plane gate summary
+        if: ${{ always() }}
+        run: |
+          set -euo pipefail
+          if [ -f "${RELEASE_CONTROL_PLANE_OUTPUT_ROOT}/release_control_plane_ci_gate.md" ]; then
+            cat "${RELEASE_CONTROL_PLANE_OUTPUT_ROOT}/release_control_plane_ci_gate.md" >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
+      - name: Upload production release-control-plane gate artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: release-control-plane-ci-gate-cd-production
+          path: |
+            ${{ runner.temp }}/release-control-plane-production-gate/release_control_plane_ci_gate.json
+            ${{ runner.temp }}/release-control-plane-production-gate/release_control_plane_ci_gate.md
+          if-no-files-found: warn
+          retention-days: 14
+
   deploy-production:
     # Run only when PROD_DEPLOY_MODE is explicitly 'ssh' (SSH from GitHub-hosted runners).
     # The config is resolved inside production-deploy-config so environment-scoped vars
     # are visible before the deploy jobs decide whether to run.
     if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'ssh'
-    needs: [production-gates, build-production, production-deploy-config]
+    needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: ubuntu-latest
     environment:
       name: production
@@ -778,7 +949,7 @@ jobs:
 
   deploy-production-self-hosted:
     if: startsWith(github.ref, 'refs/tags/v') && needs.production-deploy-config.outputs.should_deploy == 'true' && needs.production-deploy-config.outputs.deploy_mode == 'self-hosted'
-    needs: [production-gates, build-production, production-deploy-config]
+    needs: [production-gates, build-production, production-deploy-config, release-control-plane-production-evidence]
     runs-on: [self-hosted, linux, x64, pulseplate-prod]
     environment:
       name: production
