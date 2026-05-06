@@ -74,6 +74,30 @@ def test_duplicate_component_ids_fail_closed(tmp_path):
         module.render_design_md(repo_root)
 
 
+def test_stale_declared_component_path_uses_runtime_fallback(tmp_path):
+    module = load_generator_module()
+    repo_root = make_temp_repo(tmp_path)
+    fallback_path = repo_root / "frontend/src/components/ui/Select.tsx"
+    fallback_path.parent.mkdir(parents=True)
+    fallback_path.write_text("export function Select() {}\n", encoding="utf-8")
+    vocabulary_path = repo_root / "docs/design/ui_component_vocabulary.json"
+    vocabulary = json.loads(vocabulary_path.read_text(encoding="utf-8"))
+    for item in vocabulary:
+        if item["id"] == "select":
+            item["existing_repo_component"] = "frontend/src/components/ui/StaleSelect.tsx"
+            item["missing_status"] = "existing"
+            break
+    vocabulary_path.write_text(json.dumps(vocabulary), encoding="utf-8")
+
+    output = module.render_design_md(repo_root)
+
+    assert "frontend/src/components/ui/StaleSelect.tsx" not in output
+    assert (
+        "| select | select | existing-runtime-detected | "
+        "`frontend/src/components/ui/Select.tsx` |"
+    ) in output
+
+
 def test_generated_design_md_classifies_automation_as_internal_modules():
     module = load_generator_module()
 

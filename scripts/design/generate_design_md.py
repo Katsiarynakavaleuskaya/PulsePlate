@@ -82,11 +82,15 @@ def _component_repo_evidence(item: dict[str, object], repo_root: Path) -> tuple[
     declared_component = item.get("existing_repo_component")
     declared_status = str(item.get("missing_status", "unknown"))
     if isinstance(declared_component, str) and declared_component:
-        return declared_status, declared_component
+        if (repo_root / declared_component).exists():
+            return declared_status, declared_component
 
     fallback_path = RUNTIME_COMPONENT_FALLBACKS.get(str(item["id"]))
     if fallback_path and (repo_root / fallback_path).exists():
         return "existing-runtime-detected", fallback_path
+
+    if isinstance(declared_component, str) and declared_component:
+        return "declared-path-missing", declared_component
 
     return declared_status, "none"
 
