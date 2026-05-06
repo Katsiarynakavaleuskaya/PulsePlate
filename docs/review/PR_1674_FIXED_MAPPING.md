@@ -54,6 +54,11 @@ Disposition: FIXED
 Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
 Evidence: CodeRabbit actionable comments are mapped above with fix commit evidence.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#pullrequestreview-4234400255 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: CodeRabbit follow-up review is mapped above to the pending-status contradiction fix in `docs/review/PR_1674_FIXED_MAPPING.md`.
+
 ## Internal Review Findings
 
 ### Pre-Open Review Findings
