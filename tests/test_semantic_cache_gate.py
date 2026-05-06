@@ -374,3 +374,14 @@ def test_import_guard_rejects_direct_and_relative_dynamic_imports(tmp_path: Path
 
     with pytest.raises(AssertionError):
         assert_no_forbidden_semantic_cache_imports(guarded_file)
+
+
+def test_import_guard_rejects_import_from_submodule_bypass(tmp_path: Path) -> None:
+    guarded_file = tmp_path / "guarded.py"
+    guarded_file.write_text(
+        "from scripts import evals\n" "from core import rag\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError):
+        assert_no_forbidden_semantic_cache_imports(guarded_file)

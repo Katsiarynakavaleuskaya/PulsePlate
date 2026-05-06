@@ -33,7 +33,10 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.append(node.module)
             for alias in node.names:
-                import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+                qualified_name = f"{node.module}.{alias.name}"
+                if alias.name != "*":
+                    imports.append(qualified_name)
+                import_aliases[alias.asname or alias.name] = qualified_name
         elif isinstance(node, ast.ImportFrom):
             imports.extend(alias.name for alias in node.names)
         elif (
