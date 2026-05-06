@@ -5,7 +5,7 @@
 
 iOS visual/design-system parity is accepted with one bounded sync fix.
 
-The PR-6 audit found a concrete token-backed parity gap in `ios/PulsePlate/Extensions/ShapeStyle+Theme.swift`: `ShapeStyle` surface aliases manually encoded white-opacity values instead of routing through `PPDesignTokens.ColorToken`. The bounded sync updates those aliases to the generated-token facade and adds a focused contract test.
+The PR-6 audit found a concrete token-backed parity gap in `ios/PulsePlate/Extensions/ShapeStyle+Theme.swift`: `ShapeStyle` surface aliases manually encoded white-opacity values instead of routing through `PPDesignTokens.ColorToken`. The bounded sync updates those aliases to the token facade, adds an explicit `liquidGlass` facade alias in `ios/PulsePlate/DesignSystem/DesignTokens.swift`, and adds a focused contract test.
 
 This audit is review evidence only. It is not live iOS screenshot proof, App Store approval, runtime product truth, or a second source of truth. Repo code, tests, `/tokens`, generated mirrors, UI vocabulary, backend/OpenAPI contracts, and implemented runtime behavior remain canonical.
 
@@ -33,7 +33,7 @@ Generated token mirrors remain untouched by hand. The iOS token stack follows th
 
 `PPDesignTokens` correctly exposes generated brand, semantic color, spacing, typography, radius, elevation, and motion values. `Color+Assets.swift` already routes semantic aliases through `PPDesignTokens`.
 
-The bounded sync fixes `ShapeStyle+Theme.swift` so `surface`, `surfaceElevated`, and `liquidGlass` no longer encode separate white-opacity values outside the token facade.
+The bounded sync fixes `ShapeStyle+Theme.swift` so `surface`, `surfaceElevated`, and `liquidGlass` no longer encode separate white-opacity values outside the token facade. `liquidGlass` remains an explicit facade alias over `surfaceElevated` until `/tokens` promotes a dedicated liquid-glass token.
 
 This creates one expected token-parity visual delta: `Color.surface` moves from the former local `Color.white.opacity(0.08)` alias to the generated token value currently exposed as `PPDesignTokens.ColorToken.surface` (`Color.white.opacity(0.10)`). That is accepted as repo-token parity, not redesign.
 
@@ -77,7 +77,7 @@ PR #1689 accepted the current web launch shell with deferred minor follow-up. PR
 ## Bounded Sync Outcome
 
 - Current iOS design-system parity: accepted with one bounded token-facade sync.
-- Code sync required now: yes, only for `ShapeStyle+Theme.swift` token facade alignment.
+- Code sync required now: yes, only for `ShapeStyle+Theme.swift` token facade alignment, a `DesignTokens.swift` facade alias, and the targeted contract test.
 - Tests required now: focused `DesignSystemAccessibilityContractTests` coverage for the alias contract.
 - Deferred minor follow-up: future live iOS simulator capture, Dynamic Type evidence, and VoiceOver review can be added in a separate capture/review lane.
 - Next Design Intelligence lane: PR-7 design-agent workflow and PR template. Live iOS capture remains a separate future evidence lane unless separately scoped.

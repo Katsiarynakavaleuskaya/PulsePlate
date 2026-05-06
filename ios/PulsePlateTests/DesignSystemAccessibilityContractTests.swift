@@ -31,14 +31,14 @@ final class DesignSystemAccessibilityContractTests: XCTestCase {
     }
 
     func testShapeStyleThemeUsesDesignTokenFacade() {
-        XCTAssertEqual(String(describing: Color.surface), String(describing: PPDesignTokens.ColorToken.surface))
+        XCTAssertEqual(Color.surface, PPDesignTokens.ColorToken.surface)
         XCTAssertEqual(
-            String(describing: Color.surfaceElevated),
-            String(describing: PPDesignTokens.ColorToken.surfaceElevated)
+            Color.surfaceElevated,
+            PPDesignTokens.ColorToken.surfaceElevated
         )
         XCTAssertEqual(
-            String(describing: Color.liquidGlass),
-            String(describing: PPDesignTokens.ColorToken.surfaceElevated)
+            Color.liquidGlass,
+            PPDesignTokens.ColorToken.liquidGlass
         )
     }
 }

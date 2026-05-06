@@ -7,7 +7,7 @@ Audit iOS visual/design-system parity after PR-5 web acceptance and apply only b
 
 ## Decision
 
-Proceed with an audit plus one bounded token-facade sync. `ShapeStyle+Theme.swift` must use `PPDesignTokens.ColorToken` for surface aliases instead of manual opacity values. No broad iOS redesign or screen implementation is authorized.
+Proceed with an audit plus one bounded token-facade sync. `ShapeStyle+Theme.swift` must use `PPDesignTokens.ColorToken` for surface aliases instead of manual opacity values, with `DesignTokens.swift` carrying the explicit `liquidGlass` facade alias until `/tokens` promotes a dedicated token. No broad iOS redesign or screen implementation is authorized.
 
 ## Coordinator Route
 
@@ -49,7 +49,7 @@ The following are evidence/reference layers only:
 - `docs/design/screen_evidence/examples/ios_home.sample.json` validates as sample metadata.
 - `docs/design/design_scorecard/examples/ios_home.scorecard.sample.json` validates as deterministic scorecard metadata.
 - iOS DesignSystem primitives route through `PPDesignTokens`.
-- `ShapeStyle+Theme.swift` had a bounded token-facade parity gap and is the only runtime design-system sync in this packet.
+- `ShapeStyle+Theme.swift` had a bounded token-facade parity gap; `DesignTokens.swift` carries the explicit facade alias needed to keep that sync type-safe and non-generated.
 - Expected visual delta: `Color.surface` moves from local `Color.white.opacity(0.08)` to generated token-backed `PPDesignTokens.ColorToken.surface` (`Color.white.opacity(0.10)`). This is token parity, not redesign.
 
 Required evidence commands:
@@ -69,6 +69,7 @@ These commands provide governance evidence only. They do not prove live iOS simu
 - Add PR-6 orchestration packet.
 - Update Design Intelligence ledger status narrowly.
 - Sync `ShapeStyle+Theme.swift` surface aliases to the design-token facade.
+- Add a non-generated `DesignTokens.swift` facade alias for `liquidGlass`.
 - Add focused iOS contract coverage for the bounded sync.
 - Keep PR-7 design-agent workflow and PR template as the next Design Intelligence lane after PR-6.
 
@@ -97,7 +98,7 @@ These commands provide governance evidence only. They do not prove live iOS simu
 - False visual-ready claim: mitigated by saying sample evidence is metadata only and not simulator proof.
 - Second source of truth: mitigated by repeating repo source precedence.
 - Generated-token drift: mitigated by forbidding manual edits to `DesignTokens.generated.swift` and checking token mirror diffs.
-- Broad redesign drift: mitigated by limiting code sync to token-backed `ShapeStyle` aliases.
+- Broad redesign drift: mitigated by limiting code sync to token-backed `ShapeStyle` aliases and the local token facade alias.
 - Thin-client drift: mitigated by avoiding BMI, nutrition, coaching, entitlement, StoreKit, backend, and OpenAPI logic.
 
 ## Definition Of Done
@@ -106,6 +107,7 @@ These commands provide governance evidence only. They do not prove live iOS simu
 - PR-6 packet exists.
 - Bounded sync decision is explicit.
 - `ShapeStyle+Theme.swift` uses `PPDesignTokens.ColorToken` for surface aliases.
+- `DesignTokens.swift` exposes `PPDesignTokens.ColorToken.liquidGlass` as a non-generated alias over `surfaceElevated`.
 - Focused iOS contract test covers the token-facade alias requirement.
 - Next lane decision is explicit: PR-7 design-agent workflow and PR template; live iOS capture is separate unless later scoped.
 - Generated token mirror remains untouched.
