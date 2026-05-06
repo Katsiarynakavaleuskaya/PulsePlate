@@ -12,9 +12,6 @@ export default defineConfig({
       bundleName: "pulseplate-frontend",
       enableBundleAnalysis: enableCodecovBundleAnalysis,
       gitService: "github",
-      oidc: {
-        useGitHubOIDC: true,
-      },
       telemetry: false,
       uploadToken: process.env.CODECOV_TOKEN,
     }),
