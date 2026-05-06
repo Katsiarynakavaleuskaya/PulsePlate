@@ -19,7 +19,35 @@ resolved.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#discussion_r3193941462 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now says PR #1608 fixed mapping recorded the focused frontend tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#discussion_r3193946860 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` keeps `ledger-p1-web-launch-design-polish-v1` open and records same-day docs-only closeout after PR #1674.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#discussion_r3193963595 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: `docs/review/PR_1674_FIXED_MAPPING.md` now places the required checked boxes directly under `## Discussion Thread Pass`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#discussion_r3193963624 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` keeps the web launch polish item open for docs-only closeout after this mixed-scope PR.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#pullrequestreview-4234339257 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: Sourcery grammar finding addressed in `docs/roadmap/BACKLOG_LEDGER.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#pullrequestreview-4234373012 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: CodeRabbit actionable comments are mapped above with fix commit evidence.
 
 ## Internal Review Findings
 
