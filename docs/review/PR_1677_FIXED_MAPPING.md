@@ -41,6 +41,7 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - `acbc4c6dddaa362b94b1c2ace3afff3e274383fc` -> `fix(design): address PR1677 review hardening`
 - `890264dddb969efba93b7fbd6ab28a1cca902b84` -> `docs(review): map pr 1677 coderabbit feedback`
 - `fc3a8aec35f468b5a827af0125a88b2d8ff95070` -> `fix(design): verify declared component evidence paths`
+- `6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede` -> `docs(review): align pr 1677 mapping evidence`
 
 ## Review Threads
 
@@ -56,6 +57,8 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235305792
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235137212 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194596773 -> `fc3a8aec35f468b5a827af0125a88b2d8ff95070`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235363956 -> `6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194801768 -> `6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede`
 
 ## Fixed in Commit Mapping
 
@@ -119,6 +122,16 @@ Disposition: FIXED
 Commit: fc3a8aec35f468b5a827af0125a88b2d8ff95070
 Evidence: `_component_repo_evidence` verifies declared repo component paths exist before trusting them and falls back to runtime evidence when available.
 
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#pullrequestreview-4235363956 -> 6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede
+Commit: 6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede
+Evidence: CodeRabbit review contained one mapping artifact consistency issue, fixed by aligning the focused pytest evidence count to the verified 11-test result.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194801768 -> 6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede
+Commit: 6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede
+Evidence: `docs/review/PR_1677_FIXED_MAPPING.md` now reports the focused `tests/design/test_generate_design_md.py` command as PASS with 11 tests in both evidence locations.
+
 ## Dispositions
 
 Disposition: FIXED
@@ -169,6 +182,12 @@ Disposition: FIXED
 - Commit: fc3a8aec35f468b5a827af0125a88b2d8ff95070
 - Evidence: `scripts/design/generate_design_md.py` verifies declared `existing_repo_component` paths before trusting them, falls back to runtime primitive evidence when available, and `tests/design/test_generate_design_md.py` adds `test_stale_declared_component_path_uses_runtime_fallback`.
 
+Disposition: FIXED
+
+- Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194801768
+- Commit: 6f4f71bf7f81812abcf25c5d3c80d63e29ad8ede
+- Evidence: `docs/review/PR_1677_FIXED_MAPPING.md` aligns duplicate focused pytest evidence to the verified 11-test count.
+
 ## Premortem
 
 Premortem reviewed the actual PR diff and confirmed:
@@ -182,6 +201,7 @@ Premortem reviewed the actual PR diff and confirmed:
 - Cubic's component-table risk was fixed in the generator by adding runtime repo evidence while preserving repo truth precedence.
 - CodeRabbit's current actionable feedback was fixed in code/docs/mapping before updating this artifact.
 - Cubic's declared-path trust risk was fixed by verifying declared component paths before accepting them.
+- CodeRabbit's mapping-evidence consistency issue was fixed before recording this disposition.
 
 ## Bug-Hunter Pass
 
