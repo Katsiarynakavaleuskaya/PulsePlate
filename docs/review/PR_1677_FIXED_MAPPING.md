@@ -35,11 +35,13 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - `af6d9c5c417de6c0c9e17ea3fa5e945213408507` -> `test(design): cover missing DESIGN.md drift check`
 - `9d75be3668a1b545cfc1b41724140c1f9f48995b` -> `docs(review): map pr 1677 sourcery feedback`
 - `d9f5b7a661c8428ff3761076229d458a734ea07c` -> `test(design): check committed DESIGN.md drift`
+- `a8f652d2c144080187c807de3732656ebbdaf844` -> `fix(design): reconcile DESIGN.md component evidence`
 
 ## Review Threads
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504 -> `d9f5b7a661c8428ff3761076229d458a734ea07c`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908 -> `a8f652d2c144080187c807de3732656ebbdaf844`
 
 ## Dispositions
 
@@ -55,6 +57,12 @@ Disposition: FIXED
 - Commit: `d9f5b7a661c8428ff3761076229d458a734ea07c`
 - Evidence: `tests/design/test_generate_design_md.py` adds `test_check_passes_against_committed_design_md`, which runs `module.run(["--check"], repo_root=REPO_ROOT)` against the committed repo file.
 
+Disposition: FIXED
+
+- Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194483908
+- Commit: `a8f652d2c144080187c807de3732656ebbdaf844`
+- Evidence: `scripts/design/generate_design_md.py` now combines vocabulary metadata with deterministic repo evidence for known UI primitives, `docs/design/DESIGN.md` no longer marks existing `Alert`, `Select`, `Tabs`, `Textarea`, `Tooltip`, and related primitives as `missing`/`none`, and `tests/design/test_generate_design_md.py` asserts the `Select` runtime evidence row.
+
 ## Premortem
 
 Premortem reviewed the actual PR diff and confirmed:
@@ -65,6 +73,7 @@ Premortem reviewed the actual PR diff and confirmed:
 - Output is deterministic and contains no timestamp.
 - No generated token mirrors are changed.
 - No frontend, iOS, backend, OpenAPI, billing, auth, compliance, App Store, deploy, Figma, Canva, crawler, PR-2 reference manifest tooling, PR-3 evidence pack, or PR-4 scorecard implementation is included.
+- Cubic's component-table risk was fixed in the generator by adding runtime repo evidence while preserving repo truth precedence.
 
 ## Bug-Hunter Pass
 
@@ -74,6 +83,7 @@ Bug-hunter checks covered:
 - deterministic generator output,
 - drift check behavior,
 - component vocabulary grounding,
+- component table runtime evidence for existing UI primitives,
 - no external reference ingestion,
 - no Figma/Canva writes,
 - no token mirror diff,
