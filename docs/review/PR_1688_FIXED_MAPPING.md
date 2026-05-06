@@ -17,7 +17,6 @@ scope.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1688#discussion_r3196349030 -> 0bc019fd0
-
 Disposition: FIXED
 Commit: 0bc019fd0
 Evidence: `.github/workflows/cd.yml` compares `release_manifest.json` `build_identity.git_sha` with the production tag commit; `tests/test_production_release_evidence_wiring.py::test_production_job_rejects_evidence_for_different_tag_commit` covers the stale-evidence failure mode. Follow-up hardening commit: 38676dde6.
