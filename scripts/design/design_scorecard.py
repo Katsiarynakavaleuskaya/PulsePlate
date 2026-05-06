@@ -4,12 +4,21 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import sys
 from pathlib import Path
 from typing import Any, TextIO
 
-import screen_evidence_pack
+try:
+    import screen_evidence_pack
+except ModuleNotFoundError:
+    screen_evidence_pack_path = Path(__file__).with_name("screen_evidence_pack.py")
+    spec = importlib.util.spec_from_file_location("screen_evidence_pack", screen_evidence_pack_path)
+    if spec is None or spec.loader is None:
+        raise
+    screen_evidence_pack = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(screen_evidence_pack)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -229,6 +238,31 @@ def _platform_dimension(record: dict[str, Any]) -> tuple[dict[str, Any], list[st
     )
 
 
+def _status_and_recommendation(
+    *,
+    total_score: int,
+    max_score: int,
+    blocking_failures: list[str],
+) -> tuple[str, str, float]:
+    normalized_score = round(total_score / max_score, 4) if max_score else 0.0
+    if blocking_failures:
+        status = "fail"
+    elif normalized_score >= 0.85:
+        status = "pass"
+    elif normalized_score >= 0.60:
+        status = "warn"
+    else:
+        status = "fail"
+
+    if blocking_failures or status == "fail":
+        recommendation = "rejected"
+    elif status == "pass":
+        recommendation = "usable_for_pr5_pr6_brief"
+    else:
+        recommendation = "needs_evidence"
+    return status, recommendation, normalized_score
+
+
 def _score_record(record: dict[str, Any]) -> dict[str, Any]:
     dimensions: list[dict[str, Any]] = []
     warnings: list[str] = []
@@ -319,23 +353,11 @@ def _score_record(record: dict[str, Any]) -> dict[str, Any]:
     ]
     total_score = sum(int(item["score"]) for item in ordered_dimensions)
     max_score = sum(int(item["max_score"]) for item in ordered_dimensions)
-    normalized_score = round(total_score / max_score, 4) if max_score else 0.0
-
-    if blocking_failures:
-        status = "fail"
-    elif normalized_score >= 0.85:
-        status = "pass"
-    elif normalized_score >= 0.60:
-        status = "warn"
-    else:
-        status = "fail"
-
-    if blocking_failures or status == "fail":
-        recommendation = "rejected"
-    elif status == "pass":
-        recommendation = "usable_for_pr5_pr6_brief"
-    else:
-        recommendation = "needs_evidence"
+    status, recommendation, normalized_score = _status_and_recommendation(
+        total_score=total_score,
+        max_score=max_score,
+        blocking_failures=blocking_failures,
+    )
 
     evidence_id = _stringify(record.get("evidence_id", "")).strip()
     return {
@@ -359,8 +381,11 @@ def _score_record(record: dict[str, Any]) -> dict[str, Any]:
 
 def score_path(path: str | Path, *, repo_root: Path = REPO_ROOT) -> dict[str, Any]:
     evidence_path = _repo_path(path, repo_root)
-    record = screen_evidence_pack._load_json(evidence_path)
-    errors = screen_evidence_pack.validate_record(record, repo_root=repo_root)
+    try:
+        record = screen_evidence_pack._load_json(evidence_path)
+        errors = screen_evidence_pack.validate_record(record, repo_root=repo_root)
+    except screen_evidence_pack.EvidenceManifestError as exc:
+        raise DesignScorecardError(f"{evidence_path}: cannot score screen evidence: {exc}") from exc
     if errors:
         raise DesignScorecardError(
             f"{evidence_path}: cannot score invalid screen evidence: {'; '.join(errors)}"
@@ -489,6 +514,38 @@ def validate_scorecard_record(record: dict[str, Any]) -> list[str]:
         errors.append("normalized_score must be numeric")
     elif normalized_score < 0 or normalized_score > 1:
         errors.append("normalized_score must be between 0 and 1")
+
+    if isinstance(dimensions, list) and all(isinstance(item, dict) for item in dimensions):
+        if all(isinstance(item.get("score"), int) for item in dimensions) and all(
+            isinstance(item.get("max_score"), int) for item in dimensions
+        ):
+            expected_total = sum(int(item["score"]) for item in dimensions)
+            expected_max = sum(int(item["max_score"]) for item in dimensions)
+            blocking_failures = record.get("blocking_failures")
+            if isinstance(blocking_failures, list) and all(
+                isinstance(item, str) for item in blocking_failures
+            ):
+                (
+                    expected_status,
+                    expected_recommendation,
+                    expected_normalized,
+                ) = _status_and_recommendation(
+                    total_score=expected_total,
+                    max_score=expected_max,
+                    blocking_failures=blocking_failures,
+                )
+                if record.get("total_score") != expected_total:
+                    errors.append("total_score must equal the sum of dimension scores")
+                if record.get("max_score") != expected_max:
+                    errors.append("max_score must equal the sum of dimension max_score values")
+                if record.get("normalized_score") != expected_normalized:
+                    errors.append("normalized_score must match total_score / max_score")
+                if record.get("status") != expected_status:
+                    errors.append("status must match score thresholds and blocking failures")
+                if record.get("recommendation") != expected_recommendation:
+                    errors.append(
+                        "recommendation must match score thresholds and blocking failures"
+                    )
 
     subjective_keys = _find_subjective_keys(record)
     for key in subjective_keys:

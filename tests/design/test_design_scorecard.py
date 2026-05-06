@@ -15,12 +15,7 @@ IOS_SAMPLE = REPO_ROOT / "docs/design/screen_evidence/examples/ios_home.sample.j
 
 
 def load_scorecard_module() -> SimpleNamespace:
-    script_dir = str(MODULE_PATH.parent)
-    sys.path.insert(0, script_dir)
-    try:
-        return SimpleNamespace(**runpy.run_path(str(MODULE_PATH)))
-    finally:
-        sys.path.remove(script_dir)
+    return SimpleNamespace(**runpy.run_path(str(MODULE_PATH)))
 
 
 def make_temp_repo(tmp_path: Path) -> Path:
@@ -92,6 +87,19 @@ def test_invalid_evidence_manifest_fails_before_scoring(tmp_path: Path):
     assert "cannot score invalid screen evidence" in result.stderr
     assert "unknown PulsePlate component id: invented_component" in result.stderr
     assert result.stdout == ""
+
+
+def test_unreadable_evidence_manifest_reports_actionable_error(tmp_path: Path):
+    manifest_path = tmp_path / "malformed.json"
+    manifest_path.write_text("{not-json", encoding="utf-8")
+
+    result = run_cli("score", str(manifest_path))
+
+    assert result.returncode == 1
+    assert "ERROR:" in result.stderr
+    assert "cannot score screen evidence" in result.stderr
+    assert "invalid JSON" in result.stderr
+    assert "Traceback" not in result.stderr
 
 
 def test_source_of_truth_violation_fails_before_scoring(tmp_path: Path):
@@ -228,6 +236,23 @@ def test_validate_score_rejects_subjective_fields():
     errors = module.validate_scorecard_record(scorecard)
 
     assert "subjective scorecard field is forbidden: premium_score" in errors
+
+
+def test_validate_score_rejects_tampered_aggregate_fields():
+    module = load_scorecard_module()
+    scorecard = module.score_path(WEB_SAMPLE, repo_root=REPO_ROOT)
+    scorecard["blocking_failures"] = ["manual failure"]
+    scorecard["status"] = "pass"
+    scorecard["recommendation"] = "usable_for_pr5_pr6_brief"
+    scorecard["total_score"] = 999
+    scorecard["normalized_score"] = 1.0
+
+    errors = module.validate_scorecard_record(scorecard)
+
+    assert "total_score must be between 0 and max_score" in errors
+    assert "total_score must equal the sum of dimension scores" in errors
+    assert "status must match score thresholds and blocking failures" in errors
+    assert "recommendation must match score thresholds and blocking failures" in errors
 
 
 def test_validate_score_requires_canonical_dimension_order():
