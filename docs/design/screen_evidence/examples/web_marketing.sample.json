@@ -1,0 +1,56 @@
+{
+  "a11y_artifact_path": "",
+  "accessibility_evidence": {
+    "focus": "Sample metadata requires visible focus evidence in a future local capture.",
+    "keyboard": "Sample metadata requires keyboard path evidence in a future local capture."
+  },
+  "artifact_policy": "committed_sample_metadata",
+  "capture_mode": "sample",
+  "component_ids": [
+    "button",
+    "card",
+    "hero",
+    "stats_card"
+  ],
+  "copy_safety_evidence": {
+    "wellness_boundary": "Review evidence only; avoid diagnosis, treatment, therapy, crisis, medical, and guaranteed outcome claims."
+  },
+  "dom_artifact_path": "",
+  "evidence_id": "web-marketing-sample",
+  "generated_at_policy": "omitted",
+  "generated_by": "synthetic PR-3 sample metadata",
+  "ios_simulator_artifact_path": "",
+  "locale": "en-US",
+  "motion_evidence": {
+    "reduced_motion": "Sample metadata requires reduced-motion review if motion is present."
+  },
+  "overflow_evidence": {
+    "horizontal_overflow": "Sample metadata requires no horizontal overflow evidence in a future local capture."
+  },
+  "platform": "web",
+  "responsive_evidence": {
+    "mobile": "Sample metadata requires mobile viewport evidence in a future local capture.",
+    "desktop": "Sample metadata requires desktop viewport evidence in a future local capture."
+  },
+  "route_or_screen": "/marketing",
+  "screenshot_artifact_path": "",
+  "source_of_truth_note": "Screen evidence is review evidence only, non-canonical, and not source of truth; repo tokens, UI vocabulary, backend/OpenAPI contracts, tests, and runtime code win.",
+  "status": "sample",
+  "storybook_artifact_path": "",
+  "surface_id": "web:/marketing",
+  "surface_name": "Marketing launch shell",
+  "tabbar_or_navigation_evidence": {
+    "navigation": "Sample metadata requires shell navigation evidence in a future local capture."
+  },
+  "theme": "repo-default",
+  "token_mirror_paths_checked": [
+    "frontend/src/styles/tokens.css",
+    "frontend/src/styles/tokens.ts"
+  ],
+  "viewport": "desktop-1440x1100",
+  "warnings": [
+    "sample metadata only",
+    "no screenshot committed",
+    "no runtime UI mutation"
+  ]
+}
