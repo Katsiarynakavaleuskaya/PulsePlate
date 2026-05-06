@@ -77,14 +77,7 @@ def dry_run_replay(
 
     existing_ids = tuple(entry.ledger_entry_id for entry in existing)
     candidate_ids = tuple(entry.ledger_entry_id for entry in candidates)
-    seen_idempotency: dict[str, PromotionLedgerEntry] = {
-        entry.idempotency_key: entry for entry in existing
-    }
-    active_by_scope: dict[str, PromotionLedgerEntry] = {
-        entry.promotion_id: entry
-        for entry in existing
-        if entry.decision in {"promote", "supersede"}
-    }
+    seen_idempotency, active_by_scope = _seed_existing_replay_state(existing)
     candidate_scope_owner: dict[str, PromotionLedgerEntry] = {}
 
     added: list[str] = []
@@ -96,6 +89,12 @@ def dry_run_replay(
     applied = list(existing_ids)
 
     for entry in candidates:
+        if entry.decision == "supersede":
+            active_entry = active_by_scope.get(entry.promotion_id)
+            if active_entry is None or active_entry.ledger_entry_id not in entry.supersedes:
+                conflict.append(entry.ledger_entry_id)
+                continue
+
         seen_entry = seen_idempotency.get(entry.idempotency_key)
         if seen_entry is not None:
             if seen_entry.ledger_entry_id == entry.ledger_entry_id:
@@ -113,13 +112,6 @@ def dry_run_replay(
         if entry.decision == "promote" and active_entry is not None:
             conflict.append(entry.ledger_entry_id)
             continue
-        if (
-            entry.decision == "supersede"
-            and active_entry is not None
-            and active_entry.ledger_entry_id not in entry.supersedes
-        ):
-            conflict.append(entry.ledger_entry_id)
-            continue
 
         seen_idempotency[entry.idempotency_key] = entry
         candidate_scope_owner[entry.promotion_id] = entry
@@ -134,8 +126,10 @@ def dry_run_replay(
             applied.append(entry.ledger_entry_id)
         elif entry.decision == "reject":
             rejected.append(entry.ledger_entry_id)
+            applied.append(entry.ledger_entry_id)
         elif entry.decision == "defer":
             deferred.append(entry.ledger_entry_id)
+            applied.append(entry.ledger_entry_id)
         else:
             conflict.append(entry.ledger_entry_id)
 
@@ -165,12 +159,56 @@ def _sorted_entries(
     return tuple(sorted(entries, key=_entry_sort_key))
 
 
+def _seed_existing_replay_state(
+    existing: tuple[PromotionLedgerEntry, ...],
+) -> tuple[dict[str, PromotionLedgerEntry], dict[str, PromotionLedgerEntry]]:
+    """Build fail-closed replay indexes from existing ledger entries."""
+
+    seen_idempotency: dict[str, PromotionLedgerEntry] = {}
+    active_by_scope: dict[str, PromotionLedgerEntry] = {}
+    for entry in existing:
+        previous = seen_idempotency.get(entry.idempotency_key)
+        if previous is not None:
+            raise ValueError(
+                f"existing ledger has duplicate idempotency_key: {entry.idempotency_key}"
+            )
+        seen_idempotency[entry.idempotency_key] = entry
+
+        if entry.decision == "promote":
+            active_entry = active_by_scope.get(entry.promotion_id)
+            if active_entry is not None:
+                raise ValueError(
+                    f"existing ledger has conflicting active promotion_id: {entry.promotion_id}"
+                )
+            active_by_scope[entry.promotion_id] = entry
+        elif entry.decision == "supersede":
+            active_entry = active_by_scope.get(entry.promotion_id)
+            if active_entry is None or active_entry.ledger_entry_id not in entry.supersedes:
+                raise ValueError(
+                    f"existing ledger has orphan supersede entry: {entry.ledger_entry_id}"
+                )
+            active_by_scope[entry.promotion_id] = entry
+    return seen_idempotency, active_by_scope
+
+
 def _entry_sort_key(entry: PromotionLedgerEntry) -> tuple[str, str, str, str]:
     """Return stable ordering key for replay inputs."""
 
     return (
         entry.promotion_id,
-        entry.source_event_id,
-        entry.decision,
+        _decision_sort_rank(entry.decision),
         entry.ledger_entry_id,
+        entry.source_event_id,
     )
+
+
+def _decision_sort_rank(decision: str) -> str:
+    """Return stable semantic order for ledger replay decisions."""
+
+    ranks = {
+        "promote": "0",
+        "supersede": "1",
+        "reject": "2",
+        "defer": "3",
+    }
+    return ranks[decision]

@@ -100,6 +100,26 @@ def test_idempotency_collision_is_reported_as_conflict() -> None:
     assert summary.diff.conflict == (second.ledger_entry_id,)
 
 
+def test_existing_idempotency_collision_fails_closed() -> None:
+    first = _entry(run_id="1", idempotency_key="idem:existing-collision")
+    second = _entry(run_id="2", idempotency_key="idem:existing-collision")
+
+    with pytest.raises(ValueError, match="duplicate idempotency_key"):
+        dry_run_replay(existing_entries=(first, second))
+
+
+def test_existing_active_scope_collision_fails_closed() -> None:
+    first = _entry(run_id="1", promotion_id="promotion-shared")
+    second = _entry(
+        run_id="2",
+        promotion_id="promotion-shared",
+        idempotency_key="idem:promotion-shared-second",
+    )
+
+    with pytest.raises(ValueError, match="conflicting active promotion_id"):
+        dry_run_replay(existing_entries=(first, second))
+
+
 def test_same_promotion_scope_conflict_is_non_promoting() -> None:
     first = _entry(run_id="1", promotion_id="promotion-shared")
     second = _entry(
@@ -115,6 +135,33 @@ def test_same_promotion_scope_conflict_is_non_promoting() -> None:
         first.ledger_entry_id,
         second.ledger_entry_id,
     }
+
+
+def test_candidate_orphan_supersede_is_reported_as_conflict() -> None:
+    superseding = _entry(
+        run_id="2",
+        promotion_id="promotion-rag-gate-1",
+        decision="supersede",
+        idempotency_key="idem:orphan-supersede",
+        supersedes=("promotion-ledger:missing",),
+    )
+    summary = dry_run_replay(candidate_entries=(superseding,))
+
+    assert summary.diff.superseded == ()
+    assert summary.diff.conflict == (superseding.ledger_entry_id,)
+
+
+def test_existing_orphan_supersede_fails_closed() -> None:
+    superseding = _entry(
+        run_id="2",
+        promotion_id="promotion-rag-gate-1",
+        decision="supersede",
+        idempotency_key="idem:existing-orphan-supersede",
+        supersedes=("promotion-ledger:missing",),
+    )
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(superseding,))
 
 
 def test_supersede_reject_and_defer_buckets_are_deterministic() -> None:
@@ -146,6 +193,34 @@ def test_supersede_reject_and_defer_buckets_are_deterministic() -> None:
     assert summary.diff.rejected == (rejected.ledger_entry_id,)
     assert summary.diff.deferred == (deferred.ledger_entry_id,)
     assert summary.diff.added == ()
+    assert summary.diff.conflict == ()
+    assert rejected.ledger_entry_id in summary.applied_entry_ids
+    assert deferred.ledger_entry_id in summary.applied_entry_ids
+
+
+def test_existing_supersession_chain_resolves_current_active_entry() -> None:
+    first = _entry(run_id="1")
+    second = _entry(
+        run_id="2",
+        promotion_id=first.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-first",
+        supersedes=(first.ledger_entry_id,),
+    )
+    third = _entry(
+        run_id="3",
+        promotion_id=first.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-second",
+        supersedes=(second.ledger_entry_id,),
+    )
+
+    summary = dry_run_replay(
+        existing_entries=(second, first),
+        candidate_entries=(third,),
+    )
+
+    assert summary.diff.superseded == (third.ledger_entry_id,)
     assert summary.diff.conflict == ()
 
 

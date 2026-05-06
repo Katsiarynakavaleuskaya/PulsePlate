@@ -61,9 +61,17 @@ _FORBIDDEN_METADATA_KEY_FRAGMENTS: tuple[str, ...] = (
 _FORBIDDEN_METADATA_STRING_FRAGMENTS: tuple[str, ...] = (
     "api_key=",
     "bearer ",
+    "health payload",
+    "medical record",
     "password=",
     "private key",
+    "prompt:",
+    "raw prompt",
+    "raw response",
+    "response:",
     "sk-",
+    "user health",
+    "user payload",
 )
 
 _PATH_LIKE_PREFIXES: tuple[str, ...] = (
@@ -295,6 +303,8 @@ def create_promotion_ledger_entry(
     normalized_decision = validate_promotion_decision(decision)
     if normalized_decision in _PROMOTING_DECISIONS and source_validation_status != "valid":
         raise ValueError("promoting decisions require a valid source_event")
+    if source_event.rail != "eval":
+        raise ValueError("source_event rail must be eval")
     normalized_upstream_ids = normalize_upstream_ids(
         (
             source_event.event_id,
@@ -456,6 +466,8 @@ def _freeze_json_value(
                 )
             )
         return _FrozenJsonObject(tuple(items))
+    if isinstance(value, bytes | bytearray):
+        raise ValueError(f"metadata value at {'.'.join(path) or '<root>'} must be JSON-compatible")
     if isinstance(value, Sequence) and not isinstance(value, str):
         return _FrozenJsonArray(
             tuple(

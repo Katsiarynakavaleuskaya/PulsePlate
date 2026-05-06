@@ -50,12 +50,42 @@ strict merge-readiness remain required before merge.
 
 ## Fixed in Commit Mapping
 
+- No GitHub review thread URLs existed when this mapping artifact was first added.
 - Coordinator sidecar finding: validate source event id before upstream normalization -> `d57a5b5af`
   - Evidence: `core/evidence/promotion_ledger.py` validates `source_event.event_id` and `source_event.fingerprint` before lineage normalization.
 - Coordinator sidecar finding: factory did not accept `ledger_entry_id` passthrough used by deterministic-id tests -> `d57a5b5af`
   - Evidence: `create_promotion_ledger_entry(...)` accepts optional `ledger_entry_id` and passes it to `PromotionLedgerEntry`.
+- Bug-hunter sidecar finding: existing ledger conflicts are silently overwritten -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/replay.py` builds existing replay indexes with fail-closed duplicate idempotency and active-scope checks; `tests/core/evidence/test_replay.py` covers both corrupt baseline cases.
+- Bug-hunter sidecar finding: supersede can apply without an active target -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/replay.py` reports candidate orphan supersession as `conflict` and rejects orphan existing supersession; `tests/core/evidence/test_replay.py` covers both paths.
+- Bug-hunter sidecar finding: promotion creation does not enforce eval rail boundary -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/promotion_ledger.py` rejects non-`eval` source events; `tests/core/evidence/test_promotion_ledger.py` covers runtime rail rejection.
+- Bug-hunter sidecar finding: metadata leakage guard misses raw payload values -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/promotion_ledger.py` scans value strings for raw prompt/response/user-health payload markers and rejects bytes/bytearray; `tests/core/evidence/test_promotion_ledger.py` covers these cases.
+- QA sidecar finding: replay drops accepted reject/defer ledger entries -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/replay.py` appends accepted reject/defer entries to `applied_entry_ids`; `tests/core/evidence/test_replay.py` asserts preservation.
+- QA sidecar finding: existing supersession state is order-derived, not ledger-derived -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/replay.py` sorts promote before supersede and resolves current active entries through supersession semantics; `tests/core/evidence/test_replay.py` covers an existing promote -> supersede -> candidate supersede chain.
+- QA sidecar finding: bytes-like metadata is silently normalized as JSON arrays -> pending commit
+  - Disposition: FIXED
+  - Evidence: `core/evidence/promotion_ledger.py` rejects bytes/bytearray before generic sequence handling; `tests/core/evidence/test_promotion_ledger.py` covers bytes metadata rejection.
+- QA sidecar finding: fixed mapping artifact is not in canonical Phase2 format -> pending commit
+  - Disposition: FIXED
+  - Evidence: this artifact now includes `## Discussion Thread Pass` and canonical no-thread mapping language.
 
-No GitHub review threads existed when this mapping artifact was first added.
+## Discussion Thread Pass
+
+- [x] GitHub review threads inspected at mapping creation time.
+- [x] No GitHub review thread URLs existed when this mapping artifact was first added.
+- [x] Sidecar QA/bug-hunter findings are mapped above as local review findings with dispositions and evidence.
+- [x] No actionable GitHub review comments are resolved by this artifact.
 
 ## Merge Readiness
 

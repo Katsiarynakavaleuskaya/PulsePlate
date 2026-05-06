@@ -132,6 +132,16 @@ def test_rejects_invalid_source_event_for_promote_or_supersede() -> None:
         )
 
 
+def test_rejects_non_eval_source_event_rail() -> None:
+    runtime_source = _source_event(
+        rail="runtime",
+        idempotency_key="idem:runtime-source-event",
+    )
+
+    with pytest.raises(ValueError, match="source_event rail"):
+        _entry(source_event=runtime_source)
+
+
 def test_reject_and_defer_can_record_degraded_source_without_promoting() -> None:
     degraded_source = _source_event(validation_status="degraded")
     rejected = _entry(
@@ -220,6 +230,9 @@ def test_preserves_metadata_defensively() -> None:
         {"raw_prompt": "tell me about dinner"},
         {"raw_response": "model output"},
         {"nested": {"user_health_payload": "private"}},
+        {"notes": "raw prompt: tell me about dinner"},
+        {"notes": "user health payload from eval item"},
+        {"notes": cast(Any, b"raw-bytes")},
         {"token_like": "Bearer abc"},
         {"artifact": "artifacts/rag_eval/run-1/traces.jsonl"},
     ],
