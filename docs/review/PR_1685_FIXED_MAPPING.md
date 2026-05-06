@@ -9,6 +9,9 @@ mapping artifact.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 - Sourcery overall review:
   https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1685#pullrequestreview-4236488355
 - Codex inline review thread:
@@ -21,8 +24,19 @@ mapping artifact.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1685#pullrequestreview-4236488355 -> 1ff2f40e7837fa26e29e4f2a4b165b1afa26a71e
+Disposition: FIXED
+Commit: 1ff2f40e7837fa26e29e4f2a4b165b1afa26a71e
+Evidence: `scripts/design/generate_design_md.py:108` resolves `repo_root` once per evidence lookup; `scripts/design/generate_design_md.py:111` returns `invalid-declared-path` before fallback; `scripts/design/generate_design_md.py:100` uses `Path.is_relative_to` without the redundant equality check.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1685#discussion_r3195828290 -> 1ff2f40e7837fa26e29e4f2a4b165b1afa26a71e
+Disposition: FIXED
+Commit: 1ff2f40e7837fa26e29e4f2a4b165b1afa26a71e
+Evidence: `scripts/design/generate_design_md.py:111` short-circuits invalid declared evidence paths before `RUNTIME_COMPONENT_FALLBACKS`; `tests/design/test_generate_design_md.py:101` proves a `select` fallback path is not rendered when the declared path is invalid.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1685#pullrequestreview-4236507785 -> d72d352ebdf8e012e6cdda0f0aea7ecf7f1c31ce
+Disposition: FIXED
+Commit: d72d352ebdf8e012e6cdda0f0aea7ecf7f1c31ce
+Evidence: `tests/design/test_generate_design_md.py:145` rejects `docs/design/not_a_component.tsx` as `invalid-declared-path` and renders `none`.
 
 ## Review Dispositions
 
