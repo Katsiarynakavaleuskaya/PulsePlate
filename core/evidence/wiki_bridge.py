@@ -490,7 +490,7 @@ def _freeze_metadata(value: Mapping[str, JsonValue]) -> FrozenJson:
 
 
 def _validate_metadata(value: JsonValue, *, key_path: tuple[str, ...] = ()) -> None:
-    if isinstance(value, bytes):
+    if isinstance(value, (bytes, bytearray, memoryview)):
         raise ValueError("metadata must be JSON-compatible")
     if isinstance(value, str):
         _validate_metadata_string(value, key_path)

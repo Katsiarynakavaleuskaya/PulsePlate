@@ -177,6 +177,29 @@ def test_metadata_and_upstream_ids_are_defensively_copied() -> None:
     assert artifact.upstream_ids == ("a", "z")
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"redacted credential payload",
+        bytearray(b"redacted credential payload"),
+        memoryview(b"redacted"),
+    ],
+)
+def test_rejects_byte_like_metadata_payloads(payload: object) -> None:
+    with pytest.raises(ValueError, match="JSON-compatible"):
+        _artifact(metadata={"advisory_only": True, "note": payload})
+
+    with pytest.raises(ValueError, match="JSON-compatible"):
+        wiki_artifact_to_admission_input(
+            _artifact(),
+            produced_at=_PRODUCED_AT,
+            coverage_rate=1.0,
+            verification_rate=1.0,
+            fallback_rate=0.0,
+            metadata=cast(dict[str, Any], {"review_state": payload}),
+        )
+
+
 def test_admission_adapter_does_not_imply_product_runtime_serve() -> None:
     admission_input = wiki_artifact_to_admission_input(
         _artifact(),
