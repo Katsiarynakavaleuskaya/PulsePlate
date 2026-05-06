@@ -6,9 +6,14 @@ Title: `feat(design): add screen evidence pack for web and iOS review surfaces`
 
 ## Discussion Thread Pass
 
-- [x] Initial implementation review completed before PR open.
-- [x] Post-open coordinator bootstrap completed.
-- [x] No review threads were open when this artifact was created.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Notes:
+
+- Initial implementation review completed before PR open.
+- Post-open coordinator bootstrap completed.
+- No actionable review threads were open when this artifact was created.
 - [ ] Re-check CodeRabbit/Sourcery/Cubic after they comment.
 - [ ] Re-check GitHub review threads before merge-readiness.
 
@@ -54,11 +59,11 @@ Premortem reviewed actual code/docs/tests diff.
 
 ## Fixed in Commit Mapping
 
-No external review threads existed when this artifact was created.
+- No actionable review comments
 
-Internal premortem fix:
+## Internal Premortem Fixes
 
-- Source-of-truth override wording gap -> `4e3b34ce4`, covered by tests in `cc4a4a8b9`.
+- Source-of-truth override wording gap fixed in `4e3b34ce4`, covered by tests in `cc4a4a8b9`.
 
 ## Deferred / Follow-ups
 
