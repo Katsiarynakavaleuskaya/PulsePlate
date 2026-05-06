@@ -17,7 +17,7 @@ Title: `feat(design): generate PulsePlate DESIGN.md from token and component con
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` -> PASS (`artifacts/orchestration/task_packets/d04b13a19d79.json`, local/gitignored)
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` -> PASS (`artifacts/orchestration/task_packets/6e8763ad465a.json`, local/gitignored)
 - `python3 scripts/design/generate_design_md.py --check` -> PASS
-- `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` -> PASS (8 tests)
+- `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` -> PASS (9 tests)
 - `make validate-changed` -> PASS
 - `make design-guard` -> PASS
 - `make tokens-check` -> PASS
@@ -33,10 +33,13 @@ Full local `make verify` was intentionally not run by operator machine-budget po
 - `8975611a4520942d580891ff6d1c4d611bd2eb4d` -> `docs(design): update design intelligence PR1 status`
 - `ca7781754808fec0441d391e8eee5e7221f9044c` -> `docs(review): add pr 1677 fixed mapping`
 - `af6d9c5c417de6c0c9e17ea3fa5e945213408507` -> `test(design): cover missing DESIGN.md drift check`
+- `9d75be3668a1b545cfc1b41724140c1f9f48995b` -> `docs(review): map pr 1677 sourcery feedback`
+- `d9f5b7a661c8428ff3761076229d458a734ea07c` -> `test(design): check committed DESIGN.md drift`
 
 ## Review Threads
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669 -> `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504 -> `d9f5b7a661c8428ff3761076229d458a734ea07c`
 
 ## Dispositions
 
@@ -44,7 +47,13 @@ Disposition: FIXED
 
 - Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194463669
 - Commit: `af6d9c5c417de6c0c9e17ea3fa5e945213408507`
-- Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`, and `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` passes with 8 tests.
+- Evidence: `tests/design/test_generate_design_md.py` adds `test_check_fails_when_design_md_missing`, and `python3 -m pytest -q --confcutdir=tests/design tests/design/test_generate_design_md.py` passes with 9 tests.
+
+Disposition: FIXED
+
+- Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1677#discussion_r3194467504
+- Commit: `d9f5b7a661c8428ff3761076229d458a734ea07c`
+- Evidence: `tests/design/test_generate_design_md.py` adds `test_check_passes_against_committed_design_md`, which runs `module.run(["--check"], repo_root=REPO_ROOT)` against the committed repo file.
 
 ## Premortem
 
