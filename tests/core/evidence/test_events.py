@@ -174,6 +174,9 @@ def test_rejects_unknown_rail() -> None:
     "source_artifact",
     [
         " ",
+        ".",
+        "./",
+        "./.",
         "../traces.jsonl",
         "artifacts/rag_eval/../secret.json",
         "/tmp/traces.jsonl",
