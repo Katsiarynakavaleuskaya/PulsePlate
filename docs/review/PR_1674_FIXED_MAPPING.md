@@ -34,6 +34,11 @@ Disposition: FIXED
 Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
 Evidence: `docs/review/PR_1674_FIXED_MAPPING.md` now places the required checked boxes directly under `## Discussion Thread Pass`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#discussion_r3193980410 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Disposition: FIXED
+Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
+Evidence: `docs/review/PR_1674_FIXED_MAPPING.md` removed the contradictory pending-status line from `## Discussion Thread Pass`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1674#discussion_r3193963624 -> 9bc395ec2f76d9a69f559a456785ef295bc02bdc
 Disposition: FIXED
 Commit: 9bc395ec2f76d9a69f559a456785ef295bc02bdc
