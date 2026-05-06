@@ -255,6 +255,11 @@ Evidence: E5 remains a pure advisory bridge; the adapter metadata preserves `ser
 Reason: Adding a top-level E4 serve-scope policy would widen E4 admission contracts and product-serving semantics, which is explicitly out of scope for PR-E5.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#discussion_r3195235953
 
+Disposition: NOT-A-BUG
+Evidence: Aggregate CodeRabbit review actionables are represented by the individual inline discussion URLs mapped above.
+Reason: The review-level URL has no separate actionable beyond those inline comments; it is included for merge-readiness governance completeness.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1681#pullrequestreview-4235839249
+
 ## Merge Readiness
 
 Not merge-ready at mapping creation.
