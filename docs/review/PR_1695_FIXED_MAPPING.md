@@ -21,7 +21,13 @@ Disposition: FIXED
 Commit: 843b66c1e
 Evidence: `tests/test_no_bmi_math_outside_core.py` adds number-before-context and mixed-case BMI threshold examples requested by Sourcery.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#discussion_r3197335778 -> 843b66c1e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-3449071804 -> 843b66c1e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-4239378224 -> 843b66c1e
+
+Disposition: FIXED
+Commit: 120e2c72a
+Evidence: `tests/test_no_bmi_math_outside_core.py` preserves real camelCase/PascalCase BMI/WHR threshold identifiers while keeping `normalizedScore >= 0.85` out of BMI context.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#discussion_r3197336366 -> 120e2c72a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-4239379141 -> 120e2c72a
 
 ## Review Dispositions
 
@@ -40,9 +46,12 @@ Evidence: `tests/test_no_bmi_math_outside_core.py` adds number-before-context an
 
 ## Bot Review Findings
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-3449071804 -> `843b66c1e`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#pullrequestreview-4239378224 -> `843b66c1e`
   - Disposition: FIXED
   - Evidence: `tests/test_no_bmi_math_outside_core.py` adds number-before-context and mixed-case BMI threshold examples.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1695#discussion_r3197336366 -> `120e2c72a`
+  - Disposition: FIXED
+  - Evidence: `tests/test_no_bmi_math_outside_core.py` now catches `BMIThreshold = 25.0` and `waistHipRatioThreshold = 0.90`.
 
 ## Validation
 
