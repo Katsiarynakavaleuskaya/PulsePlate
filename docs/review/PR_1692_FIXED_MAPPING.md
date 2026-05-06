@@ -22,9 +22,9 @@ GraphQL review-thread inspection found no review threads for PR #1692.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1692 -> PENDING_FINAL_COMMIT
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1692 -> d3567dad64a778a5cdd446c7c21a8601c6b06e54
 Disposition: FIXED
-Commit: PENDING_FINAL_COMMIT
+Commit: d3567dad64a778a5cdd446c7c21a8601c6b06e54
 Evidence: Internal premortem Option B findings are fixed by documenting the protected artifact requirement in `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md`, updating `docs/roadmap/BACKLOG_LEDGER.md`, and adding workflow/docs guards in `tests/test_release_control_plane_ci_gate.py`.
 
 ## Premortem
