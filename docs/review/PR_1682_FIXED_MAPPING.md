@@ -4,7 +4,7 @@
 **Branch:** `release/release-control-plane-pr5-ci-gates`
 **Release-control-plane slice:** PR-5 CI release decision integration
 **Canonical commit:** `eb798b4d9`
-**Latest review-fix commit:** `54b893af9`
+**Latest review-fix commit:** `87fca914d`
 
 ## Scope
 
@@ -20,7 +20,7 @@ iOS runtime, RAG behavior, semantic cache, GraphRAG, or product-facing behavior.
 - [x] Fixed in commit mapping completed
 
 Post-open discussion pass completed for comments visible through 2026-05-06
-13:30 UTC. No human or bot review thread has been resolved without disposition
+13:54 UTC. No human or bot review thread has been resolved without disposition
 evidence. New comments after this timestamp require a new pass before merge.
 
 ## Fixed in Commit Mapping
@@ -70,6 +70,11 @@ Disposition: FIXED
 Commit: 62b0a2bc2
 Evidence: The CodeRabbit actionable P1 is fixed by the empty-evidence object handling above. The low-value workflow/docs test brittleness note was addressed with an inline test comment documenting that those assertions intentionally guard PR-5 textual integration and should migrate to YAML/schema parsing if the workflow contract grows.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#pullrequestreview-4236152045 -> 78a800f7f
+Disposition: FIXED
+Commit: 78a800f7f
+Evidence: This CodeRabbit review summary corresponds to `discussion_r3195517017` and `discussion_r3195517031`; both were fixed in `78a800f7f` with tests covering incoherent `EQUIVALENT` build-equivalence payloads and `artifacts/../` path escapes.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#pullrequestreview-4236030844 -> 62b0a2bc2
 Disposition: FIXED
 Commit: 62b0a2bc2
@@ -94,6 +99,21 @@ Evidence: `_load_evidence(...)` now hashes the same bytes it parses and returns 
 Disposition: FIXED
 Commit: 54b893af9
 Evidence: `_stable_findings(...)` now uses canonical JSON for `detail` as a tie-breaker when reason code and field are equal; `tests/test_release_control_plane_ci_gate.py::test_mismatch_details_sorting_uses_detail_tiebreaker` covers deterministic ordering for tied findings.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#pullrequestreview-4236345057 -> 54b893af9
+Disposition: FIXED
+Commit: 54b893af9
+Evidence: This CodeRabbit review summary corresponds to `discussion_r3195692607` and `discussion_r3195692613`; both were fixed in `54b893af9` with tests covering loaded-byte evidence hashes and total sorting for tied findings.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#discussion_r3195902509 -> 87fca914d
+Disposition: FIXED
+Commit: 87fca914d
+Evidence: `_load_evidence(...)` now returns the computed file hash for bytes that were successfully read but fail UTF-8/JSON/object validation, preserving artifact hashes for malformed evidence records; `tests/test_release_control_plane_ci_gate.py::test_block_on_malformed_json` asserts malformed RAG evidence records keep the computed hash in both `checked_artifacts` and `evidence_hashes`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1682#pullrequestreview-4236590303 -> 87fca914d
+Disposition: FIXED
+Commit: 87fca914d
+Evidence: This Cubic review summary corresponds to `discussion_r3195902509`; the malformed-evidence hash preservation issue was fixed in `87fca914d` and covered by `tests/test_release_control_plane_ci_gate.py::test_block_on_malformed_json`.
 
 ## Split Justification
 

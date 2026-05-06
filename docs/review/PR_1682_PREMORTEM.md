@@ -185,15 +185,15 @@ Frame: It is 6 months from now. PR-5 merged, but a production release proceeded 
 
 ### 16. Evidence hashes do not match validated bytes
 
-**Risk:** The checker validates one file read, then re-reads the same path for `checked_artifacts` and `evidence_hashes`, allowing a race where the recorded digest is not the validated evidence.
+**Risk:** The checker validates one file read, then re-reads the same path for `checked_artifacts` and `evidence_hashes`, allowing a race where the recorded digest is not the validated evidence. A later review also found that malformed evidence with successfully read bytes should still preserve the computed artifact hash.
 
-**Inspection:** Post-open review found `_load_evidence(...)` parsed one read while output hash fields re-opened paths later.
+**Inspection:** Post-open review found `_load_evidence(...)` parsed one read while output hash fields re-opened paths later, then found the parse-error path dropped the computed digest.
 
 **Disposition:** FIXED
 
-**Commit:** `54b893af9`
+**Commit:** `54b893af9`, `87fca914d`
 
-**Evidence:** `_load_evidence(...)` now returns the SHA-256 digest of the parsed bytes and the final payload uses that digest without re-reading evidence files; `tests/test_release_control_plane_ci_gate.py::test_evidence_hashes_use_loaded_bytes` mutates a file after the initial read and proves the output hash stays tied to the loaded bytes.
+**Evidence:** `_load_evidence(...)` now returns the SHA-256 digest of read evidence bytes and the final payload uses that digest without re-reading evidence files. `tests/test_release_control_plane_ci_gate.py::test_evidence_hashes_use_loaded_bytes` mutates a file after the initial read and proves the output hash stays tied to the loaded bytes; `test_block_on_malformed_json` asserts malformed evidence records preserve the computed hash.
 
 ## Synthesis
 
