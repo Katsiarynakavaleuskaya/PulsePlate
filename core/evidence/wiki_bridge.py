@@ -384,6 +384,8 @@ def wiki_artifact_to_admission_input(
     validation_status: ValidationStatus = "valid",
     degraded_reason: str | None = None,
     metadata: Mapping[str, JsonValue] | None = None,
+    asset_type: WikiBridgeAssetType = "knowledge_candidate",
+    asset_version: str = "v1",
     policy: WikiEvidenceBridgePolicy | None = None,
 ) -> AdmissionInput:
     """Adapt a wiki artifact to E4 admission input for advisory review only."""
@@ -396,11 +398,19 @@ def wiki_artifact_to_admission_input(
         raise ValueError(
             f"validation_status is not admitted by wiki bridge policy: {validation_status}"
         )
+    evidence_asset = wiki_artifact_to_evidence_asset_ref(
+        artifact,
+        asset_type=asset_type,
+        version=asset_version,
+        policy=policy,
+    )
     _freeze_metadata(metadata or {})
     admission_metadata: dict[str, JsonValue] = {
         "advisory_only": True,
+        "artifact_id": artifact.artifact_id,
         "bridge": "advisory_wiki",
         "corpus": artifact.corpus,
+        "evidence_asset_id": evidence_asset.asset_id,
         "promoted": artifact.promoted,
         "serve_scope": "advisory_review_only",
         "slug": artifact.slug,
@@ -409,10 +419,10 @@ def wiki_artifact_to_admission_input(
         admission_metadata["bridge_metadata"] = _thaw_json(_freeze_metadata(metadata))
 
     return AdmissionInput(
-        target_id=artifact.artifact_id,
+        target_id=evidence_asset.asset_id,
         target_type="evidence_asset",
-        fingerprint=artifact.content_hash,
-        idempotency_key=artifact.idempotency_key,
+        fingerprint=evidence_asset.fingerprint,
+        idempotency_key=evidence_asset.idempotency_key,
         policy_version=artifact.policy_version,
         produced_at=produced_at,
         validation_status=validation_status,
@@ -420,7 +430,7 @@ def wiki_artifact_to_admission_input(
         verification_rate=verification_rate,
         fallback_rate=fallback_rate,
         degraded_reason=degraded_reason,
-        upstream_ids=artifact.upstream_ids,
+        upstream_ids=evidence_asset.upstream_ids,
         metadata=admission_metadata,
     )
 

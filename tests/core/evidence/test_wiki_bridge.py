@@ -178,6 +178,26 @@ def test_advisory_only_flag_survives_asset_and_admission_adapter() -> None:
     assert admission_input.metadata["serve_scope"] == "advisory_review_only"
 
 
+def test_admission_adapter_targets_advisory_evidence_asset_identity() -> None:
+    artifact = _artifact()
+    asset = wiki_artifact_to_evidence_asset_ref(artifact)
+
+    admission_input = wiki_artifact_to_admission_input(
+        artifact,
+        produced_at=_PRODUCED_AT,
+        coverage_rate=1.0,
+        verification_rate=1.0,
+        fallback_rate=0.0,
+    )
+
+    assert admission_input.target_id == asset.asset_id
+    assert admission_input.fingerprint == asset.fingerprint
+    assert admission_input.idempotency_key == asset.idempotency_key
+    assert admission_input.upstream_ids == asset.upstream_ids
+    assert admission_input.metadata["artifact_id"] == artifact.artifact_id
+    assert admission_input.metadata["evidence_asset_id"] == asset.asset_id
+
+
 def test_idempotency_key_artifact_id_and_serialization_are_deterministic() -> None:
     first = _artifact(upstream_ids=["b", "a"], content_hash=f"sha256:{_HASH}")
     second = _artifact(upstream_ids=["a", "b"], content_hash=_HASH.upper())
