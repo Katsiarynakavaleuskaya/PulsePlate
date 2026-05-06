@@ -133,7 +133,8 @@ wire E4 carefully without treating it as semantic-cache approval.
 ## Commit Breakdown
 
 - `79dbda67a` - `feat(evidence): add active metadata admission gates`
-- Mapping artifact commit: pending
+- `1fff9eae9` - `docs(review): add PR 1678 fixed mapping`
+- `e7b72d4d9` - `test(evidence): close admission review gaps`
 
 ## Pre-push Checklist
 
@@ -172,12 +173,38 @@ knowledge promotion.
 
 ## Discussion Thread Pass
 
-- [ ] Post-open review pass pending.
-- [ ] CodeRabbit/Sourcery/Cubic actionables pending live review truth.
+- [x] Post-open `qa-engineer-agent -> bug-hunter` sidecar review pass completed.
+- [ ] CodeRabbit/Sourcery/Cubic actionables pending live review truth after latest push.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at mapping creation time.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1678#pullrequestreview-4235099053 -> e7b72d4d9
+Disposition: FIXED
+Commit: e7b72d4d9
+Evidence: `tests/core/evidence/test_admission.py` now mutates the returned
+`AdmissionInput.metadata` view and asserts subsequent reads are unchanged.
+
+## Sidecar Review Findings
+
+- QA sidecar finding: `admission_input_from_eval_event()` dropped source
+  event metadata and could bypass E4 metadata safety -> e7b72d4d9
+  - Disposition: FIXED
+  - Evidence: `core/evidence/admission.py` merges source metadata under
+    `event_metadata`; `tests/core/evidence/test_admission.py` covers unsafe
+    E2 event metadata rejected by the E4 adapter.
+- QA sidecar finding: `execute` could allow degraded status without
+  `allow_degraded` -> e7b72d4d9
+  - Disposition: FIXED
+  - Evidence: `core/evidence/admission.py` adds execute-specific degraded
+    blocking; `tests/core/evidence/test_admission.py` covers degraded execute
+    denial when only the status allowlist includes degraded.
+- Bug-hunter sidecar finding: raw `query_text` / eval-row text aliases could
+  pass E4 adapter metadata safety -> e7b72d4d9
+  - Disposition: FIXED
+  - Evidence: `core/evidence/admission.py` expands the metadata denylist for
+    `query_text`, `question_text`, `answer_text`, and raw query aliases;
+    `tests/core/evidence/test_admission.py` covers adapter rejection for those
+    fields.
 
 ## Merge Readiness
 
