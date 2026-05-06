@@ -100,6 +100,9 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
   import guard helper.
 - `4a1d07219` fixes Cubic review feedback by broadening raw prompt/response
   forbidden-claim detection and closing keyword-argument dynamic import bypasses.
+- `71bd1dc85` fixes CodeRabbit review feedback by enforcing first-occurrence
+  rollout phase ordering, closing direct/relative import guard bypasses, and
+  improving fixed-mapping readability.
 
 ## Pre-push checklist
 
@@ -146,6 +149,12 @@ Evidence: `scripts/ci/check_semantic_cache_gate.py:46`, `scripts/ci/check_semant
 Disposition: FIXED
 Commit: 4a1d07219
 Evidence: `scripts/ci/check_semantic_cache_gate.py:90`, `scripts/ci/check_semantic_cache_gate.py:91`, `tests/test_semantic_cache_gate.py:244`, `tests/test_semantic_cache_gate.py:328`, `tests/helpers/semantic_cache_import_guard.py:60`; focused checker/tests/mypy/validate-changed passed locally after the fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239705867 -> 71bd1dc85
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197615815 -> 71bd1dc85
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197615841 -> 71bd1dc85
+Disposition: FIXED
+Commit: 71bd1dc85
+Evidence: `scripts/ci/check_semantic_cache_gate.py:184`, `scripts/ci/check_semantic_cache_gate.py:217`, `tests/test_semantic_cache_gate.py:263`, `tests/helpers/semantic_cache_import_guard.py:23`, `docs/review/PR_1697_FIXED_MAPPING.md:24`; focused checker/tests/mypy/validate-changed passed locally after the fix.
 
 ## Merge Readiness
 
