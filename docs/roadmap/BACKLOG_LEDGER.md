@@ -445,10 +445,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Release automation control plane for C4, App Store Review, ML gates, and supply chain
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> `release/release-control-plane-pr4-build-equivalence` -> PR-TBD-RELEASE-CONTROL-PLANE-PR5
+  - Target PR: PR-TBD-RELEASE-CONTROL-PLANE-PR0 -> PR #1605 -> PR #1679 (`release/release-control-plane-pr4-build-equivalence`) -> PR-TBD-RELEASE-CONTROL-PLANE-PR5
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 active in branch `release/release-control-plane-pr4-build-equivalence`; PR-5 remains deferred for CI fail-closed enforcement. The release-control-plane epic is not complete and is not production-ready.
+  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 active in PR #1679 on branch `release/release-control-plane-pr4-build-equivalence`; PR-5 remains deferred for CI fail-closed enforcement. The release-control-plane epic is not complete and is not production-ready.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`

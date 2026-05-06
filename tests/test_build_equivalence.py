@@ -304,6 +304,23 @@ def test_missing_production_identity_file_writes_block_decision(tmp_path: Path, 
     assert "missing_production_candidate_identity" in decision["reason_codes"]
 
 
+def test_malformed_production_identity_reports_production_candidate(tmp_path: Path) -> None:
+    manifest_payload = _build_manifest(tmp_path)
+    production_payload = _build_identity(manifest_payload)
+    production_payload["schema_version"] = "release-build-identity.v0"
+
+    decision = _decision(manifest_payload, production_payload=production_payload)
+
+    assert decision["decision"] == "BLOCK"
+    assert "malformed_production_candidate_identity" in decision["reason_codes"]
+    assert {
+        "field": "schema_version",
+        "reason_code": "malformed_production_candidate_identity",
+        "production_candidate": "release-build-identity.v0",
+        "release_manifest": "release-build-identity.v1",
+    } in decision["mismatch_details"]
+
+
 def test_malformed_json_uses_controlled_error(tmp_path: Path, capsys) -> None:
     manifest_payload = _build_manifest(tmp_path)
     manifest_path = tmp_path / "release_manifest.json"
@@ -448,7 +465,8 @@ def test_ledger_release_control_plane_state_is_reconciled() -> None:
 
     assert "PR-3 merged in PR #1605" in ledger_text
     assert (
-        "PR-4 active in branch `release/release-control-plane-pr4-build-equivalence`" in ledger_text
+        "PR-4 active in PR #1679 on branch `release/release-control-plane-pr4-build-equivalence`"
+        in ledger_text
     )
     assert "PR-5 remains deferred for CI fail-closed enforcement" in ledger_text
     assert "not production-ready" in ledger_text

@@ -137,10 +137,17 @@ def _validate_build_artifact(
     payload: dict[str, Any],
     *,
     label: str,
+    source_field: str,
     missing_reason: str,
     malformed_reason: str,
 ) -> list[Mismatch]:
     mismatches: list[Mismatch] = []
+
+    def _source_mismatch(field: str, reason_code: str, value: Any) -> Mismatch:
+        if source_field == "review_build":
+            return Mismatch(field, reason_code, review_build=value)
+        return Mismatch(field, reason_code, production_candidate=value)
+
     if not payload:
         mismatches.append(Mismatch(label, missing_reason))
         return mismatches
@@ -159,7 +166,7 @@ def _validate_build_artifact(
                 Mismatch(
                     field_name,
                     malformed_reason,
-                    review_build=value,
+                    **{source_field: value},
                     release_manifest=expected_value,
                 )
             )
@@ -174,7 +181,7 @@ def _validate_build_artifact(
                 mismatches.append(Mismatch(f"build_identity.{field_name}", missing_reason))
             elif not isinstance(value, str) or not value:
                 mismatches.append(
-                    Mismatch(f"build_identity.{field_name}", malformed_reason, review_build=value)
+                    _source_mismatch(f"build_identity.{field_name}", malformed_reason, value)
                 )
 
     artifact_digest = payload.get("artifact_digest")
@@ -184,7 +191,7 @@ def _validate_build_artifact(
         artifact_digest, str
     ) or not release_manifest.OCI_SHA256_DIGEST_RE.fullmatch(artifact_digest):
         mismatches.append(
-            Mismatch("artifact_digest", "unsupported_digest_format", review_build=artifact_digest)
+            _source_mismatch("artifact_digest", "unsupported_digest_format", artifact_digest)
         )
 
     release_manifest_hash = payload.get("release_manifest_hash")
@@ -194,18 +201,14 @@ def _validate_build_artifact(
         release_manifest_hash
     ):
         mismatches.append(
-            Mismatch(
-                "release_manifest_hash",
-                "unsupported_digest_format",
-                review_build=release_manifest_hash,
+            _source_mismatch(
+                "release_manifest_hash", "unsupported_digest_format", release_manifest_hash
             )
         )
 
     for group_name in OPTIONAL_IDENTITY_GROUPS:
         if group_name in payload and not isinstance(payload[group_name], dict):
-            mismatches.append(
-                Mismatch(group_name, malformed_reason, review_build=payload[group_name])
-            )
+            mismatches.append(_source_mismatch(group_name, malformed_reason, payload[group_name]))
     return mismatches
 
 
@@ -340,6 +343,7 @@ def build_equivalence_decision(
         _validate_build_artifact(
             review_payload,
             label="review_build_identity",
+            source_field="review_build",
             missing_reason="missing_review_build_identity",
             malformed_reason="malformed_review_build_identity",
         )
@@ -348,6 +352,7 @@ def build_equivalence_decision(
         _validate_build_artifact(
             production_payload,
             label="production_candidate_identity",
+            source_field="production_candidate",
             missing_reason="missing_production_candidate_identity",
             malformed_reason="malformed_production_candidate_identity",
         )
