@@ -177,6 +177,8 @@ def test_production_tag_workflow_includes_release_control_plane_evidence_gate() 
     assert "--release-manifest" in validate_script
     assert "--rag-gate-result" in validate_script
     assert "--build-equivalence" in validate_script
+    assert 'git rev-parse "${GITHUB_REF#refs/tags/}^{commit}"' in validate_script
+    assert "build_identity.git_sha" in validate_script
 
 
 def test_production_deploy_jobs_depend_on_release_control_plane_gate() -> None:
@@ -305,6 +307,21 @@ def test_invalid_artifact_paths_block(tmp_path: Path) -> None:
 
     assert decision["decision"] == "BLOCK"
     assert "evidence_path_outside_allowed_artifacts" in decision["reason_codes"]
+
+
+def test_production_job_rejects_evidence_for_different_tag_commit() -> None:
+    workflow = _load_cd_workflow()
+    production_job = _job(workflow, "release-control-plane-production-evidence")
+    checkout_step = _step_by_name(production_job, "Checkout")
+    validate_script = _step_run(
+        production_job, "Validate production release-control-plane evidence"
+    )
+
+    assert checkout_step["with"]["fetch-depth"] == 0
+    assert 'tag_commit="$(git rev-parse "${GITHUB_REF#refs/tags/}^{commit}")"' in validate_script
+    assert 'if [ "$manifest_git_sha" != "$tag_commit" ]; then' in validate_script
+    assert "Release manifest git SHA does not match production tag commit" in validate_script
+    assert "exit 1" in validate_script
 
 
 def test_evidence_git_sha_mismatch_blocks(tmp_path: Path) -> None:

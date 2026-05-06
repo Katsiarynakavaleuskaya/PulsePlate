@@ -64,6 +64,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Free disk space (Ubuntu hosted runner)
         run: |
@@ -702,6 +704,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
 
       - name: Download production release-control-plane evidence artifact
         env:
@@ -748,6 +752,29 @@ jobs:
               exit 1
             fi
           done
+          tag_commit="$(git rev-parse "${GITHUB_REF#refs/tags/}^{commit}")"
+          manifest_git_sha="$(
+            python3 - "${evidence_dir}/release_manifest.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          build_identity = payload.get("build_identity")
+          if not isinstance(build_identity, dict):
+              raise SystemExit("missing build_identity")
+          git_sha = build_identity.get("git_sha")
+          if not isinstance(git_sha, str) or not git_sha:
+              raise SystemExit("missing build_identity.git_sha")
+          print(git_sha)
+          PY
+          )"
+          if [ "$manifest_git_sha" != "$tag_commit" ]; then
+            echo "❌ Release manifest git SHA does not match production tag commit"
+            echo "manifest git_sha=${manifest_git_sha}"
+            echo "tag commit=${tag_commit}"
+            exit 1
+          fi
           python3 scripts/ci/check_release_control_plane.py \
             --release-manifest "${evidence_dir}/release_manifest.json" \
             --rag-gate-result "${evidence_dir}/rag_gate_result.json" \
