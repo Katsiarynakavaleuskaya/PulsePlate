@@ -326,6 +326,7 @@ def test_block_when_attestation_not_verified(tmp_path: Path) -> None:
 def test_block_on_malformed_json(tmp_path: Path) -> None:
     manifest_path, rag_path, build_path = _write_evidence(tmp_path)
     rag_path.write_text("{not-json\n", encoding="utf-8")
+    malformed_hash = release_manifest.sha256_lower_hex(rag_path.read_bytes())
 
     decision = check_release_control_plane.check_release_control_plane_files(
         release_manifest_path=manifest_path,
@@ -335,6 +336,8 @@ def test_block_on_malformed_json(tmp_path: Path) -> None:
 
     assert decision["decision"] == "BLOCK"
     assert "malformed_rag_gate_result" in decision["reason_codes"]
+    assert decision["checked_artifacts"]["rag_gate_result"]["sha256"] == malformed_hash
+    assert decision["evidence_hashes"]["rag_gate_result"] == malformed_hash
 
 
 def test_empty_evidence_objects_are_invalid_not_allowed(tmp_path: Path) -> None:

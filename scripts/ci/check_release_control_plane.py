@@ -81,17 +81,17 @@ def _load_evidence(
         raw_text = raw_bytes.decode("utf-8")
     except UnicodeDecodeError as exc:
         findings.append(Finding(str(path), malformed_reason, str(exc)))
-        return None, findings, None
+        return None, findings, file_hash
     try:
         payload = json.loads(raw_text)
     except json.JSONDecodeError as exc:
         findings.append(Finding(str(path), malformed_reason, str(exc)))
-        return None, findings, None
+        return None, findings, file_hash
     if not isinstance(payload, dict):
         findings.append(
             Finding(str(path), malformed_reason, "top-level JSON value must be an object")
         )
-        return None, findings, None
+        return None, findings, file_hash
     return payload, findings, file_hash
 
 
