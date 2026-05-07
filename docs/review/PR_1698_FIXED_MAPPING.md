@@ -150,6 +150,14 @@ Reason: Sourcery's hardcoded `--repo Katsiarynakavaleuskaya/PulsePlate` note is 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
+## Merge Readiness
+
+- [x] Current-head PR checks completed on head `57db0b298c495610ce069ef22e4e3b89b4a6dd57`.
+- [x] All actionable review comments are dispositioned as FIXED / NOT-A-BUG / DEFERRED in this artifact.
+- [x] No unresolved review threads may remain before merge; final strict wrapper is required after this mapping update.
+- [x] Required bot checks have no remaining actionables before merge.
+- [x] Wait-window: one review/check cycle after latest bot activity at 2026-05-07T17:24:18Z was observed before this 2026-05-07T17:40:39Z mapping update; final strict wrapper must still pass before merge.
+
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
@@ -181,10 +189,10 @@ Reason: Sourcery high-level notes were dispositioned as NOT-A-BUG: duplicate tem
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
 
 Disposition: DEFERRED
-Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
 Reason: CodeRabbit requested explicit backlog/thread proof for deferred follow-ups. PR-8, App Store asset validation, and live capture lanes remain separate tracked follow-ups.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244223889
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244223889
 
 Disposition: FIXED
 Commit: e04606f0f
@@ -215,6 +223,13 @@ Commit: 9f1f69337
 Evidence: `tests/test_design_agent_workflow_docs.py`
 Reason: CodeRabbit requested order-sensitive workflow section coverage. Added a guard that asserts the numbered design workflow sections appear in canonical order.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4246046425 -> 9f1f69337
+
+Disposition: FIXED
+Commit: TBD
+Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
+Reason: CodeRabbit requested an explicit Merge Readiness section and normalized DEFERRED mapping schema. Added the section and normalized the existing deferred block before resolving the thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3203426789 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4246238479 -> TBD
 
 ## Deferred / Follow-Ups
 
