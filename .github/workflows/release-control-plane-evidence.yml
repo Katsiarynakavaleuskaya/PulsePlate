@@ -1,0 +1,381 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release Control Plane Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Expected release git SHA for all evidence artifacts"
+        required: true
+        type: string
+      release_manifest_source:
+        description: "JSON with run_id, artifact_name, path for release_manifest.json"
+        required: true
+        type: string
+      rag_gate_result_source:
+        description: "JSON with run_id, artifact_name, path for rag_gate_result.json"
+        required: true
+        default: '{"run_id":"","artifact_name":"","path":"rag_gate_result.json"}'
+        type: string
+      build_equivalence_source:
+        description: "JSON with run_id, artifact_name, path for build_equivalence_result.json"
+        required: true
+        type: string
+      evidence_artifact_name:
+        description: "Published governed release-control-plane evidence artifact name"
+        required: true
+        default: "release-control-plane-production-evidence"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish-release-control-plane-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: release-evidence
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Collect governed release evidence
+        env:
+          BUILD_EQUIVALENCE_SOURCE: ${{ inputs.build_equivalence_source }}
+          EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
+          EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RAG_GATE_RESULT_SOURCE: ${{ inputs.rag_gate_result_source }}
+          RELEASE_MANIFEST_SOURCE: ${{ inputs.release_manifest_source }}
+        run: |
+          set -euo pipefail
+
+          reject_placeholder() {
+            value="$1"
+            label="$2"
+            case "$value" in
+              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|[Tt][Ee][Ss][Tt]|*/[Tt][Ee][Ss][Tt]|[Tt][Ee][Ss][Tt]/*|*/[Tt][Ee][Ss][Tt]/*|[Tt][Ee][Ss][Tt][Ss]|*/[Tt][Ee][Ss][Tt][Ss]|*[Tt][Ee][Ss][Tt][Ss]/*|*/[Tt][Ee][Ss][Tt][Ss]/*|*[Tt][Ee][Ss][Tt]-*|*-[Tt][Ee][Ss][Tt]*|*[Tt][Ee][Ss][Tt]_*|*_[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
+                echo "ERROR: ${label} must reference governed release evidence, not fixtures/tests/placeholders/fakes"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_newline() {
+            value="$1"
+            label="$2"
+            case "$value" in
+              *$'\n'*|*$'\r'*)
+                echo "ERROR: ${label} must be single-line"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_run_id() {
+            value="$1"
+            label="$2"
+            case "$value" in
+              ""|*[!0-9]*)
+                echo "ERROR: ${label} must be a numeric GitHub Actions run id"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_path() {
+            value="$1"
+            label="$2"
+            reject_placeholder "$value" "$label"
+            case "$value" in
+              /*|*..*|*//*)
+                echo "ERROR: ${label} must be a relative path inside the downloaded artifact"
+                exit 1
+                ;;
+            esac
+          }
+
+          parse_source_input() {
+            label="$1"
+            raw_json="$2"
+            prefix="$3"
+            python - "$label" "$raw_json" "$prefix" <<'PY' >> "$source_env"
+          import json
+          import shlex
+          import sys
+
+          label, raw_json, prefix = sys.argv[1:4]
+          try:
+              payload = json.loads(raw_json)
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"{label}_source must be JSON: {exc}") from exc
+          if not isinstance(payload, dict):
+              raise SystemExit(f"{label}_source must be a JSON object")
+          if "workflow_name" in payload:
+              raise SystemExit(
+                  f"{label}_source.workflow_name is not accepted; "
+                  "expected producer workflow names are repo-owned"
+              )
+          required = ("run_id", "artifact_name", "path")
+          for key in required:
+              value = payload.get(key)
+              if not isinstance(value, str) or not value:
+                  raise SystemExit(f"{label}_source.{key} must be a non-empty string")
+              if "\n" in value or "\r" in value:
+                  raise SystemExit(f"{label}_source.{key} must be single-line")
+          for key in required:
+              print(f"{prefix}_{key.upper()}={shlex.quote(payload[key])}")
+          PY
+          }
+
+          source_env="${RUNNER_TEMP}/release-control-plane-source-inputs.env"
+          : > "$source_env"
+          parse_source_input "release_manifest" "$RELEASE_MANIFEST_SOURCE" "RELEASE_MANIFEST"
+          parse_source_input "rag_gate_result" "$RAG_GATE_RESULT_SOURCE" "RAG_GATE_RESULT"
+          parse_source_input "build_equivalence" "$BUILD_EQUIVALENCE_SOURCE" "BUILD_EQUIVALENCE"
+          # shellcheck disable=SC1090
+          . "$source_env"
+
+          reject_newline "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
+          reject_placeholder "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
+          reject_placeholder "$RELEASE_MANIFEST_ARTIFACT_NAME" "release_manifest_artifact_name"
+          reject_placeholder "$RAG_GATE_RESULT_ARTIFACT_NAME" "rag_gate_result_artifact_name"
+          reject_placeholder "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "build_equivalence_artifact_name"
+          reject_path "$RELEASE_MANIFEST_PATH" "release_manifest_path"
+          reject_path "$RAG_GATE_RESULT_PATH" "rag_gate_result_path"
+          reject_path "$BUILD_EQUIVALENCE_PATH" "build_equivalence_path"
+          reject_run_id "$RELEASE_MANIFEST_RUN_ID" "release_manifest_run_id"
+          reject_run_id "$RAG_GATE_RESULT_RUN_ID" "rag_gate_result_run_id"
+          reject_run_id "$BUILD_EQUIVALENCE_RUN_ID" "build_equivalence_run_id"
+
+          case "$EXPECTED_GIT_SHA" in
+            ""|*[!0-9a-fA-F]*)
+              echo "ERROR: git_sha must be a hexadecimal commit SHA"
+              exit 1
+              ;;
+          esac
+          expected_git_sha_lc="$(printf '%s' "$EXPECTED_GIT_SHA" | tr 'A-F' 'a-f')"
+          github_sha_lc="$(printf '%s' "$GITHUB_SHA" | tr 'A-F' 'a-f')"
+          if [ "$github_sha_lc" != "$expected_git_sha_lc" ]; then
+            echo "ERROR: publication workflow ref must match git_sha"
+            echo "workflow GITHUB_SHA=${GITHUB_SHA}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+
+          work_root="${RUNNER_TEMP}/release-control-plane-evidence-sources"
+          bundle_root="${RUNNER_TEMP}/release-control-plane-evidence-bundle"
+          mkdir -p "$work_root" "$bundle_root/release-control-plane"
+          release_manifest_expected_workflow_name="Release Manifest Evidence"
+          release_manifest_expected_workflow_path=".github/workflows/release-manifest-evidence.yml"
+          rag_gate_result_expected_workflow_name="RAG Release Gates"
+          rag_gate_result_expected_workflow_path=".github/workflows/rag-release-gates.yml"
+          build_equivalence_expected_workflow_name="Build Equivalence Evidence"
+          build_equivalence_expected_workflow_path=".github/workflows/build-equivalence-evidence.yml"
+
+          require_expected_source_workflow() {
+            label="$1"
+            workflow_name="$2"
+            expected_workflow_name="$3"
+            workflow_path="$4"
+            expected_workflow_path="$5"
+            if [ "$workflow_name" != "$expected_workflow_name" ]; then
+              echo "ERROR: ${label} source workflow does not match expected producer"
+              echo "workflow=${workflow_name:-unset}"
+              echo "expected=${expected_workflow_name}"
+              exit 1
+            fi
+            if [ "$workflow_path" != "$expected_workflow_path" ]; then
+              echo "ERROR: ${label} source workflow path does not match expected producer"
+              echo "workflow_path=${workflow_path:-unset}"
+              echo "expected_path=${expected_workflow_path}"
+              exit 1
+            fi
+          }
+
+          fetch_source() {
+            label="$1"
+            run_id="$2"
+            artifact_name="$3"
+            source_path="$4"
+            target_name="$5"
+            expected_workflow_name="$6"
+            expected_workflow_path="$7"
+            target_path="${bundle_root}/release-control-plane/${target_name}"
+            download_dir="${work_root}/${label}"
+
+            run_metadata="$(
+              gh run view "$run_id" \
+                --json status,conclusion,headSha,event,workflowName,url \
+                --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+            )"
+            IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+            run_workflow_path="$(
+              gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.path'
+            )"
+            if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
+              echo "ERROR: ${label} source run did not complete successfully"
+              echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
+              exit 1
+            fi
+            run_head_sha_lc="$(printf '%s' "$run_head_sha" | tr 'A-F' 'a-f')"
+            if [ "$run_head_sha_lc" != "$expected_git_sha_lc" ]; then
+              echo "ERROR: ${label} source run head SHA does not match git_sha"
+              echo "run headSha=${run_head_sha:-unset}"
+              echo "git_sha=${EXPECTED_GIT_SHA}"
+              echo "run url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_event" != "workflow_dispatch" ]; then
+              echo "ERROR: ${label} source run must be a governed workflow_dispatch run"
+              echo "event=${run_event:-unset}"
+              echo "run url=${run_url:-unset}"
+              exit 1
+            fi
+            require_expected_source_workflow "$label" "$run_workflow_name" "$expected_workflow_name" "$run_workflow_path" "$expected_workflow_path"
+
+            mkdir -p "$download_dir"
+            gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
+            if [ ! -f "${download_dir}/${source_path}" ]; then
+              echo "ERROR: Missing ${label} evidence file: ${source_path}"
+              exit 1
+            fi
+            cp "${download_dir}/${source_path}" "$target_path"
+            python -m json.tool "$target_path" > /dev/null
+            echo "${label}: workflow=${run_workflow_name:-unset} path=${run_workflow_path:-unset} event=${run_event:-unset} source=${run_url:-unset}" >> "${bundle_root}/release-control-plane/source_runs.txt"
+          }
+
+          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json" "$release_manifest_expected_workflow_name" "$release_manifest_expected_workflow_path"
+          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json" "$rag_gate_result_expected_workflow_name" "$rag_gate_result_expected_workflow_path"
+          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json" "$build_equivalence_expected_workflow_name" "$build_equivalence_expected_workflow_path"
+
+          python - "${bundle_root}/release-control-plane" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+          from typing import Any
+
+          bundle = Path(sys.argv[1])
+          json_paths = [
+              bundle / "release_manifest.json",
+              bundle / "rag_gate_result.json",
+              bundle / "build_equivalence_result.json",
+          ]
+          sentinel_hash = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
+          forbidden_path_tokens = (
+              "tests/fixtures",
+              "data/evals/pulseplate_rag_eval_sample.jsonl",
+              "fixture",
+              "placeholder",
+              "fake",
+          )
+          forbidden_test_path_segment = re.compile(r"(^|/)tests?(/|$)")
+
+          def walk(value: Any, path: str) -> None:
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      walk(child, f"{path}.{key}" if path else str(key))
+                  return
+              if isinstance(value, list):
+                  for index, child in enumerate(value):
+                      walk(child, f"{path}[{index}]")
+                  return
+              if not isinstance(value, str):
+                  return
+              lowered = value.lower()
+              normalized_path = lowered.replace("\\", "/")
+              if sentinel_hash.fullmatch(lowered):
+                  raise SystemExit(f"sentinel placeholder digest/hash rejected at {path}")
+              if any(token in normalized_path for token in forbidden_path_tokens):
+                  raise SystemExit(f"fixture/placeholder path rejected at {path}")
+              if forbidden_test_path_segment.search(normalized_path):
+                  raise SystemExit(f"test evidence path rejected at {path}")
+
+          for json_path in json_paths:
+              with json_path.open(encoding="utf-8") as handle:
+                  payload = json.load(handle)
+              walk(payload, json_path.name)
+
+          with (bundle / "rag_gate_result.json").open(encoding="utf-8") as handle:
+              rag_payload = json.load(handle)
+          if rag_payload.get("dataset_fallback_used") is True:
+              raise SystemExit("rag_gate_result.dataset_fallback_used must be false")
+          if rag_payload.get("small_fixture_metric_gates_advisory") is True:
+              raise SystemExit("rag_gate_result.small_fixture_metric_gates_advisory must be false")
+          PY
+
+          manifest_git_sha="$(
+            python - "${bundle_root}/release-control-plane/release_manifest.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          build_identity = payload.get("build_identity")
+          if not isinstance(build_identity, dict):
+              raise SystemExit("missing build_identity")
+          git_sha = build_identity.get("git_sha")
+          if not isinstance(git_sha, str) or not git_sha:
+              raise SystemExit("missing build_identity.git_sha")
+          print(git_sha)
+          PY
+          )"
+          manifest_git_sha_lc="$(printf '%s' "$manifest_git_sha" | tr 'A-F' 'a-f')"
+          if [ "$manifest_git_sha_lc" != "$expected_git_sha_lc" ]; then
+            echo "ERROR: Release manifest git SHA does not match workflow git_sha"
+            echo "manifest git_sha=${manifest_git_sha}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+
+          python scripts/ci/check_release_control_plane.py \
+            --release-manifest "${bundle_root}/release-control-plane/release_manifest.json" \
+            --rag-gate-result "${bundle_root}/release-control-plane/rag_gate_result.json" \
+            --build-equivalence "${bundle_root}/release-control-plane/build_equivalence_result.json" \
+            --json-out "${bundle_root}/release-control-plane/release_control_plane_ci_gate.json" \
+            --markdown-out "${bundle_root}/release-control-plane/release_control_plane_ci_gate.md"
+
+          {
+            echo "RELEASE_CONTROL_PLANE_EVIDENCE_BUNDLE=$bundle_root"
+            echo "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME=$EVIDENCE_ARTIFACT_NAME"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish evidence handoff summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release Control Plane Evidence"
+            echo
+            echo "- Run id: \`${GITHUB_RUN_ID}\`"
+            echo "- Artifact name: \`${RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME}\`"
+            echo
+            echo "Set production Actions variables only after reviewing this workflow run:"
+            echo
+            echo "- \`RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID=${GITHUB_RUN_ID}\`"
+            echo "- \`RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME=${RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME}\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload governed release-control-plane evidence artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ inputs.evidence_artifact_name }}
+          path: |
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/release_manifest.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/rag_gate_result.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/build_equivalence_result.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/release_control_plane_ci_gate.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/release_control_plane_ci_gate.md
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/source_runs.txt
+          if-no-files-found: error
+          retention-days: 14
