@@ -121,6 +121,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   leakage diff evaluation.
 - `3949dd377` - Add missing blocked-surface metric schema requirement and
   classify kill-switch-disabled cases as fallback, not false hit.
+- `171ebf112` - Fetch the GitHub base branch ref before falling back to raw
+  base SHA diff candidates in shallow CI checkouts.
 
 ## Pre-Push Checklist
 
@@ -212,9 +214,11 @@ Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_H
   `74897945961`: `1994b6503`
 - Current-head CI shallow base object failure at run `25520086660`, job
   `74901689252`: `aebaf00fa`
+- Current-head CI shallow base branch/SHA diff failure at run `25520806855`,
+  job `74904151062`: `171ebf112`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `aebaf00fa`,
+Not merge-ready yet. Requires the new current-head CI run after `171ebf112`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
