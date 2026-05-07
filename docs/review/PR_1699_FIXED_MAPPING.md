@@ -59,7 +59,7 @@ Evidence:
 
 ### Codex Review: include current evidence producers in the allowlist
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> 3bcd02e97
 
 Disposition: FIXED
 Evidence:
