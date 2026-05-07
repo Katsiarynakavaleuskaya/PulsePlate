@@ -96,6 +96,8 @@ backend, or serving path.
 - `0cddad988` - `fix(ai-runtime): remove duplicate scaffold phase error`
 - `955e5a958` - `docs(review): update PR 1700 fixed mapping`
 - `a4acaa035` - `fix(ai-runtime): address scaffold review cleanups`
+- `9afa5d8e6` - `docs(review): map PR 1700 bot findings`
+- `28802d950` - `fix(ai-runtime): tighten scaffold guard contracts`
 
 ## Pre-push checklist
 
@@ -158,6 +160,26 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244613938 -> a4acaa035
 Commit: a4acaa035
 Evidence: `core/ai/exact_fuzzy_cache.py`, `scripts/ci/check_semantic_cache_gate.py`, `scripts/ci/check_docs_phase1_gates.py`, and `tests/test_semantic_cache_scaffold_contract.py` address the valid CodeRabbit cleanup findings.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202121235 -> 28802d950
+Commit: 28802d950
+Evidence: `docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.schema.json` constrains `blocked_surfaces` to the documented enum; `tests/test_semantic_cache_scaffold_contract.py` asserts the enum and minimum count.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202121237 -> 28802d950
+Commit: 28802d950
+Evidence: `tests/helpers/semantic_cache_import_guard.py` blocks `datetime.datetime.now` and `datetime.datetime.utcnow`; `tests/test_semantic_cache_scaffold_contract.py` covers the guard.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202121272 -> 28802d950
+Commit: 28802d950
+Evidence: `scripts/ci/check_semantic_cache_gate.py` now requires the blocked-list `embeddings` anchor rather than any embedding mention; `tests/test_semantic_cache_scaffold_contract.py` covers the fail-closed case.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202121280 -> 28802d950
+Commit: 28802d950
+Evidence: `scripts/ci/check_semantic_cache_gate.py` now requires partition-field anchors from the partition contract; `tests/test_semantic_cache_scaffold_contract.py` covers broad `surface` wording drift.
 
 ## Merge Readiness
 
