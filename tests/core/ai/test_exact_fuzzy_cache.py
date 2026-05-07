@@ -147,6 +147,43 @@ def test_near_duplicate_fuzzy_hit() -> None:
     assert result.score_bps >= 5000
 
 
+def test_match_precedence_prefers_exact_then_reordered_then_near_duplicate() -> None:
+    exact_record = _record("Plan protein breakfast")
+    reordered_record = _record("Breakfast protein plan")
+    near_duplicate_record = _record("Plan protein breakfast today")
+    policy = _policy(token_jaccard_min_bps=5000, sequence_ratio_min_bps=5000)
+
+    exact_result = match_exact_fuzzy_records(
+        request=_request("Plan protein breakfast"),
+        candidate_records=(near_duplicate_record, reordered_record, exact_record),
+        policy=policy,
+    )
+    reordered_result = match_exact_fuzzy_records(
+        request=_request("Plan protein breakfast"),
+        candidate_records=(near_duplicate_record, reordered_record),
+        policy=policy,
+    )
+    near_duplicate_result = match_exact_fuzzy_records(
+        request=_request("Plan protein breakfast"),
+        candidate_records=(near_duplicate_record,),
+        policy=policy,
+    )
+
+    assert exact_result.decision == "hit"
+    assert exact_result.match_mode == "exact"
+    assert exact_result.matched_record_id == exact_record.record_id
+    assert exact_result.score_bps == 10000
+    assert reordered_result.decision == "hit"
+    assert reordered_result.match_mode == "fuzzy_reordered_tokens"
+    assert reordered_result.matched_record_id == reordered_record.record_id
+    assert reordered_result.score_bps == 9900
+    assert near_duplicate_result.decision == "hit"
+    assert near_duplicate_result.match_mode == "fuzzy_near_duplicate"
+    assert near_duplicate_result.matched_record_id == near_duplicate_record.record_id
+    assert near_duplicate_result.score_bps is not None
+    assert near_duplicate_result.score_bps >= 5000
+
+
 def test_fuzzy_miss_below_threshold() -> None:
     record = _record("reduce evening cravings with protein snack")
 
@@ -168,6 +205,7 @@ def test_fuzzy_miss_below_threshold() -> None:
         ("provider_key", "provider:other"),
         ("model_key", "model:other"),
         ("user_tier", "free"),
+        ("surface", "other-surface"),
         ("transparency_notice_id", "notice:other"),
         ("context_fingerprint", "sha256:other-context"),
     ],
@@ -191,6 +229,9 @@ def test_partition_mismatch_is_hard_miss(field: str, value: object) -> None:
     elif field == "user_tier":
         assert isinstance(value, str)
         request = replace(base_request, user_tier=value)
+    elif field == "surface":
+        assert isinstance(value, str)
+        request = replace(base_request, surface=value)
     elif field == "transparency_notice_id":
         assert isinstance(value, str)
         request = replace(base_request, transparency_notice_id=value)
