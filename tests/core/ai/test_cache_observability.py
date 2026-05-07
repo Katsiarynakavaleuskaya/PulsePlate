@@ -460,6 +460,16 @@ def test_import_guard_rejects_runtime_cache_modules(tmp_path: Path) -> None:
         assert_no_forbidden_semantic_cache_imports(unsafe)
 
 
+def test_import_guard_allows_sc_g2_qualified_symbols(tmp_path: Path) -> None:
+    source = tmp_path / "allowed_sc_g2_import.py"
+    source.write_text(
+        "from core.ai.exact_fuzzy_cache import create_exact_fuzzy_cache_record\n",
+        encoding="utf-8",
+    )
+
+    assert_no_forbidden_semantic_cache_imports(source)
+
+
 def test_sc_g3_is_not_exported_from_core_ai_facade() -> None:
     init_path = REPO_ROOT / "core" / "ai" / "__init__.py"
     assert "cache_observability" not in init_path.read_text(encoding="utf-8")

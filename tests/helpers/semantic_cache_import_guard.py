@@ -87,7 +87,10 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
     offenders = [
         name
         for name in imports
-        if name not in ALLOWED_SEMANTIC_CACHE_IMPORTS
+        if not any(
+            name == allowed or name.startswith(f"{allowed}.")
+            for allowed in ALLOWED_SEMANTIC_CACHE_IMPORTS
+        )
         if any(
             name == prefix or name.startswith(f"{prefix}.")
             for prefix in FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES
