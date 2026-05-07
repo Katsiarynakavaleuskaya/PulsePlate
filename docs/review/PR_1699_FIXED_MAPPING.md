@@ -117,6 +117,24 @@ Evidence:
 - `docs/roadmap/BACKLOG_LEDGER.md` now says successful `workflow_dispatch`
   source artifacts.
 
+## Current-Head CI Findings
+
+### GitHub Actions: actionlint rejects more than 10 workflow_dispatch inputs
+
+Disposition: FIXED
+Commit: `66023306c`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now uses three JSON
+  source inputs plus `git_sha` and `evidence_artifact_name`, keeping the manual
+  workflow below GitHub's 10-input limit while preserving source run, artifact,
+  workflow name, path, and git SHA validation.
+- `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` documents the JSON
+  source object contract for operators.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  the workflow input count stays at or below 10.
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` passed after the fix.
+
 Any later actionable review comment must be added here with one of:
 
 - `FIXED`: commit SHA plus evidence.
