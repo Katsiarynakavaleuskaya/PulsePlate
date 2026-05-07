@@ -56,6 +56,42 @@ def test_packet_prompt_forces_agent_coordinator_first_when_packet_primary_differ
     assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in prompt
 
 
+def test_packet_prompt_fallback_role_order_without_bridge() -> None:
+    """Packets without native bridge data should still render top-level role order."""
+
+    packet: dict[str, object] = {
+        "goal": "test fallback",
+        "task_class": "pr_governance",
+        "pr_phase": "none",
+        "primary_agent": "backend-engineer",
+        "reviewer": "architecture-specialist",
+        "secondary_agents": ["security-auditor"],
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert (
+        "Role order: agent-coordinator, backend-engineer, architecture-specialist, security-auditor"
+        in prompt
+    )
+
+
+def test_packet_prompt_fallback_role_order_without_secondary_agents() -> None:
+    """Fallback role parsing should tolerate missing optional secondary agents."""
+
+    packet: dict[str, object] = {
+        "goal": "test fallback",
+        "task_class": "pr_governance",
+        "pr_phase": "none",
+        "primary_agent": "agent-coordinator",
+        "reviewer": "qa-engineer-agent",
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert "Role order: agent-coordinator, qa-engineer-agent" in prompt
+
+
 def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -> None:
     """Packet mode should render the copy-paste guardrails Codex needs."""
 
