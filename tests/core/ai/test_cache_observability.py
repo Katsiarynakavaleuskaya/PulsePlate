@@ -139,7 +139,7 @@ def _case(
         admission_allowed=admission_allowed,
         blocked_surface=blocked_surface,
         negative_control=negative_control,
-        metadata=metadata or {"case": case_id},
+        metadata={"case": case_id} if metadata is None else metadata,
     )
 
 

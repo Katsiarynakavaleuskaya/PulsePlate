@@ -306,17 +306,26 @@ OBSERVABILITY_REQUIRED_ANCHORS = (
     ("context leakage", re.compile(r"\bcontext leakage\b")),
     ("admission blocked hit", re.compile(r"\badmission blocked hit\b")),
     ("blocked surfaces", re.compile(r"\bblocked surfaces\b")),
-    ("no raw prompts", re.compile(r"\b(?:blocked:|no|must not contain).*raw prompts\b")),
+    (
+        "no raw prompts",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)raw prompts\b"),
+    ),
     (
         "no raw model responses",
-        re.compile(r"\b(?:blocked:|no|must not contain).*raw model responses\b"),
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)raw model responses\b"),
     ),
-    ("no embeddings", re.compile(r"\b(?:blocked:|no|must not contain).*embeddings\b")),
-    ("no Redis", re.compile(r"\b(?:blocked:|no|must not contain).*redis\b")),
-    ("no GPTCache", re.compile(r"\b(?:blocked:|no|must not contain).*gptcache\b")),
+    (
+        "no embeddings",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)embeddings\b"),
+    ),
+    ("no Redis", re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)redis\b")),
+    (
+        "no GPTCache",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)gptcache\b"),
+    ),
     (
         "no provider calls",
-        re.compile(r"\b(?:blocked:|no|must not contain).*provider calls\b"),
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)provider calls\b"),
     ),
     ("gate remains closed", re.compile(r"\bgate remains closed\b")),
     (

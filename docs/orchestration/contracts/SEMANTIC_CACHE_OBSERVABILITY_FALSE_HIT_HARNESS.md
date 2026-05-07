@@ -18,6 +18,9 @@ outputs. It models audit event records, false hit outcomes, negative controls,
 observability metrics, stop rules, rollback thresholds, and kill switch
 snapshot state before any future runtime experiment.
 
+SC-G3 has no raw prompts, no raw model responses, no embeddings, no Redis,
+no GPTCache, and no provider calls.
+
 ## Scope
 
 Allowed:

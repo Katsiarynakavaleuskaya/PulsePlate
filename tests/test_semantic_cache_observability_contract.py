@@ -57,7 +57,7 @@ def test_checker_fails_if_required_harness_anchors_are_missing() -> None:
     for phrase in ("negative controls", "stop rules", "rollback thresholds", "blocked surfaces"):
         broken = re.sub(re.escape(phrase), "", text, flags=re.IGNORECASE)
         errors = validate_semantic_cache_observability_contract(broken)
-        assert errors, phrase
+        assert f"observability contract missing anchor: {phrase}" in errors
 
 
 def test_checker_fails_if_blocked_backends_are_approved() -> None:
