@@ -106,6 +106,84 @@ Evidence:
 Reason: The changed-file helper behavior is a validation-signal limitation for
 new staged files in this worktree, not a product or bridge defect in this PR.
 
+### P1: Packet-mode role order could contradict coordinator-first
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `scripts/orchestration/render_codex_start_prompt.py` now forces
+  `agent-coordinator` to the front of the rendered packet role order even when
+  the native packet bridge lists another primary role.
+- `tests/test_render_codex_start_prompt.py` covers a packet whose native primary
+  is `backend-engineer` and advisory role is `agent-coordinator`.
+
+### P2: Prompt fields could inject pasted Codex instructions through newlines
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `scripts/orchestration/render_codex_start_prompt.py` now renders packet and
+  recipe values through prompt-safe single-line data escaping.
+- `tests/test_render_codex_start_prompt.py` asserts newline-bearing goals and
+  paths render as escaped data rather than new top-level instructions.
+
+### P1: Dry-run prompt implied analyze preflight had already run
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `scripts/orchestration/render_codex_start_prompt.py` now accepts an explicit
+  recipe preflight state and prints dry-run wording when preflight did not run.
+- `scripts/orchestration/local_session_bootstrap.sh` passes `--preflight-ran`
+  because that helper really runs analyze preflight.
+- `tests/test_start_pr_lane.py` asserts dry-run output says preflight did not
+  run and does not inherit the analyze-preflight helper wording.
+
+### P1: Real packet execute path lacked regression coverage
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `tests/test_start_pr_lane.py` now exercises the non-dry-run path with stubbed
+  git/preflight/bootstrap commands and asserts the emitted prompt is packet
+  backed, includes `Authoritative bootstrap already ran`, `Task packet:`,
+  `Role order:`, passive skills, and the `.venv` reminder.
+
+### P2: Legacy no-argument helper prompt was unpinned
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `tests/test_local_session_bootstrap.py` now covers no-argument helper mode and
+  asserts it prints a Codex-ready non-authoritative prompt with placeholder
+  goal/class, `agent-coordinator` seed order, task packet absence, and `.venv`
+  reminder.
+
+### P2: Semantic malformed packet case lacked regression coverage
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `tests/test_render_codex_start_prompt.py` now covers syntactically valid
+  non-object packet JSON (`[]`) and asserts the renderer fails closed without
+  printing `Paste into Codex now:`.
+
+### P2: Fixed mapping artifact used stale draft lifecycle wording
+
+Disposition: FIXED
+Commit: `4e6487ff1`
+Evidence:
+
+- `docs/review/PR_1701_FIXED_MAPPING.md` now says role-agent/premortem findings
+  require closure before merge readiness or merge, matching PR #1701's
+  ready-for-review lifecycle state.
+
 ## Residual Risks
 
 - GitHub review bots can still add new findings after this artifact is written.
