@@ -106,7 +106,7 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
 
 ## Commit Breakdown
 
-- `d0f9c3259` - SC-G3 backend/offline harness, contracts, gates, tests,
+- `ba05a98b4` - SC-G3 backend/offline harness, contracts, gates, tests,
   roadmap/backlog sync.
 
 ## Pre-Push Checklist
@@ -142,7 +142,7 @@ No GitHub review threads at PR open. Post-open packet
 `artifacts/orchestration/task_packets/491ff8345781.json` assigned
 `qa-engineer-agent -> bug-hunter`. The first QA explorer did not return and was
 closed; replacement QA pass returned no actionable findings at
-`4baed94e8a2aa68a29cdd3991f87f56357866487`. Bug-hunter returned three
+`37b8439c4`. Bug-hunter returned three
 actionable findings; all were fixed before mapping.
 
 - [x] Discussion-thread pass completed
@@ -154,13 +154,13 @@ actionable findings; all were fixed before mapping.
 
 ## Post-Open Agent Mapping
 
-- PR open baseline: `d0f9c3259`
-- Mapping artifact: `2ae7177ff`
-- Post-open bug-hunter malformed hit audit event finding: `2008d659e`
-- Post-open bug-hunter blocked-backend checker wording finding: `2008d659e`
-- Post-open bug-hunter import guard wording/allowlist finding: `2008d659e`
-- Replacement QA no-actionable pass: `4baed94e8`
-- QA pass recorded in mapping: `84857ddf6`
+- PR open baseline: `ba05a98b4`
+- Mapping artifact: `0060b9729`
+- Post-open bug-hunter malformed hit audit event finding: `e9d629b70`
+- Post-open bug-hunter blocked-backend checker wording finding: `e9d629b70`
+- Post-open bug-hunter import guard wording/allowlist finding: `e9d629b70`
+- Replacement QA no-actionable pass: `37b8439c4`
+- QA pass recorded in mapping: `37b8439c4`
 
 ## Merge Readiness
 
