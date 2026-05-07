@@ -56,12 +56,15 @@ def test_workflow_inputs_define_source_artifact_contract() -> None:
         "git_sha",
         "release_manifest_run_id",
         "release_manifest_artifact_name",
+        "release_manifest_workflow_name",
         "release_manifest_path",
         "rag_gate_result_run_id",
         "rag_gate_result_artifact_name",
+        "rag_gate_result_workflow_name",
         "rag_gate_result_path",
         "build_equivalence_run_id",
         "build_equivalence_artifact_name",
+        "build_equivalence_workflow_name",
         "build_equivalence_path",
         "evidence_artifact_name",
     }
@@ -70,6 +73,7 @@ def test_workflow_inputs_define_source_artifact_contract() -> None:
     assert all(inputs[name]["required"] is True for name in expected_inputs)
     assert inputs["release_manifest_path"]["default"] == "release_manifest.json"
     assert inputs["rag_gate_result_path"]["default"] == "rag_gate_result.json"
+    assert inputs["rag_gate_result_workflow_name"]["default"] == "RAG Release Gates"
     assert inputs["build_equivalence_path"]["default"] == "build_equivalence_result.json"
     assert (
         inputs["evidence_artifact_name"]["default"] == "release-control-plane-production-evidence"
@@ -97,10 +101,11 @@ def test_workflow_downloads_governed_sources_and_publishes_canonical_layout() ->
     assert "gh run download" in collect_script
     assert "--json status,conclusion,headSha,event,workflowName,url" in collect_script
     assert '[ "$run_event" != "workflow_dispatch" ]' in collect_script
-    assert "require_allowed_source_workflow" in collect_script
-    assert 'release_manifest:"Release Control Plane Manifest"' in collect_script
-    assert 'rag_gate_result:"RAG Release Gates"' in collect_script
-    assert 'build_equivalence:"Release Control Plane Build Equivalence"' in collect_script
+    assert "require_expected_source_workflow" in collect_script
+    assert "source workflow does not match expected producer" in collect_script
+    assert "RELEASE_MANIFEST_WORKFLOW_NAME" in collect_script
+    assert "RAG_GATE_RESULT_WORKFLOW_NAME" in collect_script
+    assert "BUILD_EQUIVALENCE_WORKFLOW_NAME" in collect_script
     assert "scripts/ci/check_release_control_plane.py" in collect_script
 
     for canonical_path in (
@@ -172,9 +177,10 @@ def test_docs_define_publication_ceremony_and_virtualenv_policy() -> None:
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" in docs
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in docs
     assert "successful `workflow_dispatch` source runs" in docs
-    assert "Release Control Plane Manifest" in docs
     assert "RAG Release Gates" in docs
-    assert "Release Control Plane Build Equivalence" in docs
+    assert "release_manifest_workflow_name" in docs
+    assert "build_equivalence_workflow_name" in docs
+    assert "do not yet exist for every evidence type" in docs.replace("\n", " ")
     assert "release-control-plane/release_manifest.json" in docs
     assert "release-control-plane/rag_gate_result.json" in docs
     assert "release-control-plane/build_equivalence_result.json" in docs

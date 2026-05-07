@@ -16,6 +16,10 @@ on:
         description: "Artifact name containing release_manifest.json"
         required: true
         type: string
+      release_manifest_workflow_name:
+        description: "Expected source workflow name for release_manifest.json"
+        required: true
+        type: string
       release_manifest_path:
         description: "Path inside artifact to release_manifest.json"
         required: true
@@ -29,6 +33,11 @@ on:
         description: "Artifact name containing rag_gate_result.json"
         required: true
         type: string
+      rag_gate_result_workflow_name:
+        description: "Expected source workflow name for rag_gate_result.json"
+        required: true
+        default: "RAG Release Gates"
+        type: string
       rag_gate_result_path:
         description: "Path inside artifact to rag_gate_result.json"
         required: true
@@ -40,6 +49,10 @@ on:
         type: string
       build_equivalence_artifact_name:
         description: "Artifact name containing build_equivalence_result.json"
+        required: true
+        type: string
+      build_equivalence_workflow_name:
+        description: "Expected source workflow name for build_equivalence_result.json"
         required: true
         type: string
       build_equivalence_path:
@@ -78,15 +91,18 @@ jobs:
           BUILD_EQUIVALENCE_ARTIFACT_NAME: ${{ inputs.build_equivalence_artifact_name }}
           BUILD_EQUIVALENCE_PATH: ${{ inputs.build_equivalence_path }}
           BUILD_EQUIVALENCE_RUN_ID: ${{ inputs.build_equivalence_run_id }}
+          BUILD_EQUIVALENCE_WORKFLOW_NAME: ${{ inputs.build_equivalence_workflow_name }}
           EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
           EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RAG_GATE_RESULT_ARTIFACT_NAME: ${{ inputs.rag_gate_result_artifact_name }}
           RAG_GATE_RESULT_PATH: ${{ inputs.rag_gate_result_path }}
           RAG_GATE_RESULT_RUN_ID: ${{ inputs.rag_gate_result_run_id }}
+          RAG_GATE_RESULT_WORKFLOW_NAME: ${{ inputs.rag_gate_result_workflow_name }}
           RELEASE_MANIFEST_ARTIFACT_NAME: ${{ inputs.release_manifest_artifact_name }}
           RELEASE_MANIFEST_PATH: ${{ inputs.release_manifest_path }}
           RELEASE_MANIFEST_RUN_ID: ${{ inputs.release_manifest_run_id }}
+          RELEASE_MANIFEST_WORKFLOW_NAME: ${{ inputs.release_manifest_workflow_name }}
         run: |
           set -euo pipefail
 
@@ -126,8 +142,11 @@ jobs:
 
           reject_placeholder "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
           reject_placeholder "$RELEASE_MANIFEST_ARTIFACT_NAME" "release_manifest_artifact_name"
+          reject_placeholder "$RELEASE_MANIFEST_WORKFLOW_NAME" "release_manifest_workflow_name"
           reject_placeholder "$RAG_GATE_RESULT_ARTIFACT_NAME" "rag_gate_result_artifact_name"
+          reject_placeholder "$RAG_GATE_RESULT_WORKFLOW_NAME" "rag_gate_result_workflow_name"
           reject_placeholder "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "build_equivalence_artifact_name"
+          reject_placeholder "$BUILD_EQUIVALENCE_WORKFLOW_NAME" "build_equivalence_workflow_name"
           reject_path "$RELEASE_MANIFEST_PATH" "release_manifest_path"
           reject_path "$RAG_GATE_RESULT_PATH" "rag_gate_result_path"
           reject_path "$BUILD_EQUIVALENCE_PATH" "build_equivalence_path"
@@ -152,22 +171,16 @@ jobs:
           bundle_root="${RUNNER_TEMP}/release-control-plane-evidence-bundle"
           mkdir -p "$work_root" "$bundle_root/release-control-plane"
 
-          require_allowed_source_workflow() {
+          require_expected_source_workflow() {
             label="$1"
             workflow_name="$2"
-            case "${label}:${workflow_name}" in
-              release_manifest:"Release Control Plane Manifest"|release_manifest:"Release Manifest" )
-                ;;
-              rag_gate_result:"RAG Release Gates" )
-                ;;
-              build_equivalence:"Release Control Plane Build Equivalence"|build_equivalence:"Build Equivalence" )
-                ;;
-              * )
-                echo "ERROR: ${label} source workflow is not an approved evidence producer"
-                echo "workflow=${workflow_name:-unset}"
-                exit 1
-                ;;
-            esac
+            expected_workflow_name="$3"
+            if [ "$workflow_name" != "$expected_workflow_name" ]; then
+              echo "ERROR: ${label} source workflow does not match expected producer"
+              echo "workflow=${workflow_name:-unset}"
+              echo "expected=${expected_workflow_name}"
+              exit 1
+            fi
           }
 
           fetch_source() {
@@ -176,6 +189,7 @@ jobs:
             artifact_name="$3"
             source_path="$4"
             target_name="$5"
+            expected_workflow_name="$6"
             target_path="${bundle_root}/release-control-plane/${target_name}"
             download_dir="${work_root}/${label}"
 
@@ -203,7 +217,7 @@ jobs:
               echo "run url=${run_url:-unset}"
               exit 1
             fi
-            require_allowed_source_workflow "$label" "$run_workflow_name"
+            require_expected_source_workflow "$label" "$run_workflow_name" "$expected_workflow_name"
 
             mkdir -p "$download_dir"
             gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
@@ -216,9 +230,9 @@ jobs:
             echo "${label}: workflow=${run_workflow_name:-unset} event=${run_event:-unset} source=${run_url:-unset}" >> "${bundle_root}/release-control-plane/source_runs.txt"
           }
 
-          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json"
-          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json"
-          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json"
+          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json" "$RELEASE_MANIFEST_WORKFLOW_NAME"
+          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json" "$RAG_GATE_RESULT_WORKFLOW_NAME"
+          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json" "$BUILD_EQUIVALENCE_WORKFLOW_NAME"
 
           python - "${bundle_root}/release-control-plane" <<'PY'
           import json

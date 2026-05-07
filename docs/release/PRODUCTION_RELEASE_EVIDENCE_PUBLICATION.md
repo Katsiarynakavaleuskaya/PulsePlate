@@ -55,11 +55,11 @@ Run the `Release Control Plane Evidence` workflow manually with:
 
 - `git_sha`: expected release commit SHA.
 - `release_manifest_run_id`, `release_manifest_artifact_name`,
-  `release_manifest_path`.
+  `release_manifest_workflow_name`, `release_manifest_path`.
 - `rag_gate_result_run_id`, `rag_gate_result_artifact_name`,
-  `rag_gate_result_path`.
+  `rag_gate_result_workflow_name`, `rag_gate_result_path`.
 - `build_equivalence_run_id`, `build_equivalence_artifact_name`,
-  `build_equivalence_path`.
+  `build_equivalence_workflow_name`, `build_equivalence_path`.
 - `evidence_artifact_name`: final artifact name for production CD.
 
 GitHub `workflow_dispatch` cannot upload arbitrary operator-local files. The
@@ -67,13 +67,17 @@ workflow therefore downloads existing governed workflow artifacts from
 successful `workflow_dispatch` source runs, copies the selected files into the
 canonical layout, validates them, and publishes the combined artifact.
 
-Approved source producer workflow names:
+Each source evidence input includes an expected workflow name. The publisher
+compares that value to the source run `workflowName` returned by GitHub before
+downloading artifacts. This avoids hardcoding producer workflow names that do
+not yet exist for every evidence type while still preventing accidental
+cross-workflow artifact substitution.
 
-- `Release Control Plane Manifest` or `Release Manifest` for
-  `release_manifest.json`.
-- `RAG Release Gates` for `rag_gate_result.json`.
-- `Release Control Plane Build Equivalence` or `Build Equivalence` for
-  `build_equivalence_result.json`.
+The current repo-defined producer for RAG evidence is `RAG Release Gates`. For
+release-manifest and build-equivalence evidence, operators must provide the
+actual governed source workflow name that produced the artifact. If no governed
+source workflow exists for a required evidence type, do not run production
+publication; create the producer workflow in a separate reviewed PR first.
 
 The publication workflow itself must be dispatched on the release commit or ref:
 its workflow ref must match `git_sha`.
@@ -111,7 +115,8 @@ The publication workflow blocks when:
 - evidence JSON is malformed;
 - the publication workflow ref does not match `git_sha`;
 - a source run was not triggered by `workflow_dispatch`;
-- a source run workflow name is not one of the approved evidence producers;
+- a source run workflow name does not match the operator-provided expected
+  workflow name for that evidence type;
 - source run `headSha` does not match `git_sha`;
 - release manifest `build_identity.git_sha` does not match `git_sha`;
 - any evidence JSON contains a sentinel placeholder digest or hash such as a

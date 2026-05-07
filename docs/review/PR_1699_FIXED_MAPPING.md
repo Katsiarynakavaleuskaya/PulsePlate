@@ -57,9 +57,23 @@ Evidence:
 
 ## Post-Open Review Threads
 
-No post-open human, CodeRabbit, Sourcery, or Cubic actionable review threads
-were present when this artifact was created. Any later actionable review comment
-must be added here with one of:
+### Codex Review: include current evidence producers in the allowlist
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> TBD
+
+Disposition: FIXED
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now accepts explicit
+  `*_workflow_name` inputs and compares each source run `workflowName` against
+  the operator-provided expected producer before download.
+- `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` documents that RAG
+  currently has a repo-defined producer while manifest/build-equivalence
+  producers must be supplied explicitly or added in a separate PR.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  the expected-producer input contract.
+
+Any later actionable review comment must be added here with one of:
 
 - `FIXED`: commit SHA plus evidence.
 - `NOT-A-BUG`: evidence and rationale.
