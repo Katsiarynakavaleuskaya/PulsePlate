@@ -154,9 +154,16 @@ def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[s
     three_dot = _run_docs_diff(f"{base_ref}...HEAD")
     if three_dot.returncode == 0:
         return three_dot
-    if "Invalid symmetric difference expression" in three_dot.stderr:
+    if _docs_diff_error_allows_two_dot_fallback(three_dot.stderr):
         return _run_docs_diff(f"{base_ref}..HEAD")
     return three_dot
+
+
+def _docs_diff_error_allows_two_dot_fallback(stderr: str) -> bool:
+    lower_stderr = stderr.casefold()
+    return (
+        "invalid symmetric difference expression" in lower_stderr or "no merge base" in lower_stderr
+    )
 
 
 def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
@@ -421,6 +428,14 @@ def test_changed_docs_do_not_add_local_users_absolute_paths() -> None:
     ]
 
     assert leaked_lines == []
+
+
+def test_docs_diff_falls_back_when_shallow_checkout_lacks_merge_base() -> None:
+    assert _docs_diff_error_allows_two_dot_fallback("fatal: origin/main...HEAD: no merge base")
+    assert _docs_diff_error_allows_two_dot_fallback(
+        "fatal: Invalid symmetric difference expression origin/main...HEAD"
+    )
+    assert not _docs_diff_error_allows_two_dot_fallback("fatal: not a git repository")
 
 
 def test_judgment_validity_module_exports_expected_sidecar_filenames() -> None:
