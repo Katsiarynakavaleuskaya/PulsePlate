@@ -1,0 +1,236 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release Manifest Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Expected release git SHA for this governed release manifest evidence"
+        required: true
+        type: string
+      ios_build_number:
+        description: "iOS build number for release_manifest.v1 build_identity"
+        required: true
+        type: string
+      marketing_version:
+        description: "Marketing version for release_manifest.v1 build_identity"
+        required: true
+        type: string
+      bundle_id:
+        description: "Bundle ID for release_manifest.v1 build_identity"
+        required: true
+        type: string
+      sbom_digest:
+        description: "Verified SBOM digest in sha256:<64 lowercase hex> format"
+        required: true
+        type: string
+      provenance_digest:
+        description: "Verified provenance digest in sha256:<64 lowercase hex> format"
+        required: true
+        type: string
+      attestation_status:
+        description: "Supply-chain attestation status"
+        required: true
+        type: choice
+        options:
+          - VERIFIED
+          - FAILED
+          - MISSING
+          - PENDING
+      rag_gate_result_source:
+        description: "Single-line JSON with run_id, artifact_name, path for governed rag_gate_result.json"
+        required: true
+        type: string
+      evidence_artifact_name:
+        description: "Published governed release manifest evidence artifact name"
+        required: true
+        default: "release-manifest-evidence"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish-release-manifest-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: release-evidence
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Generate governed release manifest evidence
+        env:
+          ATTESTATION_STATUS: ${{ inputs.attestation_status }}
+          BUNDLE_ID: ${{ inputs.bundle_id }}
+          EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
+          EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IOS_BUILD_NUMBER: ${{ inputs.ios_build_number }}
+          MARKETING_VERSION: ${{ inputs.marketing_version }}
+          PROVENANCE_DIGEST: ${{ inputs.provenance_digest }}
+          RAG_GATE_RESULT_SOURCE: ${{ inputs.rag_gate_result_source }}
+          SBOM_DIGEST: ${{ inputs.sbom_digest }}
+        run: |
+          set -euo pipefail
+
+          source_env="${RUNNER_TEMP}/release-manifest-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label rag_gate_result \
+            --prefix RAG_GATE_RESULT \
+            --source-json "$RAG_GATE_RESULT_SOURCE" > "$source_env"
+          # shellcheck disable=SC1090
+          . "$source_env"
+
+          EVIDENCE_ARTIFACT_NAME="$(python scripts/release/evidence_source.py artifact-name "$EVIDENCE_ARTIFACT_NAME")"
+          expected_git_sha_lc="$(python scripts/release/evidence_source.py git-sha "$EXPECTED_GIT_SHA")"
+          github_sha_lc="$(printf '%s' "$GITHUB_SHA" | tr 'A-F' 'a-f')"
+          if [ "$github_sha_lc" != "$expected_git_sha_lc" ]; then
+            echo "ERROR: Release Manifest Evidence workflow ref must match git_sha"
+            echo "workflow GITHUB_SHA=${GITHUB_SHA}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+
+          SBOM_DIGEST="$(python scripts/release/evidence_source.py oci-digest --label sbom_digest "$SBOM_DIGEST")"
+          PROVENANCE_DIGEST="$(python scripts/release/evidence_source.py oci-digest --label provenance_digest "$PROVENANCE_DIGEST")"
+          if [ "$ATTESTATION_STATUS" != "VERIFIED" ]; then
+            echo "ERROR: attestation_status must be VERIFIED for governed production release manifest evidence"
+            exit 1
+          fi
+
+          run_metadata="$(
+            gh run view "$RAG_GATE_RESULT_RUN_ID" \
+              --json status,conclusion,headSha,event,workflowName,url \
+              --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+          )"
+          IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+          run_workflow_path="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RAG_GATE_RESULT_RUN_ID}" --jq '.path')"
+          if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
+            echo "ERROR: RAG source run did not complete successfully"
+            echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_event" != "workflow_dispatch" ]; then
+            echo "ERROR: RAG source run must be workflow_dispatch"
+            echo "event=${run_event:-unset} url=${run_url:-unset}"
+            exit 1
+          fi
+          if [ "$run_workflow_name" != "RAG Release Gates" ]; then
+            echo "ERROR: RAG source workflow name must be RAG Release Gates"
+            echo "workflow=${run_workflow_name:-unset}"
+            exit 1
+          fi
+          if [ "$run_workflow_path" != ".github/workflows/rag-release-gates.yml" ]; then
+            echo "ERROR: RAG source workflow path must be .github/workflows/rag-release-gates.yml"
+            echo "workflow_path=${run_workflow_path:-unset}"
+            exit 1
+          fi
+          run_head_sha_lc="$(printf '%s' "$run_head_sha" | tr 'A-F' 'a-f')"
+          if [ "$run_head_sha_lc" != "$expected_git_sha_lc" ]; then
+            echo "ERROR: RAG source run head SHA does not match git_sha"
+            echo "run headSha=${run_head_sha:-unset}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+
+          download_dir="${RUNNER_TEMP}/release-manifest-rag-source"
+          output_dir="${RUNNER_TEMP}/release-manifest-evidence"
+          repo_source_dir="${GITHUB_WORKSPACE}/artifacts/release_control_plane_sources"
+          mkdir -p "$download_dir" "$output_dir" "$repo_source_dir"
+          gh run download "$RAG_GATE_RESULT_RUN_ID" --name "$RAG_GATE_RESULT_ARTIFACT_NAME" --dir "$download_dir"
+          rag_gate_result_path="${download_dir}/${RAG_GATE_RESULT_PATH}"
+          if [ ! -f "$rag_gate_result_path" ]; then
+            echo "ERROR: Missing governed rag_gate_result.json at ${RAG_GATE_RESULT_PATH}"
+            exit 1
+          fi
+          resolved_download_dir="$(cd "$download_dir" && pwd -P)"
+          resolved_rag_path="$(cd "$(dirname "$rag_gate_result_path")" && pwd -P)/$(basename "$rag_gate_result_path")"
+          case "$resolved_rag_path" in
+            "$resolved_download_dir"/*) ;;
+            *) echo "ERROR: rag_gate_result path escapes downloaded artifact"; exit 1 ;;
+          esac
+          python -m json.tool "$rag_gate_result_path" > /dev/null
+          python - "$rag_gate_result_path" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+          from typing import Any
+
+          path = Path(sys.argv[1])
+          payload = json.loads(path.read_text(encoding="utf-8"))
+          sentinel_hash = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
+          forbidden = ("tests/fixtures", "fixture", "sample", "example", "placeholder", "fake", "fallback")
+
+          def walk(value: Any, pointer: str) -> None:
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      walk(child, f"{pointer}.{key}" if pointer else str(key))
+              elif isinstance(value, list):
+                  for index, child in enumerate(value):
+                      walk(child, f"{pointer}[{index}]")
+              elif isinstance(value, str):
+                  lowered = value.lower().replace("\\", "/")
+                  if sentinel_hash.fullmatch(lowered):
+                      raise SystemExit(f"sentinel placeholder digest/hash rejected at {pointer}")
+                  if any(token in lowered for token in forbidden):
+                      raise SystemExit(f"fixture/sample/fallback evidence rejected at {pointer}")
+
+          walk(payload, "rag_gate_result")
+          if payload.get("release_decision") != "PASS":
+              raise SystemExit("rag_gate_result.release_decision must be PASS")
+          if payload.get("dataset_fallback_used") is not False:
+              raise SystemExit("rag_gate_result.dataset_fallback_used must be false")
+          if payload.get("small_fixture_metric_gates_advisory") is not False:
+              raise SystemExit("rag_gate_result.small_fixture_metric_gates_advisory must be false")
+          PY
+
+          cp "$rag_gate_result_path" "${repo_source_dir}/rag_gate_result.json"
+
+          python scripts/release/release_manifest.py generate \
+            --repo-root "$GITHUB_WORKSPACE" \
+            --git-sha "$EXPECTED_GIT_SHA" \
+            --ios-build-number "$IOS_BUILD_NUMBER" \
+            --marketing-version "$MARKETING_VERSION" \
+            --bundle-id "$BUNDLE_ID" \
+            --rag-gate-result "${repo_source_dir}/rag_gate_result.json" \
+            --sbom-digest "$SBOM_DIGEST" \
+            --provenance-digest "$PROVENANCE_DIGEST" \
+            --attestation-status "$ATTESTATION_STATUS" \
+            --output "${output_dir}/release_manifest.json"
+          python scripts/release/release_manifest.py validate \
+            --manifest "${output_dir}/release_manifest.json"
+
+          {
+            echo "RELEASE_MANIFEST_EVIDENCE_ARTIFACT_NAME=$EVIDENCE_ARTIFACT_NAME"
+            echo "RELEASE_MANIFEST_EVIDENCE_OUTPUT_DIR=$output_dir"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish release manifest evidence summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release Manifest Evidence"
+            echo
+            echo "- Run id: \`${GITHUB_RUN_ID}\`"
+            echo "- Artifact name: \`${RELEASE_MANIFEST_EVIDENCE_ARTIFACT_NAME}\`"
+            echo "- Path inside artifact: \`release_manifest.json\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload governed release manifest evidence artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ inputs.evidence_artifact_name }}
+          path: ${{ runner.temp }}/release-manifest-evidence/release_manifest.json
+          if-no-files-found: error
+          retention-days: 14
