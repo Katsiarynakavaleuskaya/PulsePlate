@@ -160,7 +160,9 @@ jobs:
               exit 1
               ;;
           esac
-          if [ "$GITHUB_SHA" != "$EXPECTED_GIT_SHA" ]; then
+          expected_git_sha_lc="$(printf '%s' "$EXPECTED_GIT_SHA" | tr 'A-F' 'a-f')"
+          github_sha_lc="$(printf '%s' "$GITHUB_SHA" | tr 'A-F' 'a-f')"
+          if [ "$github_sha_lc" != "$expected_git_sha_lc" ]; then
             echo "ERROR: publication workflow ref must match git_sha"
             echo "workflow GITHUB_SHA=${GITHUB_SHA}"
             echo "git_sha=${EXPECTED_GIT_SHA}"
@@ -204,7 +206,8 @@ jobs:
               echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
               exit 1
             fi
-            if [ "$run_head_sha" != "$EXPECTED_GIT_SHA" ]; then
+            run_head_sha_lc="$(printf '%s' "$run_head_sha" | tr 'A-F' 'a-f')"
+            if [ "$run_head_sha_lc" != "$expected_git_sha_lc" ]; then
               echo "ERROR: ${label} source run head SHA does not match git_sha"
               echo "run headSha=${run_head_sha:-unset}"
               echo "git_sha=${EXPECTED_GIT_SHA}"
@@ -302,7 +305,8 @@ jobs:
           print(git_sha)
           PY
           )"
-          if [ "$manifest_git_sha" != "$EXPECTED_GIT_SHA" ]; then
+          manifest_git_sha_lc="$(printf '%s' "$manifest_git_sha" | tr 'A-F' 'a-f')"
+          if [ "$manifest_git_sha_lc" != "$expected_git_sha_lc" ]; then
             echo "ERROR: Release manifest git SHA does not match workflow git_sha"
             echo "manifest git_sha=${manifest_git_sha}"
             echo "git_sha=${EXPECTED_GIT_SHA}"

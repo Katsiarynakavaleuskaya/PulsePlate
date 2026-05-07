@@ -130,6 +130,10 @@ def test_workflow_rejects_fixtures_placeholders_paths_and_git_sha_mismatch() -> 
     assert "/*|*..*|*//*" in collect_script
     assert "must be a numeric GitHub Actions run id" in collect_script
     assert "git_sha must be a hexadecimal commit SHA" in collect_script
+    assert "expected_git_sha_lc" in collect_script
+    assert "github_sha_lc" in collect_script
+    assert "run_head_sha_lc" in collect_script
+    assert "manifest_git_sha_lc" in collect_script
     assert "source run head SHA does not match git_sha" in collect_script
     assert "publication workflow ref must match git_sha" in collect_script
     assert "Release manifest git SHA does not match workflow git_sha" in collect_script
@@ -217,3 +221,5 @@ def test_existing_cd_gate_variable_contract_is_preserved() -> None:
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in cd_workflow
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" in ci_gate_docs
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in ci_gate_docs
+    assert "Production tag runs are expected to block" in ci_gate_docs
+    assert "missing evidence is a release stop" in ci_gate_docs

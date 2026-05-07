@@ -73,6 +73,50 @@ Evidence:
 - `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
   the expected-producer input contract.
 
+### Sourcery: normalize git SHA comparisons
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116494 -> TBD
+
+Disposition: FIXED
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` normalizes
+  `EXPECTED_GIT_SHA`, `GITHUB_SHA`, source run `headSha`, and release manifest
+  `build_identity.git_sha` to lowercase before comparison.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  all normalized comparison variables.
+
+### Sourcery: assert fail-closed CD gate docs
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116498 -> TBD
+
+Disposition: FIXED
+Evidence:
+
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  that `RELEASE_CONTROL_PLANE_CI_GATE.md` documents production blocking on
+  missing evidence.
+
+### Sourcery: align Russian Mako fallback wording
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116502 -> TBD
+
+Disposition: FIXED
+Evidence:
+
+- `docs/roadmap/BACKLOG_LEDGER.md` now uses `mako 1.3.12` consistently in the
+  Russian and English fallback wording.
+
+### Sourcery: use `workflow_dispatch` terminology consistently
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116524 -> TBD
+
+Disposition: FIXED
+Evidence:
+
+- `docs/roadmap/BACKLOG_LEDGER.md` now says successful `workflow_dispatch`
+  source artifacts.
+
 Any later actionable review comment must be added here with one of:
 
 - `FIXED`: commit SHA plus evidence.
