@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate Semantic Cache Rollout Gate Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "implementation_allowed",
+    "runtime_allowed",
+    "allowed_rail",
+    "first_allowed_surface",
+    "blocked_surfaces",
+    "required_lineage_fields",
+    "required_metrics",
+    "required_kill_switches",
+    "rollout_phases",
+    "gate_open_requirements"
+  ],
+  "properties": {
+    "gate_status": {
+      "type": "string",
+      "const": "closed"
+    },
+    "implementation_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "runtime_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "allowed_rail": {
+      "type": "string",
+      "const": "product_ai_runtime"
+    },
+    "first_allowed_surface": {
+      "type": "string",
+      "const": "bounded_insight_style_product_ai"
+    },
+    "blocked_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "required_lineage_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "required_metrics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "required_kill_switches": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "rollout_phases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "prefixItems": [
+        {
+          "const": "SC-G1"
+        },
+        {
+          "const": "SC-G2"
+        },
+        {
+          "const": "SC-G3"
+        },
+        {
+          "const": "SC-G4"
+        },
+        {
+          "const": "SC-G5"
+        }
+      ],
+      "minItems": 5
+    },
+    "gate_open_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}
