@@ -1,0 +1,261 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release Control Plane Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Expected release git SHA for all evidence artifacts"
+        required: true
+        type: string
+      release_manifest_run_id:
+        description: "GitHub Actions run id containing release_manifest.json"
+        required: true
+        type: string
+      release_manifest_artifact_name:
+        description: "Artifact name containing release_manifest.json"
+        required: true
+        type: string
+      release_manifest_path:
+        description: "Path inside artifact to release_manifest.json"
+        required: true
+        default: "release_manifest.json"
+        type: string
+      rag_gate_result_run_id:
+        description: "GitHub Actions run id containing rag_gate_result.json"
+        required: true
+        type: string
+      rag_gate_result_artifact_name:
+        description: "Artifact name containing rag_gate_result.json"
+        required: true
+        type: string
+      rag_gate_result_path:
+        description: "Path inside artifact to rag_gate_result.json"
+        required: true
+        default: "rag_gate_result.json"
+        type: string
+      build_equivalence_run_id:
+        description: "GitHub Actions run id containing build_equivalence_result.json"
+        required: true
+        type: string
+      build_equivalence_artifact_name:
+        description: "Artifact name containing build_equivalence_result.json"
+        required: true
+        type: string
+      build_equivalence_path:
+        description: "Path inside artifact to build_equivalence_result.json"
+        required: true
+        default: "build_equivalence_result.json"
+        type: string
+      evidence_artifact_name:
+        description: "Published governed release-control-plane evidence artifact name"
+        required: true
+        default: "release-control-plane-production-evidence"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish-release-control-plane-evidence:
+    runs-on: ubuntu-latest
+    environment:
+      name: release-evidence
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Collect governed release evidence
+        env:
+          BUILD_EQUIVALENCE_ARTIFACT_NAME: ${{ inputs.build_equivalence_artifact_name }}
+          BUILD_EQUIVALENCE_PATH: ${{ inputs.build_equivalence_path }}
+          BUILD_EQUIVALENCE_RUN_ID: ${{ inputs.build_equivalence_run_id }}
+          EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
+          EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RAG_GATE_RESULT_ARTIFACT_NAME: ${{ inputs.rag_gate_result_artifact_name }}
+          RAG_GATE_RESULT_PATH: ${{ inputs.rag_gate_result_path }}
+          RAG_GATE_RESULT_RUN_ID: ${{ inputs.rag_gate_result_run_id }}
+          RELEASE_MANIFEST_ARTIFACT_NAME: ${{ inputs.release_manifest_artifact_name }}
+          RELEASE_MANIFEST_PATH: ${{ inputs.release_manifest_path }}
+          RELEASE_MANIFEST_RUN_ID: ${{ inputs.release_manifest_run_id }}
+        run: |
+          set -euo pipefail
+
+          reject_placeholder() {
+            value="$1"
+            label="$2"
+            case "$value" in
+              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|*[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
+                echo "ERROR: ${label} must reference governed release evidence, not fixtures/tests/placeholders/fakes"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_run_id() {
+            value="$1"
+            label="$2"
+            case "$value" in
+              ""|*[!0-9]*)
+                echo "ERROR: ${label} must be a numeric GitHub Actions run id"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_path() {
+            value="$1"
+            label="$2"
+            reject_placeholder "$value" "$label"
+            case "$value" in
+              /*|*..*|*//*)
+                echo "ERROR: ${label} must be a relative path inside the downloaded artifact"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_placeholder "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
+          reject_placeholder "$RELEASE_MANIFEST_ARTIFACT_NAME" "release_manifest_artifact_name"
+          reject_placeholder "$RAG_GATE_RESULT_ARTIFACT_NAME" "rag_gate_result_artifact_name"
+          reject_placeholder "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "build_equivalence_artifact_name"
+          reject_path "$RELEASE_MANIFEST_PATH" "release_manifest_path"
+          reject_path "$RAG_GATE_RESULT_PATH" "rag_gate_result_path"
+          reject_path "$BUILD_EQUIVALENCE_PATH" "build_equivalence_path"
+          reject_run_id "$RELEASE_MANIFEST_RUN_ID" "release_manifest_run_id"
+          reject_run_id "$RAG_GATE_RESULT_RUN_ID" "rag_gate_result_run_id"
+          reject_run_id "$BUILD_EQUIVALENCE_RUN_ID" "build_equivalence_run_id"
+
+          case "$EXPECTED_GIT_SHA" in
+            ""|*[!0-9a-fA-F]*)
+              echo "ERROR: git_sha must be a hexadecimal commit SHA"
+              exit 1
+              ;;
+          esac
+
+          work_root="${RUNNER_TEMP}/release-control-plane-evidence-sources"
+          bundle_root="${RUNNER_TEMP}/release-control-plane-evidence-bundle"
+          mkdir -p "$work_root" "$bundle_root/release-control-plane"
+
+          fetch_source() {
+            label="$1"
+            run_id="$2"
+            artifact_name="$3"
+            source_path="$4"
+            target_name="$5"
+            target_path="${bundle_root}/release-control-plane/${target_name}"
+            download_dir="${work_root}/${label}"
+
+            run_metadata="$(
+              gh run view "$run_id" \
+                --json status,conclusion,headSha,event,workflowName,url \
+                --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+            )"
+            IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+            if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
+              echo "ERROR: ${label} source run did not complete successfully"
+              echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_head_sha" != "$EXPECTED_GIT_SHA" ]; then
+              echo "ERROR: ${label} source run head SHA does not match git_sha"
+              echo "run headSha=${run_head_sha:-unset}"
+              echo "git_sha=${EXPECTED_GIT_SHA}"
+              echo "run url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_event" != "workflow_dispatch" ]; then
+              echo "ERROR: ${label} source run must be a governed workflow_dispatch run"
+              echo "event=${run_event:-unset}"
+              echo "run url=${run_url:-unset}"
+              exit 1
+            fi
+
+            mkdir -p "$download_dir"
+            gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
+            if [ ! -f "${download_dir}/${source_path}" ]; then
+              echo "ERROR: Missing ${label} evidence file: ${source_path}"
+              exit 1
+            fi
+            cp "${download_dir}/${source_path}" "$target_path"
+            python -m json.tool "$target_path" > /dev/null
+            echo "${label}: workflow=${run_workflow_name:-unset} event=${run_event:-unset} source=${run_url:-unset}" >> "${bundle_root}/release-control-plane/source_runs.txt"
+          }
+
+          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json"
+          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json"
+          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json"
+
+          manifest_git_sha="$(
+            python - "${bundle_root}/release-control-plane/release_manifest.json" <<'PY'
+          import json
+          import sys
+
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          build_identity = payload.get("build_identity")
+          if not isinstance(build_identity, dict):
+              raise SystemExit("missing build_identity")
+          git_sha = build_identity.get("git_sha")
+          if not isinstance(git_sha, str) or not git_sha:
+              raise SystemExit("missing build_identity.git_sha")
+          print(git_sha)
+          PY
+          )"
+          if [ "$manifest_git_sha" != "$EXPECTED_GIT_SHA" ]; then
+            echo "ERROR: Release manifest git SHA does not match workflow git_sha"
+            echo "manifest git_sha=${manifest_git_sha}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+
+          python scripts/ci/check_release_control_plane.py \
+            --release-manifest "${bundle_root}/release-control-plane/release_manifest.json" \
+            --rag-gate-result "${bundle_root}/release-control-plane/rag_gate_result.json" \
+            --build-equivalence "${bundle_root}/release-control-plane/build_equivalence_result.json" \
+            --json-out "${bundle_root}/release-control-plane/release_control_plane_ci_gate.json" \
+            --markdown-out "${bundle_root}/release-control-plane/release_control_plane_ci_gate.md"
+
+          {
+            echo "RELEASE_CONTROL_PLANE_EVIDENCE_BUNDLE=$bundle_root"
+            echo "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME=$EVIDENCE_ARTIFACT_NAME"
+          } >> "$GITHUB_ENV"
+
+      - name: Publish evidence handoff summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## Release Control Plane Evidence"
+            echo
+            echo "- Run id: \`${GITHUB_RUN_ID}\`"
+            echo "- Artifact name: \`${RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME}\`"
+            echo
+            echo "Set production Actions variables only after reviewing this workflow run:"
+            echo
+            echo "- \`RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID=${GITHUB_RUN_ID}\`"
+            echo "- \`RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME=${RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME}\`"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload governed release-control-plane evidence artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ inputs.evidence_artifact_name }}
+          path: |
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/release_manifest.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/rag_gate_result.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/build_equivalence_result.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/release_control_plane_ci_gate.json
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/release_control_plane_ci_gate.md
+            ${{ runner.temp }}/release-control-plane-evidence-bundle/release-control-plane/source_runs.txt
+          if-no-files-found: error
+          retention-days: 14
