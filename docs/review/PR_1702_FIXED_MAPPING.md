@@ -117,6 +117,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   diff-cover gaps with focused backend tests.
 - `1994b6503` - Resolve docs leakage guard base ref from GitHub PR event in
   CI shards without local base refs.
+- `3949dd377` - Add missing blocked-surface metric schema requirement and
+  classify kill-switch-disabled cases as fallback, not false hit.
 
 ## Pre-Push Checklist
 
@@ -184,6 +186,12 @@ Evidence: `scripts/ci/check_semantic_cache_gate.py` now uses tight explicit-proh
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204162209 -> 3b0e0d6e1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204162222 -> 3b0e0d6e1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4247108532 -> 3b0e0d6e1
+
+Commit: 3949dd377
+Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.schema.json` includes `blocked_surface_hit_count` in `required_metrics` and raises `minItems` to 25; `core/ai/cache_observability.py` excludes kill-switch-only blocking from false-hit classification; `tests/core/ai/test_cache_observability.py` and `tests/test_semantic_cache_observability_contract.py` cover both fixes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204426905 -> 3949dd377
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4247408633 -> 3949dd377
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204426937 -> 3949dd377
 
 ## Post-Open Agent Mapping
 
