@@ -490,6 +490,9 @@ def build_cache_lookup_audit_event(
         "model_key": request.model_key,
         "policy_version": request.policy_version,
         "provider_key": request.provider_key,
+        "query_identity_fingerprint": (
+            f"cache-query:{_fingerprint_payload({'raw_query': request.raw_query})[:24]}"
+        ),
         "source_fingerprints": list(request.source_fingerprints),
         "surface": request.surface,
         "transparency_notice_id": request.transparency_notice_id,

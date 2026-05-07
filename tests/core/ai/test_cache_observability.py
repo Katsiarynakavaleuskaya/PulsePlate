@@ -93,7 +93,7 @@ def _policy() -> ExactFuzzyMatchPolicy:
     )
 
 
-def _audit_event(raw_query: str = "Plan protein breakfast"):
+def _audit_event(raw_query: str = "Plan protein breakfast") -> CacheLookupAuditEvent:
     record = _record()
     result = match_exact_fuzzy_records(
         request=_request(raw_query),
@@ -150,6 +150,18 @@ def test_deterministic_audit_event_id_and_stable_mapping() -> None:
     assert first.audit_event_id == second.audit_event_id
     assert first.idempotency_key == second.idempotency_key
     assert to_stable_mapping(first) == to_stable_mapping(second)
+
+
+def test_distinct_fuzzy_queries_have_distinct_audit_identity() -> None:
+    first = _audit_event("Plan protein breakfast")
+    reordered = _audit_event("breakfast protein plan")
+
+    assert first.candidate_record_id == reordered.candidate_record_id
+    assert first.match_mode == "exact"
+    assert reordered.match_mode == "fuzzy_reordered_tokens"
+    assert first.request_fingerprint != reordered.request_fingerprint
+    assert first.audit_event_id != reordered.audit_event_id
+    assert first.idempotency_key != reordered.idempotency_key
 
 
 def test_audit_serialization_excludes_raw_query_prompt_response() -> None:

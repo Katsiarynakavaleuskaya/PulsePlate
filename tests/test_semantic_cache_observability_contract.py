@@ -64,6 +64,8 @@ def test_checker_fails_if_blocked_backends_are_approved() -> None:
     bad_text = (
         _contract_text()
         + "\nSC-G3 allows embeddings.\n"
+        + "SC-G3 enables Redis.\n"
+        + "SC-G3 supports GPTCache.\n"
         + "SC-G3 approves Redis/GPTCache.\n"
         + "SC-G3 allows semantic similarity.\n"
         + "SC-G3 enables vector search.\n"
@@ -102,6 +104,11 @@ def test_schema_required_keys_match_sc_g3_intent() -> None:
     assert schema["properties"]["runtime_allowed"]["const"] is False
     assert schema["properties"]["implementation_allowed"]["const"] is False
     assert schema["properties"]["scaffold_phase"]["const"] == "SC-G3"
+    assert schema["properties"]["audit_event_fields"]["minItems"] == 22
+    assert schema["properties"]["negative_controls"]["minItems"] == 7
+    assert schema["properties"]["required_metrics"]["minItems"] == 24
+    assert schema["properties"]["stop_rules"]["minItems"] == 7
+    assert "enum" in schema["properties"]["kill_switch_snapshot"]["items"]
 
 
 def test_docs_phase1_gate_includes_sc_g3_contract() -> None:

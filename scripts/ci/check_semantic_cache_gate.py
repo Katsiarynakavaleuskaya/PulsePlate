@@ -306,12 +306,18 @@ OBSERVABILITY_REQUIRED_ANCHORS = (
     ("context leakage", re.compile(r"\bcontext leakage\b")),
     ("admission blocked hit", re.compile(r"\badmission blocked hit\b")),
     ("blocked surfaces", re.compile(r"\bblocked surfaces\b")),
-    ("no raw prompts", re.compile(r"\braw prompts\b")),
-    ("no raw model responses", re.compile(r"\braw model responses\b")),
-    ("no embeddings", re.compile(r"\bembeddings\b")),
-    ("no Redis", re.compile(r"\bredis\b")),
-    ("no GPTCache", re.compile(r"\bgptcache\b")),
-    ("no provider calls", re.compile(r"\bprovider calls\b")),
+    ("no raw prompts", re.compile(r"\b(?:blocked:|no|must not contain).*raw prompts\b")),
+    (
+        "no raw model responses",
+        re.compile(r"\b(?:blocked:|no|must not contain).*raw model responses\b"),
+    ),
+    ("no embeddings", re.compile(r"\b(?:blocked:|no|must not contain).*embeddings\b")),
+    ("no Redis", re.compile(r"\b(?:blocked:|no|must not contain).*redis\b")),
+    ("no GPTCache", re.compile(r"\b(?:blocked:|no|must not contain).*gptcache\b")),
+    (
+        "no provider calls",
+        re.compile(r"\b(?:blocked:|no|must not contain).*provider calls\b"),
+    ),
     ("gate remains closed", re.compile(r"\bgate remains closed\b")),
     (
         "SC-G4 remains future bounded insight experiment",
@@ -346,7 +352,10 @@ OBSERVABILITY_FORBIDDEN_PATTERNS = (
     ),
     (
         "SC-G3 approves Redis/GPTCache",
-        re.compile(r"\bsc-g3\s+approves\s+(?:redis|gptcache|redis/gptcache)\b"),
+        re.compile(
+            r"\bsc-g3\s+(?:permits|allows|enables|supports|approves)\s+"
+            r"(?:redis|gptcache|redis/gptcache)\b"
+        ),
     ),
     (
         "SC-G3 allows semantic similarity",

@@ -34,9 +34,32 @@
     "audit_event_fields": {
       "type": "array",
       "items": {
-        "type": "string"
+        "enum": [
+          "audit_event_id",
+          "idempotency_key",
+          "surface",
+          "request_fingerprint",
+          "candidate_record_id",
+          "candidate_response_fingerprint",
+          "lookup_decision",
+          "match_mode",
+          "policy_version",
+          "provider_key",
+          "model_key",
+          "user_tier",
+          "context_fingerprint",
+          "transparency_notice_id",
+          "source_fingerprints",
+          "eval_event_ids",
+          "admission_decision_id",
+          "promotion_ids",
+          "replay_entry_ids",
+          "reason_codes",
+          "produced_at",
+          "metadata"
+        ]
       },
-      "minItems": 1,
+      "minItems": 22,
       "uniqueItems": true
     },
     "risk_classes": {
@@ -60,31 +83,77 @@
     "negative_controls": {
       "type": "array",
       "items": {
-        "type": "string"
+        "enum": [
+          "stale_source_hit",
+          "policy_version_mismatch_hit",
+          "model_version_mismatch_hit",
+          "user_context_leakage_hit",
+          "admission_blocked_hit",
+          "blocked_surface_hit",
+          "semantic_false_positive"
+        ]
       },
-      "minItems": 1,
+      "minItems": 7,
       "uniqueItems": true
     },
     "required_metrics": {
       "type": "array",
       "items": {
-        "type": "string"
+        "enum": [
+          "eligible_request_count",
+          "candidate_hit_count",
+          "safe_hit_count",
+          "false_hit_count",
+          "fallback_count",
+          "bypass_count",
+          "kill_switch_disabled_count",
+          "admission_blocked_hit_count",
+          "stale_source_hit_count",
+          "policy_mismatch_hit_count",
+          "model_mismatch_hit_count",
+          "context_leakage_hit_count",
+          "eligible_hit_rate_bps",
+          "served_hit_rate_bps",
+          "false_hit_rate_bps",
+          "cache_precision_proxy_bps",
+          "stale_answer_rate_bps",
+          "fallback_rate_bps",
+          "bypass_rate_bps",
+          "latency_saved_p50_ms",
+          "latency_saved_p95_ms",
+          "provider_calls_avoided_count",
+          "cost_saved_microunits",
+          "produced_at"
+        ]
       },
-      "minItems": 1,
+      "minItems": 24,
       "uniqueItems": true
     },
     "stop_rules": {
       "type": "array",
       "items": {
-        "type": "string"
+        "enum": [
+          "policy_version",
+          "max_false_hit_rate_bps",
+          "max_stale_answer_rate_bps",
+          "max_policy_mismatch_hits",
+          "max_model_mismatch_hits",
+          "max_context_leakage_hits",
+          "allow_blocked_surface_hits"
+        ]
       },
-      "minItems": 1,
+      "minItems": 7,
       "uniqueItems": true
     },
     "kill_switch_snapshot": {
       "type": "array",
       "items": {
-        "type": "string"
+        "enum": [
+          "environment_enabled",
+          "runtime_enabled",
+          "request_disabled",
+          "bypass_forced"
+        ]
       },
       "minItems": 4,
       "uniqueItems": true
