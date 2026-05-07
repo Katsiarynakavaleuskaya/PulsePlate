@@ -67,6 +67,17 @@ workflow therefore downloads existing governed workflow artifacts from
 successful `workflow_dispatch` source runs, copies the selected files into the
 canonical layout, validates them, and publishes the combined artifact.
 
+Approved source producer workflow names:
+
+- `Release Control Plane Manifest` or `Release Manifest` for
+  `release_manifest.json`.
+- `RAG Release Gates` for `rag_gate_result.json`.
+- `Release Control Plane Build Equivalence` or `Build Equivalence` for
+  `build_equivalence_result.json`.
+
+The publication workflow itself must be dispatched on the release commit or ref:
+its workflow ref must match `git_sha`.
+
 Local validation for PR work on this lane uses the repo virtualenv only:
 `.venv/bin/python`. Do not substitute system `python3` for local repository
 commands.
@@ -98,9 +109,15 @@ The publication workflow blocks when:
 - any source artifact cannot be downloaded;
 - a selected evidence file is missing;
 - evidence JSON is malformed;
+- the publication workflow ref does not match `git_sha`;
 - a source run was not triggered by `workflow_dispatch`;
+- a source run workflow name is not one of the approved evidence producers;
 - source run `headSha` does not match `git_sha`;
 - release manifest `build_identity.git_sha` does not match `git_sha`;
+- any evidence JSON contains a sentinel placeholder digest or hash such as a
+  repeated-character SHA-256 value;
+- RAG evidence points to the sample eval dataset, fixture paths, fallback data,
+  or advisory fixture gates;
 - `scripts/ci/check_release_control_plane.py` returns `BLOCK`.
 
 The production tag path still performs its own independent fail-closed download

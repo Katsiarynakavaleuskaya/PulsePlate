@@ -97,6 +97,10 @@ def test_workflow_downloads_governed_sources_and_publishes_canonical_layout() ->
     assert "gh run download" in collect_script
     assert "--json status,conclusion,headSha,event,workflowName,url" in collect_script
     assert '[ "$run_event" != "workflow_dispatch" ]' in collect_script
+    assert "require_allowed_source_workflow" in collect_script
+    assert 'release_manifest:"Release Control Plane Manifest"' in collect_script
+    assert 'rag_gate_result:"RAG Release Gates"' in collect_script
+    assert 'build_equivalence:"Release Control Plane Build Equivalence"' in collect_script
     assert "scripts/ci/check_release_control_plane.py" in collect_script
 
     for canonical_path in (
@@ -122,7 +126,12 @@ def test_workflow_rejects_fixtures_placeholders_paths_and_git_sha_mismatch() -> 
     assert "must be a numeric GitHub Actions run id" in collect_script
     assert "git_sha must be a hexadecimal commit SHA" in collect_script
     assert "source run head SHA does not match git_sha" in collect_script
+    assert "publication workflow ref must match git_sha" in collect_script
     assert "Release manifest git SHA does not match workflow git_sha" in collect_script
+    assert "sentinel placeholder digest/hash rejected" in collect_script
+    assert "data/evals/pulseplate_rag_eval_sample.jsonl" in collect_script
+    assert "dataset_fallback_used must be false" in collect_script
+    assert "small_fixture_metric_gates_advisory must be false" in collect_script
 
 
 def test_workflow_has_no_app_store_or_fastlane_upload_surface() -> None:
@@ -163,6 +172,9 @@ def test_docs_define_publication_ceremony_and_virtualenv_policy() -> None:
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID" in docs
     assert "RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME" in docs
     assert "successful `workflow_dispatch` source runs" in docs
+    assert "Release Control Plane Manifest" in docs
+    assert "RAG Release Gates" in docs
+    assert "Release Control Plane Build Equivalence" in docs
     assert "release-control-plane/release_manifest.json" in docs
     assert "release-control-plane/rag_gate_result.json" in docs
     assert "release-control-plane/build_equivalence_result.json" in docs
@@ -170,6 +182,8 @@ def test_docs_define_publication_ceremony_and_virtualenv_policy() -> None:
     assert "must not" in docs
     assert "contact App Store Connect" in docs
     assert "Fastlane upload behavior" in docs
+    assert "placeholder digest" in docs
+    assert "workflow ref must match `git_sha`" in docs
     assert "PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md" in ci_gate_docs
 
 

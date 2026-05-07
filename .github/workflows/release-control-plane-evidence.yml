@@ -141,10 +141,34 @@ jobs:
               exit 1
               ;;
           esac
+          if [ "$GITHUB_SHA" != "$EXPECTED_GIT_SHA" ]; then
+            echo "ERROR: publication workflow ref must match git_sha"
+            echo "workflow GITHUB_SHA=${GITHUB_SHA}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
 
           work_root="${RUNNER_TEMP}/release-control-plane-evidence-sources"
           bundle_root="${RUNNER_TEMP}/release-control-plane-evidence-bundle"
           mkdir -p "$work_root" "$bundle_root/release-control-plane"
+
+          require_allowed_source_workflow() {
+            label="$1"
+            workflow_name="$2"
+            case "${label}:${workflow_name}" in
+              release_manifest:"Release Control Plane Manifest"|release_manifest:"Release Manifest" )
+                ;;
+              rag_gate_result:"RAG Release Gates" )
+                ;;
+              build_equivalence:"Release Control Plane Build Equivalence"|build_equivalence:"Build Equivalence" )
+                ;;
+              * )
+                echo "ERROR: ${label} source workflow is not an approved evidence producer"
+                echo "workflow=${workflow_name:-unset}"
+                exit 1
+                ;;
+            esac
+          }
 
           fetch_source() {
             label="$1"
@@ -179,6 +203,7 @@ jobs:
               echo "run url=${run_url:-unset}"
               exit 1
             fi
+            require_allowed_source_workflow "$label" "$run_workflow_name"
 
             mkdir -p "$download_dir"
             gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
@@ -194,6 +219,58 @@ jobs:
           fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json"
           fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json"
           fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json"
+
+          python - "${bundle_root}/release-control-plane" <<'PY'
+          import json
+          import re
+          import sys
+          from pathlib import Path
+          from typing import Any
+
+          bundle = Path(sys.argv[1])
+          json_paths = [
+              bundle / "release_manifest.json",
+              bundle / "rag_gate_result.json",
+              bundle / "build_equivalence_result.json",
+          ]
+          sentinel_hash = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
+          forbidden_path_tokens = (
+              "tests/fixtures",
+              "data/evals/pulseplate_rag_eval_sample.jsonl",
+              "fixture",
+              "placeholder",
+              "fake",
+          )
+
+          def walk(value: Any, path: str) -> None:
+              if isinstance(value, dict):
+                  for key, child in value.items():
+                      walk(child, f"{path}.{key}" if path else str(key))
+                  return
+              if isinstance(value, list):
+                  for index, child in enumerate(value):
+                      walk(child, f"{path}[{index}]")
+                  return
+              if not isinstance(value, str):
+                  return
+              lowered = value.lower()
+              if sentinel_hash.fullmatch(lowered):
+                  raise SystemExit(f"sentinel placeholder digest/hash rejected at {path}")
+              if any(token in lowered for token in forbidden_path_tokens):
+                  raise SystemExit(f"fixture/placeholder path rejected at {path}")
+
+          for json_path in json_paths:
+              with json_path.open(encoding="utf-8") as handle:
+                  payload = json.load(handle)
+              walk(payload, json_path.name)
+
+          with (bundle / "rag_gate_result.json").open(encoding="utf-8") as handle:
+              rag_payload = json.load(handle)
+          if rag_payload.get("dataset_fallback_used") is True:
+              raise SystemExit("rag_gate_result.dataset_fallback_used must be false")
+          if rag_payload.get("small_fixture_metric_gates_advisory") is True:
+              raise SystemExit("rag_gate_result.small_fixture_metric_gates_advisory must be false")
+          PY
 
           manifest_git_sha="$(
             python - "${bundle_root}/release-control-plane/release_manifest.json" <<'PY'
