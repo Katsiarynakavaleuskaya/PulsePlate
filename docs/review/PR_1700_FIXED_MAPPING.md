@@ -99,6 +99,8 @@ backend, or serving path.
 - `a4acaa035` - `fix(ai-runtime): address scaffold review cleanups`
 - `9afa5d8e6` - `docs(review): map PR 1700 bot findings`
 - `28802d950` - `fix(ai-runtime): tighten scaffold guard contracts`
+- `76f0b72c1` - `docs(review): map scaffold guard findings`
+- `7062add2c` - `docs(review): keep PR 1700 readiness pending`
 
 ## Pre-push checklist
 
@@ -181,6 +183,16 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202121280 -> 28802d950
 Commit: 28802d950
 Evidence: `scripts/ci/check_semantic_cache_gate.py` now requires partition-field anchors from the partition contract; `tests/test_semantic_cache_scaffold_contract.py` covers broad `surface` wording drift.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202194577 -> 7062add2c
+Commit: 7062add2c
+Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` keeps DoD and pre-push checklist items unchecked until final merge readiness.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202194582 -> 7062add2c
+Commit: 7062add2c
+Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` clarifies that SC-G2 adds only the internal `core/ai` scaffold and does not change runtime serving/provider/RAG/cache backend/DB wiring.
 
 ## Merge Readiness
 
