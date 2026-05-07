@@ -101,6 +101,8 @@ backend, or serving path.
 - `28802d950` - `fix(ai-runtime): tighten scaffold guard contracts`
 - `76f0b72c1` - `docs(review): map scaffold guard findings`
 - `7062add2c` - `docs(review): keep PR 1700 readiness pending`
+- `9ae144be8` - `docs(review): map readiness checklist findings`
+- `f5969b60b` - `fix(ci): include exact fuzzy scaffold coverage`
 
 ## Pre-push checklist
 
