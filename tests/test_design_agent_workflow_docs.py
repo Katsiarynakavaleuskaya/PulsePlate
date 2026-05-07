@@ -83,6 +83,15 @@ def test_design_workflow_does_not_promote_external_design_truth() -> None:
     for claim in forbidden_claims:
         assert claim not in combined
 
+    required_claims = [
+        "Repo code/docs/tests",
+        "`/tokens` as token authoring truth",
+        "generated mirrors as derived runtime artifacts",
+    ]
+
+    for claim in required_claims:
+        assert claim in combined
+
     assert "Do not claim green main" in combined
     assert "Do not override the root `AGENTS.md` merge gate." in combined
 
