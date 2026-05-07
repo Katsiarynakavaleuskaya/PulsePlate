@@ -228,6 +228,15 @@ Evidence:
 - `docs/review/PR_1701_FIXED_MAPPING.md` now uses 40-character commit SHAs for
   existing FIXED mappings instead of short SHA aliases.
 
+### P3: Renderer CLI tests had untyped capture fixtures
+
+Disposition: FIXED
+Commit: `3e62b081669da162bc2d10586bf0e935c82e93c5`
+Evidence:
+
+- `tests/test_render_codex_start_prompt.py` now annotates all `capsys`
+  parameters as `pytest.CaptureFixture[str]`.
+
 ## Residual Risks
 
 - GitHub review bots can still add new findings after this artifact is written.

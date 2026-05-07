@@ -50,6 +50,16 @@ Disposition: FIXED
 Commit: b9895eb71425e6e534e0d63d477582022776653b
 Evidence: tests/test_render_codex_start_prompt.py now catches FileNotFoundError around the premortem SKILL.md read and reports it with pytest.fail and the expected path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#discussion_r3203749010 -> 3e62b081669da162bc2d10586bf0e935c82e93c5
+Disposition: FIXED
+Commit: 3e62b081669da162bc2d10586bf0e935c82e93c5
+Evidence: tests/test_render_codex_start_prompt.py now annotates all `capsys` fixture parameters as `pytest.CaptureFixture[str]`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#pullrequestreview-4246617415 -> 3e62b081669da162bc2d10586bf0e935c82e93c5
+Disposition: FIXED
+Commit: 3e62b081669da162bc2d10586bf0e935c82e93c5
+Evidence: The CodeRabbit review summary repeated the untyped `capsys` fixture finding; tests/test_render_codex_start_prompt.py now includes explicit `pytest.CaptureFixture[str]` annotations for all affected tests.
+
 ## Pre-Open And Post-Open Governance Findings
 
 Premortem and coordinator/role-agent findings are tracked in
