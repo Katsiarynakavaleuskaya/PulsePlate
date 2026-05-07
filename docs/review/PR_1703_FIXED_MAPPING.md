@@ -25,10 +25,10 @@ Internal pre-open review findings fixed before PR open:
 - Mixed supply-chain source runs/artifacts -> `e1f454cb9`
 - Docker build self-certified App Review / production-candidate digests -> `f43d6c1ec`
 - GitHub workflow lint failed on too many dispatch inputs and SC2153 shell variables -> `664c1fd5d`
-- CodeRabbit actionable: fixed-mapping checklist was missing checked discussion/mapping boxes -> `04c7ba87d`
-- CodeRabbit nit: `artifact-name` CLI command relied on implicit fall-through -> `04c7ba87d`
-- Cubic P2: evidence source substring matching could reject valid paths such as `latest/...` -> `04c7ba87d`
-- Bug-hunter P1: nested RAG `source_artifacts[*].path` allowed path escapes such as `../prod/release.jsonl` -> `04c7ba87d`
+- CodeRabbit actionable: fixed-mapping checklist was missing checked discussion/mapping boxes -> `79c15fcfe`
+- CodeRabbit nit: `artifact-name` CLI command relied on implicit fall-through -> `79c15fcfe`
+- Cubic P2: evidence source substring matching could reject valid paths such as `latest/...` -> `79c15fcfe`
+- Bug-hunter P1: nested RAG `source_artifacts[*].path` allowed path escapes such as `../prod/release.jsonl` -> `79c15fcfe`
 
 ## NOT-A-BUG
 
@@ -38,7 +38,7 @@ Internal pre-open review findings fixed before PR open:
 - Cubic P1: artifact root mismatch for `release-control-plane-build-sources`.
   - Evidence: Fixed by `664c1fd5d`, which replaced separate `sbom_digest_source`, `provenance_digest_source`, and `attestation_status_source` inputs with a single governed `supply_chain_source` object whose expected path is `release-control-plane-build-sources`. The manifest producer then reads `${supply_chain_source_path}/sbom_digest.txt`, `${supply_chain_source_path}/provenance_digest.txt`, and `${supply_chain_source_path}/attestation_status.txt`.
 - CodeRabbit nit: `scripts/release/build_identity.py` direct-invocation `sys.path.insert`.
-  - Evidence: Fixed as documentation-only in `04c7ba87d`; the script remains a standalone repo CLI for GitHub Actions, and package-style `python -m` invocation remains available.
+  - Evidence: Fixed as documentation-only in `79c15fcfe`; the script remains a standalone repo CLI for GitHub Actions, and package-style `python -m` invocation remains available.
 - Sourcery weekly diff-character rate limit.
   - Evidence: Sourcery posted a rate-limit comment only; no actionable code finding was provided.
 
