@@ -1,7 +1,7 @@
 # PulsePlate
 
 [![CI](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/branch/main/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
+[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/graph/badge.svg?token=HE8BHRB7Q9)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
 [![Food data: USDA + OFF](https://img.shields.io/badge/Food%20data-USDA%20%2B%20OFF-brightgreen)](docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/Katsiarynakavaleuskaya/PulsePlate)
 
