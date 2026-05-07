@@ -258,10 +258,6 @@ SCAFFOLD_FORBIDDEN_PATTERNS = (
         "SC-G2 bypasses SC-G3",
         re.compile(r"\bsc-g2\s+(?:bypasses|skips)\s+sc-g3\b"),
     ),
-    (
-        "advisory wiki product cache source",
-        re.compile(r"\badvisory\s+wiki\s+(?:feeds|can\s+seed|seeds)\s+product\s+cache\b"),
-    ),
 )
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")

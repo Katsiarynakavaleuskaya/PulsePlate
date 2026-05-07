@@ -264,7 +264,7 @@ def normalize_exact_fuzzy_query(text: str) -> tuple[str, tuple[str, ...]]:
     normalized = _TOKEN_RE.sub(" ", "".join(chars)).strip()
     if not normalized:
         raise ValueError("text must contain lexical content after normalization")
-    tokens = normalized.split(" ") if normalized else []
+    tokens = normalized.split(" ")
     return normalized, tuple(sorted(tokens))
 
 

@@ -253,16 +253,22 @@ def test_checker_fails_if_scaffold_contract_permits_blocked_scope(
 
 def test_checker_fails_if_scaffold_phase_order_is_wrong(tmp_path: Path) -> None:
     contract = tmp_path / "scaffold.md"
-    contract.write_text(
-        _contract_text().replace(
-            "SC-G3 observability and false-hit harness is still required before any\n"
-            "semantic-cache serving. SC-G4 bounded `/insight` semantic-cache experiment",
-            "SC-G4 bounded `/insight` semantic-cache experiment is future. "
-            "SC-G3 observability and false-hit harness is still required before any "
-            "semantic-cache serving",
-        ),
-        encoding="utf-8",
+    original = _contract_text()
+    expected = (
+        "SC-G3 observability and false-hit harness is still required before any\n"
+        "semantic-cache serving. SC-G4 bounded `/insight` semantic-cache experiment"
     )
+    replacement = (
+        "SC-G4 bounded `/insight` semantic-cache experiment is future. "
+        "SC-G3 observability and false-hit harness is still required before any "
+        "semantic-cache serving"
+    )
+    modified = original.replace(expected, replacement)
+
+    assert modified != original
+    assert expected not in modified
+    assert replacement in modified
+    contract.write_text(modified, encoding="utf-8")
 
     result = _run_checker(contract)
 

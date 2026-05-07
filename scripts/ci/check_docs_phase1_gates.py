@@ -25,44 +25,28 @@ EXACT_FUZZY_CACHE_SCAFFOLD_DOC = "docs/orchestration/contracts/EXACT_FUZZY_CACHE
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
-def _load_semantic_cache_gate_validator() -> SemanticCacheGateValidator:
+def _load_validator(symbol: str) -> SemanticCacheGateValidator:
     spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    validator = getattr(module, "validate_semantic_cache_gate", None)
+    validator = getattr(module, symbol, None)
     if not callable(validator):
-        raise RuntimeError("semantic-cache gate checker missing validate_semantic_cache_gate")
+        raise RuntimeError(f"semantic-cache gate checker missing {symbol}")
     return cast(SemanticCacheGateValidator, validator)
+
+
+def _load_semantic_cache_gate_validator() -> SemanticCacheGateValidator:
+    return _load_validator("validate_semantic_cache_gate")
 
 
 def _load_semantic_cache_rollout_contract_validator() -> SemanticCacheGateValidator:
-    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    validator = getattr(module, "validate_semantic_cache_rollout_contract", None)
-    if not callable(validator):
-        raise RuntimeError(
-            "semantic-cache gate checker missing validate_semantic_cache_rollout_contract"
-        )
-    return cast(SemanticCacheGateValidator, validator)
+    return _load_validator("validate_semantic_cache_rollout_contract")
 
 
 def _load_exact_fuzzy_scaffold_validator() -> SemanticCacheGateValidator:
-    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    validator = getattr(module, "validate_exact_fuzzy_scaffold_contract", None)
-    if not callable(validator):
-        raise RuntimeError(
-            "semantic-cache gate checker missing validate_exact_fuzzy_scaffold_contract"
-        )
-    return cast(SemanticCacheGateValidator, validator)
+    return _load_validator("validate_exact_fuzzy_scaffold_contract")
 
 
 def _read_text(relpath: str) -> str:
