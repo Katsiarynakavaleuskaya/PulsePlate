@@ -40,7 +40,7 @@ requests>=2.33.0  # GHSA-gc5v-m9x4-r6x2 security floor
 pillow==12.2.0  # GHSA-whj4-6x5x-4v2j security floor; keep exact parity with pinned requirements*.txt lock surfaces to avoid resolver drift
 python-dotenv>=1.2.1
 prometheus-client>=0.23.1
-python-multipart>=0.0.27  # GHSA-pp6c-gr5w-3c5g security floor
+python-multipart>=0.0.27  # GHSA-mj87-hwqh-73pj / CVE-2026-40347 security floor
 slowapi>=0.1.9
 tenacity>=9.1.2
 matplotlib>=3.10.7
