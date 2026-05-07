@@ -48,6 +48,7 @@ def _rag_payload(tmp_path: Path) -> Path:
         "release_decision": "PASS",
         "dataset_fallback_used": False,
         "small_fixture_metric_gates_advisory": False,
+        "git_sha": "a" * 40,
         "source_artifacts": [
             {"kind": "eval_input", "path": "data/evals/release.jsonl", "hash": "c" * 64}
         ],
@@ -104,6 +105,7 @@ def test_workflow_validates_governed_rag_source_run_and_git_sha() -> None:
 
     assert "scripts/release/evidence_source.py source-env" in script
     assert "--label rag_gate_result" in script
+    assert "--expected-path rag_gate_result.json" in script
     assert "source-env" in script and "run_id, artifact_name, path" not in script
     assert "gh run view" in script
     assert "--json status,conclusion,headSha,event,workflowName,url" in script
@@ -115,6 +117,7 @@ def test_workflow_validates_governed_rag_source_run_and_git_sha() -> None:
     assert '[ "$run_workflow_path" != ".github/workflows/rag-release-gates.yml" ]' in script
     assert "RAG source run head SHA does not match git_sha" in script
     assert "Release Manifest Evidence workflow ref must match git_sha" in script
+    assert "rag_gate_result.git_sha must match git_sha" in script
     assert "scripts/release/evidence_source.py git-sha" in script
 
 
@@ -128,6 +131,7 @@ def test_workflow_rejects_fixture_sample_fallback_and_requires_pass() -> None:
     assert "release_decision must be PASS" in script
     assert "attestation_status must be VERIFIED" in script
     assert "rag_gate_result path escapes downloaded artifact" in script
+    assert "Path(sys.argv[1]).resolve()" in script
     assert "artifacts/release_control_plane_sources" in script
 
 
@@ -151,7 +155,13 @@ def test_workflow_generates_validates_and_uploads_stable_manifest_path() -> None
         upload_step["with"]["path"]
         == "${{ runner.temp }}/release-manifest-evidence/release_manifest.json"
     )
+    assert (
+        upload_step["with"]["name"]
+        == "${{ steps.generate-release-manifest-evidence.outputs.artifact_name }}"
+    )
+    assert "${{ inputs.evidence_artifact_name }}" not in upload_step["with"]["name"]
     assert upload_step["with"]["if-no-files-found"] == "error"
+    assert 'echo "artifact_name=$EVIDENCE_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"' in script
     assert "GITHUB_RUN_ID" in summary_script
     assert "release_manifest.json" in summary_script
 
@@ -180,6 +190,17 @@ def test_evidence_source_helper_rejects_malformed_source_and_unsafe_paths() -> N
     assert (
         evidence_source.validate_source_payload(valid, label="rag_gate_result")["run_id"] == "123"
     )
+    canonical = (
+        '{"run_id":"123","artifact_name":"rag-release-gates-weekly","path":"rag_gate_result.json"}'
+    )
+    assert (
+        evidence_source.validate_source_payload(
+            canonical,
+            label="rag_gate_result",
+            expected_path="rag_gate_result.json",
+        )["path"]
+        == "rag_gate_result.json"
+    )
 
     invalid_payloads = [
         "{not json}",
@@ -193,6 +214,12 @@ def test_evidence_source_helper_rejects_malformed_source_and_unsafe_paths() -> N
     for raw_json in invalid_payloads:
         with pytest.raises(evidence_source.EvidenceSourceError):
             evidence_source.validate_source_payload(raw_json, label="rag_gate_result")
+    with pytest.raises(evidence_source.EvidenceSourceError):
+        evidence_source.validate_source_payload(
+            valid,
+            label="rag_gate_result",
+            expected_path="rag_gate_result.json",
+        )
 
 
 def test_evidence_source_helper_requires_full_sha_and_non_placeholder_digests() -> None:

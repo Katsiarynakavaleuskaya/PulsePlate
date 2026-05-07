@@ -74,7 +74,9 @@ def validate_artifact_name(value: str, *, label: str = "artifact_name") -> str:
     return value
 
 
-def validate_source_payload(raw_json: str, *, label: str) -> dict[str, str]:
+def validate_source_payload(
+    raw_json: str, *, label: str, expected_path: str | None = None
+) -> dict[str, str]:
     """Validate source object JSON and return run_id/artifact_name/path."""
 
     if _has_control_character(raw_json):
@@ -107,6 +109,8 @@ def validate_source_payload(raw_json: str, *, label: str) -> dict[str, str]:
         or any(part in {"", ".", ".."} for part in pure_path.parts)
     ):
         raise EvidenceSourceError(f"{label}_source.path must stay inside the downloaded artifact.")
+    if expected_path is not None and normalized_path != expected_path:
+        raise EvidenceSourceError(f"{label}_source.path must be exactly {expected_path}.")
     return {
         "run_id": run_id,
         "artifact_name": artifact_name,
@@ -128,6 +132,7 @@ def _build_parser() -> argparse.ArgumentParser:
     source_env.add_argument("--label", required=True)
     source_env.add_argument("--prefix", required=True)
     source_env.add_argument("--source-json", required=True)
+    source_env.add_argument("--expected-path")
 
     git_sha = subparsers.add_parser("git-sha")
     git_sha.add_argument("value")
@@ -146,7 +151,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "source-env":
-            payload = validate_source_payload(args.source_json, label=args.label)
+            payload = validate_source_payload(
+                args.source_json,
+                label=args.label,
+                expected_path=args.expected_path,
+            )
             for line in shell_env_lines(payload, prefix=args.prefix):
                 print(line)
             return 0

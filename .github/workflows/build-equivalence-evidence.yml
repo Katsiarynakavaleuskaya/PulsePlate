@@ -48,6 +48,7 @@ jobs:
           python-version: "3.13"
 
       - name: Generate governed build equivalence evidence
+        id: generate-build-equivalence-evidence
         env:
           EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
           EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
@@ -62,6 +63,7 @@ jobs:
           python scripts/release/evidence_source.py source-env \
             --label release_manifest \
             --prefix RELEASE_MANIFEST \
+            --expected-path release_manifest.json \
             --source-json "$RELEASE_MANIFEST_SOURCE" > "$source_env"
           # shellcheck disable=SC1090
           . "$source_env"
@@ -124,7 +126,13 @@ jobs:
             exit 1
           fi
           resolved_download_dir="$(cd "$download_dir" && pwd -P)"
-          resolved_manifest_path="$(cd "$(dirname "$release_manifest_path")" && pwd -P)/$(basename "$release_manifest_path")"
+          resolved_manifest_path="$(python - "$release_manifest_path" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).resolve())
+          PY
+          )"
           case "$resolved_manifest_path" in
             "$resolved_download_dir"/*) ;;
             *) echo "ERROR: release_manifest path escapes downloaded artifact"; exit 1 ;;
@@ -168,11 +176,21 @@ jobs:
             --production-candidate "${identities_dir}/production_candidate_identity.json" \
             --release-manifest "$release_manifest_path" \
             --output "${output_dir}/build_equivalence_result.json"
+          python - "${output_dir}/build_equivalence_result.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload.get("decision") != "EQUIVALENT":
+              raise SystemExit("build_equivalence_result.decision must be EQUIVALENT")
+          PY
 
           {
             echo "BUILD_EQUIVALENCE_EVIDENCE_ARTIFACT_NAME=$EVIDENCE_ARTIFACT_NAME"
             echo "BUILD_EQUIVALENCE_EVIDENCE_OUTPUT_DIR=$output_dir"
           } >> "$GITHUB_ENV"
+          echo "artifact_name=$EVIDENCE_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Publish build equivalence evidence summary
         run: |
@@ -188,7 +206,7 @@ jobs:
       - name: Upload governed build equivalence evidence artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ inputs.evidence_artifact_name }}
+          name: ${{ steps.generate-build-equivalence-evidence.outputs.artifact_name }}
           path: ${{ runner.temp }}/build-equivalence-evidence/build_equivalence_result.json
           if-no-files-found: error
           retention-days: 14

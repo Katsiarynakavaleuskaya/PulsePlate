@@ -69,6 +69,7 @@ jobs:
           python-version: "3.13"
 
       - name: Generate governed release manifest evidence
+        id: generate-release-manifest-evidence
         env:
           ATTESTATION_STATUS: ${{ inputs.attestation_status }}
           BUNDLE_ID: ${{ inputs.bundle_id }}
@@ -87,6 +88,7 @@ jobs:
           python scripts/release/evidence_source.py source-env \
             --label rag_gate_result \
             --prefix RAG_GATE_RESULT \
+            --expected-path rag_gate_result.json \
             --source-json "$RAG_GATE_RESULT_SOURCE" > "$source_env"
           # shellcheck disable=SC1090
           . "$source_env"
@@ -154,13 +156,19 @@ jobs:
             exit 1
           fi
           resolved_download_dir="$(cd "$download_dir" && pwd -P)"
-          resolved_rag_path="$(cd "$(dirname "$rag_gate_result_path")" && pwd -P)/$(basename "$rag_gate_result_path")"
+          resolved_rag_path="$(python - "$rag_gate_result_path" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).resolve())
+          PY
+          )"
           case "$resolved_rag_path" in
             "$resolved_download_dir"/*) ;;
             *) echo "ERROR: rag_gate_result path escapes downloaded artifact"; exit 1 ;;
           esac
           python -m json.tool "$rag_gate_result_path" > /dev/null
-          python - "$rag_gate_result_path" <<'PY'
+          python - "$rag_gate_result_path" "$expected_git_sha_lc" <<'PY'
           import json
           import re
           import sys
@@ -168,7 +176,13 @@ jobs:
           from typing import Any
 
           path = Path(sys.argv[1])
+          expected_git_sha = sys.argv[2]
           payload = json.loads(path.read_text(encoding="utf-8"))
+          git_sha = payload.get("git_sha")
+          if not isinstance(git_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", git_sha):
+              raise SystemExit("rag_gate_result.git_sha must be a full 40-character hexadecimal SHA")
+          if git_sha.lower() != expected_git_sha:
+              raise SystemExit("rag_gate_result.git_sha must match git_sha")
           sentinel_hash = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
           forbidden = ("tests/fixtures", "fixture", "sample", "example", "placeholder", "fake", "fallback")
 
@@ -215,6 +229,7 @@ jobs:
             echo "RELEASE_MANIFEST_EVIDENCE_ARTIFACT_NAME=$EVIDENCE_ARTIFACT_NAME"
             echo "RELEASE_MANIFEST_EVIDENCE_OUTPUT_DIR=$output_dir"
           } >> "$GITHUB_ENV"
+          echo "artifact_name=$EVIDENCE_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
 
       - name: Publish release manifest evidence summary
         run: |
@@ -230,7 +245,7 @@ jobs:
       - name: Upload governed release manifest evidence artifact
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: ${{ inputs.evidence_artifact_name }}
+          name: ${{ steps.generate-release-manifest-evidence.outputs.artifact_name }}
           path: ${{ runner.temp }}/release-manifest-evidence/release_manifest.json
           if-no-files-found: error
           retention-days: 14

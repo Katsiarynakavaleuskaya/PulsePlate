@@ -129,6 +129,7 @@ def test_workflow_validates_release_manifest_source_run_and_git_sha() -> None:
 
     assert "scripts/release/evidence_source.py source-env" in script
     assert "--label release_manifest" in script
+    assert "--expected-path release_manifest.json" in script
     assert "gh run view" in script
     assert "--json status,conclusion,headSha,event,workflowName,url" in script
     assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RELEASE_MANIFEST_RUN_ID}"' in script
@@ -157,6 +158,7 @@ def test_workflow_generates_identities_runs_equivalence_and_uploads_stable_path(
         in script
     )
     assert "release_manifest path escapes downloaded artifact" in script
+    assert "Path(sys.argv[1]).resolve()" in script
     assert "scripts/release/release_manifest.py validate" in script
     assert "scripts/release/build_identity.py" in script
     assert '--artifact-digest "$REVIEW_ARTIFACT_DIGEST"' in script
@@ -164,6 +166,7 @@ def test_workflow_generates_identities_runs_equivalence_and_uploads_stable_path(
     assert "review_build_identity.json" in script
     assert "production_candidate_identity.json" in script
     assert "scripts/release/build_equivalence.py" in script
+    assert "build_equivalence_result.decision must be EQUIVALENT" in script
     assert "--review-build" in script
     assert "--production-candidate" in script
     assert "--release-manifest" in script
@@ -171,7 +174,13 @@ def test_workflow_generates_identities_runs_equivalence_and_uploads_stable_path(
         upload_step["with"]["path"]
         == "${{ runner.temp }}/build-equivalence-evidence/build_equivalence_result.json"
     )
+    assert (
+        upload_step["with"]["name"]
+        == "${{ steps.generate-build-equivalence-evidence.outputs.artifact_name }}"
+    )
+    assert "${{ inputs.evidence_artifact_name }}" not in upload_step["with"]["name"]
     assert upload_step["with"]["if-no-files-found"] == "error"
+    assert 'echo "artifact_name=$EVIDENCE_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"' in script
     assert "GITHUB_RUN_ID" in summary_script
     assert "build_equivalence_result.json" in summary_script
 
