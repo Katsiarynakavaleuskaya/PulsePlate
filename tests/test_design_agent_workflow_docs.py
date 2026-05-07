@@ -37,6 +37,10 @@ def test_design_agent_workflow_required_sections() -> None:
     for item in required:
         assert item in text
 
+    ordered_headings = required[:9]
+    positions = [text.index(item) for item in ordered_headings]
+    assert all(positions[index] < positions[index + 1] for index in range(len(positions) - 1))
+
 
 def test_design_pr_templates_have_required_governance_sections() -> None:
     for path in [DOC_TEMPLATE, GITHUB_TEMPLATE]:
