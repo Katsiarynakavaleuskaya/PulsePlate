@@ -148,7 +148,7 @@ actionable findings; all were fixed before mapping.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
 - No actionable review comments
 
