@@ -3,11 +3,14 @@ from __future__ import annotations
 from dataclasses import FrozenInstanceError, replace
 import json
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
 from core.ai.exact_fuzzy_cache import (
+    ExactFuzzyCacheLineage,
+    ExactFuzzyCacheLookupResult,
+    ExactFuzzyCacheRecord,
     ExactFuzzyCacheLookupRequest,
     ExactFuzzyMatchPolicy,
     build_exact_fuzzy_idempotency_key,
@@ -344,8 +347,29 @@ def test_stable_serialization_contains_no_raw_prompt_or_response_payload() -> No
 def test_rejects_invalid_thresholds_and_blank_inputs() -> None:
     with pytest.raises(ValueError, match="between 0 and 10000"):
         _policy(token_jaccard_min_bps=10001)
+    with pytest.raises(ValueError, match="must be an integer"):
+        ExactFuzzyMatchPolicy(
+            policy_version="semantic-cache-sc-g2-v1",
+            token_jaccard_min_bps=cast(Any, 1.5),
+            sequence_ratio_min_bps=8000,
+            max_token_count_delta=1,
+        )
+    with pytest.raises(ValueError, match="max_token_count_delta"):
+        _policy(max_token_count_delta=-1)
     with pytest.raises(ValueError, match="raw_query must be non-empty"):
         _request(" ")
+    with pytest.raises(ValueError, match="source_fingerprints must be non-empty"):
+        ExactFuzzyCacheLookupRequest(
+            surface="insight",
+            raw_query="Plan protein breakfast",
+            context_fingerprint="sha256:context",
+            source_fingerprints=(),
+            policy_version="semantic-cache-sc-g2-v1",
+            provider_key="provider:test",
+            model_key="model:test",
+            user_tier="pro",
+            transparency_notice_id="notice:insight:v1",
+        )
     with pytest.raises(ValueError, match="source_fingerprints must be non-empty"):
         build_exact_fuzzy_lineage(
             eval_event_ids=(),
@@ -355,6 +379,132 @@ def test_rejects_invalid_thresholds_and_blank_inputs() -> None:
             source_fingerprints=(),
             policy_version="semantic-cache-sc-g2-v1",
         )
+    with pytest.raises(ValueError, match="contains duplicate"):
+        build_exact_fuzzy_lineage(
+            eval_event_ids=(),
+            admission_decision_id=None,
+            promotion_ids=(),
+            replay_entry_ids=(),
+            source_fingerprints=("sha256:source", "sha256:source"),
+            policy_version="semantic-cache-sc-g2-v1",
+        )
+    with pytest.raises(ValueError, match="provider_key must not contain whitespace"):
+        ExactFuzzyCacheLookupRequest(
+            surface="insight",
+            raw_query="Plan protein breakfast",
+            context_fingerprint="sha256:context",
+            source_fingerprints=("sha256:source",),
+            policy_version="semantic-cache-sc-g2-v1",
+            provider_key="provider test",
+            model_key="model:test",
+            user_tier="pro",
+            transparency_notice_id="notice:insight:v1",
+        )
+
+
+def test_record_and_result_contracts_fail_closed_on_invalid_values() -> None:
+    record = _record("Plan protein breakfast")
+    with pytest.raises(ValueError, match="lineage must be ExactFuzzyCacheLineage"):
+        ExactFuzzyCacheRecord(
+            record_id=record.record_id,
+            surface=record.surface,
+            normalized_query=record.normalized_query,
+            token_sort_key=record.token_sort_key,
+            context_fingerprint=record.context_fingerprint,
+            provider_key=record.provider_key,
+            model_key=record.model_key,
+            user_tier=record.user_tier,
+            transparency_notice_id=record.transparency_notice_id,
+            lineage=cast(Any, "not-lineage"),
+            response_fingerprint=record.response_fingerprint,
+            safety_flags=record.safety_flags,
+            idempotency_key=record.idempotency_key,
+            normalization_version=record.normalization_version,
+        )
+    with pytest.raises(ValueError, match="unsupported decision"):
+        ExactFuzzyCacheLookupResult(
+            decision="maybe",
+            matched_record_id=None,
+            match_mode=None,
+            score_bps=None,
+            checked_record_count=0,
+            reason_codes=("no_match",),
+        )
+    with pytest.raises(ValueError, match="unsupported match_mode"):
+        ExactFuzzyCacheLookupResult(
+            decision="miss",
+            matched_record_id=None,
+            match_mode="semantic",
+            score_bps=None,
+            checked_record_count=0,
+            reason_codes=("no_match",),
+        )
+    with pytest.raises(ValueError, match="checked_record_count"):
+        ExactFuzzyCacheLookupResult(
+            decision="miss",
+            matched_record_id=None,
+            match_mode=None,
+            score_bps=None,
+            checked_record_count=-1,
+            reason_codes=("no_match",),
+        )
+
+
+def test_lineage_payload_and_record_id_reject_non_lineage() -> None:
+    record = _record("Plan protein breakfast")
+
+    with pytest.raises(ValueError, match="lineage must be ExactFuzzyCacheLineage"):
+        build_exact_fuzzy_record_id(
+            surface=record.surface,
+            normalized_query=record.normalized_query,
+            token_sort_key=record.token_sort_key,
+            context_fingerprint=record.context_fingerprint,
+            provider_key=record.provider_key,
+            model_key=record.model_key,
+            user_tier=record.user_tier,
+            transparency_notice_id=record.transparency_notice_id,
+            lineage=cast(ExactFuzzyCacheLineage, "not-lineage"),
+            response_fingerprint=record.response_fingerprint,
+            safety_flags=record.safety_flags,
+            normalization_version=record.normalization_version,
+        )
+
+
+def test_unsupported_record_normalization_version_is_ignored() -> None:
+    record = replace(_record("Plan protein breakfast"), normalization_version="legacy-v0")
+
+    result = match_exact_fuzzy_records(
+        request=_request("Plan protein breakfast"),
+        candidate_records=(record,),
+        policy=_policy(),
+    )
+
+    assert result.decision == "miss"
+    assert result.checked_record_count == 1
+    assert result.reason_codes == ("no_match",)
+
+
+def test_near_duplicate_misses_on_token_delta_and_sequence_threshold() -> None:
+    record = _record("alpha beta gamma")
+    request = _request("alpha beta gamma delta")
+
+    delta_miss = match_exact_fuzzy_records(
+        request=request,
+        candidate_records=(record,),
+        policy=_policy(token_jaccard_min_bps=0, sequence_ratio_min_bps=0, max_token_count_delta=0),
+    )
+    ratio_miss = match_exact_fuzzy_records(
+        request=request,
+        candidate_records=(record,),
+        policy=_policy(
+            token_jaccard_min_bps=0,
+            sequence_ratio_min_bps=9999,
+            max_token_count_delta=3,
+        ),
+    )
+
+    assert delta_miss.decision == "miss"
+    assert ratio_miss.decision == "miss"
 
 
 def test_scaffold_module_has_no_forbidden_imports_or_nondeterministic_calls() -> None:

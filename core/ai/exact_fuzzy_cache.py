@@ -536,8 +536,6 @@ def _token_jaccard_bps(left_tokens: tuple[str, ...], right_tokens: tuple[str, ..
     left = set(left_tokens)
     right = set(right_tokens)
     union = left | right
-    if not union:
-        return 0
     return (len(left & right) * 10000) // len(union)
 
 

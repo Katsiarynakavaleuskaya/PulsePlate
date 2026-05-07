@@ -630,6 +630,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/core/ai/test_exact_fuzzy_cache.py \
                   tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
@@ -641,7 +642,8 @@ jobs:
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
-                  tests/test_paywall_exposure_ledger_service.py
+                  tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_semantic_cache_scaffold_contract.py
                 ;;
               merge_governance)
                 add_suite \
@@ -871,6 +873,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/core/ai/test_exact_fuzzy_cache.py \
                   tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
@@ -882,7 +885,8 @@ jobs:
                   tests/test_legacy_app_diff_coverage.py \
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
-                  tests/test_paywall_exposure_ledger_service.py
+                  tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_semantic_cache_scaffold_contract.py
                 ;;
               merge_governance)
                 add_suite \
