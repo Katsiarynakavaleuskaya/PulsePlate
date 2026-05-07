@@ -44,6 +44,14 @@ No changes to:
 - `tests/test_semantic_cache_gate.py`
 - `tests/test_semantic_cache_rollout_gate.py`
 - `tests/test_docs_phase1_gates.py`
+- `.secrets.baseline`
+- `constraints.txt`
+- `requirements.txt`
+- `requirements-lock.txt`
+- `requirements-dev.txt`
+- `requirements-ci-lite.txt`
+- `requirements-docker-runtime.txt`
+- `scripts/ci/emergency_python_wheels.json`
 
 ## Tests
 
@@ -60,6 +68,8 @@ Passed locally on current branch before PR open:
 - Pre-push hooks: backend tests, full Bandit, docker build test
 
 Full `make verify` was intentionally not run for this docs + deterministic guard PR; this uses the operator-approved bounded-gate path.
+
+Pre-push `pip-audit` surfaced newly published advisories for the existing pins `mako==1.3.11` and `python-multipart==0.0.26`; this PR carries the narrow security-floor bump required for hooks and CI to remain fail-closed.
 
 ## Security notes
 
@@ -106,6 +116,11 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 - `27ba93516` maps CodeRabbit feedback in the canonical fixed mapping artifact.
 - `727cefbda` fixes CodeRabbit follow-up feedback by closing the
   `from package import submodule` semantic-cache import guard bypass.
+- `4017a137d` separates PR #1697 review-disposition blocks so the strict
+  disposition parser does not inherit FIXED commit proof across NOT-A-BUG
+  entries.
+- Pending final commit bumps `mako` and `python-multipart` to patched versions
+  after pre-push `pip-audit` blocked the push on newly published advisories.
 
 ## Pre-push checklist
 
