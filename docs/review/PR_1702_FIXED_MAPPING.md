@@ -170,6 +170,11 @@ Commit: e6a10ae39
 Evidence: `tests/helpers/semantic_cache_import_guard.py` now treats allowed SC-G2 contract imports as exact or qualified prefixes, and `tests/core/ai/test_cache_observability.py` covers `from core.ai.exact_fuzzy_cache import create_exact_fuzzy_cache_record`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204115756 -> e6a10ae39
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4247055915 -> e6a10ae39
+Commit: 3b0e0d6e1
+Evidence: `scripts/ci/check_semantic_cache_gate.py` now uses tight explicit-prohibition anchor regexes; `tests/core/ai/test_cache_observability.py` preserves empty metadata inputs; `tests/test_semantic_cache_observability_contract.py` asserts specific missing-anchor errors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204162209 -> 3b0e0d6e1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3204162222 -> 3b0e0d6e1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4247108532 -> 3b0e0d6e1
 
 ## Post-Open Agent Mapping
 
@@ -181,6 +186,7 @@ Evidence: `tests/helpers/semantic_cache_import_guard.py` now treats allowed SC-G
 - Replacement QA no-actionable pass: `37b8439c4`
 - QA pass recorded in mapping: `37b8439c4`
 - CodeRabbit SC-G2 qualified import allowlist finding: `e6a10ae39`
+- CodeRabbit tight regex / explicit metadata / anchor assertion findings: `3b0e0d6e1`
 
 ## Merge Readiness
 
