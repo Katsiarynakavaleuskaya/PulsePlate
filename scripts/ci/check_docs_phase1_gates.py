@@ -22,6 +22,9 @@ CHECKER_PATH = Path(__file__).resolve().with_name("check_semantic_cache_gate.py"
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
 SEMANTIC_CACHE_ROLLOUT_CONTRACT_DOC = "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md"
 EXACT_FUZZY_CACHE_SCAFFOLD_DOC = "docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md"
+SEMANTIC_CACHE_OBSERVABILITY_CONTRACT_DOC = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md"
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
@@ -47,6 +50,10 @@ def _load_semantic_cache_rollout_contract_validator() -> SemanticCacheGateValida
 
 def _load_exact_fuzzy_scaffold_validator() -> SemanticCacheGateValidator:
     return _load_validator("validate_exact_fuzzy_scaffold_contract")
+
+
+def _load_semantic_cache_observability_validator() -> SemanticCacheGateValidator:
+    return _load_validator("validate_semantic_cache_observability_contract")
 
 
 def _read_text(relpath: str) -> str:
@@ -94,6 +101,12 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
         if relpath == EXACT_FUZZY_CACHE_SCAFFOLD_DOC:
             validate_scaffold_contract = _load_exact_fuzzy_scaffold_validator()
             errors.extend(f"{relpath}: {error}" for error in validate_scaffold_contract(content))
+
+        if relpath == SEMANTIC_CACHE_OBSERVABILITY_CONTRACT_DOC:
+            validate_observability_contract = _load_semantic_cache_observability_validator()
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_observability_contract(content)
+            )
 
     return errors
 

@@ -35,6 +35,8 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "datetime.datetime.utcnow",
     "uuid.uuid4",
     "time.time",
+    "time.monotonic",
+    "time.perf_counter",
 )
 
 

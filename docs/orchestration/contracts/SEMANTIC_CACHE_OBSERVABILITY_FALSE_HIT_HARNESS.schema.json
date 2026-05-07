@@ -1,0 +1,125 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Cache Observability False-Hit Harness Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "scaffold_phase",
+    "audit_event_fields",
+    "risk_classes",
+    "negative_controls",
+    "required_metrics",
+    "stop_rules",
+    "kill_switch_snapshot",
+    "blocked_surfaces",
+    "blocked_backends",
+    "required_followups"
+  ],
+  "properties": {
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "scaffold_phase": {
+      "const": "SC-G3"
+    },
+    "audit_event_fields": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "risk_classes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "exact_duplicate_hit",
+          "normalized_fuzzy_hit",
+          "semantic_false_positive",
+          "stale_source_hit",
+          "policy_version_mismatch_hit",
+          "model_version_mismatch_hit",
+          "user_context_leakage_hit",
+          "admission_blocked_hit",
+          "blocked_surface_hit"
+        ]
+      },
+      "minItems": 9,
+      "uniqueItems": true
+    },
+    "negative_controls": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "required_metrics": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "stop_rules": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "kill_switch_snapshot": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 4,
+      "uniqueItems": true
+    },
+    "blocked_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "blocked_backends": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "embeddings",
+          "semantic_similarity",
+          "vector_search",
+          "Redis",
+          "GPTCache",
+          "provider_calls",
+          "runtime_serving"
+        ]
+      },
+      "minItems": 7,
+      "uniqueItems": true
+    },
+    "required_followups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}

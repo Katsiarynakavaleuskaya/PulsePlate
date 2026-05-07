@@ -32,6 +32,12 @@ The SC-G2 exact/fuzzy scaffold contract is defined in
 That contract is pre-serving and lexical only; it does not enable embeddings,
 semantic similarity, runtime caching, or `/insight` wiring.
 
+The phase-three observability and false-hit harness contract is defined in
+[`SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md`](../orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md).
+That contract is offline only and non-serving; it adds audit-event,
+negative-control, metric, stop-rule, rollback-threshold, and kill-switch
+contracts without opening the gate or wiring runtime cache behavior.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
