@@ -53,6 +53,16 @@ Commit: `735657434`
 Evidence: `Makefile`, `tests/test_design_agent_workflow_docs.py`
 Reason: Made `design-guard` and `tokens-check` invoke `$(DEV_PYTHON)` for `scripts/design_guard.py`, then locked that policy with a docs/tooling guard test.
 
+Disposition: FIXED
+Commit: `366d7e204`
+Evidence: `Makefile`, `tests/test_design_agent_workflow_docs.py`
+Reason: Current-head QA and bug-hunter role passes found that `tokens-check` still used bare `python`/`python3` for token parity pytest. The target now runs `$(DEV_PYTHON) -m pytest -q $(TOKEN_PARITY_TESTS)`, and the docs guard locks that exact command.
+
+Disposition: FIXED
+Commit: `366d7e204`
+Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
+Reason: Current-head agent-coordinator, QA, security, frontend, and bug-hunter passes found stale post-rebase mapping, malformed FIXED proof, and missing DEFERRED metadata for the latest CodeRabbit thread. The mapping now reflects the current diff, removes stale dependency-diff claims, records the current-head bootstrap packet, and adds explicit DEFERRED evidence/thread metadata.
+
 ## Bug-Hunter Pass
 
 Disposition: NOT-A-BUG
