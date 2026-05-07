@@ -10,6 +10,52 @@ This artifact records pre-open subagent findings and post-open governance
 placeholders for PR #1699. Mapping is evidence after fix or disposition; it is
 not a substitute for fixes.
 
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Post-open review comments visible through the latest local GitHub review
+inspection are dispositioned below. New comments after this pass require a new
+mapping update before merge readiness.
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> 3bcd02e97
+Disposition: FIXED
+Commit: 3bcd02e97
+Evidence: Workflow producer validation now accepts explicit source workflow names and compares them to GitHub run metadata before artifact download.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116494 -> 98be97185
+Disposition: FIXED
+Commit: 98be97185
+Evidence: Workflow SHA comparisons normalize expected git SHA, workflow GITHUB_SHA, source run headSha, and manifest build_identity.git_sha before comparison.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116498 -> 98be97185
+Disposition: FIXED
+Commit: 98be97185
+Evidence: Workflow guard tests now assert production CD gate docs describe fail-closed behavior when release evidence is missing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116502 -> 98be97185
+Disposition: FIXED
+Commit: 98be97185
+Evidence: Backlog ledger wording now consistently records mako 1.3.12 as the audited floor.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116524 -> 98be97185
+Disposition: FIXED
+Commit: 98be97185
+Evidence: Backlog ledger wording now uses workflow_dispatch terminology consistently for governed source artifacts.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699 -> 66023306c
+Disposition: FIXED
+Commit: 66023306c
+Evidence: The release evidence workflow now uses three JSON source inputs and stays under GitHub's workflow_dispatch 10-input limit while preserving fail-closed source validation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699 -> 9f6a655c6
+Disposition: FIXED
+Commit: 9f6a655c6
+Evidence: Local pre-push pip-audit blocker was fixed by bumping mako to 1.3.12 and python-multipart to 0.0.27 across governed dependency surfaces.
+
 ## Pre-Open Subagent Findings
 
 ### Source runs are not allowlisted
