@@ -127,7 +127,7 @@ review governance.
 
 8. **Post-PR-1692: governed release evidence publication**
    - Branch: `ci/release-control-plane-evidence-publication`
-   - Active follow-up after PR #1692.
+   - Merged as PR #1699 on 2026-05-07 after PR #1692 closed the production gate bypass.
    - Add the manual governed workflow that publishes the production evidence artifact expected by CD.
    - Contract: [`PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md`](PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md).
    - Published artifact layout:
@@ -135,6 +135,16 @@ review governance.
      `release-control-plane/rag_gate_result.json`, and
      `release-control-plane/build_equivalence_result.json`.
    - Source evidence must come from successful `workflow_dispatch` source runs for the same git SHA.
+   - App Store Connect upload execution, Fastlane upload mutation, runtime changes, and fake production fixtures remain out of scope.
+
+9. **Post-PR-1699: governed source evidence producers**
+   - Branch: `ci/release-control-plane-source-producers`
+   - Active follow-up after PR #1699.
+   - Add the governed manual source producers consumed by the PR #1699 publisher:
+     `Release Manifest Evidence` and `Build Equivalence Evidence`.
+   - The existing `RAG Release Gates` workflow remains the RAG/ML producer and is not redefined here.
+   - Source producer artifacts use stable paths: `release_manifest.json` and
+     `build_equivalence_result.json`.
    - App Store Connect upload execution, Fastlane upload mutation, runtime changes, and fake production fixtures remain out of scope.
 
 ## Boundaries
