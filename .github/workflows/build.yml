@@ -321,7 +321,9 @@ jobs:
     if: github.event_name != 'pull_request'
     permissions:
       actions: write
+      attestations: write
       contents: write
+      id-token: write
       packages: write # write implies read; required for GHCR push/pull
       security-events: write
 
@@ -443,17 +445,42 @@ jobs:
           format: spdx-json
           output-file: sbom.spdx.json
 
+      - name: Attest Docker image provenance
+        id: attest-build-provenance
+        uses: actions/attest-build-provenance@b3e506e8c389afc651c5bacf2b8f2a1ea0557215 # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          subject-digest: ${{ steps.docker-build-push.outputs.digest }}
+          push-to-registry: true
+
+      - name: Attest Docker image SBOM
+        id: attest-build-sbom
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}
+          subject-digest: ${{ steps.docker-build-push.outputs.digest }}
+          sbom-path: sbom.spdx.json
+          push-to-registry: true
+
+      - name: Verify Docker image attestations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 scripts/ci/check_docker_provenance_attestation.py \
+            --image-name "${{ env.REGISTRY }}/${{ steps.image-name.outputs.image_name }}" \
+            --digest "${{ steps.docker-build-push.outputs.digest }}" \
+            --repo "${{ github.repository }}" \
+            --signer-workflow "${{ github.repository }}/.github/workflows/build.yml" \
+            --source-ref "${{ github.ref }}" \
+            --json-out docker-provenance-attestation-check.json \
+            --markdown-out docker-provenance-attestation-check.md
+
       - name: Prepare release-control-plane build digest sources
         run: |
           set -euo pipefail
           mkdir -p release-control-plane-build-sources
-          image_digest="${{ steps.docker-build-push.outputs.digest }}"
-          case "$image_digest" in
-            sha256:????????????????????????????????????????????????????????????????) ;;
-            *) echo "ERROR: Docker build output digest is not sha256:<64 hex>"; exit 1 ;;
-          esac
-          printf '%s\n' "$image_digest" > release-control-plane-build-sources/review_artifact_digest.txt
-          printf '%s\n' "$image_digest" > release-control-plane-build-sources/production_candidate_artifact_digest.txt
           python3 - <<'PY'
           import hashlib
           import json
@@ -461,21 +488,20 @@ jobs:
 
           source_dir = Path("release-control-plane-build-sources")
           sbom = Path("sbom.spdx.json")
+          attestation = Path("docker-provenance-attestation-check.json")
           if not sbom.is_file():
               raise SystemExit("ERROR: sbom.spdx.json is missing")
+          if not attestation.is_file():
+              raise SystemExit("ERROR: docker-provenance-attestation-check.json is missing")
+          attestation_payload = json.loads(attestation.read_text(encoding="utf-8"))
+          if attestation_payload.get("passed") is not True:
+              raise SystemExit("ERROR: Docker provenance/SBOM attestations are not verified")
           (source_dir / "sbom_digest.txt").write_text(
               f"sha256:{hashlib.sha256(sbom.read_bytes()).hexdigest()}\n",
               encoding="utf-8",
           )
-
-          metadata = ${{ toJSON(steps.docker-build-push.outputs.metadata) }}
-          metadata_path = source_dir / "docker_build_metadata.json"
-          metadata_path.write_text(
-              json.dumps(json.loads(metadata), sort_keys=True, separators=(",", ":")) + "\n",
-              encoding="utf-8",
-          )
           (source_dir / "provenance_digest.txt").write_text(
-              f"sha256:{hashlib.sha256(metadata_path.read_bytes()).hexdigest()}\n",
+              f"sha256:{hashlib.sha256(attestation.read_bytes()).hexdigest()}\n",
               encoding="utf-8",
           )
           (source_dir / "attestation_status.txt").write_text("VERIFIED\n", encoding="utf-8")
@@ -486,12 +512,11 @@ jobs:
         with:
           name: release-control-plane-build-sources
           path: |
-            release-control-plane-build-sources/review_artifact_digest.txt
-            release-control-plane-build-sources/production_candidate_artifact_digest.txt
             release-control-plane-build-sources/sbom_digest.txt
             release-control-plane-build-sources/provenance_digest.txt
             release-control-plane-build-sources/attestation_status.txt
-            release-control-plane-build-sources/docker_build_metadata.json
+            docker-provenance-attestation-check.json
+            docker-provenance-attestation-check.md
           if-no-files-found: error
           retention-days: 14
 

@@ -96,18 +96,18 @@ Do not run production publication or set production CD evidence variables from
 ad hoc workflow runs, fixture artifacts, manually assembled JSON, or
 operator-supplied workflow names.
 
-`Build Equivalence Evidence` also requires governed source objects for the App
-Review and production-candidate artifact digest text files:
-`review_artifact_digest.txt` and `production_candidate_artifact_digest.txt`.
-Those source runs must be successful `workflow_dispatch` runs for the same
-`git_sha` before the workflow will generate build identity JSON. Raw digest
-strings alone are not enough to publish build-equivalence evidence.
+`Build Equivalence Evidence` keeps the App Review and production-candidate
+artifact digests as explicit protected dispatch inputs. This PR does not add
+App Store Connect upload execution, Fastlane upload mutation, or an App Review
+binary artifact producer, so the Docker build workflow must not self-certify
+those App Store build identities.
 
 `Release Manifest Evidence` requires governed source objects for supply-chain
 identity as well: `sbom_digest.txt`, `provenance_digest.txt`, and
 `attestation_status.txt`. The existing `Docker Build and Push` workflow publishes
 these files in the `release-control-plane-build-sources` artifact from its
-non-PR publish job. The manifest producer compares those same-SHA source files
+non-PR publish job only after exact-digest provenance/SBOM attestation
+verification passes. The manifest producer compares those same-SHA source files
 against the explicit dispatch inputs before writing `release_manifest.json`.
 
 If a governed source producer is missing, do not run production publication or

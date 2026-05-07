@@ -309,14 +309,14 @@ must be `workflow_dispatch` only, validate source run provenance and matching
 paths (`release_manifest.json` and `build_equivalence_result.json`), and avoid
 App Store Connect execution, Fastlane upload mutation, runtime/API/iOS, RAG
 behavior, billing, semantic cache, GraphRAG, or product-facing behavior.
-Build-equivalence publication also requires governed same-SHA digest source
-objects for `review_artifact_digest.txt` and
-`production_candidate_artifact_digest.txt`; digest strings alone are not
-sufficient release evidence.
+Build-equivalence publication keeps App Review and production-candidate
+artifact digests as explicit protected dispatch inputs; this slice must not
+self-certify those App Store build identities from Docker image digests.
 Release-manifest publication similarly requires governed same-SHA supply-chain
 source objects for `sbom_digest.txt`, `provenance_digest.txt`, and
 `attestation_status.txt`, emitted by the `Docker Build and Push` publish lane in
-the `release-control-plane-build-sources` artifact.
+the `release-control-plane-build-sources` artifact only after exact-digest
+provenance/SBOM attestation verification passes.
 
 ## Bootstrap Commands
 

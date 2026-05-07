@@ -305,15 +305,22 @@ def test_docker_build_workflow_emits_governed_release_control_plane_sources() ->
     )
 
     assert "id: docker-build-push" in workflow_text
+    assert "Attest Docker image provenance" in workflow_text
+    assert "Attest Docker image SBOM" in workflow_text
+    assert "Verify Docker image attestations" in workflow_text
+    assert "scripts/ci/check_docker_provenance_attestation.py" in workflow_text
+    assert "docker-provenance-attestation-check.json" in workflow_text
     assert "Prepare release-control-plane build digest sources" in workflow_text
     for path in (
-        "review_artifact_digest.txt",
-        "production_candidate_artifact_digest.txt",
         "sbom_digest.txt",
         "provenance_digest.txt",
         "attestation_status.txt",
     ):
         assert path in workflow_text
         assert path in upload_step["with"]["path"]
+    assert "review_artifact_digest.txt" not in upload_step["with"]["path"]
+    assert "production_candidate_artifact_digest.txt" not in upload_step["with"]["path"]
+    assert 'write_text("VERIFIED\\n", encoding="utf-8")' in workflow_text
+    assert 'attestation_payload.get("passed") is not True' in workflow_text
     assert upload_step["with"]["name"] == "release-control-plane-build-sources"
     assert upload_step["with"]["if-no-files-found"] == "error"

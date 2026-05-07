@@ -109,9 +109,7 @@ def test_workflow_permissions_environment_and_inputs_are_bounded() -> None:
         "git_sha",
         "release_manifest_source",
         "review_artifact_digest",
-        "review_artifact_digest_source",
         "production_candidate_artifact_digest",
-        "production_candidate_artifact_digest_source",
         "evidence_artifact_name",
     }
 
@@ -120,11 +118,6 @@ def test_workflow_permissions_environment_and_inputs_are_bounded() -> None:
     assert "run_id" in inputs["release_manifest_source"]["description"]
     assert "artifact_name" in inputs["release_manifest_source"]["description"]
     assert "path" in inputs["release_manifest_source"]["description"]
-    assert "review_artifact_digest.txt" in inputs["review_artifact_digest_source"]["description"]
-    assert (
-        "production_candidate_artifact_digest.txt"
-        in inputs["production_candidate_artifact_digest_source"]["description"]
-    )
     assert workflow["permissions"] == {"actions": "read", "contents": "read"}
     assert _job(workflow)["environment"]["name"] == "release-evidence"
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -146,25 +139,22 @@ def test_workflow_validates_release_manifest_source_run_and_git_sha() -> None:
     assert '[ "$run_conclusion" != "success" ]' in script
     assert '[ "$run_event" != "workflow_dispatch" ]' in script
     assert '"Release Manifest Evidence" ".github/workflows/release-manifest-evidence.yml"' in script
-    assert '"Docker Build and Push" ".github/workflows/build.yml"' in script
     assert "source run head SHA does not match git_sha" in script
     assert "Build Equivalence Evidence workflow ref must match git_sha" in script
 
 
-def test_workflow_requires_governed_digest_sources_before_identity_generation() -> None:
+def test_workflow_keeps_review_and_production_candidate_digests_explicit() -> None:
     script = _run_script()
-
-    assert "--label review_artifact_digest" in script
-    assert "--expected-path review_artifact_digest.txt" in script
-    assert "--label production_candidate_artifact_digest" in script
-    assert "--expected-path production_candidate_artifact_digest.txt" in script
-    assert "fetch_digest_source" in script
-    assert "gh run download" in script
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
-    assert "review_artifact_digest_source" in workflow_text
-    assert "production_candidate_artifact_digest_source" in workflow_text
-    assert "governed digest source does not match explicit digest input" in script
-    assert "digest path escapes downloaded artifact" in script
+
+    assert "review_artifact_digest_source" not in workflow_text
+    assert "production_candidate_artifact_digest_source" not in workflow_text
+    assert "fetch_digest_source" not in script
+    assert "scripts/release/evidence_source.py oci-digest --label review_artifact_digest" in script
+    assert (
+        "scripts/release/evidence_source.py oci-digest --label production_candidate_artifact_digest"
+        in script
+    )
 
 
 def test_workflow_generates_identities_runs_equivalence_and_uploads_stable_path() -> None:
@@ -273,18 +263,8 @@ def test_workflow_has_no_app_store_fastlane_or_runtime_surface() -> None:
     assert "ci/release-control-plane-source-producers" in LEDGER_PATH.read_text(encoding="utf-8")
 
 
-def test_docker_build_workflow_produces_build_equivalence_digest_sources() -> None:
+def test_docker_build_workflow_does_not_self_certify_review_or_production_digests() -> None:
     workflow_text = BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
-    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
-    upload_step = next(
-        step
-        for step in workflow["jobs"]["publish"]["steps"]
-        if step.get("name") == "Upload release-control-plane build digest sources"
-    )
 
-    assert "id: docker-build-push" in workflow_text
-    assert "steps.docker-build-push.outputs.digest" in workflow_text
-    assert "review_artifact_digest.txt" in upload_step["with"]["path"]
-    assert "production_candidate_artifact_digest.txt" in upload_step["with"]["path"]
-    assert upload_step["with"]["name"] == "release-control-plane-build-sources"
-    assert upload_step["with"]["if-no-files-found"] == "error"
+    assert "review_artifact_digest.txt" not in workflow_text
+    assert "production_candidate_artifact_digest.txt" not in workflow_text
