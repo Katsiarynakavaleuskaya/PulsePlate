@@ -257,13 +257,9 @@ tokens-check:
 	$(MAKE) --no-print-directory tokens-build && \
 	(cd frontend && npm run tokens:check) && \
 	git diff -- $(TOKEN_PARITY_PATHS) > "$$after_diff" && \
-	diff -u "$$before_diff" "$$after_diff" && \
-	$(DEV_PYTHON) scripts/design_guard.py --manifest docs/design/figma-manifest.json && \
-	if [ -x .venv/bin/python ]; then \
-		. .venv/bin/activate && python -m pytest -q $(TOKEN_PARITY_TESTS); \
-	else \
-		python3 -m pytest -q $(TOKEN_PARITY_TESTS); \
-	fi
+		diff -u "$$before_diff" "$$after_diff" && \
+		$(DEV_PYTHON) scripts/design_guard.py --manifest docs/design/figma-manifest.json && \
+		$(DEV_PYTHON) -m pytest -q $(TOKEN_PARITY_TESTS)
 	@echo "$(GREEN)✅ Design token pipeline checks passed$(NC)"
 
 ## Print silhouette hashes + density ratios (initial lock/evidence)

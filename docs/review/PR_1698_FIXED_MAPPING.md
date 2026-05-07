@@ -145,17 +145,29 @@ Reason: Sourcery's hardcoded `--repo Katsiarynakavaleuskaya/PulsePlate` note is 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300022 -> b6b2e99e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300043 -> b6b2e99e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300055 -> b6b2e99e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243856781 -> b6b2e99e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201095429 -> f688a9ddd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243616423 -> f688a9ddd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201110701 -> f688a9ddd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
-Disposition: FIXED
+Summary: FIXED and NOT-A-BUG dispositions are recorded above.
 Evidence: `tests/test_design_agent_workflow_docs.py`, `.github/PULL_REQUEST_TEMPLATE/design.md`, base commit `e26e9cfe9`
 Reason: Actionable review comments were fixed in the commits mapped above; the dependency-security review item is satisfied by the rebased base commit noted above, and Sourcery high-level notes were dispositioned as NOT-A-BUG with evidence in the Review Thread Mapping section.
 
 ## Deferred / Follow-Ups
 
-- PR-8 GEPA-compatible prompt/rubric evolution lane remains separate.
-- App Store asset validation remains separate release/design asset guard lane.
-- Live capture lanes remain separate unless explicitly scoped.
+Disposition: DEFERRED
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
+Reason: PR-8 GEPA-compatible prompt/rubric evolution lane remains separate.
+
+Disposition: DEFERRED
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
+Reason: App Store asset validation remains separate release/design asset guard lane.
+
+Disposition: DEFERRED
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`
+Thread: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
+Reason: Live capture lanes remain separate unless explicitly scoped.

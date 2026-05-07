@@ -104,3 +104,6 @@ def test_design_make_targets_honor_dev_python_policy() -> None:
         "$(DEV_PYTHON) scripts/design_guard.py --manifest docs/design/figma-manifest.json" in text
     )
     assert "python3 scripts/design_guard.py --manifest docs/design/figma-manifest.json" not in text
+    assert "$(DEV_PYTHON) -m pytest -q $(TOKEN_PARITY_TESTS)" in text
+    assert "python3 -m pytest -q $(TOKEN_PARITY_TESTS)" not in text
+    assert "python -m pytest -q $(TOKEN_PARITY_TESTS)" not in text
