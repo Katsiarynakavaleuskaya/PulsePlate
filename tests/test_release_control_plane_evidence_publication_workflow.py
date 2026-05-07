@@ -252,6 +252,8 @@ def test_ledger_and_epic_record_followup_without_closing_release_readiness() -> 
 
 
 def test_existing_cd_gate_variable_contract_is_preserved() -> None:
+    assert CD_WORKFLOW_PATH.is_file()
+    assert CI_GATE_DOC_PATH.is_file()
     cd_workflow = CD_WORKFLOW_PATH.read_text(encoding="utf-8")
     ci_gate_docs = CI_GATE_DOC_PATH.read_text(encoding="utf-8")
 
