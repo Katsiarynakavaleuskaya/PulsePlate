@@ -24,42 +24,42 @@ Mapping is evidence after fix or decision, not a substitute for fixing docs/code
 ## Premortem Findings
 
 Disposition: FIXED
-Commit: `8a6c81690`
+Commit: 8a6c81690
 Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md`
 Reason: Added touched paths to the coordinator bootstrap route so scoped instructions are deterministic.
 
 Disposition: FIXED
-Commit: `8a6c81690`
+Commit: 8a6c81690
 Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
 Reason: Tightened full-local-verify wording so the workflow does not override root `AGENTS.md`; bounded checks are documented only as the operator-approved machine-heavy exception.
 
 Disposition: FIXED
-Commit: `735657434`
+Commit: 735657434
 Evidence: `tests/test_design_agent_workflow_docs.py`
 Reason: Fixed the docs guard test so it requires the safety phrase `Do not claim green main` without forbidding that same required phrase.
 
 Disposition: FIXED
-Commit: `8a6c81690`, `ccd48ad5d`
+Commit: 8a6c81690
 Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`
 Reason: Distinguished `/tokens` as token authoring truth from generated mirrors as derived runtime artifacts.
 
 Disposition: FIXED
-Commit: `ccd48ad5d`
+Commit: ccd48ad5d
 Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`
 Reason: Changed PR-body mirror heading to `### Fixed in Commit Mapping` to match repo governance.
 
 Disposition: FIXED
-Commit: `735657434`
+Commit: 735657434
 Evidence: `Makefile`, `tests/test_design_agent_workflow_docs.py`
 Reason: Made `design-guard` and `tokens-check` invoke `$(DEV_PYTHON)` for `scripts/design_guard.py`, then locked that policy with a docs/tooling guard test.
 
 Disposition: FIXED
-Commit: `366d7e204`
+Commit: 366d7e204
 Evidence: `Makefile`, `tests/test_design_agent_workflow_docs.py`
 Reason: Current-head QA and bug-hunter role passes found that `tokens-check` still used bare `python`/`python3` for token parity pytest. The target now runs `$(DEV_PYTHON) -m pytest -q $(TOKEN_PARITY_TESTS)`, and the docs guard locks that exact command.
 
 Disposition: FIXED
-Commit: `366d7e204`
+Commit: 366d7e204
 Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
 Reason: Current-head agent-coordinator, QA, security, frontend, and bug-hunter passes found stale post-rebase mapping, malformed FIXED proof, and missing DEFERRED metadata for the latest CodeRabbit thread. The mapping now reflects the current diff, removes stale dependency-diff claims, records the current-head bootstrap packet, and adds explicit DEFERRED evidence/thread metadata.
 
@@ -97,38 +97,38 @@ Reason: Required template sections, `.venv` policy, external-design authority bo
 ## Review Thread Mapping
 
 Disposition: FIXED
-Commit: `b6b2e99e3`
+Commit: b6b2e99e3
 Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `tests/test_design_agent_workflow_docs.py`
 Reason: CodeRabbit flagged generated-mirror wording as too absolute. Narrowed the policy to forbid manual edits while allowing explicitly scoped, tool-generated mirror diffs from `/tokens`, and updated the docs guard.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300022
 
 Disposition: FIXED
-Commit: `b6b2e99e3`
+Commit: b6b2e99e3
 Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
 Reason: CodeRabbit flagged post-merge wording that could skip required main-health inspection. Updated the workflow to sync `main`, inspect current-head health before starting the next PR, and still avoid full local `make verify` unless separately required.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300043
 
 Disposition: FIXED
-Commit: `b6b2e99e3`
+Commit: b6b2e99e3
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
 Reason: CodeRabbit flagged missing Design Intelligence DoD and incomplete PR-8 deferral tracking. Added PR-7 completion criteria and explicit PR-8 owner, priority, target PR, reason, link, and DoD.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300055
 
 Disposition: FIXED
-Commit: `f688a9ddd`
+Commit: f688a9ddd
 Evidence: `tests/test_design_agent_workflow_docs.py`
 Reason: Sourcery requested a positive assertion that repo-based truth is explicitly stated. Added required positive claims for repo code/docs/tests, `/tokens` as token authoring truth, and generated mirrors as derived runtime artifacts.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201095429 -> f688a9ddd
 
 Disposition: FIXED
-Commit: `f688a9ddd`
+Commit: f688a9ddd
 Evidence: `.github/PULL_REQUEST_TEMPLATE/design.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
 Reason: Cubic identified that Phase2 checklist labels had trailing periods. Removed the periods so CI recognizes the checked items exactly.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243616423 -> f688a9ddd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201110701 -> f688a9ddd
 
 Disposition: FIXED
-Commit: `e26e9cfe9`
+Commit: e26e9cfe9
 Evidence: `requirements.in`, `requirements-dev.in`, `requirements-ci-lite.in`, `requirements-docker-runtime.in`, `requirements-dev.txt`, `requirements-ci-lite.txt`, `requirements-docker-runtime.txt`, `requirements-lock.txt`, `scripts/ci/emergency_python_wheels.json`, `tests/fixtures/dependency_security_schema.json`, `tests/test_install_locked_python_requirements.py`
 Reason: Codex review identified that raising runtime pins alone left other install profiles able to downgrade back to stale vulnerable pins. Aligned all governed source/lock profiles, emergency wheel metadata, dependency security schema, and installer tests to the patched versions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
@@ -152,18 +152,33 @@ Reason: Sourcery's hardcoded `--repo Katsiarynakavaleuskaya/PulsePlate` note is 
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: b6b2e99e3
+Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `tests/test_design_agent_workflow_docs.py`
+Reason: Clarified generated-mirror policy, post-merge main-health wording, and ledger PR-8 deferral tracking.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300022 -> b6b2e99e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300043 -> b6b2e99e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300055 -> b6b2e99e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243856781 -> b6b2e99e3
+
+Disposition: FIXED
+Commit: f688a9ddd
+Evidence: `tests/test_design_agent_workflow_docs.py`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
+Reason: Added positive repo-truth assertions and normalized Phase2 checklist labels.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201095429 -> f688a9ddd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243616423 -> f688a9ddd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201110701 -> f688a9ddd
+
+Disposition: FIXED
+Commit: e26e9cfe9
+Evidence: `requirements-lock.txt`, `requirements.in`, `tests/test_install_locked_python_requirements.py`
+Reason: The dependency-security review item is satisfied by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
+
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `tests/test_design_agent_workflow_docs.py`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
+Reason: Sourcery high-level notes were dispositioned as NOT-A-BUG: duplicate template drift is bounded by the docs guard test, and hardcoded repo examples are intentional for this PulsePlate-governed workflow.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
-Summary: FIXED and NOT-A-BUG dispositions are recorded above.
-Evidence: `tests/test_design_agent_workflow_docs.py`, `.github/PULL_REQUEST_TEMPLATE/design.md`, base commit `e26e9cfe9`
-Reason: Actionable review comments were fixed in the commits mapped above; the dependency-security review item is satisfied by the rebased base commit noted above, and Sourcery high-level notes were dispositioned as NOT-A-BUG with evidence in the Review Thread Mapping section.
 
 ## Deferred / Follow-Ups
 
