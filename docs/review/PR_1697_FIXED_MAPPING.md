@@ -119,8 +119,8 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 - `4017a137d` separates PR #1697 review-disposition blocks so the strict
   disposition parser does not inherit FIXED commit proof across NOT-A-BUG
   entries.
-- Pending final commit bumps `mako` and `python-multipart` to patched versions
-  after pre-push `pip-audit` blocked the push on newly published advisories.
+- `1b1446f23` bumps `mako` and `python-multipart` to patched versions after
+  pre-push `pip-audit` blocked the push on newly published advisories.
 
 ## Pre-push checklist
 
