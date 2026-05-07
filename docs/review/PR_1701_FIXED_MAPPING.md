@@ -25,6 +25,11 @@ Disposition: FIXED
 Commit: 72fd7ae42
 Evidence: docs/review/PR_1701_PREMORTEM.md now cites concrete commit SHAs for premortem FIXED proof instead of the placeholder `follow-up governance commit in PR #1701`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#discussion_r3203450476 -> 83f0f69a7
+Disposition: FIXED
+Commit: 83f0f69a7
+Evidence: tests/test_render_codex_start_prompt.py now covers packet role-order fallback without native_subagent_bridge, including the missing optional secondary_agents path.
+
 ## Pre-Open And Post-Open Governance Findings
 
 Premortem and coordinator/role-agent findings are tracked in

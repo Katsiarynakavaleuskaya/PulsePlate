@@ -174,6 +174,18 @@ Evidence:
   non-object packet JSON (`[]`) and asserts the renderer fails closed without
   printing `Paste into Codex now:`.
 
+### P2: Packet fallback role-order coverage could fail diff coverage
+
+Disposition: FIXED
+Commit: `83f0f69a7`
+Evidence:
+
+- `tests/test_render_codex_start_prompt.py` now covers packet rendering without
+  `native_subagent_bridge`, using top-level `primary_agent`, `reviewer`, and
+  `secondary_agents`.
+- The same test file also covers the missing optional `secondary_agents` path so
+  `_as_string_list` handles non-list packet values under regression coverage.
+
 ### P2: Fixed mapping artifact used stale draft lifecycle wording
 
 Disposition: FIXED
