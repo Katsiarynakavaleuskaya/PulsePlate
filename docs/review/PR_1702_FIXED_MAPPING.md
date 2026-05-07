@@ -138,9 +138,12 @@ PR is selected.
 
 ## Discussion Thread Pass
 
-No review threads at PR open. Post-open packet
-`artifacts/orchestration/task_packets/491ff8345781.json` assigns
-`qa-engineer-agent -> bug-hunter`.
+No GitHub review threads at PR open. Post-open packet
+`artifacts/orchestration/task_packets/491ff8345781.json` assigned
+`qa-engineer-agent -> bug-hunter`. The first QA explorer did not return and was
+closed; replacement QA pass returned no actionable findings at
+`4baed94e8a2aa68a29cdd3991f87f56357866487`. Bug-hunter returned three
+actionable findings; all were fixed before mapping.
 
 ## Fixed In Commit Mapping
 
@@ -149,9 +152,9 @@ No review threads at PR open. Post-open packet
 - Post-open bug-hunter malformed hit audit event finding -> `2008d659e`
 - Post-open bug-hunter blocked-backend checker wording finding -> `2008d659e`
 - Post-open bug-hunter import guard wording/allowlist finding -> `2008d659e`
+- Replacement QA no-actionable pass -> `4baed94e8`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires current-head CI, strict merge wrapper, post-open
-QA/bug-hunter pass, review-thread disposition, and bot review pass with no
-actionables.
+Not merge-ready yet. Requires current-head CI, strict merge wrapper,
+review-thread disposition, and bot review pass with no actionables.
