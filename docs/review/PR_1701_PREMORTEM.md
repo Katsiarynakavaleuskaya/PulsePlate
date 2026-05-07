@@ -196,6 +196,38 @@ Evidence:
   require closure before merge readiness or merge, matching PR #1701's
   ready-for-review lifecycle state.
 
+### P2: Packet bridge null role lists could crash prompt rendering
+
+Disposition: FIXED
+Commit: `b9895eb71425e6e534e0d63d477582022776653b`
+Evidence:
+
+- `scripts/orchestration/render_codex_start_prompt.py` now treats
+  `native_subagent_bridge.secondary: null` and
+  `native_subagent_bridge.advisory: null` as empty optional lists.
+- `tests/test_render_codex_start_prompt.py` covers a packet with both optional
+  bridge arrays set to null and asserts the prompt still renders
+  coordinator-first role order plus `<none>` advisory roles.
+
+### P3: Premortem skill-file regression test could report missing file as ERROR
+
+Disposition: FIXED
+Commit: `b9895eb71425e6e534e0d63d477582022776653b`
+Evidence:
+
+- `tests/test_render_codex_start_prompt.py` now catches `FileNotFoundError`
+  around `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md` and
+  reports a descriptive `pytest.fail(...)` message with the expected path.
+
+### P3: Fixed mapping evidence used short SHAs
+
+Disposition: FIXED
+Commit: `6270cb66bcfc4b440db09c0c88a4a08939c77cfd`
+Evidence:
+
+- `docs/review/PR_1701_FIXED_MAPPING.md` now uses 40-character commit SHAs for
+  existing FIXED mappings instead of short SHA aliases.
+
 ## Residual Risks
 
 - GitHub review bots can still add new findings after this artifact is written.

@@ -30,6 +30,26 @@ Disposition: FIXED
 Commit: 83f0f69a786954da1214633066fc698553645005
 Evidence: tests/test_render_codex_start_prompt.py now covers packet role-order fallback without native_subagent_bridge, including the missing optional secondary_agents path.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#pullrequestreview-4246264972 -> 83f0f69a786954da1214633066fc698553645005
+Disposition: FIXED
+Commit: 83f0f69a786954da1214633066fc698553645005
+Evidence: The CodeRabbit review summary repeated the fallback coverage finding; tests/test_render_codex_start_prompt.py now covers packet role-order fallback without native_subagent_bridge and without optional secondary_agents.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#discussion_r3203548639 -> b9895eb71425e6e534e0d63d477582022776653b
+Disposition: FIXED
+Commit: b9895eb71425e6e534e0d63d477582022776653b
+Evidence: scripts/orchestration/render_codex_start_prompt.py now iterates optional native bridge secondary/advisory lists through `bridge.get(...) or []`, and tests/test_render_codex_start_prompt.py covers packet bridge fields set to null.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#pullrequestreview-4246381746 -> b9895eb71425e6e534e0d63d477582022776653b
+Disposition: FIXED
+Commit: b9895eb71425e6e534e0d63d477582022776653b
+Evidence: The CodeRabbit review summary's null-iteration finding is fixed in scripts/orchestration/render_codex_start_prompt.py and covered by tests/test_render_codex_start_prompt.py; its full-SHA consistency nit was fixed in 6270cb66bcfc4b440db09c0c88a4a08939c77cfd.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#pullrequestreview-4246437320 -> b9895eb71425e6e534e0d63d477582022776653b
+Disposition: FIXED
+Commit: b9895eb71425e6e534e0d63d477582022776653b
+Evidence: tests/test_render_codex_start_prompt.py now catches FileNotFoundError around the premortem SKILL.md read and reports it with pytest.fail and the expected path.
+
 ## Pre-Open And Post-Open Governance Findings
 
 Premortem and coordinator/role-agent findings are tracked in
