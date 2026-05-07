@@ -105,7 +105,8 @@ changes.
 | PR-4 | `release/release-control-plane-pr4-build-equivalence` | Merged review build equals production-candidate equivalence check in PR #1679 | equivalence tests |
 | PR-5 | `release/release-control-plane-pr5-ci-gates` | Merged CI integration for release packet, gate result, build equivalence, SBOM/provenance references, and fail-closed decision in PR #1682 | focused CI/workflow contract tests |
 | PR-6 | `release/release-control-plane-pr6-production-artifact-wiring` | Merged production tag wiring for real release-control-plane evidence artifacts in PR #1688 | production workflow contract tests |
-| Post-#1692 | `ci/release-control-plane-evidence-publication` | Active governed manual publication workflow for the production evidence artifact required by CD | evidence publication workflow contract tests |
+| Post-#1692 | `ci/release-control-plane-evidence-publication` | Merged governed manual publication workflow for the production evidence artifact required by CD in PR #1699 | evidence publication workflow contract tests |
+| Post-#1699 | `ci/release-control-plane-source-producers` | Active governed source producers for `Release Manifest Evidence` and `Build Equivalence Evidence` | source producer workflow contract tests |
 
 ## Release Packet Contract
 
@@ -292,6 +293,31 @@ create release truth, use fixtures as production evidence, perform App Store
 Connect execution, mutate Fastlane protected upload behavior, or change
 runtime/API/iOS, RAG, billing, semantic cache, GraphRAG, or product-facing
 behavior.
+
+### Post-PR-1699 Governed Source Producers
+
+After PR #1699, the publisher has a governed manual publication lane but still
+needs repo-owned source producers for release manifest and build-equivalence
+evidence. The `ci/release-control-plane-source-producers` follow-up adds:
+
+- `Release Manifest Evidence` at `.github/workflows/release-manifest-evidence.yml`
+- `Build Equivalence Evidence` at `.github/workflows/build-equivalence-evidence.yml`
+
+`RAG Release Gates` remains the existing RAG/ML producer. The source producers
+must be `workflow_dispatch` only, validate source run provenance and matching
+`git_sha`, reject fixtures/placeholders/fallbacks, publish stable root artifact
+paths (`release_manifest.json` and `build_equivalence_result.json`), and avoid
+App Store Connect execution, Fastlane upload mutation, runtime/API/iOS, RAG
+behavior, billing, semantic cache, GraphRAG, or product-facing behavior.
+Build-equivalence publication keeps App Review and production-candidate
+artifact digests as explicit protected dispatch inputs; this slice must not
+self-certify those App Store build identities from Docker image digests.
+Release-manifest publication similarly requires one governed same-SHA
+supply-chain source object pointing to the `release-control-plane-build-sources`
+artifact root, emitted by the `Docker Build and Push` publish lane only after
+exact-digest provenance/SBOM attestation verification passes. That artifact must
+contain `sbom_digest.txt`, `provenance_digest.txt`, and
+`attestation_status.txt`.
 
 ## Bootstrap Commands
 

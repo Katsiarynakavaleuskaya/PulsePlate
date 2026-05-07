@@ -8,6 +8,8 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/release-control-plane-evidence.yml"
+RELEASE_MANIFEST_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/release-manifest-evidence.yml"
+BUILD_EQUIVALENCE_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/build-equivalence-evidence.yml"
 CD_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/cd.yml"
 DOC_PATH = REPO_ROOT / "docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md"
 CI_GATE_DOC_PATH = REPO_ROOT / "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md"
@@ -125,6 +127,14 @@ def test_workflow_downloads_governed_sources_and_publishes_canonical_layout() ->
         'build_equivalence_expected_workflow_path=".github/workflows/build-equivalence-evidence.yml"'
         in collect_script
     )
+    assert RELEASE_MANIFEST_WORKFLOW_PATH.is_file()
+    assert BUILD_EQUIVALENCE_WORKFLOW_PATH.is_file()
+    assert yaml.safe_load(RELEASE_MANIFEST_WORKFLOW_PATH.read_text(encoding="utf-8"))["name"] == (
+        "Release Manifest Evidence"
+    )
+    assert yaml.safe_load(BUILD_EQUIVALENCE_WORKFLOW_PATH.read_text(encoding="utf-8"))["name"] == (
+        "Build Equivalence Evidence"
+    )
     assert "scripts/ci/check_release_control_plane.py" in collect_script
 
     for canonical_path in (
@@ -223,7 +233,9 @@ def test_docs_define_publication_ceremony_and_virtualenv_policy() -> None:
         "do not run production publication or set production CD evidence variables"
         in docs.replace("\n", " ")
     )
-    assert "If no governed source workflow exists" in docs.replace("\n", " ")
+    assert "ad hoc workflow runs" in docs
+    assert "operator-supplied workflow names" in docs
+    assert "reserved" not in docs.lower()
     assert "release-control-plane/release_manifest.json" in docs
     assert "release-control-plane/rag_gate_result.json" in docs
     assert "release-control-plane/build_equivalence_result.json" in docs
@@ -244,7 +256,10 @@ def test_ledger_and_epic_record_followup_without_closing_release_readiness() -> 
     for content in (ledger, epic, task_packet):
         assert "ci/release-control-plane-evidence-publication" in content
         assert "PR #1692" in content
+        assert "ci/release-control-plane-source-producers" in content
 
+    assert "PR #1699 merged" in ledger
+    assert "active `ci/release-control-plane-source-producers`" in ledger
     assert "full App Store readiness is not complete" in ledger
     assert "train is not production-ready" in ledger
     assert "App Store Connect execution" in ledger

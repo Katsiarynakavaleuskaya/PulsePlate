@@ -85,12 +85,35 @@ Current repo-owned producer names:
 - RAG gate result: `RAG Release Gates`
 - build equivalence: `Build Equivalence Evidence`
 
-The current repo-defined producer that exists today is `RAG Release Gates`.
-`Release Manifest Evidence` and `Build Equivalence Evidence` are reserved
-fail-closed producer identities for the next governed producer-workflow PRs. If
-no governed source workflow exists for a required evidence type, do not run
-production publication or set production CD evidence variables; create the
-missing producer workflow in a separate reviewed PR first.
+The repo-defined producers are:
+
+- `Release Manifest Evidence` at `.github/workflows/release-manifest-evidence.yml`
+- `RAG Release Gates` at `.github/workflows/rag-release-gates.yml`
+- `Build Equivalence Evidence` at `.github/workflows/build-equivalence-evidence.yml`
+
+The publication workflow accepts only these governed source workflow identities.
+Do not run production publication or set production CD evidence variables from
+ad hoc workflow runs, fixture artifacts, manually assembled JSON, or
+operator-supplied workflow names.
+
+`Build Equivalence Evidence` keeps the App Review and production-candidate
+artifact digests as explicit protected dispatch inputs. This PR does not add
+App Store Connect upload execution, Fastlane upload mutation, or an App Review
+binary artifact producer, so the Docker build workflow must not self-certify
+those App Store build identities.
+
+`Release Manifest Evidence` requires one governed supply-chain source object
+that points to the `release-control-plane-build-sources` artifact root. The
+artifact must contain `sbom_digest.txt`, `provenance_digest.txt`, and
+`attestation_status.txt`. The existing `Docker Build and Push` workflow
+publishes these files from its non-PR publish job only after exact-digest
+provenance/SBOM attestation verification passes. The manifest producer compares
+those same-SHA source files against the explicit dispatch inputs before writing
+`release_manifest.json`.
+
+If a governed source producer is missing, do not run production publication or
+set production CD evidence variables; create the missing producer workflow in a
+separate reviewed PR first.
 
 The publication workflow itself must be dispatched on the release commit or ref:
 its workflow ref must match `git_sha`.
@@ -130,6 +153,8 @@ The publication workflow blocks when:
 - a source run was not triggered by `workflow_dispatch`;
 - a source run workflow name does not match the repo-owned expected producer
   workflow name for that evidence type;
+- a source run workflow path does not match the repo-owned expected producer
+  workflow path for that evidence type;
 - source run `headSha` does not match `git_sha`;
 - release manifest `build_identity.git_sha` does not match `git_sha`;
 - any evidence JSON contains a sentinel placeholder digest or hash such as a

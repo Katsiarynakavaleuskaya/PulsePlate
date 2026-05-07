@@ -445,10 +445,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Release automation control plane for C4, App Store Review, ML gates, and supply chain
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR-0 -> PR-1 -> PR-2 -> PR-3 (PR #1605) -> PR-4 (PR #1679) -> PR-5 (PR #1682) -> PR-6 (PR #1688) -> PR #1692 -> PR #1699 (`ci/release-control-plane-evidence-publication`)
+  - Target PR: PR-0 -> PR-1 -> PR-2 -> PR-3 (PR #1605) -> PR-4 (PR #1679) -> PR-5 (PR #1682) -> PR-6 (PR #1688) -> PR #1692 -> PR #1699 -> `ci/release-control-plane-source-producers`
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
-  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 merged in PR #1682 on 2026-05-06; PR-6 merged in PR #1688 on 2026-05-06; PR #1692 enforces the production tag path fail-closed against PR-6 real evidence wiring and intentionally blocks production tags until protected release evidence is supplied. Future protected artifact publication/upload automation and App Store Connect execution remain out of scope. The active `ci/release-control-plane-evidence-publication` follow-up adds the governed manual evidence-publication workflow that can publish that protected artifact layout. App Store Connect execution, Fastlane protected upload mutation, and final App Store readiness remain deferred and out of scope. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
+  - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 merged in PR #1682 on 2026-05-06; PR-6 merged in PR #1688 on 2026-05-06; PR #1692 enforces the production tag path fail-closed against PR-6 real evidence wiring and intentionally blocks production tags until protected release evidence is supplied. PR #1699 merged the governed manual evidence-publication workflow on 2026-05-07 (`ci/release-control-plane-evidence-publication`). The active `ci/release-control-plane-source-producers` follow-up adds the governed `workflow_dispatch` source producers for `Release Manifest Evidence` and `Build Equivalence Evidence` so the PR #1699 publisher no longer depends on ad hoc source runs. Future protected artifact publication/upload automation and App Store Connect execution for App Store release remains out of scope; App Store Connect execution, Fastlane protected upload mutation, and final App Store readiness remain deferred. The release-control-plane epic is not complete, full App Store readiness is not complete, and the train is not production-ready.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
@@ -464,7 +464,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md`
     - `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json`
     - `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md`
+    - `.github/workflows/release-control-plane-evidence.yml`
+    - `.github/workflows/release-manifest-evidence.yml`
+    - `.github/workflows/build-equivalence-evidence.yml`
     - `scripts/release/release_manifest.py`
+    - `scripts/release/build_identity.py`
     - `scripts/release/build_equivalence.py`
     - `scripts/ci/check_release_control_plane.py`
     - `docs/architecture/C4_RELEASE_CONTROL_PLANE_CONTEXT.md`
@@ -481,8 +485,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-5 integrates focused CI gates for manifest, ML gate result, build-equivalence result, SBOM/provenance references, and `ALLOW` / `BLOCK` decision. Completed by PR #1682.
     - PR-6 wires real production release evidence artifacts into the production tag workflow path, requiring release manifest, RAG gate result, build-equivalence result, and supply-chain identity evidence before production deploy can treat the release-control-plane gate as `ALLOW`. Completed by PR #1688.
     - PR #1692 closes the production gate bypass by preserving the PR-6 real-evidence wiring as the deploy dependency and documenting that missing protected evidence is a release stop, while protected artifact publication/upload automation and App Store Connect execution remain deferred follow-ups.
-    - The evidence-publication follow-up adds a manual governed workflow that downloads successful `workflow_dispatch` source artifacts for the same git SHA, normalizes them to the canonical `release-control-plane/` layout, validates them with `scripts/ci/check_release_control_plane.py`, and uploads the artifact operators point production CD at.
-    - Next release-control-plane producer-workflow follow-up must add governed `workflow_dispatch` source producers for `Release Manifest Evidence` and `Build Equivalence Evidence`; until then PR #1699's publisher remains fail-closed and production CD evidence variables must not be set from ad hoc source runs.
+    - The evidence-publication follow-up added a manual governed workflow that downloads successful `workflow_dispatch` source artifacts for the same git SHA, normalizes them to the canonical `release-control-plane/` layout, validates them with `scripts/ci/check_release_control_plane.py`, and uploads the artifact operators point production CD at. Completed by PR #1699.
+    - The active source-producer follow-up adds governed `workflow_dispatch` producers for `Release Manifest Evidence` and `Build Equivalence Evidence`; until it merges, PR #1699's publisher remains fail-closed and production CD evidence variables must not be set from ad hoc source runs.
 
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder

@@ -1,0 +1,227 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Build Equivalence Evidence
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_sha:
+        description: "Expected release git SHA for this governed build-equivalence evidence"
+        required: true
+        type: string
+      release_manifest_source:
+        description: "Single-line JSON with run_id, artifact_name, path for governed release_manifest.json"
+        required: true
+        type: string
+      review_artifact_digest:
+        description: "App Review build artifact digest in sha256:<64 lowercase hex> format"
+        required: true
+        type: string
+      production_candidate_artifact_digest:
+        description: "Production-candidate build artifact digest in sha256:<64 lowercase hex> format"
+        required: true
+        type: string
+      evidence_artifact_name:
+        description: "Published governed build equivalence evidence artifact name"
+        required: true
+        default: "build-equivalence-evidence"
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  publish-build-equivalence-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: release-evidence
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13"
+
+      - name: Generate governed build equivalence evidence
+        id: generate-build-equivalence-evidence
+        env:
+          EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
+          EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PRODUCTION_CANDIDATE_ARTIFACT_DIGEST: ${{ inputs.production_candidate_artifact_digest }}
+          RELEASE_MANIFEST_SOURCE: ${{ inputs.release_manifest_source }}
+          REVIEW_ARTIFACT_DIGEST: ${{ inputs.review_artifact_digest }}
+        run: |
+          set -euo pipefail
+
+          source_env="${RUNNER_TEMP}/build-equivalence-release-manifest-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label release_manifest \
+            --prefix RELEASE_MANIFEST \
+            --expected-path release_manifest.json \
+            --source-json "$RELEASE_MANIFEST_SOURCE" > "$source_env"
+          # shellcheck disable=SC1090
+          . "$source_env"
+          # shellcheck disable=SC2153
+          release_manifest_run_id="$RELEASE_MANIFEST_RUN_ID"
+          # shellcheck disable=SC2153
+          release_manifest_artifact_name="$RELEASE_MANIFEST_ARTIFACT_NAME"
+          # shellcheck disable=SC2153
+          release_manifest_source_path="$RELEASE_MANIFEST_PATH"
+
+          EVIDENCE_ARTIFACT_NAME="$(python scripts/release/evidence_source.py artifact-name "$EVIDENCE_ARTIFACT_NAME")"
+          expected_git_sha_lc="$(python scripts/release/evidence_source.py git-sha "$EXPECTED_GIT_SHA")"
+          github_sha_lc="$(printf '%s' "$GITHUB_SHA" | tr 'A-F' 'a-f')"
+          if [ "$github_sha_lc" != "$expected_git_sha_lc" ]; then
+            echo "ERROR: Build Equivalence Evidence workflow ref must match git_sha"
+            echo "workflow GITHUB_SHA=${GITHUB_SHA}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+          REVIEW_ARTIFACT_DIGEST="$(python scripts/release/evidence_source.py oci-digest --label review_artifact_digest "$REVIEW_ARTIFACT_DIGEST")"
+          PRODUCTION_CANDIDATE_ARTIFACT_DIGEST="$(python scripts/release/evidence_source.py oci-digest --label production_candidate_artifact_digest "$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST")"
+
+          validate_source_run() {
+            label="$1"
+            run_id="$2"
+            expected_workflow_name="$3"
+            expected_workflow_path="$4"
+            run_metadata="$(
+              gh run view "$run_id" \
+                --json status,conclusion,headSha,event,workflowName,url \
+                --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+            )"
+            IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+            run_workflow_path="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.path')"
+            if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
+              echo "ERROR: ${label} source run did not complete successfully"
+              echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_event" != "workflow_dispatch" ]; then
+              echo "ERROR: ${label} source run must be workflow_dispatch"
+              echo "event=${run_event:-unset} url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_workflow_name" != "$expected_workflow_name" ]; then
+              echo "ERROR: ${label} source workflow name must be ${expected_workflow_name}"
+              echo "workflow=${run_workflow_name:-unset}"
+              exit 1
+            fi
+            if [ "$run_workflow_path" != "$expected_workflow_path" ]; then
+              echo "ERROR: ${label} source workflow path must be ${expected_workflow_path}"
+              echo "workflow_path=${run_workflow_path:-unset}"
+              exit 1
+            fi
+            run_head_sha_lc="$(printf '%s' "$run_head_sha" | tr 'A-F' 'a-f')"
+            if [ "$run_head_sha_lc" != "$expected_git_sha_lc" ]; then
+              echo "ERROR: ${label} source run head SHA does not match git_sha"
+              echo "run headSha=${run_head_sha:-unset}"
+              echo "git_sha=${EXPECTED_GIT_SHA}"
+              exit 1
+            fi
+          }
+
+          validate_source_run "release manifest" "$release_manifest_run_id" \
+            "Release Manifest Evidence" ".github/workflows/release-manifest-evidence.yml"
+
+          download_dir="${RUNNER_TEMP}/build-equivalence-release-manifest-source"
+          output_dir="${RUNNER_TEMP}/build-equivalence-evidence"
+          identities_dir="${RUNNER_TEMP}/build-equivalence-identities"
+          mkdir -p "$download_dir" "$output_dir" "$identities_dir"
+          gh run download "$release_manifest_run_id" --name "$release_manifest_artifact_name" --dir "$download_dir"
+          release_manifest_path="${download_dir}/${release_manifest_source_path}"
+          if [ ! -f "$release_manifest_path" ]; then
+            echo "ERROR: Missing governed release_manifest.json at ${release_manifest_source_path}"
+            exit 1
+          fi
+          resolved_download_dir="$(cd "$download_dir" && pwd -P)"
+          resolved_manifest_path="$(python - "$release_manifest_path" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).resolve())
+          PY
+          )"
+          case "$resolved_manifest_path" in
+            "$resolved_download_dir"/*) ;;
+            *) echo "ERROR: release_manifest path escapes downloaded artifact"; exit 1 ;;
+          esac
+          python -m json.tool "$release_manifest_path" > /dev/null
+          manifest_git_sha="$(
+            python - "$release_manifest_path" <<'PY'
+          import json
+          import sys
+          with open(sys.argv[1], encoding="utf-8") as handle:
+              payload = json.load(handle)
+          build_identity = payload.get("build_identity")
+          if not isinstance(build_identity, dict):
+              raise SystemExit("missing build_identity")
+          git_sha = build_identity.get("git_sha")
+          if not isinstance(git_sha, str) or not git_sha:
+              raise SystemExit("missing build_identity.git_sha")
+          print(git_sha)
+          PY
+          )"
+          manifest_git_sha_lc="$(printf '%s' "$manifest_git_sha" | tr 'A-F' 'a-f')"
+          if [ "$manifest_git_sha_lc" != "$expected_git_sha_lc" ]; then
+            echo "ERROR: release manifest build_identity.git_sha does not match git_sha"
+            echo "manifest git_sha=${manifest_git_sha}"
+            echo "git_sha=${EXPECTED_GIT_SHA}"
+            exit 1
+          fi
+
+          python scripts/release/release_manifest.py validate \
+            --manifest "$release_manifest_path"
+          python scripts/release/build_identity.py \
+            --release-manifest "$release_manifest_path" \
+            --artifact-digest "$REVIEW_ARTIFACT_DIGEST" \
+            --output "${identities_dir}/review_build_identity.json"
+          python scripts/release/build_identity.py \
+            --release-manifest "$release_manifest_path" \
+            --artifact-digest "$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST" \
+            --output "${identities_dir}/production_candidate_identity.json"
+          python scripts/release/build_equivalence.py \
+            --review-build "${identities_dir}/review_build_identity.json" \
+            --production-candidate "${identities_dir}/production_candidate_identity.json" \
+            --release-manifest "$release_manifest_path" \
+            --output "${output_dir}/build_equivalence_result.json"
+          python - "${output_dir}/build_equivalence_result.json" <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          if payload.get("decision") != "EQUIVALENT":
+              raise SystemExit("build_equivalence_result.decision must be EQUIVALENT")
+          PY
+
+          {
+            echo "BUILD_EQUIVALENCE_EVIDENCE_ARTIFACT_NAME=$EVIDENCE_ARTIFACT_NAME"
+            echo "BUILD_EQUIVALENCE_EVIDENCE_OUTPUT_DIR=$output_dir"
+          } >> "$GITHUB_ENV"
+          echo "artifact_name=$EVIDENCE_ARTIFACT_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: Publish build equivalence evidence summary
+        run: |
+          set -euo pipefail
+          {
+            echo "## Build Equivalence Evidence"
+            echo
+            echo "- Run id: \`${GITHUB_RUN_ID}\`"
+            echo "- Artifact name: \`${BUILD_EQUIVALENCE_EVIDENCE_ARTIFACT_NAME}\`"
+            echo "- Path inside artifact: \`build_equivalence_result.json\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload governed build equivalence evidence artifact
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ${{ steps.generate-build-equivalence-evidence.outputs.artifact_name }}
+          path: ${{ runner.temp }}/build-equivalence-evidence/build_equivalence_result.json
+          if-no-files-found: error
+          retention-days: 14
