@@ -73,10 +73,10 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
         reviewer = bridge.get("reviewer")
         if isinstance(reviewer, dict):
             role_order.extend(_as_string_list([reviewer.get("repo_agent_slug")]))
-        for secondary in bridge.get("secondary", []):
+        for secondary in bridge.get("secondary") or []:
             if isinstance(secondary, dict):
                 role_order.extend(_as_string_list([secondary.get("repo_agent_slug")]))
-        for advisory in bridge.get("advisory", []):
+        for advisory in bridge.get("advisory") or []:
             if isinstance(advisory, dict):
                 role_order.extend(_as_string_list([advisory.get("repo_agent_slug")]))
     if not role_order:
@@ -92,7 +92,7 @@ def _packet_advisory_roles(packet: dict[str, Any]) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
     advisory_roles: list[str] = []
     if isinstance(bridge, dict):
-        for advisory in bridge.get("advisory", []):
+        for advisory in bridge.get("advisory") or []:
             if isinstance(advisory, dict):
                 advisory_roles.extend(_as_string_list([advisory.get("repo_agent_slug")]))
     return _unique(advisory_roles)

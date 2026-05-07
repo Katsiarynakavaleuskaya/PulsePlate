@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from scripts.orchestration.render_codex_start_prompt import (
     main,
     render_packet_prompt,
@@ -90,6 +92,23 @@ def test_packet_prompt_fallback_role_order_without_secondary_agents() -> None:
     prompt = render_packet_prompt(packet, packet_path="packet.json")
 
     assert "Role order: agent-coordinator, qa-engineer-agent" in prompt
+
+
+def test_packet_prompt_tolerates_null_native_bridge_role_lists() -> None:
+    """Packet bridge optional role arrays can be null in hand-authored packets."""
+
+    packet = _packet()
+    packet["native_subagent_bridge"] = {
+        "primary": {"repo_agent_slug": "backend-engineer"},
+        "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+        "secondary": None,
+        "advisory": None,
+    }
+
+    prompt = render_packet_prompt(packet, packet_path="packet.json")
+
+    assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in prompt
+    assert "Advisory/no-spawn roles still require closure input: <none>" in prompt
 
 
 def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -> None:
@@ -247,9 +266,11 @@ def test_main_renders_packet_file(tmp_path: Path, capsys) -> None:
 def test_premortem_skill_says_advisory_findings_require_closure() -> None:
     """The premortem skill must not let agents drop findings as optional notes."""
 
-    skill_text = (
-        REPO_ROOT / "tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md"
-    ).read_text(encoding="utf-8")
+    skill_path = REPO_ROOT / "tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md"
+    try:
+        skill_text = skill_path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        pytest.fail(f"SKILL.md not found at {skill_path}; file may have been moved or deleted")
 
     assert "Advisory means this skill has no independent execution" in skill_text
     assert "It does **not** mean findings can be ignored." in skill_text
