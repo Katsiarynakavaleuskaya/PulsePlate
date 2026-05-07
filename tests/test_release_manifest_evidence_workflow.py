@@ -299,6 +299,7 @@ def test_release_manifest_source_validation_rejects_sample_test_paths_and_sha_mi
 def test_docker_build_workflow_emits_governed_release_control_plane_sources() -> None:
     workflow_text = BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
     workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    publish_job = workflow["jobs"]["publish"]
     publish_steps = workflow["jobs"]["publish"]["steps"]
     upload_step = next(
         step
@@ -306,6 +307,9 @@ def test_docker_build_workflow_emits_governed_release_control_plane_sources() ->
         if step.get("name") == "Upload release-control-plane build digest sources"
     )
 
+    assert "artifact-metadata" not in publish_job["permissions"]
+    assert publish_job["permissions"]["attestations"] == "write"
+    assert publish_job["permissions"]["id-token"] == "write"
     assert "id: docker-build-push" in workflow_text
     assert "Attest Docker image provenance" in workflow_text
     assert "Attest Docker image SBOM" in workflow_text
