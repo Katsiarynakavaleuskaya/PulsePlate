@@ -81,14 +81,14 @@ Disposition: FIXED
 Commit: 37b5f046e45caa2e7617441d228bfbe4810cc3cd
 Evidence: Release evidence publication job now has `timeout-minutes: 20`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201820243 -> ce9016c155e619b3640d861e4c0d17bb0440cb5d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201820243 -> ce9016c15b1181ceaf33c5668b469b5ea126ba6d
 Disposition: FIXED
-Commit: ce9016c155e619b3640d861e4c0d17bb0440cb5d
+Commit: ce9016c15b1181ceaf33c5668b469b5ea126ba6d
 Evidence: Shell and JSON payload guards now reject singular and terminal `test` / `tests` path segments.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244429141 -> ce9016c155e619b3640d861e4c0d17bb0440cb5d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244429141 -> ce9016c15b1181ceaf33c5668b469b5ea126ba6d
 Disposition: FIXED
-Commit: ce9016c155e619b3640d861e4c0d17bb0440cb5d
+Commit: ce9016c15b1181ceaf33c5668b469b5ea126ba6d
 Evidence: Cubic review finding is fixed by the path-segment guard and stable producer identity hardening.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244665763 -> 1bc94b45d12ee7e0b4449822c680c6ef75911cd3
@@ -331,10 +331,8 @@ Evidence:
 
 ### Cubic: reject singular `test/` evidence paths without broad `test` substring blocking
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201820243 -> 37b5f046e
-
-Disposition: FIXED
-Commit: `37b5f046e`
+Disposition: SUPERSEDED
+Superseded by: `ce9016c15`
 Evidence:
 
 - `.github/workflows/release-control-plane-evidence.yml:66` rejects exact
@@ -344,6 +342,9 @@ Evidence:
   asserts the broad `*[Tt][Ee][Ss][Tt]*` pattern stays absent.
 - `tests/test_release_control_plane_evidence_publication_workflow.py:141`
   asserts singular `test/` path segment patterns are covered.
+- The parseable FIXED mapping for the review URL lives only in the top
+  `Fixed in Commit Mapping` block and points at the final hardening commit
+  `ce9016c15`.
 
 ### Local focused regression check
 

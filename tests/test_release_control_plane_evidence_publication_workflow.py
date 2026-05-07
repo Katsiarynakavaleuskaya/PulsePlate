@@ -30,10 +30,11 @@ def _job(workflow: dict[str, Any]) -> dict[str, Any]:
 
 
 def _step_by_name(job: dict[str, Any], name: str) -> dict[str, Any]:
-    for step in job["steps"]:
-        if step.get("name") == name:
-            return step
-    raise AssertionError(f"Step {name!r} not found")
+    matching_steps = [step for step in job["steps"] if step.get("name") == name]
+    assert (
+        len(matching_steps) == 1
+    ), f"Expected exactly one step named {name!r}, found {len(matching_steps)}"
+    return matching_steps[0]
 
 
 def _collect_script(workflow: dict[str, Any]) -> str:
@@ -177,18 +178,18 @@ def test_workflow_has_no_app_store_or_fastlane_upload_surface() -> None:
     workflow_json = json.dumps(_load_workflow(), default=str)
 
     forbidden_terms = (
-        "APP_STORE",
-        "APPSTORE",
-        "ASC_",
-        "FASTLANE",
-        "MATCH_PASSWORD",
+        "app_store",
+        "appstore",
+        "asc_",
+        "fastlane",
+        "match_password",
         "upload_to_app_store",
         "app store connect",
     )
+    workflow_json_lc = workflow_json.lower()
 
     assert "secrets.GITHUB_TOKEN" in workflow_text
-    assert not any(term in workflow_json for term in forbidden_terms)
-    assert "fastlane" not in workflow_json.lower()
+    assert not any(term in workflow_json_lc for term in forbidden_terms)
 
 
 def test_workflow_summary_documents_run_id_and_artifact_name_handoff() -> None:
