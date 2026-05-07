@@ -130,8 +130,7 @@ Reason: Cubic identified that Phase2 checklist labels had trailing periods. Remo
 Disposition: FIXED
 Commit: e26e9cfe9
 Evidence: `requirements.in`, `requirements-dev.in`, `requirements-ci-lite.in`, `requirements-docker-runtime.in`, `requirements-dev.txt`, `requirements-ci-lite.txt`, `requirements-docker-runtime.txt`, `requirements-lock.txt`, `scripts/ci/emergency_python_wheels.json`, `tests/fixtures/dependency_security_schema.json`, `tests/test_install_locked_python_requirements.py`
-Reason: Codex review identified that raising runtime pins alone left other install profiles able to downgrade back to stale vulnerable pins. Aligned all governed source/lock profiles, emergency wheel metadata, dependency security schema, and installer tests to the patched versions.
-Exception: `e26e9cfe9` is a base commit that landed on `origin/main` before PR #1698's review comment was posted. The fix is real and inherited by rebase; this entry is retained for disposition completeness only.
+Reason: Codex review identified that raising runtime pins alone left other install profiles able to downgrade back to stale vulnerable pins. Aligned all governed source/lock profiles, emergency wheel metadata, dependency security schema, and installer tests to the patched versions. Exception: `e26e9cfe9` is a base commit that landed on `origin/main` before PR #1698's review comment was posted; the fix is real and inherited by rebase, so this entry is retained for disposition completeness only.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 
 Note: this dependency-security fix is now provided by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff.
@@ -173,8 +172,7 @@ Reason: Added positive repo-truth assertions and normalized Phase2 checklist lab
 Disposition: FIXED
 Commit: e26e9cfe9
 Evidence: `requirements-lock.txt`, `requirements.in`, `tests/test_install_locked_python_requirements.py`
-Reason: The dependency-security review item is satisfied by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff.
-Exception: `e26e9cfe9` is a base commit that landed on `origin/main` before PR #1698's review comment was posted. The fix is real and inherited by rebase; this entry is retained for disposition completeness only.
+Reason: The dependency-security review item is satisfied by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff. Exception: `e26e9cfe9` is a base commit that landed on `origin/main` before PR #1698's review comment was posted; the fix is real and inherited by rebase, so this entry is retained for disposition completeness only.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 
 Disposition: NOT-A-BUG
