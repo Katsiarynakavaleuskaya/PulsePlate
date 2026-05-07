@@ -111,29 +111,43 @@ def _github_event_pull_request_base_sha() -> str:
     return sha if isinstance(sha, str) else ""
 
 
-def _docs_diff_base() -> str:
+def _docs_diff_base_candidates() -> tuple[str, ...]:
     configured = os.environ.get(DOCS_LEAKAGE_GUARD_BASE_ENV, "").strip()
     github_base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
-    candidates = [
-        configured,
-        _github_event_pull_request_base_sha(),
-        f"origin/{github_base_ref}" if github_base_ref else "",
-        github_base_ref,
-        "origin/main",
-        "main",
-        "HEAD~1",
-    ]
-
-    for candidate in candidates:
-        if candidate and _git_ref_exists(candidate):
-            return candidate
-
-    raise AssertionError("no usable git base ref for docs leakage guard")
+    return tuple(
+        candidate
+        for candidate in (
+            configured,
+            _github_event_pull_request_base_sha(),
+            f"origin/{github_base_ref}" if github_base_ref else "",
+            github_base_ref,
+            "origin/main",
+            "main",
+            "HEAD~1",
+        )
+        if candidate
+    )
 
 
 def _changed_docs_diff() -> str:
-    base_ref = _docs_diff_base()
-    result = subprocess.run(
+    candidates = [
+        candidate for candidate in _docs_diff_base_candidates() if _git_ref_exists(candidate)
+    ]
+    for base_ref in candidates:
+        result = _changed_docs_diff_from_base(base_ref)
+        if result.returncode == 0:
+            return result.stdout
+        _fetch_base_ref_for_shallow_checkout(base_ref)
+        result = _changed_docs_diff_from_base(base_ref)
+        if result.returncode == 0:
+            return result.stdout
+
+    attempted = ", ".join(candidates) or "<none>"
+    raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted}")
+
+
+def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
         [
             _binary("git"),
             "diff",
@@ -148,8 +162,16 @@ def _changed_docs_diff() -> str:
         cwd=REPO_ROOT,
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
-    return result.stdout
+
+def _fetch_base_ref_for_shallow_checkout(base_ref: str) -> None:
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", base_ref):
+        return
+    subprocess.run(
+        [_binary("git"), "fetch", "--no-tags", "--depth=1", "origin", base_ref],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
 
 
 def _make_print_compose_project_name(cwd: Path, env: dict[str, str]) -> str:
