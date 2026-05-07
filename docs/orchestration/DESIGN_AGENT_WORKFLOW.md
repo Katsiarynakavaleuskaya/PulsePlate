@@ -137,4 +137,5 @@ GH_TOKEN=$(gh auth token) GITHUB_TOKEN=$(gh auth token) \
   --require-auth
 ```
 
-After merge, only sync local `main` with fetch plus fast-forward merge and stop. Do not run final full main verification.
+After merge, sync local `main` with fetch plus fast-forward merge, then inspect current-head health for `main` before starting the next PR.
+Do not treat this as a requirement to run a full local `make verify` on `main` unless separately required by the lane.

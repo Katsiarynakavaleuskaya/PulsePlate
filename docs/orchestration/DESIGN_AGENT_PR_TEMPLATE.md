@@ -24,7 +24,7 @@ Explain why this design work matters for launch quality, trust, retention, reven
 
 - No broad redesign unless explicitly scoped.
 - No Figma/Canva writes unless explicitly scoped.
-- No generated token mirror edits.
+- No manual edits to generated token mirrors; generated mirror diffs are allowed only when produced by canonical tooling and explicitly scoped to reflect `/tokens` changes.
 - No backend/OpenAPI/product truth movement into clients.
 - No screenshots, videos, traces, or binary artifacts unless explicitly scoped.
 
@@ -75,7 +75,7 @@ Mapping is evidence after fix or decision; mapping is not the fix.
 
 ## Bug-hunter pass
 
-Confirm no second source of truth, no generated mirror edits, no runtime drift outside scope, no unsupported wellness claims, and no hidden binary artifacts.
+Confirm no second source of truth, no manual generated mirror edits, no runtime drift outside scope, no unsupported wellness claims, and no hidden binary artifacts.
 
 ## Deferred / Follow-ups
 
@@ -105,5 +105,5 @@ Describe how to revert this PR. Docs/template PRs should require no runtime roll
 - Workflow/template obligations satisfied.
 - Source-of-truth boundaries preserved.
 - Required bounded checks pass.
-- No generated mirror diff.
+- No manual generated mirror edits; any generated mirror diff is tool-produced from `/tokens` and explicitly scoped.
 - No runtime drift outside scope.

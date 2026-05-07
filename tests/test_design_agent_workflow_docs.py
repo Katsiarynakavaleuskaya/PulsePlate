@@ -63,7 +63,8 @@ def test_design_pr_templates_have_required_governance_sections() -> None:
         assert ".venv/bin/python" in text
         assert "DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python" in text
         assert "Mapping is evidence after fix or decision; mapping is not the fix." in text
-        assert "generated token mirror edits" in text
+        assert "No manual edits to generated token mirrors" in text
+        assert "generated mirror diffs are allowed only when produced by canonical tooling" in text
 
 
 def test_design_workflow_does_not_promote_external_design_truth() -> None:
