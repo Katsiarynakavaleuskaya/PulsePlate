@@ -163,6 +163,8 @@ def test_workflow_requires_governed_supply_chain_sources() -> None:
     assert "--label attestation_status" in script
     assert "--expected-path attestation_status.txt" in script
     assert "fetch_text_source" in script
+    assert "sources must come from the same Docker Build and Push run" in script
+    assert "sources must come from the same artifact" in script
     assert "governed ${label} source does not match explicit input" in script
     assert "governed attestation status source must be VERIFIED" in script
     assert "path escapes downloaded artifact" in script
