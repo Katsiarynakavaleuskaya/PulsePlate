@@ -602,8 +602,11 @@ def evaluate_false_hit_case(
     allowed = (
         candidate_hit and case.expected_action == EXPECTED_ACTION_SAFE_HIT and not blocking_reasons
     )
+    false_hit_blockers = tuple(
+        reason for reason in blocking_reasons if reason != REASON_KILL_SWITCH_DISABLED
+    )
     is_false_hit = candidate_hit and bool(
-        blocking_reasons or case.expected_action == EXPECTED_ACTION_FALLBACK
+        false_hit_blockers or case.expected_action == EXPECTED_ACTION_FALLBACK
     )
     if allowed:
         outcome_class = OUTCOME_SAFE_HIT

@@ -112,6 +112,7 @@
           "policy_mismatch_hit_count",
           "model_mismatch_hit_count",
           "context_leakage_hit_count",
+          "blocked_surface_hit_count",
           "eligible_hit_rate_bps",
           "served_hit_rate_bps",
           "false_hit_rate_bps",
@@ -126,7 +127,7 @@
           "produced_at"
         ]
       },
-      "minItems": 24,
+      "minItems": 25,
       "uniqueItems": true
     },
     "stop_rules": {

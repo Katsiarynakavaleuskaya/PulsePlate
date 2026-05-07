@@ -609,7 +609,8 @@ def test_kill_switch_snapshot_disables_hypothetical_serving() -> None:
     )
 
     assert evaluation.allowed is False
-    assert evaluation.is_false_hit is True
+    assert evaluation.is_false_hit is False
+    assert evaluation.outcome_class == "fallback"
     assert REASON_KILL_SWITCH_DISABLED in evaluation.blocking_reasons
 
 

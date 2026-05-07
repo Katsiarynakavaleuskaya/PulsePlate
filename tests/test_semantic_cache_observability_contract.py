@@ -106,7 +106,8 @@ def test_schema_required_keys_match_sc_g3_intent() -> None:
     assert schema["properties"]["scaffold_phase"]["const"] == "SC-G3"
     assert schema["properties"]["audit_event_fields"]["minItems"] == 22
     assert schema["properties"]["negative_controls"]["minItems"] == 7
-    assert schema["properties"]["required_metrics"]["minItems"] == 24
+    assert schema["properties"]["required_metrics"]["minItems"] == 25
+    assert "blocked_surface_hit_count" in schema["properties"]["required_metrics"]["items"]["enum"]
     assert schema["properties"]["stop_rules"]["minItems"] == 7
     assert "enum" in schema["properties"]["kill_switch_snapshot"]["items"]
 
