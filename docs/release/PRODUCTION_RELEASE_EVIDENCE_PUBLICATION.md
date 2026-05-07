@@ -128,7 +128,7 @@ The publication workflow blocks when:
 - evidence JSON is malformed;
 - the publication workflow ref does not match `git_sha`;
 - a source run was not triggered by `workflow_dispatch`;
-- a source run workflow name does not match the operator-provided expected
+- a source run workflow name does not match the repo-owned expected producer
   workflow name for that evidence type;
 - source run `headSha` does not match `git_sha`;
 - release manifest `build_identity.git_sha` does not match `git_sha`;

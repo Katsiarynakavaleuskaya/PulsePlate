@@ -25,14 +25,32 @@ the production tag gate. We are looking backward to understand why.
 ### P1: Source runs were not allowlisted
 
 Disposition: FIXED
-Commit: `bfb94e11a`
+Commit: `b264f752d`
 Evidence:
 
 - `.github/workflows/release-control-plane-evidence.yml` now validates each
-  source run against an approved producer workflow name before `gh run download`.
+  source run against repo-owned producer workflow names before
+  `gh run download`; source JSON that includes operator-supplied
+  `workflow_name` now fails closed.
 - `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
   the per-source allowlist entries for release manifest, RAG gate result, and
   build-equivalence evidence.
+
+### P1: Publication could imply missing producer workflows already exist
+
+Disposition: FIXED
+Commit: `b264f752d`
+Evidence:
+
+- `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` now records
+  `Release Manifest Evidence` and `Build Equivalence Evidence` as reserved
+  fail-closed producer identities and explicitly says production publication or
+  production CD evidence variable setup must not run until the missing producer
+  workflows land in a separate reviewed PR.
+- `docs/roadmap/BACKLOG_LEDGER.md` records the producer-workflow follow-up and
+  the fail-closed stop on ad hoc source runs.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  the reserved producer names and the no-variable-setup stop.
 
 ### P1: Publication workflow could print handoff variables from the wrong ref
 
@@ -74,9 +92,10 @@ Evidence:
 
 ## Residual Risks
 
-- Producer workflow names are intentionally strict. If the repo later renames
-  release manifest or build-equivalence producer workflows, this publisher will
-  fail closed until the allowlist and docs are updated in a reviewed PR.
+- Producer workflow names are intentionally strict and currently reserve
+  `Release Manifest Evidence` and `Build Equivalence Evidence` for future
+  producer-workflow PRs. Until those producers exist, the publisher fails closed
+  and production CD evidence variables must not be set from ad hoc source runs.
 - This PR does not create the release truth. It publishes governed artifacts
   that are still validated again by production CD.
 

@@ -482,6 +482,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-6 wires real production release evidence artifacts into the production tag workflow path, requiring release manifest, RAG gate result, build-equivalence result, and supply-chain identity evidence before production deploy can treat the release-control-plane gate as `ALLOW`. Completed by PR #1688.
     - PR #1692 closes the production gate bypass by preserving the PR-6 real-evidence wiring as the deploy dependency and documenting that missing protected evidence is a release stop, while protected artifact publication/upload automation and App Store Connect execution remain deferred follow-ups.
     - The evidence-publication follow-up adds a manual governed workflow that downloads successful `workflow_dispatch` source artifacts for the same git SHA, normalizes them to the canonical `release-control-plane/` layout, validates them with `scripts/ci/check_release_control_plane.py`, and uploads the artifact operators point production CD at.
+    - Next release-control-plane producer-workflow follow-up must add governed `workflow_dispatch` source producers for `Release Manifest Evidence` and `Build Equivalence Evidence`; until then PR #1699's publisher remains fail-closed and production CD evidence variables must not be set from ad hoc source runs.
 
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder

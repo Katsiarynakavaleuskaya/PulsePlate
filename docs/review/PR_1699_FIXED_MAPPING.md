@@ -21,10 +21,10 @@ mapping update before merge readiness.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> 3bcd02e97
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> b264f752d
 Disposition: FIXED
-Commit: 3bcd02e97
-Evidence: Workflow producer validation now accepts explicit source workflow names and compares them to GitHub run metadata before artifact download.
+Commit: b264f752d
+Evidence: Workflow producer validation now rejects operator-supplied `workflow_name` and compares GitHub run metadata against repo-owned producer workflow constants before artifact download.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116494 -> 98be97185
 Disposition: FIXED
@@ -116,23 +116,70 @@ Evidence:
 - `.secrets.baseline`
 - `PATH=.venv/bin:$PATH pre-commit run pip-audit --hook-stage pre-push --all-files` passed.
 
+## Second Agent / Security / Premortem Pass
+
+### Producer workflow name is self-attested by operator input
+
+Disposition: FIXED
+Commit: `b264f752d`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` rejects
+  source JSON containing `workflow_name`; the expected producer workflow names
+  are repo-owned constants: `Release Manifest Evidence`, `RAG Release Gates`,
+  and `Build Equivalence Evidence`.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  source input descriptions/defaults do not accept `workflow_name`, the
+  operator-provided `*_WORKFLOW_NAME` variables are absent, and repo-owned
+  producer constants are present.
+- `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` documents that
+  producer identity is not operator-supplied dispatch metadata.
+
+### Release-manifest and build-equivalence producer workflows are not present yet
+
+Disposition: FIXED
+Commit: `b264f752d`
+Evidence:
+
+- `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` records
+  `Release Manifest Evidence` and `Build Equivalence Evidence` as reserved
+  fail-closed producer identities for future producer-workflow PRs and says not
+  to run production publication or set production CD evidence variables until
+  those workflows exist.
+- `docs/roadmap/BACKLOG_LEDGER.md` records the producer-workflow follow-up and
+  blocks ad hoc source runs.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  the reserved producer names and no-variable-setup stop.
+
+### Ledger still recorded stale Mako floor
+
+Disposition: FIXED
+Commit: `b264f752d`
+Evidence:
+
+- `docs/roadmap/BACKLOG_LEDGER.md` now distinguishes the historical
+  `Mako 1.3.11` first-patched version from the current enforced floor
+  `Mako 1.3.12`, and its DoD uses `1.3.12` for governed surfaces, lock pins,
+  and dependency security schema evidence.
+
 ## Post-Open Review Threads
 
 ### Codex Review: include current evidence producers in the allowlist
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> 3bcd02e97
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201096560 -> b264f752d
 
 Disposition: FIXED
 Evidence:
 
-- `.github/workflows/release-control-plane-evidence.yml` now accepts explicit
-  `*_workflow_name` inputs and compares each source run `workflowName` against
-  the operator-provided expected producer before download.
+- `.github/workflows/release-control-plane-evidence.yml` now rejects
+  operator-supplied `workflow_name` and compares each source run `workflowName`
+  against repo-owned producer workflow constants before download.
 - `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` documents that RAG
   currently has a repo-defined producer while manifest/build-equivalence
-  producers must be supplied explicitly or added in a separate PR.
+  producer names are reserved fail-closed identities for separate producer
+  workflow PRs.
 - `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
-  the expected-producer input contract.
+  the repo-owned producer allowlist contract.
 
 ### Sourcery: normalize git SHA comparisons
 
@@ -220,7 +267,7 @@ Evidence:
 - `.github/workflows/release-control-plane-evidence.yml` now uses three JSON
   source inputs plus `git_sha` and `evidence_artifact_name`, keeping the manual
   workflow below GitHub's 10-input limit while preserving source run, artifact,
-  workflow name, path, and git SHA validation.
+  repo-owned workflow producer, path, and git SHA validation.
 - `docs/release/PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md` documents the JSON
   source object contract for operators.
 - `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
