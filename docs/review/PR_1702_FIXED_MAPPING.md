@@ -117,6 +117,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   diff-cover gaps with focused backend tests.
 - `1994b6503` - Resolve docs leakage guard base ref from GitHub PR event in
   CI shards without local base refs.
+- `aebaf00fa` - Fetch missing base SHA in shallow CI checkouts before docs
+  leakage diff evaluation.
 - `3949dd377` - Add missing blocked-surface metric schema requirement and
   classify kill-switch-disabled cases as fallback, not false hit.
 
@@ -208,9 +210,11 @@ Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_H
   `74895099360`: `bebb0089a`
 - Current-head CI docs leakage guard base-ref failure at run `25518898784`, job
   `74897945961`: `1994b6503`
+- Current-head CI shallow base object failure at run `25520086660`, job
+  `74901689252`: `aebaf00fa`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `1994b6503`,
+Not merge-ready yet. Requires the new current-head CI run after `aebaf00fa`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
