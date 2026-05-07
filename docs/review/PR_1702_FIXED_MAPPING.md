@@ -145,14 +145,22 @@ closed; replacement QA pass returned no actionable findings at
 `4baed94e8a2aa68a29cdd3991f87f56357866487`. Bug-hunter returned three
 actionable findings; all were fixed before mapping.
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 ## Fixed In Commit Mapping
 
-- PR open baseline -> `d0f9c3259`
-- Mapping artifact -> `2ae7177ff`
-- Post-open bug-hunter malformed hit audit event finding -> `2008d659e`
-- Post-open bug-hunter blocked-backend checker wording finding -> `2008d659e`
-- Post-open bug-hunter import guard wording/allowlist finding -> `2008d659e`
-- Replacement QA no-actionable pass -> `4baed94e8`
+- No actionable review comments
+
+## Post-Open Agent Mapping
+
+- PR open baseline: `d0f9c3259`
+- Mapping artifact: `2ae7177ff`
+- Post-open bug-hunter malformed hit audit event finding: `2008d659e`
+- Post-open bug-hunter blocked-backend checker wording finding: `2008d659e`
+- Post-open bug-hunter import guard wording/allowlist finding: `2008d659e`
+- Replacement QA no-actionable pass: `4baed94e8`
+- QA pass recorded in mapping: `84857ddf6`
 
 ## Merge Readiness
 
