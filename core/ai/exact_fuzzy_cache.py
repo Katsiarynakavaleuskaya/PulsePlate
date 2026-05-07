@@ -438,14 +438,22 @@ def match_exact_fuzzy_records(
         for record in candidate_records
         if _record_partition_matches(request=request, record=record)
     )
-    matches: list[tuple[int, int, str, str, ExactFuzzyCacheRecord, str]] = []
+    matches: list[tuple[int, int, str, str, int, ExactFuzzyCacheRecord, str]] = []
 
-    for record in partitioned:
+    for index, record in enumerate(partitioned):
         if record.normalization_version != NORMALIZATION_VERSION:
             continue
         if record.normalized_query == normalized_query:
             matches.append(
-                (0, -10000, record.normalized_query, record.record_id, record, MATCH_MODE_EXACT)
+                (
+                    0,
+                    -10000,
+                    record.normalized_query,
+                    record.record_id,
+                    index,
+                    record,
+                    MATCH_MODE_EXACT,
+                )
             )
             continue
         if record.token_sort_key == token_sort_key:
@@ -455,6 +463,7 @@ def match_exact_fuzzy_records(
                     -9900,
                     record.normalized_query,
                     record.record_id,
+                    index,
                     record,
                     MATCH_MODE_REORDERED_TOKENS,
                 )
@@ -474,6 +483,7 @@ def match_exact_fuzzy_records(
                     -near_score,
                     record.normalized_query,
                     record.record_id,
+                    index,
                     record,
                     MATCH_MODE_NEAR_DUPLICATE,
                 )
@@ -491,8 +501,8 @@ def match_exact_fuzzy_records(
 
     best = sorted(matches)[0]
     score_bps = -best[1]
-    record = best[4]
-    match_mode = best[5]
+    record = best[5]
+    match_mode = best[6]
     return ExactFuzzyCacheLookupResult(
         decision=MATCH_DECISION_HIT,
         matched_record_id=record.record_id,

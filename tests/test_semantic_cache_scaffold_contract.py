@@ -23,6 +23,7 @@ SCAFFOLD_SCHEMA = (
     REPO_ROOT / "docs" / "orchestration" / "contracts" / "EXACT_FUZZY_CACHE_SCAFFOLD.schema.json"
 )
 SCAFFOLD_MODULE = REPO_ROOT / "core" / "ai" / "exact_fuzzy_cache.py"
+CORE_AI_INIT = REPO_ROOT / "core" / "ai" / "__init__.py"
 
 
 def _normalize(text: str) -> str:
@@ -298,3 +299,10 @@ def test_checker_and_scaffold_have_no_forbidden_imports_or_nondeterministic_call
     for path in (CHECKER, DOCS_PHASE1, SCAFFOLD_MODULE):
         assert_no_forbidden_semantic_cache_imports(path)
         assert_no_forbidden_semantic_cache_calls(path)
+
+
+def test_core_ai_facade_does_not_eagerly_export_scaffold() -> None:
+    content = CORE_AI_INIT.read_text(encoding="utf-8")
+
+    assert "exact_fuzzy_cache" not in content
+    assert "ExactFuzzy" not in content

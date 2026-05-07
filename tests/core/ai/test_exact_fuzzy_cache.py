@@ -306,6 +306,20 @@ def test_deterministic_candidate_ordering_on_ties() -> None:
     assert result.matched_record_id == record_a.record_id
 
 
+def test_duplicate_equivalent_candidates_do_not_compare_record_objects() -> None:
+    record = _record("Plan protein breakfast")
+
+    result = match_exact_fuzzy_records(
+        request=_request("Plan protein breakfast"),
+        candidate_records=(record, record),
+        policy=_policy(),
+    )
+
+    assert result.decision == "hit"
+    assert result.matched_record_id == record.record_id
+    assert result.checked_record_count == 2
+
+
 def test_lineage_inputs_are_defensively_normalized_and_frozen() -> None:
     lineage = _lineage()
 
