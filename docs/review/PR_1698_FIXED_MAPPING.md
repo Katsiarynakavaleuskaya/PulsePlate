@@ -90,9 +90,33 @@ Reason: Required template sections, `.venv` policy, external-design authority bo
 
 ## Review Thread Mapping
 
-No external CodeRabbit, Sourcery, Cubic, or human review threads were mapped at PR open time.
+Disposition: FIXED
+Commit: `49bcf4bae`
+Evidence: `tests/test_design_agent_workflow_docs.py`
+Reason: Sourcery requested a positive assertion that repo-based truth is explicitly stated. Added required positive claims for repo code/docs/tests, `/tokens` as token authoring truth, and generated mirrors as derived runtime artifacts.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201095429 -> 49bcf4bae
 
-New actionable review comments must be added here with `FIXED`, `NOT-A-BUG`, or `DEFERRED` disposition before thread resolution.
+Disposition: FIXED
+Commit: `49bcf4bae`
+Evidence: `.github/PULL_REQUEST_TEMPLATE/design.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
+Reason: Cubic identified that Phase2 checklist labels had trailing periods. Removed the periods so CI recognizes the checked items exactly.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201110701 -> 49bcf4bae
+
+Disposition: FIXED
+Commit: `a1d6abe24`
+Evidence: `requirements.in`, `requirements-dev.in`, `requirements-ci-lite.in`, `requirements-docker-runtime.in`, `requirements-dev.txt`, `requirements-ci-lite.txt`, `requirements-docker-runtime.txt`, `requirements-lock.txt`, `scripts/ci/emergency_python_wheels.json`, `tests/fixtures/dependency_security_schema.json`, `tests/test_install_locked_python_requirements.py`
+Reason: Codex review identified that raising runtime pins alone left other install profiles able to downgrade back to stale vulnerable pins. Aligned all governed source/lock profiles, emergency wheel metadata, dependency security schema, and installer tests to the patched versions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> a1d6abe24
+
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `tests/test_design_agent_workflow_docs.py`
+Reason: Sourcery's high-level duplicate-template note is valid maintenance risk, but this PR intentionally ships both the docs template and GitHub multiple-template file. Drift is bounded by the new docs guard test, and adding a template generation/sync script is outside this PR-7 slice.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
+
+Disposition: NOT-A-BUG
+Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
+Reason: Sourcery's hardcoded `--repo Katsiarynakavaleuskaya/PulsePlate` note is not a bug for this repo-governed PulsePlate workflow; merge-readiness examples are intentionally concrete to the repository under review.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
 
 ## Discussion Thread Pass
 
@@ -101,7 +125,13 @@ New actionable review comments must be added here with `FIXED`, `NOT-A-BUG`, or 
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201095429 -> 49bcf4bae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201110701 -> 49bcf4bae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> a1d6abe24
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
+Disposition: FIXED
+Evidence: `tests/test_design_agent_workflow_docs.py`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `requirements-lock.txt`
+Reason: Actionable review comments were fixed in the commits mapped above; Sourcery high-level notes were dispositioned as NOT-A-BUG with evidence in the Review Thread Mapping section.
 
 ## Deferred / Follow-Ups
 
