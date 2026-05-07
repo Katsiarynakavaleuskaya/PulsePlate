@@ -33,6 +33,7 @@ PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
 LOCAL_USERS_PATH_PATTERN = re.compile(r"/Users/(?!\.\.\.)([^/\s`]+)(?:/|$)")
 DOCS_LEAKAGE_GUARD_BASE_ENV = "PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE"
+DOCS_LEAKAGE_GUARD_FETCH_DEPTH = "200"
 
 SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
     "requirements-rag-vector.in",
@@ -145,10 +146,6 @@ def _changed_docs_diff() -> str:
             if result.returncode == 0:
                 return result.stdout
 
-    fallback = _changed_docs_diff_from_head_commit()
-    if fallback.returncode == 0:
-        return fallback.stdout
-
     attempted_refs = ", ".join(attempted) or "<none>"
     raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted_refs}")
 
@@ -171,26 +168,6 @@ def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _changed_docs_diff_from_head_commit() -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
-        [
-            _binary("git"),
-            "diff-tree",
-            "--no-commit-id",
-            "--root",
-            "--unified=0",
-            "-r",
-            "HEAD",
-            "--",
-            "docs",
-            "docs/review",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-    )
-
-
 def _fetch_base_ref_for_shallow_checkout(base_ref: str) -> None:
     fetch_args: list[str]
     github_base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
@@ -199,7 +176,7 @@ def _fetch_base_ref_for_shallow_checkout(base_ref: str) -> None:
         fetch_args = [
             "fetch",
             "--no-tags",
-            "--depth=1",
+            f"--depth={DOCS_LEAKAGE_GUARD_FETCH_DEPTH}",
             "origin",
             f"{branch}:refs/remotes/origin/{branch}",
         ]
@@ -207,12 +184,18 @@ def _fetch_base_ref_for_shallow_checkout(base_ref: str) -> None:
         fetch_args = [
             "fetch",
             "--no-tags",
-            "--depth=1",
+            f"--depth={DOCS_LEAKAGE_GUARD_FETCH_DEPTH}",
             "origin",
             f"{github_base_ref}:refs/remotes/origin/{github_base_ref}",
         ]
     elif re.fullmatch(r"[0-9a-fA-F]{40}", base_ref):
-        fetch_args = ["fetch", "--no-tags", "--depth=1", "origin", base_ref]
+        fetch_args = [
+            "fetch",
+            "--no-tags",
+            f"--depth={DOCS_LEAKAGE_GUARD_FETCH_DEPTH}",
+            "origin",
+            base_ref,
+        ]
     else:
         return
     subprocess.run(
