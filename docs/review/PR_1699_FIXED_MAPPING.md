@@ -274,6 +274,104 @@ Evidence:
   the workflow input count stays at or below 10.
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` passed after the fix.
 
+## Post-Open Bot Review Pass After `832c65d30`
+
+### CodeRabbit: validate evidence artifact name before writing to GITHUB_ENV
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201814486 -> 37b5f046e
+
+Disposition: FIXED
+Commit: `37b5f046e`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml:73` adds
+  `reject_newline` for CR/LF rejection.
+- `.github/workflows/release-control-plane-evidence.yml:148` validates
+  `EVIDENCE_ARTIFACT_NAME` before it is appended to `$GITHUB_ENV`.
+- `tests/test_release_control_plane_evidence_publication_workflow.py:132`
+  asserts the single-line guard and evidence artifact name validation.
+
+### CodeRabbit: add a job timeout around governed artifact downloads
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244423490 -> 37b5f046e
+
+Disposition: FIXED
+Commit: `37b5f046e`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml:37` sets
+  `timeout-minutes: 20` on the release evidence publication job.
+- `tests/test_release_control_plane_evidence_publication_workflow.py:84`
+  asserts the timeout remains present.
+
+### Cubic: reject singular `test/` evidence paths without broad `test` substring blocking
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201820243 -> 37b5f046e
+
+Disposition: FIXED
+Commit: `37b5f046e`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml:66` rejects exact
+  `test`, `test/...`, and `.../test/...` path segments while preserving the
+  narrower guard that does not reject release words such as `attestation`.
+- `tests/test_release_control_plane_evidence_publication_workflow.py:140`
+  asserts the broad `*[Tt][Ee][Ss][Tt]*` pattern stays absent.
+- `tests/test_release_control_plane_evidence_publication_workflow.py:141`
+  asserts singular `test/` path segment patterns are covered.
+
+### Local focused regression check
+
+Disposition: FIXED
+Commit: `37b5f046e`
+Evidence:
+
+- `.venv/bin/python -m pytest -q tests/test_release_control_plane_evidence_publication_workflow.py` -> PASS.
+
+## Third Agent / Security / Premortem Pass
+
+### Stable producer identity must not rely only on workflow display name
+
+Disposition: FIXED
+Commit: `ce9016c15`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now fetches each source
+  run through the Actions REST API and validates its stable workflow file path
+  against repo-owned expected workflow paths.
+- `.github/workflows/release-control-plane-evidence.yml` still checks the
+  human-readable workflow name, but the path check prevents duplicate display
+  names from satisfying producer identity.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  the Actions API path lookup, the path mismatch error, and all expected
+  workflow file path constants.
+
+### Terminal `test` and `tests` path segments could bypass shell guard
+
+Disposition: FIXED
+Commit: `ce9016c15`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now rejects exact
+  terminal path segments such as `.../test` and `.../tests` in addition to
+  `test/...`, `tests/...`, and nested variants.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  terminal `test` and `tests` path segment patterns without reintroducing broad
+  `*test*` substring blocking.
+
+### Evidence JSON scanner missed generic `test/` and `tests/` payload paths
+
+Disposition: FIXED
+Commit: `ce9016c15`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now normalizes path
+  separators in evidence strings and rejects `(^|/)tests?(/|$)` path segments
+  inside downloaded JSON payloads before publishing.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
+  the normalized-path scanner and `test evidence path rejected` fail-closed
+  error.
+
 Any later actionable review comment must be added here with one of:
 
 - `FIXED`: commit SHA plus evidence.

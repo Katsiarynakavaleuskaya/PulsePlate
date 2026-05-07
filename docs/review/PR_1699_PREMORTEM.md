@@ -90,6 +90,39 @@ Evidence:
 - `PATH=.venv/bin:$PATH pre-commit run pip-audit --hook-stage pre-push --all-files`
   passed locally.
 
+### P2: Post-open workflow hardening findings could become false-green evidence
+
+Disposition: FIXED
+Commit: `37b5f046e`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now validates
+  `EVIDENCE_ARTIFACT_NAME` as single-line before writing to `$GITHUB_ENV`.
+- `.github/workflows/release-control-plane-evidence.yml` now sets
+  `timeout-minutes: 20` on the evidence publication job.
+- `.github/workflows/release-control-plane-evidence.yml` now rejects singular
+  `test` path segments without restoring the overly broad `*test*` pattern that
+  would reject legitimate release evidence terms such as `attestation`.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` covers the
+  single-line guard, job timeout, and singular `test/` rejection.
+
+### P2: Producer identity and test-path filtering still had narrow bypass shapes
+
+Disposition: FIXED
+Commit: `ce9016c15`
+Evidence:
+
+- `.github/workflows/release-control-plane-evidence.yml` now validates source
+  producer identity with both the workflow display name and the stable workflow
+  file path returned by the Actions API.
+- `.github/workflows/release-control-plane-evidence.yml` now rejects terminal
+  `test` and `tests` path segments in shell inputs.
+- `.github/workflows/release-control-plane-evidence.yml` now rejects generic
+  `test/` and `tests/` path segments inside evidence JSON payloads after
+  normalizing separators.
+- `tests/test_release_control_plane_evidence_publication_workflow.py` covers the
+  stable producer path allowlist and both shell/payload test-path guards.
+
 ## Residual Risks
 
 - Producer workflow names are intentionally strict and currently reserve
@@ -101,5 +134,6 @@ Evidence:
 
 ## Decision
 
-Proceed with changes. All P0/P1 premortem findings identified before PR open
-were fixed in code/docs/tests before this artifact was created.
+Proceed with changes. All P0/P1 premortem findings and the later post-open P2
+workflow hardening findings were fixed in code/docs/tests before mapping was
+updated.
