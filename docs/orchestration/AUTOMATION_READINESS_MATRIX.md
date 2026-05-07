@@ -65,8 +65,9 @@ Optional **repo companion** (operator-invoked only; not host auto-start):
 
 - `scripts/orchestration/start_pr_lane.sh` creates an isolated PR worktree, runs
   analyze preflight, invokes `task_bootstrap.py`, and prints a non-blocking
-  plugin/runtime checklist when the operator explicitly runs it.
-- `scripts/orchestration/local_session_bootstrap.sh` runs `check_preflight.py --mode analyze` and prints the next step to invoke `task_bootstrap.py` (see script output and `--help`).
+  plugin/runtime checklist plus a Codex-ready coordinator-start prompt when the
+  operator explicitly runs it.
+- `scripts/orchestration/local_session_bootstrap.sh` runs `check_preflight.py --mode analyze` and prints the next step to invoke `task_bootstrap.py` plus a Codex-ready prompt that states no authoritative packet has been generated yet (see script output and `--help`).
 
 This is the layer that can actually make coordinator-first bootstrap happen at
 session start on one machine.
@@ -90,7 +91,7 @@ unconditionally guaranteed by Markdown alone.
 | Capability | Repo policy | Repo engine | Local launcher needed | Host/runtime dependency | Current truth |
 |------------|-------------|-------------|------------------------|-------------------------|---------------|
 | Coordinator-first task handling | Yes | Partial | Usually yes | Yes | Policy-required, not guaranteed raw-session auto-start |
-| PR lane worktree + bootstrap start | Yes | Yes | No for manual invocation; yes for raw-session auto-start | Low | Repo wrapper-enforced once `start_pr_lane.sh` is invoked |
+| PR lane worktree + bootstrap start | Yes | Yes | No for manual invocation; yes for raw-session auto-start | Low | Repo wrapper-enforced once `start_pr_lane.sh` is invoked; Codex prompt is copy-paste guidance, not host auto-start |
 | Bootstrap task packet generation | Yes | Yes | No for manual invocation; yes for auto-start | Low | Deterministic once invoked |
 | Skill auto-selection | Yes | Yes | Yes for raw-session auto-start | Medium | Automatic after bootstrap, not at raw chat start |
 | Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
@@ -119,6 +120,8 @@ Current approved wording:
   auto-capture is unavailable.
 - PR lane worktree startup is **repo wrapper-enforced once invoked** through
   `scripts/orchestration/start_pr_lane.sh`; it is not raw-session auto-start.
+- The Codex start prompt printed by repo scripts is **copy-paste guidance** for
+  the active session; it does not execute by itself.
 - Bootstrap packet generation is **deterministic once invoked**.
 - Skill routing is **automatic after bootstrap**, not automatic at raw chat start.
 - Bug-hunter post-open pass is **deterministic once invoked** via
@@ -239,8 +242,8 @@ Out:
 
 Operator path today (repo companion, **not** a guarantee of raw-session auto-start):
 
-1. `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>" --path "<scope>"` from a clean checkout synced with `origin/main` — creates the isolated PR worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the plugin/runtime checklist plus packet summary.
-2. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe. Evidence: `scripts/orchestration/local_session_bootstrap.sh:145-147` runs analyze preflight and `scripts/orchestration/local_session_bootstrap.sh:154-166` renders the follow-up command without executing it. For flag-specific option handling, use the script's `--help` output.
+1. `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>" --path "<scope>"` from a clean checkout synced with `origin/main` — creates the isolated PR worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the plugin/runtime checklist, packet summary, and `Paste into Codex now` block.
+2. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe + Codex-ready next-step block. It does not execute `task_bootstrap.py` or create the authoritative packet. For flag-specific option handling, use the script's `--help` output.
 3. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
 
 In:

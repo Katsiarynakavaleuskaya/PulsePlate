@@ -69,6 +69,19 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     assert "--requested-agent qa-engineer-agent" in result.stdout
     automation_matrix_line = "Automation matrix: docs/orchestration/AUTOMATION_READINESS_MATRIX.md"
     assert automation_matrix_line in result.stdout
+    assert "Paste into Codex now:" in result.stdout
+    assert "STOP: do not edit or write code/docs" in result.stdout
+    assert "Start with agent-coordinator as the mandatory first role." in result.stdout
+    assert "only ran analyze preflight" in result.stdout
+    assert "did not run authoritative task_bootstrap.py" in result.stdout
+    assert "did not create a task packet" in result.stdout
+    assert "Path scope: scripts/orchestration/local_session_bootstrap.sh" in result.stdout
+    assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in result.stdout
+    assert "Skills are passive/discovery-only" in result.stdout
+    assert "Premortem closure rule: every premortem finding must be fixed" in result.stdout
+    assert "No finding may be ignored as advisory." in result.stdout
+    assert ". .venv/bin/activate" in result.stdout
+    assert "automatically start" not in result.stdout.lower()
 
 
 def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
@@ -106,6 +119,9 @@ def test_local_session_bootstrap_forwards_repeatable_flags_in_order(
     assert first_agent in command_block
     assert second_agent in command_block
     assert command_block.index(first_agent) < command_block.index(second_agent)
+    assert "Requested role order seed: agent-coordinator, qa-engineer-agent, bug-hunter" in (
+        command_block
+    )
 
 
 def test_local_session_bootstrap_requires_goal_and_task_class_together() -> None:

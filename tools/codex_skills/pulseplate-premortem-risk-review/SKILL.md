@@ -71,6 +71,25 @@ Do not use this skill for:
 2. Preserve the coordinator-declared role order. This skill is advisory and must not invent a parallel decision authority.
 3. Treat `recommended_skills` and `skill_routing` from the packet as additive context, not execution permission.
 
+## Finding closure contract
+
+Advisory means this skill has no independent execution, merge, or thread-resolution
+authority. It does **not** mean findings can be ignored.
+
+Every premortem finding produced for a PR-scoped lane must be closed before the
+lane claims readiness:
+
+- **FIXED:** change code, docs, tests, scripts, or governance artifacts in the PR
+  and cite the evidence in the PR body or review artifact.
+- **NOT-A-BUG:** coordinator records why the finding does not apply, with repo
+  evidence.
+- **DEFERRED:** coordinator records backlog tracking and the PR body names the
+  follow-up.
+
+Do not leave a finding unmentioned because the skill is passive. If a finding is
+not fixed or formally dispositioned, the premortem decision must be
+`proceed with changes`, `block until fixed`, or `split PR`, not `proceed`.
+
 ## Role order
 
 Use this default order unless the active packet declares a narrower compatible sequence:
@@ -238,6 +257,8 @@ Apply domain-specific checks based on what the plan touches:
 - Do not mark a risky PR merge-ready just because it is small.
 - Do not use broad scraping or external data collection.
 - This skill is advisory. It does not have execution authority.
+- Advisory findings still require closure through FIXED, NOT-A-BUG, or DEFERRED
+  disposition before PR readiness claims.
 
 ## SoT links
 

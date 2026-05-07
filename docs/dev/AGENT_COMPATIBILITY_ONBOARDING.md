@@ -12,6 +12,8 @@ Read these in order:
 4. the nearest scoped `AGENTS.md` for the files you touch
 5. for a new PR lane, run the repo-level starter:
    `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>"`
+   and paste its `Paste into Codex now` block into the Codex session before
+   implementation
 6. optional machine-local launcher (if installed on your host): see [`LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md) — **opt-in only**, not a global default
 7. coordinator bootstrap: `scripts/orchestration/check_preflight.py` then `scripts/orchestration/task_bootstrap.py` (or the printed recipe from `local_session_bootstrap.sh`)
 8. this guide for tool-specific setup notes
@@ -45,9 +47,9 @@ scripts/orchestration/start_pr_lane.sh \
 ```
 
 This creates the isolated worktree, runs analyze preflight, runs
-`task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist plus
-the bootstrap packet summary. It does not push, open a PR, or install host
-plugins.
+`task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist, the
+bootstrap packet summary, and a Codex-ready coordinator-start prompt. It does
+not push, open a PR, install host plugins, or auto-start a raw Codex session.
 
 Optional raw-session helper when you only need preflight plus a printed
 bootstrap recipe:
@@ -80,6 +82,10 @@ scripts/install_codex_skills.sh --no-cybersec
   `scripts/orchestration/start_pr_lane.sh`
 - Optional repo-root helper (preflight analyze + printed `task_bootstrap.py` recipe):
   `scripts/orchestration/local_session_bootstrap.sh`
+- Codex raw sessions are not the same as Cursor's init bridge: repo markdown,
+  docs, and skills do not execute themselves at session start. Use the
+  Codex-ready block printed by the repo starter or helper as the explicit
+  bridge into coordinator-first sequencing.
 - Host-only `~/.codex/config.toml` is outside repo SoT; optional template:
   [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml)
 - Skills stay passive/discovery-only. They do not auto-start coordinator bootstrap and must not change Cursor/custom orchestration behavior.

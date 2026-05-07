@@ -120,11 +120,15 @@ fi
 
 PREFLIGHT_PY="${REPO_ROOT}/scripts/orchestration/check_preflight.py"
 TASK_BOOTSTRAP_PY="${REPO_ROOT}/scripts/orchestration/task_bootstrap.py"
+RENDER_CODEX_PROMPT_PY="${REPO_ROOT}/scripts/orchestration/render_codex_start_prompt.py"
 if [[ ! -f "${PREFLIGHT_PY}" ]]; then
     die "missing ${PREFLIGHT_PY}"
 fi
 if [[ ! -f "${TASK_BOOTSTRAP_PY}" ]]; then
     die "missing ${TASK_BOOTSTRAP_PY}"
+fi
+if [[ ! -f "${RENDER_CODEX_PROMPT_PY}" ]]; then
+    die "missing ${RENDER_CODEX_PROMPT_PY}"
 fi
 
 GOAL=""
@@ -272,6 +276,23 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
         printf " %q %q" "${REQUESTED_ARGS[i]}" "${REQUESTED_ARGS[i + 1]}"
     done
     printf "\n"
+    echo ""
+    prompt_cmd=(
+        python3 scripts/orchestration/render_codex_start_prompt.py
+        recipe
+        --goal "${GOAL}"
+        --task-class "${TASK_CLASS}"
+        --pr-phase "${PR_PHASE}"
+        --branch "${BRANCH}"
+        --worktree "${WORKTREE_REL}"
+    )
+    if ((${#PATH_ARGS[@]})); then
+        prompt_cmd+=("${PATH_ARGS[@]}")
+    fi
+    if ((${#REQUESTED_ARGS[@]})); then
+        prompt_cmd+=("${REQUESTED_ARGS[@]}")
+    fi
+    "${prompt_cmd[@]}"
     exit 0
 fi
 
@@ -300,6 +321,15 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
     BOOTSTRAP_OUTPUT="$("${bootstrap_cmd[@]}")"
     echo "${BOOTSTRAP_OUTPUT}"
     echo ""
+    BOOTSTRAP_PACKET_PATH="$(
+        BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" python3 - <<'PY'
+import json
+import os
+
+payload = json.loads(os.environ["BOOTSTRAP_OUTPUT"])
+print(payload["output"])
+PY
+    )"
     BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" python3 - <<'PY'
 import json
 import os
@@ -313,6 +343,12 @@ print("  recommended_skills:")
 for skill in payload["recommended_skills"]:
     print(f"    - {skill}")
 PY
+    echo ""
+    python3 scripts/orchestration/render_codex_start_prompt.py \
+        packet \
+        --packet "${BOOTSTRAP_PACKET_PATH}" \
+        --branch "${BRANCH}" \
+        --worktree "${WORKTREE_REL}"
 )
 
 echo ""

@@ -116,6 +116,19 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "--requested-agent qa-engineer-agent" in result.stdout
     assert "Plugin/runtime checklist (operator-confirmed, non-blocking):" in result.stdout
     assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
+    assert "Paste into Codex now:" in result.stdout
+    assert "STOP: do not edit or write code/docs" in result.stdout
+    assert "Start with agent-coordinator as the mandatory first role." in result.stdout
+    assert "Branch: codex/example-pr-lane" in result.stdout
+    assert "Worktree: worktrees/example-pr-lane" in result.stdout
+    assert "Path scope: docs/dev/CODEX_SKILLS.md, scripts/orchestration/start_pr_lane.sh" in (
+        result.stdout
+    )
+    assert "Skills are passive/discovery-only" in result.stdout
+    assert "Premortem closure rule: every premortem finding must be fixed" in result.stdout
+    assert "No finding may be ignored as advisory." in result.stdout
+    assert ". .venv/bin/activate" in result.stdout
+    assert "automatically start" not in result.stdout.lower()
 
 
 def test_start_pr_lane_dry_run_uses_default_plugin_checklist() -> None:

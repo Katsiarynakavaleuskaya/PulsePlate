@@ -83,6 +83,11 @@ if [[ ! -f "${TASK_BOOTSTRAP_PY}" ]]; then
     echo "ERROR: missing ${TASK_BOOTSTRAP_PY}" >&2
     exit 1
 fi
+RENDER_CODEX_PROMPT_PY="${REPO_ROOT}/scripts/orchestration/render_codex_start_prompt.py"
+if [[ ! -f "${RENDER_CODEX_PROMPT_PY}" ]]; then
+    echo "ERROR: missing ${RENDER_CODEX_PROMPT_PY}" >&2
+    exit 1
+fi
 
 GOAL=""
 TASK_CLASS=""
@@ -177,3 +182,18 @@ fi
 echo ""
 echo "Full CLI: python3 scripts/orchestration/task_bootstrap.py --help"
 echo "Automation matrix: docs/orchestration/AUTOMATION_READINESS_MATRIX.md"
+echo ""
+prompt_cmd=(
+    python3 "${RENDER_CODEX_PROMPT_PY}"
+    recipe
+    --goal "${GOAL}"
+    --task-class "${TASK_CLASS}"
+    --pr-phase "${PR_PHASE}"
+)
+if ((${#PATH_ARGS[@]})); then
+    prompt_cmd+=("${PATH_ARGS[@]}")
+fi
+if ((${#REQUESTED_ARGS[@]})); then
+    prompt_cmd+=("${REQUESTED_ARGS[@]}")
+fi
+"${prompt_cmd[@]}"
