@@ -204,6 +204,12 @@ Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
 Reason: CodeRabbit requested explicit exception proof for the rebase-inherited base commit mapping. Added exception text to both `e26e9cfe9` entries.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201959554 -> 0fc1293c2
 
+Disposition: FIXED
+Commit: 0fc1293c2
+Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`, `tests/test_design_agent_workflow_docs.py`
+Reason: CodeRabbit review summary aggregated the two inline findings above. The bare-Python design guard finding was fixed by `56f0211f4`; the base-commit exception-proof finding was fixed by `0fc1293c2`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244584315 -> 0fc1293c2
+
 ## Deferred / Follow-Ups
 
 Disposition: DEFERRED
