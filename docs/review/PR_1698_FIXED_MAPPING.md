@@ -201,10 +201,10 @@ Reason: CodeRabbit requested a guard against bare `python scripts/design_guard.p
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201959561 -> 56f0211f4
 
 Disposition: FIXED
-Commit: a3563d0ec
+Commit: 0fc1293c2
 Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
 Reason: CodeRabbit requested explicit exception proof for the rebase-inherited base commit mapping. Added exception text to both `e26e9cfe9` entries.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201959554 -> a3563d0ec
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201959554 -> 0fc1293c2
 
 ## Deferred / Follow-Ups
 
