@@ -15,13 +15,15 @@ for fixes.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review comments were visible at the PR-open/post-open bootstrap
-pass. New review comments after this pass require a new mapping update before
-merge readiness.
+Post-open review comments were checked after the PR left draft. Actionable
+comments are mapped below with disposition evidence.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1701#discussion_r3203366433 -> 72fd7ae42
+Disposition: FIXED
+Commit: 72fd7ae42
+Evidence: docs/review/PR_1701_PREMORTEM.md now cites concrete commit SHAs for premortem FIXED proof instead of the placeholder `follow-up governance commit in PR #1701`.
 
 ## Pre-Open And Post-Open Governance Findings
 
