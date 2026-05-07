@@ -8,12 +8,15 @@ import json
 import re
 import shlex
 import sys
+from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any
 
 GIT_SHA_RE = re.compile(r"^[0-9a-fA-F]{40}$")
 OCI_SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SENTINEL_SHA_RE = re.compile(r"^sha256:([0-9a-f])\1{63}$")
+SENTINEL_HASH_RE = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
+FORBIDDEN_TEST_PATH_RE = re.compile(r"(^|/)tests?(/|$)")
 FORBIDDEN_TOKENS = (
     "/test/",
     "/tests/",
@@ -72,6 +75,55 @@ def validate_artifact_name(value: str, *, label: str = "artifact_name") -> str:
 
     _reject_text(value, label=label)
     return value
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise EvidenceSourceError(f"{path} must be readable JSON: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise EvidenceSourceError(f"{path} must contain a JSON object.")
+    return payload
+
+
+def _reject_payload_strings(value: Any, *, pointer: str) -> None:
+    if isinstance(value, dict):
+        for key, child in value.items():
+            _reject_payload_strings(child, pointer=f"{pointer}.{key}" if pointer else str(key))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_payload_strings(child, pointer=f"{pointer}[{index}]")
+    elif isinstance(value, str):
+        lowered = value.lower().replace("\\", "/")
+        if SENTINEL_HASH_RE.fullmatch(lowered):
+            raise EvidenceSourceError(f"sentinel placeholder digest/hash rejected at {pointer}")
+        if FORBIDDEN_TEST_PATH_RE.search(lowered):
+            raise EvidenceSourceError(f"test evidence path rejected at {pointer}")
+        if any(token in lowered for token in FORBIDDEN_TOKENS):
+            raise EvidenceSourceError(f"fixture/sample/fallback evidence rejected at {pointer}")
+
+
+def validate_rag_gate_result_file(path: Path, *, expected_git_sha: str) -> None:
+    """Validate a governed RAG gate result before manifest publication."""
+
+    payload = _load_json_object(path)
+    git_sha = payload.get("git_sha")
+    if not isinstance(git_sha, str) or not GIT_SHA_RE.fullmatch(git_sha):
+        raise EvidenceSourceError(
+            "rag_gate_result.git_sha must be a full 40-character hexadecimal SHA."
+        )
+    if git_sha.lower() != validate_git_sha(expected_git_sha):
+        raise EvidenceSourceError("rag_gate_result.git_sha must match git_sha.")
+    _reject_payload_strings(payload, pointer="rag_gate_result")
+    if payload.get("release_decision") != "PASS":
+        raise EvidenceSourceError("rag_gate_result.release_decision must be PASS.")
+    if payload.get("dataset_fallback_used") is not False:
+        raise EvidenceSourceError("rag_gate_result.dataset_fallback_used must be false.")
+    if payload.get("small_fixture_metric_gates_advisory") is not False:
+        raise EvidenceSourceError(
+            "rag_gate_result.small_fixture_metric_gates_advisory must be false."
+        )
 
 
 def validate_source_payload(
@@ -143,6 +195,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     artifact_name = subparsers.add_parser("artifact-name")
     artifact_name.add_argument("value")
+
+    rag_gate_result = subparsers.add_parser("rag-gate-result")
+    rag_gate_result.add_argument("--expected-git-sha", required=True)
+    rag_gate_result.add_argument("path", type=Path)
     return parser
 
 
@@ -164,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == "oci-digest":
             print(validate_oci_digest(args.value, label=args.label))
+            return 0
+        if args.command == "rag-gate-result":
+            validate_rag_gate_result_file(args.path, expected_git_sha=args.expected_git_sha)
             return 0
         print(validate_artifact_name(args.value))
         return 0

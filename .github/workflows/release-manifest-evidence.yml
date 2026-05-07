@@ -168,52 +168,15 @@ jobs:
             *) echo "ERROR: rag_gate_result path escapes downloaded artifact"; exit 1 ;;
           esac
           python -m json.tool "$rag_gate_result_path" > /dev/null
-          python - "$rag_gate_result_path" "$expected_git_sha_lc" <<'PY'
-          import json
-          import re
-          import sys
-          from pathlib import Path
-          from typing import Any
-
-          path = Path(sys.argv[1])
-          expected_git_sha = sys.argv[2]
-          payload = json.loads(path.read_text(encoding="utf-8"))
-          git_sha = payload.get("git_sha")
-          if not isinstance(git_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", git_sha):
-              raise SystemExit("rag_gate_result.git_sha must be a full 40-character hexadecimal SHA")
-          if git_sha.lower() != expected_git_sha:
-              raise SystemExit("rag_gate_result.git_sha must match git_sha")
-          sentinel_hash = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
-          forbidden = ("tests/fixtures", "fixture", "sample", "example", "placeholder", "fake", "fallback")
-
-          def walk(value: Any, pointer: str) -> None:
-              if isinstance(value, dict):
-                  for key, child in value.items():
-                      walk(child, f"{pointer}.{key}" if pointer else str(key))
-              elif isinstance(value, list):
-                  for index, child in enumerate(value):
-                      walk(child, f"{pointer}[{index}]")
-              elif isinstance(value, str):
-                  lowered = value.lower().replace("\\", "/")
-                  if sentinel_hash.fullmatch(lowered):
-                      raise SystemExit(f"sentinel placeholder digest/hash rejected at {pointer}")
-                  if any(token in lowered for token in forbidden):
-                      raise SystemExit(f"fixture/sample/fallback evidence rejected at {pointer}")
-
-          walk(payload, "rag_gate_result")
-          if payload.get("release_decision") != "PASS":
-              raise SystemExit("rag_gate_result.release_decision must be PASS")
-          if payload.get("dataset_fallback_used") is not False:
-              raise SystemExit("rag_gate_result.dataset_fallback_used must be false")
-          if payload.get("small_fixture_metric_gates_advisory") is not False:
-              raise SystemExit("rag_gate_result.small_fixture_metric_gates_advisory must be false")
-          PY
+          python scripts/release/evidence_source.py rag-gate-result \
+            --expected-git-sha "$expected_git_sha_lc" \
+            "$rag_gate_result_path"
 
           cp "$rag_gate_result_path" "${repo_source_dir}/rag_gate_result.json"
 
           python scripts/release/release_manifest.py generate \
             --repo-root "$GITHUB_WORKSPACE" \
-            --git-sha "$EXPECTED_GIT_SHA" \
+            --git-sha "$expected_git_sha_lc" \
             --ios-build-number "$IOS_BUILD_NUMBER" \
             --marketing-version "$MARKETING_VERSION" \
             --bundle-id "$BUNDLE_ID" \

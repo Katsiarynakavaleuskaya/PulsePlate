@@ -39,6 +39,10 @@ def _run_script() -> str:
     )
 
 
+def _helper_text() -> str:
+    return (REPO_ROOT / "scripts/release/evidence_source.py").read_text(encoding="utf-8")
+
+
 def _rag_payload(tmp_path: Path) -> Path:
     payload: dict[str, Any] = {
         "schema_version": release_manifest.RAG_GATE_SCHEMA_VERSION,
@@ -117,21 +121,27 @@ def test_workflow_validates_governed_rag_source_run_and_git_sha() -> None:
     assert '[ "$run_workflow_path" != ".github/workflows/rag-release-gates.yml" ]' in script
     assert "RAG source run head SHA does not match git_sha" in script
     assert "Release Manifest Evidence workflow ref must match git_sha" in script
-    assert "rag_gate_result.git_sha must match git_sha" in script
+    assert "scripts/release/evidence_source.py rag-gate-result" in script
+    assert "rag_gate_result.git_sha must match git_sha" in _helper_text()
     assert "scripts/release/evidence_source.py git-sha" in script
 
 
-def test_workflow_rejects_fixture_sample_fallback_and_requires_pass() -> None:
+def test_workflow_rejects_fixture_sample_test_fallback_and_requires_pass() -> None:
     script = _run_script()
 
+    helper = _helper_text()
+
     for token in ("fixture", "sample", "example", "placeholder", "fake", "fallback"):
-        assert token in script
-    assert "dataset_fallback_used must be false" in script
-    assert "small_fixture_metric_gates_advisory must be false" in script
-    assert "release_decision must be PASS" in script
+        assert token in helper
+    assert "FORBIDDEN_TEST_PATH_RE" in helper
+    assert "test evidence path rejected" in helper
+    assert "dataset_fallback_used must be false" in helper
+    assert "small_fixture_metric_gates_advisory must be false" in helper
+    assert "release_decision must be PASS" in helper
     assert "attestation_status must be VERIFIED" in script
     assert "rag_gate_result path escapes downloaded artifact" in script
     assert "Path(sys.argv[1]).resolve()" in script
+    assert "scripts/release/evidence_source.py rag-gate-result" in script
     assert "artifacts/release_control_plane_sources" in script
 
 
@@ -234,14 +244,28 @@ def test_evidence_source_helper_requires_full_sha_and_non_placeholder_digests() 
             evidence_source.validate_oci_digest(value, label="digest")
 
 
-def test_release_manifest_generation_rejects_sample_rag_fixture(tmp_path: Path) -> None:
+def test_release_manifest_source_validation_rejects_sample_test_paths_and_sha_mismatch(
+    tmp_path: Path,
+) -> None:
     rag_path = _rag_payload(tmp_path)
     rag_payload = json.loads(rag_path.read_text(encoding="utf-8"))
     rag_payload["source_artifacts"][0]["path"] = "data/evals/pulseplate_rag_eval_sample.jsonl"
     rag_path.write_text(json.dumps(rag_payload, sort_keys=True) + "\n", encoding="utf-8")
 
-    script = _run_script()
-    assert "data/evals/pulseplate_rag_eval_sample.jsonl" not in script
+    with pytest.raises(evidence_source.EvidenceSourceError):
+        evidence_source.validate_rag_gate_result_file(rag_path, expected_git_sha="a" * 40)
+
+    rag_payload["source_artifacts"][0]["path"] = "tests/evals/release.jsonl"
+    rag_path.write_text(json.dumps(rag_payload, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(evidence_source.EvidenceSourceError):
+        evidence_source.validate_rag_gate_result_file(rag_path, expected_git_sha="a" * 40)
+
+    rag_payload["source_artifacts"][0]["path"] = "data/evals/release.jsonl"
+    rag_payload["git_sha"] = "b" * 40
+    rag_path.write_text(json.dumps(rag_payload, sort_keys=True) + "\n", encoding="utf-8")
+    with pytest.raises(evidence_source.EvidenceSourceError):
+        evidence_source.validate_rag_gate_result_file(rag_path, expected_git_sha="a" * 40)
+
     rag_triggers = _workflow_on(_load_workflow(RAG_WORKFLOW_PATH))
     assert "workflow_dispatch" in rag_triggers
     assert "ci/release-control-plane-source-producers" in LEDGER_PATH.read_text(encoding="utf-8")

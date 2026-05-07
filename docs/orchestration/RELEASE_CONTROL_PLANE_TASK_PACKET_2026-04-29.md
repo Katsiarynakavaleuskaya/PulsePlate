@@ -309,6 +309,10 @@ must be `workflow_dispatch` only, validate source run provenance and matching
 paths (`release_manifest.json` and `build_equivalence_result.json`), and avoid
 App Store Connect execution, Fastlane upload mutation, runtime/API/iOS, RAG
 behavior, billing, semantic cache, GraphRAG, or product-facing behavior.
+Build-equivalence publication also requires governed same-SHA digest source
+objects for `review_artifact_digest.txt` and
+`production_candidate_artifact_digest.txt`; digest strings alone are not
+sufficient release evidence.
 
 ## Bootstrap Commands
 

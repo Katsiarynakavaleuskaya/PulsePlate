@@ -96,6 +96,13 @@ Do not run production publication or set production CD evidence variables from
 ad hoc workflow runs, fixture artifacts, manually assembled JSON, or
 operator-supplied workflow names.
 
+`Build Equivalence Evidence` also requires governed source objects for the App
+Review and production-candidate artifact digest text files:
+`review_artifact_digest.txt` and `production_candidate_artifact_digest.txt`.
+Those source runs must be successful `workflow_dispatch` runs for the same
+`git_sha` before the workflow will generate build identity JSON. Raw digest
+strings alone are not enough to publish build-equivalence evidence.
+
 If a governed source producer is missing, do not run production publication or
 set production CD evidence variables; create the missing producer workflow in a
 separate reviewed PR first.
