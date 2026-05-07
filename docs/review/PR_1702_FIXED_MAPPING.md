@@ -123,6 +123,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   classify kill-switch-disabled cases as fallback, not false hit.
 - `171ebf112` - Fetch the GitHub base branch ref before falling back to raw
   base SHA diff candidates in shallow CI checkouts.
+- `3f445831a` - Fall back from three-dot to two-dot docs leakage diff when a
+  shallow CI checkout cannot materialize a merge base.
 
 ## Pre-Push Checklist
 
@@ -216,9 +218,11 @@ Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_H
   `74901689252`: `aebaf00fa`
 - Current-head CI shallow base branch/SHA diff failure at run `25520806855`,
   job `74904151062`: `171ebf112`
+- Current-head CI shallow checkout no-usable-base failure at run `25521631022`,
+  job `74907060877`: `3f445831a`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `171ebf112`,
+Not merge-ready yet. Requires the new current-head CI run after `3f445831a`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
