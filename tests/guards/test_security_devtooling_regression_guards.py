@@ -149,16 +149,17 @@ def _changed_docs_diff() -> str:
 
 
 def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[str]:
+    three_dot = _run_docs_diff(f"{base_ref}...HEAD")
+    if three_dot.returncode == 0:
+        return three_dot
+    if "Invalid symmetric difference expression" in three_dot.stderr:
+        return _run_docs_diff(f"{base_ref}..HEAD")
+    return three_dot
+
+
+def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
-        [
-            _binary("git"),
-            "diff",
-            "--unified=0",
-            f"{base_ref}...HEAD",
-            "--",
-            "docs",
-            "docs/review",
-        ],
+        [_binary("git"), "diff", "--unified=0", revision_range, "--", "docs", "docs/review"],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
