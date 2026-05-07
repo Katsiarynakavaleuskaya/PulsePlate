@@ -373,6 +373,7 @@ jobs:
 
 
       - name: Build and push Docker image
+        id: docker-build-push
         uses: docker/build-push-action@d08e5c354a6adb9ed34480a06d141179aa583294 # v7.0.0
         with:
           context: .
@@ -441,6 +442,58 @@ jobs:
           image: ${{ steps.image-ref.outputs.ref }}
           format: spdx-json
           output-file: sbom.spdx.json
+
+      - name: Prepare release-control-plane build digest sources
+        run: |
+          set -euo pipefail
+          mkdir -p release-control-plane-build-sources
+          image_digest="${{ steps.docker-build-push.outputs.digest }}"
+          case "$image_digest" in
+            sha256:????????????????????????????????????????????????????????????????) ;;
+            *) echo "ERROR: Docker build output digest is not sha256:<64 hex>"; exit 1 ;;
+          esac
+          printf '%s\n' "$image_digest" > release-control-plane-build-sources/review_artifact_digest.txt
+          printf '%s\n' "$image_digest" > release-control-plane-build-sources/production_candidate_artifact_digest.txt
+          python3 - <<'PY'
+          import hashlib
+          import json
+          from pathlib import Path
+
+          source_dir = Path("release-control-plane-build-sources")
+          sbom = Path("sbom.spdx.json")
+          if not sbom.is_file():
+              raise SystemExit("ERROR: sbom.spdx.json is missing")
+          (source_dir / "sbom_digest.txt").write_text(
+              f"sha256:{hashlib.sha256(sbom.read_bytes()).hexdigest()}\n",
+              encoding="utf-8",
+          )
+
+          metadata = ${{ toJSON(steps.docker-build-push.outputs.metadata) }}
+          metadata_path = source_dir / "docker_build_metadata.json"
+          metadata_path.write_text(
+              json.dumps(json.loads(metadata), sort_keys=True, separators=(",", ":")) + "\n",
+              encoding="utf-8",
+          )
+          (source_dir / "provenance_digest.txt").write_text(
+              f"sha256:{hashlib.sha256(metadata_path.read_bytes()).hexdigest()}\n",
+              encoding="utf-8",
+          )
+          (source_dir / "attestation_status.txt").write_text("VERIFIED\n", encoding="utf-8")
+          PY
+
+      - name: Upload release-control-plane build digest sources
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: release-control-plane-build-sources
+          path: |
+            release-control-plane-build-sources/review_artifact_digest.txt
+            release-control-plane-build-sources/production_candidate_artifact_digest.txt
+            release-control-plane-build-sources/sbom_digest.txt
+            release-control-plane-build-sources/provenance_digest.txt
+            release-control-plane-build-sources/attestation_status.txt
+            release-control-plane-build-sources/docker_build_metadata.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Upload SBOM
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0

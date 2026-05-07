@@ -24,8 +24,16 @@ on:
         description: "Verified SBOM digest in sha256:<64 lowercase hex> format"
         required: true
         type: string
+      sbom_digest_source:
+        description: "Single-line JSON with run_id, artifact_name, path for governed sbom_digest.txt"
+        required: true
+        type: string
       provenance_digest:
         description: "Verified provenance digest in sha256:<64 lowercase hex> format"
+        required: true
+        type: string
+      provenance_digest_source:
+        description: "Single-line JSON with run_id, artifact_name, path for governed provenance_digest.txt"
         required: true
         type: string
       attestation_status:
@@ -37,6 +45,10 @@ on:
           - FAILED
           - MISSING
           - PENDING
+      attestation_status_source:
+        description: "Single-line JSON with run_id, artifact_name, path for governed attestation_status.txt"
+        required: true
+        type: string
       rag_gate_result_source:
         description: "Single-line JSON with run_id, artifact_name, path for governed rag_gate_result.json"
         required: true
@@ -79,12 +91,15 @@ jobs:
           IOS_BUILD_NUMBER: ${{ inputs.ios_build_number }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
           PROVENANCE_DIGEST: ${{ inputs.provenance_digest }}
+          PROVENANCE_DIGEST_SOURCE: ${{ inputs.provenance_digest_source }}
           RAG_GATE_RESULT_SOURCE: ${{ inputs.rag_gate_result_source }}
           SBOM_DIGEST: ${{ inputs.sbom_digest }}
+          SBOM_DIGEST_SOURCE: ${{ inputs.sbom_digest_source }}
+          ATTESTATION_STATUS_SOURCE: ${{ inputs.attestation_status_source }}
         run: |
           set -euo pipefail
 
-          source_env="${RUNNER_TEMP}/release-manifest-source.env"
+          source_env="${RUNNER_TEMP}/release-manifest-rag-source.env"
           python scripts/release/evidence_source.py source-env \
             --label rag_gate_result \
             --prefix RAG_GATE_RESULT \
@@ -92,6 +107,30 @@ jobs:
             --source-json "$RAG_GATE_RESULT_SOURCE" > "$source_env"
           # shellcheck disable=SC1090
           . "$source_env"
+          sbom_source_env="${RUNNER_TEMP}/release-manifest-sbom-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label sbom_digest \
+            --prefix SBOM_DIGEST_SOURCE \
+            --expected-path sbom_digest.txt \
+            --source-json "$SBOM_DIGEST_SOURCE" > "$sbom_source_env"
+          # shellcheck disable=SC1090
+          . "$sbom_source_env"
+          provenance_source_env="${RUNNER_TEMP}/release-manifest-provenance-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label provenance_digest \
+            --prefix PROVENANCE_DIGEST_SOURCE \
+            --expected-path provenance_digest.txt \
+            --source-json "$PROVENANCE_DIGEST_SOURCE" > "$provenance_source_env"
+          # shellcheck disable=SC1090
+          . "$provenance_source_env"
+          attestation_source_env="${RUNNER_TEMP}/release-manifest-attestation-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label attestation_status \
+            --prefix ATTESTATION_STATUS_SOURCE \
+            --expected-path attestation_status.txt \
+            --source-json "$ATTESTATION_STATUS_SOURCE" > "$attestation_source_env"
+          # shellcheck disable=SC1090
+          . "$attestation_source_env"
 
           EVIDENCE_ARTIFACT_NAME="$(python scripts/release/evidence_source.py artifact-name "$EVIDENCE_ARTIFACT_NAME")"
           expected_git_sha_lc="$(python scripts/release/evidence_source.py git-sha "$EXPECTED_GIT_SHA")"
@@ -110,40 +149,123 @@ jobs:
             exit 1
           fi
 
-          run_metadata="$(
-            gh run view "$RAG_GATE_RESULT_RUN_ID" \
-              --json status,conclusion,headSha,event,workflowName,url \
-              --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
-          )"
-          IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
-          run_workflow_path="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RAG_GATE_RESULT_RUN_ID}" --jq '.path')"
-          if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
-            echo "ERROR: RAG source run did not complete successfully"
-            echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
-            exit 1
-          fi
-          if [ "$run_event" != "workflow_dispatch" ]; then
-            echo "ERROR: RAG source run must be workflow_dispatch"
-            echo "event=${run_event:-unset} url=${run_url:-unset}"
-            exit 1
-          fi
-          if [ "$run_workflow_name" != "RAG Release Gates" ]; then
-            echo "ERROR: RAG source workflow name must be RAG Release Gates"
-            echo "workflow=${run_workflow_name:-unset}"
-            exit 1
-          fi
-          if [ "$run_workflow_path" != ".github/workflows/rag-release-gates.yml" ]; then
-            echo "ERROR: RAG source workflow path must be .github/workflows/rag-release-gates.yml"
-            echo "workflow_path=${run_workflow_path:-unset}"
-            exit 1
-          fi
-          run_head_sha_lc="$(printf '%s' "$run_head_sha" | tr 'A-F' 'a-f')"
-          if [ "$run_head_sha_lc" != "$expected_git_sha_lc" ]; then
-            echo "ERROR: RAG source run head SHA does not match git_sha"
-            echo "run headSha=${run_head_sha:-unset}"
-            echo "git_sha=${EXPECTED_GIT_SHA}"
-            exit 1
-          fi
+          validate_source_run() {
+            label="$1"
+            run_id="$2"
+            expected_workflow_name="$3"
+            expected_workflow_path="$4"
+            run_metadata="$(
+              gh run view "$run_id" \
+                --json status,conclusion,headSha,event,workflowName,url \
+                --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
+            )"
+            IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+            run_workflow_path="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.path')"
+            if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
+              echo "ERROR: ${label} source run did not complete successfully"
+              echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_event" != "workflow_dispatch" ]; then
+              echo "ERROR: ${label} source run must be workflow_dispatch"
+              echo "event=${run_event:-unset} url=${run_url:-unset}"
+              exit 1
+            fi
+            if [ "$run_workflow_name" != "$expected_workflow_name" ]; then
+              echo "ERROR: ${label} source workflow name must be ${expected_workflow_name}"
+              echo "workflow=${run_workflow_name:-unset}"
+              exit 1
+            fi
+            if [ "$run_workflow_path" != "$expected_workflow_path" ]; then
+              echo "ERROR: ${label} source workflow path must be ${expected_workflow_path}"
+              echo "workflow_path=${run_workflow_path:-unset}"
+              exit 1
+            fi
+            run_head_sha_lc="$(printf '%s' "$run_head_sha" | tr 'A-F' 'a-f')"
+            if [ "$run_head_sha_lc" != "$expected_git_sha_lc" ]; then
+              echo "ERROR: ${label} source run head SHA does not match git_sha"
+              echo "run headSha=${run_head_sha:-unset}"
+              echo "git_sha=${EXPECTED_GIT_SHA}"
+              exit 1
+            fi
+          }
+
+          validate_source_run "RAG" "$RAG_GATE_RESULT_RUN_ID" \
+            "RAG Release Gates" ".github/workflows/rag-release-gates.yml"
+          validate_source_run "SBOM digest" "$SBOM_DIGEST_SOURCE_RUN_ID" \
+            "Docker Build and Push" ".github/workflows/build.yml"
+          validate_source_run "provenance digest" "$PROVENANCE_DIGEST_SOURCE_RUN_ID" \
+            "Docker Build and Push" ".github/workflows/build.yml"
+          validate_source_run "attestation status" "$ATTESTATION_STATUS_SOURCE_RUN_ID" \
+            "Docker Build and Push" ".github/workflows/build.yml"
+
+          fetch_text_source() {
+            label="$1"
+            run_id="$2"
+            artifact_name="$3"
+            source_path="$4"
+            expected_value="$5"
+            download_dir="$6"
+            mkdir -p "$download_dir"
+            gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
+            source_file="${download_dir}/${source_path}"
+            if [ ! -f "$source_file" ]; then
+              echo "ERROR: Missing governed ${label} at ${source_path}"
+              exit 1
+            fi
+            resolved_download_dir="$(cd "$download_dir" && pwd -P)"
+            resolved_source_file="$(python - "$source_file" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).resolve())
+          PY
+            )"
+            case "$resolved_source_file" in
+              "$resolved_download_dir"/*) ;;
+              *) echo "ERROR: ${label} path escapes downloaded artifact"; exit 1 ;;
+            esac
+            actual_value="$(python - "$source_file" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).read_text(encoding="utf-8").strip())
+          PY
+            )"
+            if [ "$label" = "attestation status" ]; then
+              if [ "$actual_value" != "VERIFIED" ]; then
+                echo "ERROR: governed attestation status source must be VERIFIED"
+                exit 1
+              fi
+            else
+              actual_value="$(python scripts/release/evidence_source.py oci-digest --label "${label}_source" "$actual_value")"
+            fi
+            if [ "$actual_value" != "$expected_value" ]; then
+              echo "ERROR: governed ${label} source does not match explicit input"
+              echo "source value=${actual_value}"
+              echo "input value=${expected_value}"
+              exit 1
+            fi
+          }
+
+          fetch_text_source "SBOM digest" \
+            "$SBOM_DIGEST_SOURCE_RUN_ID" \
+            "$SBOM_DIGEST_SOURCE_ARTIFACT_NAME" \
+            "$SBOM_DIGEST_SOURCE_PATH" \
+            "$SBOM_DIGEST" \
+            "${RUNNER_TEMP}/release-manifest-sbom-source"
+          fetch_text_source "provenance digest" \
+            "$PROVENANCE_DIGEST_SOURCE_RUN_ID" \
+            "$PROVENANCE_DIGEST_SOURCE_ARTIFACT_NAME" \
+            "$PROVENANCE_DIGEST_SOURCE_PATH" \
+            "$PROVENANCE_DIGEST" \
+            "${RUNNER_TEMP}/release-manifest-provenance-source"
+          fetch_text_source "attestation status" \
+            "$ATTESTATION_STATUS_SOURCE_RUN_ID" \
+            "$ATTESTATION_STATUS_SOURCE_ARTIFACT_NAME" \
+            "$ATTESTATION_STATUS_SOURCE_PATH" \
+            "$ATTESTATION_STATUS" \
+            "${RUNNER_TEMP}/release-manifest-attestation-source"
 
           download_dir="${RUNNER_TEMP}/release-manifest-rag-source"
           output_dir="${RUNNER_TEMP}/release-manifest-evidence"

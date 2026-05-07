@@ -10,6 +10,7 @@ from scripts.release import build_identity, release_manifest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/build-equivalence-evidence.yml"
+BUILD_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/build.yml"
 LEDGER_PATH = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
 
 ARTIFACT_DIGEST = "sha256:" + "a1" * 32
@@ -270,3 +271,20 @@ def test_workflow_has_no_app_store_fastlane_or_runtime_surface() -> None:
     )
     assert not any(term in workflow_json for term in forbidden_terms)
     assert "ci/release-control-plane-source-producers" in LEDGER_PATH.read_text(encoding="utf-8")
+
+
+def test_docker_build_workflow_produces_build_equivalence_digest_sources() -> None:
+    workflow_text = BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    upload_step = next(
+        step
+        for step in workflow["jobs"]["publish"]["steps"]
+        if step.get("name") == "Upload release-control-plane build digest sources"
+    )
+
+    assert "id: docker-build-push" in workflow_text
+    assert "steps.docker-build-push.outputs.digest" in workflow_text
+    assert "review_artifact_digest.txt" in upload_step["with"]["path"]
+    assert "production_candidate_artifact_digest.txt" in upload_step["with"]["path"]
+    assert upload_step["with"]["name"] == "release-control-plane-build-sources"
+    assert upload_step["with"]["if-no-files-found"] == "error"

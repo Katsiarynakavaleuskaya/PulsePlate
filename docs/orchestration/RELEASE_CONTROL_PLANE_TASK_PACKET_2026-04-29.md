@@ -313,6 +313,10 @@ Build-equivalence publication also requires governed same-SHA digest source
 objects for `review_artifact_digest.txt` and
 `production_candidate_artifact_digest.txt`; digest strings alone are not
 sufficient release evidence.
+Release-manifest publication similarly requires governed same-SHA supply-chain
+source objects for `sbom_digest.txt`, `provenance_digest.txt`, and
+`attestation_status.txt`, emitted by the `Docker Build and Push` publish lane in
+the `release-control-plane-build-sources` artifact.
 
 ## Bootstrap Commands
 

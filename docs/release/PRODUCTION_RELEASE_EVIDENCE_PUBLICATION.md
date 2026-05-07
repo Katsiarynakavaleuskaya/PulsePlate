@@ -103,6 +103,13 @@ Those source runs must be successful `workflow_dispatch` runs for the same
 `git_sha` before the workflow will generate build identity JSON. Raw digest
 strings alone are not enough to publish build-equivalence evidence.
 
+`Release Manifest Evidence` requires governed source objects for supply-chain
+identity as well: `sbom_digest.txt`, `provenance_digest.txt`, and
+`attestation_status.txt`. The existing `Docker Build and Push` workflow publishes
+these files in the `release-control-plane-build-sources` artifact from its
+non-PR publish job. The manifest producer compares those same-SHA source files
+against the explicit dispatch inputs before writing `release_manifest.json`.
+
 If a governed source producer is missing, do not run production publication or
 set production CD evidence variables; create the missing producer workflow in a
 separate reviewed PR first.

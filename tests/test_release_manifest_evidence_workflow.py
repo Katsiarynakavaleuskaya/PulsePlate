@@ -12,6 +12,7 @@ from scripts.release import evidence_source, release_manifest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW_PATH = REPO_ROOT / ".github/workflows/release-manifest-evidence.yml"
 RAG_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/rag-release-gates.yml"
+BUILD_WORKFLOW_PATH = REPO_ROOT / ".github/workflows/build.yml"
 LEDGER_PATH = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
 
 
@@ -85,8 +86,11 @@ def test_workflow_permissions_environment_and_inputs_are_bounded() -> None:
         "marketing_version",
         "bundle_id",
         "sbom_digest",
+        "sbom_digest_source",
         "provenance_digest",
+        "provenance_digest_source",
         "attestation_status",
+        "attestation_status_source",
         "rag_gate_result_source",
         "evidence_artifact_name",
     }
@@ -97,6 +101,9 @@ def test_workflow_permissions_environment_and_inputs_are_bounded() -> None:
     assert "run_id" in inputs["rag_gate_result_source"]["description"]
     assert "artifact_name" in inputs["rag_gate_result_source"]["description"]
     assert "path" in inputs["rag_gate_result_source"]["description"]
+    assert "sbom_digest.txt" in inputs["sbom_digest_source"]["description"]
+    assert "provenance_digest.txt" in inputs["provenance_digest_source"]["description"]
+    assert "attestation_status.txt" in inputs["attestation_status_source"]["description"]
     assert workflow["permissions"] == {"actions": "read", "contents": "read"}
     assert _job(workflow)["environment"]["name"] == "release-evidence"
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -113,13 +120,14 @@ def test_workflow_validates_governed_rag_source_run_and_git_sha() -> None:
     assert "source-env" in script and "run_id, artifact_name, path" not in script
     assert "gh run view" in script
     assert "--json status,conclusion,headSha,event,workflowName,url" in script
-    assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${RAG_GATE_RESULT_RUN_ID}"' in script
+    assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"' in script
+    assert "validate_source_run" in script
     assert '[ "$run_status" != "completed" ]' in script
     assert '[ "$run_conclusion" != "success" ]' in script
     assert '[ "$run_event" != "workflow_dispatch" ]' in script
-    assert '[ "$run_workflow_name" != "RAG Release Gates" ]' in script
-    assert '[ "$run_workflow_path" != ".github/workflows/rag-release-gates.yml" ]' in script
-    assert "RAG source run head SHA does not match git_sha" in script
+    assert '"RAG Release Gates" ".github/workflows/rag-release-gates.yml"' in script
+    assert '"Docker Build and Push" ".github/workflows/build.yml"' in script
+    assert "source run head SHA does not match git_sha" in script
     assert "Release Manifest Evidence workflow ref must match git_sha" in script
     assert "scripts/release/evidence_source.py rag-gate-result" in script
     assert "rag_gate_result.git_sha must match git_sha" in _helper_text()
@@ -143,6 +151,21 @@ def test_workflow_rejects_fixture_sample_test_fallback_and_requires_pass() -> No
     assert "Path(sys.argv[1]).resolve()" in script
     assert "scripts/release/evidence_source.py rag-gate-result" in script
     assert "artifacts/release_control_plane_sources" in script
+
+
+def test_workflow_requires_governed_supply_chain_sources() -> None:
+    script = _run_script()
+
+    assert "--label sbom_digest" in script
+    assert "--expected-path sbom_digest.txt" in script
+    assert "--label provenance_digest" in script
+    assert "--expected-path provenance_digest.txt" in script
+    assert "--label attestation_status" in script
+    assert "--expected-path attestation_status.txt" in script
+    assert "fetch_text_source" in script
+    assert "governed ${label} source does not match explicit input" in script
+    assert "governed attestation status source must be VERIFIED" in script
+    assert "path escapes downloaded artifact" in script
 
 
 def test_workflow_generates_validates_and_uploads_stable_manifest_path() -> None:
@@ -269,3 +292,28 @@ def test_release_manifest_source_validation_rejects_sample_test_paths_and_sha_mi
     rag_triggers = _workflow_on(_load_workflow(RAG_WORKFLOW_PATH))
     assert "workflow_dispatch" in rag_triggers
     assert "ci/release-control-plane-source-producers" in LEDGER_PATH.read_text(encoding="utf-8")
+
+
+def test_docker_build_workflow_emits_governed_release_control_plane_sources() -> None:
+    workflow_text = BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
+    workflow = _load_workflow(BUILD_WORKFLOW_PATH)
+    publish_steps = workflow["jobs"]["publish"]["steps"]
+    upload_step = next(
+        step
+        for step in publish_steps
+        if step.get("name") == "Upload release-control-plane build digest sources"
+    )
+
+    assert "id: docker-build-push" in workflow_text
+    assert "Prepare release-control-plane build digest sources" in workflow_text
+    for path in (
+        "review_artifact_digest.txt",
+        "production_candidate_artifact_digest.txt",
+        "sbom_digest.txt",
+        "provenance_digest.txt",
+        "attestation_status.txt",
+    ):
+        assert path in workflow_text
+        assert path in upload_step["with"]["path"]
+    assert upload_step["with"]["name"] == "release-control-plane-build-sources"
+    assert upload_step["with"]["if-no-files-found"] == "error"
