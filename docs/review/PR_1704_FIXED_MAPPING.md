@@ -102,7 +102,32 @@ Reason: Codex Security advisory review found no secrets, user-data fixture intak
 
 ## Review Thread Mapping
 
-No GitHub review-thread actionables were present when this mapping was first added. CodeRabbit, Sourcery, Cubic, Codex Security, and Codex comments must be added here as `FIXED`, `NOT-A-BUG`, or `DEFERRED` if they appear.
+Disposition: FIXED
+Commit: 8edd488526c351a9c9d94fb697a97840af31f7fe
+Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`
+Reason: Codex review flagged that the PR-8 packet could be read as redefining the root `AGENTS.md` hard gate by using bounded checks for a docs/research lane. The packet now states that bounded checks are not a standalone merge-readiness claim, do not redefine root `AGENTS.md`, and require current-head CI parity plus strict wrapper before merge.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#discussion_r3204651583 -> 8edd488526c351a9c9d94fb697a97840af31f7fe
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1704_FIXED_MAPPING.md`
+Reason: CodeRabbit flagged a stale checkbox state from an earlier mapping version. The current mapping artifact already has both required discussion-thread checkboxes checked, and CodeRabbit marked the item addressed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#discussion_r3204683752
+
+Disposition: FIXED
+Commit: 8edd488526c351a9c9d94fb697a97840af31f7fe
+Evidence: `tests/test_design_gepa_research_lane_docs.py`
+Reason: CodeRabbit flagged that shell-block extraction only covered `bash` fences and bare `python` detection could miss first-line commands. The docs guard now scans common shell fence labels and uses multiline regex detection for bare `python` and `python3` commands.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#discussion_r3204683769 -> 8edd488526c351a9c9d94fb697a97840af31f7fe
+
+Disposition: FIXED
+Commit: 8edd488526c351a9c9d94fb697a97840af31f7fe
+Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`, `tests/test_design_gepa_research_lane_docs.py`
+Reason: CodeRabbit's review summary listed two actionable inline comments; both are mapped above with concrete fix commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#pullrequestreview-4247721883 -> 8edd488526c351a9c9d94fb697a97840af31f7fe
 
 ## Discussion Thread Pass
 
@@ -111,7 +136,25 @@ No GitHub review-thread actionables were present when this mapping was first add
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 8edd488526c351a9c9d94fb697a97840af31f7fe
+Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#discussion_r3204651583 -> 8edd488526c351a9c9d94fb697a97840af31f7fe
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1704_FIXED_MAPPING.md`
+Reason: CodeRabbit flagged a stale checkbox state from an earlier mapping version. The current mapping artifact already has both required discussion-thread checkboxes checked, and CodeRabbit marked the item addressed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#discussion_r3204683752
+
+Disposition: FIXED
+Commit: 8edd488526c351a9c9d94fb697a97840af31f7fe
+Evidence: `tests/test_design_gepa_research_lane_docs.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#discussion_r3204683769 -> 8edd488526c351a9c9d94fb697a97840af31f7fe
+
+Disposition: FIXED
+Commit: 8edd488526c351a9c9d94fb697a97840af31f7fe
+Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`, `tests/test_design_gepa_research_lane_docs.py`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1704#pullrequestreview-4247721883 -> 8edd488526c351a9c9d94fb697a97840af31f7fe
 
 ## Merge Readiness
 
