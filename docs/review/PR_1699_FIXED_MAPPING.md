@@ -46,6 +46,11 @@ Disposition: FIXED
 Commit: 98be97185
 Evidence: Backlog ledger wording now uses workflow_dispatch terminology consistently for governed source artifacts.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4243624471
+Disposition: NOT-A-BUG
+Evidence: Sourcery review summary listed four concrete findings; the actionable discussion URLs from that review are individually mapped and fixed above.
+Reason: The review-level summary itself is a container for mapped findings, not a separate repository defect.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699 -> 66023306c
 Disposition: FIXED
 Commit: 66023306c
@@ -162,6 +167,17 @@ Evidence:
 
 - `docs/roadmap/BACKLOG_LEDGER.md` now says successful `workflow_dispatch`
   source artifacts.
+
+### Sourcery review summary
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4243624471
+
+Disposition: NOT-A-BUG
+Evidence:
+
+- The review summary is a container for the four Sourcery discussion findings
+  mapped above; it did not add a separate code or docs defect after those
+  findings were fixed.
 
 ## Current-Head CI Findings
 
