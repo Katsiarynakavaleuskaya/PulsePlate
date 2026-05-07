@@ -127,6 +127,9 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   shallow CI checkout cannot materialize a merge base.
 - `6b39975d5` - Add `HEAD^1` and `diff-tree HEAD` fallback for detached CI
   checkouts where no base ref can be materialized.
+- `9ee401382` - Remove the broad `diff-tree HEAD` fallback and deepen base-ref
+  fetches so the docs leakage guard evaluates the PR diff, not historical base
+  docs from a synthetic merge checkout.
 
 ## Pre-Push Checklist
 
@@ -135,7 +138,9 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
 - [x] Focused pytest bundle passed.
 - [x] Narrow mypy passed.
 - [x] `make validate-changed` passed after commit.
-- [x] `pre-commit run --all-files` passed.
+- [ ] `pre-commit run --all-files` did not complete locally because
+  `check-added-large-files` stalled on a repository-wide file list; changed-file
+  hooks and commit hooks passed.
 - [x] Push hooks passed.
 
 ## Post-Merge Checklist
@@ -224,9 +229,11 @@ Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_H
   job `74907060877`: `3f445831a`
 - Current-head CI detached checkout no-usable-base failure at run
   `25522291859`, job `74909417241`: `6b39975d5`
+- Current-head CI synthetic-merge broad-diff false-positive failure at run
+  `25524286914`, job `74916082651`: `9ee401382`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `6b39975d5`,
+Not merge-ready yet. Requires the new current-head CI run after `9ee401382`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
