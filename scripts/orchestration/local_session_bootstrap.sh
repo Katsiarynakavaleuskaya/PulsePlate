@@ -186,6 +186,7 @@ echo ""
 prompt_cmd=(
     python3 "${RENDER_CODEX_PROMPT_PY}"
     recipe
+    --preflight-ran
     --goal "${GOAL}"
     --task-class "${TASK_CLASS}"
     --pr-phase "${PR_PHASE}"

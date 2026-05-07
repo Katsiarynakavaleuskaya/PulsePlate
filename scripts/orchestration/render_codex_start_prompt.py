@@ -52,6 +52,17 @@ def _unique(items: Iterable[str]) -> list[str]:
     return result
 
 
+def _prompt_text(value: object, fallback: str = "") -> str:
+    """Render user/packet data as a single prompt data field."""
+
+    text = str(value) if value not in (None, "") else fallback
+    return text.replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
+
+
+def _prompt_list(items: list[str], fallback: str) -> str:
+    return ", ".join(_prompt_text(item) for item in items) if items else fallback
+
+
 def _packet_role_order(packet: dict[str, Any]) -> list[str]:
     bridge = packet.get("native_subagent_bridge")
     role_order: list[str] = []
@@ -74,7 +85,7 @@ def _packet_role_order(packet: dict[str, Any]) -> list[str]:
             *_as_string_list([packet.get("reviewer")]),
             *_as_string_list(packet.get("secondary_agents")),
         ]
-    return _unique(role_order)
+    return _unique(["agent-coordinator", *role_order])
 
 
 def _packet_advisory_roles(packet: dict[str, Any]) -> list[str]:
@@ -85,10 +96,6 @@ def _packet_advisory_roles(packet: dict[str, Any]) -> list[str]:
             if isinstance(advisory, dict):
                 advisory_roles.extend(_as_string_list([advisory.get("repo_agent_slug")]))
     return _unique(advisory_roles)
-
-
-def _format_list(items: list[str], fallback: str) -> str:
-    return ", ".join(items) if items else fallback
 
 
 def _common_prompt_lines(*, mode_note: str) -> list[str]:
@@ -127,16 +134,16 @@ def render_packet_prompt(
     )
     lines.extend(
         [
-            f"Task packet: {packet_path}",
-            f"Goal: {goal}",
-            f"Task class: {task_class}",
-            f"PR phase: {pr_phase}",
-            f"Branch: {branch or '<branch unavailable>'}",
-            f"Worktree: {worktree or '<worktree unavailable>'}",
-            f"Path scope: {_format_list(candidate_paths, '<no explicit paths>')}",
-            f"Role order: {_format_list(role_order, 'agent-coordinator')}",
-            f"Advisory/no-spawn roles still require closure input: {_format_list(advisory_roles, '<none>')}",
-            f"Passive skills from packet: {_format_list(recommended_skills, '<none>')}",
+            f"Task packet: {_prompt_text(packet_path)}",
+            f"Goal: {_prompt_text(goal)}",
+            f"Task class: {_prompt_text(task_class)}",
+            f"PR phase: {_prompt_text(pr_phase)}",
+            f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
+            f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
+            f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
+            f"Role order: {_prompt_list(role_order, 'agent-coordinator')}",
+            f"Advisory/no-spawn roles still require closure input: {_prompt_list(advisory_roles, '<none>')}",
+            f"Passive skills from packet: {_prompt_list(recommended_skills, '<none>')}",
             "",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
@@ -156,25 +163,31 @@ def render_recipe_prompt(
     worktree: str = "",
     paths: list[str],
     requested_agents: list[str],
+    preflight_ran: bool = True,
 ) -> str:
     """Render the pre-task-bootstrap helper prompt block."""
 
     agents = _unique(["agent-coordinator", *requested_agents])
-    lines = _common_prompt_lines(
-        mode_note=(
+    if preflight_ran:
+        mode_note = (
             "This local helper only ran analyze preflight; it did not run authoritative "
             "task_bootstrap.py and did not create a task packet."
         )
-    )
+    else:
+        mode_note = (
+            "Dry run only: this command did not run preflight, did not run authoritative "
+            "task_bootstrap.py, and did not create a task packet."
+        )
+    lines = _common_prompt_lines(mode_note=mode_note)
     lines.extend(
         [
-            f"Goal: {goal or '<set --goal>'}",
-            f"Task class: {task_class or '<set --task-class>'}",
-            f"PR phase: {pr_phase}",
-            f"Branch: {branch or '<branch unavailable>'}",
-            f"Worktree: {worktree or '<worktree unavailable>'}",
-            f"Path scope: {_format_list(paths, '<no explicit paths>')}",
-            f"Requested role order seed: {_format_list(agents, 'agent-coordinator')}",
+            f"Goal: {_prompt_text(goal, '<set --goal>')}",
+            f"Task class: {_prompt_text(task_class, '<set --task-class>')}",
+            f"PR phase: {_prompt_text(pr_phase)}",
+            f"Branch: {_prompt_text(branch, '<branch unavailable>')}",
+            f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
+            f"Path scope: {_prompt_list(paths, '<no explicit paths>')}",
+            f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
             "",
             "Next required repo command: run task_bootstrap.py with the printed arguments, then follow the generated packet.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
@@ -204,6 +217,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     recipe_parser.add_argument("--worktree", default="")
     recipe_parser.add_argument("--path", action="append", default=[])
     recipe_parser.add_argument("--requested-agent", action="append", default=[])
+    recipe_parser.add_argument("--preflight-ran", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -233,6 +247,7 @@ def main(argv: list[str] | None = None) -> int:
                 worktree=args.worktree,
                 paths=args.path,
                 requested_agents=args.requested_agent,
+                preflight_ran=args.preflight_ran,
             )
         )
         return 0

@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+import json
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 START_SCRIPT = REPO_ROOT / "scripts/orchestration/start_pr_lane.sh"
 
 
-def run_start(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run_start(
+    *args: str,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run the PR lane starter with captured output."""
 
     bash_path = shutil.which("bash")
@@ -24,6 +31,7 @@ def run_start(*args: str, cwd: Path | None = None) -> subprocess.CompletedProces
         capture_output=True,
         check=False,
         timeout=60,
+        env=env,
     )
 
 
@@ -117,6 +125,8 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Plugin/runtime checklist (operator-confirmed, non-blocking):" in result.stdout
     assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
     assert "Paste into Codex now:" in result.stdout
+    assert "Dry run only: this command did not run preflight" in result.stdout
+    assert "only ran analyze preflight" not in result.stdout
     assert "STOP: do not edit or write code/docs" in result.stdout
     assert "Start with agent-coordinator as the mandatory first role." in result.stdout
     assert "Branch: codex/example-pr-lane" in result.stdout
@@ -129,6 +139,100 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "No finding may be ignored as advisory." in result.stdout
     assert ". .venv/bin/activate" in result.stdout
     assert "automatically start" not in result.stdout.lower()
+
+
+def test_start_pr_lane_execute_path_prints_packet_prompt(tmp_path: Path) -> None:
+    """The real post-task-bootstrap path should emit the packet-backed Codex prompt."""
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    packet_path = tmp_path / "packet.json"
+    packet_payload = {
+        "goal": "Start governed PR lane",
+        "task_class": "pr_governance",
+        "pr_phase": "pre_open",
+        "candidate_paths": ["docs/dev/CODEX_SKILLS.md"],
+        "recommended_skills": ["pulseplate-premortem-risk-review"],
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "backend-engineer"},
+            "reviewer": {"repo_agent_slug": "qa-engineer-agent"},
+            "secondary": [{"repo_agent_slug": "security-auditor"}],
+            "advisory": [{"repo_agent_slug": "agent-coordinator"}],
+        },
+    }
+    packet_path.write_text(json.dumps(packet_payload), encoding="utf-8")
+    worktree_rel = f"worktrees/execute-path-test-{tmp_path.name}"
+
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  check-ref-format) exit 0 ;;
+  show-ref) exit 1 ;;
+  status) exit 0 ;;
+  fetch) exit 0 ;;
+  rev-parse) echo abcdef1234567890; exit 0 ;;
+  rev-list) printf '0\\t0\\n'; exit 0 ;;
+  worktree) mkdir -p "$5"; exit 0 ;;
+  *) exit 0 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    git_stub.chmod(0o755)
+
+    python_stub = bin_dir / "python3"
+    real_python = sys.executable
+    python_stub.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  *check_preflight.py)
+    echo "PASS: stub preflight"
+    exit 0
+    ;;
+  *task_bootstrap.py)
+    printf '{{"output": "{packet_path}", "primary_agent": "agent-coordinator", "reviewer": "qa-engineer-agent", "recommended_skills": ["pulseplate-premortem-risk-review"]}}\\n'
+    exit 0
+    ;;
+  *render_codex_start_prompt.py)
+    shift
+    exec {real_python!r} {str(REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py")!r} "$@"
+    ;;
+  *)
+    exec {real_python!r} "$@"
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    python_stub.chmod(0o755)
+
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    result = run_start(
+        "--goal",
+        "Start governed PR lane",
+        "--task-class",
+        "pr_governance",
+        "--branch",
+        "codex/execute-path-test",
+        "--worktree",
+        worktree_rel,
+        "--path",
+        "docs/dev/CODEX_SKILLS.md",
+        env=env,
+    )
+    shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "Authoritative bootstrap already ran" in result.stdout
+    assert f"Task packet: {packet_path}" in result.stdout
+    assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in result.stdout
+    assert "Passive skills from packet: pulseplate-premortem-risk-review" in result.stdout
+    assert ". .venv/bin/activate" in result.stdout
+    assert "did not run authoritative task_bootstrap.py" not in result.stdout
+    assert "auto-start" not in result.stdout.lower()
 
 
 def test_start_pr_lane_dry_run_uses_default_plugin_checklist() -> None:

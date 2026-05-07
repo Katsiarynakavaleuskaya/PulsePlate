@@ -30,4 +30,4 @@ Evidence: docs/review/PR_1701_PREMORTEM.md now cites concrete commit SHAs for pr
 Premortem and coordinator/role-agent findings are tracked in
 [`docs/review/PR_1701_PREMORTEM.md`](./PR_1701_PREMORTEM.md). They are not
 review-thread URLs, but their findings still require FIXED, NOT-A-BUG, or
-DEFERRED closure before this PR can leave draft.
+DEFERRED closure before merge readiness or merge.
