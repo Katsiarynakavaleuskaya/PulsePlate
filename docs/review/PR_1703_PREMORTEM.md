@@ -91,6 +91,18 @@ Disposition: FIXED
 Commit: `664c1fd5d`
 Evidence: `Release Manifest Evidence` now uses one governed `supply_chain_source` object so `workflow_dispatch` stays at the GitHub limit of 10 inputs. Both producer workflows copy generated env output into local shell variables before use, closing SC2153. Local `check-github-workflows`, focused pytest, docs gate, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
 
+### P2: Evidence source substring matching rejected valid path words
+
+Disposition: FIXED
+Commit: `04c7ba87d`
+Evidence: the evidence source validator now uses boundary-aware word extraction for fixture/sample/placeholder/fake/fallback tokens instead of raw substring matching. Regression coverage accepts a valid `latest/rag_gate_result.json` source path while still rejecting `test` / `tests` path components and forbidden evidence words.
+
+### P1: Nested RAG source artifact paths could escape evidence roots
+
+Disposition: FIXED
+Commit: `04c7ba87d`
+Evidence: the evidence source validator now checks nested `*.path` fields inside the governed RAG payload with the same path-safety rules used for top-level source objects. Regression coverage rejects `../prod/release.jsonl`, absolute paths, and double-slash paths before a manifest can be generated.
+
 ### P1: Suggested `artifact-metadata: write` permission
 
 Disposition: NOT-A-BUG

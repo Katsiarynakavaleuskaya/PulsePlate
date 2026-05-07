@@ -152,6 +152,7 @@ def test_workflow_rejects_fixture_sample_test_fallback_and_requires_pass() -> No
     assert "Path(sys.argv[1]).resolve()" in script
     assert "scripts/release/evidence_source.py rag-gate-result" in script
     assert "artifacts/release_control_plane_sources" in script
+    assert 'args.command == "artifact-name"' in helper
 
 
 def test_workflow_requires_governed_supply_chain_sources() -> None:
@@ -229,6 +230,13 @@ def test_evidence_source_helper_rejects_malformed_source_and_unsafe_paths() -> N
     assert (
         evidence_source.validate_source_payload(valid, label="rag_gate_result")["run_id"] == "123"
     )
+    assert (
+        evidence_source.validate_source_payload(
+            '{"run_id":"123","artifact_name":"latest-release-evidence","path":"latest/rag_gate_result.json"}',
+            label="rag_gate_result",
+        )["path"]
+        == "latest/rag_gate_result.json"
+    )
     canonical = (
         '{"run_id":"123","artifact_name":"rag-release-gates-weekly","path":"rag_gate_result.json"}'
     )
@@ -288,6 +296,12 @@ def test_release_manifest_source_validation_rejects_sample_test_paths_and_sha_mi
     rag_path.write_text(json.dumps(rag_payload, sort_keys=True) + "\n", encoding="utf-8")
     with pytest.raises(evidence_source.EvidenceSourceError):
         evidence_source.validate_rag_gate_result_file(rag_path, expected_git_sha="a" * 40)
+
+    for unsafe_path in ("../prod/release.jsonl", "/prod/release.jsonl", "data//release.jsonl"):
+        rag_payload["source_artifacts"][0]["path"] = unsafe_path
+        rag_path.write_text(json.dumps(rag_payload, sort_keys=True) + "\n", encoding="utf-8")
+        with pytest.raises(evidence_source.EvidenceSourceError):
+            evidence_source.validate_rag_gate_result_file(rag_path, expected_git_sha="a" * 40)
 
     rag_payload["source_artifacts"][0]["path"] = "data/evals/release.jsonl"
     rag_payload["git_sha"] = "b" * 40

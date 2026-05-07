@@ -13,6 +13,8 @@ from typing import Any
 if __package__ in {None, ""}:
     # Support direct invocation from repository root:
     # `.venv/bin/python scripts/release/build_identity.py ...`
+    # The workflow invokes this as a standalone repo script; `python -m` remains
+    # available for package-style execution outside GitHub Actions.
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.release import release_manifest

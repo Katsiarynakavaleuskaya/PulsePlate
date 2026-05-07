@@ -17,12 +17,9 @@ OCI_SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 SENTINEL_SHA_RE = re.compile(r"^sha256:([0-9a-f])\1{63}$")
 SENTINEL_HASH_RE = re.compile(r"^(?:sha256:)?([0-9a-f])\1{63}$")
 FORBIDDEN_TEST_PATH_RE = re.compile(r"(^|/)tests?(/|$)")
-FORBIDDEN_TOKENS = (
-    "/test/",
-    "/tests/",
-    "test/",
-    "tests/",
-    "tests/fixtures",
+FORBIDDEN_WORDS = {
+    "test",
+    "tests",
     "fixture",
     "fixtures",
     "sample",
@@ -30,7 +27,7 @@ FORBIDDEN_TOKENS = (
     "placeholder",
     "fake",
     "fallback",
-)
+}
 
 
 class EvidenceSourceError(ValueError):
@@ -45,10 +42,25 @@ def _reject_text(value: str, *, label: str) -> None:
     if not value or _has_control_character(value):
         raise EvidenceSourceError(f"{label} must be non-empty and contain no control characters.")
     lowered = value.lower().replace("\\", "/")
-    if any(token in lowered for token in FORBIDDEN_TOKENS):
+    if _has_forbidden_evidence_word(lowered):
         raise EvidenceSourceError(
             f"{label} must not reference fixture/sample/example/placeholder/fake/fallback data."
         )
+
+
+def _has_forbidden_evidence_word(value: str) -> bool:
+    words = re.findall(r"[a-z0-9]+", value)
+    return any(word in FORBIDDEN_WORDS for word in words)
+
+
+def _is_safe_artifact_path(value: str) -> bool:
+    normalized_path = value.replace("\\", "/")
+    pure_path = PurePosixPath(normalized_path)
+    return not (
+        normalized_path.startswith("/")
+        or "//" in normalized_path
+        or any(part in {"", ".", ".."} for part in pure_path.parts)
+    )
 
 
 def validate_git_sha(value: str) -> str:
@@ -100,8 +112,10 @@ def _reject_payload_strings(value: Any, *, pointer: str) -> None:
             raise EvidenceSourceError(f"sentinel placeholder digest/hash rejected at {pointer}")
         if FORBIDDEN_TEST_PATH_RE.search(lowered):
             raise EvidenceSourceError(f"test evidence path rejected at {pointer}")
-        if any(token in lowered for token in FORBIDDEN_TOKENS):
+        if _has_forbidden_evidence_word(lowered):
             raise EvidenceSourceError(f"fixture/sample/fallback evidence rejected at {pointer}")
+        if pointer.endswith(".path") and not _is_safe_artifact_path(value):
+            raise EvidenceSourceError(f"unsafe evidence path rejected at {pointer}")
 
 
 def validate_rag_gate_result_file(path: Path, *, expected_git_sha: str) -> None:
@@ -154,12 +168,7 @@ def validate_source_payload(
     if not run_id.isdigit():
         raise EvidenceSourceError(f"{label}_source.run_id must be a numeric GitHub Actions run id.")
     normalized_path = path.replace("\\", "/")
-    pure_path = PurePosixPath(normalized_path)
-    if (
-        normalized_path.startswith("/")
-        or "//" in normalized_path
-        or any(part in {"", ".", ".."} for part in pure_path.parts)
-    ):
+    if not _is_safe_artifact_path(normalized_path):
         raise EvidenceSourceError(f"{label}_source.path must stay inside the downloaded artifact.")
     if expected_path is not None and normalized_path != expected_path:
         raise EvidenceSourceError(f"{label}_source.path must be exactly {expected_path}.")
@@ -224,8 +233,10 @@ def main(argv: list[str] | None = None) -> int:
         if args.command == "rag-gate-result":
             validate_rag_gate_result_file(args.path, expected_git_sha=args.expected_git_sha)
             return 0
-        print(validate_artifact_name(args.value))
-        return 0
+        if args.command == "artifact-name":
+            print(validate_artifact_name(args.value))
+            return 0
+        parser.error(f"Unknown command: {args.command}")
     except EvidenceSourceError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
