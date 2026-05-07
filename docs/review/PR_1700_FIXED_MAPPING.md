@@ -92,6 +92,8 @@ backend, or serving path.
 ## Commit breakdown
 
 - `a4fce6daa` - `feat(ai-runtime): add exact fuzzy cache scaffold`
+- `9ee894de5` - `fix(ai-runtime): harden exact fuzzy scaffold review guards`
+- `0cddad988` - `fix(ai-runtime): remove duplicate scaffold phase error`
 
 ## Pre-push checklist
 
@@ -121,25 +123,24 @@ No AGENTS.md update in this PR.
 
 ## Discussion Thread Pass
 
-Post-open status at artifact creation:
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-- GitHub review threads: none known yet.
-- CodeRabbit/Cubic/Sourcery: not yet dispositioned as no-actionable; merge
-  readiness remains blocked until current-head bot/review status is clean or
-  dispositioned.
+Current actionable review comments have been dispositioned below. Merge
+readiness remains blocked until current-head CI, bot status, and the strict
+wrapper are clean.
 
 ## Fixed in Commit Mapping
 
-No human or bot review threads have been resolved at artifact creation.
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3201964074 -> 9ee894de5
+Commit: 9ee894de5
+Evidence: `core/ai/__init__.py` keeps the SC-G2 scaffold out of eager facade exports; `tests/test_semantic_cache_scaffold_contract.py` covers facade isolation.
 
-Pre-open agent findings fixed before PR open:
-
-- QA false-green checker findings -> `a4fce6daa`
-- Bug-hunter punctuation-only query and passive wording findings -> `a4fce6daa`
-
-Post-open QA governance finding:
-
-- Missing canonical mapping artifact -> fixed by this artifact commit.
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3201984604 -> 0cddad988
+Commit: 0cddad988
+Evidence: `scripts/ci/check_semantic_cache_gate.py` removes the duplicate SC-G3 missing-phase error; `tests/test_semantic_cache_scaffold_contract.py` covers the single-error regression.
 
 ## Merge Readiness
 
