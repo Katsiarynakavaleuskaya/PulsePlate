@@ -590,13 +590,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - [ ] Advisory is updated to mark the emergency fallback retired
 
 <a id="ledger-p1-mako-private-index-sync"></a>
-- [ ] P1: Remove temporary `mako 1.3.11` emergency wheel fallback after approved mirror sync
+- [ ] P1: Remove temporary `mako 1.3.12` emergency wheel fallback after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after `PR #1440`)
-  - Status: Active as of `17 April 2026`
+  - Target PR: `PR-TBD` (follow-up after `PR #1440` / `PR #1697`)
+  - Status: Active as of `17 April 2026`; patched floor refreshed in `PR #1697`
   - Area: security / CI / dependencies
-  - Reason (EN): `fix/mako-security-floor` must stay on the patched exact release `mako 1.3.11`, but current-head CI showed the approved private index still exposed only `1.3.10` during locked binary installs. `PR #1440` therefore adds a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Remove this fallback as soon as the approved mirror serves `1.3.11` natively. (RU: ветка `fix/mako-security-floor` должна остаться на исправленном точном релизе `mako 1.3.11`, но current-head CI показал, что приватное зеркало всё ещё отдаёт только `1.3.10` при locked binary install. Поэтому `PR #1440` добавляет временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `1.3.11` нативно.)
+  - Reason (EN): `fix/mako-security-floor` started on the patched exact release `mako 1.3.11`, but current-head CI showed the approved private index still exposed only `1.3.10` during locked binary installs. `PR #1440` therefore added a time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. `PR #1697` refreshes the active floor to `mako 1.3.12` after a newer `pip-audit` advisory. Remove this fallback as soon as the approved mirror serves `1.3.12` natively. (RU: ветка `fix/mako-security-floor` стартовала с исправленного релиза `mako 1.3.11`, но current-head CI показал, что приватное зеркало всё ещё отдаёт только `1.3.10` при locked binary install. Поэтому `PR #1440` добавил временный exact-wheel fallback с pinned `sha256`, а не уязвимый репин и не широкий bypass на публичный индекс. `PR #1697` обновляет активный floor до `mako 1.3.12` после нового `pip-audit` advisory. Удалить fallback сразу после того, как одобренное зеркало начнёт отдавать `1.3.12` нативно.)
   - Links:
     - `docs/security/MAKO_1_3_11_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:1`
@@ -613,10 +613,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       locked installs on `17 April 2026`.
     - `scripts/ci/emergency_python_wheels.json:85-90` is the narrow temporary
       exact-wheel fallback entry that must be retired once the approved mirror
-      serves `1.3.11` natively.
+      serves `1.3.12` natively.
   - DoD:
-    - [ ] Approved private proxy serves `mako 1.3.11` without the emergency fallback manifest
-    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `mako 1.3.11` emergency entry
+    - [ ] Approved private proxy serves `mako 1.3.12` without the emergency fallback manifest
+    - [ ] `scripts/ci/emergency_python_wheels.json` no longer needs the `mako 1.3.12` emergency entry
     - [ ] Locked install, Docker build, and `make verify` succeed with the private proxy alone
     - [ ] Advisory is updated to mark the emergency fallback retired
 
@@ -2308,7 +2308,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evidence Graph Runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI runtime governance / evidence lineage)
-  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `docs/semantic-cache-gate-reconciliation`
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `docs/ai-runtime-semantic-cache-rollout-contract`
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
   - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers
@@ -2334,6 +2334,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-E4 adds deterministic `allow_execute`, `allow_promote`, and `allow_serve` metadata admission contracts without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, advisory wiki authority, eval runners, or side effects
     - PR-E5 links existing advisory wiki artifacts to advisory evidence assets and advisory admission metadata without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, wiki compiler rewrites, runtime rail mapping, eval runners, or product-serving authority
     - Semantic-cache gate reconciliation keeps the gate closed with deterministic markers and a CI checker so E1-E5 cannot be misread as cache approval
+    - SC-G1 semantic-cache rollout gate contract defines the future gate-open criteria, rollout sequence, false-hit risk model, observability, kill switch, and blocked surfaces while keeping semantic-cache markers closed
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API

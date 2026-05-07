@@ -22,6 +22,11 @@ machine-checkable markers above and includes product AI runtime scope,
 replay-safe lineage, admission policy, observability, false-hit guardrails,
 rollout contract, and current-head CI governance.
 
+The rollout contract is defined in
+[`SEMANTIC_CACHE_ROLLOUT_GATE.md`](../orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md).
+That contract describes how a future gate-open PR may be evaluated; it does not
+open the gate and does not implement semantic cache.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
@@ -56,17 +61,17 @@ It must not be mixed into:
 - not a second source of truth
 - not billing/auth/entitlement truth
 - not a compliance/legal output cache
-- user-account truth surfaces
+- not user-account truth surfaces
 
 ## Future Rollout Order
 
 If the gate opens later, the rollout order is fixed:
 
-1. docs contract for insight runtime caching semantics
-2. exact/fuzzy cache
-3. bounded semantic cache for `/insight`
-4. observability / false-hit guardrails
-5. Redis/GPTCache backend only later
+1. SC-G1 rollout gate contract
+2. SC-G2 exact/fuzzy cache scaffold
+3. SC-G3 observability and false-hit harness
+4. SC-G4 bounded `/insight` semantic-cache experiment
+5. SC-G5 backend selection
 
 ## First-Pass Safety Limits
 
@@ -93,11 +98,16 @@ Any future semantic cache record must include:
 - safety/classification flags
 
 Minimum metrics:
-- hit-rate
-- false-hit rate / precision proxy
-- latency saved
-- cost saved
-- stale-answer rate
+- eligible_hit_rate
+- served_hit_rate
+- false_hit_rate
+- cache_precision_proxy
+- stale_answer_rate
+- fallback_rate
+- p50/p95 latency_saved
+- provider_calls_avoided
+- cost_saved
+- quota_consumption_delta
 
 ## Reminder
 

@@ -94,7 +94,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "python-multipart",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
-    assert ("python-multipart", "0.0.26") in requirements_ci_lite_pins
+    assert ("python-multipart", "0.0.27") in requirements_ci_lite_pins
 
 
 def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None:
@@ -807,7 +807,7 @@ def test_load_emergency_wheel_manifest_keeps_active_artifact_specific_override(
                     },
                     {
                         "package": "mako",
-                        "version": "1.3.11",
+                        "version": "1.3.12",
                         "expires_at": "2099-12-31",
                         "filename": "mako.whl",
                         "url": "https://files.pythonhosted.org/packages/example/mako.whl",
@@ -821,7 +821,7 @@ def test_load_emergency_wheel_manifest_keeps_active_artifact_specific_override(
 
     artifacts = installer.load_emergency_wheel_manifest(manifest)
 
-    assert [(item["package"], item["version"]) for item in artifacts] == [("mako", "1.3.11")]
+    assert [(item["package"], item["version"]) for item in artifacts] == [("mako", "1.3.12")]
 
 
 def test_load_emergency_wheel_manifest_rejects_invalid_artifact_specific_iso_date(
@@ -836,7 +836,7 @@ def test_load_emergency_wheel_manifest_rejects_invalid_artifact_specific_iso_dat
                 "artifacts": [
                     {
                         "package": "mako",
-                        "version": "1.3.11",
+                        "version": "1.3.12",
                         "expires_at": "20991231",
                         "filename": "mako.whl",
                         "url": "https://files.pythonhosted.org/packages/example/mako.whl",
