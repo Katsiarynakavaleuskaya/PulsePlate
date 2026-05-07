@@ -91,6 +91,11 @@ Disposition: FIXED
 Commit: ce9016c155e619b3640d861e4c0d17bb0440cb5d
 Evidence: Cubic review finding is fixed by the path-segment guard and stable producer identity hardening.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244665763 -> 1bc94b45d12ee7e0b4449822c680c6ef75911cd3
+Disposition: FIXED
+Commit: 1bc94b45d12ee7e0b4449822c680c6ef75911cd3
+Evidence: Workflow contract test now asserts `cd.yml` and CI gate docs exist before reading their contents.
+
 ## Pre-Open Subagent Findings
 
 ### Source runs are not allowlisted
@@ -391,6 +396,22 @@ Evidence:
 - `tests/test_release_control_plane_evidence_publication_workflow.py` asserts
   the normalized-path scanner and `test evidence path rejected` fail-closed
   error.
+
+## CodeRabbit Nitpick Pass After `caa1e72de`
+
+### CD workflow contract test should fail clearly if canonical files are absent
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244665763 -> 1bc94b45d
+
+Disposition: FIXED
+Commit: `1bc94b45d`
+Evidence:
+
+- `tests/test_release_control_plane_evidence_publication_workflow.py` now
+  asserts `.github/workflows/cd.yml` and
+  `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md` exist before reading their
+  contents.
+- `.venv/bin/python -m pytest -q tests/test_release_control_plane_evidence_publication_workflow.py` -> PASS.
 
 Any later actionable review comment must be added here with one of:
 
