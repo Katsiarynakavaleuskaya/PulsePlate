@@ -72,7 +72,7 @@ Evidence:
 ### P1: PR opened before canonical mapping artifact existed
 
 Disposition: FIXED
-Commit: follow-up governance commit in PR #1701
+Commit: `034fafa64c9791af6d43aea0d5d0070768e399b1`
 Evidence:
 
 - `docs/review/PR_1701_FIXED_MAPPING.md` records the canonical
@@ -83,7 +83,7 @@ Evidence:
 ### P2: Role-agent/premortem evidence was not visible enough in repo-tracked form
 
 Disposition: FIXED
-Commit: follow-up governance commit in PR #1701
+Commit: `034fafa64c9791af6d43aea0d5d0070768e399b1`
 Evidence:
 
 - This artifact records the pre-open/post-open packets, role order, findings,
