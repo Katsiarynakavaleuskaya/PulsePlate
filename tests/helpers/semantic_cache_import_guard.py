@@ -6,17 +6,33 @@ from pathlib import Path
 FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "app",
     "legacy_app",
-    "providers",
-    "llm",
     "fastapi",
     "sqlalchemy",
     "redis",
+    "gptcache",
+    "cachetools",
+    "providers",
+    "llm",
     "cache",
     "semantic_cache",
-    "gptcache",
-    "scripts.evals",
-    "evals",
     "core.rag",
+    "evals",
+    "scripts.evals",
+    "numpy",
+    "pandas",
+    "rapidfuzz",
+    "sklearn",
+    "faiss",
+    "sentence_transformers",
+    "openai",
+    "anthropic",
+)
+
+FORBIDDEN_SEMANTIC_CACHE_CALLS = (
+    "datetime.now",
+    "datetime.utcnow",
+    "uuid.uuid4",
+    "time.time",
 )
 
 
@@ -74,6 +90,31 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
     assert offenders == [], f"forbidden semantic-cache imports found: {offenders}"
 
 
+def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    import_aliases: dict[str, str] = {}
+    offenders: list[str] = []
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                import_aliases[alias.asname or alias.name.split(".")[0]] = alias.name
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            for alias in node.names:
+                if alias.name != "*":
+                    import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+        elif isinstance(node, ast.Call):
+            call_name = _qualified_call_name(node.func, import_aliases)
+            if call_name is None:
+                continue
+            if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:
+                offenders.append(call_name)
+            if call_name.startswith("random.") or call_name.startswith("secrets."):
+                offenders.append(call_name)
+
+    assert offenders == [], f"forbidden semantic-cache calls found: {offenders}"
+
+
 def _constant_string_argument(node: ast.Call) -> str | None:
     if node.args and isinstance(node.args[0], ast.Constant) and isinstance(node.args[0].value, str):
         return node.args[0].value
@@ -84,4 +125,15 @@ def _constant_string_argument(node: ast.Call) -> str | None:
             if isinstance(value, str):
                 return value
 
+    return None
+
+
+def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
+    if isinstance(node, ast.Name):
+        return import_aliases.get(node.id, node.id)
+    if isinstance(node, ast.Attribute):
+        owner = _qualified_call_name(node.value, import_aliases)
+        if owner is None:
+            return None
+        return f"{owner}.{node.attr}"
     return None

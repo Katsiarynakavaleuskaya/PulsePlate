@@ -156,3 +156,22 @@ def test_phase1_guard_runs_semantic_cache_checker_for_rollout_contract(
 
     assert any("rollout contract missing anchor" in error for error in errors)
     assert any("forbidden semantic-cache claim" in error for error in errors)
+
+
+def test_phase1_guard_runs_semantic_cache_checker_for_scaffold_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    contract = tmp_path / "docs" / "orchestration" / "contracts" / "EXACT_FUZZY_CACHE_SCAFFOLD.md"
+    contract.parent.mkdir(parents=True)
+    contract.write_text(
+        "# Contract\n\nSC-G2 permits embeddings.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=["docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md"]
+    )
+
+    assert any("exact/fuzzy scaffold contract missing anchor" in error for error in errors)
+    assert any("forbidden exact/fuzzy scaffold claim" in error for error in errors)

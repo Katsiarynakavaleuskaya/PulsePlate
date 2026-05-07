@@ -1,0 +1,129 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PulsePlate SC-G2 Exact/Fuzzy Cache Scaffold Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "scaffold_phase",
+    "allowed_match_modes",
+    "blocked_match_modes",
+    "blocked_backends",
+    "blocked_surfaces",
+    "required_inputs",
+    "required_outputs",
+    "required_followups"
+  ],
+  "properties": {
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "scaffold_phase": {
+      "const": "SC-G2"
+    },
+    "allowed_match_modes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "exact",
+          "fuzzy_reordered_tokens",
+          "fuzzy_near_duplicate"
+        ]
+      },
+      "minItems": 3,
+      "uniqueItems": true
+    },
+    "blocked_match_modes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "embedding_similarity",
+          "semantic_similarity",
+          "vector_search",
+          "provider_rerank",
+          "graphrag"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "blocked_backends": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "redis",
+          "gptcache",
+          "vector_database",
+          "provider_cache",
+          "runtime_store"
+        ]
+      },
+      "minItems": 5,
+      "uniqueItems": true
+    },
+    "blocked_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 8,
+      "uniqueItems": true
+    },
+    "required_inputs": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "surface",
+          "raw_query",
+          "context_fingerprint",
+          "source_fingerprints",
+          "policy_version",
+          "provider_key",
+          "model_key",
+          "user_tier",
+          "transparency_notice_id"
+        ]
+      },
+      "minItems": 9,
+      "uniqueItems": true
+    },
+    "required_outputs": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "record_id",
+          "normalized_query",
+          "token_sort_key",
+          "idempotency_key",
+          "lineage_ids",
+          "match_decision",
+          "match_mode",
+          "score_bps",
+          "reason_codes"
+        ]
+      },
+      "minItems": 9,
+      "uniqueItems": true
+    },
+    "required_followups": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "SC-G3 observability and false-hit harness",
+          "SC-G4 bounded /insight semantic-cache experiment",
+          "SC-G5 backend selection"
+        ]
+      },
+      "minItems": 3,
+      "uniqueItems": true
+    }
+  }
+}

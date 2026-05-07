@@ -63,6 +63,9 @@ Future work must follow this order:
 
 SC-G2 must be deterministic exact/fuzzy cache only: no embeddings, no semantic
 similarity, no Redis, no GPTCache, no vector search, and no provider changes.
+The phase-specific SC-G2 scaffold contract is
+[`EXACT_FUZZY_CACHE_SCAFFOLD.md`](./EXACT_FUZZY_CACHE_SCAFFOLD.md), which keeps
+SC-G2 pre-serving and lexical-only.
 
 SC-G3 must run before any semantic-cache serving. It must define offline proxy
 evaluation, negative controls, stop rules, and observability.

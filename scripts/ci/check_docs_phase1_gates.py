@@ -21,6 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECKER_PATH = Path(__file__).resolve().with_name("check_semantic_cache_gate.py")
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
 SEMANTIC_CACHE_ROLLOUT_CONTRACT_DOC = "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md"
+EXACT_FUZZY_CACHE_SCAFFOLD_DOC = "docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md"
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
@@ -46,6 +47,20 @@ def _load_semantic_cache_rollout_contract_validator() -> SemanticCacheGateValida
     if not callable(validator):
         raise RuntimeError(
             "semantic-cache gate checker missing validate_semantic_cache_rollout_contract"
+        )
+    return cast(SemanticCacheGateValidator, validator)
+
+
+def _load_exact_fuzzy_scaffold_validator() -> SemanticCacheGateValidator:
+    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    validator = getattr(module, "validate_exact_fuzzy_scaffold_contract", None)
+    if not callable(validator):
+        raise RuntimeError(
+            "semantic-cache gate checker missing validate_exact_fuzzy_scaffold_contract"
         )
     return cast(SemanticCacheGateValidator, validator)
 
@@ -91,6 +106,10 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
         if relpath == SEMANTIC_CACHE_ROLLOUT_CONTRACT_DOC:
             validate_rollout_contract = _load_semantic_cache_rollout_contract_validator()
             errors.extend(f"{relpath}: {error}" for error in validate_rollout_contract(content))
+
+        if relpath == EXACT_FUZZY_CACHE_SCAFFOLD_DOC:
+            validate_scaffold_contract = _load_exact_fuzzy_scaffold_validator()
+            errors.extend(f"{relpath}: {error}" for error in validate_scaffold_contract(content))
 
     return errors
 

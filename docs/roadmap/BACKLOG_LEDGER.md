@@ -2308,7 +2308,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evidence Graph Runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI runtime governance / evidence lineage)
-  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `docs/ai-runtime-semantic-cache-rollout-contract`
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `feat/ai-runtime-exact-fuzzy-cache-scaffold`
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
   - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers
@@ -2335,6 +2335,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-E5 links existing advisory wiki artifacts to advisory evidence assets and advisory admission metadata without adding runtime behavior, OpenAPI changes, DB migration, semantic cache, GraphRAG, wiki compiler rewrites, runtime rail mapping, eval runners, or product-serving authority
     - Semantic-cache gate reconciliation keeps the gate closed with deterministic markers and a CI checker so E1-E5 cannot be misread as cache approval
     - SC-G1 semantic-cache rollout gate contract defines the future gate-open criteria, rollout sequence, false-hit risk model, observability, kill switch, and blocked surfaces while keeping semantic-cache markers closed
+    - SC-G2 exact/fuzzy cache scaffold adds deterministic lexical matching contracts and guards while preserving closed semantic-cache markers, with no runtime serving, embeddings, Redis/GPTCache, vector search, provider changes, `/insight` wiring, DB, FastAPI, or OpenAPI changes
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API
