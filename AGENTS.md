@@ -1245,6 +1245,14 @@ Detailed procedures stay in runbooks, ADRs, and scoped `AGENTS.md` files.
 - UI review standards: `docs/design/LUXURY_UI_REVIEW_CHECKLIST.md`
 - Any change to `make design-*` behavior must update the canonical design docs/runbooks in the same PR.
 
+### Design-impacting PR workflow
+
+- Design-impacting PRs must follow `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`.
+- Use `.venv/bin/python` for repo Python commands and coordinator bootstrap.
+- Preserve `/tokens` as token authoring truth and generated mirrors as derived runtime artifacts; Figma, Canva, Storybook, evidence packs, scorecards, DESIGN.md, and templates are reference/process layers only.
+- Run bounded checks such as `make validate-changed`, `make design-guard`, and `make tokens-check`; do not claim green main from local checks.
+- Run premortem against the actual diff and fix real defects before updating `docs/review/PR_<N>_FIXED_MAPPING.md`.
+
 ## OpenAPI generation (determinism requirement)
 
 ### Canonical source
