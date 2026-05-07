@@ -8,57 +8,18 @@ on:
         description: "Expected release git SHA for all evidence artifacts"
         required: true
         type: string
-      release_manifest_run_id:
-        description: "GitHub Actions run id containing release_manifest.json"
+      release_manifest_source:
+        description: "JSON with run_id, artifact_name, workflow_name, path for release_manifest.json"
         required: true
         type: string
-      release_manifest_artifact_name:
-        description: "Artifact name containing release_manifest.json"
+      rag_gate_result_source:
+        description: "JSON with run_id, artifact_name, workflow_name, path for rag_gate_result.json"
         required: true
+        default: '{"run_id":"","artifact_name":"","workflow_name":"RAG Release Gates","path":"rag_gate_result.json"}'
         type: string
-      release_manifest_workflow_name:
-        description: "Expected source workflow name for release_manifest.json"
+      build_equivalence_source:
+        description: "JSON with run_id, artifact_name, workflow_name, path for build_equivalence_result.json"
         required: true
-        type: string
-      release_manifest_path:
-        description: "Path inside artifact to release_manifest.json"
-        required: true
-        default: "release_manifest.json"
-        type: string
-      rag_gate_result_run_id:
-        description: "GitHub Actions run id containing rag_gate_result.json"
-        required: true
-        type: string
-      rag_gate_result_artifact_name:
-        description: "Artifact name containing rag_gate_result.json"
-        required: true
-        type: string
-      rag_gate_result_workflow_name:
-        description: "Expected source workflow name for rag_gate_result.json"
-        required: true
-        default: "RAG Release Gates"
-        type: string
-      rag_gate_result_path:
-        description: "Path inside artifact to rag_gate_result.json"
-        required: true
-        default: "rag_gate_result.json"
-        type: string
-      build_equivalence_run_id:
-        description: "GitHub Actions run id containing build_equivalence_result.json"
-        required: true
-        type: string
-      build_equivalence_artifact_name:
-        description: "Artifact name containing build_equivalence_result.json"
-        required: true
-        type: string
-      build_equivalence_workflow_name:
-        description: "Expected source workflow name for build_equivalence_result.json"
-        required: true
-        type: string
-      build_equivalence_path:
-        description: "Path inside artifact to build_equivalence_result.json"
-        required: true
-        default: "build_equivalence_result.json"
         type: string
       evidence_artifact_name:
         description: "Published governed release-control-plane evidence artifact name"
@@ -88,21 +49,12 @@ jobs:
 
       - name: Collect governed release evidence
         env:
-          BUILD_EQUIVALENCE_ARTIFACT_NAME: ${{ inputs.build_equivalence_artifact_name }}
-          BUILD_EQUIVALENCE_PATH: ${{ inputs.build_equivalence_path }}
-          BUILD_EQUIVALENCE_RUN_ID: ${{ inputs.build_equivalence_run_id }}
-          BUILD_EQUIVALENCE_WORKFLOW_NAME: ${{ inputs.build_equivalence_workflow_name }}
+          BUILD_EQUIVALENCE_SOURCE: ${{ inputs.build_equivalence_source }}
           EVIDENCE_ARTIFACT_NAME: ${{ inputs.evidence_artifact_name }}
           EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RAG_GATE_RESULT_ARTIFACT_NAME: ${{ inputs.rag_gate_result_artifact_name }}
-          RAG_GATE_RESULT_PATH: ${{ inputs.rag_gate_result_path }}
-          RAG_GATE_RESULT_RUN_ID: ${{ inputs.rag_gate_result_run_id }}
-          RAG_GATE_RESULT_WORKFLOW_NAME: ${{ inputs.rag_gate_result_workflow_name }}
-          RELEASE_MANIFEST_ARTIFACT_NAME: ${{ inputs.release_manifest_artifact_name }}
-          RELEASE_MANIFEST_PATH: ${{ inputs.release_manifest_path }}
-          RELEASE_MANIFEST_RUN_ID: ${{ inputs.release_manifest_run_id }}
-          RELEASE_MANIFEST_WORKFLOW_NAME: ${{ inputs.release_manifest_workflow_name }}
+          RAG_GATE_RESULT_SOURCE: ${{ inputs.rag_gate_result_source }}
+          RELEASE_MANIFEST_SOURCE: ${{ inputs.release_manifest_source }}
         run: |
           set -euo pipefail
 
@@ -139,6 +91,42 @@ jobs:
                 ;;
             esac
           }
+
+          parse_source_input() {
+            label="$1"
+            raw_json="$2"
+            prefix="$3"
+            python - "$label" "$raw_json" "$prefix" <<'PY' >> "$source_env"
+          import json
+          import shlex
+          import sys
+
+          label, raw_json, prefix = sys.argv[1:4]
+          try:
+              payload = json.loads(raw_json)
+          except json.JSONDecodeError as exc:
+              raise SystemExit(f"{label}_source must be JSON: {exc}") from exc
+          if not isinstance(payload, dict):
+              raise SystemExit(f"{label}_source must be a JSON object")
+          required = ("run_id", "artifact_name", "workflow_name", "path")
+          for key in required:
+              value = payload.get(key)
+              if not isinstance(value, str) or not value:
+                  raise SystemExit(f"{label}_source.{key} must be a non-empty string")
+              if "\n" in value or "\r" in value:
+                  raise SystemExit(f"{label}_source.{key} must be single-line")
+          for key in required:
+              print(f"{prefix}_{key.upper()}={shlex.quote(payload[key])}")
+          PY
+          }
+
+          source_env="${RUNNER_TEMP}/release-control-plane-source-inputs.env"
+          : > "$source_env"
+          parse_source_input "release_manifest" "$RELEASE_MANIFEST_SOURCE" "RELEASE_MANIFEST"
+          parse_source_input "rag_gate_result" "$RAG_GATE_RESULT_SOURCE" "RAG_GATE_RESULT"
+          parse_source_input "build_equivalence" "$BUILD_EQUIVALENCE_SOURCE" "BUILD_EQUIVALENCE"
+          # shellcheck disable=SC1090
+          . "$source_env"
 
           reject_placeholder "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
           reject_placeholder "$RELEASE_MANIFEST_ARTIFACT_NAME" "release_manifest_artifact_name"

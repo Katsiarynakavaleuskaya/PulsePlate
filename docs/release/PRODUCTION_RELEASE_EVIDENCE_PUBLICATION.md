@@ -54,12 +54,10 @@ them again with `scripts/ci/check_release_control_plane.py`.
 Run the `Release Control Plane Evidence` workflow manually with:
 
 - `git_sha`: expected release commit SHA.
-- `release_manifest_run_id`, `release_manifest_artifact_name`,
-  `release_manifest_workflow_name`, `release_manifest_path`.
-- `rag_gate_result_run_id`, `rag_gate_result_artifact_name`,
-  `rag_gate_result_workflow_name`, `rag_gate_result_path`.
-- `build_equivalence_run_id`, `build_equivalence_artifact_name`,
-  `build_equivalence_workflow_name`, `build_equivalence_path`.
+- `release_manifest_source`: JSON source object for `release_manifest.json`.
+- `rag_gate_result_source`: JSON source object for `rag_gate_result.json`.
+- `build_equivalence_source`: JSON source object for
+  `build_equivalence_result.json`.
 - `evidence_artifact_name`: final artifact name for production CD.
 
 GitHub `workflow_dispatch` cannot upload arbitrary operator-local files. The
@@ -67,10 +65,20 @@ workflow therefore downloads existing governed workflow artifacts from
 successful `workflow_dispatch` source runs, copies the selected files into the
 canonical layout, validates them, and publishes the combined artifact.
 
-Each source evidence input includes an expected workflow name. The publisher
-compares that value to the source run `workflowName` returned by GitHub before
-downloading artifacts. This avoids hardcoding producer workflow names that do
-not yet exist for every evidence type while still preventing accidental
+Each source object must be a single-line JSON object with these string fields:
+
+```json
+{
+  "run_id": "123456789",
+  "artifact_name": "governed-release-evidence",
+  "workflow_name": "Expected Producer Workflow",
+  "path": "path/inside/artifact.json"
+}
+```
+
+The publisher compares `workflow_name` to the source run `workflowName`
+returned by GitHub before downloading artifacts. This keeps the workflow within
+GitHub's `workflow_dispatch` input limit while still preventing accidental
 cross-workflow artifact substitution.
 
 The current repo-defined producer for RAG evidence is `RAG Release Gates`. For
