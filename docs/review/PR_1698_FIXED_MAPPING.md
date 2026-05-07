@@ -189,8 +189,9 @@ Reason: Sourcery high-level notes were dispositioned as NOT-A-BUG: duplicate tem
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
 
 Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
-Reason: CodeRabbit requested explicit backlog/thread proof for deferred follow-ups. PR-8, App Store asset validation, and live capture lanes remain separate tracked follow-ups. The canonical phase2 parser requires raw URL bullets in this section, so `Thread:`-prefixed lines are intentionally not used here.
+Reason: CodeRabbit requested explicit backlog/thread proof for deferred follow-ups. PR-8, App Store asset validation, and live capture lanes remain separate tracked follow-ups. The canonical review-disposition checker requires `Backlog:` proof for DEFERRED entries, and the phase2 parser requires raw URL bullets in this section, so `Thread:`-prefixed lines are intentionally not used here.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244223889
 
