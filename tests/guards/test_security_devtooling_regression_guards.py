@@ -123,6 +123,7 @@ def _docs_diff_base_candidates() -> tuple[str, ...]:
             _github_event_pull_request_base_sha(),
             "origin/main",
             "main",
+            "HEAD^1",
             "HEAD~1",
         )
         if candidate
@@ -144,6 +145,10 @@ def _changed_docs_diff() -> str:
             if result.returncode == 0:
                 return result.stdout
 
+    fallback = _changed_docs_diff_from_head_commit()
+    if fallback.returncode == 0:
+        return fallback.stdout
+
     attempted_refs = ", ".join(attempted) or "<none>"
     raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted_refs}")
 
@@ -160,6 +165,26 @@ def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[s
 def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [_binary("git"), "diff", "--unified=0", revision_range, "--", "docs", "docs/review"],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
+
+
+def _changed_docs_diff_from_head_commit() -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            _binary("git"),
+            "diff-tree",
+            "--no-commit-id",
+            "--root",
+            "--unified=0",
+            "-r",
+            "HEAD",
+            "--",
+            "docs",
+            "docs/review",
+        ],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
