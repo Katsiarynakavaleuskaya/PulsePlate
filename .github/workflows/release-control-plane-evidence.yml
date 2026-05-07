@@ -9,16 +9,16 @@ on:
         required: true
         type: string
       release_manifest_source:
-        description: "JSON with run_id, artifact_name, workflow_name, path for release_manifest.json"
+        description: "JSON with run_id, artifact_name, path for release_manifest.json"
         required: true
         type: string
       rag_gate_result_source:
-        description: "JSON with run_id, artifact_name, workflow_name, path for rag_gate_result.json"
+        description: "JSON with run_id, artifact_name, path for rag_gate_result.json"
         required: true
-        default: '{"run_id":"","artifact_name":"","workflow_name":"RAG Release Gates","path":"rag_gate_result.json"}'
+        default: '{"run_id":"","artifact_name":"","path":"rag_gate_result.json"}'
         type: string
       build_equivalence_source:
-        description: "JSON with run_id, artifact_name, workflow_name, path for build_equivalence_result.json"
+        description: "JSON with run_id, artifact_name, path for build_equivalence_result.json"
         required: true
         type: string
       evidence_artifact_name:
@@ -62,7 +62,7 @@ jobs:
             value="$1"
             label="$2"
             case "$value" in
-              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|*[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
+              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|*[Tt][Ee][Ss][Tt][Ss]/*|*/[Tt][Ee][Ss][Tt][Ss]/*|*[Tt][Ee][Ss][Tt]-*|*-[Tt][Ee][Ss][Tt]*|*[Tt][Ee][Ss][Tt]_*|*_[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
                 echo "ERROR: ${label} must reference governed release evidence, not fixtures/tests/placeholders/fakes"
                 exit 1
                 ;;
@@ -108,7 +108,12 @@ jobs:
               raise SystemExit(f"{label}_source must be JSON: {exc}") from exc
           if not isinstance(payload, dict):
               raise SystemExit(f"{label}_source must be a JSON object")
-          required = ("run_id", "artifact_name", "workflow_name", "path")
+          if "workflow_name" in payload:
+              raise SystemExit(
+                  f"{label}_source.workflow_name is not accepted; "
+                  "expected producer workflow names are repo-owned"
+              )
+          required = ("run_id", "artifact_name", "path")
           for key in required:
               value = payload.get(key)
               if not isinstance(value, str) or not value:
@@ -130,11 +135,8 @@ jobs:
 
           reject_placeholder "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
           reject_placeholder "$RELEASE_MANIFEST_ARTIFACT_NAME" "release_manifest_artifact_name"
-          reject_placeholder "$RELEASE_MANIFEST_WORKFLOW_NAME" "release_manifest_workflow_name"
           reject_placeholder "$RAG_GATE_RESULT_ARTIFACT_NAME" "rag_gate_result_artifact_name"
-          reject_placeholder "$RAG_GATE_RESULT_WORKFLOW_NAME" "rag_gate_result_workflow_name"
           reject_placeholder "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "build_equivalence_artifact_name"
-          reject_placeholder "$BUILD_EQUIVALENCE_WORKFLOW_NAME" "build_equivalence_workflow_name"
           reject_path "$RELEASE_MANIFEST_PATH" "release_manifest_path"
           reject_path "$RAG_GATE_RESULT_PATH" "rag_gate_result_path"
           reject_path "$BUILD_EQUIVALENCE_PATH" "build_equivalence_path"
@@ -160,6 +162,9 @@ jobs:
           work_root="${RUNNER_TEMP}/release-control-plane-evidence-sources"
           bundle_root="${RUNNER_TEMP}/release-control-plane-evidence-bundle"
           mkdir -p "$work_root" "$bundle_root/release-control-plane"
+          release_manifest_expected_workflow_name="Release Manifest Evidence"
+          rag_gate_result_expected_workflow_name="RAG Release Gates"
+          build_equivalence_expected_workflow_name="Build Equivalence Evidence"
 
           require_expected_source_workflow() {
             label="$1"
@@ -221,9 +226,9 @@ jobs:
             echo "${label}: workflow=${run_workflow_name:-unset} event=${run_event:-unset} source=${run_url:-unset}" >> "${bundle_root}/release-control-plane/source_runs.txt"
           }
 
-          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json" "$RELEASE_MANIFEST_WORKFLOW_NAME"
-          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json" "$RAG_GATE_RESULT_WORKFLOW_NAME"
-          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json" "$BUILD_EQUIVALENCE_WORKFLOW_NAME"
+          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json" "$release_manifest_expected_workflow_name"
+          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json" "$rag_gate_result_expected_workflow_name"
+          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json" "$build_equivalence_expected_workflow_name"
 
           python - "${bundle_root}/release-control-plane" <<'PY'
           import json

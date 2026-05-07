@@ -71,21 +71,26 @@ Each source object must be a single-line JSON object with these string fields:
 {
   "run_id": "123456789",
   "artifact_name": "governed-release-evidence",
-  "workflow_name": "Expected Producer Workflow",
   "path": "path/inside/artifact.json"
 }
 ```
 
-The publisher compares `workflow_name` to the source run `workflowName`
-returned by GitHub before downloading artifacts. This keeps the workflow within
-GitHub's `workflow_dispatch` input limit while still preventing accidental
-cross-workflow artifact substitution.
+Source objects must not include a `workflow_name` field. Producer identity is a
+repo-owned allowlist inside `.github/workflows/release-control-plane-evidence.yml`,
+not operator-supplied dispatch metadata.
 
-The current repo-defined producer for RAG evidence is `RAG Release Gates`. For
-release-manifest and build-equivalence evidence, operators must provide the
-actual governed source workflow name that produced the artifact. If no governed
-source workflow exists for a required evidence type, do not run production
-publication; create the producer workflow in a separate reviewed PR first.
+Current repo-owned producer names:
+
+- release manifest: `Release Manifest Evidence`
+- RAG gate result: `RAG Release Gates`
+- build equivalence: `Build Equivalence Evidence`
+
+The current repo-defined producer that exists today is `RAG Release Gates`.
+`Release Manifest Evidence` and `Build Equivalence Evidence` are reserved
+fail-closed producer identities for the next governed producer-workflow PRs. If
+no governed source workflow exists for a required evidence type, do not run
+production publication or set production CD evidence variables; create the
+missing producer workflow in a separate reviewed PR first.
 
 The publication workflow itself must be dispatched on the release commit or ref:
 its workflow ref must match `git_sha`.

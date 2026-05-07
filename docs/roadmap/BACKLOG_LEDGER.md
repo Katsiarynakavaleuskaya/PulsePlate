@@ -2536,19 +2536,20 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - GitHub alerts: `security/dependabot/114`, `security/dependabot/115`, `security/dependabot/116`
   - Evidence:
     - `docs/security/GHSA-v92g-xgxw-vvmm-mako.md:5-27` anchors the advisory
-      identity, affected package, first patched version `1.3.11`, and the
-      repo-managed requirement/lock surfaces that must stay aligned.
+      identity, affected package, historical first patched version `1.3.11`,
+      current enforced floor `1.3.12`, and the repo-managed requirement/lock
+      surfaces that must stay aligned.
     - `docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:28-44`
       records the pre-remediation repo truth for alerts `#114-#116`, including
       the `mako==1.3.10` pins that triggered this dedicated narrow lane.
     - `tests/fixtures/dependency_security_schema.json:4` plus
       `tests/test_dependency_security_guard.py:56-110` provide the local
-      fail-closed policy evidence that `Mako 1.3.11` is the enforced minimum
-      safe version for this remediation.
+      fail-closed policy evidence that `Mako 1.3.12` is the current enforced
+      minimum safe version for this remediation.
   - DoD:
-    - Governed source surfaces explicitly enforce `Mako >= 1.3.11`
-    - Pinned runtime/full/CI-lite lock surfaces resolve `mako==1.3.11`
-    - Dependency security schema records `Mako 1.3.11` as the minimum safe version
+    - Governed source surfaces explicitly enforce `Mako >= 1.3.12`
+    - Pinned runtime/full/CI-lite lock surfaces resolve `mako==1.3.12`
+    - Dependency security schema records `Mako 1.3.12` as the minimum safe version
     - Dedicated security note includes `file:line` evidence and validation commands
     - Draft PR is opened with canonical `docs/review/PR_<N>_FIXED_MAPPING.md`
     - Root-cause remediation plus verification land before any `docs/review/PR_<N>_FIXED_MAPPING.md` updates or review-thread resolution; fix-before-mapping remains mandatory
