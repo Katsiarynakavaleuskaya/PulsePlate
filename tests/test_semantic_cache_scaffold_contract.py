@@ -278,6 +278,19 @@ def test_direct_validator_reports_missing_scaffold_anchor() -> None:
     assert "exact/fuzzy scaffold contract missing anchor: admission linkage required" in errors
 
 
+def test_direct_validator_reports_missing_sc_g3_once() -> None:
+    errors = validate_exact_fuzzy_scaffold_contract(
+        _contract_text().replace(
+            "SC-G3 observability and false-hit harness is still required before any\n"
+            "semantic-cache serving. ",
+            "",
+        )
+    )
+
+    assert errors.count("exact/fuzzy scaffold contract missing phase: SC-G3") == 1
+    assert "exact/fuzzy scaffold contract omits SC-G3" not in errors
+
+
 def test_docs_phase1_integration_passes_for_scaffold_contract() -> None:
     result = subprocess.run(
         [

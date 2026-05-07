@@ -405,9 +405,6 @@ def validate_exact_fuzzy_scaffold_contract(text: str) -> list[str]:
         if current_position <= previous_position:
             errors.append(f"exact/fuzzy scaffold phase out of order: {phase}")
         previous_position = current_position
-    if positions["SC-G3"] == -1:
-        errors.append("exact/fuzzy scaffold contract omits SC-G3")
-
     errors.extend(_forbidden_claim_errors(text))
     errors.extend(
         f"forbidden exact/fuzzy scaffold claim: {label}"
