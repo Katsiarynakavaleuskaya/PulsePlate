@@ -138,19 +138,34 @@ PR is selected.
 
 ## Discussion Thread Pass
 
-No GitHub review threads at PR open. Post-open packet
-`artifacts/orchestration/task_packets/491ff8345781.json` assigned
-`qa-engineer-agent -> bug-hunter`. The first QA explorer did not return and was
-closed; replacement QA pass returned no actionable findings at
-`37b8439c4`. Bug-hunter returned three
-actionable findings; all were fixed before mapping.
+Post-open packet `artifacts/orchestration/task_packets/491ff8345781.json`
+assigned `qa-engineer-agent -> bug-hunter`. The first QA explorer did not
+return and was closed; replacement QA pass returned no actionable findings at
+`37b8439c4`. Bug-hunter and live bot review comments were handled with code,
+checker, schema, test, and mapping fixes before merge readiness.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 5b07640e6
+Evidence: `core/ai/cache_observability.py` includes query identity in safe request fingerprints; `scripts/ci/check_semantic_cache_gate.py` requires explicit blocked/no anchors and broader Redis/GPTCache/provider/runtime forbidden wording; `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.schema.json` constrains safety arrays; `tests/core/ai/test_cache_observability.py` annotates `_audit_event` and covers distinct fuzzy audit identity; `tests/test_semantic_cache_observability_contract.py` covers stricter schema/checker behavior.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3203874281 -> 5b07640e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4246776756 -> 5b07640e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3203875208 -> 5b07640e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3203875238 -> 5b07640e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3203875245 -> 5b07640e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4246808012 -> 5b07640e6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3203903291 -> 5b07640e6
+Commit: a346cea40
+Evidence: `docs/review/PR_1702_FIXED_MAPPING.md` Discussion Thread Pass includes the two canonical checkboxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#discussion_r3203931637 -> a346cea40
+Commit: c65ca1fa1
+Evidence: `docs/review/PR_1702_FIXED_MAPPING.md` applies the CodeRabbit style nit by using `cache-serving`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4246839117 -> c65ca1fa1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1702#pullrequestreview-4246970326 -> 5b07640e6
 
 ## Post-Open Agent Mapping
 
