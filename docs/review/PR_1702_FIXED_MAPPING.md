@@ -146,9 +146,9 @@ No review threads at PR open. Post-open packet
 
 - PR open baseline -> `d0f9c3259`
 - Mapping artifact -> `2ae7177ff`
-- Post-open bug-hunter malformed hit audit event finding -> pending fix commit
-- Post-open bug-hunter blocked-backend checker wording finding -> pending fix commit
-- Post-open bug-hunter import guard wording/allowlist finding -> pending fix commit
+- Post-open bug-hunter malformed hit audit event finding -> `2008d659e`
+- Post-open bug-hunter blocked-backend checker wording finding -> `2008d659e`
+- Post-open bug-hunter import guard wording/allowlist finding -> `2008d659e`
 
 ## Merge Readiness
 
