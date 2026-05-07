@@ -103,6 +103,8 @@ backend, or serving path.
 - `7062add2c` - `docs(review): keep PR 1700 readiness pending`
 - `9ae144be8` - `docs(review): map readiness checklist findings`
 - `f5969b60b` - `fix(ci): include exact fuzzy scaffold coverage`
+- `8ee23ed33` - `docs(review): map coverage gate fix`
+- `643eb9186` - `fix(tests): annotate exact fuzzy helpers`
 
 ## Pre-push checklist
 
@@ -162,6 +164,11 @@ Commit: 955e5a958
 Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` uses canonical mapping lines with disposition, commit, and evidence fields; `scripts/ci/check_pr_body_phase2_gates.py --pr-number 1700 --body ...` passed locally.
 
 Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244697102 -> 955e5a958
+Commit: 955e5a958
+Evidence: Cubic review object covered the same mapping artifact failures as `discussion_r3202053566` and `discussion_r3202053571`; `docs/review/PR_1700_FIXED_MAPPING.md` and the PR body phase-2 gate now validate.
+
+Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244613938 -> a4acaa035
 Commit: a4acaa035
 Evidence: `core/ai/exact_fuzzy_cache.py`, `scripts/ci/check_semantic_cache_gate.py`, `scripts/ci/check_docs_phase1_gates.py`, and `tests/test_semantic_cache_scaffold_contract.py` address the valid CodeRabbit cleanup findings.
@@ -187,6 +194,11 @@ Commit: 28802d950
 Evidence: `scripts/ci/check_semantic_cache_gate.py` now requires partition-field anchors from the partition contract; `tests/test_semantic_cache_scaffold_contract.py` covers broad `surface` wording drift.
 
 Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244769414 -> 28802d950
+Commit: 28802d950
+Evidence: Cubic review object covered the same schema, nondeterministic call guard, embeddings-anchor, and partition-surface findings mapped above; the checker and focused tests now enforce those contracts.
+
+Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202194577 -> 7062add2c
 Commit: 7062add2c
 Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` keeps DoD and pre-push checklist items unchecked until final merge readiness.
@@ -195,6 +207,11 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202194582 -> 7062add2c
 Commit: 7062add2c
 Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` clarifies that SC-G2 adds only the internal `core/ai` scaffold and does not change runtime serving/provider/RAG/cache backend/DB wiring.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244847055 -> 643eb9186
+Commit: 643eb9186
+Evidence: CodeRabbit review object included already mapped checklist findings and the still-valid helper typing nitpick; `tests/core/ai/test_exact_fuzzy_cache.py` now annotates `_lineage` and `_record`, with focused pytest and mypy passing.
 
 ## Merge Readiness
 
