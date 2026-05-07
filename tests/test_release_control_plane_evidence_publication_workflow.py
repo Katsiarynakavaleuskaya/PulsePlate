@@ -81,6 +81,7 @@ def test_workflow_permissions_are_least_privilege() -> None:
     workflow = _load_workflow()
 
     assert workflow["permissions"] == {"actions": "read", "contents": "read"}
+    assert _job(workflow)["timeout-minutes"] == 20
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
     assert "id-token:" not in workflow_text
     assert "packages:" not in workflow_text
@@ -129,11 +130,16 @@ def test_workflow_rejects_fixtures_placeholders_paths_and_git_sha_mismatch() -> 
     collect_script = _collect_script(_load_workflow())
 
     assert "reject_placeholder" in collect_script
+    assert "reject_newline" in collect_script
+    assert 'reject_newline "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"' in collect_script
+    assert "must be single-line" in collect_script
     assert "fixtures/tests/placeholders/fakes" in collect_script
     assert "/*|*..*|*//*" in collect_script
     assert "must be a numeric GitHub Actions run id" in collect_script
     assert "git_sha must be a hexadecimal commit SHA" in collect_script
     assert "*[Tt][Ee][Ss][Tt]*" not in collect_script
+    assert "[Tt][Ee][Ss][Tt]/*" in collect_script
+    assert "*/[Tt][Ee][Ss][Tt]/*" in collect_script
     assert "expected_git_sha_lc" in collect_script
     assert "github_sha_lc" in collect_script
     assert "run_head_sha_lc" in collect_script

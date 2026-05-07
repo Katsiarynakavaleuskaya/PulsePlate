@@ -34,6 +34,7 @@ permissions:
 jobs:
   publish-release-control-plane-evidence:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     environment:
       name: release-evidence
     steps:
@@ -62,8 +63,19 @@ jobs:
             value="$1"
             label="$2"
             case "$value" in
-              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|*[Tt][Ee][Ss][Tt][Ss]/*|*/[Tt][Ee][Ss][Tt][Ss]/*|*[Tt][Ee][Ss][Tt]-*|*-[Tt][Ee][Ss][Tt]*|*[Tt][Ee][Ss][Tt]_*|*_[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
+              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|[Tt][Ee][Ss][Tt]|[Tt][Ee][Ss][Tt]/*|*/[Tt][Ee][Ss][Tt]/*|*[Tt][Ee][Ss][Tt][Ss]/*|*/[Tt][Ee][Ss][Tt][Ss]/*|*[Tt][Ee][Ss][Tt]-*|*-[Tt][Ee][Ss][Tt]*|*[Tt][Ee][Ss][Tt]_*|*_[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
                 echo "ERROR: ${label} must reference governed release evidence, not fixtures/tests/placeholders/fakes"
+                exit 1
+                ;;
+            esac
+          }
+
+          reject_newline() {
+            value="$1"
+            label="$2"
+            case "$value" in
+              *$'\n'*|*$'\r'*)
+                echo "ERROR: ${label} must be single-line"
                 exit 1
                 ;;
             esac
@@ -133,6 +145,7 @@ jobs:
           # shellcheck disable=SC1090
           . "$source_env"
 
+          reject_newline "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
           reject_placeholder "$EVIDENCE_ARTIFACT_NAME" "evidence_artifact_name"
           reject_placeholder "$RELEASE_MANIFEST_ARTIFACT_NAME" "release_manifest_artifact_name"
           reject_placeholder "$RAG_GATE_RESULT_ARTIFACT_NAME" "rag_gate_result_artifact_name"
