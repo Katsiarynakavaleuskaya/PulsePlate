@@ -125,6 +125,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   base SHA diff candidates in shallow CI checkouts.
 - `3f445831a` - Fall back from three-dot to two-dot docs leakage diff when a
   shallow CI checkout cannot materialize a merge base.
+- `6b39975d5` - Add `HEAD^1` and `diff-tree HEAD` fallback for detached CI
+  checkouts where no base ref can be materialized.
 
 ## Pre-Push Checklist
 
@@ -220,9 +222,11 @@ Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_H
   job `74904151062`: `171ebf112`
 - Current-head CI shallow checkout no-usable-base failure at run `25521631022`,
   job `74907060877`: `3f445831a`
+- Current-head CI detached checkout no-usable-base failure at run
+  `25522291859`, job `74909417241`: `6b39975d5`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `3f445831a`,
+Not merge-ready yet. Requires the new current-head CI run after `6b39975d5`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
