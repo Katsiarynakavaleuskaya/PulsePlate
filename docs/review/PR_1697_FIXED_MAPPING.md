@@ -44,14 +44,21 @@ No changes to:
 - `tests/test_semantic_cache_gate.py`
 - `tests/test_semantic_cache_rollout_gate.py`
 - `tests/test_docs_phase1_gates.py`
+- `tests/helpers/semantic_cache_import_guard.py`
 - `.secrets.baseline`
 - `constraints.txt`
 - `requirements.txt`
+- `requirements.in`
 - `requirements-lock.txt`
 - `requirements-dev.txt`
+- `requirements-dev.in`
 - `requirements-ci-lite.txt`
+- `requirements-ci-lite.in`
 - `requirements-docker-runtime.txt`
+- `requirements-docker-runtime.in`
 - `scripts/ci/emergency_python_wheels.json`
+- `tests/fixtures/dependency_security_schema.json`
+- `tests/test_install_locked_python_requirements.py`
 
 ## Tests
 
@@ -119,8 +126,13 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
 - `4017a137d` separates PR #1697 review-disposition blocks so the strict
   disposition parser does not inherit FIXED commit proof across NOT-A-BUG
   entries.
-- `1b1446f23` bumps `mako` and `python-multipart` to patched versions after
-  pre-push `pip-audit` blocked the push on newly published advisories.
+- `1b1446f23` bumps `mako` and `python-multipart` lock files and emergency
+  wheel metadata to patched versions after pre-push `pip-audit` blocked the push
+  on newly published advisories.
+- `1a705dae8` aligns source requirement floors, dependency-security fixtures,
+  install tests, and the backlog fallback entry with the patched dependency
+  floors; it also adds a descriptive CodeRabbit-requested assertion message to
+  the semantic-cache import guard helper.
 
 ## Pre-push checklist
 
@@ -186,6 +198,11 @@ Reason: The comment applies a docs-only rule, but the operator-approved plan and
 Disposition: FIXED
 Commit: 727cefbda
 Evidence: `tests/helpers/semantic_cache_import_guard.py:33`, `tests/test_semantic_cache_gate.py:379`; focused checker/tests/mypy/validate-changed and pre-commit passed locally after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239920053 -> 1a705dae8
+Disposition: FIXED
+Commit: 1a705dae8
+Evidence: `tests/helpers/semantic_cache_import_guard.py:74` adds the descriptive forbidden-import assertion message requested by CodeRabbit. The same commit also aligns dependency floor source files and dependency-security tests after current-head CI exposed stale `mako` / `python-multipart` source floors; focused dependency/security and SC-G1 tests passed locally after the fix.
 
 ## Merge Readiness
 
