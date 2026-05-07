@@ -102,13 +102,14 @@ App Store Connect upload execution, Fastlane upload mutation, or an App Review
 binary artifact producer, so the Docker build workflow must not self-certify
 those App Store build identities.
 
-`Release Manifest Evidence` requires governed source objects for supply-chain
-identity as well: `sbom_digest.txt`, `provenance_digest.txt`, and
-`attestation_status.txt`. The existing `Docker Build and Push` workflow publishes
-these files in the `release-control-plane-build-sources` artifact from its
-non-PR publish job only after exact-digest provenance/SBOM attestation
-verification passes. The manifest producer compares those same-SHA source files
-against the explicit dispatch inputs before writing `release_manifest.json`.
+`Release Manifest Evidence` requires one governed supply-chain source object
+that points to the `release-control-plane-build-sources` artifact root. The
+artifact must contain `sbom_digest.txt`, `provenance_digest.txt`, and
+`attestation_status.txt`. The existing `Docker Build and Push` workflow
+publishes these files from its non-PR publish job only after exact-digest
+provenance/SBOM attestation verification passes. The manifest producer compares
+those same-SHA source files against the explicit dispatch inputs before writing
+`release_manifest.json`.
 
 If a governed source producer is missing, do not run production publication or
 set production CD evidence variables; create the missing producer workflow in a

@@ -24,16 +24,8 @@ on:
         description: "Verified SBOM digest in sha256:<64 lowercase hex> format"
         required: true
         type: string
-      sbom_digest_source:
-        description: "Single-line JSON with run_id, artifact_name, path for governed sbom_digest.txt"
-        required: true
-        type: string
       provenance_digest:
         description: "Verified provenance digest in sha256:<64 lowercase hex> format"
-        required: true
-        type: string
-      provenance_digest_source:
-        description: "Single-line JSON with run_id, artifact_name, path for governed provenance_digest.txt"
         required: true
         type: string
       attestation_status:
@@ -45,8 +37,8 @@ on:
           - FAILED
           - MISSING
           - PENDING
-      attestation_status_source:
-        description: "Single-line JSON with run_id, artifact_name, path for governed attestation_status.txt"
+      supply_chain_source:
+        description: "Single-line JSON with run_id, artifact_name, path=release-control-plane-build-sources"
         required: true
         type: string
       rag_gate_result_source:
@@ -91,11 +83,9 @@ jobs:
           IOS_BUILD_NUMBER: ${{ inputs.ios_build_number }}
           MARKETING_VERSION: ${{ inputs.marketing_version }}
           PROVENANCE_DIGEST: ${{ inputs.provenance_digest }}
-          PROVENANCE_DIGEST_SOURCE: ${{ inputs.provenance_digest_source }}
           RAG_GATE_RESULT_SOURCE: ${{ inputs.rag_gate_result_source }}
           SBOM_DIGEST: ${{ inputs.sbom_digest }}
-          SBOM_DIGEST_SOURCE: ${{ inputs.sbom_digest_source }}
-          ATTESTATION_STATUS_SOURCE: ${{ inputs.attestation_status_source }}
+          SUPPLY_CHAIN_SOURCE: ${{ inputs.supply_chain_source }}
         run: |
           set -euo pipefail
 
@@ -107,30 +97,26 @@ jobs:
             --source-json "$RAG_GATE_RESULT_SOURCE" > "$source_env"
           # shellcheck disable=SC1090
           . "$source_env"
-          sbom_source_env="${RUNNER_TEMP}/release-manifest-sbom-source.env"
+          # shellcheck disable=SC2153
+          rag_gate_result_run_id="$RAG_GATE_RESULT_RUN_ID"
+          # shellcheck disable=SC2153
+          rag_gate_result_artifact_name="$RAG_GATE_RESULT_ARTIFACT_NAME"
+          # shellcheck disable=SC2153
+          rag_gate_result_source_path="$RAG_GATE_RESULT_PATH"
+          supply_chain_source_env="${RUNNER_TEMP}/release-manifest-supply-chain-source.env"
           python scripts/release/evidence_source.py source-env \
-            --label sbom_digest \
-            --prefix SBOM_DIGEST_SOURCE \
-            --expected-path sbom_digest.txt \
-            --source-json "$SBOM_DIGEST_SOURCE" > "$sbom_source_env"
+            --label supply_chain \
+            --prefix SUPPLY_CHAIN \
+            --expected-path release-control-plane-build-sources \
+            --source-json "$SUPPLY_CHAIN_SOURCE" > "$supply_chain_source_env"
           # shellcheck disable=SC1090
-          . "$sbom_source_env"
-          provenance_source_env="${RUNNER_TEMP}/release-manifest-provenance-source.env"
-          python scripts/release/evidence_source.py source-env \
-            --label provenance_digest \
-            --prefix PROVENANCE_DIGEST_SOURCE \
-            --expected-path provenance_digest.txt \
-            --source-json "$PROVENANCE_DIGEST_SOURCE" > "$provenance_source_env"
-          # shellcheck disable=SC1090
-          . "$provenance_source_env"
-          attestation_source_env="${RUNNER_TEMP}/release-manifest-attestation-source.env"
-          python scripts/release/evidence_source.py source-env \
-            --label attestation_status \
-            --prefix ATTESTATION_STATUS_SOURCE \
-            --expected-path attestation_status.txt \
-            --source-json "$ATTESTATION_STATUS_SOURCE" > "$attestation_source_env"
-          # shellcheck disable=SC1090
-          . "$attestation_source_env"
+          . "$supply_chain_source_env"
+          # shellcheck disable=SC2153
+          supply_chain_run_id="$SUPPLY_CHAIN_RUN_ID"
+          # shellcheck disable=SC2153
+          supply_chain_artifact_name="$SUPPLY_CHAIN_ARTIFACT_NAME"
+          # shellcheck disable=SC2153
+          supply_chain_source_path="$SUPPLY_CHAIN_PATH"
 
           EVIDENCE_ARTIFACT_NAME="$(python scripts/release/evidence_source.py artifact-name "$EVIDENCE_ARTIFACT_NAME")"
           expected_git_sha_lc="$(python scripts/release/evidence_source.py git-sha "$EXPECTED_GIT_SHA")"
@@ -146,16 +132,6 @@ jobs:
           PROVENANCE_DIGEST="$(python scripts/release/evidence_source.py oci-digest --label provenance_digest "$PROVENANCE_DIGEST")"
           if [ "$ATTESTATION_STATUS" != "VERIFIED" ]; then
             echo "ERROR: attestation_status must be VERIFIED for governed production release manifest evidence"
-            exit 1
-          fi
-          if [ "$SBOM_DIGEST_SOURCE_RUN_ID" != "$PROVENANCE_DIGEST_SOURCE_RUN_ID" ] \
-            || [ "$SBOM_DIGEST_SOURCE_RUN_ID" != "$ATTESTATION_STATUS_SOURCE_RUN_ID" ]; then
-            echo "ERROR: SBOM, provenance, and attestation status sources must come from the same Docker Build and Push run"
-            exit 1
-          fi
-          if [ "$SBOM_DIGEST_SOURCE_ARTIFACT_NAME" != "$PROVENANCE_DIGEST_SOURCE_ARTIFACT_NAME" ] \
-            || [ "$SBOM_DIGEST_SOURCE_ARTIFACT_NAME" != "$ATTESTATION_STATUS_SOURCE_ARTIFACT_NAME" ]; then
-            echo "ERROR: SBOM, provenance, and attestation status sources must come from the same artifact"
             exit 1
           fi
 
@@ -200,24 +176,17 @@ jobs:
             fi
           }
 
-          validate_source_run "RAG" "$RAG_GATE_RESULT_RUN_ID" \
+          validate_source_run "RAG" "$rag_gate_result_run_id" \
             "RAG Release Gates" ".github/workflows/rag-release-gates.yml"
-          validate_source_run "SBOM digest" "$SBOM_DIGEST_SOURCE_RUN_ID" \
-            "Docker Build and Push" ".github/workflows/build.yml"
-          validate_source_run "provenance digest" "$PROVENANCE_DIGEST_SOURCE_RUN_ID" \
-            "Docker Build and Push" ".github/workflows/build.yml"
-          validate_source_run "attestation status" "$ATTESTATION_STATUS_SOURCE_RUN_ID" \
+          validate_source_run "supply chain" "$supply_chain_run_id" \
             "Docker Build and Push" ".github/workflows/build.yml"
 
           fetch_text_source() {
             label="$1"
-            run_id="$2"
-            artifact_name="$3"
-            source_path="$4"
-            expected_value="$5"
-            download_dir="$6"
+            source_path="$2"
+            download_dir="$3"
+            expected_value="$4"
             mkdir -p "$download_dir"
-            gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
             source_file="${download_dir}/${source_path}"
             if [ ! -f "$source_file" ]; then
               echo "ERROR: Missing governed ${label} at ${source_path}"
@@ -258,33 +227,30 @@ jobs:
             fi
           }
 
+          supply_chain_download_dir="${RUNNER_TEMP}/release-manifest-supply-chain-source"
+          mkdir -p "$supply_chain_download_dir"
+          gh run download "$supply_chain_run_id" --name "$supply_chain_artifact_name" --dir "$supply_chain_download_dir"
           fetch_text_source "SBOM digest" \
-            "$SBOM_DIGEST_SOURCE_RUN_ID" \
-            "$SBOM_DIGEST_SOURCE_ARTIFACT_NAME" \
-            "$SBOM_DIGEST_SOURCE_PATH" \
-            "$SBOM_DIGEST" \
-            "${RUNNER_TEMP}/release-manifest-sbom-source"
+            "${supply_chain_source_path}/sbom_digest.txt" \
+            "$supply_chain_download_dir" \
+            "$SBOM_DIGEST"
           fetch_text_source "provenance digest" \
-            "$PROVENANCE_DIGEST_SOURCE_RUN_ID" \
-            "$PROVENANCE_DIGEST_SOURCE_ARTIFACT_NAME" \
-            "$PROVENANCE_DIGEST_SOURCE_PATH" \
-            "$PROVENANCE_DIGEST" \
-            "${RUNNER_TEMP}/release-manifest-provenance-source"
+            "${supply_chain_source_path}/provenance_digest.txt" \
+            "$supply_chain_download_dir" \
+            "$PROVENANCE_DIGEST"
           fetch_text_source "attestation status" \
-            "$ATTESTATION_STATUS_SOURCE_RUN_ID" \
-            "$ATTESTATION_STATUS_SOURCE_ARTIFACT_NAME" \
-            "$ATTESTATION_STATUS_SOURCE_PATH" \
-            "$ATTESTATION_STATUS" \
-            "${RUNNER_TEMP}/release-manifest-attestation-source"
+            "${supply_chain_source_path}/attestation_status.txt" \
+            "$supply_chain_download_dir" \
+            "$ATTESTATION_STATUS"
 
           download_dir="${RUNNER_TEMP}/release-manifest-rag-source"
           output_dir="${RUNNER_TEMP}/release-manifest-evidence"
           repo_source_dir="${GITHUB_WORKSPACE}/artifacts/release_control_plane_sources"
           mkdir -p "$download_dir" "$output_dir" "$repo_source_dir"
-          gh run download "$RAG_GATE_RESULT_RUN_ID" --name "$RAG_GATE_RESULT_ARTIFACT_NAME" --dir "$download_dir"
-          rag_gate_result_path="${download_dir}/${RAG_GATE_RESULT_PATH}"
+          gh run download "$rag_gate_result_run_id" --name "$rag_gate_result_artifact_name" --dir "$download_dir"
+          rag_gate_result_path="${download_dir}/${rag_gate_result_source_path}"
           if [ ! -f "$rag_gate_result_path" ]; then
-            echo "ERROR: Missing governed rag_gate_result.json at ${RAG_GATE_RESULT_PATH}"
+            echo "ERROR: Missing governed rag_gate_result.json at ${rag_gate_result_source_path}"
             exit 1
           fi
           resolved_download_dir="$(cd "$download_dir" && pwd -P)"

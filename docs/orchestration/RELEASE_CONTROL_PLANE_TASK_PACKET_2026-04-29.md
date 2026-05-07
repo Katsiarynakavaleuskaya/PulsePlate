@@ -312,11 +312,12 @@ behavior, billing, semantic cache, GraphRAG, or product-facing behavior.
 Build-equivalence publication keeps App Review and production-candidate
 artifact digests as explicit protected dispatch inputs; this slice must not
 self-certify those App Store build identities from Docker image digests.
-Release-manifest publication similarly requires governed same-SHA supply-chain
-source objects for `sbom_digest.txt`, `provenance_digest.txt`, and
-`attestation_status.txt`, emitted by the `Docker Build and Push` publish lane in
-the `release-control-plane-build-sources` artifact only after exact-digest
-provenance/SBOM attestation verification passes.
+Release-manifest publication similarly requires one governed same-SHA
+supply-chain source object pointing to the `release-control-plane-build-sources`
+artifact root, emitted by the `Docker Build and Push` publish lane only after
+exact-digest provenance/SBOM attestation verification passes. That artifact must
+contain `sbom_digest.txt`, `provenance_digest.txt`, and
+`attestation_status.txt`.
 
 ## Bootstrap Commands
 

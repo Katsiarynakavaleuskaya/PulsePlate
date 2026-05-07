@@ -67,6 +67,12 @@ jobs:
             --source-json "$RELEASE_MANIFEST_SOURCE" > "$source_env"
           # shellcheck disable=SC1090
           . "$source_env"
+          # shellcheck disable=SC2153
+          release_manifest_run_id="$RELEASE_MANIFEST_RUN_ID"
+          # shellcheck disable=SC2153
+          release_manifest_artifact_name="$RELEASE_MANIFEST_ARTIFACT_NAME"
+          # shellcheck disable=SC2153
+          release_manifest_source_path="$RELEASE_MANIFEST_PATH"
 
           EVIDENCE_ARTIFACT_NAME="$(python scripts/release/evidence_source.py artifact-name "$EVIDENCE_ARTIFACT_NAME")"
           expected_git_sha_lc="$(python scripts/release/evidence_source.py git-sha "$EXPECTED_GIT_SHA")"
@@ -121,17 +127,17 @@ jobs:
             fi
           }
 
-          validate_source_run "release manifest" "$RELEASE_MANIFEST_RUN_ID" \
+          validate_source_run "release manifest" "$release_manifest_run_id" \
             "Release Manifest Evidence" ".github/workflows/release-manifest-evidence.yml"
 
           download_dir="${RUNNER_TEMP}/build-equivalence-release-manifest-source"
           output_dir="${RUNNER_TEMP}/build-equivalence-evidence"
           identities_dir="${RUNNER_TEMP}/build-equivalence-identities"
           mkdir -p "$download_dir" "$output_dir" "$identities_dir"
-          gh run download "$RELEASE_MANIFEST_RUN_ID" --name "$RELEASE_MANIFEST_ARTIFACT_NAME" --dir "$download_dir"
-          release_manifest_path="${download_dir}/${RELEASE_MANIFEST_PATH}"
+          gh run download "$release_manifest_run_id" --name "$release_manifest_artifact_name" --dir "$download_dir"
+          release_manifest_path="${download_dir}/${release_manifest_source_path}"
           if [ ! -f "$release_manifest_path" ]; then
-            echo "ERROR: Missing governed release_manifest.json at ${RELEASE_MANIFEST_PATH}"
+            echo "ERROR: Missing governed release_manifest.json at ${release_manifest_source_path}"
             exit 1
           fi
           resolved_download_dir="$(cd "$download_dir" && pwd -P)"

@@ -131,6 +131,9 @@ def test_workflow_validates_release_manifest_source_run_and_git_sha() -> None:
     assert "scripts/release/evidence_source.py source-env" in script
     assert "--label release_manifest" in script
     assert "--expected-path release_manifest.json" in script
+    assert 'release_manifest_run_id="$RELEASE_MANIFEST_RUN_ID"' in script
+    assert 'release_manifest_artifact_name="$RELEASE_MANIFEST_ARTIFACT_NAME"' in script
+    assert 'release_manifest_source_path="$RELEASE_MANIFEST_PATH"' in script
     assert "gh run view" in script
     assert "--json status,conclusion,headSha,event,workflowName,url" in script
     assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"' in script

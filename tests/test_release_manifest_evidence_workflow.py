@@ -86,24 +86,25 @@ def test_workflow_permissions_environment_and_inputs_are_bounded() -> None:
         "marketing_version",
         "bundle_id",
         "sbom_digest",
-        "sbom_digest_source",
         "provenance_digest",
-        "provenance_digest_source",
         "attestation_status",
-        "attestation_status_source",
+        "supply_chain_source",
         "rag_gate_result_source",
         "evidence_artifact_name",
     }
 
     assert set(inputs) == expected_inputs
+    assert len(inputs) == 10
     assert all(inputs[name]["required"] is True for name in expected_inputs)
     assert inputs["attestation_status"]["options"] == ["VERIFIED", "FAILED", "MISSING", "PENDING"]
     assert "run_id" in inputs["rag_gate_result_source"]["description"]
     assert "artifact_name" in inputs["rag_gate_result_source"]["description"]
     assert "path" in inputs["rag_gate_result_source"]["description"]
-    assert "sbom_digest.txt" in inputs["sbom_digest_source"]["description"]
-    assert "provenance_digest.txt" in inputs["provenance_digest_source"]["description"]
-    assert "attestation_status.txt" in inputs["attestation_status_source"]["description"]
+    assert "run_id" in inputs["supply_chain_source"]["description"]
+    assert "artifact_name" in inputs["supply_chain_source"]["description"]
+    assert (
+        "path=release-control-plane-build-sources" in inputs["supply_chain_source"]["description"]
+    )
     assert workflow["permissions"] == {"actions": "read", "contents": "read"}
     assert _job(workflow)["environment"]["name"] == "release-evidence"
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -155,16 +156,19 @@ def test_workflow_rejects_fixture_sample_test_fallback_and_requires_pass() -> No
 
 def test_workflow_requires_governed_supply_chain_sources() -> None:
     script = _run_script()
+    workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
-    assert "--label sbom_digest" in script
-    assert "--expected-path sbom_digest.txt" in script
-    assert "--label provenance_digest" in script
-    assert "--expected-path provenance_digest.txt" in script
-    assert "--label attestation_status" in script
-    assert "--expected-path attestation_status.txt" in script
+    assert "sbom_digest_source" not in workflow_text
+    assert "provenance_digest_source" not in workflow_text
+    assert "attestation_status_source" not in workflow_text
+    assert "--label supply_chain" in script
+    assert "--expected-path release-control-plane-build-sources" in script
+    assert '"Docker Build and Push" ".github/workflows/build.yml"' in script
+    assert 'gh run download "$supply_chain_run_id"' in script
     assert "fetch_text_source" in script
-    assert "sources must come from the same Docker Build and Push run" in script
-    assert "sources must come from the same artifact" in script
+    assert "${supply_chain_source_path}/sbom_digest.txt" in script
+    assert "${supply_chain_source_path}/provenance_digest.txt" in script
+    assert "${supply_chain_source_path}/attestation_status.txt" in script
     assert "governed ${label} source does not match explicit input" in script
     assert "governed attestation status source must be VERIFIED" in script
     assert "path escapes downloaded artifact" in script
