@@ -83,7 +83,7 @@ Reference/process only:
 - No runtime code changes.
 - No backend/OpenAPI changes.
 - No `/tokens` changes.
-- No generated mirror edits.
+- No manual generated mirror edits; generated mirror diffs are allowed only when produced by canonical tooling and explicitly scoped to reflect `/tokens` changes.
 - No Figma or Canva writes.
 - No screenshots, videos, traces, or binary artifacts.
 - No PR-8 GEPA implementation.

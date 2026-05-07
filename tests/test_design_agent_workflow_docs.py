@@ -6,6 +6,9 @@ WORKFLOW = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_WORKFLOW.md"
 DOC_TEMPLATE = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md"
 GITHUB_TEMPLATE = REPO_ROOT / ".github/PULL_REQUEST_TEMPLATE/design.md"
 MAKEFILE = REPO_ROOT / "Makefile"
+PACKET = (
+    REPO_ROOT / "docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md"
+)
 
 
 def _read(path: Path) -> str:
@@ -68,7 +71,9 @@ def test_design_pr_templates_have_required_governance_sections() -> None:
 
 
 def test_design_workflow_does_not_promote_external_design_truth() -> None:
-    combined = "\n".join([_read(WORKFLOW), _read(DOC_TEMPLATE), _read(GITHUB_TEMPLATE)])
+    combined = "\n".join(
+        [_read(WORKFLOW), _read(DOC_TEMPLATE), _read(GITHUB_TEMPLATE), _read(PACKET)]
+    )
 
     forbidden_claims = [
         "Figma is source of truth",
@@ -78,6 +83,7 @@ def test_design_workflow_does_not_promote_external_design_truth() -> None:
         "scorecards are source of truth",
         "DESIGN.md is canonical",
         "generated mirrors may be edited by hand",
+        "No generated mirror edits.",
         "claim that main is green",
     ]
 
