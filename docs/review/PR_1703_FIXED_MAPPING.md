@@ -23,6 +23,7 @@ Internal pre-open review findings fixed before PR open:
 - Manual supply-chain assertions -> `f43d6c1ec`
 - Mixed supply-chain source runs/artifacts -> `e1f454cb9`
 - Docker build self-certified App Review / production-candidate digests -> `f43d6c1ec`
+- GitHub workflow lint failed on too many dispatch inputs and SC2153 shell variables -> `664c1fd5d`
 
 ## NOT-A-BUG
 

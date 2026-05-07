@@ -85,6 +85,12 @@ Disposition: FIXED
 Commit: `f43d6c1ec`
 Evidence: `build.yml` no longer emits `review_artifact_digest.txt` or `production_candidate_artifact_digest.txt`; build equivalence keeps those as explicit protected dispatch inputs because App Store/Fastlane binary production is out of scope.
 
+### P1: Producer workflows failed GitHub workflow lint on current head
+
+Disposition: FIXED
+Commit: `664c1fd5d`
+Evidence: `Release Manifest Evidence` now uses one governed `supply_chain_source` object so `workflow_dispatch` stays at the GitHub limit of 10 inputs. Both producer workflows copy generated env output into local shell variables before use, closing SC2153. Local `check-github-workflows`, focused pytest, docs gate, `make validate-changed`, and `pre-commit run --all-files` passed after the fix.
+
 ### P1: Suggested `artifact-metadata: write` permission
 
 Disposition: NOT-A-BUG
