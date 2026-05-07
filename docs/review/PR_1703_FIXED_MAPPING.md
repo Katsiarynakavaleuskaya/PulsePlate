@@ -15,6 +15,8 @@ Status: External review comments inspected through current head.
 Disposition: FIXED
 Commit: 79c15fcfe
 Evidence: `scripts/release/evidence_source.py` uses boundary-aware evidence word validation and explicit `artifact-name` command dispatch; `tests/test_release_manifest_evidence_workflow.py` covers valid `latest/...` paths and unsafe nested RAG source paths. `docs/review/PR_1703_FIXED_MAPPING.md` contains the required checked discussion/mapping boxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#pullrequestreview-4247617489 -> 79c15fcfe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#pullrequestreview-4247588779 -> 79c15fcfe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#discussion_r3204571807 -> 79c15fcfe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#discussion_r3204596360 -> 79c15fcfe
 
