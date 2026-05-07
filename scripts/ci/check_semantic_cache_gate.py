@@ -348,6 +348,30 @@ OBSERVABILITY_FORBIDDEN_PATTERNS = (
         "SC-G3 approves Redis/GPTCache",
         re.compile(r"\bsc-g3\s+approves\s+(?:redis|gptcache|redis/gptcache)\b"),
     ),
+    (
+        "SC-G3 allows semantic similarity",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+semantic\s+similarity\b"),
+    ),
+    (
+        "SC-G3 allows vector search",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+vector\s+search\b"),
+    ),
+    (
+        "SC-G3 allows provider calls",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+provider\s+calls\b"),
+    ),
+    (
+        "SC-G3 allows runtime serving",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+runtime\s+serving\b"),
+    ),
+    (
+        "SC-G3 allows Redis",
+        re.compile(r"\bsc-g3\s+(?:allows|enables|permits)\s+redis\b"),
+    ),
+    (
+        "SC-G3 allows GPTCache",
+        re.compile(r"\bsc-g3\s+(?:allows|enables|permits)\s+gptcache\b"),
+    ),
     ("cache raw prompts", re.compile(r"\bcache\s+raw\s+prompts?\b")),
     ("cache raw responses", re.compile(r"\bcache\s+raw\s+(?:model\s+)?responses?\b")),
 )

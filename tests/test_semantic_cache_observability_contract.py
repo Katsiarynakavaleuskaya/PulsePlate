@@ -61,11 +61,23 @@ def test_checker_fails_if_required_harness_anchors_are_missing() -> None:
 
 
 def test_checker_fails_if_blocked_backends_are_approved() -> None:
-    bad_text = _contract_text() + "\nSC-G3 allows embeddings.\nSC-G3 approves Redis/GPTCache.\n"
+    bad_text = (
+        _contract_text()
+        + "\nSC-G3 allows embeddings.\n"
+        + "SC-G3 approves Redis/GPTCache.\n"
+        + "SC-G3 allows semantic similarity.\n"
+        + "SC-G3 enables vector search.\n"
+        + "SC-G3 approves provider calls.\n"
+        + "SC-G3 allows runtime serving.\n"
+    )
     errors = validate_semantic_cache_observability_contract(bad_text)
 
     assert any("SC-G3 allows embeddings" in error for error in errors)
     assert any("SC-G3 approves Redis/GPTCache" in error for error in errors)
+    assert any("SC-G3 allows semantic similarity" in error for error in errors)
+    assert any("SC-G3 allows vector search" in error for error in errors)
+    assert any("SC-G3 allows provider calls" in error for error in errors)
+    assert any("SC-G3 allows runtime serving" in error for error in errors)
 
 
 def test_schema_required_keys_match_sc_g3_intent() -> None:

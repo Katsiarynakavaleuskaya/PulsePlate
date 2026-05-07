@@ -27,6 +27,7 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "openai",
     "anthropic",
 )
+ALLOWED_SEMANTIC_CACHE_IMPORTS = ("core.ai.exact_fuzzy_cache",)
 
 FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "datetime.now",
@@ -86,10 +87,12 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
     offenders = [
         name
         for name in imports
+        if name not in ALLOWED_SEMANTIC_CACHE_IMPORTS
         if any(
             name == prefix or name.startswith(f"{prefix}.")
             for prefix in FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES
         )
+        or _contains_forbidden_cache_segment(name)
     ]
     assert offenders == [], f"forbidden semantic-cache imports found: {offenders}"
 
@@ -141,3 +144,10 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
             return None
         return f"{owner}.{node.attr}"
     return None
+
+
+def _contains_forbidden_cache_segment(name: str) -> bool:
+    return any(
+        segment in {"cache", "semantic_cache"} or segment.startswith("cache_")
+        for segment in name.split(".")
+    )

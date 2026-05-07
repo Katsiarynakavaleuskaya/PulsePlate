@@ -153,6 +153,17 @@ class CacheLookupAuditEvent:
         )
         if self.match_mode is not None:
             object.__setattr__(self, "match_mode", _validate_token("match_mode", self.match_mode))
+        if self.lookup_decision == MATCH_DECISION_HIT:
+            if self.candidate_record_id is None:
+                raise ValueError("hit audit events require candidate_record_id")
+            if self.candidate_response_fingerprint is None:
+                raise ValueError("hit audit events require candidate_response_fingerprint")
+            if self.match_mode is None:
+                raise ValueError("hit audit events require match_mode")
+        elif (
+            self.candidate_record_id is not None or self.candidate_response_fingerprint is not None
+        ):
+            raise ValueError("miss audit events must not carry candidate fields")
         object.__setattr__(
             self, "policy_version", _validate_token("policy_version", self.policy_version)
         )

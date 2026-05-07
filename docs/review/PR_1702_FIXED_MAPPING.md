@@ -72,7 +72,8 @@ and expensive provider/runtime mistakes.
 - Metadata rejects prompt/response/secret/token/credential/HealthKit/account
   and path-like leakage.
 - Import guards reject runtime/provider/cache/RAG/eval imports and
-  nondeterministic wall-clock/random APIs.
+  nondeterministic wall-clock/random APIs, with an explicit allowlist for the
+  required SC-G2 `core.ai.exact_fuzzy_cache` contract import.
 - Bandit changed-files and full-repo pre-push hooks passed.
 
 ## Premortem
@@ -144,6 +145,10 @@ No review threads at PR open. Post-open packet
 ## Fixed In Commit Mapping
 
 - PR open baseline -> `d0f9c3259`
+- Mapping artifact -> `2ae7177ff`
+- Post-open bug-hunter malformed hit audit event finding -> pending fix commit
+- Post-open bug-hunter blocked-backend checker wording finding -> pending fix commit
+- Post-open bug-hunter import guard wording/allowlist finding -> pending fix commit
 
 ## Merge Readiness
 

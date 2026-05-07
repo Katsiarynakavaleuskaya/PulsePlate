@@ -16,6 +16,7 @@ from core.ai.cache_observability import (
     REASON_MODEL_MISMATCH,
     REASON_POLICY_MISMATCH,
     REASON_STALE_SOURCE,
+    CacheLookupAuditEvent,
     CacheStopRules,
     FalseHitHarnessCase,
     JsonValue,
@@ -160,6 +161,48 @@ def test_audit_serialization_excludes_raw_query_prompt_response() -> None:
     assert "normalized_query" not in serialized
     assert "Plan protein breakfast" not in serialized
     assert "raw_query" not in serialized
+
+
+@pytest.mark.parametrize(
+    ("candidate_record_id", "candidate_response_fingerprint", "match_mode", "expected"),
+    [
+        (None, "sha256:response", "exact", "candidate_record_id"),
+        ("record:1", None, "exact", "candidate_response_fingerprint"),
+        ("record:1", "sha256:response", None, "match_mode"),
+    ],
+)
+def test_hit_audit_event_requires_candidate_fields(
+    candidate_record_id: str | None,
+    candidate_response_fingerprint: str | None,
+    match_mode: str | None,
+    expected: str,
+) -> None:
+    audit = _audit_event()
+    with pytest.raises(ValueError, match=expected):
+        CacheLookupAuditEvent(
+            audit_event_id="audit:malformed",
+            idempotency_key="idempotency:malformed",
+            surface=audit.surface,
+            request_fingerprint=audit.request_fingerprint,
+            candidate_record_id=candidate_record_id,
+            candidate_response_fingerprint=candidate_response_fingerprint,
+            lookup_decision="hit",
+            match_mode=match_mode,
+            policy_version=audit.policy_version,
+            provider_key=audit.provider_key,
+            model_key=audit.model_key,
+            user_tier=audit.user_tier,
+            context_fingerprint=audit.context_fingerprint,
+            transparency_notice_id=audit.transparency_notice_id,
+            source_fingerprints=audit.source_fingerprints,
+            eval_event_ids=audit.eval_event_ids,
+            admission_decision_id=audit.admission_decision_id,
+            promotion_ids=audit.promotion_ids,
+            replay_entry_ids=audit.replay_entry_ids,
+            reason_codes=("candidate_hit",),
+            produced_at=PRODUCED_AT,
+            metadata={},
+        )
 
 
 @pytest.mark.parametrize(
@@ -395,6 +438,14 @@ def test_caller_owned_containers_are_defensively_copied() -> None:
 def test_module_has_no_forbidden_imports_or_nondeterministic_calls() -> None:
     assert_no_forbidden_semantic_cache_imports(MODULE)
     assert_no_forbidden_semantic_cache_calls(MODULE)
+
+
+def test_import_guard_rejects_runtime_cache_modules(tmp_path: Path) -> None:
+    unsafe = tmp_path / "unsafe_cache_import.py"
+    unsafe.write_text("import core.ai.cache_runtime\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="core.ai.cache_runtime"):
+        assert_no_forbidden_semantic_cache_imports(unsafe)
 
 
 def test_sc_g3_is_not_exported_from_core_ai_facade() -> None:
