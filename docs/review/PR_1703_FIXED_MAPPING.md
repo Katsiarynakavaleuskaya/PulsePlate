@@ -10,9 +10,23 @@ Branch: `ci/release-control-plane-source-producers`
 
 Status: External review comments inspected through current head.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
-Internal pre-open review findings fixed before PR open:
+Disposition: FIXED
+Commit: 79c15fcfe
+Evidence: `scripts/release/evidence_source.py` uses boundary-aware evidence word validation and explicit `artifact-name` command dispatch; `tests/test_release_manifest_evidence_workflow.py` covers valid `latest/...` paths and unsafe nested RAG source paths. `docs/review/PR_1703_FIXED_MAPPING.md` contains the required checked discussion/mapping boxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#discussion_r3204571807 -> 79c15fcfe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#discussion_r3204596360 -> 79c15fcfe
+
+Disposition: NOT-A-BUG
+Evidence: `.github/workflows/release-manifest-evidence.yml` now validates a single `supply_chain_source` object whose expected path is `release-control-plane-build-sources`, then reads `${supply_chain_source_path}/sbom_digest.txt`, `${supply_chain_source_path}/provenance_digest.txt`, and `${supply_chain_source_path}/attestation_status.txt`. The stale comments describe an older producer contract that expected root `sbom_digest.txt` paths.
+Reason: Current head intentionally uses the artifact root directory as the governed source object so the upload-artifact LCA behavior is explicit and tested.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#discussion_r3204558195
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1703#discussion_r3204571801
+
+## Internal Review Findings
+
+Internal pre-open and role-agent findings fixed before PR open:
 
 - Raw upload artifact name bypassed validation -> `1876e231b`
 - Missing `rag_gate_result.git_sha` validation -> `1876e231b`
