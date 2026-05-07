@@ -82,12 +82,13 @@ backend, or serving path.
 
 ## DoD
 
-- [x] Semantic-cache gate remains closed.
-- [x] SC-G2 scaffold is pure and deterministic.
-- [x] Checker/docs Phase1 integration fails closed.
-- [x] Tests cover matching, hard misses, deterministic IDs/order, import guards,
+- [ ] Semantic-cache gate remains closed.
+- [ ] SC-G2 scaffold is pure and deterministic.
+- [ ] Checker/docs Phase1 integration fails closed.
+- [ ] Tests cover matching, hard misses, deterministic IDs/order, import guards,
   and dangerous wording.
-- [x] No runtime/provider/RAG/cache files changed.
+- [ ] No runtime serving/provider/RAG/cache backend/DB wiring changed; only the
+  internal SC-G2 scaffold module under `core/ai` was added.
 
 ## Commit breakdown
 
@@ -101,10 +102,10 @@ backend, or serving path.
 
 ## Pre-push checklist
 
-- [x] Coordinator bootstrap completed.
-- [x] Role-agent order completed pre-open.
-- [x] Bounded local validation passed.
-- [x] Pre-commit and pre-push hooks passed.
+- [ ] Coordinator bootstrap completed.
+- [ ] Role-agent order completed pre-open.
+- [ ] Bounded local validation passed.
+- [ ] Pre-commit and pre-push hooks passed.
 
 ## Post-merge checklist
 
