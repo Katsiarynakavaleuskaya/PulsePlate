@@ -98,6 +98,8 @@ def test_workflow_downloads_governed_sources_and_publishes_canonical_layout() ->
     assert "gh run view" in collect_script
     assert "gh run download" in collect_script
     assert "--json status,conclusion,headSha,event,workflowName,url" in collect_script
+    assert 'gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}"' in collect_script
+    assert "source workflow path does not match expected producer" in collect_script
     assert '[ "$run_event" != "workflow_dispatch" ]' in collect_script
     assert "require_expected_source_workflow" in collect_script
     assert "source workflow does not match expected producer" in collect_script
@@ -108,8 +110,20 @@ def test_workflow_downloads_governed_sources_and_publishes_canonical_layout() ->
     assert "RAG_GATE_RESULT_WORKFLOW_NAME" not in collect_script
     assert "BUILD_EQUIVALENCE_WORKFLOW_NAME" not in collect_script
     assert 'release_manifest_expected_workflow_name="Release Manifest Evidence"' in collect_script
+    assert (
+        'release_manifest_expected_workflow_path=".github/workflows/release-manifest-evidence.yml"'
+        in collect_script
+    )
     assert 'rag_gate_result_expected_workflow_name="RAG Release Gates"' in collect_script
+    assert (
+        'rag_gate_result_expected_workflow_path=".github/workflows/rag-release-gates.yml"'
+        in collect_script
+    )
     assert 'build_equivalence_expected_workflow_name="Build Equivalence Evidence"' in collect_script
+    assert (
+        'build_equivalence_expected_workflow_path=".github/workflows/build-equivalence-evidence.yml"'
+        in collect_script
+    )
     assert "scripts/ci/check_release_control_plane.py" in collect_script
 
     for canonical_path in (
@@ -140,6 +154,8 @@ def test_workflow_rejects_fixtures_placeholders_paths_and_git_sha_mismatch() -> 
     assert "*[Tt][Ee][Ss][Tt]*" not in collect_script
     assert "[Tt][Ee][Ss][Tt]/*" in collect_script
     assert "*/[Tt][Ee][Ss][Tt]/*" in collect_script
+    assert "*/[Tt][Ee][Ss][Tt]" in collect_script
+    assert "*/[Tt][Ee][Ss][Tt][Ss]" in collect_script
     assert "expected_git_sha_lc" in collect_script
     assert "github_sha_lc" in collect_script
     assert "run_head_sha_lc" in collect_script
@@ -148,6 +164,9 @@ def test_workflow_rejects_fixtures_placeholders_paths_and_git_sha_mismatch() -> 
     assert "publication workflow ref must match git_sha" in collect_script
     assert "Release manifest git SHA does not match workflow git_sha" in collect_script
     assert "sentinel placeholder digest/hash rejected" in collect_script
+    assert "forbidden_test_path_segment" in collect_script
+    assert "test evidence path rejected" in collect_script
+    assert 'lowered.replace("\\\\", "/")' in collect_script
     assert "data/evals/pulseplate_rag_eval_sample.jsonl" in collect_script
     assert "dataset_fallback_used must be false" in collect_script
     assert "small_fixture_metric_gates_advisory must be false" in collect_script

@@ -63,7 +63,7 @@ jobs:
             value="$1"
             label="$2"
             case "$value" in
-              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|[Tt][Ee][Ss][Tt]|[Tt][Ee][Ss][Tt]/*|*/[Tt][Ee][Ss][Tt]/*|*[Tt][Ee][Ss][Tt][Ss]/*|*/[Tt][Ee][Ss][Tt][Ss]/*|*[Tt][Ee][Ss][Tt]-*|*-[Tt][Ee][Ss][Tt]*|*[Tt][Ee][Ss][Tt]_*|*_[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
+              ""|*[Ff][Ii][Xx][Tt][Uu][Rr][Ee]*|[Tt][Ee][Ss][Tt]|*/[Tt][Ee][Ss][Tt]|[Tt][Ee][Ss][Tt]/*|*/[Tt][Ee][Ss][Tt]/*|[Tt][Ee][Ss][Tt][Ss]|*/[Tt][Ee][Ss][Tt][Ss]|*[Tt][Ee][Ss][Tt][Ss]/*|*/[Tt][Ee][Ss][Tt][Ss]/*|*[Tt][Ee][Ss][Tt]-*|*-[Tt][Ee][Ss][Tt]*|*[Tt][Ee][Ss][Tt]_*|*_[Tt][Ee][Ss][Tt]*|*[Pp][Ll][Aa][Cc][Ee][Hh][Oo][Ll][Dd][Ee][Rr]*|*[Ff][Aa][Kk][Ee]*)
                 echo "ERROR: ${label} must reference governed release evidence, not fixtures/tests/placeholders/fakes"
                 exit 1
                 ;;
@@ -176,17 +176,28 @@ jobs:
           bundle_root="${RUNNER_TEMP}/release-control-plane-evidence-bundle"
           mkdir -p "$work_root" "$bundle_root/release-control-plane"
           release_manifest_expected_workflow_name="Release Manifest Evidence"
+          release_manifest_expected_workflow_path=".github/workflows/release-manifest-evidence.yml"
           rag_gate_result_expected_workflow_name="RAG Release Gates"
+          rag_gate_result_expected_workflow_path=".github/workflows/rag-release-gates.yml"
           build_equivalence_expected_workflow_name="Build Equivalence Evidence"
+          build_equivalence_expected_workflow_path=".github/workflows/build-equivalence-evidence.yml"
 
           require_expected_source_workflow() {
             label="$1"
             workflow_name="$2"
             expected_workflow_name="$3"
+            workflow_path="$4"
+            expected_workflow_path="$5"
             if [ "$workflow_name" != "$expected_workflow_name" ]; then
               echo "ERROR: ${label} source workflow does not match expected producer"
               echo "workflow=${workflow_name:-unset}"
               echo "expected=${expected_workflow_name}"
+              exit 1
+            fi
+            if [ "$workflow_path" != "$expected_workflow_path" ]; then
+              echo "ERROR: ${label} source workflow path does not match expected producer"
+              echo "workflow_path=${workflow_path:-unset}"
+              echo "expected_path=${expected_workflow_path}"
               exit 1
             fi
           }
@@ -198,6 +209,7 @@ jobs:
             source_path="$4"
             target_name="$5"
             expected_workflow_name="$6"
+            expected_workflow_path="$7"
             target_path="${bundle_root}/release-control-plane/${target_name}"
             download_dir="${work_root}/${label}"
 
@@ -207,6 +219,9 @@ jobs:
                 --jq '[.status, .conclusion, .headSha, .event, .workflowName, .url] | @tsv'
             )"
             IFS=$'\t' read -r run_status run_conclusion run_head_sha run_event run_workflow_name run_url <<< "$run_metadata"
+            run_workflow_path="$(
+              gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${run_id}" --jq '.path'
+            )"
             if [ "$run_status" != "completed" ] || [ "$run_conclusion" != "success" ]; then
               echo "ERROR: ${label} source run did not complete successfully"
               echo "status=${run_status:-unset} conclusion=${run_conclusion:-unset} url=${run_url:-unset}"
@@ -226,7 +241,7 @@ jobs:
               echo "run url=${run_url:-unset}"
               exit 1
             fi
-            require_expected_source_workflow "$label" "$run_workflow_name" "$expected_workflow_name"
+            require_expected_source_workflow "$label" "$run_workflow_name" "$expected_workflow_name" "$run_workflow_path" "$expected_workflow_path"
 
             mkdir -p "$download_dir"
             gh run download "$run_id" --name "$artifact_name" --dir "$download_dir"
@@ -236,12 +251,12 @@ jobs:
             fi
             cp "${download_dir}/${source_path}" "$target_path"
             python -m json.tool "$target_path" > /dev/null
-            echo "${label}: workflow=${run_workflow_name:-unset} event=${run_event:-unset} source=${run_url:-unset}" >> "${bundle_root}/release-control-plane/source_runs.txt"
+            echo "${label}: workflow=${run_workflow_name:-unset} path=${run_workflow_path:-unset} event=${run_event:-unset} source=${run_url:-unset}" >> "${bundle_root}/release-control-plane/source_runs.txt"
           }
 
-          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json" "$release_manifest_expected_workflow_name"
-          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json" "$rag_gate_result_expected_workflow_name"
-          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json" "$build_equivalence_expected_workflow_name"
+          fetch_source "release_manifest" "$RELEASE_MANIFEST_RUN_ID" "$RELEASE_MANIFEST_ARTIFACT_NAME" "$RELEASE_MANIFEST_PATH" "release_manifest.json" "$release_manifest_expected_workflow_name" "$release_manifest_expected_workflow_path"
+          fetch_source "rag_gate_result" "$RAG_GATE_RESULT_RUN_ID" "$RAG_GATE_RESULT_ARTIFACT_NAME" "$RAG_GATE_RESULT_PATH" "rag_gate_result.json" "$rag_gate_result_expected_workflow_name" "$rag_gate_result_expected_workflow_path"
+          fetch_source "build_equivalence" "$BUILD_EQUIVALENCE_RUN_ID" "$BUILD_EQUIVALENCE_ARTIFACT_NAME" "$BUILD_EQUIVALENCE_PATH" "build_equivalence_result.json" "$build_equivalence_expected_workflow_name" "$build_equivalence_expected_workflow_path"
 
           python - "${bundle_root}/release-control-plane" <<'PY'
           import json
@@ -264,6 +279,7 @@ jobs:
               "placeholder",
               "fake",
           )
+          forbidden_test_path_segment = re.compile(r"(^|/)tests?(/|$)")
 
           def walk(value: Any, path: str) -> None:
               if isinstance(value, dict):
@@ -277,10 +293,13 @@ jobs:
               if not isinstance(value, str):
                   return
               lowered = value.lower()
+              normalized_path = lowered.replace("\\", "/")
               if sentinel_hash.fullmatch(lowered):
                   raise SystemExit(f"sentinel placeholder digest/hash rejected at {path}")
-              if any(token in lowered for token in forbidden_path_tokens):
+              if any(token in normalized_path for token in forbidden_path_tokens):
                   raise SystemExit(f"fixture/placeholder path rejected at {path}")
+              if forbidden_test_path_segment.search(normalized_path):
+                  raise SystemExit(f"test evidence path rejected at {path}")
 
           for json_path in json_paths:
               with json_path.open(encoding="utf-8") as handle:
