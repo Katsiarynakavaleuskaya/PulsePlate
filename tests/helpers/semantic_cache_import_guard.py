@@ -71,7 +71,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
             for prefix in FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES
         )
     ]
-    assert offenders == []
+    assert offenders == [], f"forbidden semantic-cache imports found: {offenders}"
 
 
 def _constant_string_argument(node: ast.Call) -> str | None:
