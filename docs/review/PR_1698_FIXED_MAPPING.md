@@ -91,19 +91,19 @@ Reason: Required template sections, `.venv` policy, external-design authority bo
 ## Review Thread Mapping
 
 Disposition: FIXED
-Commit: `182b96888`
+Commit: `de71f420d`
 Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `tests/test_design_agent_workflow_docs.py`
 Reason: CodeRabbit flagged generated-mirror wording as too absolute. Narrowed the policy to forbid manual edits while allowing explicitly scoped, tool-generated mirror diffs from `/tokens`, and updated the docs guard.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300022
 
 Disposition: FIXED
-Commit: `182b96888`
+Commit: `de71f420d`
 Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`
 Reason: CodeRabbit flagged post-merge wording that could skip required main-health inspection. Updated the workflow to sync `main`, inspect current-head health before starting the next PR, and still avoid full local `make verify` unless separately required.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300043
 
 Disposition: FIXED
-Commit: `182b96888`
+Commit: `de71f420d`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
 Reason: CodeRabbit flagged missing Design Intelligence DoD and incomplete PR-8 deferral tracking. Added PR-7 completion criteria and explicit PR-8 owner, priority, target PR, reason, link, and DoD.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201300055
