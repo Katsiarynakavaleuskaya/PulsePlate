@@ -207,7 +207,7 @@ Disposition: FIXED
 Commit: 1a705dae8
 Evidence: `tests/helpers/semantic_cache_import_guard.py:74` adds the descriptive forbidden-import assertion message requested by CodeRabbit. The same commit also aligns dependency floor source files and dependency-security tests after current-head CI exposed stale `mako` / `python-multipart` source floors; focused dependency/security and SC-G1 tests passed locally after the fix.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4241597043 -> 4da95b7ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4241685198 -> 4da95b7ae
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3199400272 -> 4da95b7ae
 Disposition: FIXED
 Commit: 4da95b7ae
