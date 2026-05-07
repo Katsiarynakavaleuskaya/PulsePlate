@@ -225,11 +225,11 @@ Reason: CodeRabbit requested order-sensitive workflow section coverage. Added a 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4246046425 -> 9f1f69337
 
 Disposition: FIXED
-Commit: TBD
+Commit: 6281abb7f
 Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
 Reason: CodeRabbit requested an explicit Merge Readiness section and normalized DEFERRED mapping schema. Added the section and normalized the existing deferred block before resolving the thread.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3203426789 -> TBD
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4246238479 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3203426789 -> 6281abb7f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4246238479 -> 6281abb7f
 
 ## Deferred / Follow-Ups
 
