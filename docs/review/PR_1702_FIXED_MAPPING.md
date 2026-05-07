@@ -43,6 +43,7 @@ and expensive provider/runtime mistakes.
 | `core/ai/cache_observability.py` | Offline SC-G3 backend contract and helpers |
 | `tests/core/ai/test_cache_observability.py` | Deterministic backend coverage |
 | `.github/workflows/ci.yml` | Adds SC-G3 tests to route-contract coverage bundles so diff-cover observes the new backend module |
+| `tests/guards/test_security_devtooling_regression_guards.py` | Resolves docs leakage guard base ref from GitHub PR event when local base refs are unavailable |
 | `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md` | SC-G3 governance contract |
 | `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.schema.json` | Machine-readable SC-G3 contract shape |
 | `scripts/ci/check_semantic_cache_gate.py` | SC-G3 fail-closed validator |
@@ -61,6 +62,8 @@ and expensive provider/runtime mistakes.
 - `python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
 - `python -m pytest -q tests/core/ai/test_cache_observability.py tests/core/ai/test_exact_fuzzy_cache.py tests/test_semantic_cache_observability_contract.py tests/test_semantic_cache_rollout_gate.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py tests/test_repo_policy_guards.py`
 - `python -m mypy --no-incremental --cache-dir=/dev/null core/ai/cache_observability.py tests/core/ai/test_cache_observability.py scripts/ci/check_semantic_cache_gate.py scripts/ci/check_docs_phase1_gates.py`
+- `python -m pytest -q tests/guards/test_security_devtooling_regression_guards.py::test_changed_docs_do_not_add_local_users_absolute_paths tests/core/ai/test_cache_observability.py tests/test_semantic_cache_observability_contract.py`
+- `python -m mypy --no-incremental --cache-dir=/dev/null tests/guards/test_security_devtooling_regression_guards.py tests/core/ai/test_cache_observability.py`
 - `python -m coverage erase && python -m coverage run -m pytest -q tests/core/ai/test_cache_observability.py tests/test_semantic_cache_observability_contract.py tests/test_semantic_cache_gate.py tests/test_docs_phase1_gates.py && python -m coverage xml && python -m diff_cover.diff_cover_tool coverage.xml --compare-branch=origin/main --fail-under=97 ...`
 - `make validate-changed`
 - `pre-commit run --all-files`
@@ -112,6 +115,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
   roadmap/backlog sync.
 - `bebb0089a` - Add SC-G3 tests to CI route-contract coverage and close
   diff-cover gaps with focused backend tests.
+- `1994b6503` - Resolve docs leakage guard base ref from GitHub PR event in
+  CI shards without local base refs.
 
 ## Pre-Push Checklist
 
@@ -193,9 +198,11 @@ Evidence: `scripts/ci/check_semantic_cache_gate.py` now uses tight explicit-proh
 - CodeRabbit tight regex / explicit metadata / anchor assertion findings: `3b0e0d6e1`
 - Current-head CI diff-coverage failure at run `25517610754`, job
   `74895099360`: `bebb0089a`
+- Current-head CI docs leakage guard base-ref failure at run `25518898784`, job
+  `74897945961`: `1994b6503`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `bebb0089a`,
+Not merge-ready yet. Requires the new current-head CI run after `1994b6503`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
