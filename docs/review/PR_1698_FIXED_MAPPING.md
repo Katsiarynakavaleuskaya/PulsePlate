@@ -180,6 +180,11 @@ Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUES
 Reason: Sourcery high-level notes were dispositioned as NOT-A-BUG: duplicate template drift is bounded by the docs guard test, and hardcoded repo examples are intentional for this PulsePlate-governed workflow.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
 
+Disposition: DEFERRED
+Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
+Reason: CodeRabbit requested explicit backlog/thread proof for deferred follow-ups. PR-8, App Store asset validation, and live capture lanes remain separate tracked follow-ups.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
+
 ## Deferred / Follow-Ups
 
 Disposition: DEFERRED
