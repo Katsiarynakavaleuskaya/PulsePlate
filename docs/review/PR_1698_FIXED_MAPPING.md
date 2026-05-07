@@ -10,6 +10,7 @@ Mapping is evidence after fix or decision, not a substitute for fixing docs/code
 
 - Pre-open bootstrap packet: `2833673b8f23`
 - Post-open bootstrap packet: `18c849419f54`
+- Current-head post-rebase bootstrap packet: `d4b4c656fe0e`
 - Role order used:
   1. `agent-coordinator`
   2. `creative-designer`
@@ -52,16 +53,11 @@ Commit: `735657434`
 Evidence: `Makefile`, `tests/test_design_agent_workflow_docs.py`
 Reason: Made `design-guard` and `tokens-check` invoke `$(DEV_PYTHON)` for `scripts/design_guard.py`, then locked that policy with a docs/tooling guard test.
 
-Disposition: FIXED
-Commit: `e26e9cfe9`
-Evidence: `requirements.txt`
-Reason: Mandatory pre-push `pip-audit` blocked publication on `mako==1.3.11` and `python-multipart==0.0.26`; raised pinned floors to `mako==1.3.12` and `python-multipart==0.0.27` instead of bypassing hooks.
-
 ## Bug-Hunter Pass
 
 Disposition: NOT-A-BUG
 Evidence: `git diff --name-only origin/main..HEAD`
-Reason: Diff is limited to workflow/template/docs/test, Makefile interpreter guard, and `requirements.txt` security-floor unblock. No `frontend/`, `ios/`, `app/`, `core/`, or `tokens/` paths changed.
+Reason: Current-head post-rebase diff is limited to workflow/template/docs/test and the Makefile interpreter guard. No `frontend/`, `ios/`, `app/`, `core/`, `tokens/`, dependency lock, or generated mirror paths changed.
 
 Disposition: NOT-A-BUG
 Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`
@@ -127,6 +123,8 @@ Evidence: `requirements.in`, `requirements-dev.in`, `requirements-ci-lite.in`, `
 Reason: Codex review identified that raising runtime pins alone left other install profiles able to downgrade back to stale vulnerable pins. Aligned all governed source/lock profiles, emergency wheel metadata, dependency security schema, and installer tests to the patched versions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 
+Note: this dependency-security fix is now provided by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff.
+
 Disposition: NOT-A-BUG
 Evidence: `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `tests/test_design_agent_workflow_docs.py`
 Reason: Sourcery's high-level duplicate-template note is valid maintenance risk, but this PR intentionally ships both the docs template and GitHub multiple-template file. Drift is bounded by the new docs guard test, and adding a template generation/sync script is outside this PR-7 slice.
@@ -153,8 +151,8 @@ Reason: Sourcery's hardcoded `--repo Katsiarynakavaleuskaya/PulsePlate` note is 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4243596011
 Disposition: FIXED
-Evidence: `tests/test_design_agent_workflow_docs.py`, `.github/PULL_REQUEST_TEMPLATE/design.md`, `requirements-lock.txt`
-Reason: Actionable review comments were fixed in the commits mapped above; Sourcery high-level notes were dispositioned as NOT-A-BUG with evidence in the Review Thread Mapping section.
+Evidence: `tests/test_design_agent_workflow_docs.py`, `.github/PULL_REQUEST_TEMPLATE/design.md`, base commit `e26e9cfe9`
+Reason: Actionable review comments were fixed in the commits mapped above; the dependency-security review item is satisfied by the rebased base commit noted above, and Sourcery high-level notes were dispositioned as NOT-A-BUG with evidence in the Review Thread Mapping section.
 
 ## Deferred / Follow-Ups
 
