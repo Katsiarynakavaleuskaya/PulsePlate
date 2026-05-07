@@ -96,6 +96,26 @@ Disposition: FIXED
 Commit: 1bc94b45d12ee7e0b4449822c680c6ef75911cd3
 Evidence: Workflow contract test now asserts `cd.yml` and CI gate docs exist before reading their contents.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3202369260 -> 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Disposition: FIXED
+Commit: 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Evidence: Duplicate Cubic mapping was removed from the detailed section and the parseable top-level mapping now points to the correct final hardening commit SHA.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3202369272 -> 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Disposition: FIXED
+Commit: 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Evidence: Workflow test helper now requires exactly one step with the requested name, preventing duplicate noop steps from satisfying guard assertions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3202369299 -> 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Disposition: FIXED
+Commit: 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Evidence: Workflow forbidden-term test now lowercases the serialized workflow before scanning for App Store/Fastlane upload terms.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4245037246 -> 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Disposition: FIXED
+Commit: 6f3d871bc37b4a5c662f0d4197aac3340d7e9ff0
+Evidence: CodeRabbit review summary corresponds to discussion_r3202369260, discussion_r3202369272, and discussion_r3202369299, all fixed in the same commit.
+
 ## Pre-Open Subagent Findings
 
 ### Source runs are not allowlisted
@@ -413,6 +433,57 @@ Evidence:
   `docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md` exist before reading their
   contents.
 - `.venv/bin/python -m pytest -q tests/test_release_control_plane_evidence_publication_workflow.py` -> PASS.
+
+## CodeRabbit Guard Pass After `ba6153fa3`
+
+### Mapping duplicate for `discussion_r3201820243`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3202369260 -> 6f3d871bc
+
+Disposition: FIXED
+Commit: `6f3d871bc`
+Evidence:
+
+- The top-level parseable mapping for `discussion_r3201820243` now points to
+  the correct full commit `ce9016c15b1181ceaf33c5668b469b5ea126ba6d`.
+- The earlier detailed partial-fix entry is marked `SUPERSEDED` and no longer
+  repeats the review URL as a second FIXED mapping.
+
+### Workflow step lookup must reject duplicate step names
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3202369272 -> 6f3d871bc
+
+Disposition: FIXED
+Commit: `6f3d871bc`
+Evidence:
+
+- `tests/test_release_control_plane_evidence_publication_workflow.py` now
+  asserts exactly one workflow step has the requested name before returning it.
+- `.venv/bin/python -m pytest -q tests/test_release_control_plane_evidence_publication_workflow.py` -> PASS.
+
+### Forbidden upload terms should be scanned case-insensitively
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3202369299 -> 6f3d871bc
+
+Disposition: FIXED
+Commit: `6f3d871bc`
+Evidence:
+
+- `tests/test_release_control_plane_evidence_publication_workflow.py` lowercases
+  the serialized workflow before scanning for forbidden App Store/Fastlane
+  upload terms.
+- `.venv/bin/python -m pytest -q tests/test_release_control_plane_evidence_publication_workflow.py` -> PASS.
+
+### CodeRabbit review summary
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4245037246 -> 6f3d871bc
+
+Disposition: FIXED
+Commit: `6f3d871bc`
+Evidence:
+
+- The review summary contains the three findings mapped immediately above; all
+  are fixed in `6f3d871bc`.
 
 Any later actionable review comment must be added here with one of:
 
