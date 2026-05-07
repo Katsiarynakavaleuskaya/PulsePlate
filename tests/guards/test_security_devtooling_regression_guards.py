@@ -12,6 +12,7 @@ These tests protect the narrow issue classes closed by PRs #1664-#1667:
 from __future__ import annotations
 
 import ast
+import json
 import os
 from pathlib import Path
 import re
@@ -89,9 +90,39 @@ def _git_ref_exists(ref: str) -> bool:
     return result.returncode == 0
 
 
+def _github_event_pull_request_base_sha() -> str:
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
+    if not event_path:
+        return ""
+    path = Path(event_path)
+    if not path.is_file():
+        return ""
+    try:
+        event = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return ""
+    pull_request = event.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return ""
+    base = pull_request.get("base")
+    if not isinstance(base, dict):
+        return ""
+    sha = base.get("sha")
+    return sha if isinstance(sha, str) else ""
+
+
 def _docs_diff_base() -> str:
     configured = os.environ.get(DOCS_LEAKAGE_GUARD_BASE_ENV, "").strip()
-    candidates = [configured, "origin/main", "main", "HEAD~1"]
+    github_base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+    candidates = [
+        configured,
+        _github_event_pull_request_base_sha(),
+        f"origin/{github_base_ref}" if github_base_ref else "",
+        github_base_ref,
+        "origin/main",
+        "main",
+        "HEAD~1",
+    ]
 
     for candidate in candidates:
         if candidate and _git_ref_exists(candidate):
