@@ -16,7 +16,7 @@ def _combined_docs() -> str:
 
 
 def _bash_blocks(text: str) -> list[str]:
-    return re.findall(r"```bash\n(.*?)```", text, flags=re.DOTALL)
+    return re.findall(r"```(?:bash|sh|shell|zsh)\n(.*?)```", text, flags=re.DOTALL | re.IGNORECASE)
 
 
 def _assert_no_forbidden_patterns(text: str, patterns: list[str]) -> None:
@@ -121,9 +121,8 @@ def test_gepa_research_lane_uses_repo_venv_for_command_examples() -> None:
     assert ".venv/bin/python" in combined
     assert "DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python" in combined
     assert "python3" not in combined
-    assert "python3 " not in bash_blocks
-    assert "\npython " not in bash_blocks
-    assert " python " not in bash_blocks
+    assert re.search(r"(?m)^\s*python3(?:\s|$)", bash_blocks) is None
+    assert re.search(r"(?m)^\s*python(?:\s|$)", bash_blocks) is None
 
 
 def test_gepa_research_lane_requires_premortem_fix_before_mapping() -> None:
@@ -134,7 +133,7 @@ def test_gepa_research_lane_requires_premortem_fix_before_mapping() -> None:
         "Does mapping attempt to substitute for fixing docs/test defects?",
         "Premortem and bug-hunter findings are fixed before mapping.",
         "docs/review/PR_<N>_FIXED_MAPPING.md",
-        "root `AGENTS.md` machine-heavy exception",
+        "root `AGENTS.md` hard gate",
         "current-head CI parity is complete",
     ]
 

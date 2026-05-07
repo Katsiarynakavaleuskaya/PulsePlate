@@ -179,13 +179,15 @@ PATH=.venv/bin:$PATH pre-commit run --all-files
 
 Do not run full local `make verify` for this operator-scoped docs/research lane unless a later coordinator decision changes the validation scope.
 
-This bounded-check path must still satisfy the root `AGENTS.md` machine-heavy exception before any merge-readiness claim:
+This bounded-check list is not a standalone merge-readiness claim and does not redefine the root `AGENTS.md` hard gate. For PR-8, the operator-approved validation route is:
 
 - operator approval for bounded local checks is documented in the PR body and fixed mapping;
 - all PR-scoped local gates listed above pass or have a fixed root-cause failure;
 - the PR body and `docs/review/PR_<N>_FIXED_MAPPING.md` document the local full-verify deferral;
 - current-head CI parity is complete for required checks, diff coverage, security/governance checks, and touched-surface checks;
 - strict merge-readiness wrapper passes with auth after review dispositions and wait-window.
+
+If a maintainer or coordinator reclassifies PR-8 outside this operator-approved route, stop before merge and either run the full root gate or update the lane packet with the new validation decision.
 
 ## Merge-Readiness Rules
 
