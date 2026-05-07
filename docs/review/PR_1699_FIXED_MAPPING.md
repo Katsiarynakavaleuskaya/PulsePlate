@@ -71,6 +71,26 @@ Disposition: FIXED
 Commit: 04fc129bf
 Evidence: CodeRabbit review summary corresponds to discussion_r3201422682, fixed by adding PR #1699 to the ledger Target PR chain.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201814486 -> 37b5f046e45caa2e7617441d228bfbe4810cc3cd
+Disposition: FIXED
+Commit: 37b5f046e45caa2e7617441d228bfbe4810cc3cd
+Evidence: Evidence artifact name CR/LF validation was added before appending to `$GITHUB_ENV`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244423490 -> 37b5f046e45caa2e7617441d228bfbe4810cc3cd
+Disposition: FIXED
+Commit: 37b5f046e45caa2e7617441d228bfbe4810cc3cd
+Evidence: Release evidence publication job now has `timeout-minutes: 20`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201820243 -> ce9016c155e619b3640d861e4c0d17bb0440cb5d
+Disposition: FIXED
+Commit: ce9016c155e619b3640d861e4c0d17bb0440cb5d
+Evidence: Shell and JSON payload guards now reject singular and terminal `test` / `tests` path segments.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4244429141 -> ce9016c155e619b3640d861e4c0d17bb0440cb5d
+Disposition: FIXED
+Commit: ce9016c155e619b3640d861e4c0d17bb0440cb5d
+Evidence: Cubic review finding is fixed by the path-segment guard and stable producer identity hardening.
+
 ## Pre-Open Subagent Findings
 
 ### Source runs are not allowlisted
