@@ -131,6 +131,7 @@ Disposition: FIXED
 Commit: e26e9cfe9
 Evidence: `requirements.in`, `requirements-dev.in`, `requirements-ci-lite.in`, `requirements-docker-runtime.in`, `requirements-dev.txt`, `requirements-ci-lite.txt`, `requirements-docker-runtime.txt`, `requirements-lock.txt`, `scripts/ci/emergency_python_wheels.json`, `tests/fixtures/dependency_security_schema.json`, `tests/test_install_locked_python_requirements.py`
 Reason: Codex review identified that raising runtime pins alone left other install profiles able to downgrade back to stale vulnerable pins. Aligned all governed source/lock profiles, emergency wheel metadata, dependency security schema, and installer tests to the patched versions.
+Exception: `e26e9cfe9` is a base commit that landed on `origin/main` before PR #1698's review comment was posted. The fix is real and inherited by rebase; this entry is retained for disposition completeness only.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 
 Note: this dependency-security fix is now provided by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff.
@@ -173,6 +174,7 @@ Disposition: FIXED
 Commit: e26e9cfe9
 Evidence: `requirements-lock.txt`, `requirements.in`, `tests/test_install_locked_python_requirements.py`
 Reason: The dependency-security review item is satisfied by base commit `e26e9cfe9` after rebasing PR #1698 on current `origin/main`; it is mapped for review disposition only and is no longer part of the PR #1698 file diff.
+Exception: `e26e9cfe9` is a base commit that landed on `origin/main` before PR #1698's review comment was posted. The fix is real and inherited by rebase; this entry is retained for disposition completeness only.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201094982 -> e26e9cfe9
 
 Disposition: NOT-A-BUG
@@ -191,6 +193,18 @@ Commit: e04606f0f
 Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md`, `tests/test_design_agent_workflow_docs.py`
 Reason: CodeRabbit review summary requested generated-mirror wording alignment in the PR-7 packet. The packet now forbids manual generated mirror edits while allowing explicitly scoped tool-generated mirror diffs from `/tokens`, and the docs guard covers the packet wording.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244094664 -> e04606f0f
+
+Disposition: FIXED
+Commit: 56f0211f4
+Evidence: `tests/test_design_agent_workflow_docs.py`
+Reason: CodeRabbit requested a guard against bare `python scripts/design_guard.py`; the docs guard now rejects both bare `python` and `python3` for the design guard Makefile invocation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201959561 -> 56f0211f4
+
+Disposition: FIXED
+Commit: a3563d0ec
+Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`
+Reason: CodeRabbit requested explicit exception proof for the rebase-inherited base commit mapping. Added exception text to both `e26e9cfe9` entries.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201959554 -> a3563d0ec
 
 ## Deferred / Follow-Ups
 
