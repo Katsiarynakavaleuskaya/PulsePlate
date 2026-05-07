@@ -130,6 +130,8 @@ Redis/GPTCache, OpenAPI, or `/insight` changes are present.
 - `9ee401382` - Remove the broad `diff-tree HEAD` fallback and deepen base-ref
   fetches so the docs leakage guard evaluates the PR diff, not historical base
   docs from a synthetic merge checkout.
+- `535f1757d` - Treat shallow-checkout `no merge base` errors as a safe two-dot
+  PR diff fallback for the docs leakage guard, with focused regression coverage.
 
 ## Pre-Push Checklist
 
@@ -231,9 +233,11 @@ Evidence: `docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_H
   `25522291859`, job `74909417241`: `6b39975d5`
 - Current-head CI synthetic-merge broad-diff false-positive failure at run
   `25524286914`, job `74916082651`: `9ee401382`
+- Current-head CI shallow checkout no-merge-base failure at run `25524919337`,
+  job `74918282823`: `535f1757d`
 
 ## Merge Readiness
 
-Not merge-ready yet. Requires the new current-head CI run after `9ee401382`,
+Not merge-ready yet. Requires the new current-head CI run after `535f1757d`,
 strict merge wrapper, review-thread disposition, and bot review pass with no
 actionables.
