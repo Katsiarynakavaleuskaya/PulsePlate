@@ -94,6 +94,8 @@ backend, or serving path.
 - `a4fce6daa` - `feat(ai-runtime): add exact fuzzy cache scaffold`
 - `9ee894de5` - `fix(ai-runtime): harden exact fuzzy scaffold review guards`
 - `0cddad988` - `fix(ai-runtime): remove duplicate scaffold phase error`
+- `955e5a958` - `docs(review): update PR 1700 fixed mapping`
+- `a4acaa035` - `fix(ai-runtime): address scaffold review cleanups`
 
 ## Pre-push checklist
 
@@ -141,6 +143,21 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3201984604 -> 0cddad988
 Commit: 0cddad988
 Evidence: `scripts/ci/check_semantic_cache_gate.py` removes the duplicate SC-G3 missing-phase error; `tests/test_semantic_cache_scaffold_contract.py` covers the single-error regression.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202053566 -> 955e5a958
+Commit: 955e5a958
+Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` includes the required checked Discussion Thread Pass checkboxes and `scripts/ci/check_pr_body_phase2_gates.py --pr-number 1700 --body ...` passed locally.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202053571 -> 955e5a958
+Commit: 955e5a958
+Evidence: `docs/review/PR_1700_FIXED_MAPPING.md` uses canonical mapping lines with disposition, commit, and evidence fields; `scripts/ci/check_pr_body_phase2_gates.py --pr-number 1700 --body ...` passed locally.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244613938 -> a4acaa035
+Commit: a4acaa035
+Evidence: `core/ai/exact_fuzzy_cache.py`, `scripts/ci/check_semantic_cache_gate.py`, `scripts/ci/check_docs_phase1_gates.py`, and `tests/test_semantic_cache_scaffold_contract.py` address the valid CodeRabbit cleanup findings.
 
 ## Merge Readiness
 
