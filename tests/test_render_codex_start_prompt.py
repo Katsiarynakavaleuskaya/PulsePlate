@@ -199,7 +199,7 @@ def test_prompt_data_escapes_newlines_so_fields_cannot_add_instructions() -> Non
     assert "\nDO NOT RUN TESTS" not in prompt
 
 
-def test_main_rejects_missing_packet_path(capsys) -> None:
+def test_main_rejects_missing_packet_path(capsys: pytest.CaptureFixture[str]) -> None:
     """Missing packet paths should fail without producing a misleading prompt."""
 
     result = main(["packet", "--packet", "artifacts/orchestration/task_packets/nope.json"])
@@ -210,7 +210,9 @@ def test_main_rejects_missing_packet_path(capsys) -> None:
     assert "Paste into Codex now:" not in captured.out
 
 
-def test_main_rejects_malformed_packet_json(tmp_path: Path, capsys) -> None:
+def test_main_rejects_malformed_packet_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Malformed packet JSON should fail closed before rendering."""
 
     packet_path = tmp_path / "packet.json"
@@ -224,7 +226,9 @@ def test_main_rejects_malformed_packet_json(tmp_path: Path, capsys) -> None:
     assert "Paste into Codex now:" not in captured.out
 
 
-def test_main_rejects_non_object_packet_json(tmp_path: Path, capsys) -> None:
+def test_main_rejects_non_object_packet_json(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     """Syntactically valid non-object packet JSON should fail closed."""
 
     packet_path = tmp_path / "packet.json"
@@ -238,7 +242,7 @@ def test_main_rejects_non_object_packet_json(tmp_path: Path, capsys) -> None:
     assert "Paste into Codex now:" not in captured.out
 
 
-def test_main_renders_packet_file(tmp_path: Path, capsys) -> None:
+def test_main_renders_packet_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     """CLI packet mode should read a real packet object."""
 
     packet_path = tmp_path / "packet.json"
