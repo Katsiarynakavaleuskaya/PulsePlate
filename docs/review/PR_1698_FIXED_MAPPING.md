@@ -184,6 +184,13 @@ Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-design-intelligence-wave`, `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ios-appstore-assets-rollout`
 Reason: CodeRabbit requested explicit backlog/thread proof for deferred follow-ups. PR-8, App Store asset validation, and live capture lanes remain separate tracked follow-ups.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#discussion_r3201519796
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244223889
+
+Disposition: FIXED
+Commit: e04606f0f
+Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md`, `tests/test_design_agent_workflow_docs.py`
+Reason: CodeRabbit review summary requested generated-mirror wording alignment in the PR-7 packet. The packet now forbids manual generated mirror edits while allowing explicitly scoped tool-generated mirror diffs from `/tokens`, and the docs guard covers the packet wording.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244094664 -> e04606f0f
 
 ## Deferred / Follow-Ups
 
