@@ -30,7 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 MODULE = REPO_ROOT / "core" / "ai" / "exact_fuzzy_cache.py"
 
 
-def _lineage():
+def _lineage() -> ExactFuzzyCacheLineage:
     return build_exact_fuzzy_lineage(
         eval_event_ids=("eval-event:2", "eval-event:1"),
         admission_decision_id="admission-decision:1",
@@ -41,7 +41,7 @@ def _lineage():
     )
 
 
-def _record(raw_query: str = "Plan protein breakfast"):
+def _record(raw_query: str = "Plan protein breakfast") -> ExactFuzzyCacheRecord:
     return create_exact_fuzzy_cache_record(
         surface="insight",
         raw_query=raw_query,
