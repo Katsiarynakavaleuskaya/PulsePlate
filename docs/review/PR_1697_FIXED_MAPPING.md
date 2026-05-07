@@ -133,6 +133,9 @@ Rollback is a docs/checker/test revert. Main risk is checker wording being too s
   install tests, and the backlog fallback entry with the patched dependency
   floors; it also adds a descriptive CodeRabbit-requested assertion message to
   the semantic-cache import guard helper.
+- `4da95b7ae` fixes CodeRabbit's follow-up advisory attribution comment by
+  restoring the correct `GHSA-mj87-hwqh-73pj / CVE-2026-40347` identifier for
+  the `python-multipart>=0.0.27` floor.
 
 ## Pre-push checklist
 
@@ -203,6 +206,12 @@ Evidence: `tests/helpers/semantic_cache_import_guard.py:33`, `tests/test_semanti
 Disposition: FIXED
 Commit: 1a705dae8
 Evidence: `tests/helpers/semantic_cache_import_guard.py:74` adds the descriptive forbidden-import assertion message requested by CodeRabbit. The same commit also aligns dependency floor source files and dependency-security tests after current-head CI exposed stale `mako` / `python-multipart` source floors; focused dependency/security and SC-G1 tests passed locally after the fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4241597043 -> 4da95b7ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3199400272 -> 4da95b7ae
+Disposition: FIXED
+Commit: 4da95b7ae
+Evidence: `requirements.in:20`, `requirements-ci-lite.in:23`, `requirements-docker-runtime.in:25`, `requirements-dev.in:24`, and `constraints.txt:43` now use the correct `GHSA-mj87-hwqh-73pj / CVE-2026-40347` attribution for the `python-multipart>=0.0.27` security floor. Focused dependency security tests passed locally after the fix.
 
 ## Merge Readiness
 
