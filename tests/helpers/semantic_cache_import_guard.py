@@ -31,6 +31,8 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
 FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "datetime.now",
     "datetime.utcnow",
+    "datetime.datetime.now",
+    "datetime.datetime.utcnow",
     "uuid.uuid4",
     "time.time",
 )

@@ -178,6 +178,19 @@ def test_scaffold_schema_has_required_keys_and_closed_values() -> None:
     assert schema["properties"]["runtime_allowed"]["const"] is False
     assert schema["properties"]["implementation_allowed"]["const"] is False
     assert schema["properties"]["scaffold_phase"]["const"] == "SC-G2"
+    assert set(schema["properties"]["blocked_surfaces"]["items"]["enum"]) == {
+        "advisory_wiki",
+        "workforce_memory",
+        "billing_auth_entitlement",
+        "legal_compliance_outputs",
+        "account_truth",
+        "healthkit_sensitive_payloads",
+        "raw_prompts",
+        "raw_model_responses",
+        "secrets_or_credentials",
+        "highly_personalized_coaching_state",
+    }
+    assert schema["properties"]["blocked_surfaces"]["minItems"] == 10
 
 
 def test_checker_passes_on_current_closed_scaffold_contract() -> None:
@@ -284,6 +297,23 @@ def test_direct_validator_reports_missing_scaffold_anchor() -> None:
     assert "exact/fuzzy scaffold contract missing anchor: admission linkage required" in errors
 
 
+def test_direct_validator_requires_blocked_embeddings_anchor_not_any_mention() -> None:
+    errors = validate_exact_fuzzy_scaffold_contract(
+        _contract_text().replace("- embeddings;", "- lexical placeholder;")
+        + "\nEmbeddings are discussed here only as a risk label.\n"
+    )
+
+    assert "exact/fuzzy scaffold contract missing anchor: no embeddings" in errors
+
+
+def test_direct_validator_requires_partition_surface_anchor_not_any_surface() -> None:
+    errors = validate_exact_fuzzy_scaffold_contract(
+        _contract_text().replace("- surface;", "- runtime surface label;")
+    )
+
+    assert "exact/fuzzy scaffold contract missing anchor: partition surface" in errors
+
+
 def test_direct_validator_reports_missing_sc_g3_once() -> None:
     errors = validate_exact_fuzzy_scaffold_contract(
         _contract_text().replace(
@@ -318,6 +348,17 @@ def test_checker_and_scaffold_have_no_forbidden_imports_or_nondeterministic_call
     for path in (CHECKER, DOCS_PHASE1, SCAFFOLD_MODULE):
         assert_no_forbidden_semantic_cache_imports(path)
         assert_no_forbidden_semantic_cache_calls(path)
+
+
+def test_import_guard_blocks_datetime_module_now_calls(tmp_path: Path) -> None:
+    sample = tmp_path / "bad_datetime_call.py"
+    sample.write_text(
+        "import datetime\n" "datetime.datetime.now()\n" "datetime.datetime.utcnow()\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="datetime.datetime.now"):
+        assert_no_forbidden_semantic_cache_calls(sample)
 
 
 def test_core_ai_facade_does_not_eagerly_export_scaffold() -> None:

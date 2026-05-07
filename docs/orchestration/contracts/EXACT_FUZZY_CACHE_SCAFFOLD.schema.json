@@ -72,9 +72,20 @@
     "blocked_surfaces": {
       "type": "array",
       "items": {
-        "type": "string"
+        "enum": [
+          "advisory_wiki",
+          "workforce_memory",
+          "billing_auth_entitlement",
+          "legal_compliance_outputs",
+          "account_truth",
+          "healthkit_sensitive_payloads",
+          "raw_prompts",
+          "raw_model_responses",
+          "secrets_or_credentials",
+          "highly_personalized_coaching_state"
+        ]
       },
-      "minItems": 8,
+      "minItems": 10,
       "uniqueItems": true
     },
     "required_inputs": {
