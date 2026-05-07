@@ -105,6 +105,8 @@ backend, or serving path.
 - `f5969b60b` - `fix(ci): include exact fuzzy scaffold coverage`
 - `8ee23ed33` - `docs(review): map coverage gate fix`
 - `643eb9186` - `fix(tests): annotate exact fuzzy helpers`
+- `4d6537a52` - `docs(review): map latest bot review objects`
+- `d7336f03b` - `fix(tests): cover exact fuzzy precedence`
 
 ## Pre-push checklist
 
@@ -212,6 +214,21 @@ Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4244847055 -> 643eb9186
 Commit: 643eb9186
 Evidence: CodeRabbit review object included already mapped checklist findings and the still-valid helper typing nitpick; `tests/core/ai/test_exact_fuzzy_cache.py` now annotates `_lineage` and `_record`, with focused pytest and mypy passing.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202585363 -> d7336f03b
+Commit: d7336f03b
+Evidence: `tests/core/ai/test_exact_fuzzy_cache.py` now covers mixed candidate precedence: exact, reordered-token fuzzy, then near-duplicate fuzzy.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#discussion_r3202585386 -> d7336f03b
+Commit: d7336f03b
+Evidence: `tests/core/ai/test_exact_fuzzy_cache.py` now includes `surface` in the partition mismatch hard-miss matrix.
+
+Disposition: FIXED
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1700#pullrequestreview-4245261219 -> d7336f03b
+Commit: d7336f03b
+Evidence: CodeRabbit review object covered the two test gaps mapped above; focused pytest and mypy passed after the fix.
 
 ## Merge Readiness
 
