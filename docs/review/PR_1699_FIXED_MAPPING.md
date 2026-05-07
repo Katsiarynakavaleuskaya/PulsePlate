@@ -75,7 +75,7 @@ Evidence:
 
 ### Sourcery: normalize git SHA comparisons
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116494 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116494 -> 98be97185
 
 Disposition: FIXED
 Evidence:
@@ -88,7 +88,7 @@ Evidence:
 
 ### Sourcery: assert fail-closed CD gate docs
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116498 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116498 -> 98be97185
 
 Disposition: FIXED
 Evidence:
@@ -99,7 +99,7 @@ Evidence:
 
 ### Sourcery: align Russian Mako fallback wording
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116502 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116502 -> 98be97185
 
 Disposition: FIXED
 Evidence:
@@ -109,7 +109,7 @@ Evidence:
 
 ### Sourcery: use `workflow_dispatch` terminology consistently
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116524 -> TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201116524 -> 98be97185
 
 Disposition: FIXED
 Evidence:
