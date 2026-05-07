@@ -23,42 +23,42 @@ Mapping is evidence after fix or decision, not a substitute for fixing docs/test
 ## Premortem Findings
 
 Disposition: FIXED
-Commit: `39941e7b0`
+Commit: 39941e7b0
 Evidence: `docs/research/DESIGN_GEPA_PROMPT_RUBRIC_EVOLUTION_LANE.md`
 Reason: Security/premortem review found that initial wording allowed GEPA outputs to inform runtime file changes. The final research doc limits PR-8 promotion to docs/tooling/tests/research fixtures and requires a separate non-PR-8 packet and reviewed PR for runtime implementation.
 
 Disposition: FIXED
-Commit: `39941e7b0`
+Commit: 39941e7b0
 Evidence: `docs/research/DESIGN_GEPA_PROMPT_RUBRIC_EVOLUTION_LANE.md`
 Reason: Architecture review found that evidence layers were listed inside the canonical truth hierarchy. The final doc separates canonical repo truth from non-canonical reference/evidence layers.
 
 Disposition: FIXED
-Commit: `39941e7b0`, `8ddb3ebce`
+Commit: 39941e7b0
 Evidence: `docs/research/DESIGN_GEPA_PROMPT_RUBRIC_EVOLUTION_LANE.md`, `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`
 Reason: Data/ML review found an ambiguous broad trace ban. The final docs distinguish forbidden runtime/product traces from allowed committed eval trace records.
 
 Disposition: FIXED
-Commit: `8ddb3ebce`
+Commit: 8ddb3ebce
 Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`
 Reason: Architecture review found that the bounded-check exception needed the root `AGENTS.md` machine-heavy conditions. The final packet requires PR body and mapping deferral documentation, narrow gate evidence, current-head CI parity, and strict merge wrapper before readiness.
 
 Disposition: FIXED
-Commit: `0fee6c378`
+Commit: 0fee6c378
 Evidence: `tests/test_design_gepa_research_lane_docs.py`
 Reason: QA/bug-hunter review found false-negative gaps in the docs guard. The final test uses broader regex checks for contradictory authority wording, Figma/Canva write permission, manual generated mirror edits, and system Python command examples.
 
 Disposition: FIXED
-Commit: `0fee6c378`
+Commit: 0fee6c378
 Evidence: `tests/test_design_gepa_research_lane_docs.py`
 Reason: The strengthened guard initially overmatched safe negative wording. The final regex permits explicit "not source of truth" language while still blocking positive source-of-truth claims.
 
 Disposition: FIXED
-Commit: `7f8c5b6df`
+Commit: 7f8c5b6df
 Evidence: `git status --short`, `git diff --name-only origin/main...HEAD`
 Reason: Follow-up bug-hunter noted the new docs/test files were still untracked before commits. The final branch includes all PR-8 files in committed history.
 
 Disposition: FIXED
-Commit: `7f8c5b6df`
+Commit: 7f8c5b6df
 Evidence: `git status --short`, `git status --short --ignored frontend/node_modules .venv`
 Reason: Follow-up premortem/bug-hunter found an untracked `frontend/node_modules` symlink used only to run `make tokens-check` in the isolated worktree. The symlink was removed before commit/push; only the ignored `.venv` worktree link remains for repo Python commands.
 
@@ -106,16 +106,12 @@ No GitHub review-thread actionables were present when this mapping was first add
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [x] Fixed in commit mapping created
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No external review-thread URLs were available when this artifact was created. Future thread entries must use:
-
-- `Disposition: FIXED` with commit SHA and evidence.
-- `Disposition: NOT-A-BUG` with evidence and rationale.
-- `Disposition: DEFERRED` with backlog link and rationale.
+- No actionable review comments
 
 ## Merge Readiness
 
