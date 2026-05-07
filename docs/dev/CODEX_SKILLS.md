@@ -109,7 +109,7 @@ The user should not have to name skills manually for normal project work, but
 that routing comes from the canonical bootstrap/orchestration path, not from
 this document by itself.
 
-**Raw session note:** nothing in this file runs at host session start. For a new PR lane, prefer `scripts/orchestration/start_pr_lane.sh` from a clean checkout synced with `origin/main`; it creates the isolated worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the packet summary plus plugin/runtime checklist. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) only when you need analyze preflight and a printed `task_bootstrap.py` command without creating a worktree. Evidence for the weaker helper: `scripts/orchestration/local_session_bootstrap.sh:145-147` (analyze preflight) and `scripts/orchestration/local_session_bootstrap.sh:154-166` (printed task bootstrap command).
+**Raw session note:** nothing in this file runs at host session start. For a new PR lane, prefer `scripts/orchestration/start_pr_lane.sh` from a clean checkout synced with `origin/main`; it creates the isolated worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the packet summary, plugin/runtime checklist, and a `Paste into Codex now` coordinator-start block. Use `scripts/orchestration/local_session_bootstrap.sh` (optional) only when you need analyze preflight and a Codex-ready printed `task_bootstrap.py` recipe without creating a worktree. The helper still does not create the authoritative packet itself.
 
 **Launcher vs skills:** If you use an opt-in machine launcher (see [`docs/dev/LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md`](./LOCAL_COORDINATOR_LAUNCHER_ROLLOUT.md)), run preflight/bootstrap **before** relying on installed skills or manual task work. **Skills do not replace** `task_bootstrap.py`; they complement routing after a packet exists.
 
@@ -122,6 +122,13 @@ this document by itself.
 - turn `recommended_skills` into execution authority,
 - change `native_subagent_bridge` semantics,
 - or modify Cursor/custom orchestration behavior without explicit operator action.
+
+Passive does not mean ignorable. When a repo skill such as
+`pulseplate-premortem-risk-review` produces findings for the current PR, every
+finding must be closed through the coordinator-owned PR flow: fix it in
+code/docs/tests, or formally disposition it as `NOT-A-BUG`/`DEFERRED` with
+evidence or backlog tracking. A finding must not be dropped merely because the
+skill has no execution authority.
 
 **Advisory wiki (optional):** For operator-local wiki snapshots over the experimental support plane, see [`docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md`](../orchestration/LOCAL_WIKI_SUPPORT_PLANE.md) (`wiki_ingest` / `wiki_query` / `wiki_lint` / `wiki_promote`). This remains non-canonical and gitignored.
 
