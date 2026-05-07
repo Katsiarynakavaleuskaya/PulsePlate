@@ -104,7 +104,8 @@ changes.
 | PR-3 | `release/release-control-plane-pr3-release-manifest` | Release manifest generator and validator, merged as PR #1605 | manifest validator tests |
 | PR-4 | `release/release-control-plane-pr4-build-equivalence` | Merged review build equals production-candidate equivalence check in PR #1679 | equivalence tests |
 | PR-5 | `release/release-control-plane-pr5-ci-gates` | Merged CI integration for release packet, gate result, build equivalence, SBOM/provenance references, and fail-closed decision in PR #1682 | focused CI/workflow contract tests |
-| PR-6 | `release/release-control-plane-pr6-production-artifact-wiring` | Active production tag wiring for real release-control-plane evidence artifacts | production workflow contract tests |
+| PR-6 | `release/release-control-plane-pr6-production-artifact-wiring` | Merged production tag wiring for real release-control-plane evidence artifacts in PR #1688 | production workflow contract tests |
+| Post-#1692 | `ci/release-control-plane-evidence-publication` | Active governed manual publication workflow for the production evidence artifact required by CD | evidence publication workflow contract tests |
 
 ## Release Packet Contract
 
@@ -265,6 +266,32 @@ PR-6 does not create fake production evidence, does not use fixtures in the
 production tag path, does not add App Store Connect execution, does not mutate
 Fastlane protected upload behavior, and does not change runtime/API/OpenAPI/iOS,
 RAG, billing, semantic cache, GraphRAG, or product-facing behavior.
+
+### Post-PR-1692 Governed Evidence Publication
+
+After PR #1692, production tags fail closed until protected Actions variables
+point CD at a real release-control-plane evidence artifact. The
+`ci/release-control-plane-evidence-publication` follow-up adds the manual
+governed workflow that publishes that artifact. The slice-specific packet lives
+in
+[`RELEASE_CONTROL_PLANE_EVIDENCE_PUBLICATION_PACKET_2026-05-07.md`](RELEASE_CONTROL_PLANE_EVIDENCE_PUBLICATION_PACKET_2026-05-07.md).
+
+The publication workflow must arrange this canonical layout:
+
+```text
+release-control-plane/
+  release_manifest.json
+  rag_gate_result.json
+  build_equivalence_result.json
+```
+
+Source evidence must come from successful `workflow_dispatch` runs for the same
+git SHA and must be validated with `scripts/ci/check_release_control_plane.py`
+before upload. The workflow publishes governed evidence only; it does not
+create release truth, use fixtures as production evidence, perform App Store
+Connect execution, mutate Fastlane protected upload behavior, or change
+runtime/API/iOS, RAG, billing, semantic cache, GraphRAG, or product-facing
+behavior.
 
 ## Bootstrap Commands
 

@@ -117,13 +117,25 @@ review governance.
 
 7. **PR-6: production release evidence artifact wiring**
    - Branch: `release/release-control-plane-pr6-production-artifact-wiring`
-   - Active PR-6 slice.
+   - Merged as PR #1688 on 2026-05-06.
    - Wire real production release-control-plane evidence artifacts into the production tag path before deploy.
    - Contract: [`PRODUCTION_RELEASE_EVIDENCE_WIRING.md`](PRODUCTION_RELEASE_EVIDENCE_WIRING.md).
    - Production deploy requires downloaded real `release_manifest.json`,
      `rag_gate_result.json`, and `build_equivalence_result.json` evidence.
    - Fixtures remain test/main validation only and must not be used in the production tag path.
    - Protected App Store upload automation, Fastlane mutation, and App Store Connect execution remain out of scope.
+
+8. **Post-PR-1692: governed release evidence publication**
+   - Branch: `ci/release-control-plane-evidence-publication`
+   - Active follow-up after PR #1692.
+   - Add the manual governed workflow that publishes the production evidence artifact expected by CD.
+   - Contract: [`PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md`](PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md).
+   - Published artifact layout:
+     `release-control-plane/release_manifest.json`,
+     `release-control-plane/rag_gate_result.json`, and
+     `release-control-plane/build_equivalence_result.json`.
+   - Source evidence must come from successful `workflow_dispatch` source runs for the same git SHA.
+   - App Store Connect upload execution, Fastlane upload mutation, runtime changes, and fake production fixtures remain out of scope.
 
 ## Boundaries
 
@@ -204,3 +216,7 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
     production tag workflow path and keeps upload execution deferred. It does
     not generate fake production evidence, and production deploy must fail
     closed when required evidence cannot be downloaded or validated.
+11. The post-PR-1692 evidence publication follow-up creates the governed manual
+    artifact publication ceremony that production CD already expects. It
+    publishes evidence; it does not create release truth, bypass the fail-closed
+    gate, or perform App Store/Fastlane upload execution.

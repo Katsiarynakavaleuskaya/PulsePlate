@@ -128,3 +128,9 @@ Operators preparing a production tag must publish or restore the approved
 release-control-plane artifacts before this gate runs. The follow-up for
 protected artifact publication remains tracked in
 `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-release-control-plane`.
+The governed publication ceremony is documented in
+[`PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md`](PRODUCTION_RELEASE_EVIDENCE_PUBLICATION.md).
+Its manual workflow prints the exact
+`RELEASE_CONTROL_PLANE_EVIDENCE_RUN_ID` and
+`RELEASE_CONTROL_PLANE_EVIDENCE_ARTIFACT_NAME` values that operators must review
+before setting production Actions variables.
