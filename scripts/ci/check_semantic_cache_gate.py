@@ -13,6 +13,9 @@ DEFAULT_DOC = REPO_ROOT / "docs" / "roadmap" / "PulsePlate_Semantic_Cache_Gate_a
 DEFAULT_CONTRACT = (
     REPO_ROOT / "docs" / "orchestration" / "contracts" / "SEMANTIC_CACHE_ROLLOUT_GATE.md"
 )
+DEFAULT_SCAFFOLD_CONTRACT = (
+    REPO_ROOT / "docs" / "orchestration" / "contracts" / "EXACT_FUZZY_CACHE_SCAFFOLD.md"
+)
 
 REQUIRED_MARKERS = {
     "SEMANTIC_CACHE_GATE_STATUS": "closed",
@@ -96,6 +99,24 @@ FORBIDDEN_CLAIM_PATTERNS = (
         "advisory evidence seeds product cache",
         re.compile(r"\badvisory\s+evidence\s+seeds\s+product\s+cache\b"),
     ),
+    (
+        "semantic cache serving live claim",
+        re.compile(
+            r"\bsemantic\s+cache\s+serving\s+"
+            r"(?:(?:is|has\s+been)\s+)?(?:available|enabled|active|ready)\b"
+        ),
+    ),
+    (
+        "semantic-cache serving live claim",
+        re.compile(
+            r"\bsemantic-cache\s+serving\s+"
+            r"(?:(?:is|has\s+been)\s+)?(?:available|enabled|active|ready)\b"
+        ),
+    ),
+    (
+        "semantic cache production ready",
+        re.compile(r"\bsemantic\s+cache\s+(?:is\s+)?production-ready\b"),
+    ),
 )
 
 CONTRACT_REQUIRED_ANCHORS = (
@@ -146,6 +167,121 @@ CONTRACT_REQUIRED_ANCHORS = (
     ("Evidence Graph linkage", re.compile(r"\bevidence graph linkage\b")),
     ("admission decision IDs", re.compile(r"\badmission decision ids\b")),
     ("promotion/replay lineage", re.compile(r"\bpromotion/replay lineage\b")),
+)
+
+SCAFFOLD_REQUIRED_ANCHORS = (
+    (
+        "SC-G2 does not open semantic-cache gate",
+        re.compile(r"\bsc-g2 defines .*\bdoes not open (?:the )?semantic-cache gate\b"),
+    ),
+    (
+        "SC-G2 does not enable runtime caching",
+        re.compile(r"\bdoes not enable runtime caching\b"),
+    ),
+    ("deterministic exact/fuzzy only", re.compile(r"\bdeterministic exact/fuzzy only\b")),
+    ("stdlib only", re.compile(r"\bstdlib only\b")),
+    ("no embeddings", re.compile(r"\bblocked:\s+- embeddings\b")),
+    ("no semantic similarity", re.compile(r"\bblocked:.*-\s+semantic similarity\b")),
+    ("no Redis", re.compile(r"\bblocked:.*-\s+redis\b")),
+    ("no GPTCache", re.compile(r"\bblocked:.*-\s+gptcache\b")),
+    ("no vector search", re.compile(r"\bblocked:.*-\s+vector search\b")),
+    ("no provider changes", re.compile(r"\bblocked:.*-\s+provider changes\b")),
+    ("no runtime wiring", re.compile(r"\bblocked:.*-\s+runtime wiring\b")),
+    ("no raw prompts", re.compile(r"\bblocked:.*-\s+raw prompts\b")),
+    ("no raw model responses", re.compile(r"\bblocked:.*-\s+raw model responses\b")),
+    ("Evidence Graph lineage required", re.compile(r"\bevidence graph lineage required\b")),
+    ("admission linkage required", re.compile(r"\badmission linkage required\b")),
+    ("replay linkage required", re.compile(r"\breplay linkage required\b")),
+    (
+        "partition surface",
+        re.compile(r"\bpartition fields exactly match.*-\s+surface\b"),
+    ),
+    (
+        "partition context fingerprint",
+        re.compile(r"\bpartition fields exactly match.*-\s+context fingerprint\b"),
+    ),
+    (
+        "partition source fingerprints",
+        re.compile(r"\bpartition fields exactly match.*-\s+source fingerprints\b"),
+    ),
+    (
+        "partition policy version",
+        re.compile(r"\bpartition fields exactly match.*-\s+policy version\b"),
+    ),
+    (
+        "partition provider key",
+        re.compile(r"\bpartition fields exactly match.*-\s+provider key\b"),
+    ),
+    (
+        "partition model key",
+        re.compile(r"\bpartition fields exactly match.*-\s+model key\b"),
+    ),
+    (
+        "partition user tier",
+        re.compile(r"\bpartition fields exactly match.*-\s+user tier\b"),
+    ),
+    (
+        "partition transparency notice id",
+        re.compile(r"\bpartition fields exactly match.*-\s+transparency notice id\b"),
+    ),
+    ("integer basis-point scoring", re.compile(r"\binteger basis-point scoring\b")),
+    (
+        "SC-G3 required",
+        re.compile(r"\bsc-g3 observability and false-hit harness is still required\b"),
+    ),
+    ("SC-G4 future", re.compile(r"\bsc-g4 bounded /insight semantic-cache experiment\b")),
+)
+
+SCAFFOLD_FORBIDDEN_PATTERNS = (
+    (
+        "SC-G2 permits embeddings",
+        re.compile(
+            r"\b(?:sc-g2\s+)?(?:permits|allows|enables|supports|approves)\s+embeddings\b"
+            r"|\bsc-g2\s+can\s+use\s+embeddings\b"
+            r"|\bembeddings\s+(?:are\s+)?(?:allowed|enabled|supported|available|approved)\s+"
+            r"(?:for|in)\s+sc-g2\b"
+        ),
+    ),
+    (
+        "SC-G2 permits semantic similarity",
+        re.compile(
+            r"\b(?:sc-g2\s+)?(?:permits|allows|enables|supports|approves)\s+semantic\s+similarity\b"
+            r"|\bsc-g2\s+can\s+use\s+semantic\s+similarity\b"
+            r"|\bsemantic\s+similarity\s+(?:is\s+)?"
+            r"(?:allowed|enabled|supported|available|approved)\s+(?:for|in)\s+sc-g2\b"
+        ),
+    ),
+    (
+        "SC-G2 permits vector search",
+        re.compile(
+            r"\b(?:sc-g2\s+)?(?:permits|allows|enables|supports|approves)\s+vector\s+search\b"
+            r"|\bsc-g2\s+can\s+use\s+vector\s+search\b"
+            r"|\bvector\s+search\s+(?:is\s+)?"
+            r"(?:allowed|enabled|supported|available|approved)\s+(?:for|in)\s+sc-g2\b"
+        ),
+    ),
+    (
+        "SC-G2 permits Redis",
+        re.compile(
+            r"\b(?:sc-g2\s+)?(?:permits|allows|enables|supports|approves)\s+redis\b"
+            r"|\bsc-g2\s+can\s+use\s+redis\b"
+            r"|\bredis\s+(?:is\s+)?(?:allowed|enabled|supported|available|approved)\s+"
+            r"(?:for|in)\s+sc-g2\b"
+        ),
+    ),
+    (
+        "SC-G2 permits GPTCache",
+        re.compile(
+            r"\b(?:sc-g2\s+)?(?:permits|allows|enables|supports|approves)\s+gptcache\b"
+            r"|\bsc-g2\s+can\s+use\s+gptcache\b"
+            r"|\bgptcache\s+(?:is\s+)?(?:allowed|enabled|supported|available|approved)\s+"
+            r"(?:for|in)\s+sc-g2\b"
+        ),
+    ),
+    (
+        "SC-G2 bypasses SC-G3",
+        re.compile(r"\bsc-g2\s+(?:bypasses|skips)\s+sc-g3\b"),
+    ),
 )
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
@@ -263,6 +399,42 @@ def validate_semantic_cache_rollout_contract(text: str) -> list[str]:
     return errors
 
 
+def validate_exact_fuzzy_scaffold_contract(text: str) -> list[str]:
+    """Return stable validation errors for unsafe SC-G2 exact/fuzzy contracts."""
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in SCAFFOLD_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"exact/fuzzy scaffold contract missing anchor: {label}")
+
+    positions = {
+        "SC-G2": normalized.find("sc-g2 is deterministic exact/fuzzy only"),
+        "SC-G3": normalized.find("sc-g3 observability and false-hit harness is still required"),
+        "SC-G4": normalized.find("sc-g4 bounded /insight semantic-cache experiment"),
+    }
+    for phase, index in positions.items():
+        if index == -1:
+            errors.append(f"exact/fuzzy scaffold contract missing phase: {phase}")
+    expected_phase_order = ("SC-G2", "SC-G3", "SC-G4")
+    previous_position = -1
+    for phase in expected_phase_order:
+        current_position = positions[phase]
+        if current_position == -1:
+            continue
+        if current_position <= previous_position:
+            errors.append(f"exact/fuzzy scaffold phase out of order: {phase}")
+        previous_position = current_position
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden exact/fuzzy scaffold claim: {label}"
+        for label, pattern in SCAFFOLD_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check semantic-cache gate markers.")
     parser.add_argument(
@@ -277,6 +449,12 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_CONTRACT,
         help="Semantic-cache rollout contract markdown document to validate.",
     )
+    parser.add_argument(
+        "--scaffold-contract",
+        type=Path,
+        default=DEFAULT_SCAFFOLD_CONTRACT,
+        help="SC-G2 exact/fuzzy scaffold markdown document to validate.",
+    )
     args = parser.parse_args(argv)
 
     doc = args.doc
@@ -289,8 +467,19 @@ def main(argv: list[str] | None = None) -> int:
         print(f"ERROR: semantic-cache rollout contract missing: {contract}", file=sys.stderr)
         return 1
 
+    scaffold_contract = args.scaffold_contract
+    if not scaffold_contract.exists():
+        print(
+            f"ERROR: exact/fuzzy scaffold contract missing: {scaffold_contract}",
+            file=sys.stderr,
+        )
+        return 1
+
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
+    errors.extend(
+        validate_exact_fuzzy_scaffold_contract(scaffold_contract.read_text(encoding="utf-8"))
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -298,6 +487,7 @@ def main(argv: list[str] | None = None) -> int:
 
     print(f"semantic-cache gate closed: {doc}")
     print(f"semantic-cache rollout contract closed: {contract}")
+    print(f"exact/fuzzy scaffold contract closed: {scaffold_contract}")
     return 0
 
 

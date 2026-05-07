@@ -27,6 +27,11 @@ The rollout contract is defined in
 That contract describes how a future gate-open PR may be evaluated; it does not
 open the gate and does not implement semantic cache.
 
+The SC-G2 exact/fuzzy scaffold contract is defined in
+[`EXACT_FUZZY_CACHE_SCAFFOLD.md`](../orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md).
+That contract is pre-serving and lexical only; it does not enable embeddings,
+semantic similarity, runtime caching, or `/insight` wiring.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
@@ -87,8 +92,9 @@ The first semantic cache slice must stay narrow:
 
 Any future semantic cache record must include:
 - normalized query
-- embedding or compatible similarity key
-- answer payload
+- SC-G2 exact/fuzzy key when the phase is exact/fuzzy scaffold only
+- SC-G4 semantic key only after SC-G3 false-hit harness and a reviewed gate-open PR
+- response fingerprint, not raw answer payload, before any future serving gate
 - provider actually used
 - source fingerprints / source hashes
 - reason codes
