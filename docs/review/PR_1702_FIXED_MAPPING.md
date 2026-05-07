@@ -15,7 +15,7 @@ semantic-cache experiment can be considered.
 ## Business Reason
 
 The PR reduces stale-answer, false-hit, leakage, and rollback risk before any
-future cache serving work. It protects PulsePlate from premature cache rollout
+future cache-serving work. It protects PulsePlate from premature cache rollout
 and expensive provider/runtime mistakes.
 
 ## Scope
