@@ -145,6 +145,7 @@ Post-open review lane bootstrap completed with packet `9442dc7099f0` for `qa-eng
 Disposition: FIXED
 Commit: e65ca8a16
 Evidence: `scripts/ci/check_semantic_cache_gate.py:46`, `scripts/ci/check_semantic_cache_gate.py:101`, `tests/test_semantic_cache_gate.py:189`, `tests/helpers/semantic_cache_import_guard.py:23`; focused checker/tests/mypy/validate-changed passed locally after the fix.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239609396 -> 4a1d07219
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197509415 -> 4a1d07219
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197534582 -> 4a1d07219
@@ -152,16 +153,19 @@ Evidence: `scripts/ci/check_semantic_cache_gate.py:46`, `scripts/ci/check_semant
 Disposition: FIXED
 Commit: 4a1d07219
 Evidence: `scripts/ci/check_semantic_cache_gate.py:90`, `scripts/ci/check_semantic_cache_gate.py:91`, `tests/test_semantic_cache_gate.py:244`, `tests/test_semantic_cache_gate.py:328`, `tests/helpers/semantic_cache_import_guard.py:60`; focused checker/tests/mypy/validate-changed passed locally after the fix.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239705867 -> 71bd1dc85
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197615815 -> 71bd1dc85
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197615841 -> 71bd1dc85
 Disposition: FIXED
 Commit: 71bd1dc85
 Evidence: `scripts/ci/check_semantic_cache_gate.py:184`, `scripts/ci/check_semantic_cache_gate.py:217`, `tests/test_semantic_cache_gate.py:263`, `tests/helpers/semantic_cache_import_guard.py:23`, `docs/review/PR_1697_FIXED_MAPPING.md:24`; focused checker/tests/mypy/validate-changed passed locally after the fix.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197699569
 Disposition: NOT-A-BUG
 Evidence: PR #1697 is explicitly scoped as docs + deterministic guard/test, not docs-only; PR body includes `## Split Justification`, `pr_scope_guard` passed on current-head CI, and this artifact lists the executable checker/test scope in `Scope` and `Files touched`.
 Reason: The comment applies a docs-only rule, but the operator-approved plan and PR body classify this lane as docs + deterministic guard/test. No runtime/cache/provider/RAG implementation files are touched.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#pullrequestreview-4239806990 -> 727cefbda
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1697#discussion_r3197699573 -> 727cefbda
 Disposition: FIXED
