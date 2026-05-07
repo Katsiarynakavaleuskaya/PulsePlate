@@ -118,9 +118,9 @@ def _docs_diff_base_candidates() -> tuple[str, ...]:
         candidate
         for candidate in (
             configured,
-            _github_event_pull_request_base_sha(),
             f"origin/{github_base_ref}" if github_base_ref else "",
             github_base_ref,
+            _github_event_pull_request_base_sha(),
             "origin/main",
             "main",
             "HEAD~1",
@@ -130,20 +130,22 @@ def _docs_diff_base_candidates() -> tuple[str, ...]:
 
 
 def _changed_docs_diff() -> str:
-    candidates = [
-        candidate for candidate in _docs_diff_base_candidates() if _git_ref_exists(candidate)
-    ]
+    candidates = _docs_diff_base_candidates()
+    attempted: list[str] = []
     for base_ref in candidates:
-        result = _changed_docs_diff_from_base(base_ref)
-        if result.returncode == 0:
-            return result.stdout
+        attempted.append(base_ref)
+        if _git_ref_exists(base_ref):
+            result = _changed_docs_diff_from_base(base_ref)
+            if result.returncode == 0:
+                return result.stdout
         _fetch_base_ref_for_shallow_checkout(base_ref)
-        result = _changed_docs_diff_from_base(base_ref)
-        if result.returncode == 0:
-            return result.stdout
+        if _git_ref_exists(base_ref):
+            result = _changed_docs_diff_from_base(base_ref)
+            if result.returncode == 0:
+                return result.stdout
 
-    attempted = ", ".join(candidates) or "<none>"
-    raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted}")
+    attempted_refs = ", ".join(attempted) or "<none>"
+    raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted_refs}")
 
 
 def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[str]:
@@ -164,10 +166,31 @@ def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[s
 
 
 def _fetch_base_ref_for_shallow_checkout(base_ref: str) -> None:
-    if not re.fullmatch(r"[0-9a-fA-F]{40}", base_ref):
+    fetch_args: list[str]
+    github_base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+    if base_ref.startswith("origin/"):
+        branch = base_ref.removeprefix("origin/")
+        fetch_args = [
+            "fetch",
+            "--no-tags",
+            "--depth=1",
+            "origin",
+            f"{branch}:refs/remotes/origin/{branch}",
+        ]
+    elif github_base_ref and base_ref == github_base_ref:
+        fetch_args = [
+            "fetch",
+            "--no-tags",
+            "--depth=1",
+            "origin",
+            f"{github_base_ref}:refs/remotes/origin/{github_base_ref}",
+        ]
+    elif re.fullmatch(r"[0-9a-fA-F]{40}", base_ref):
+        fetch_args = ["fetch", "--no-tags", "--depth=1", "origin", base_ref]
+    else:
         return
     subprocess.run(
-        [_binary("git"), "fetch", "--no-tags", "--depth=1", "origin", base_ref],
+        [_binary("git"), *fetch_args],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
