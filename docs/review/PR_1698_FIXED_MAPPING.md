@@ -210,6 +210,12 @@ Evidence: `docs/review/PR_1698_FIXED_MAPPING.md`, `tests/test_design_agent_workf
 Reason: CodeRabbit review summary aggregated the two inline findings above. The bare-Python design guard finding was fixed by `56f0211f4`; the base-commit exception-proof finding was fixed by `0fc1293c2`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4244584315 -> 0fc1293c2
 
+Disposition: FIXED
+Commit: 9f1f69337
+Evidence: `tests/test_design_agent_workflow_docs.py`
+Reason: CodeRabbit requested order-sensitive workflow section coverage. Added a guard that asserts the numbered design workflow sections appear in canonical order.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1698#pullrequestreview-4246046425 -> 9f1f69337
+
 ## Deferred / Follow-Ups
 
 Disposition: DEFERRED
