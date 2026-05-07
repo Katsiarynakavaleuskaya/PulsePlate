@@ -1182,8 +1182,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Reference-driven design intelligence wave for web and iOS
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design / web / iOS / agentic workflow / reference corpus)
-  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` -> PR #1683 / PR-3 `feat(design): add screen evidence pack for web and iOS review surfaces` -> PR #1686 / PR-4 `feat(design): add deterministic design scorecard checks` -> PR #1689 / PR-5 acceptance brief `docs/design-web-launch-brief-pr5` -> PR #1694 / PR-6 `feat(ios): add iOS design parity audit and bounded visual sync` -> PR #1695 hotfix interruption -> PR-7 `codex/design-agent-workflow-pr-template-v1` -> PR-8 deferred
-  - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 merged in PR #1680 with reference manifest validation and normalization tooling; PR-3 merged in PR #1683 with metadata-only screen evidence pack validation for web and iOS review surfaces; PR-4 merged in PR #1686 with deterministic evidence-quality scorecard checks; PR-5 acceptance brief merged in PR #1689 with the web shell accepted with deferred minor follow-up; PR-6 merged in PR #1694 with iOS visual parity audit and bounded sync decision; PR #1695 landed the BMI guard false-positive hotfix interruption; PR-7 is active on branch `codex/design-agent-workflow-pr-template-v1` for workflow/template/test governance only. PR-8 remains deferred as a separate research/prompt evolution lane.
+  - Target PR: PR #1671 (`docs(design): open reference-driven design intelligence wave for web and iOS`, branch `docs/design-intelligence-wave-v1`) -> PR #1677 / PR-1 `feat(design): generate PulsePlate DESIGN.md from token and component contracts` -> PR #1680 / PR-2 `feat(design): add external reference manifest and normalization tooling` -> PR #1683 / PR-3 `feat(design): add screen evidence pack for web and iOS review surfaces` -> PR #1686 / PR-4 `feat(design): add deterministic design scorecard checks` -> PR #1689 / PR-5 acceptance brief `docs/design-web-launch-brief-pr5` -> PR #1694 / PR-6 `feat(ios): add iOS design parity audit and bounded visual sync` -> PR #1695 hotfix interruption -> PR #1698 / PR-7 `feat(orchestration): add design-agent workflow and PR template` -> PR-8 `docs/design-gepa-prompt-rubric-lane-v1`
+  - Status: PR-0 merged in PR #1671; PR-1 merged in PR #1677 with generated/drift-checked `docs/design/DESIGN.md`; PR-2 merged in PR #1680 with reference manifest validation and normalization tooling; PR-3 merged in PR #1683 with metadata-only screen evidence pack validation for web and iOS review surfaces; PR-4 merged in PR #1686 with deterministic evidence-quality scorecard checks; PR-5 acceptance brief merged in PR #1689 with the web shell accepted with deferred minor follow-up; PR-6 merged in PR #1694 with iOS visual parity audit and bounded sync decision; PR #1695 landed the BMI guard false-positive hotfix interruption; PR-7 merged in PR #1698 with workflow/template/test governance. PR-8 is active on branch `docs/design-gepa-prompt-rubric-lane-v1` as a docs/research, orchestration, and deterministic docs guard lane only.
   - Area: design / web / iOS / agentic workflow / reference corpus
   - Finding Type: reference-driven design intelligence bootstrap and governance
   - Anchor: `ledger-p1-design-intelligence-wave`
@@ -1213,13 +1213,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Premortem risks are converted into binding controls across the runbook,
       packet, schema, scorecard, and DESIGN.md bootstrap
     - PR-7 workflow/template governance is merged and future design-impacting PRs have a repeatable start, evidence, premortem, review-mapping, and merge-readiness path
-  - Deferred PR-8 tracking:
+  - Active PR-8 tracking:
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
-    - Target PR: PR-8 `docs(research): add GEPA-compatible prompt/rubric evolution lane`
-    - Reason: Prompt/rubric evolution must remain separate from PR-7 workflow/template governance so process guardrails land before research optimization work.
-    - Links: `docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md`
-    - DoD: PR-8 opens only with a coordinator-owned packet that keeps GEPA/prompt evolution non-runtime, repo-reviewed, bounded, and separate from web/iOS implementation lanes.
+    - Target PR: PR-8 `docs(research): add GEPA-compatible prompt/rubric evolution lane`, branch `docs/design-gepa-prompt-rubric-lane-v1`
+    - Reason: Prompt/rubric evolution remains separate from PR-7 workflow/template governance and must stay research/eval/process-only.
+    - Links: `docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md`, `docs/research/DESIGN_GEPA_PROMPT_RUBRIC_EVOLUTION_LANE.md`, `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md`
+    - DoD: PR-8 lands a coordinator-owned GEPA-compatible research lane that keeps prompt/rubric evolution non-runtime, repo-reviewed, bounded, and separate from web/iOS implementation lanes. No next PR auto-start follows PR-8.
 
 <a id="ledger-p1-design-runtime-system-web-ios-epic"></a>
 - [x] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
