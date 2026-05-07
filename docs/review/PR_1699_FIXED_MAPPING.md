@@ -61,6 +61,16 @@ Disposition: FIXED
 Commit: 9f6a655c6
 Evidence: Local pre-push pip-audit blocker was fixed by bumping mako to 1.3.12 and python-multipart to 0.0.27 across governed dependency surfaces.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201422682 -> 04fc129bf
+Disposition: FIXED
+Commit: 04fc129bf
+Evidence: The release-control-plane ledger Target PR chain now includes concrete PR #1699 alongside the branch token.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4243989997 -> 04fc129bf
+Disposition: FIXED
+Commit: 04fc129bf
+Evidence: CodeRabbit review summary corresponds to discussion_r3201422682, fixed by adding PR #1699 to the ledger Target PR chain.
+
 ## Pre-Open Subagent Findings
 
 ### Source runs are not allowlisted
@@ -178,6 +188,26 @@ Evidence:
 - The review summary is a container for the four Sourcery discussion findings
   mapped above; it did not add a separate code or docs defect after those
   findings were fixed.
+
+### CodeRabbit: add concrete PR number to ledger Target PR
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#discussion_r3201422682 -> 04fc129bf
+
+Disposition: FIXED
+Evidence:
+
+- `docs/roadmap/BACKLOG_LEDGER.md` Target PR now includes `PR #1699`
+  alongside `ci/release-control-plane-evidence-publication`.
+
+### CodeRabbit review summary
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1699#pullrequestreview-4243989997 -> 04fc129bf
+
+Disposition: FIXED
+Evidence:
+
+- This review summary corresponds to `discussion_r3201422682`; the ledger
+  traceability finding is fixed in commit `04fc129bf`.
 
 ## Current-Head CI Findings
 
