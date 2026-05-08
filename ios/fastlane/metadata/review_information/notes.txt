@@ -25,4 +25,4 @@ Test account:
 Feature limitations:
 - Weekly meal plan, grocery list, and AI assistant screenshot scenarios are present in the repository as design assets but are classified as IMPLEMENTATION_REQUIRED and are not included in public App Store submission screenshots.
 - Only the core value (home/BMI) screenshot scenario is currently classified as SUBMIT_READY for public submission.
-- CI release validators (make ios-appstore-verify) are planned for the next PR in this release train and are not yet enforced.
+- Repo-local release validators are available through make ios-appstore-verify and are a mandatory manual pre-upload gate in the release runbook. Protected App Store Connect upload remains operator-owned and requires protected environment credentials and run evidence outside this PR.
