@@ -12,6 +12,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `18a333152` `fix(ai-runtime): keep linkage mismatch typing explicit`
 - Follow-up commit: `878b316a6` `fix(ai-runtime): bind bounded insight audit fingerprints`
 - Follow-up commit: `3e5f9ca6f` `fix(ai-runtime): close bounded insight bot findings`
+- Follow-up commit: `153c65302` `fix(ai-runtime): keep bounded insight helper typing strict`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -44,6 +45,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Require safety flag parity before eligibility | FIXED | Commit `3e5f9ca6f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 | Do not attach candidate record/response metadata on lookup miss | FIXED | Commit `3e5f9ca6f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 | Replace `Phase2` spelling with `Phase 2` | FIXED | Commit `3e5f9ca6f`; `docs/review/PR_1705_FIXED_MAPPING.md` |
+| Keep strict mypy compatibility for eligible candidate helper returns | FIXED | Commit `153c65302`; `core/ai/bounded_insight_semantic_cache.py`; `python -m mypy ...` PASS |
 
 ## Premortem Finding Mapping
 
