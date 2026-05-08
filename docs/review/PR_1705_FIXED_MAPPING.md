@@ -20,6 +20,8 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `d8af82a6e` `docs(review): map bounded insight bot findings`
 - Follow-up commit: `11311d937` `fix(ai-runtime): close bounded insight diff coverage gaps`
 - Follow-up commit: `aa0204417` `docs(review): map bounded insight coverage fix`
+- Follow-up commit: `844e1416b` `docs(review): record bounded insight coverage mapping`
+- Follow-up commit: `613abbb68` `docs(review): fix bounded insight GitHub wording`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -51,6 +53,8 @@ Evidence: `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bound
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207799842 -> 014017e6a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207799846 -> 2f0692a67
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4251228938 -> 2f0692a67
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3208706618 -> 613abbb68
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4252289237 -> 613abbb68
 
 ## Post-Open Agent Finding Mapping
 
