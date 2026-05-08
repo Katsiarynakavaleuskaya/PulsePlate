@@ -15,6 +15,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `153c65302` `fix(ai-runtime): keep bounded insight helper typing strict`
 - Follow-up commit: `b25a370b2` `fix(ai-runtime): omit rejected bounded insight candidate payloads`
 - Follow-up commit: `014017e6a` `fix(ai-runtime): harden bounded insight metadata contracts`
+- Follow-up commit: `2f0692a67` `fix(ai-runtime): return json-ready bounded insight mappings`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -52,6 +53,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Require candidate response fingerprint parity before bound-hit metadata eligibility | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Deep-freeze nested metadata without breaking JSON-ready stable mappings | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Reject non-string token inputs with `ValueError` instead of `AttributeError` | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
+| Return plain JSON-ready stable mappings from `to_stable_mapping()` | FIXED | Commit `2f0692a67`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 
 ## Premortem Finding Mapping
 
