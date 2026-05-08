@@ -36,6 +36,21 @@ Disposition: FIXED
 Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
 Evidence: CodeRabbit review summary reported one actionable ledger finding, mapped above at `discussion_r3209166947` and fixed by the same commit.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209249327 -> 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Disposition: FIXED
+Commit: 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Evidence: the pre-merge checklist in this artifact now uses unchecked checkbox syntax for each checklist item.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252891670 -> 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Disposition: FIXED
+Commit: 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Evidence: CodeRabbit review summary reported the checklist syntax finding mapped above at `discussion_r3209249327` and fixed by the same commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252916551 -> 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Disposition: FIXED
+Commit: 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Evidence: later CodeRabbit review summary duplicated the checklist syntax finding and is covered by the same checklist fix.
+
 ## Internal Findings Closed Before Mapping
 
 - Pre-open finding: future prompt guard scanned the full backlog ledger and matched unrelated historical `draft PR` text.
