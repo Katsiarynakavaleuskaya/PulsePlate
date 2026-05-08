@@ -41,6 +41,7 @@ Disposition: FIXED
 Commit: ffb4dc8ee
 Evidence: docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md decision log now matches the closed Release BASE_URL gate.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208898768 -> ffb4dc8ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#pullrequestreview-4252500304 -> ffb4dc8ee
 
 ## Local Role-Agent Findings
 
