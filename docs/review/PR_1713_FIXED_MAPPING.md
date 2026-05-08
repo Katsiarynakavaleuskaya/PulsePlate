@@ -35,9 +35,9 @@ Evidence: `scripts/orchestration/context_pack.py` now rejects empty/current-dire
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263180 -> 8aad80b0a5533bf7428e3c5397dc826a578b8342
 
 Disposition: FIXED
-Commit: 1f1d5c54194b705e8bc80d9c093af12136ea46c4
-Evidence: `docs/review/PR_1713_FIXED_MAPPING.md` and the PR body now use checked discussion pass boxes; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1713` passed locally after the fix.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263165 -> 1f1d5c54194b705e8bc80d9c093af12136ea46c4
+Commit: 816e6ac2c8c9d69bbf0f5130e3ced0cfc3e516ca
+Evidence: `docs/review/PR_1713_FIXED_MAPPING.md` kept checked discussion pass boxes in the post-comment mapping update; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1713` passed locally after the post-comment mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263165 -> 816e6ac2c8c9d69bbf0f5130e3ced0cfc3e516ca
 
 ## Internal Findings Closed Before Mapping
 
