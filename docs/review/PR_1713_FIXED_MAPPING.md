@@ -25,10 +25,14 @@ Evidence: `tests/test_design_automation_next_lane_docs.py` now asserts each orde
 
 Disposition: FIXED
 Commit: 00d30571dfb307a4f474cd4cde029c95969bd65a
-Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md` now frames the no-PR-9 statement as closeout-time historical truth; `scripts/orchestration/context_pack.py` now rejects relative path segments containing `..`, and `tests/test_orchestration_preflight.py` covers string and `Path` traversal inputs.
+Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md` now frames the no-PR-9 statement as closeout-time historical truth.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211257199 -> 00d30571dfb307a4f474cd4cde029c95969bd65a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211257215 -> 00d30571dfb307a4f474cd4cde029c95969bd65a
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263180 -> 00d30571dfb307a4f474cd4cde029c95969bd65a
+
+Disposition: FIXED
+Commit: f72b9b6c2927a1bda1da3e858e34dfe497d0c492
+Evidence: `scripts/orchestration/context_pack.py` now rejects `..`, requires the top-level path segment to be a directory, and verifies the resolved candidate remains under `REPO_ROOT`; `tests/test_orchestration_preflight.py` covers string and `Path` traversal inputs plus a file-segment bypass attempt.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211257215 -> f72b9b6c2927a1bda1da3e858e34dfe497d0c492
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263180 -> f72b9b6c2927a1bda1da3e858e34dfe497d0c492
 
 Disposition: FIXED
 Commit: 1f1d5c54194b705e8bc80d9c093af12136ea46c4
@@ -77,10 +81,10 @@ Evidence: `docs/review/PR_1713_FIXED_MAPPING.md` and the PR body now use checked
   - Commit: `1f1d5c541`
   - Evidence: `docs/review/PR_1713_FIXED_MAPPING.md` and the PR body now use checked discussion pass boxes with parser-safe mapping content; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1713` passed.
 
-- Post-open finding: review bots identified stale validation wording, ambiguous runbook history, and scoped-path traversal regressions.
+- Post-open finding: review bots identified stale validation wording, ambiguous runbook history, and scoped-path traversal/file-segment regressions.
   - Disposition: FIXED
-  - Commit: `69ad71d08`, `00d30571`
-  - Evidence: validation wording now requires all-files pre-commit, the PR-0 through PR-8 runbook closeout remains historical truth, and `find_nearest_agents_file` rejects typo and traversal inputs with deterministic tests.
+  - Commit: `69ad71d08`, `00d30571`, `f72b9b6c`
+  - Evidence: validation wording now requires all-files pre-commit, the PR-0 through PR-8 runbook closeout remains historical truth, and `find_nearest_agents_file` rejects typo, traversal, and file-segment bypass inputs with deterministic tests.
 
 ## Premortem Evidence
 
