@@ -73,6 +73,17 @@ Design automation items are modules inside the existing Design Intelligence / De
 
 Do not create a standalone plugin architecture or a second source of truth.
 
+PR-9 design-system automation opens the next docs-only web+iOS runtime parity lane. It is not an implementation slice. Future work must follow `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md` and this sequence before runtime work starts:
+
+1. Component contract registry.
+2. Bridge coverage inventory.
+3. Visual regression lane.
+4. Accessibility regression lane.
+5. Token/runtime parity boundary.
+6. Later web+iOS implementation slices.
+
+PR-9 must not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma writes, Canva writes, Penpot writes, screenshots, or Code Connect activation.
+
 ## 6. Authority Boundaries
 
 Hard boundaries:
@@ -101,6 +112,8 @@ Bug-hunter must inspect the actual diff for:
 - hidden binary artifacts,
 - missing bounded checks,
 - stale or duplicate prior Design Intelligence work.
+
+For PR-9 design-system automation, every declared role agent and required skill pass must leave an execution record or pass/finding note. Before merge readiness, the local Agent Run Summary must exist under `artifacts/agent_runs/` or the PR body/fixed mapping must record why host-local summary generation was unavailable. These artifacts are local evidence only and must not be committed.
 
 ## 8. Review Mapping
 

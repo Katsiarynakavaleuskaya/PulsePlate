@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from scripts.orchestration import check_preflight as preflight
+from scripts.orchestration.context_pack import find_nearest_agents_file
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PREFLIGHT_CLI_PATH = REPO_ROOT / "scripts" / "orchestration" / "check_preflight.py"
@@ -158,6 +159,24 @@ def test_check_scoped_agents_exist_fails_when_any_path_missing(
         )
         is False
     )
+
+
+def test_find_nearest_agents_file_rejects_truncated_top_level_path() -> None:
+    """A typo-truncated top-level path must not silently fall back to root AGENTS.md."""
+
+    assert find_nearest_agents_file("docs/orchestration/AGENTS.md") == (
+        "docs/orchestration/AGENTS.md"
+    )
+    assert find_nearest_agents_file(Path("docs/orchestration/AGENTS.md")) == (
+        "docs/orchestration/AGENTS.md"
+    )
+    assert find_nearest_agents_file("ocs/orchestration") is None
+    assert find_nearest_agents_file("ocs/orchestration/AGENTS.md") is None
+    assert find_nearest_agents_file("../AGENTS.md") is None
+    assert find_nearest_agents_file(Path("../AGENTS.md")) is None
+    assert find_nearest_agents_file(".") is None
+    assert find_nearest_agents_file(Path(".")) is None
+    assert find_nearest_agents_file("AGENTS.md/child") is None
 
 
 def test_check_gate_evidence_resolves_relative_paths_against_root(

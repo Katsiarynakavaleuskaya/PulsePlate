@@ -8,6 +8,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DECISION = REPO_ROOT / "docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md"
 PACKET = REPO_ROOT / "docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md"
 PROTOCOL = REPO_ROOT / "docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md"
+PR9_PACKET = (
+    REPO_ROOT
+    / "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md"
+)
+PR9_SPEC = REPO_ROOT / "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md"
+PR9_REGISTRY = REPO_ROOT / "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
 WORKFLOW = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_WORKFLOW.md"
 TEMPLATE = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md"
 LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
@@ -26,6 +32,11 @@ def _combined() -> str:
 def _future_prompt_corpus() -> str:
     """Return docs that govern future design-epic PR prompts."""
     return "\n".join([_read(PROTOCOL), _read(TEMPLATE)])
+
+
+def _active_prompt_packet_corpus() -> str:
+    """Return future prompt docs plus active lane packets that agents may copy."""
+    return "\n".join([_read(PROTOCOL), _read(TEMPLATE), _read(PACKET), _read(PR9_PACKET)])
 
 
 def _command_blocks(text: str) -> str:
@@ -217,7 +228,7 @@ def test_design_workflow_general_gates_do_not_replace_prompt_protocol() -> None:
 
 def test_design_epic_pr_prompt_protocol_rejects_stale_prompt_commands() -> None:
     """Reject stale generated-prompt command patterns from future prompt docs."""
-    corpus = _future_prompt_corpus()
+    corpus = _active_prompt_packet_corpus()
     commands = _command_blocks(corpus)
 
     forbidden_commands = [
@@ -236,7 +247,7 @@ def test_design_epic_pr_prompt_protocol_rejects_stale_prompt_commands() -> None:
 
 def test_design_epic_pr_prompt_protocol_allows_only_default_make_target() -> None:
     """Generated future prompt command blocks may name only setup plus validate-changed."""
-    commands = _command_blocks(_future_prompt_corpus())
+    commands = _command_blocks(_active_prompt_packet_corpus())
     targets = set(re.findall(r"\bmake\s+([A-Za-z0-9_-]+)", commands))
 
     assert targets == {"venv-sync", "validate-changed"}
@@ -286,3 +297,158 @@ def test_design_epic_pr_prompt_protocol_keeps_next_lane_truth_historical() -> No
     assert "Icon Asset Validator / App Store asset guard lane" in combined
     assert "Icon Asset Validator / App Store asset guard lane" in protocol
     assert "does not replace `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`" in protocol
+
+
+def test_pr9_design_system_automation_docs_exist_and_are_docs_only() -> None:
+    """Require PR-9 to remain an implementation-opening docs/governance lane."""
+    packet = _read(PR9_PACKET)
+    spec = _read(PR9_SPEC)
+    registry = _read(PR9_REGISTRY)
+    corpus = "\n".join([packet, spec, registry, _read(WORKFLOW), _read(TEMPLATE), _read(LEDGER)])
+
+    required = [
+        "PR-9 opens a docs-only design-system automation lane for web+iOS runtime parity.",
+        "machine-readable design infrastructure",
+        "PR-9 does not make Figma, Canva, Penpot, Storybook, or Code Connect a source of truth.",
+        "PR-9 does not implement runtime.",
+        "PR-9 Design-System Automation -> docs-only web+iOS runtime parity lane",
+        "PR-9 design-system automation docs lane tracking",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    forbidden = [
+        r"PR-9\s+implements\s+web\s+runtime",
+        r"PR-9\s+implements\s+iOS\s+runtime",
+        r"Code\s+Connect\s+activation\s+is\s+complete",
+        r"Figma\s+writes?\s+(are|is)\s+allowed",
+        r"Canva\s+writes?\s+(are|is)\s+allowed",
+        r"Penpot\s+writes?\s+(are|is)\s+allowed",
+    ]
+
+    for pattern in forbidden:
+        assert re.search(pattern, corpus, flags=re.IGNORECASE) is None, pattern
+
+
+def test_pr9_design_system_automation_sequence_is_locked() -> None:
+    """Require the PR-9 packet/spec to lock the implementation order."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(LEDGER), _read(WORKFLOW)])
+
+    sequence = [
+        "Component contract registry",
+        "Bridge coverage inventory",
+        "Visual regression lane",
+        "Accessibility regression lane",
+        "Token/runtime parity boundary",
+        "Later web+iOS implementation slices",
+    ]
+
+    for phrase in sequence:
+        assert phrase in corpus
+
+    ordered = _read(PR9_PACKET)
+    numbered_sequence = [f"{index}. {phrase}" for index, phrase in enumerate(sequence, start=1)]
+
+    for phrase in numbered_sequence:
+        assert phrase in ordered
+
+    positions = [ordered.index(phrase) for phrase in numbered_sequence]
+    assert all(positions[index] < positions[index + 1] for index in range(len(positions) - 1))
+
+
+def test_pr9_component_contract_registry_requires_unspecified_for_unknowns() -> None:
+    """Prevent registry docs from inventing bridge/component values."""
+    registry = _read(PR9_REGISTRY)
+
+    required_fields = [
+        "`component_id`",
+        "`canonical_name`",
+        "`repo_vocabulary_anchor`",
+        "`web_runtime_anchor`",
+        "`ios_runtime_anchor`",
+        "`token_dependencies`",
+        "`storybook_review_anchor`",
+        "`figma_reference_anchor`",
+        "`penpot_reference_anchor`",
+        "`code_connect_anchor`",
+        "`accessibility_contract`",
+        "`visual_regression_contract`",
+        "`status`",
+    ]
+
+    for field in required_fields:
+        assert field in registry
+
+    assert (
+        "Do not invent values. If repo truth does not confirm a value, write `unspecified`."
+        in registry
+    )
+    assert (
+        "The registry is a repo-governed contract index. It is not a design-tool authority."
+        in registry
+    )
+
+
+def test_pr9_visual_and_accessibility_decisions_fail_closed() -> None:
+    """Require visual and a11y regression decisions before implementation."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY)])
+
+    required = [
+        "Visual and accessibility regression decisions are mandatory fail-closed gates",
+        "if no visual regression lane exists for a component, future implementation must stop",
+        "if no accessibility regression lane exists for a component, future implementation must stop",
+        "a screenshot, Storybook story, Figma node, or prompt review is not a substitute",
+        "If either is missing, the implementation PR must fail closed",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+
+def test_pr9_agent_execution_records_and_review_chains_are_required() -> None:
+    """Require execution records, post-open chain, and post-bot chain for PR-9."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(WORKFLOW), _read(TEMPLATE)])
+
+    required = [
+        "Every role must produce an execution record or pass/finding note before PR open.",
+        "Required pre-open skill passes:",
+        "Post-open pass, immediately after PR creation:",
+        "After the first bot review, rerun on current head:",
+        "Codex Security plugin diff scan",
+        "Before merge readiness, a local Agent Run Summary must exist under `artifacts/agent_runs/`",
+        "The artifact is local only and must never be committed.",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    for agent in [
+        "agent-coordinator",
+        "creative-designer",
+        "frontend-engineer",
+        "cursor-specialist-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]:
+        assert agent in corpus
+
+
+def test_pr9_preserves_token_runtime_and_bridge_authority_boundaries() -> None:
+    """Require PR-9 to preserve repo/token/runtime authority boundaries."""
+    corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY)])
+
+    required = [
+        "`/tokens` remains token authoring truth.",
+        "`frontend/src/styles/tokens.css` remains web runtime token truth.",
+        "`frontend/src/styles/tokens.ts` remains a typed mirror/helper.",
+        "`ios/PulsePlate/DesignSystem/DesignTokens.generated.swift` remains generated output.",
+        "`ios/PulsePlate/DesignSystem/DesignTokens.swift` remains iOS runtime token grouping.",
+        "Web and iOS implementation slices must stay thin over repo/backend truth.",
+        "Code Connect activation status is `unspecified`.",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus

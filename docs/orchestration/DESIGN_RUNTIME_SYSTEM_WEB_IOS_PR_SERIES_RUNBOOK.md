@@ -236,14 +236,23 @@ If any required metadata is missing, the lane remains `read_only`.
 ## Closeout State
 
 The PR-0 through PR-8 train is complete as of PR #1606
-(`feat(storybook): expand design parity review surfaces`). The runbook does not
-define a PR-9 or any active follow-on implementation slice.
+(`feat(storybook): expand design parity review surfaces`). At closeout time,
+this runbook did not define a PR-9 or any active follow-on implementation
+slice.
 
 Any future design runtime wave must start from a fresh synced `origin/main` and
 must add a new coordinator-owned packet or runbook update before opening a new
 implementation branch. Until that happens, Storybook remains the final
 review-only slice for this train, Figma remains read-only design intent, and
 the locked token/export governance from PR-3 and PR-7 remains unchanged.
+
+PR-9 is now opened only as a docs-only design-system automation packet at
+`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`.
+This update creates machine-readable contract infrastructure governance only.
+It does not reopen PR-0 through PR-8 implementation slices and does not
+authorize web runtime, iOS runtime, Storybook config, token, generated mirror,
+Figma, Canva, Penpot, Code Connect, backend, OpenAPI, screenshot, video, trace,
+or binary-asset mutation.
 
 ## Routing Card
 
