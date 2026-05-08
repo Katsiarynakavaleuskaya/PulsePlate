@@ -134,6 +134,7 @@ Codex Security plugin diff scan is required post-open and again after the first 
 
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_orchestration_preflight.py` passed: 28 passed.
 - `PATH=.venv/bin:$PATH pre-commit run --files <touched files>` passed after Black reformatted `tests/test_design_automation_next_lane_docs.py` and the hook was rerun.
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before the latest push cycles.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` passed.
 - Commit and push hooks passed, including pre-push backend tests, full-repo Bandit, and docker build test.
 
