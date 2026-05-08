@@ -85,7 +85,7 @@ Reason: Cubic posted no actionable review finding.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253127415
 
 Disposition: FIXED
-Commit: TBD
+Commit: 4d6bfac40
 Evidence: docs/review/PR_1711_FIXED_MAPPING.md:50 marks the canonical Discussion Thread Pass checkbox complete after mapping bot dispositions.
 Evidence: docs/review/PR_1711_FIXED_MAPPING.md:51 marks the canonical Fixed in commit mapping checkbox complete after mapping bot dispositions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253203085
