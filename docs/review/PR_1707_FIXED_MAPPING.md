@@ -105,6 +105,13 @@ Commit: `94ff2b74e`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
 Reason: CodeRabbit requested canonical ledger entries for deferred lanes. The inline deferred lane list now references four unique deferred lane entries with Owner, Priority, Target PR, Reason for deferral, links, and DoD.
 
+CodeRabbit inline review comments at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#discussion_r3207589234` and `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#discussion_r3207589247`:
+
+Disposition: FIXED
+Commit: `94ff2b74e`
+Evidence: `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`; `docs/roadmap/BACKLOG_LEDGER.md`
+Reason: The inline table/newline and deferred-lane ledger findings were fixed in docs before mapping.
+
 Sourcery review at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870705408`:
 
 Disposition: NOT-A-BUG
@@ -131,6 +138,9 @@ Reason: CodeRabbit's docstring coverage warning was fixed with docstrings on the
 
 Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870743961 -> 94ff2b74e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-4250968548 -> 94ff2b74e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#discussion_r3207589234 -> 94ff2b74e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#discussion_r3207589247 -> 94ff2b74e
 Commit: 94ff2b74e
 Evidence: `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`; `docs/roadmap/BACKLOG_LEDGER.md`
 Reason: CodeRabbit's actionable table/newline and deferred-lane ledger findings were fixed in docs before this mapping update.
