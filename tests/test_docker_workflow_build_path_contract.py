@@ -78,6 +78,17 @@ def test_build_workflow_owns_docker_validation_contract() -> None:
     ) in run_script
 
 
+def test_production_dockerfile_prunes_package_manager_surface() -> None:
+    """Production target removes package-manager packages after runtime-base."""
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    production_section = dockerfile.split("FROM runtime-base AS production", 1)[1]
+    production_section = production_section.split("FROM production AS staging", 1)[0]
+
+    assert "dpkg --purge --force-depends apt gpgv libgnutls30" in production_section
+    assert "dpkg-query -W" in production_section
+    assert "import ssl" in production_section
+
+
 def test_docker_entrypoint_keeps_bodyfat_hidden_but_routable() -> None:
     """Docker entrypoint serves app.main while preserving bodyfat compatibility."""
     from app.main import app

@@ -541,6 +541,9 @@ def test_production_target_docker_workflows_run_runtime_surface_guard() -> None:
     for workflow_path in workflow_paths:
         workflow_text = (REPO_ROOT / workflow_path).read_text(encoding="utf-8")
         assert "scripts/ci/check_docker_runtime_dependency_surface.py" in workflow_text
+        assert "--blocked-debian-package apt" in workflow_text
+        assert "--blocked-debian-package gpgv" in workflow_text
+        assert "--blocked-debian-package libgnutls30" in workflow_text
         assert "--output-json docker-runtime-dependency-surface.json" in workflow_text
 
 

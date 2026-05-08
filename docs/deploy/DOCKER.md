@@ -9,6 +9,11 @@ Docker runtime contract.
 - CI-only tooling stays in `requirements-ci-lite.txt`.
 - Optional vector / ML dependencies stay in `requirements-rag-vector.txt`.
 - Production target remains the split backend image that serves `app.main:app`.
+- Production target removes Debian package-manager tooling (`apt`, `gpgv`) and
+  `libgnutls30`; runtime-base and development stages keep package-manager
+  tooling for non-production workflows.
+- Staging currently extends `production`, so staging inherits the same
+  package-manager removal unless a separate reviewed topology PR changes that.
 - Frontend / Caddy topology remains separate and out of scope for this slice.
 - Runtime slimming merged via `PR #1490` on April 22, 2026.
 - Telemetry baseline landed via `PR #1492` on April 22, 2026.
@@ -41,6 +46,8 @@ Blocked package classes for the default backend runtime:
 - optional vector / ML stack: `sentence-transformers`, `transformers`, `torch`,
   `pgvector`
 - GPU / CUDA packages: `nvidia-*`, `cuda-*`, `triton`
+- production-only Debian package-manager / GnuTLS alert surface: `apt`,
+  `gpgv`, `libgnutls30`
 
 ## Why the hard-budget slice exists
 
@@ -156,6 +163,9 @@ Validate runtime dependency surface:
 ```bash
 python3 scripts/ci/check_docker_runtime_dependency_surface.py \
   --image pulseplate:runtime-slim \
+  --blocked-debian-package apt \
+  --blocked-debian-package gpgv \
+  --blocked-debian-package libgnutls30 \
   --output-json artifacts/docker/runtime_dependency_surface.json
 ```
 
