@@ -68,7 +68,10 @@ The phase-specific SC-G2 scaffold contract is
 SC-G2 pre-serving and lexical-only.
 
 SC-G3 must run before any semantic-cache serving. It must define offline proxy
-evaluation, negative controls, stop rules, and observability.
+evaluation, negative controls, stop rules, and observability. The
+phase-specific SC-G3 contract is
+[`SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md`](./SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md),
+which keeps SC-G3 offline only and non-serving.
 
 SC-G4 is the first bounded semantic-cache experiment. It must stay
 feature-flagged, off by default, and limited to the `/insight`-style product AI

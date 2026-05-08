@@ -16,6 +16,13 @@ DEFAULT_CONTRACT = (
 DEFAULT_SCAFFOLD_CONTRACT = (
     REPO_ROOT / "docs" / "orchestration" / "contracts" / "EXACT_FUZZY_CACHE_SCAFFOLD.md"
 )
+DEFAULT_OBSERVABILITY_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md"
+)
 
 REQUIRED_MARKERS = {
     "SEMANTIC_CACHE_GATE_STATUS": "closed",
@@ -284,6 +291,109 @@ SCAFFOLD_FORBIDDEN_PATTERNS = (
     ),
 )
 
+OBSERVABILITY_REQUIRED_ANCHORS = (
+    ("offline only", re.compile(r"\boffline only\b")),
+    ("non-serving", re.compile(r"\bnon-serving\b")),
+    ("audit event", re.compile(r"\baudit event\b")),
+    ("false hit", re.compile(r"\bfalse hit\b")),
+    ("negative controls", re.compile(r"\bnegative controls\b")),
+    ("stop rules", re.compile(r"\bstop rules\b")),
+    ("rollback thresholds", re.compile(r"\brollback thresholds\b")),
+    ("kill switch snapshot", re.compile(r"\bkill switch snapshot\b")),
+    ("stale source", re.compile(r"\bstale source\b")),
+    ("policy mismatch", re.compile(r"\bpolicy mismatch\b")),
+    ("model mismatch", re.compile(r"\bmodel mismatch\b")),
+    ("context leakage", re.compile(r"\bcontext leakage\b")),
+    ("admission blocked hit", re.compile(r"\badmission blocked hit\b")),
+    ("blocked surfaces", re.compile(r"\bblocked surfaces\b")),
+    (
+        "no raw prompts",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)raw prompts\b"),
+    ),
+    (
+        "no raw model responses",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)raw model responses\b"),
+    ),
+    (
+        "no embeddings",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)embeddings\b"),
+    ),
+    ("no Redis", re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)redis\b")),
+    (
+        "no GPTCache",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)gptcache\b"),
+    ),
+    (
+        "no provider calls",
+        re.compile(r"\b(?:blocked:\s*-\s*|no\s+|must not contain\s+)provider calls\b"),
+    ),
+    ("gate remains closed", re.compile(r"\bgate remains closed\b")),
+    (
+        "SC-G4 remains future bounded insight experiment",
+        re.compile(r"\bsc-g4 remains a future bounded /insight experiment\b"),
+    ),
+    ("eligible_request_count", re.compile(r"\beligible_request_count\b")),
+    ("false_hit_rate_bps", re.compile(r"\bfalse_hit_rate_bps\b")),
+    ("cache_precision_proxy_bps", re.compile(r"\bcache_precision_proxy_bps\b")),
+    (
+        "semantic false positive label only",
+        re.compile(r"\bsemantic_false_positive\b.*\blabel only\b"),
+    ),
+)
+
+OBSERVABILITY_FORBIDDEN_PATTERNS = (
+    (
+        "semantic cache active",
+        re.compile(r"\bsemantic\s+cache\s+(?:is\s+)?(?:active|enabled|open)\b"),
+    ),
+    (
+        "semantic cache serving enabled",
+        re.compile(r"\bsemantic\s+cache\s+serving\s+(?:is\s+)?enabled\b"),
+    ),
+    ("SC-G3 opens gate", re.compile(r"\bsc-g3\s+opens\s+(?:the\s+)?gate\b")),
+    (
+        "SC-G3 enables insight serving",
+        re.compile(r"\bsc-g3\s+enables\s+/insight\s+serving\b"),
+    ),
+    (
+        "SC-G3 allows embeddings",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables)\s+embeddings\b"),
+    ),
+    (
+        "SC-G3 approves Redis/GPTCache",
+        re.compile(
+            r"\bsc-g3\s+(?:permits|allows|enables|supports|approves)\s+"
+            r"(?:redis|gptcache|redis/gptcache)\b"
+        ),
+    ),
+    (
+        "SC-G3 allows semantic similarity",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+semantic\s+similarity\b"),
+    ),
+    (
+        "SC-G3 allows vector search",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+vector\s+search\b"),
+    ),
+    (
+        "SC-G3 allows provider calls",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+provider\s+calls\b"),
+    ),
+    (
+        "SC-G3 allows runtime serving",
+        re.compile(r"\bsc-g3\s+(?:allows|approves|enables|permits)\s+runtime\s+serving\b"),
+    ),
+    (
+        "SC-G3 allows Redis",
+        re.compile(r"\bsc-g3\s+(?:allows|enables|permits)\s+redis\b"),
+    ),
+    (
+        "SC-G3 allows GPTCache",
+        re.compile(r"\bsc-g3\s+(?:allows|enables|permits)\s+gptcache\b"),
+    ),
+    ("cache raw prompts", re.compile(r"\bcache\s+raw\s+prompts?\b")),
+    ("cache raw responses", re.compile(r"\bcache\s+raw\s+(?:model\s+)?responses?\b")),
+)
+
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 
 
@@ -435,6 +545,32 @@ def validate_exact_fuzzy_scaffold_contract(text: str) -> list[str]:
     return errors
 
 
+def validate_semantic_cache_observability_contract(text: str) -> list[str]:
+    """Return stable validation errors for unsafe SC-G3 observability contracts."""
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in OBSERVABILITY_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"observability contract missing anchor: {label}")
+
+    errors.extend(
+        _validate_rollout_order(
+            normalized,
+            missing_prefix="observability contract missing phase",
+            out_of_order_prefix="observability contract phase out of order",
+        )
+    )
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden observability contract claim: {label}"
+        for label, pattern in OBSERVABILITY_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check semantic-cache gate markers.")
     parser.add_argument(
@@ -454,6 +590,12 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_SCAFFOLD_CONTRACT,
         help="SC-G2 exact/fuzzy scaffold markdown document to validate.",
+    )
+    parser.add_argument(
+        "--observability-contract",
+        type=Path,
+        default=DEFAULT_OBSERVABILITY_CONTRACT,
+        help="SC-G3 observability false-hit harness markdown document to validate.",
     )
     args = parser.parse_args(argv)
 
@@ -475,10 +617,23 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    observability_contract = args.observability_contract
+    if not observability_contract.exists():
+        print(
+            f"ERROR: cache observability contract missing: {observability_contract}",
+            file=sys.stderr,
+        )
+        return 1
+
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
     errors.extend(
         validate_exact_fuzzy_scaffold_contract(scaffold_contract.read_text(encoding="utf-8"))
+    )
+    errors.extend(
+        validate_semantic_cache_observability_contract(
+            observability_contract.read_text(encoding="utf-8")
+        )
     )
     if errors:
         for error in errors:
@@ -488,6 +643,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"semantic-cache gate closed: {doc}")
     print(f"semantic-cache rollout contract closed: {contract}")
     print(f"exact/fuzzy scaffold contract closed: {scaffold_contract}")
+    print(f"cache observability contract closed: {observability_contract}")
     return 0
 
 

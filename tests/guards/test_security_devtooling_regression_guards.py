@@ -12,6 +12,7 @@ These tests protect the narrow issue classes closed by PRs #1664-#1667:
 from __future__ import annotations
 
 import ast
+import json
 import os
 from pathlib import Path
 import re
@@ -32,6 +33,7 @@ PYTHON_DEPENDENCY_SUBMISSION = REPO_ROOT / ".github/workflows/python-dependency-
 PIP_AUDIT_HELPER = REPO_ROOT / "scripts/ci_pip_audit.sh"
 LOCAL_USERS_PATH_PATTERN = re.compile(r"/Users/(?!\.\.\.)([^/\s`]+)(?:/|$)")
 DOCS_LEAKAGE_GUARD_BASE_ENV = "PULSEPLATE_DOCS_LEAKAGE_GUARD_BASE"
+DOCS_LEAKAGE_GUARD_FETCH_DEPTH = "200"
 
 SECURITY_DEPENDENCY_PROFILE_FILES: tuple[str, ...] = (
     "requirements-rag-vector.in",
@@ -89,36 +91,126 @@ def _git_ref_exists(ref: str) -> bool:
     return result.returncode == 0
 
 
-def _docs_diff_base() -> str:
+def _github_event_pull_request_base_sha() -> str:
+    event_path = os.environ.get("GITHUB_EVENT_PATH", "").strip()
+    if not event_path:
+        return ""
+    path = Path(event_path)
+    if not path.is_file():
+        return ""
+    try:
+        event = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return ""
+    pull_request = event.get("pull_request")
+    if not isinstance(pull_request, dict):
+        return ""
+    base = pull_request.get("base")
+    if not isinstance(base, dict):
+        return ""
+    sha = base.get("sha")
+    return sha if isinstance(sha, str) else ""
+
+
+def _docs_diff_base_candidates() -> tuple[str, ...]:
     configured = os.environ.get(DOCS_LEAKAGE_GUARD_BASE_ENV, "").strip()
-    candidates = [configured, "origin/main", "main", "HEAD~1"]
-
-    for candidate in candidates:
-        if candidate and _git_ref_exists(candidate):
-            return candidate
-
-    raise AssertionError("no usable git base ref for docs leakage guard")
+    github_base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+    return tuple(
+        candidate
+        for candidate in (
+            configured,
+            f"origin/{github_base_ref}" if github_base_ref else "",
+            github_base_ref,
+            _github_event_pull_request_base_sha(),
+            "origin/main",
+            "main",
+            "HEAD^1",
+            "HEAD~1",
+        )
+        if candidate
+    )
 
 
 def _changed_docs_diff() -> str:
-    base_ref = _docs_diff_base()
-    result = subprocess.run(
-        [
-            _binary("git"),
-            "diff",
-            "--unified=0",
-            f"{base_ref}...HEAD",
-            "--",
-            "docs",
-            "docs/review",
-        ],
+    candidates = _docs_diff_base_candidates()
+    attempted: list[str] = []
+    for base_ref in candidates:
+        attempted.append(base_ref)
+        if _git_ref_exists(base_ref):
+            result = _changed_docs_diff_from_base(base_ref)
+            if result.returncode == 0:
+                return result.stdout
+        _fetch_base_ref_for_shallow_checkout(base_ref)
+        if _git_ref_exists(base_ref):
+            result = _changed_docs_diff_from_base(base_ref)
+            if result.returncode == 0:
+                return result.stdout
+
+    attempted_refs = ", ".join(attempted) or "<none>"
+    raise AssertionError(f"no usable git diff base for docs leakage guard: {attempted_refs}")
+
+
+def _changed_docs_diff_from_base(base_ref: str) -> subprocess.CompletedProcess[str]:
+    three_dot = _run_docs_diff(f"{base_ref}...HEAD")
+    if three_dot.returncode == 0:
+        return three_dot
+    if _docs_diff_error_allows_two_dot_fallback(three_dot.stderr):
+        return _run_docs_diff(f"{base_ref}..HEAD")
+    return three_dot
+
+
+def _docs_diff_error_allows_two_dot_fallback(stderr: str) -> bool:
+    lower_stderr = stderr.casefold()
+    return (
+        "invalid symmetric difference expression" in lower_stderr or "no merge base" in lower_stderr
+    )
+
+
+def _run_docs_diff(revision_range: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [_binary("git"), "diff", "--unified=0", revision_range, "--", "docs", "docs/review"],
         capture_output=True,
         text=True,
         cwd=REPO_ROOT,
     )
 
-    assert result.returncode == 0, result.stderr or result.stdout
-    return result.stdout
+
+def _fetch_base_ref_for_shallow_checkout(base_ref: str) -> None:
+    fetch_args: list[str]
+    github_base_ref = os.environ.get("GITHUB_BASE_REF", "").strip()
+    if base_ref.startswith("origin/"):
+        branch = base_ref.removeprefix("origin/")
+        fetch_args = [
+            "fetch",
+            "--no-tags",
+            f"--depth={DOCS_LEAKAGE_GUARD_FETCH_DEPTH}",
+            "origin",
+            f"{branch}:refs/remotes/origin/{branch}",
+        ]
+    elif github_base_ref and base_ref == github_base_ref:
+        fetch_args = [
+            "fetch",
+            "--no-tags",
+            f"--depth={DOCS_LEAKAGE_GUARD_FETCH_DEPTH}",
+            "origin",
+            f"{github_base_ref}:refs/remotes/origin/{github_base_ref}",
+        ]
+    elif re.fullmatch(r"[0-9a-fA-F]{40}", base_ref):
+        fetch_args = [
+            "fetch",
+            "--no-tags",
+            f"--depth={DOCS_LEAKAGE_GUARD_FETCH_DEPTH}",
+            "origin",
+            base_ref,
+        ]
+    else:
+        return
+    subprocess.run(
+        [_binary("git"), *fetch_args],
+        capture_output=True,
+        text=True,
+        cwd=REPO_ROOT,
+    )
 
 
 def _make_print_compose_project_name(cwd: Path, env: dict[str, str]) -> str:
@@ -336,6 +428,14 @@ def test_changed_docs_do_not_add_local_users_absolute_paths() -> None:
     ]
 
     assert leaked_lines == []
+
+
+def test_docs_diff_falls_back_when_shallow_checkout_lacks_merge_base() -> None:
+    assert _docs_diff_error_allows_two_dot_fallback("fatal: origin/main...HEAD: no merge base")
+    assert _docs_diff_error_allows_two_dot_fallback(
+        "fatal: Invalid symmetric difference expression origin/main...HEAD"
+    )
+    assert not _docs_diff_error_allows_two_dot_fallback("fatal: not a git repository")
 
 
 def test_judgment_validity_module_exports_expected_sidecar_filenames() -> None:

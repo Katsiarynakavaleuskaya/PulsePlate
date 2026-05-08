@@ -1,0 +1,195 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Semantic Cache Observability False-Hit Harness Contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "scaffold_phase",
+    "audit_event_fields",
+    "risk_classes",
+    "negative_controls",
+    "required_metrics",
+    "stop_rules",
+    "kill_switch_snapshot",
+    "blocked_surfaces",
+    "blocked_backends",
+    "required_followups"
+  ],
+  "properties": {
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "scaffold_phase": {
+      "const": "SC-G3"
+    },
+    "audit_event_fields": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "audit_event_id",
+          "idempotency_key",
+          "surface",
+          "request_fingerprint",
+          "candidate_record_id",
+          "candidate_response_fingerprint",
+          "lookup_decision",
+          "match_mode",
+          "policy_version",
+          "provider_key",
+          "model_key",
+          "user_tier",
+          "context_fingerprint",
+          "transparency_notice_id",
+          "source_fingerprints",
+          "eval_event_ids",
+          "admission_decision_id",
+          "promotion_ids",
+          "replay_entry_ids",
+          "reason_codes",
+          "produced_at",
+          "metadata"
+        ]
+      },
+      "minItems": 22,
+      "uniqueItems": true
+    },
+    "risk_classes": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "exact_duplicate_hit",
+          "normalized_fuzzy_hit",
+          "semantic_false_positive",
+          "stale_source_hit",
+          "policy_version_mismatch_hit",
+          "model_version_mismatch_hit",
+          "user_context_leakage_hit",
+          "admission_blocked_hit",
+          "blocked_surface_hit"
+        ]
+      },
+      "minItems": 9,
+      "uniqueItems": true
+    },
+    "negative_controls": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "stale_source_hit",
+          "policy_version_mismatch_hit",
+          "model_version_mismatch_hit",
+          "user_context_leakage_hit",
+          "admission_blocked_hit",
+          "blocked_surface_hit",
+          "semantic_false_positive"
+        ]
+      },
+      "minItems": 7,
+      "uniqueItems": true
+    },
+    "required_metrics": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "eligible_request_count",
+          "candidate_hit_count",
+          "safe_hit_count",
+          "false_hit_count",
+          "fallback_count",
+          "bypass_count",
+          "kill_switch_disabled_count",
+          "admission_blocked_hit_count",
+          "stale_source_hit_count",
+          "policy_mismatch_hit_count",
+          "model_mismatch_hit_count",
+          "context_leakage_hit_count",
+          "blocked_surface_hit_count",
+          "eligible_hit_rate_bps",
+          "served_hit_rate_bps",
+          "false_hit_rate_bps",
+          "cache_precision_proxy_bps",
+          "stale_answer_rate_bps",
+          "fallback_rate_bps",
+          "bypass_rate_bps",
+          "latency_saved_p50_ms",
+          "latency_saved_p95_ms",
+          "provider_calls_avoided_count",
+          "cost_saved_microunits",
+          "produced_at"
+        ]
+      },
+      "minItems": 25,
+      "uniqueItems": true
+    },
+    "stop_rules": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "policy_version",
+          "max_false_hit_rate_bps",
+          "max_stale_answer_rate_bps",
+          "max_policy_mismatch_hits",
+          "max_model_mismatch_hits",
+          "max_context_leakage_hits",
+          "allow_blocked_surface_hits"
+        ]
+      },
+      "minItems": 7,
+      "uniqueItems": true
+    },
+    "kill_switch_snapshot": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "environment_enabled",
+          "runtime_enabled",
+          "request_disabled",
+          "bypass_forced"
+        ]
+      },
+      "minItems": 4,
+      "uniqueItems": true
+    },
+    "blocked_surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "blocked_backends": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "embeddings",
+          "semantic_similarity",
+          "vector_search",
+          "Redis",
+          "GPTCache",
+          "provider_calls",
+          "runtime_serving"
+        ]
+      },
+      "minItems": 7,
+      "uniqueItems": true
+    },
+    "required_followups": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "uniqueItems": true
+    }
+  }
+}
