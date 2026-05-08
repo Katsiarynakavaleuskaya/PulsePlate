@@ -32,7 +32,13 @@ from core.ai.exact_fuzzy_cache import (
 )
 
 JsonScalar: TypeAlias = str | int | float | bool | None
-JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
+JsonValue: TypeAlias = (
+    JsonScalar
+    | list["JsonValue"]
+    | tuple["JsonValue", ...]
+    | dict[str, "JsonValue"]
+    | Mapping[str, "JsonValue"]
+)
 
 ALLOWED_SURFACE = "insight"
 
@@ -400,7 +406,7 @@ def to_stable_mapping(value: object) -> Mapping[str, JsonValue]:
     """Return deterministic safe JSON-ready mappings for SC-G4 contracts."""
 
     if isinstance(value, BoundedInsightExperimentDecision):
-        return _freeze_mapping(
+        return _stable_json_mapping(
             {
                 "admission_decision_id": value.admission_decision_id,
                 "candidate_record_id": value.candidate_record_id,
@@ -427,7 +433,7 @@ def to_stable_mapping(value: object) -> Mapping[str, JsonValue]:
             }
         )
     if isinstance(value, BoundedInsightExperimentFlags):
-        return _freeze_mapping(
+        return _stable_json_mapping(
             {
                 "environment_enabled": value.environment_enabled,
                 "kill_switch_snapshot": _json_safe_copy(
@@ -598,6 +604,7 @@ def _has_bound_hit_candidate(candidate: BoundedInsightExperimentCandidate | None
         candidate is not None
         and candidate.lookup_result.decision == MATCH_DECISION_HIT
         and candidate.lookup_result.matched_record_id == candidate.record.record_id
+        and candidate.response_fingerprint == candidate.record.response_fingerprint
         and candidate.audit_event.candidate_record_id == candidate.record.record_id
         and candidate.audit_event.candidate_response_fingerprint == candidate.response_fingerprint
     )
@@ -700,7 +707,19 @@ def _freeze_metadata(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
 
 
 def _freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
-    return MappingProxyType(dict(sorted(value.items())))
+    return MappingProxyType({key: _freeze_json_value(item) for key, item in sorted(value.items())})
+
+
+def _freeze_json_value(value: JsonValue) -> JsonValue:
+    if isinstance(value, Mapping):
+        return _freeze_mapping(value)
+    if isinstance(value, list | tuple):
+        return tuple(_freeze_json_value(item) for item in value)
+    return value
+
+
+def _stable_json_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
+    return MappingProxyType({key: _json_safe_copy(item) for key, item in sorted(value.items())})
 
 
 def _json_safe_copy(value: JsonValue | Mapping[str, JsonValue]) -> JsonValue:
@@ -727,6 +746,9 @@ def _validate_metadata_is_safe(value: JsonValue, *, path: str = "metadata") -> N
             _validate_safe_metadata_string(f"{path}.key", key)
             _validate_metadata_is_safe(item, path=f"{path}.{key}")
     elif isinstance(value, list):
+        for index, item in enumerate(value):
+            _validate_metadata_is_safe(item, path=f"{path}[{index}]")
+    elif isinstance(value, tuple):
         for index, item in enumerate(value):
             _validate_metadata_is_safe(item, path=f"{path}[{index}]")
     elif isinstance(value, str):
@@ -758,6 +780,8 @@ def _normalize_unique_tokens(name: str, values: tuple[str, ...] | list[str]) -> 
 
 
 def _validate_token(name: str, value: str) -> str:
+    if not isinstance(value, str):
+        raise ValueError(f"{name} must be a string")
     normalized = value.strip()
     if not normalized:
         raise ValueError(f"{name} must be non-empty")

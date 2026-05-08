@@ -4,7 +4,7 @@ import json
 from collections.abc import Mapping
 from dataclasses import replace
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -597,11 +597,23 @@ def test_decision_identity_and_serialization_are_deterministic_and_safe() -> Non
 
 
 def test_metadata_is_defensively_copied_and_raw_payloads_are_rejected() -> None:
-    metadata: dict[str, JsonValue] = {"labels": ["sc-g4"]}
+    metadata: dict[str, JsonValue] = {"labels": ["sc-g4"], "nested": {"values": ["stable"]}}
     request = _request(metadata=metadata)
     metadata["labels"] = ["mutated"]
+    cast(dict[str, JsonValue], metadata["nested"])["values"] = ["mutated"]
 
-    assert request.metadata["labels"] == ["sc-g4"]
+    assert request.metadata["labels"] == ("sc-g4",)
+    assert cast(Mapping[str, JsonValue], request.metadata["nested"])["values"] == ("stable",)
+    with pytest.raises(TypeError):
+        cast(dict[str, JsonValue], request.metadata)["new"] = "blocked"
+    with pytest.raises(TypeError):
+        cast(dict[str, JsonValue], request.metadata["nested"])["values"] = ["blocked"]
+    with pytest.raises(AttributeError):
+        cast(list[str], cast(Mapping[str, JsonValue], request.metadata["nested"])["values"]).append(
+            "blocked"
+        )
+    stable_metadata = cast(Mapping[str, JsonValue], to_stable_mapping(_decision())["metadata"])
+    assert stable_metadata == {"decision_scope": "metadata_only", "serves_cached_payload": False}
     for unsafe in (
         {"raw_prompt": "never"},
         {"note": "cache raw response"},
@@ -616,6 +628,8 @@ def test_metadata_is_defensively_copied_and_raw_payloads_are_rejected() -> None:
 def test_contracts_reject_invalid_types() -> None:
     with pytest.raises(ValueError, match="kill_switch_snapshot must be KillSwitchSnapshot"):
         _flags(kill_switch_snapshot=cast(KillSwitchSnapshot, "not-kill-switch"))
+    with pytest.raises(ValueError, match="surface must be a string"):
+        _request(surface=cast(Any, 123))
     base = _candidate()
     with pytest.raises(ValueError, match="lookup_request must be ExactFuzzyCacheLookupRequest"):
         BoundedInsightExperimentCandidate(
