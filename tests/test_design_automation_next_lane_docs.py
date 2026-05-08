@@ -1,3 +1,5 @@
+"""Guards for the post-PR-8 design automation lane decision docs."""
+
 from pathlib import Path
 import re
 
@@ -9,14 +11,17 @@ LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
 
 
 def _read(path: Path) -> str:
+    """Read a UTF-8 markdown fixture from the repository."""
     return path.read_text(encoding="utf-8")
 
 
 def _combined() -> str:
+    """Return the decision, packet, and ledger text as one searchable corpus."""
     return "\n".join([_read(DECISION), _read(PACKET), _read(LEDGER)])
 
 
 def test_next_design_automation_decision_required_sections() -> None:
+    """Require the decision doc to keep the canonical section order."""
     text = _read(DECISION)
 
     sections = [
@@ -40,6 +45,7 @@ def test_next_design_automation_decision_required_sections() -> None:
 
 
 def test_next_design_automation_lane_selection_is_explicit() -> None:
+    """Require the selected lane and deferred lanes to be explicit."""
     combined = _combined()
 
     required = [
@@ -59,6 +65,7 @@ def test_next_design_automation_lane_selection_is_explicit() -> None:
 
 
 def test_next_design_automation_preserves_source_truth_boundaries() -> None:
+    """Prevent the decision packet from creating a second source of truth."""
     combined = _combined()
 
     required = [
@@ -85,6 +92,7 @@ def test_next_design_automation_preserves_source_truth_boundaries() -> None:
 
 
 def test_next_design_automation_blocks_runtime_and_external_tool_writes() -> None:
+    """Keep this decision PR out of runtime code and external design writes."""
     combined = _combined()
 
     required_boundaries = [
@@ -113,6 +121,7 @@ def test_next_design_automation_blocks_runtime_and_external_tool_writes() -> Non
 
 
 def test_next_design_automation_uses_repo_venv_and_no_tracked_symlink_assumption() -> None:
+    """Require repo-local Python commands and forbid symlink assumptions."""
     packet = _read(PACKET)
 
     assert ".venv/bin/python" in packet
@@ -128,6 +137,7 @@ def test_next_design_automation_uses_repo_venv_and_no_tracked_symlink_assumption
 
 
 def test_next_design_automation_requires_premortem_fix_before_mapping() -> None:
+    """Require premortem and bug-hunter findings to be fixed before mapping."""
     packet = _read(PACKET)
 
     required = [
