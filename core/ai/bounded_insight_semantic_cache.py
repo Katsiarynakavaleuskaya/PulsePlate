@@ -562,8 +562,6 @@ def _build_decision(
     if not normalized_reasons and candidate is not None:
         normalized_reasons = (REASON_EXPERIMENT_ELIGIBLE,)
         decision = DECISION_EXPERIMENT_ELIGIBLE
-    elif not normalized_reasons:
-        normalized_reasons = (REASON_CANDIDATE_MISSING,)
     eligible_candidate = candidate if decision == DECISION_EXPERIMENT_ELIGIBLE else None
     payload: JsonValue = {
         "candidate_record_id": _eligible_candidate_record_id(eligible_candidate),
@@ -746,9 +744,6 @@ def _validate_metadata_is_safe(value: JsonValue, *, path: str = "metadata") -> N
             _validate_safe_metadata_string(f"{path}.key", key)
             _validate_metadata_is_safe(item, path=f"{path}.{key}")
     elif isinstance(value, list):
-        for index, item in enumerate(value):
-            _validate_metadata_is_safe(item, path=f"{path}[{index}]")
-    elif isinstance(value, tuple):
         for index, item in enumerate(value):
             _validate_metadata_is_safe(item, path=f"{path}[{index}]")
     elif isinstance(value, str):

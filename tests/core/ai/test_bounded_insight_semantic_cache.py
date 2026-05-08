@@ -592,6 +592,10 @@ def test_decision_identity_and_serialization_are_deterministic_and_safe() -> Non
     assert "raw_query" not in serialized
     assert "normalized_query" not in serialized
     assert "raw_prompt" not in serialized
+    flags_mapping = dict(to_stable_mapping(_flags()))
+    assert flags_mapping["environment_enabled"] is True
+    assert flags_mapping["runtime_enabled"] is True
+    assert flags_mapping["request_opt_in"] is True
     with pytest.raises(ValueError, match="unsupported stable mapping"):
         to_stable_mapping({"not": "a contract"})
 
@@ -623,6 +627,32 @@ def test_metadata_is_defensively_copied_and_raw_payloads_are_rejected() -> None:
     ):
         with pytest.raises(ValueError, match="unsafe metadata"):
             _request(metadata=unsafe)
+    request_with_tuple = _request(metadata=cast(Mapping[str, JsonValue], {"labels": ("tuple",)}))
+    assert request_with_tuple.metadata["labels"] == ("tuple",)
+    request_with_float = _request(metadata={"score": 1.25})
+    assert request_with_float.metadata["score"] == 1.25
+    with pytest.raises(ValueError, match="non-finite number"):
+        _request(metadata={"score": float("inf")})
+    with pytest.raises(ValueError, match="unsupported value"):
+        _request(metadata=cast(Mapping[str, JsonValue], {"bad": object()}))
+    with pytest.raises(ValueError, match="metadata must be a mapping"):
+        BoundedInsightExperimentRequest(
+            surface="insight",
+            request_fingerprint=DEFAULT_REQUEST_FINGERPRINT,
+            context_fingerprint="sha256:context",
+            source_fingerprints=("sha256:source-a",),
+            policy_version="semantic-cache-sc-g4-v1",
+            provider_key="provider:test",
+            model_key="model:test",
+            user_tier="pro",
+            transparency_notice_id="notice:insight:v1",
+            eval_event_ids=("eval:bounded:1",),
+            admission_decision_id="admission:bounded:1",
+            promotion_ids=("promotion:bounded:1",),
+            replay_entry_ids=("replay:bounded:1",),
+            safety_flags=("wellness-only",),
+            metadata=cast(Mapping[str, JsonValue], ["not-mapping"]),
+        )
 
 
 def test_contracts_reject_invalid_types() -> None:
@@ -673,6 +703,100 @@ def test_contracts_reject_invalid_types() -> None:
             admission_allowed=True,
             metadata={},
         )
+    with pytest.raises(ValueError, match="audit_event must be CacheLookupAuditEvent"):
+        BoundedInsightExperimentCandidate(
+            lookup_request=base.lookup_request,
+            lookup_result=base.lookup_result,
+            record=base.record,
+            audit_event=cast(CacheLookupAuditEvent, "not-audit"),
+            false_hit_evaluation=base.false_hit_evaluation,
+            metrics=base.metrics,
+            stop_decision=base.stop_decision,
+            response_fingerprint=base.response_fingerprint,
+            blocked_surface=False,
+            admission_allowed=True,
+            metadata={},
+        )
+    with pytest.raises(ValueError, match="false_hit_evaluation must be FalseHitHarnessEvaluation"):
+        BoundedInsightExperimentCandidate(
+            lookup_request=base.lookup_request,
+            lookup_result=base.lookup_result,
+            record=base.record,
+            audit_event=base.audit_event,
+            false_hit_evaluation=cast(FalseHitHarnessEvaluation, "not-evaluation"),
+            metrics=base.metrics,
+            stop_decision=base.stop_decision,
+            response_fingerprint=base.response_fingerprint,
+            blocked_surface=False,
+            admission_allowed=True,
+            metadata={},
+        )
+    with pytest.raises(ValueError, match="metrics must be CacheObservabilityMetrics"):
+        BoundedInsightExperimentCandidate(
+            lookup_request=base.lookup_request,
+            lookup_result=base.lookup_result,
+            record=base.record,
+            audit_event=base.audit_event,
+            false_hit_evaluation=base.false_hit_evaluation,
+            metrics=cast(CacheObservabilityMetrics, "not-metrics"),
+            stop_decision=base.stop_decision,
+            response_fingerprint=base.response_fingerprint,
+            blocked_surface=False,
+            admission_allowed=True,
+            metadata={},
+        )
+    with pytest.raises(ValueError, match="stop_decision must be CacheStopDecision"):
+        BoundedInsightExperimentCandidate(
+            lookup_request=base.lookup_request,
+            lookup_result=base.lookup_result,
+            record=base.record,
+            audit_event=base.audit_event,
+            false_hit_evaluation=base.false_hit_evaluation,
+            metrics=base.metrics,
+            stop_decision=cast(CacheStopDecision, "not-stop"),
+            response_fingerprint=base.response_fingerprint,
+            blocked_surface=False,
+            admission_allowed=True,
+            metadata={},
+        )
+    with pytest.raises(ValueError, match="blocked_surface must be bool"):
+        replace(base, blocked_surface=cast(bool, "false"))
+    with pytest.raises(ValueError, match="admission_allowed must be bool"):
+        replace(base, admission_allowed=cast(bool, "true"))
+    with pytest.raises(ValueError, match="flags must be BoundedInsightExperimentFlags"):
+        evaluate_bounded_insight_experiment(
+            flags=cast(BoundedInsightExperimentFlags, "not-flags"),
+            request=_request(),
+            candidate=base,
+        )
+    with pytest.raises(ValueError, match="request must be BoundedInsightExperimentRequest"):
+        evaluate_bounded_insight_experiment(
+            flags=_flags(),
+            request=cast(BoundedInsightExperimentRequest, "not-request"),
+            candidate=base,
+        )
+    with pytest.raises(ValueError, match="candidate must be BoundedInsightExperimentCandidate"):
+        evaluate_bounded_insight_experiment(
+            flags=_flags(),
+            request=_request(),
+            candidate=cast(BoundedInsightExperimentCandidate, "not-candidate"),
+        )
+    with pytest.raises(ValueError, match="unsupported decision"):
+        replace(_decision(), decision="serve")
+    with pytest.raises(ValueError, match="score_bps must be an integer"):
+        replace(_decision(), score_bps=cast(int, 1.5))
+    with pytest.raises(ValueError, match="score_bps must be between 0 and 10000"):
+        replace(_decision(), score_bps=10001)
+    with pytest.raises(ValueError, match="safety_flags must be non-empty"):
+        _request(safety_flags=())
+    with pytest.raises(ValueError, match="source_fingerprints contains duplicate entries"):
+        _request(source_fingerprints=("sha256:source-a", "sha256:source-a"))
+    with pytest.raises(ValueError, match="policy_version must be non-empty"):
+        _request(policy_version=" ")
+    with pytest.raises(ValueError, match="model_key must not contain whitespace"):
+        _request(model_key="model test")
+    with pytest.raises(ValueError, match="provider_key contains unsupported characters"):
+        _request(provider_key="provider@test")
 
 
 def test_module_has_no_forbidden_imports_or_nondeterministic_calls() -> None:
