@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance_criteria": {
+      "items": { "type": "string" },
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "allowed_surface": { "const": "bounded_insight_style_product_ai" },
+    "blocked_backends": {
+      "items": {
+        "enum": [
+          "Redis",
+          "GPTCache",
+          "embeddings",
+          "vector search",
+          "semantic similarity backend"
+        ]
+      },
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocked_payload_fields": {
+      "items": { "type": "string" },
+      "minItems": 9,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocked_surfaces": {
+      "items": { "type": "string" },
+      "minItems": 7,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "default_state": { "const": "off" },
+    "feature_flag_sources": {
+      "items": {
+        "enum": [
+          "environment flag",
+          "runtime flag snapshot",
+          "explicit request opt-in",
+          "request disable",
+          "kill switch snapshot"
+        ]
+      },
+      "minItems": 5,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "gate_status": { "const": "closed" },
+    "implementation_allowed": { "const": false },
+    "required_decision_fields": {
+      "items": {
+        "enum": [
+          "decision",
+          "reason_codes",
+          "source_fingerprints",
+          "policy_version",
+          "provider_key",
+          "model_key",
+          "context_fingerprint",
+          "user_tier",
+          "transparency_notice_id",
+          "response_fingerprint",
+          "request_fingerprint"
+        ]
+      },
+      "minItems": 11,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "required_evidence_linkage_fields": {
+      "items": {
+        "enum": [
+          "source_fingerprints",
+          "eval_event_ids",
+          "admission_decision_id",
+          "promotion_ids",
+          "replay_entry_ids",
+          "policy_version"
+        ]
+      },
+      "minItems": 6,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "rollout_phase": { "const": "SC-G4" },
+    "runtime_allowed": { "const": false }
+  },
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "rollout_phase",
+    "allowed_surface",
+    "default_state",
+    "feature_flag_sources",
+    "required_evidence_linkage_fields",
+    "required_decision_fields",
+    "blocked_payload_fields",
+    "blocked_surfaces",
+    "blocked_backends",
+    "acceptance_criteria"
+  ],
+  "type": "object"
+}

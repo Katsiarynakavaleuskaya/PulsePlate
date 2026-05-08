@@ -25,6 +25,9 @@ EXACT_FUZZY_CACHE_SCAFFOLD_DOC = "docs/orchestration/contracts/EXACT_FUZZY_CACHE
 SEMANTIC_CACHE_OBSERVABILITY_CONTRACT_DOC = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md"
 )
+SEMANTIC_CACHE_BOUNDED_INSIGHT_CONTRACT_DOC = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md"
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
@@ -54,6 +57,10 @@ def _load_exact_fuzzy_scaffold_validator() -> SemanticCacheGateValidator:
 
 def _load_semantic_cache_observability_validator() -> SemanticCacheGateValidator:
     return _load_validator("validate_semantic_cache_observability_contract")
+
+
+def _load_semantic_cache_bounded_insight_validator() -> SemanticCacheGateValidator:
+    return _load_validator("validate_semantic_cache_bounded_insight_experiment_contract")
 
 
 def _read_text(relpath: str) -> str:
@@ -106,6 +113,12 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             validate_observability_contract = _load_semantic_cache_observability_validator()
             errors.extend(
                 f"{relpath}: {error}" for error in validate_observability_contract(content)
+            )
+
+        if relpath == SEMANTIC_CACHE_BOUNDED_INSIGHT_CONTRACT_DOC:
+            validate_bounded_insight_contract = _load_semantic_cache_bounded_insight_validator()
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_bounded_insight_contract(content)
             )
 
     return errors

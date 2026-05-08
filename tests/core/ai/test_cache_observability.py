@@ -270,6 +270,36 @@ def test_miss_audit_event_rejects_candidate_fields() -> None:
         )
 
 
+def test_miss_audit_event_rejects_hit_like_match_mode() -> None:
+    audit = _miss_audit_event()
+
+    with pytest.raises(ValueError, match="miss audit events must not carry match_mode"):
+        CacheLookupAuditEvent(
+            audit_event_id="audit:miss-mode",
+            idempotency_key="idempotency:miss-mode",
+            surface=audit.surface,
+            request_fingerprint=audit.request_fingerprint,
+            candidate_record_id=None,
+            candidate_response_fingerprint=None,
+            lookup_decision=audit.lookup_decision,
+            match_mode="exact",
+            policy_version=audit.policy_version,
+            provider_key=audit.provider_key,
+            model_key=audit.model_key,
+            user_tier=audit.user_tier,
+            context_fingerprint=audit.context_fingerprint,
+            transparency_notice_id=audit.transparency_notice_id,
+            source_fingerprints=audit.source_fingerprints,
+            eval_event_ids=audit.eval_event_ids,
+            admission_decision_id=audit.admission_decision_id,
+            promotion_ids=audit.promotion_ids,
+            replay_entry_ids=audit.replay_entry_ids,
+            reason_codes=audit.reason_codes,
+            produced_at=PRODUCED_AT,
+            metadata={},
+        )
+
+
 def test_build_audit_event_rejects_mismatched_or_malformed_inputs() -> None:
     result = match_exact_fuzzy_records(
         request=_request(),
@@ -439,6 +469,23 @@ def test_candidate_miss_with_fallback_action_remains_fallback() -> None:
     assert evaluation.allowed is False
     assert evaluation.is_false_hit is False
     assert evaluation.outcome_class == "fallback"
+
+
+def test_negative_control_blocks_safe_hit_even_if_expected_safe() -> None:
+    evaluation = evaluate_false_hit_case(
+        case=_case(
+            case_id="case:negative-safe",
+            risk_class="semantic_false_positive",
+            expected_action=EXPECTED_ACTION_SAFE_HIT,
+            negative_control=True,
+        ),
+        produced_at=PRODUCED_AT,
+    )
+
+    assert evaluation.allowed is False
+    assert evaluation.is_false_hit is True
+    assert evaluation.outcome_class == "false_hit"
+    assert "fallback_required" in evaluation.blocking_reasons
 
 
 def test_negative_control_case_ordering_is_deterministic() -> None:
@@ -737,6 +784,26 @@ def test_unsafe_metadata_fails_closed() -> None:
             negative_control=True,
             metadata={"artifact": "/tmp/raw-response.txt"},
         )
+    for metadata in (
+        {"authorization": "Basic abc"},
+        {"header": "Bearer secret"},
+        {"api-key": "sk-test"},
+        {"cookie": "session=abc"},
+        {"contact": "user@example.com"},
+        {"phone": "+1 555 123 4567"},
+    ):
+        with pytest.raises(ValueError, match="unsafe metadata"):
+            build_cache_lookup_audit_event(
+                request=_request(),
+                lookup_result=match_exact_fuzzy_records(
+                    request=_request(),
+                    candidate_records=(_record(),),
+                    policy=_policy(),
+                ),
+                candidate_record=_record(),
+                produced_at=PRODUCED_AT,
+                metadata=metadata,
+            )
 
 
 def test_metadata_accepts_safe_nested_json_and_rejects_bad_shapes() -> None:

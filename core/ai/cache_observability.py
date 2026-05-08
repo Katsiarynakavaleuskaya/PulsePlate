@@ -79,9 +79,18 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|answer"
     r"|secret"
     r"|credential"
+    r"|authorization"
+    r"|api[_ -]?key"
     r"|bearer"
+    r"|basic [a-z0-9+/=]+"
+    r"|cookie"
+    r"|set-cookie"
+    r"|session[_ -]?id"
+    r"|x-api-key"
     r"|private[_ -]?key"
     r"|sk-[a-z0-9]"
+    r"|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
+    r"|\+?\d[\d ()-]{7,}\d"
     r"|healthkit"
     r"|diagnosis"
     r"|symptom"
@@ -164,6 +173,8 @@ class CacheLookupAuditEvent:
             self.candidate_record_id is not None or self.candidate_response_fingerprint is not None
         ):
             raise ValueError("miss audit events must not carry candidate fields")
+        elif self.match_mode is not None:
+            raise ValueError("miss audit events must not carry match_mode")
         object.__setattr__(
             self, "policy_version", _validate_token("policy_version", self.policy_version)
         )
@@ -586,7 +597,7 @@ def evaluate_false_hit_case(
         and case.fresh_response_fingerprint != case.audit_event.candidate_response_fingerprint
     ):
         blocking_reasons.append(REASON_RESPONSE_FINGERPRINT_MISMATCH)
-    if case.negative_control and case.expected_action == EXPECTED_ACTION_FALLBACK:
+    if case.negative_control:
         reason_codes.append(REASON_NEGATIVE_CONTROL)
         if candidate_hit:
             blocking_reasons.append(REASON_FALLBACK_REQUIRED)

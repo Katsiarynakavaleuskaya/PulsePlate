@@ -75,7 +75,10 @@ which keeps SC-G3 offline only and non-serving.
 
 SC-G4 is the first bounded semantic-cache experiment. It must stay
 feature-flagged, off by default, and limited to the `/insight`-style product AI
-surface.
+surface. The phase-specific SC-G4 contract is
+[`SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md`](./SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md),
+which keeps SC-G4 metadata-only, fail-closed, and non-serving while the global
+semantic-cache gate remains closed.
 
 SC-G5 may consider Redis/GPTCache only after safety evidence, rollback proof,
 and current-head CI governance exist.
