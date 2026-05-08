@@ -132,9 +132,13 @@ def find_nearest_agents_file(raw_path: str | Path) -> str | None:
     rel_parts = Path(rel_path).parts
     if ".." in rel_parts:
         return None
-    if len(rel_parts) > 1 and not (REPO_ROOT / rel_parts[0]).exists():
+    if len(rel_parts) > 1 and not (REPO_ROOT / rel_parts[0]).is_dir():
         return None
     candidate = REPO_ROOT / rel_path
+    try:
+        candidate.resolve().relative_to(REPO_ROOT)
+    except ValueError:
+        return None
     current = candidate if candidate.is_dir() else candidate.parent
 
     while True:

@@ -174,6 +174,7 @@ def test_find_nearest_agents_file_rejects_truncated_top_level_path() -> None:
     assert find_nearest_agents_file("ocs/orchestration/AGENTS.md") is None
     assert find_nearest_agents_file("../AGENTS.md") is None
     assert find_nearest_agents_file(Path("../AGENTS.md")) is None
+    assert find_nearest_agents_file("AGENTS.md/child") is None
 
 
 def test_check_gate_evidence_resolves_relative_paths_against_root(
