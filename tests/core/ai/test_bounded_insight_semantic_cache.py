@@ -292,6 +292,16 @@ def _decision(
     )
 
 
+def _assert_fallback_omits_candidate_payload(
+    decision: BoundedInsightExperimentDecision,
+) -> None:
+    assert decision.decision == DECISION_FALLBACK
+    assert decision.candidate_record_id is None
+    assert decision.response_fingerprint is None
+    assert decision.match_mode is None
+    assert decision.score_bps is None
+
+
 def test_experiment_eligible_requires_all_flags_and_safe_candidate() -> None:
     decision = _decision()
 
@@ -357,12 +367,8 @@ def test_missing_candidate_and_lookup_miss_fallback() -> None:
     )
     miss = _decision(candidate=miss_candidate)
 
-    assert miss.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(miss)
     assert REASON_LOOKUP_MISS in miss.reason_codes
-    assert miss.candidate_record_id is None
-    assert miss.response_fingerprint is None
-    assert miss.match_mode is None
-    assert miss.score_bps is None
     serialized = dict(to_stable_mapping(miss))
     assert serialized["candidate_record_id"] is None
     assert serialized["response_fingerprint"] is None
@@ -438,7 +444,7 @@ def test_audit_event_request_fingerprint_mismatch_fallback() -> None:
 
     decision = _decision(candidate=_candidate(audit_event=audit_event))
 
-    assert decision.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(decision)
     assert REASON_REQUEST_FINGERPRINT_MISMATCH in decision.reason_codes
 
 
@@ -447,7 +453,7 @@ def test_record_safety_flags_mismatch_fallback() -> None:
 
     decision = _decision(candidate=_candidate(record=record))
 
-    assert decision.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(decision)
     assert REASON_SAFETY_FLAGS_MISMATCH in decision.reason_codes
 
 
@@ -455,20 +461,20 @@ def test_response_fingerprint_admission_stop_and_blocked_surface_fallback() -> N
     response_mismatch = _decision(
         candidate=_candidate(response_fingerprint="sha256:other-response")
     )
-    assert response_mismatch.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(response_mismatch)
     assert REASON_RESPONSE_FINGERPRINT_MISMATCH in response_mismatch.reason_codes
 
     admission_blocked = _decision(candidate=_candidate(admission_allowed=False))
-    assert admission_blocked.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(admission_blocked)
     assert REASON_ADMISSION_BLOCKED in admission_blocked.reason_codes
 
     blocked_surface = _decision(candidate=_candidate(blocked_surface=True))
-    assert blocked_surface.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(blocked_surface)
     assert REASON_BLOCKED_SURFACE in blocked_surface.reason_codes
 
     stop_decision = replace(_candidate().stop_decision, stop_serving=True, rollback_required=True)
     stop_blocked = _decision(candidate=_candidate(stop_decision=stop_decision))
-    assert stop_blocked.decision == DECISION_FALLBACK
+    _assert_fallback_omits_candidate_payload(stop_blocked)
     assert REASON_STOP_RULE_BLOCKED in stop_blocked.reason_codes
 
 

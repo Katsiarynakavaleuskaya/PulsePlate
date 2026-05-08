@@ -558,8 +558,9 @@ def _build_decision(
         decision = DECISION_EXPERIMENT_ELIGIBLE
     elif not normalized_reasons:
         normalized_reasons = (REASON_CANDIDATE_MISSING,)
+    eligible_candidate = candidate if decision == DECISION_EXPERIMENT_ELIGIBLE else None
     payload: JsonValue = {
-        "candidate_record_id": _eligible_candidate_record_id(candidate),
+        "candidate_record_id": _eligible_candidate_record_id(eligible_candidate),
         "decision": decision,
         "policy_version": request.policy_version,
         "reason_codes": list(normalized_reasons),
@@ -570,10 +571,10 @@ def _build_decision(
         decision_id=f"bounded-insight-cache:{_fingerprint_payload(payload)[:24]}",
         decision=decision,
         surface=request.surface,
-        candidate_record_id=_eligible_candidate_record_id(candidate),
-        response_fingerprint=_eligible_candidate_response_fingerprint(candidate),
-        match_mode=_eligible_match_mode(candidate),
-        score_bps=_eligible_score_bps(candidate),
+        candidate_record_id=_eligible_candidate_record_id(eligible_candidate),
+        response_fingerprint=_eligible_candidate_response_fingerprint(eligible_candidate),
+        match_mode=_eligible_match_mode(eligible_candidate),
+        score_bps=_eligible_score_bps(eligible_candidate),
         request_fingerprint=request.request_fingerprint,
         source_fingerprints=request.source_fingerprints,
         policy_version=request.policy_version,
