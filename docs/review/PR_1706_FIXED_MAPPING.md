@@ -15,6 +15,7 @@ Two CodeRabbit actionable review threads are mapped below as fixed.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1706#discussion_r3207514003 -> 7053ae127
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1706#discussion_r3207514015 -> 7053ae127
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1706#pullrequestreview-4250886827 -> 7053ae127
 Disposition: FIXED
 Commit: 7053ae127
 Evidence: `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md` now uses past tense for merged PR #1703, and `docs/roadmap/BACKLOG_LEDGER.md` records explicit deferred follow-ups with Target PR, reason, links, and DoD.
