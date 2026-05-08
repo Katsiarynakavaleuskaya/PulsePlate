@@ -18,6 +18,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `2f0692a67` `fix(ai-runtime): return json-ready bounded insight mappings`
 - Follow-up commit: `c1fc167cd` `fix(ci): include bounded insight tests in coverage lane`
 - Follow-up commit: `d8af82a6e` `docs(review): map bounded insight bot findings`
+- Follow-up commit: `11311d937` `fix(ai-runtime): close bounded insight diff coverage gaps`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -71,6 +72,7 @@ Evidence: `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bound
 | Reject non-string token inputs with `ValueError` instead of `AttributeError` | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Return plain JSON-ready stable mappings from `to_stable_mapping()` | FIXED | Commit `2f0692a67`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Include SC-G4 tests in CI coverage selection | FIXED | Commit `c1fc167cd`; `.github/workflows/ci.yml`; focused pytest, mypy, changed-files pre-commit, and `make validate-changed` PASS |
+| Close remaining SC-G4 diff coverage gaps | FIXED | Commit `11311d937`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; local diff-cover 100% PASS |
 
 ## Premortem Finding Mapping
 
