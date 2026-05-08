@@ -41,8 +41,31 @@ Coordinator packets:
 
 Mandatory post-open pass:
 
-- `qa-engineer-agent`: pending final response at artifact creation time.
-- `bug-hunter`: pending, must run after `qa-engineer-agent`.
+- `qa-engineer-agent`: completed with actionable mapping/body and
+  final-image-evidence blockers.
+- `bug-hunter`: PASS / no-actionable for the requested post-open scope.
+
+## Discussion Thread Pass
+
+- [ ] Discussion-thread pass completed
+- [ ] Fixed in commit mapping completed
+
+The canonical review-thread pass is intentionally left open while current-head
+CI and external bot statuses are still pending. Do not mark this complete until
+there are no unresolved human review threads and CodeRabbit, Sourcery, and
+Cubic are no-actionable.
+
+## Fixed in Commit Mapping
+
+Disposition: PENDING FIXED EVIDENCE
+Commit: 4b5a20080
+Evidence: Dockerfile:234 purges apt, gpgv, and libgnutls30 from production.
+Evidence: Dockerfile:236 verifies blocked Debian packages are not installed.
+Evidence: .github/workflows/build.yml:69 and .github/workflows/trivy.yml:66 run the production dependency-surface guard.
+Evidence: scripts/ci/check_docker_runtime_dependency_surface.py:208 adds exact Debian package blocking.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/591
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/592
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/593
 
 ## Security Alert Disposition
 
