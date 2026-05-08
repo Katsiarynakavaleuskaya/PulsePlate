@@ -89,6 +89,7 @@ Passed locally before PR open:
 ```bash
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
+python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1708 --body "$(cat /tmp/pr1708_body_phase2.md)"
 python3 scripts/release/check_ios_appstore_verify.py
 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pytest -q tests/ios/test_ios_appstore_verify.py
 /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pytest -q tests/test_ios_appstore_assets_workflow_contract.py tests/test_ios_appstore_asset_validators.py
@@ -98,6 +99,8 @@ pre-commit run --all-files
 ```
 
 - `check_ios_appstore_verify.py`: 10 passed, 0 failed.
+- `check_pr_body_phase2_gates.py`: canonical mapping artifact and PR body
+  mirror passed.
 - `tests/ios/test_ios_appstore_verify.py`: 5 passed.
 - `tests/test_ios_appstore_assets_workflow_contract.py`
   `tests/test_ios_appstore_asset_validators.py`: 45 passed.
