@@ -69,7 +69,7 @@ Evidence: scripts/ci/check_docker_runtime_dependency_surface.py:208 adds exact D
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/593
 
 Disposition: FIXED
-Commit: TBD
+Commit: 5181a1662
 Evidence: Dockerfile:234 adds a stable `SECURITY: production-package-pruning-start` anchor, and Dockerfile:252 adds the matching end anchor.
 Evidence: docs/security/CVE-2026-3833-gnutls.md:36 records the stable anchor alongside the required file:line evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253122610
