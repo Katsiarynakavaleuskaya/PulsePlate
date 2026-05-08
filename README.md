@@ -1,7 +1,7 @@
 # PulsePlate
 
 [![CI](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml/badge.svg)](https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/workflows/ci.yml)
-[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/graph/badge.svg?token=HE8BHRB709)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
+[![codecov](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate/graph/badge.svg)](https://codecov.io/gh/Katsiarynakavaleuskaya/PulsePlate)
 
 > **PulsePlate turns body-metric check-ins into practical meal decisions.**
 
@@ -55,11 +55,17 @@ PulsePlate is in a **private staged rollout**.
 
 Production components require authorized access.
 
+## Developer Entrypoint
+
+Authorized maintainers and reviewers should start with [`AGENTS.md`](./AGENTS.md), [`RUNBOOK_AGENT.md`](./RUNBOOK_AGENT.md), and [`docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md`](./docs/dev/AGENT_COMPATIBILITY_ONBOARDING.md). Those files are the repo-governed entrypoint for contribution, review, and merge-readiness work without exposing public bootstrap or deployment instructions here.
+
 ## Access and Licensing
 
 PulsePlate is **proprietary software**. All rights reserved.
 
-This public repository is a product and technical snapshot for evaluation, collaboration, and licensing discussions. It is **not** a public self-hosting distribution.
+The authoritative license text is [`LICENSE`](./LICENSE). This README summarizes the access boundary only; if there is any conflict, `LICENSE` controls.
+
+This public repository is a product and technical snapshot for evaluation, collaboration, and licensing discussions. It is **not** a public self-hosting distribution, and repository code is not offered as a public library or SDK unless a separate written license says so.
 
 Full backend bootstrap, private packages, deployment runbooks, production configuration, internal AI-runtime tooling, and release operations require **explicit written authorization**.
 
