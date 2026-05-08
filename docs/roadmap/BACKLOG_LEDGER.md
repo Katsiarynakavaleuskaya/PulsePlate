@@ -449,6 +449,27 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Area: release / App Store / AI evals / supply-chain / orchestration
   - Finding Type: release evidence unification gap
   - Status: PR-0, PR-1, and PR-2 merged; PR-3 merged in PR #1605 on 2026-04-30; PR-4 merged in PR #1679 on 2026-05-06; PR-5 merged in PR #1682 on 2026-05-06; PR-6 merged in PR #1688 on 2026-05-06; PR #1692 enforces the production tag path fail-closed against PR-6 real evidence wiring and intentionally blocks production tags until protected release evidence is supplied. PR #1699 merged the governed manual evidence-publication workflow on 2026-05-07 (`ci/release-control-plane-evidence-publication`). The former active `ci/release-control-plane-source-producers` follow-up merged as PR #1703 with governed `workflow_dispatch` source producers for `Release Manifest Evidence` and `Build Equivalence Evidence`, so the PR #1699 publisher no longer depends on ad hoc source runs. The release-control-plane evidence plumbing is complete through governed source producers -> governed publisher -> production CD gate. Future protected artifact publication/upload automation and App Store Connect execution for App Store release remains out of scope; App Store Connect execution, Fastlane protected upload mutation, and final App Store readiness remain deferred. The full App Store readiness is not complete, and the broader release/App Store train is not production-ready.
+  - Deferred follow-ups:
+    - App Store Connect execution
+      - Target PR: TBD App Store release execution/readiness lane
+      - Reason for deferral: Release-control-plane evidence plumbing validates release evidence; it does not upload binaries or mutate App Store Connect state.
+      - Links: PR #1699, PR #1703, `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
+      - DoD: Protected App Store Connect execution is explicitly scoped, credential-gated, reviewed, and separated from evidence validation.
+    - Fastlane protected upload mutation
+      - Target PR: TBD Fastlane protected upload lane
+      - Reason for deferral: Fastlane upload behavior is a protected release execution surface and remains outside this docs-only reconciliation.
+      - Links: PR #1699, PR #1703, `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md`
+      - DoD: Fastlane upload mutation is reviewed with protected environment controls, rollback notes, and App Store readiness evidence.
+    - Protected artifact publication/upload automation
+      - Target PR: TBD protected release automation lane
+      - Reason for deferral: The evidence chain is complete through governed producer and publisher workflows, but protected upload automation is a separate credentialed execution concern.
+      - Links: PR #1699, PR #1703, `.github/workflows/release-control-plane-evidence.yml`
+      - DoD: Protected upload automation is explicitly scoped, cannot bypass the release-control-plane gate, and preserves fail-closed evidence checks.
+    - Final App Store readiness and broader release/App Store train
+      - Target PR: TBD App Store readiness closeout lane
+      - Reason for deferral: Evidence plumbing completion is not the same as App Store submission readiness.
+      - Links: PR #1699, PR #1703, `docs/release/RELEASE_CONTROL_PLANE_EPIC.md`
+      - DoD: App Store readiness is separately reconciled against metadata, privacy, screenshots, credentials, and submission gates.
   - Reason (EN): The App Store readiness PR train is owned separately, while the attached release-automation document also identifies a cross-cutting control-plane gap: build identity, reviewer packet identity, RAG/ML gate identity, supply-chain provenance, and the final release decision are not yet represented by one machine-readable release packet. This line complements PR `#1582` without editing its branch or worktree.
   - Links:
     - `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md`
@@ -487,7 +508,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR #1692 closes the production gate bypass by preserving the PR-6 real-evidence wiring as the deploy dependency and documenting that missing protected evidence is a release stop, while protected artifact publication/upload automation and App Store Connect execution remain deferred follow-ups.
     - The evidence-publication follow-up added a manual governed workflow that downloads successful `workflow_dispatch` source artifacts for the same git SHA, normalizes them to the canonical `release-control-plane/` layout, validates them with `scripts/ci/check_release_control_plane.py`, and uploads the artifact operators point production CD at. Completed by PR #1699.
     - The source-producer follow-up added governed `workflow_dispatch` producers for `Release Manifest Evidence` and `Build Equivalence Evidence`. Completed by PR #1703.
-    - Release-control-plane evidence plumbing is now complete through governed RAG release gates, governed source producers, the governed publisher, and the production CD gate. Broader App Store Connect execution, Fastlane protected upload mutation, final App Store readiness, and protected upload automation remain separate deferred release/App Store work.
+    - Release-control-plane evidence plumbing is now complete through governed RAG release gates, governed source producers, the governed publisher, and the production CD gate. Broader App Store Connect execution, Fastlane protected upload mutation, final App Store readiness, and protected upload automation remain separate deferred release/App Store work with auditable follow-up criteria recorded above.
 
 <a id="ledger-p1-planning-flow-monetization-wave"></a>
 - [ ] P1: Planning-flow monetization wave over the canonical FREE -> PRO -> VIP ladder

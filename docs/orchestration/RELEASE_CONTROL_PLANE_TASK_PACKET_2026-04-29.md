@@ -322,7 +322,7 @@ contain `sbom_digest.txt`, `provenance_digest.txt`, and
 
 ### PR #1703 Closeout
 
-PR #1703 completes the release-control-plane evidence plumbing through governed
+PR #1703 completed the release-control-plane evidence plumbing through governed
 RAG release gates, governed source producers, the governed publisher, and the
 production CD gate. No further release-control-plane evidence-plumbing PR is
 currently required. Broader App Store Connect execution, Fastlane protected
