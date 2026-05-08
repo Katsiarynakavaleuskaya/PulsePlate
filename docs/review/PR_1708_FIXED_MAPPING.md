@@ -8,6 +8,9 @@
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 - No GitHub review threads existed at PR open.
 - Coordinator-first pre-open packet: `3588d1bd2800`.
 - Post-open review packet: `1b4b361f75c8`.
@@ -16,8 +19,12 @@
 
 ## Fixed in Commit Mapping
 
-- Local appstore-release-agent finding: metadata closure overclaimed
-  `SUBMIT_READY` status for localized descriptions.
+- No actionable review comments
+
+## Local Role-Agent Findings
+
+- Local appstore-release-agent finding: metadata closure overclaimed `SUBMIT_READY`
+  status for localized descriptions.
   - Disposition: FIXED
   - Commit: `3385cdf70`
   - Evidence:
@@ -63,8 +70,8 @@
     `docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md` now allow docs plus
     `ios/fastlane/metadata/review_information/notes.txt` and use a
     fail-closed `rg -q -v` command.
-- Local bug-hunter finding: metadata blocker conflicted with validator truth and
-  epic public metadata rule contradicted current localized descriptions.
+- Local bug-hunter finding: metadata blocker conflicted with validator truth and epic
+  public metadata rule contradicted current localized descriptions.
   - Disposition: FIXED
   - Commit: `3385cdf70`
   - Evidence:
