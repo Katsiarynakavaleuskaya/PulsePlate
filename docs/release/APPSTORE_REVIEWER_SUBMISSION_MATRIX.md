@@ -321,9 +321,11 @@ Each links to `BACKLOG_LEDGER.md` or the epic PR train.
 7. **AI/CBT features require explicit consent.** No AI query may leave the
    device without wellness-only disclosure and user consent.
 
-8. **Production API host is an unresolved operator decision.** PR-3 must
-   resolve the canonical HTTPS production host before runtime fail-fast changes
-   land. See `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md#backend-host-decision-register`.
+8. **Production API host is explicit and fail-fast.** The landed release train
+   finalized the HTTPS production host in `Info-Release.plist`, and
+   `AppConfig.swift` fails before submission when Release `BASE_URL` is missing
+   or invalid. See
+   `docs/release/APPSTORE_RELEASE_READINESS_EPIC.md#backend-host-decision-register`.
 
 ## Non-Goals
 
