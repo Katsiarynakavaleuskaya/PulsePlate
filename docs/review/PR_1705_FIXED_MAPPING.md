@@ -7,6 +7,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 ## Local Evidence
 
 - Commit: `250a1f856` `feat(ai-runtime): add bounded insight semantic-cache experiment`
+- Follow-up commit: pending post-open QA fixes for linkage, audit partition validation, and Phase2 artifact format
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -18,14 +19,20 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 
 ## Discussion Thread Pass
 
-- [ ] Awaiting CodeRabbit/Sourcery/Cubic/human review.
-- [ ] Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` lane pending.
-- [ ] Codex Security threat-model/security-scan/validation pending.
-- [ ] No unresolved actionable review threads before merge readiness.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments yet.
+- No actionable review comments
+
+## Post-Open Agent Finding Mapping
+
+| Finding | Disposition | Evidence |
+| --- | --- | --- |
+| Require promotion/replay linkage before eligibility | FIXED | `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
+| Validate audit event partition fields | FIXED | `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
+| Fix Phase2 mapping artifact format | FIXED | `docs/review/PR_1705_FIXED_MAPPING.md`, PR body mirror |
 
 ## Premortem Finding Mapping
 

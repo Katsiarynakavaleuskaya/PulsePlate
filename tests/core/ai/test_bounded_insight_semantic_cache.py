@@ -386,6 +386,40 @@ def test_partition_and_surface_mismatches_fallback(
     assert reason in decision.reason_codes
 
 
+@pytest.mark.parametrize(
+    ("audit_event", "reason"),
+    [
+        (
+            replace(_candidate().audit_event, source_fingerprints=("sha256:source-a",)),
+            REASON_SOURCE_FINGERPRINT_MISMATCH,
+        ),
+        (
+            replace(_candidate().audit_event, policy_version="semantic-cache-sc-g4-v2"),
+            REASON_POLICY_MISMATCH,
+        ),
+        (replace(_candidate().audit_event, provider_key="provider:next"), REASON_PROVIDER_MISMATCH),
+        (replace(_candidate().audit_event, model_key="model:next"), REASON_MODEL_MISMATCH),
+        (
+            replace(_candidate().audit_event, context_fingerprint="sha256:context-next"),
+            REASON_CONTEXT_MISMATCH,
+        ),
+        (replace(_candidate().audit_event, user_tier="free"), REASON_USER_TIER_MISMATCH),
+        (
+            replace(_candidate().audit_event, transparency_notice_id="notice:insight:v2"),
+            REASON_TRANSPARENCY_NOTICE_MISMATCH,
+        ),
+    ],
+)
+def test_audit_event_partition_mismatches_fallback(
+    audit_event: CacheLookupAuditEvent,
+    reason: str,
+) -> None:
+    decision = _decision(candidate=_candidate(audit_event=audit_event))
+
+    assert decision.decision == DECISION_FALLBACK
+    assert reason in decision.reason_codes
+
+
 def test_response_fingerprint_admission_stop_and_blocked_surface_fallback() -> None:
     response_mismatch = _decision(
         candidate=_candidate(response_fingerprint="sha256:other-response")
@@ -408,11 +442,15 @@ def test_response_fingerprint_admission_stop_and_blocked_surface_fallback() -> N
 
 
 def test_missing_evidence_linkage_fallback() -> None:
-    request = _request(admission_decision_id=None)
-    decision = _decision(request=request)
+    for request in (
+        _request(admission_decision_id=None),
+        _request(promotion_ids=()),
+        _request(replay_entry_ids=()),
+    ):
+        decision = _decision(request=request)
 
-    assert decision.decision == DECISION_FALLBACK
-    assert REASON_EVIDENCE_LINKAGE_MISSING in decision.reason_codes
+        assert decision.decision == DECISION_FALLBACK
+        assert REASON_EVIDENCE_LINKAGE_MISSING in decision.reason_codes
 
     record = create_exact_fuzzy_cache_record(
         surface="insight",
@@ -434,6 +472,29 @@ def test_missing_evidence_linkage_fallback() -> None:
         safety_flags=("wellness-only",),
     )
     decision = _decision(candidate=_candidate(record=record))
+    assert decision.decision == DECISION_FALLBACK
+    assert REASON_EVIDENCE_LINKAGE_MISSING in decision.reason_codes
+
+    missing_replay_record = create_exact_fuzzy_cache_record(
+        surface="insight",
+        raw_query="Plan protein breakfast",
+        context_fingerprint="sha256:context",
+        provider_key="provider:test",
+        model_key="model:test",
+        user_tier="pro",
+        transparency_notice_id="notice:insight:v1",
+        lineage=build_exact_fuzzy_lineage(
+            eval_event_ids=("eval:bounded:1",),
+            admission_decision_id="admission:bounded:1",
+            promotion_ids=("promotion:bounded:1",),
+            replay_entry_ids=(),
+            source_fingerprints=("sha256:source-a", "sha256:source-b"),
+            policy_version="semantic-cache-sc-g4-v1",
+        ),
+        response_fingerprint="sha256:response",
+        safety_flags=("wellness-only",),
+    )
+    decision = _decision(candidate=_candidate(record=missing_replay_record))
     assert decision.decision == DECISION_FALLBACK
     assert REASON_EVIDENCE_LINKAGE_MISSING in decision.reason_codes
 

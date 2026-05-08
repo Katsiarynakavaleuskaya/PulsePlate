@@ -484,36 +484,43 @@ def _candidate_reasons(
     if (
         candidate.lookup_request.source_fingerprints != request.source_fingerprints
         or candidate.record.lineage.source_fingerprints != request.source_fingerprints
+        or candidate.audit_event.source_fingerprints != request.source_fingerprints
     ):
         reasons.append(REASON_SOURCE_FINGERPRINT_MISMATCH)
     if (
         candidate.lookup_request.policy_version != request.policy_version
         or candidate.record.lineage.policy_version != request.policy_version
+        or candidate.audit_event.policy_version != request.policy_version
     ):
         reasons.append(REASON_POLICY_MISMATCH)
     if (
         candidate.lookup_request.provider_key != request.provider_key
         or candidate.record.provider_key != request.provider_key
+        or candidate.audit_event.provider_key != request.provider_key
     ):
         reasons.append(REASON_PROVIDER_MISMATCH)
     if (
         candidate.lookup_request.model_key != request.model_key
         or candidate.record.model_key != request.model_key
+        or candidate.audit_event.model_key != request.model_key
     ):
         reasons.append(REASON_MODEL_MISMATCH)
     if (
         candidate.lookup_request.context_fingerprint != request.context_fingerprint
         or candidate.record.context_fingerprint != request.context_fingerprint
+        or candidate.audit_event.context_fingerprint != request.context_fingerprint
     ):
         reasons.append(REASON_CONTEXT_MISMATCH)
     if (
         candidate.lookup_request.user_tier != request.user_tier
         or candidate.record.user_tier != request.user_tier
+        or candidate.audit_event.user_tier != request.user_tier
     ):
         reasons.append(REASON_USER_TIER_MISMATCH)
     if (
         candidate.lookup_request.transparency_notice_id != request.transparency_notice_id
         or candidate.record.transparency_notice_id != request.transparency_notice_id
+        or candidate.audit_event.transparency_notice_id != request.transparency_notice_id
     ):
         reasons.append(REASON_TRANSPARENCY_NOTICE_MISMATCH)
     if not candidate.admission_allowed:
@@ -580,6 +587,8 @@ def _is_missing_evidence_linkage(request: BoundedInsightExperimentRequest) -> bo
     return (
         request.admission_decision_id is None
         or not request.eval_event_ids
+        or not request.promotion_ids
+        or not request.replay_entry_ids
         or not request.source_fingerprints
         or not request.safety_flags
     )
@@ -590,9 +599,13 @@ def _is_missing_candidate_linkage(candidate: BoundedInsightExperimentCandidate) 
     return (
         lineage.admission_decision_id is None
         or not lineage.eval_event_ids
+        or not lineage.promotion_ids
+        or not lineage.replay_entry_ids
         or not lineage.source_fingerprints
         or candidate.audit_event.admission_decision_id is None
         or not candidate.audit_event.eval_event_ids
+        or not candidate.audit_event.promotion_ids
+        or not candidate.audit_event.replay_entry_ids
     )
 
 
