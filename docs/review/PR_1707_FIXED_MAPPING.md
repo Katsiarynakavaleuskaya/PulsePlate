@@ -43,6 +43,11 @@ Commit: `e3d7c99b4`
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
 Reason: Coordinator review found stale PR-8 tracking. The ledger now records PR #1704 as merged and this PR as the active docs-only next-lane decision packet.
 
+Disposition: FIXED
+Commit: `64be1285a`
+Evidence: `docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md`, `docs/review/PR_1707_FIXED_MAPPING.md`, PR body
+Reason: Post-open QA review found bounded-check evidence was inconsistent because the packet still listed full `pre-commit run --all-files` while the mapping recorded that command was not a PASS. The packet, mapping, and PR body now explicitly record the accepted docs-only substitute: changed-file pre-commit plus successful pre-push hooks and diff-scope verification.
+
 ## Bug-Hunter Pass
 
 Disposition: NOT-A-BUG
