@@ -130,6 +130,8 @@ def find_nearest_agents_file(raw_path: str | Path) -> str | None:
     if Path(rel_path).is_absolute():
         return None
     rel_parts = Path(rel_path).parts
+    if ".." in rel_parts:
+        return None
     if len(rel_parts) > 1 and not (REPO_ROOT / rel_parts[0]).exists():
         return None
     candidate = REPO_ROOT / rel_path

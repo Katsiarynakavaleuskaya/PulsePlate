@@ -236,8 +236,9 @@ If any required metadata is missing, the lane remains `read_only`.
 ## Closeout State
 
 The PR-0 through PR-8 train is complete as of PR #1606
-(`feat(storybook): expand design parity review surfaces`). The runbook does not
-define a PR-9 or any active follow-on implementation slice.
+(`feat(storybook): expand design parity review surfaces`). At closeout time,
+this runbook did not define a PR-9 or any active follow-on implementation
+slice.
 
 Any future design runtime wave must start from a fresh synced `origin/main` and
 must add a new coordinator-owned packet or runbook update before opening a new
