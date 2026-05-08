@@ -16,7 +16,24 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 69ad71d086a2f6dc309556ace54bc94a9048c846
+Evidence: `tests/test_design_automation_next_lane_docs.py` now asserts each ordered sequence item exists in the PR-9 packet before comparing order, preventing misleading failures when text only exists in a wider corpus; `tests/test_orchestration_preflight.py` now covers `Path(...)` input and truncated directory input for `find_nearest_agents_file`; `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md` now requires `PATH=.venv/bin:$PATH pre-commit run --all-files` in the PR-9 validation recipe.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211234317 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211234323 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211238801 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
+
+Disposition: FIXED
+Commit: 00d30571dfb307a4f474cd4cde029c95969bd65a
+Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md` now frames the no-PR-9 statement as closeout-time historical truth; `scripts/orchestration/context_pack.py` now rejects relative path segments containing `..`, and `tests/test_orchestration_preflight.py` covers string and `Path` traversal inputs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211257199 -> 00d30571dfb307a4f474cd4cde029c95969bd65a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211257215 -> 00d30571dfb307a4f474cd4cde029c95969bd65a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263180 -> 00d30571dfb307a4f474cd4cde029c95969bd65a
+
+Disposition: FIXED
+Commit: 1f1d5c54194b705e8bc80d9c093af12136ea46c4
+Evidence: `docs/review/PR_1713_FIXED_MAPPING.md` and the PR body now use checked discussion pass boxes; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1713` passed locally after the fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263165 -> 1f1d5c54194b705e8bc80d9c093af12136ea46c4
 
 ## Internal Findings Closed Before Mapping
 
@@ -54,6 +71,16 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
   - Disposition: FIXED
   - Commit: `91e2b16ba`
   - Evidence: `scripts/orchestration/context_pack.py` rejects nested paths whose top-level segment does not exist, and `tests/test_orchestration_preflight.py` covers `ocs/orchestration/AGENTS.md`.
+
+- Post-open finding: Phase 2 body/mapping guard rejected unchecked discussion-pass boxes and parser-hostile mapping prose.
+  - Disposition: FIXED
+  - Commit: `1f1d5c541`
+  - Evidence: `docs/review/PR_1713_FIXED_MAPPING.md` and the PR body now use checked discussion pass boxes with parser-safe mapping content; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1713` passed.
+
+- Post-open finding: review bots identified stale validation wording, ambiguous runbook history, and scoped-path traversal regressions.
+  - Disposition: FIXED
+  - Commit: `69ad71d08`, `00d30571`
+  - Evidence: validation wording now requires all-files pre-commit, the PR-0 through PR-8 runbook closeout remains historical truth, and `find_nearest_agents_file` rejects typo and traversal inputs with deterministic tests.
 
 ## Premortem Evidence
 
