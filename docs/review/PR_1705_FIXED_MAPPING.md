@@ -14,6 +14,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `3e5f9ca6f` `fix(ai-runtime): close bounded insight bot findings`
 - Follow-up commit: `153c65302` `fix(ai-runtime): keep bounded insight helper typing strict`
 - Follow-up commit: `b25a370b2` `fix(ai-runtime): omit rejected bounded insight candidate payloads`
+- Follow-up commit: `014017e6a` `fix(ai-runtime): harden bounded insight metadata contracts`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -48,6 +49,9 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Replace `Phase2` spelling with `Phase 2` | FIXED | Commit `3e5f9ca6f`; `docs/review/PR_1705_FIXED_MAPPING.md` |
 | Keep strict mypy compatibility for eligible candidate helper returns | FIXED | Commit `153c65302`; `core/ai/bounded_insight_semantic_cache.py`; `python -m mypy ...` PASS |
 | Omit candidate identifiers and response fingerprints on all rejected fallback decisions | FIXED | Commit `b25a370b2`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
+| Require candidate response fingerprint parity before bound-hit metadata eligibility | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
+| Deep-freeze nested metadata without breaking JSON-ready stable mappings | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
+| Reject non-string token inputs with `ValueError` instead of `AttributeError` | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 
 ## Premortem Finding Mapping
 
