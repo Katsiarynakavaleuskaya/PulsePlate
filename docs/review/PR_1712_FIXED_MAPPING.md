@@ -17,7 +17,7 @@
 No GitHub review threads existed when the PR was opened. Future human or bot comments must be dispositioned below before resolution.
 
 ## Fixed in Commit Mapping
-- No actionable review comments.
+- No actionable review comments
 
 ## Local Role-Agent Findings
 - `agent-coordinator`: task classified as narrow App Store readiness ledger normalization; coordinator packet `c167601b5c6a` created before edits.
