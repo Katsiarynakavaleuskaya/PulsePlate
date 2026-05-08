@@ -8,13 +8,16 @@ Branch: `docs/release-control-plane-pr1703-reconciliation`
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Status: Initial GitHub review thread pass pending current-head bot comments.
-No review threads have been resolved by this artifact.
-No actionable GitHub review threads have been resolved yet.
+Status: GitHub review thread pass completed against current-head bot comments.
+Two CodeRabbit actionable review threads are mapped below as fixed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1706#discussion_r3207514003 -> 7053ae127
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1706#discussion_r3207514015 -> 7053ae127
+Disposition: FIXED
+Commit: 7053ae127
+Evidence: `docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md` now uses past tense for merged PR #1703, and `docs/roadmap/BACKLOG_LEDGER.md` records explicit deferred follow-ups with Target PR, reason, links, and DoD.
 
 ## NOT-A-BUG
 
