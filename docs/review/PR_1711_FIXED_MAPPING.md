@@ -59,13 +59,30 @@ Cubic are no-actionable.
 
 Disposition: PENDING FIXED EVIDENCE
 Commit: 4b5a20080
-Evidence: Dockerfile:234 purges apt, gpgv, and libgnutls30 from production.
-Evidence: Dockerfile:236 verifies blocked Debian packages are not installed.
+Evidence: Dockerfile:234 marks the stable production package-pruning anchor.
+Evidence: Dockerfile:235 purges apt, gpgv, and libgnutls30 from production.
+Evidence: Dockerfile:237 verifies blocked Debian packages are not installed.
 Evidence: .github/workflows/build.yml:69 and .github/workflows/trivy.yml:66 run the production dependency-surface guard.
 Evidence: scripts/ci/check_docker_runtime_dependency_surface.py:208 adds exact Debian package blocking.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/591
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/592
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/593
+
+Disposition: FIXED
+Commit: TBD
+Evidence: Dockerfile:234 adds a stable `SECURITY: production-package-pruning-start` anchor, and Dockerfile:252 adds the matching end anchor.
+Evidence: docs/security/CVE-2026-3833-gnutls.md:36 records the stable anchor alongside the required file:line evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253122610
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253167033 is a Sourcery rate-limit notice and contains no code-actionable finding.
+Reason: External reviewer quota notice; no repository code or documentation change is requested by the bot comment.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253167033
+
+Disposition: NOT-A-BUG
+Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253127415 reports "No issues found" across the reviewed files.
+Reason: Cubic posted no actionable review finding.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253127415
 
 ## Security Alert Disposition
 

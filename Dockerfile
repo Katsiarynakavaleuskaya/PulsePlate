@@ -231,6 +231,7 @@ PY
 # EN: Remove the package-manager TLS surface only from production; runtime-base/development
 # EN: keep apt for dev/staging workflows. apt/gpgv are Debian-essential, so this
 # EN: removal is intentionally limited to the final production stage and checked fail-closed.
+# SECURITY: production-package-pruning-start
 RUN dpkg --purge --force-depends apt gpgv libgnutls30 \
     && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
     && for package in apt gpgv libgnutls30; do \
@@ -248,6 +249,7 @@ if not ssl.OPENSSL_VERSION:
     sys.stderr.write("Python ssl module is unavailable after production package pruning\n")
     sys.exit(1)
 PY
+# SECURITY: production-package-pruning-end
 
 # RU: Финальный runtime остаётся non-root как и в runtime-base.
 # EN: Final runtime stays non-root, matching the runtime-base contract.
