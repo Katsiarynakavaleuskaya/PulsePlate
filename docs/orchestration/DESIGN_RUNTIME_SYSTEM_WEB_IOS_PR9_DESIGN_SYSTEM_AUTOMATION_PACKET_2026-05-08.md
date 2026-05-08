@@ -228,15 +228,8 @@ Use the worktree-local `.venv`:
 ```bash
 .venv/bin/python scripts/orchestration/check_preflight.py
 .venv/bin/python scripts/orchestration/check_agent_consistency.py
-.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py
-PATH=.venv/bin:$PATH pre-commit run --files \
-  docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md \
-  docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md \
-  docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md \
-  docs/orchestration/DESIGN_AGENT_WORKFLOW.md \
-  docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md \
-  docs/roadmap/BACKLOG_LEDGER.md \
-  tests/test_design_automation_next_lane_docs.py
+.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_orchestration_preflight.py
+PATH=.venv/bin:$PATH pre-commit run --all-files
 DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
 ```
 

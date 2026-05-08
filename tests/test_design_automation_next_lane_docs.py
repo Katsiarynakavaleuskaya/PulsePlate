@@ -348,9 +348,12 @@ def test_pr9_design_system_automation_sequence_is_locked() -> None:
         assert phrase in corpus
 
     ordered = _read(PR9_PACKET)
-    positions = [
-        ordered.index(f"{index}. {phrase}") for index, phrase in enumerate(sequence, start=1)
-    ]
+    numbered_sequence = [f"{index}. {phrase}" for index, phrase in enumerate(sequence, start=1)]
+
+    for phrase in numbered_sequence:
+        assert phrase in ordered
+
+    positions = [ordered.index(phrase) for phrase in numbered_sequence]
     assert all(positions[index] < positions[index + 1] for index in range(len(positions) - 1))
 
 

@@ -167,6 +167,10 @@ def test_find_nearest_agents_file_rejects_truncated_top_level_path() -> None:
     assert find_nearest_agents_file("docs/orchestration/AGENTS.md") == (
         "docs/orchestration/AGENTS.md"
     )
+    assert find_nearest_agents_file(Path("docs/orchestration/AGENTS.md")) == (
+        "docs/orchestration/AGENTS.md"
+    )
+    assert find_nearest_agents_file("ocs/orchestration") is None
     assert find_nearest_agents_file("ocs/orchestration/AGENTS.md") is None
 
 
