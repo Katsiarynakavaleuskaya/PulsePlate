@@ -89,7 +89,13 @@ Cloudflare, Hugging Face, Jam, Remotion, Life Science Research, Expo, and
 CodeRabbit are optional evidence helpers only. They do not replace repo source
 of truth, coordinator routing, fixed-mapping governance, or local gates.
 
-## PR Train
+## Historical PR Train
+
+This packet records the original April 2026 execution plan. Live train status
+is maintained in `docs/roadmap/BACKLOG_LEDGER.md`. The original PR-9 validation
+gate scope landed later as PR #1631, and PR-13 reconciles stale planned/not
+enforced text without changing runtime code or protected App Store upload
+behavior.
 
 | PR | Branch | Primary outcome | Blocking proof |
 | --- | --- | --- | --- |

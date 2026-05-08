@@ -54,24 +54,24 @@ then update this epic, the matrix, and the lane packet in the same PR.
 
 ## Current Repo Truth
 
-- `ios/PulsePlate/PrivacyInfo.xcprivacy` is absent on `main`; the iOS app uses
-  `UserDefaults`, so PR-1 must add the required-reason privacy manifest.
-- `ios/fastlane/app_privacy_details.json` currently declares
-  `DATA_NOT_COLLECTED`, while runtime flows send profile, AI query, receipt, and
-  activation data to backend endpoints.
-- `ios/PulsePlate/Services/AppConfig.swift` silently falls back to
-  `https://api.pulseplate.com` in Release when `BASE_URL` is missing or invalid.
-- `ios/PulsePlate/Info-Release.plist` only contains a commented `BASE_URL`
-  example; PR-3 must make the Release backend explicit HTTPS.
-- `ios/PulsePlate/en.lproj/InfoPlist.strings` contains sensitive permission
-  strings beyond the current release posture, including tracking copy.
-- `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` contains screenshot
-  scenarios wider than release-enabled feature flags.
-- `ios/PulsePlate/Models/HealthKitManager.swift` uses read-only authorization
-  (`toShare: nil`) but has a Swift 6 local-function sendability cleanup.
-- `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` references
-  `AppIcon-1024.png` as `ios-marketing`; PR-5 must verify actool assignment and
-  image validity before release.
+- `ios/PulsePlate/PrivacyInfo.xcprivacy` exists and declares the UserDefaults
+  required-reason API with tracking disabled.
+- `ios/fastlane/app_privacy_details.json` no longer declares
+  `DATA_NOT_COLLECTED`; it declares HEALTH, PURCHASE_HISTORY, and
+  OTHER_USER_CONTENT as linked data.
+- Release builds require an explicit HTTPS `BASE_URL` from
+  `ios/PulsePlate/Info-Release.plist` and fail before submission if it is
+  missing or invalid.
+- Release permission strings are narrowed to the current read-only HealthKit
+  posture.
+- App Store screenshot scenarios remain wider than the public submission set:
+  only `core_value` is `SUBMIT_READY`; unreleased feature assets are preserved
+  but remain `IMPLEMENTATION_REQUIRED`.
+- HealthKit remains read-only and Swift 6 readiness cleanup has landed.
+- AppIcon marketing asset validation and the unified repo-local
+  `make ios-appstore-verify` gate have landed.
+- Protected App Store Connect upload and final submission evidence remain
+  operator-owned release-ops tasks outside repo branches.
 
 ## PR Train
 
@@ -171,6 +171,15 @@ then update this epic, the matrix, and the lane packet in the same PR.
        `tests/ios/test_ios_appstore_verify.py`. Release runbook updated
        with mandatory pre-upload step. Protected upload remains
        operator-owned.
+
+11. **PR-13: closeout reconciliation**
+     - Branch: `release/appstore-readiness-pr13-closeout-reconciliation`
+     - Reconcile ledger, release docs, metadata audit, reviewer submission
+       matrix, screenshot gate, and reviewer notes with the post-PR #1631
+       validation-gates state.
+     - No runtime changes, no Fastlane upload changes, no protected App Store
+       Connect execution, and no asset changes. Protected upload evidence
+       remains operator-owned.
 
 ## Out Of Scope
 
@@ -273,9 +282,11 @@ therapy / CBT treatment
 medical-grade coach
 ```
 
-Public App Store screenshots and metadata may mention only features that are
-`SUBMIT_READY`, release-enabled, privacy-disclosed, smoke-tested, and explained
-in reviewer notes.
+Public App Store screenshots may show only features that are `SUBMIT_READY`,
+release-enabled, privacy-disclosed, smoke-tested, and explained in reviewer
+notes. Public metadata must not imply a screenshot-only feature is ready unless
+the same proof exists; broader metadata claims require manual pre-submission
+review until the metadata validator covers them directly.
 
 ## Decision Log
 

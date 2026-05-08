@@ -43,25 +43,25 @@ Each locale directory contains the same 9 files. Total: 27 localized files.
 | --- | --- | --- | --- | --- | --- | --- |
 | `name.txt` | App name on App Store | Yes | Brand identity | "PulsePlate" in all locales | Low | None |
 | `subtitle.txt` | App Store subtitle | Yes | Product positioning | EN: "Wellness nutrition planner"; RU: "Планировщик питания и wellness"; ES: "Plan de nutrición wellness" | Low -- wellness-only positioning | None |
-| `description.txt` | App Store long description | Yes | Feature claims, wellness disclaimer | 9 lines per locale; mentions daily nutrition, weekly progress, profile, Health data; wellness disclaimer present | P0 -- description implies `IMPLEMENTATION_REQUIRED` scenarios (see screenshot gate) | PR-8 (planned): prove release-enabled or narrow copy to `SUBMIT_READY` surfaces |
+| `description.txt` | App Store long description | Yes | Feature claims, wellness disclaimer | Still mentions daily nutrition balance, lightweight profile, and Health data access while related screenshot scenarios remain `IMPLEMENTATION_REQUIRED` | P1 -- public metadata can imply broader release-ready surfaces than screenshot gate allows | Narrow copy or produce release-enabled/smoke proof before protected submission |
 | `keywords.txt` | App Store search keywords | Yes | Discovery keywords | EN: "nutrition,wellness,meal planner,progress,healthkit,healthy habits"; localized equivalents | Low | None |
 | `promotional_text.txt` | App Store promotional banner | Yes | Marketing claim | Wellness-only copy in all locales | Low | None |
-| `release_notes.txt` | What's New text | Yes | Version changelog | Generic refresh note in all locales | Low | PR-8 (planned): update for actual release content |
-| `marketing_url.txt` | Marketing URL in App Store listing | Yes | External link | `https://pulseplate.app` in all locales | P1 -- URL liveness not verified from repo | PR-8 (planned): verify URL is live and returns expected content |
-| `privacy_url.txt` | Privacy Policy URL in App Store listing | Yes | Legal compliance link | `https://pulseplate.app/privacy` in all locales | P1 -- URL liveness not verified from repo; must match `docs/legal/Privacy.md` content | PR-8 (planned): verify URL is live and matches repo privacy policy |
-| `support_url.txt` | Support URL in App Store listing | Yes | User support link | `https://pulseplate.app/support` in all locales | P1 -- URL liveness not verified from repo | PR-8 (planned): verify URL is live |
+| `release_notes.txt` | What's New text | Yes | Version changelog | Updated for the release train | Low | Keep aligned with actual release content |
+| `marketing_url.txt` | Marketing URL in App Store listing | Yes | External link | `https://pulseplate.app` in all locales | P1 -- URL liveness not verified from repo | Verify live URL before protected submission |
+| `privacy_url.txt` | Privacy Policy URL in App Store listing | Yes | Legal compliance link | `https://pulseplate.app/privacy` in all locales | P1 -- URL liveness not verified from repo; must match `docs/legal/Privacy.md` content | Verify live URL and policy match before protected submission |
+| `support_url.txt` | Support URL in App Store listing | Yes | User support link | `https://pulseplate.app/support` in all locales | P1 -- URL liveness not verified from repo | Verify live URL before protected submission |
 
 ### Reviewer Notes
 
 | File | Purpose | App Store-Facing? | Claim Type | Current State | Risk | Required Next Action |
 | --- | --- | --- | --- | --- | --- | --- |
-| `review_information/notes.txt` | Reviewer-only guidance for App Review | Yes (reviewer) | Compliance, feature disclosure | 11 lines; covers wellness disclaimer, HealthKit, seeded data, paywall. Missing: AI disclosure, test account, feature flags | P0 -- incomplete for submission | PR-7 (planned) AI consent; PR-8 (planned) complete reviewer notes |
+| `review_information/notes.txt` | Reviewer-only guidance for App Review | Yes (reviewer) | Compliance, feature disclosure | Reconciled for the current release train; covers wellness posture, AI disclosure, test account handling, feature limitations, StoreKit, HealthKit, and validator posture | Low -- protected submission still needs operator-provided review credentials | Keep synchronized with release validators and App Store Connect review information |
 
 ### Non-Localized Assets
 
 | File | Purpose | App Store-Facing? | Current State | Risk | Required Next Action |
 | --- | --- | --- | --- | --- | --- |
-| `app_privacy_details.json` | App Privacy questionnaire for App Store Connect | Yes (compliance) | 3 categories: HEALTH, PURCHASE_HISTORY, OTHER_USER_CONTENT; all DATA_LINKED_TO_YOU | P1 -- DIAGNOSTICS category may be needed | PR-8 (planned): confirm DIAGNOSTICS requirement |
+| `app_privacy_details.json` | App Privacy questionnaire for App Store Connect | Yes (compliance) | 3 categories: HEALTH, PURCHASE_HISTORY, OTHER_USER_CONTENT; all DATA_LINKED_TO_YOU | P1 -- DIAGNOSTICS category may be needed if telemetry is added or enabled | Recheck before protected submission |
 | `PrivacyInfo.xcprivacy` | Apple required-reason API manifest | Yes (compliance) | UserDefaults CA92.1; NSPrivacyTracking false | Low | None |
 
 **Totals:** 29 metadata files audited (27 localized + 1 reviewer notes + 1
@@ -69,35 +69,36 @@ App Privacy JSON). Plus 1 privacy manifest in Xcode project.
 
 ## Reviewer Notes Audit
 
-Current file: `ios/fastlane/metadata/review_information/notes.txt` (rewritten in PR-8).
+Current file: `ios/fastlane/metadata/review_information/notes.txt`
+(reconciled for the current release train).
 
 ### Wellness-Only Positioning
 
 - [x] **PASS**: Notes state the app does not diagnose, treat, cure, or provide medical advice
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:1`
 - [x] **PASS**: Notes confirm wellness-only AI positioning (not therapy, not clinical)
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5`
 
 ### AI Feature Disclosure
 
 - [x] **PASS**: Notes disclose that AI features use third-party LLM providers
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
 - [x] **PASS**: Notes disclose what user data is sent to the AI provider
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
 - [x] **PASS**: Notes confirm user consent is required before first AI query
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5` (PR-7 runtime + PR-8 notes)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5`
 
 ### Third-Party Provider Disclosure
 
 - [x] **PASS**: Notes disclose if user data leaves the device or server to third-party services
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
 
 ### Billing and Subscription Path
 
 - [x] **PASS**: Notes explain that paywall screenshots are static preview states
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:19`
 - [x] **PASS**: Notes reference App Store Connect as the sole pricing truth source
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17`
 
 ### HealthKit Read-Only Status
 
@@ -111,12 +112,12 @@ Current file: `ios/fastlane/metadata/review_information/notes.txt` (rewritten in
 - [x] **PASS**: Notes confirm screenshots use seeded test data only
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:23`
 - [x] **PASS**: Notes provide test account placeholder for reviewer
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22`
 
 ### Feature Flag and Intentionally Disabled Flows
 
 - [x] **PASS**: Notes list features that are in the app but not release-enabled
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28` (closed in PR-8)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28`
 
 ### Summary
 
@@ -127,8 +128,7 @@ Current file: `ios/fastlane/metadata/review_information/notes.txt` (rewritten in
 | BLOCKED | 0 |
 | NOT_APPLICABLE | 0 |
 
-All 12 checklist items pass after PR-7 (AI consent runtime) and PR-8 (reviewer
-notes sync).
+All 12 checklist items are reconciled against current reviewer notes and release-train governance. Protected submission still requires operator-owned credential and upload evidence.
 
 ## Metadata Claim Boundary
 
@@ -222,9 +222,9 @@ Source: `ios/PulsePlate/PrivacyInfo.xcprivacy` (19 lines).
 | Privacy Topic | Reviewer Notes Coverage | Status |
 | --- | --- | --- |
 | HealthKit read-only posture | Lines 3-6: explicit read-only, optional, revocable | PASS |
-| Profile data sent to backend | Not mentioned | GAP -- PR-8 must add profile data disclosure |
-| AI query sent to third-party LLM | Not mentioned | GAP -- PR-7 consent + PR-8 disclosure |
-| Purchase receipt sent to backend | Not explicitly stated as privacy item | GAP -- PR-8 should mention receipt processing |
+| Profile data sent to backend | Covered through AI/profile context and feature limitations | PASS |
+| AI query sent to third-party LLM | Covered through explicit AI consent and provider disclosure | PASS |
+| Purchase receipt sent to backend | Covered through StoreKit/billing truth and backend activation wording | PASS |
 
 ### Privacy Policy Alignment
 
@@ -244,7 +244,8 @@ verified from repo.
 
 - **DIAGNOSTICS category**: Not declared in `app_privacy_details.json`. If
   anonymized crash or performance telemetry is collected, this category may be
-  required. Deferred to PR-8 metadata sync for investigation.
+  required. Recheck before protected submission and update App Privacy if
+  telemetry is enabled.
 - **HealthKit data**: Does not leave the device to the backend (confirmed in
   `HealthKitManager.swift` -- read-only, local). No additional App Privacy
   category needed for HealthKit unless data begins leaving the device.
@@ -259,17 +260,21 @@ App Store descriptions mention these features across all locales:
 
 | Description Feature Claim | Screenshot Scenario | Gate Classification | Alignment Status |
 | --- | --- | --- | --- |
-| "review daily nutrition balance" | `nutrition_analysis` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
-| "follow weekly wellness progress" | `health_progress` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
-| "keep a lightweight profile" | `personalization` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
-| "understand Health data access" | `health_progress` | `IMPLEMENTATION_REQUIRED` | P0 -- description implies feature; scenario not submission-ready |
+| "review daily nutrition balance" | `nutrition_analysis` | `IMPLEMENTATION_REQUIRED` | Manual P1 -- localized description claim requires pre-submission review outside `make ios-appstore-verify` |
+| "follow weekly wellness progress" | `health_progress` | `IMPLEMENTATION_REQUIRED` | Historical P0 -- current localized descriptions no longer include this claim |
+| "keep a lightweight profile" | `personalization` | `IMPLEMENTATION_REQUIRED` | Manual P1 -- localized description claim requires pre-submission review outside `make ios-appstore-verify` |
+| "understand Health data access" | `health_progress` | `IMPLEMENTATION_REQUIRED` | Manual P1 -- localized description claim requires pre-submission review outside `make ios-appstore-verify` |
 | App launch / welcome flow | `core_value` | `SUBMIT_READY` | PASS |
 
-**Verdict:** Descriptions mention 4 features whose corresponding screenshot
-scenarios are `IMPLEMENTATION_REQUIRED`. This blocks public submission until
-PR-8 either proves those features are release-enabled, privacy-disclosed, and
-reviewer-note-covered, or narrows metadata copy to `SUBMIT_READY` surfaces
-only.
+**Verdict:** Public screenshots remain correctly limited to `SUBMIT_READY`
+surfaces, but the localized descriptions still mention nutrition balance,
+profile, and Health data access while those screenshot scenarios remain
+`IMPLEMENTATION_REQUIRED`. This is a manual metadata pre-submission risk outside
+the current `make ios-appstore-verify` screenshot-policy check, which only
+verifies scenario classifications and public screenshot eligibility. Before
+protected submission, release-ops must either narrow those descriptions or
+attach release-enabled, privacy, backend-smoke, and reviewer-note proof for the
+referenced surfaces.
 
 ### Screenshot Directory State
 
@@ -286,17 +291,17 @@ Currently only `core_value` is `SUBMIT_READY`.
 
 | Risk | Severity | Evidence | Owner PR | Blocking? | Required Action |
 | --- | --- | --- | --- | --- | --- |
-| Reviewer notes missing AI disclosure | P0 | `notes.txt` has no AI/LLM mention | PR-7, PR-8 | Yes (submission) | Add AI consent gate (PR-7) and third-party LLM disclosure (PR-8) |
-| Reviewer notes missing test account | P0 | `notes.txt` has no test credentials | PR-8 | Yes (submission) | Provide test account for PRO/VIP flow review |
-| Reviewer notes missing feature flag disclosure | P0 | `notes.txt` does not list disabled features | PR-8 | Yes (submission) | Disclose feature-flagged-off flows |
-| Description implies IMPLEMENTATION_REQUIRED features | P0 | `description.txt` mentions weekly progress, profile, Health | PR-8 | Yes (submission) | Prove features are release-enabled, privacy-disclosed, and reviewer-note-covered, or narrow copy to SUBMIT_READY surfaces |
-| Marketing URL liveness unverified | P1 | `marketing_url.txt` = `https://pulseplate.app` | PR-8 | No (pre-submission) | Verify URL returns expected content before submission |
-| Privacy URL liveness unverified | P1 | `privacy_url.txt` = `https://pulseplate.app/privacy` | PR-8 | No (pre-submission) | Verify URL is live and matches Privacy.md |
-| Support URL liveness unverified | P1 | `support_url.txt` = `https://pulseplate.app/support` | PR-8 | No (pre-submission) | Verify URL is live |
-| DIAGNOSTICS category may be needed | P1 | `app_privacy_details.json` lacks DIAGNOSTICS | PR-8 | No (pre-submission) | Investigate whether crash/telemetry data is collected |
-| No terms_url.txt in metadata | P1 | Absent from all locale directories | PR-8 | No (may be set in ASC directly) | Verify if Fastlane deliver requires this or if ASC has it set |
-| Reviewer notes StoreKit reference could be stronger | P2 | `notes.txt:11` references ASC but indirectly | PR-8 | No | Strengthen wording to reference StoreKit truth explicitly |
-| Release notes are generic | P2 | `release_notes.txt` = generic refresh note | PR-8 | No | Update for actual release content |
+| Reviewer notes AI disclosure | Reconciled | `notes.txt` includes AI consent and provider disclosure | Release-ops | No | Keep synchronized with runtime consent and App Privacy |
+| Reviewer notes test account handling | Reconciled | `notes.txt` states credentials are provided in App Store Connect review information | Release-ops | No | Operator supplies credentials before protected submission |
+| Reviewer notes feature flag disclosure | Reconciled | `notes.txt` lists implementation-required screenshot scenarios excluded from public submission | Release-ops | No | Keep in sync with screenshot gate |
+| Description overclaims blocked scenarios | P1 | `description.txt` still mentions nutrition balance, profile, and Health data access | Release-ops / metadata owner | Yes (submission) | Narrow copy or attach release-enabled/smoke proof before protected submission |
+| Marketing URL liveness unverified | P1 | `marketing_url.txt` = `https://pulseplate.app` | Release-ops | No (pre-submission) | Verify URL returns expected content before protected submission |
+| Privacy URL liveness unverified | P1 | `privacy_url.txt` = `https://pulseplate.app/privacy` | Release-ops | No (pre-submission) | Verify URL is live and matches Privacy.md before protected submission |
+| Support URL liveness unverified | P1 | `support_url.txt` = `https://pulseplate.app/support` | Release-ops | No (pre-submission) | Verify URL is live before protected submission |
+| DIAGNOSTICS category may be needed | P1 | `app_privacy_details.json` lacks DIAGNOSTICS | Release-ops / telemetry owner | No (pre-submission) | Recheck whether crash/performance telemetry is collected |
+| No terms_url.txt in metadata | P1 | Absent from all locale directories | Release-ops | No (may be set in ASC directly) | Verify if Fastlane deliver requires this or if ASC has it set |
+| Reviewer notes StoreKit reference | Reconciled | `notes.txt` states StoreKit/App Store Connect own pricing, trials, and renewal terms | Release-ops | No | Keep aligned with StoreKit product contract |
+| Release notes generic | Reconciled | Release notes updated for the release train | Release-ops | No | Keep aligned with actual release content |
 
 ## Non-Goals
 
@@ -316,20 +321,21 @@ This document does not:
 
 ## Decision Log
 
-1. **Audit first, remediate later.** This PR documents the current state of
-   Fastlane metadata. Remediation of gaps happens in PR-7 (AI consent) and
-   PR-8 (reviewer notes, metadata sync, URL verification).
+1. **Audit first, remediate through the train.** This document began as a
+   point-in-time audit. The landed release train remediated the repo-local AI
+   consent, reviewer notes, metadata sync, and validator gaps; protected upload
+   evidence remains operator-owned.
 
 2. **StoreKit / App Store Connect is pricing truth.** No metadata file may
    hardcode prices, trial durations, or eligibility claims. Current metadata
    complies. Per `docs/contracts/IOS_STOREKIT_PRODUCTS_CONTRACT.md`.
 
 3. **Reviewer notes must be evidence-backed.** Each claim in reviewer notes
-   must have a repo evidence path. Current notes have 5 evidence-backed items
-   and 7 gaps requiring remediation.
+   must have a repo evidence path. Current notes are covered by reviewer-pack
+   guards and the unified App Store readiness validator.
 
-4. **Metadata cannot advertise blocked screenshot scenarios.** Descriptions
-   may mention planned features as aspirational text, but screenshots of
+4. **Metadata cannot advertise blocked screenshot scenarios.** Public metadata
+   must stay narrowed to current `SUBMIT_READY` claims; screenshots of
    `IMPLEMENTATION_REQUIRED` scenarios must not appear in public submission.
    Per `docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md`.
 
@@ -357,5 +363,6 @@ Commands that should pass for this docs/release PR:
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 pre-commit run --all-files
-! git diff --name-only origin/main...HEAD | rg -q -v '\.md$'  # must be empty (docs-only)
+python3 scripts/release/check_ios_appstore_verify.py
+! git diff --name-only origin/main...HEAD | rg -q -v '^docs/.*\.md$|^ios/fastlane/metadata/review_information/notes\.txt$'
 ```
