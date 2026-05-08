@@ -10,6 +10,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `e388863c4` `fix(ai-runtime): close bounded insight review gaps`
 - Follow-up commit: `83c372b1f` `fix(ai-runtime): harden bounded insight linkage guards`
 - Follow-up commit: `18a333152` `fix(ai-runtime): keep linkage mismatch typing explicit`
+- Follow-up commit: `878b316a6` `fix(ai-runtime): bind bounded insight audit fingerprints`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -38,6 +39,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Require Evidence Graph ID equality across request, record, and audit event | FIXED | Commit `83c372b1f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 | Harden SC-G4 checker against unsafe bare backend/raw-payload wording | FIXED | Commit `83c372b1f`; `scripts/ci/check_semantic_cache_gate.py`, `tests/test_semantic_cache_bounded_insight_experiment_contract.py` |
 | Keep pre-push mypy strict on linkage mismatch helper | FIXED | Commit `18a333152`; `core/ai/bounded_insight_semantic_cache.py`; `python -m mypy ...` PASS |
+| Bind SC-G4 decisions to audited request fingerprint | FIXED | Commit `878b316a6`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 
 ## Premortem Finding Mapping
 
