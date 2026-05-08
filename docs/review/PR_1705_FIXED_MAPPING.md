@@ -9,6 +9,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Commit: `250a1f856` `feat(ai-runtime): add bounded insight semantic-cache experiment`
 - Follow-up commit: `e388863c4` `fix(ai-runtime): close bounded insight review gaps`
 - Follow-up commit: `83c372b1f` `fix(ai-runtime): harden bounded insight linkage guards`
+- Follow-up commit: `18a333152` `fix(ai-runtime): keep linkage mismatch typing explicit`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -36,6 +37,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Fix Phase2 mapping artifact format | FIXED | Commit `e388863c4`; `docs/review/PR_1705_FIXED_MAPPING.md`, PR body mirror |
 | Require Evidence Graph ID equality across request, record, and audit event | FIXED | Commit `83c372b1f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 | Harden SC-G4 checker against unsafe bare backend/raw-payload wording | FIXED | Commit `83c372b1f`; `scripts/ci/check_semantic_cache_gate.py`, `tests/test_semantic_cache_bounded_insight_experiment_contract.py` |
+| Keep pre-push mypy strict on linkage mismatch helper | FIXED | Commit `18a333152`; `core/ai/bounded_insight_semantic_cache.py`; `python -m mypy ...` PASS |
 
 ## Premortem Finding Mapping
 
