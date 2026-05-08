@@ -32,6 +32,14 @@ Evidence: README.md anchors licensing precedence to LICENSE and clarifies that t
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/task_bootstrap.py ... --path README.md --requested-agent agent-coordinator --pr-phase merge_ready` - PASS, packet `2024817f65aa`
 - `git diff --check` - PASS before mapping artifact creation
+- `python3 - <<'PY' ... validate_mapping_artifact_text(read_mapping_artifact(1714)) ... PY` - PASS
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1714 --body "$(gh pr view 1714 --repo Katsiarynakavaleuskaya/PulsePlate --json body -q .body)"` - PASS
+- `pre-commit run --all-files` - PASS
+- `make validate-changed` - PASS, no Python files changed on the current branch
+
+## Full Verify Deferral
+
+Full local `make verify` was intentionally stopped by operator direction after the run passed `verify-env`, lint, mypy, and `test-fast`, then entered the long full coverage/diff-cover segment. Operator direction for this docs-only PR is to use `make validate-changed` to avoid timeout, then rely on current-head CI and strict merge-readiness governance before merge.
 
 ## Security Notes
 
