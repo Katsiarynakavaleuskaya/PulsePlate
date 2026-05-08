@@ -19,6 +19,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `c1fc167cd` `fix(ci): include bounded insight tests in coverage lane`
 - Follow-up commit: `d8af82a6e` `docs(review): map bounded insight bot findings`
 - Follow-up commit: `11311d937` `fix(ai-runtime): close bounded insight diff coverage gaps`
+- Follow-up commit: `aa0204417` `docs(review): map bounded insight coverage fix`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
