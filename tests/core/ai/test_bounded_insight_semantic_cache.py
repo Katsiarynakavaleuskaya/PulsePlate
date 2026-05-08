@@ -16,6 +16,7 @@ from core.ai.bounded_insight_semantic_cache import (
     REASON_CONTEXT_MISMATCH,
     REASON_ENVIRONMENT_FLAG_DISABLED,
     REASON_EVIDENCE_LINKAGE_MISSING,
+    REASON_EVIDENCE_LINKAGE_MISMATCH,
     REASON_EXPERIMENT_ELIGIBLE,
     REASON_KILL_SWITCH_DISABLED,
     REASON_LOOKUP_MISS,
@@ -497,6 +498,51 @@ def test_missing_evidence_linkage_fallback() -> None:
     decision = _decision(candidate=_candidate(record=missing_replay_record))
     assert decision.decision == DECISION_FALLBACK
     assert REASON_EVIDENCE_LINKAGE_MISSING in decision.reason_codes
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        replace(
+            _record(),
+            lineage=replace(_record().lineage, eval_event_ids=("eval:bounded:other",)),
+        ),
+        replace(
+            _record(), lineage=replace(_record().lineage, admission_decision_id="admission:other")
+        ),
+        replace(
+            _record(),
+            lineage=replace(_record().lineage, promotion_ids=("promotion:bounded:other",)),
+        ),
+        replace(
+            _record(),
+            lineage=replace(_record().lineage, replay_entry_ids=("replay:bounded:other",)),
+        ),
+    ],
+)
+def test_record_evidence_graph_id_mismatches_fallback(record: ExactFuzzyCacheRecord) -> None:
+    decision = _decision(candidate=_candidate(record=record))
+
+    assert decision.decision == DECISION_FALLBACK
+    assert REASON_EVIDENCE_LINKAGE_MISMATCH in decision.reason_codes
+
+
+@pytest.mark.parametrize(
+    "audit_event",
+    [
+        replace(_candidate().audit_event, eval_event_ids=("eval:bounded:other",)),
+        replace(_candidate().audit_event, admission_decision_id="admission:other"),
+        replace(_candidate().audit_event, promotion_ids=("promotion:bounded:other",)),
+        replace(_candidate().audit_event, replay_entry_ids=("replay:bounded:other",)),
+    ],
+)
+def test_audit_event_evidence_graph_id_mismatches_fallback(
+    audit_event: CacheLookupAuditEvent,
+) -> None:
+    decision = _decision(candidate=_candidate(audit_event=audit_event))
+
+    assert decision.decision == DECISION_FALLBACK
+    assert REASON_EVIDENCE_LINKAGE_MISMATCH in decision.reason_codes
 
 
 def test_decision_identity_and_serialization_are_deterministic_and_safe() -> None:

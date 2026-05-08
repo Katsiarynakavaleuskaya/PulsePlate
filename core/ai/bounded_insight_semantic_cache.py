@@ -58,6 +58,7 @@ REASON_CONTEXT_MISMATCH = "context_mismatch"
 REASON_USER_TIER_MISMATCH = "user_tier_mismatch"
 REASON_TRANSPARENCY_NOTICE_MISMATCH = "transparency_notice_mismatch"
 REASON_EVIDENCE_LINKAGE_MISSING = "evidence_linkage_missing"
+REASON_EVIDENCE_LINKAGE_MISMATCH = "evidence_linkage_mismatch"
 REASON_ADMISSION_BLOCKED = "admission_blocked"
 REASON_FALSE_HIT_BLOCKED = "false_hit_blocked"
 REASON_STOP_RULE_BLOCKED = "stop_rule_blocked"
@@ -523,6 +524,8 @@ def _candidate_reasons(
         or candidate.audit_event.transparency_notice_id != request.transparency_notice_id
     ):
         reasons.append(REASON_TRANSPARENCY_NOTICE_MISMATCH)
+    if _has_evidence_linkage_mismatch(request=request, candidate=candidate):
+        reasons.append(REASON_EVIDENCE_LINKAGE_MISMATCH)
     if not candidate.admission_allowed:
         reasons.append(REASON_ADMISSION_BLOCKED)
     if candidate.blocked_surface:
@@ -606,6 +609,25 @@ def _is_missing_candidate_linkage(candidate: BoundedInsightExperimentCandidate) 
         or not candidate.audit_event.eval_event_ids
         or not candidate.audit_event.promotion_ids
         or not candidate.audit_event.replay_entry_ids
+    )
+
+
+def _has_evidence_linkage_mismatch(
+    *,
+    request: BoundedInsightExperimentRequest,
+    candidate: BoundedInsightExperimentCandidate,
+) -> bool:
+    lineage = candidate.record.lineage
+    audit_event = candidate.audit_event
+    return (
+        lineage.eval_event_ids != request.eval_event_ids
+        or lineage.admission_decision_id != request.admission_decision_id
+        or lineage.promotion_ids != request.promotion_ids
+        or lineage.replay_entry_ids != request.replay_entry_ids
+        or audit_event.eval_event_ids != request.eval_event_ids
+        or audit_event.admission_decision_id != request.admission_decision_id
+        or audit_event.promotion_ids != request.promotion_ids
+        or audit_event.replay_entry_ids != request.replay_entry_ids
     )
 
 

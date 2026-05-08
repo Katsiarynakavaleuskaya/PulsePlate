@@ -428,16 +428,30 @@ BOUNDED_INSIGHT_REQUIRED_ANCHORS = (
     ("user tier", re.compile(r"\buser tier\b")),
     ("transparency notice id", re.compile(r"\btransparency notice id\b")),
     ("response fingerprint", re.compile(r"\bresponse fingerprint\b")),
-    ("no raw prompts", re.compile(r"\braw prompts\b")),
-    ("no raw queries", re.compile(r"\braw queries\b")),
-    ("no raw model responses", re.compile(r"\braw model responses\b")),
-    ("no raw answers", re.compile(r"\braw answers\b")),
+    (
+        "no raw prompts",
+        re.compile(r"\b(?:must not contain or persist|blocked payload fields).*raw prompts\b"),
+    ),
+    (
+        "no raw queries",
+        re.compile(r"\b(?:must not contain or persist|blocked payload fields).*raw queries\b"),
+    ),
+    (
+        "no raw model responses",
+        re.compile(
+            r"\b(?:must not contain or persist|blocked payload fields).*raw model responses\b"
+        ),
+    ),
+    (
+        "no raw answers",
+        re.compile(r"\b(?:must not contain or persist|blocked payload fields).*raw answers\b"),
+    ),
     ("advisory wiki blocked", re.compile(r"\badvisory wiki\b")),
-    ("no Redis", re.compile(r"\bredis\b")),
-    ("no GPTCache", re.compile(r"\bgptcache\b")),
-    ("no embeddings", re.compile(r"\bembeddings\b")),
-    ("no vector search", re.compile(r"\bvector search\b")),
-    ("no provider calls", re.compile(r"\bprovider calls\b")),
+    ("no Redis", re.compile(r"\bsc-g4 blocks:.*redis\b")),
+    ("no GPTCache", re.compile(r"\bsc-g4 blocks:.*gptcache\b")),
+    ("no embeddings", re.compile(r"\bsc-g4 blocks:.*embeddings\b")),
+    ("no vector search", re.compile(r"\bsc-g4 blocks:.*vector search\b")),
+    ("no provider calls", re.compile(r"\bsc-g4 blocks:.*provider calls\b")),
     ("SC-G5 remains future", re.compile(r"\bsc-g5 backend selection remains future\b")),
 )
 
@@ -473,6 +487,14 @@ BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
     ("SC-G4 allows Redis", re.compile(r"\bsc-g4\s+(?:allows|enables|permits)\s+redis\b")),
     ("SC-G4 allows GPTCache", re.compile(r"\bsc-g4\s+(?:allows|enables|permits)\s+gptcache\b")),
     (
+        "Redis allowed",
+        re.compile(r"\bredis\s+(?:is\s+)?(?:allowed|approved|enabled|supported)\b"),
+    ),
+    (
+        "GPTCache supported",
+        re.compile(r"\bgptcache\s+(?:is\s+)?(?:allowed|approved|enabled|supported)\b"),
+    ),
+    (
         "SC-G4 allows provider calls",
         re.compile(r"\bsc-g4\s+(?:allows|approves|enables|permits)\s+provider\s+calls\b"),
     ),
@@ -484,6 +506,24 @@ BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
     ("cache raw queries", re.compile(r"\bcache(?:s)?\s+raw\s+quer(?:y|ies)\b")),
     ("cache raw responses", re.compile(r"\bcache(?:s)?\s+raw\s+(?:model\s+)?responses?\b")),
     ("cache raw answers", re.compile(r"\bcache(?:s)?\s+raw\s+answers?\b")),
+    (
+        "raw payload allowed",
+        re.compile(
+            r"\braw\s+(?:prompts?|quer(?:y|ies)|(?:model\s+)?responses?|answers?)\s+"
+            r"(?:are\s+)?(?:allowed|approved|enabled|supported|stored|persisted)\b"
+        ),
+    ),
+    (
+        "SC-G4 may store raw payloads",
+        re.compile(
+            r"\bsc-g4\s+(?:may|can)\s+(?:store|persist|cache)\s+raw\s+"
+            r"(?:prompts?|quer(?:y|ies)|(?:model\s+)?responses?|answers?)\b"
+        ),
+    ),
+    (
+        "provider payloads for replay",
+        re.compile(r"\bprovider\s+payloads?\s+(?:for|in|to)\s+replay\b"),
+    ),
     (
         "advisory wiki seeds product cache",
         re.compile(r"\badvisory\s+wiki\s+(?:may\s+seed|can\s+seed|seeds)\s+product\s+cache\b"),

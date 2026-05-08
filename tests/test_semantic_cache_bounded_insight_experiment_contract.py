@@ -83,6 +83,11 @@ def test_checker_fails_if_backends_or_raw_payloads_are_approved() -> None:
         + "SC-G4 allows provider calls.\n"
         + "SC-G4 caches raw prompts.\n"
         + "SC-G4 caches raw responses.\n"
+        + "SC-G4 may store raw prompts.\n"
+        + "Redis is allowed.\n"
+        + "GPTCache is supported.\n"
+        + "provider payloads for replay.\n"
+        + "Raw answers are allowed.\n"
         + "Advisory wiki may seed product cache.\n"
     )
     errors = validate_semantic_cache_bounded_insight_experiment_contract(bad_text)
@@ -93,6 +98,11 @@ def test_checker_fails_if_backends_or_raw_payloads_are_approved() -> None:
     assert any("SC-G4 allows provider calls" in error for error in errors)
     assert any("cache raw prompts" in error for error in errors)
     assert any("cache raw responses" in error for error in errors)
+    assert any("SC-G4 may store raw payloads" in error for error in errors)
+    assert any("Redis allowed" in error for error in errors)
+    assert any("GPTCache supported" in error for error in errors)
+    assert any("provider payloads for replay" in error for error in errors)
+    assert any("raw payload allowed" in error for error in errors)
     assert any("advisory wiki seeds product cache" in error for error in errors)
 
 
