@@ -16,6 +16,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `b25a370b2` `fix(ai-runtime): omit rejected bounded insight candidate payloads`
 - Follow-up commit: `014017e6a` `fix(ai-runtime): harden bounded insight metadata contracts`
 - Follow-up commit: `2f0692a67` `fix(ai-runtime): return json-ready bounded insight mappings`
+- Follow-up commit: `c1fc167cd` `fix(ci): include bounded insight tests in coverage lane`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -23,7 +24,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Focused semantic-cache pytest bundle PASS
 - Narrow mypy PASS
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` PASS
-- `PATH=.venv/bin:$PATH pre-commit run --all-files` PASS
+- `PATH=.venv/bin:$PATH pre-commit run --from-ref origin/main --to-ref HEAD` PASS
 
 ## Discussion Thread Pass
 
@@ -32,7 +33,19 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 3e5f9ca6f, 014017e6a, 2f0692a67
+Evidence: `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`, `docs/review/PR_1705_FIXED_MAPPING.md`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4250807388 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207440778 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207440785 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207480050 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4250851460 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4251227882 -> 014017e6a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207798992 -> 014017e6a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207799842 -> 014017e6a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207799846 -> 2f0692a67
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4251228938 -> 2f0692a67
 
 ## Post-Open Agent Finding Mapping
 
@@ -54,6 +67,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Deep-freeze nested metadata without breaking JSON-ready stable mappings | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Reject non-string token inputs with `ValueError` instead of `AttributeError` | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Return plain JSON-ready stable mappings from `to_stable_mapping()` | FIXED | Commit `2f0692a67`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
+| Include SC-G4 tests in CI coverage selection | FIXED | Commit `c1fc167cd`; `.github/workflows/ci.yml`; focused pytest, mypy, changed-files pre-commit, and `make validate-changed` PASS |
 
 ## Premortem Finding Mapping
 
