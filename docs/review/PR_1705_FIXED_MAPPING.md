@@ -11,6 +11,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `83c372b1f` `fix(ai-runtime): harden bounded insight linkage guards`
 - Follow-up commit: `18a333152` `fix(ai-runtime): keep linkage mismatch typing explicit`
 - Follow-up commit: `878b316a6` `fix(ai-runtime): bind bounded insight audit fingerprints`
+- Follow-up commit: `3e5f9ca6f` `fix(ai-runtime): close bounded insight bot findings`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -40,6 +41,9 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | Harden SC-G4 checker against unsafe bare backend/raw-payload wording | FIXED | Commit `83c372b1f`; `scripts/ci/check_semantic_cache_gate.py`, `tests/test_semantic_cache_bounded_insight_experiment_contract.py` |
 | Keep pre-push mypy strict on linkage mismatch helper | FIXED | Commit `18a333152`; `core/ai/bounded_insight_semantic_cache.py`; `python -m mypy ...` PASS |
 | Bind SC-G4 decisions to audited request fingerprint | FIXED | Commit `878b316a6`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
+| Require safety flag parity before eligibility | FIXED | Commit `3e5f9ca6f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
+| Do not attach candidate record/response metadata on lookup miss | FIXED | Commit `3e5f9ca6f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
+| Replace `Phase2` spelling with `Phase 2` | FIXED | Commit `3e5f9ca6f`; `docs/review/PR_1705_FIXED_MAPPING.md` |
 
 ## Premortem Finding Mapping
 
