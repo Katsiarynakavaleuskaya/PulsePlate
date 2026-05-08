@@ -31,6 +31,11 @@ Disposition: FIXED
 Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses `Target PR: #1710` for the design-epic PR-prompt protocol tracking entry.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252800795 -> c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+Disposition: FIXED
+Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+Evidence: CodeRabbit review summary reported one actionable ledger finding, mapped above at `discussion_r3209166947` and fixed by the same commit.
+
 ## Internal Findings Closed Before Mapping
 
 - Pre-open finding: future prompt guard scanned the full backlog ledger and matched unrelated historical `draft PR` text.
