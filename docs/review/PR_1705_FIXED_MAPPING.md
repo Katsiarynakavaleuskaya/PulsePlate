@@ -17,6 +17,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 - Follow-up commit: `014017e6a` `fix(ai-runtime): harden bounded insight metadata contracts`
 - Follow-up commit: `2f0692a67` `fix(ai-runtime): return json-ready bounded insight mappings`
 - Follow-up commit: `c1fc167cd` `fix(ci): include bounded insight tests in coverage lane`
+- Follow-up commit: `d8af82a6e` `docs(review): map bounded insight bot findings`
 - `python scripts/orchestration/check_preflight.py` PASS
 - `python scripts/orchestration/check_agent_consistency.py` PASS
 - `python scripts/ci/check_semantic_cache_gate.py` PASS
@@ -39,6 +40,8 @@ Evidence: `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bound
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4250807388 -> 3e5f9ca6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207440778 -> 3e5f9ca6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207440785 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207399328 -> 3e5f9ca6f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207399336 -> e388863c4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207480050 -> 3e5f9ca6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4250851460 -> 3e5f9ca6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4251227882 -> 014017e6a
