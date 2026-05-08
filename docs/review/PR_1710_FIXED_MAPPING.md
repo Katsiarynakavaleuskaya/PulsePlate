@@ -26,6 +26,11 @@ Disposition: FIXED
 Commit: 320e257471ec5af546391bfdd8ad4d507fcbb4d5
 Evidence: same execute-mode routing fix as above; Cubic marked the finding addressed in commit `320e257`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252710283 -> 320e257471ec5af546391bfdd8ad4d507fcbb4d5
+Disposition: FIXED
+Commit: 320e257471ec5af546391bfdd8ad4d507fcbb4d5
+Evidence: Cubic review summary reported the execute-mode preflight finding mapped above at `discussion_r3209085108` and fixed by the same commit.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209166947 -> c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
 Disposition: FIXED
 Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
