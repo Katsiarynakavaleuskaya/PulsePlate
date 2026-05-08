@@ -3,14 +3,14 @@
 
 ## Summary
 
-This packet governs the docs-only PR that selects the next PulsePlate design automation module after Design Intelligence PR-8.
+This packet governs the docs/test-only PR that codifies `PulsePlate Canonical PR Execution Prompt v2026-05-08` after the merged post-PR-8 design automation decision.
 
-- Branch: `docs/design-automation-next-lane-decision-v1`
-- Title: `docs(design): select next design automation module after PR-8`
-- Classification: docs/test-only decision packet
-- Selected future lane: Icon Asset Validator / App Store asset guard lane
+- Branch: `codex/canonical-pr-execution-prompt-v2026-05-08`
+- Title: `docs(orchestration): codify canonical PR execution prompt v2026-05-08`
+- Classification: docs/test-only governance packet
+- Canonical name: `PulsePlate Canonical PR Execution Prompt v2026-05-08`
 
-This PR does not implement the selected lane.
+This PR does not implement runtime, token, generated mirror, Figma, Canva, asset, screenshot, Storybook, web, iOS, backend, or selected future design automation work.
 
 ## Coordinator Route
 
@@ -18,38 +18,53 @@ Mandatory start gate:
 
 ```bash
 git status --short
-git checkout main
 git fetch --prune origin
-git merge --ff-only origin/main
 git rev-list --left-right --count HEAD...origin/main
+git worktree add -b codex/canonical-pr-execution-prompt-v2026-05-08 <worktree-path> origin/main
+cd <worktree-path>
+python3.13 -m venv .venv --copies
 git status --short
 test -x .venv/bin/python
-.venv/bin/python scripts/orchestration/check_preflight.py
+.venv/bin/python scripts/orchestration/check_preflight.py \
+  --path docs/orchestration/PULSEPLATE_CANONICAL_PR_EXECUTION_PROMPT_2026_05_08.md \
+  --path docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md \
+  --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md \
+  --path docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md \
+  --path docs/roadmap/BACKLOG_LEDGER.md \
+  --path tests/test_design_automation_next_lane_docs.py
 .venv/bin/python scripts/orchestration/check_agent_consistency.py
 .venv/bin/python scripts/orchestration/task_bootstrap.py \
-  --goal "Post-PR-8 design automation lane selection: docs-only decision packet for the next design automation module" \
-  --task-class "Design" \
+  --goal "Codify PulsePlate Canonical PR Execution Prompt v2026-05-08 as a docs/test-only design orchestration governance lane" \
+  --task-class "Orchestration" \
   --pr-phase pre_open \
+  --path docs/orchestration/PULSEPLATE_CANONICAL_PR_EXECUTION_PROMPT_2026_05_08.md \
+  --path docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md \
+  --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md \
+  --path docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md \
+  --path docs/roadmap/BACKLOG_LEDGER.md \
+  --path tests/test_design_automation_next_lane_docs.py \
   --requested-agent agent-coordinator \
-  --requested-agent creative-designer \
+  --requested-agent cursor-specialist-agent \
   --requested-agent architecture-specialist \
   --requested-agent security-auditor \
+  --requested-agent creative-designer \
   --requested-agent qa-engineer-agent \
-  --requested-agent bug-hunter \
-  --requested-agent data-scientist-agent
+  --requested-agent bug-hunter
 ```
 
 Role order:
 
 1. `agent-coordinator`
-2. `creative-designer`
+2. `cursor-specialist-agent`
 3. `architecture-specialist`
 4. `security-auditor`
-5. `qa-engineer-agent`
-6. `bug-hunter`
-7. `data-scientist-agent`
+5. `creative-designer`
+6. `qa-engineer-agent`
+7. `bug-hunter`
 
 Post-open review repeats the route with `--pr-phase post_open_review`, then runs a second pass after bot comments and a final regression pass before merge readiness.
+
+Prompt wording is governed by `docs/orchestration/PULSEPLATE_CANONICAL_PR_EXECUTION_PROMPT_2026_05_08.md`. Post-merge local main synchronization is operator-owned and must not be printed as a generated agent PR prompt.
 
 ## Source Precedence
 
@@ -124,7 +139,7 @@ Check:
 - Did it forget `.venv/bin/python` policy?
 - Did it add tracked symlink or worktree assumptions?
 - Did it drift into Icon Asset Validator implementation instead of selection?
-- Did it claim full local `make verify` or green main?
+- Did it claim the full local root verification bundle or green main?
 - Did it fail to define clear deferred lanes?
 - Did it fail to define the future implementation boundary?
 
@@ -168,11 +183,8 @@ Use repo `.venv` only:
 ```bash
 .venv/bin/python scripts/orchestration/check_preflight.py
 .venv/bin/python scripts/orchestration/check_agent_consistency.py
-.venv/bin/python scripts/design/generate_design_md.py --check
 .venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py
 DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
-DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make design-guard
-DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make tokens-check
 PATH=.venv/bin:$PATH pre-commit run --all-files
 ```
 
@@ -190,7 +202,7 @@ checks pass, the failure is documented in the PR body and fixed mapping, and no
 runtime, token, generated mirror, binary asset, screenshot, video, trace,
 Figma, Canva, or Storybook config path appears in the diff.
 
-Do not run full local `make verify` for this docs/test decision lane. Do not claim green main.
+Do not run the full local root verification bundle for this docs/test decision lane. Do not claim green main.
 
 ## Merge Readiness
 
@@ -217,17 +229,9 @@ Revert this docs/test PR. No runtime rollback is required.
 
 ## Post-Merge Cleanup
 
-After merge:
+Post-merge local main synchronization is operator-owned and must not be printed as a generated agent PR prompt. The agent should report PR status, current evidence, and lane-local cleanup needs only.
 
-```bash
-git checkout main
-git fetch origin
-git merge --ff-only origin/main
-git rev-list --left-right --count HEAD...origin/main
-git status --short
-```
-
-Remove only this lane's local branch, worktree if used, temporary artifacts, caches, logs, and untracked symlink/worktree-only leftovers if any were created. Do not delete unrelated root changes or collaborator work.
+Remove only this lane's local branch, worktree if used, temporary artifacts, caches, logs, and untracked symlink/worktree-only leftovers if the operator asks for cleanup after merge. Do not delete unrelated root changes or collaborator work.
 
 ## DoD
 

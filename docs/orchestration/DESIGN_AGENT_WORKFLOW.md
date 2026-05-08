@@ -11,7 +11,8 @@ It is a process layer only. Repo code, tests, `/tokens` as token authoring truth
 
 Before edits, design-impacting PRs must:
 
-- Sync from `main` with fetch plus fast-forward only.
+- Start from a clean worktree created directly from `origin/main`.
+- Create a worktree-local virtual environment with `python3.13 -m venv .venv --copies`.
 - Verify `.venv/bin/python` is present and executable.
 - Run `.venv/bin/python scripts/orchestration/check_preflight.py`.
 - Run `.venv/bin/python scripts/orchestration/check_agent_consistency.py`.
@@ -114,18 +115,16 @@ Do not resolve review threads without explicit disposition evidence. Do not upda
 
 ## 9. Merge Readiness
 
-Design-impacting PRs use bounded local checks and current-head PR checks.
+Design-impacting PR prompts use bounded local checks and current-head PR checks.
 
 Use `.venv/bin/python` for repo Python commands and:
 
 ```bash
 DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
-DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make design-guard
-DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make tokens-check
 PATH=.venv/bin:$PATH pre-commit run --all-files
 ```
 
-Do not override the root `AGENTS.md` merge gate. If an operator-approved machine-heavy design lane uses bounded local checks instead of full local `make verify`, document that exception in the PR body and fixed mapping artifact.
+Do not override the root `AGENTS.md` merge gate. If an operator-approved machine-heavy design lane uses bounded local checks instead of the full local root verification bundle, document that exception in the PR body and fixed mapping artifact.
 
 Before merge, run the strict wrapper:
 
@@ -137,5 +136,4 @@ GH_TOKEN=$(gh auth token) GITHUB_TOKEN=$(gh auth token) \
   --require-auth
 ```
 
-After merge, sync local `main` with fetch plus fast-forward merge, then inspect current-head health for `main` before starting the next PR.
-Do not treat this as a requirement to run a full local `make verify` on `main` unless separately required by the lane.
+Post-merge local main synchronization is operator-owned and should not be printed as a generated agent PR prompt. Do not treat this as a requirement to run a full local root verification bundle on main unless separately required by the lane.

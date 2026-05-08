@@ -57,11 +57,9 @@ Use repo `.venv`:
 - `.venv/bin/python scripts/orchestration/check_preflight.py`
 - `.venv/bin/python scripts/orchestration/check_agent_consistency.py`
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
-- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make design-guard`
-- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make tokens-check`
 - `PATH=.venv/bin:$PATH pre-commit run --all-files`
 
-Add targeted evidence/tooling/runtime checks for touched surfaces only.
+Add targeted evidence/tooling/runtime checks for touched surfaces only. Do not add other `make` targets to generated prompt text unless a new coordinator packet explicitly supersedes `docs/orchestration/PULSEPLATE_CANONICAL_PR_EXECUTION_PROMPT_2026_05_08.md`.
 
 ## Security notes
 
@@ -73,9 +71,13 @@ Premortem must review the actual docs/code/tests diff. Real findings must be fix
 
 Mapping is evidence after fix or decision; mapping is not the fix.
 
+Run premortem before PR opening and again after the first bot-review cycle.
+
 ## Bug-hunter pass
 
 Confirm no second source of truth, no manual generated mirror edits, no runtime drift outside scope, no unsupported wellness claims, and no hidden binary artifacts.
+
+Post-open review must include `qa-engineer-agent`, `bug-hunter`, `security-auditor`, and Codex Security. After the first bot review, repeat `agent-coordinator`, `qa-engineer-agent`, `bug-hunter`, `security-auditor`, and premortem on the updated diff.
 
 ## Deferred / Follow-ups
 
