@@ -62,12 +62,12 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
 
 - Post-open finding: final execute-mode preflight command was not copy-paste runnable because it omitted the required routing flags.
   - Disposition: FIXED
-  - Commit: `a319925fb46d5d80ac13815dc702c184f452e0e3`
+  - Commit: `320e257471ec5af546391bfdd8ad4d507fcbb4d5`
   - Evidence: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` now requires `--primary`, `--reviewer`, `--path`, and `--secondary` for coordinator-declared secondary agents; `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute --primary agent-coordinator --secondary cursor-specialist-agent --reviewer architecture-specialist --path docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md --path tests/test_design_automation_next_lane_docs.py --path docs/roadmap/BACKLOG_LEDGER.md` passed after staging.
 
 - Post-open finding: canonical mapping artifact used an invalid heading and mixed prose bullets inside the parser-owned mapping section.
   - Disposition: FIXED
-  - Commit: `a319925fb46d5d80ac13815dc702c184f452e0e3`
+  - Commit: `320e257471ec5af546391bfdd8ad4d507fcbb4d5`
   - Evidence: this file now uses the exact `## Fixed in Commit Mapping` heading and keeps internal non-GitHub findings outside the parser-owned section.
 
 ## Premortem Evidence
