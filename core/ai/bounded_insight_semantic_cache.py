@@ -607,7 +607,8 @@ def _eligible_candidate_record_id(
 ) -> str | None:
     if candidate is None or not _has_bound_hit_candidate(candidate):
         return None
-    return candidate.record.record_id
+    record_id: str = candidate.record.record_id
+    return record_id
 
 
 def _eligible_candidate_response_fingerprint(
@@ -621,13 +622,15 @@ def _eligible_candidate_response_fingerprint(
 def _eligible_match_mode(candidate: BoundedInsightExperimentCandidate | None) -> str | None:
     if candidate is None or not _has_bound_hit_candidate(candidate):
         return None
-    return candidate.lookup_result.match_mode
+    match_mode: str | None = candidate.lookup_result.match_mode
+    return match_mode
 
 
 def _eligible_score_bps(candidate: BoundedInsightExperimentCandidate | None) -> int | None:
     if candidate is None or not _has_bound_hit_candidate(candidate):
         return None
-    return candidate.lookup_result.score_bps
+    score_bps: int | None = candidate.lookup_result.score_bps
+    return score_bps
 
 
 def _is_missing_evidence_linkage(request: BoundedInsightExperimentRequest) -> bool:
