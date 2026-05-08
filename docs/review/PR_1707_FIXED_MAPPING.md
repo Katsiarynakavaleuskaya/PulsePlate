@@ -77,16 +77,38 @@ Local note: `PATH=.venv/bin:$PATH pre-commit run --all-files` was attempted twic
 
 ## Review Thread Mapping
 
-No CodeRabbit, Sourcery, Cubic, Codex, or human review comments have been mapped yet.
+CodeRabbit actionable review at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870743961`:
+
+Disposition: FIXED
+Commit: `94ff2b74e`
+Evidence: `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`
+Reason: CodeRabbit found the comparison matrix separator row had seven separators for eight columns and the decision doc needed a POSIX trailing newline. The table row was corrected and the file ends with a newline.
+
+Disposition: FIXED
+Commit: `94ff2b74e`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md`
+Reason: CodeRabbit requested canonical ledger entries for deferred lanes. The inline deferred lane list now references four unique deferred lane entries with Owner, Priority, Target PR, Reason for deferral, links, and DoD.
+
+Sourcery review at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870705408`:
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported only weekly diff-character rate limiting and did not provide an actionable code/docs finding.
+
+Cubic review at `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870759145`:
+
+Disposition: NOT-A-BUG
+Evidence: Cubic found no issues across four files.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No review-thread URLs have been mapped yet.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870743961 -> 94ff2b74e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870705408
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870759145
 
 ## Merge Readiness
 
