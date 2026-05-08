@@ -39,8 +39,9 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 3e5f9ca6f, 014017e6a, 2f0692a67
+Commit: see mapping entries below
 Evidence: `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`, `docs/review/PR_1705_FIXED_MAPPING.md`
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#pullrequestreview-4250807388 -> 3e5f9ca6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207440778 -> 3e5f9ca6f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1705#discussion_r3207440785 -> 3e5f9ca6f
