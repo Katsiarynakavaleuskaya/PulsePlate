@@ -41,8 +41,8 @@ planning mirror that maps each surface to the gate list.
 
 | Surface | Repo Evidence | User-Visible Claim | Data Collected/Shared | Permission Required? | Reviewer Note Required? | Screenshot Allowed? | Classification | Required Next Action | Backlog Link |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| App Launch / Welcome Gate | `ios/PulsePlate/Views/HomeView.swift` | App shell, language selection, welcome flow | No additional data beyond app metadata | No | No (standard app launch) | Yes | `SUBMIT_READY` | Metadata sync landed in PR #1630 | -- |
-| BMI / Free Calculation | `ios/PulsePlate/Views/BMIFormView.swift`, backend `/api/v1/bmi/calculate` | Free BMI calculation with category | Height, weight (sent to backend) | No | Yes (explain free tier scope) | Yes | `SUBMIT_READY` | Reviewer notes landed in PR #1630 | -- |
+| App Launch / Welcome Gate | `ios/PulsePlate/Views/HomeView.swift` | App shell, language selection, welcome flow | No additional data beyond app metadata | No | No (standard app launch) | Yes | `SUBMIT_READY` | Metadata sync reconciled for release | -- |
+| BMI / Free Calculation | `ios/PulsePlate/Views/BMIFormView.swift`, backend `/api/v1/bmi/calculate` | Free BMI calculation with category | Height, weight (sent to backend) | No | Yes (explain free tier scope) | Yes | `SUBMIT_READY` | Reviewer notes reconciled for release | -- |
 | Nutrition Setup / Profile | `ios/PulsePlate/Views/ProfileView.swift`, `ios/PulsePlate/Services/ProfileProvider.swift` | Profile-based nutrition targets | Profile data (age, sex, height, weight, activity, goal) sent to backend | No | Yes (profile data disclosure) | No | `IMPLEMENTATION_REQUIRED` | Privacy truth and reviewer notes landed; still requires release-enabled flow proof before public screenshot use | -- |
 | PRO Planning Flow | `ios/PulsePlate/Views/PlateView.swift`, `ios/PulsePlate/Services/ProDailyNutritionService.swift`, backend `/api/v1/pro/nutrition/daily` | PRO daily nutrition analysis | Profile + nutrition context to backend | No | Yes (PRO tier, backend processing) | No | `IMPLEMENTATION_REQUIRED` | Release `BASE_URL` and reviewer notes landed; backend smoke/release-enabled proof still required before public screenshot use | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | VIP Weekly Plan | `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift`, backend `/api/v1/pro/meal/weekly` | Weekly meal planning | Profile + meal plan data to backend | No | Yes (VIP tier, meal planning) | No | `IMPLEMENTATION_REQUIRED` | Feature flag `weeklyPlanReaderEnabled` and backend smoke must be release-proven before public screenshot use | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
@@ -75,14 +75,14 @@ planning mirror that maps each surface to the gate list.
 
 | Surface | Repo Evidence | User-Visible Claim | Data Collected/Shared | Permission Required? | Reviewer Note Required? | Screenshot Allowed? | Classification | Required Next Action | Backlog Link |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Screenshot: `core_value` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Home / welcome screen | N/A | No | No | Yes | `SUBMIT_READY` | Metadata sync landed in PR #1630 | -- |
+| Screenshot: `core_value` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Home / welcome screen | N/A | No | No | Yes | `SUBMIT_READY` | Metadata sync reconciled for release | -- |
 | Screenshot: `nutrition_analysis` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | PRO nutrition plate | N/A | No | Yes (PRO tier) | No | `IMPLEMENTATION_REQUIRED` | Asset gating, release `BASE_URL`, and reviewer notes landed; backend smoke/release-enabled proof still required | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | Screenshot: `meal_planner` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Weekly meal plan | N/A | No | Yes (feature flag gated) | No | `IMPLEMENTATION_REQUIRED` | Feature flag, source-of-plan, and backend smoke proof still required | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | Screenshot: `grocery_list` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Shopping list from meal plan | N/A | No | Yes (depends on weekly plan) | No | `IMPLEMENTATION_REQUIRED` | Source-of-plan and backend smoke proof still required | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | Screenshot: `health_progress` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | HealthKit progress view | N/A | No | Yes (HealthKit read-only) | No | `IMPLEMENTATION_REQUIRED` | HealthKit cleanup and reviewer notes landed; screenshot promotion still requires full `SUBMIT_READY` evidence | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | Screenshot: `personalization` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Profile / personalization | N/A | No | Yes (profile data) | No | `IMPLEMENTATION_REQUIRED` | Privacy and reviewer-note coverage landed; backend/release-enabled proof still required | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | Screenshot: `ai_assistant` | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | AI wellness assistant | N/A | No | Yes (AI disclosure, consent) | No | `IMPLEMENTATION_REQUIRED` | AI consent/reviewer notes landed; release flag and backend smoke proof still required | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
-| AppIcon Marketing Asset | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` | 1024x1024 `ios-marketing` icon | N/A | No | No | N/A | `SUBMIT_READY` | AppIcon validation landed in PR #1625 and is covered by PR #1631 validators | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
+| AppIcon Marketing Asset | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` | 1024x1024 `ios-marketing` icon | N/A | No | No | N/A | `SUBMIT_READY` | AppIcon validation is covered by release validators | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 | External AI/Provider Disclosure | Backend LLM provider calls (`core/ai/`, `providers/`) | AI features use third-party providers | User queries forwarded to LLM provider | No | Yes (must disclose third-party AI processing in reviewer notes) | N/A | `IMPLEMENTATION_REQUIRED` | Consent and reviewer-note disclosure landed; release flag/backend smoke proof still required for public screenshots | [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature) |
 
 ## Reviewer Notes Checklist
@@ -96,26 +96,26 @@ before public submission. Current state is evaluated against
 - [x] Notes state the app does not diagnose, treat, cure, or provide medical advice
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:1`
 - [x] Notes confirm wellness-only AI positioning (not therapy, not clinical)
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:4-5`
 
 ### AI Feature Disclosure
 
 - [x] Notes disclose that AI features use third-party LLM providers
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
 - [x] Notes disclose what user data is sent to the provider
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
 - [x] Notes confirm user consent is required before first AI query
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5` (PR #1628 runtime + PR #1630 notes)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:5`
 
 ### Third-Party/Provider Disclosure
 
 - [x] Notes disclose if user data leaves the device/server to third-party services
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:7`
 
 ### Billing/Subscription Path
 
 - [x] Notes explain StoreKit purchase flow and backend activation
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17-18` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:17-18`
 
 ### HealthKit Read-Only Status
 
@@ -129,12 +129,12 @@ before public submission. Current state is evaluated against
 - [x] Notes confirm screenshots use seeded test data only
   - Evidence: `ios/fastlane/metadata/review_information/notes.txt:23`
 - [x] Notes provide test account placeholder for reviewer
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:22`
 
 ### What Is Intentionally Not Enabled
 
 - [x] Notes list features that are in the app but not release-enabled (feature-flagged off)
-  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28` (PR #1630)
+  - Evidence: `ios/fastlane/metadata/review_information/notes.txt:26-28`
 
 ## App Privacy Cross-Check
 
@@ -239,41 +239,41 @@ An asset scenario may be exported for App Store submission only when all are tru
 Explicit blockers that must be resolved before full App Store submission.
 Each links to `BACKLOG_LEDGER.md` or the epic PR train.
 
-- [x] **Release BASE_URL**: Resolved in PR #1622. `Info-Release.plist`
+- [x] **Release BASE_URL**: Closed by the landed release train. `Info-Release.plist`
   contains an explicit HTTPS production host and `AppConfig.swift` fails before
   submission when Release `BASE_URL` is missing or invalid.
   - Owner: PR-7 (`release/appstore-readiness-pr7-base-url-fail-fast`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **AppIcon marketing asset**: Resolved in PR #1625 and covered by
+- [x] **AppIcon marketing asset**: Closed by the landed release train and covered by
   `make ios-appstore-verify`; the marketing icon entry and PNG validity are
   repo-local release gate inputs.
   - Owner: PR-8 (`release/appstore-readiness-pr8-appicon-marketing-asset`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **AI/CBT consent gate**: Resolved in PR #1628 and PR #1629. The AI
+- [x] **AI/CBT consent gate**: Closed by the landed release train. The AI
   wellness flow requires explicit consent before the first off-device request
   and remains wellness-only.
   - Owner: PR-10 / PR-10b (`release/appstore-readiness-pr10-ai-wellness-consent`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **Reviewer notes incomplete**: Resolved in PR #1630. Reviewer notes now cover
+- [x] **Reviewer notes incomplete**: Closed by the landed release train. Reviewer notes now cover
   AI disclosure, third-party provider, test account, and feature-flag state.
   - Owner: PR-11 (`release/appstore-readiness-pr11-reviewer-pack`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **HealthKit Swift 6 cleanup**: Resolved in PR #1627. HealthKit remains
+- [x] **HealthKit Swift 6 cleanup**: Closed by the landed release train. HealthKit remains
   read-only and the Swift 6 readiness cleanup is covered by repo-local guards.
   - Owner: PR-9 (`release/appstore-readiness-pr9-healthkit-swift6`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **Screenshot submission policy enforcement**: Resolved in PR #1619 and
-  covered by the unified repo-local validator added in PR #1631. Public
+- [x] **Screenshot submission policy enforcement**: Closed by the landed release train and
+  covered by the unified repo-local validator. Public
   submission remains limited to `SUBMIT_READY` scenarios.
   - Owner: PR-4 (`release/appstore-readiness-pr4-screenshot-asset-gate`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **CI release validators**: Resolved in PR #1631. `make
+- [x] **CI release validators**: Closed by the landed release train. `make
   ios-appstore-verify` runs the repo-local App Store readiness validator and
   focused iOS release guard tests without App Store Connect credentials.
   - Owner: PR-12 (`release/appstore-readiness-pr12-validation-gates`)

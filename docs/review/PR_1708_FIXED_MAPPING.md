@@ -115,7 +115,7 @@ the heavy signal.
 
 Not merge-ready on open. Required before merge:
 
-- Current-head GitHub CI completes.
-- External bot review pass has no actionables.
-- Strict merge-readiness gate runs with GitHub auth when authorized.
-- No protected upload or App Store Connect execution is claimed by this PR.
+- [ ] Current-head GitHub CI completes
+- [ ] External bot review pass has no actionables
+- [ ] Strict merge-readiness gate runs with GitHub auth when authorized
+- [ ] No protected upload or App Store Connect execution is claimed by this PR

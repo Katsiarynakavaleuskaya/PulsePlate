@@ -51,7 +51,7 @@ Every scenario from `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift`
 
 | Scenario ID | User-Facing Claim | Runtime Dependency | Data/Privacy Dependency | Reviewer-Note Dependency | Feature Flag / Endpoint | Classification | Submission Allowed? | Required Next PR | Evidence Path |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `core_value` | Home / welcome screen, app shell | App launch; no backend call required for static welcome | No additional data beyond app metadata | No (standard app launch) | None | `SUBMIT_READY` | Yes | Metadata sync landed in PR #1630 | `ios/PulsePlate/Views/HomeView.swift` |
+| `core_value` | Home / welcome screen, app shell | App launch; no backend call required for static welcome | No additional data beyond app metadata | No (standard app launch) | None | `SUBMIT_READY` | Yes | Metadata sync reconciled for release | `ios/PulsePlate/Views/HomeView.swift` |
 | `nutrition_analysis` | PRO daily nutrition plate analysis | PRO tier backend call to `/api/v1/pro/nutrition/daily`; release `BASE_URL` is explicit HTTPS | Profile data (age, sex, height, weight, activity, goal) sent to backend; `HEALTH` category disclosed in App Privacy | Yes: PRO tier scope, backend processing disclosure | PRO entitlement; `BASE_URL` in `Info-Release.plist`; backend smoke still required | `IMPLEMENTATION_REQUIRED` | No | Backend smoke/release-enabled proof | `ios/PulsePlate/Views/PlateView.swift`, `ios/PulsePlate/Services/ProDailyNutritionService.swift` |
 | `meal_planner` | Weekly meal plan view | Weekly plan reader requires backend `/api/v1/pro/meal/weekly` | Meal plan data to backend; profile context | Yes: feature flag state, meal planning disclosure | `FeatureFlags.weeklyPlanReaderEnabled` must be release-enabled | `IMPLEMENTATION_REQUIRED` | No | Feature flag and backend smoke proof | `ios/PulsePlate/ViewModels/WeeklyPlanReaderViewModel.swift` |
 | `grocery_list` | Shopping list from meal plan | Depends on weekly plan source; backend `/api/v1/pro/meal/shopping-list` | Meal plan and shopping-list data to backend | Yes: source-of-plan dependency, backend smoke | Weekly plan feature flag; shopping list endpoint smoke | `IMPLEMENTATION_REQUIRED` | No | Source-of-plan and backend smoke proof | `ios/PulsePlate/ViewModels/ShoppingListReaderViewModel.swift` |
@@ -77,9 +77,9 @@ Every scenario from `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift`
 
 | Asset | Evidence Path | Required Validator | Current State | Classification | Next Action |
 | --- | --- | --- | --- | --- | --- |
-| AppIcon `ios-marketing` 1024x1024 | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` (line 106-110: `AppIcon-1024.png`, idiom `ios-marketing`) | Repo-local App Store validator + PNG validity check | Marketing asset validated in PR #1625 and covered by PR #1631 validators | `SUBMIT_READY` | Keep covered by `make ios-appstore-verify` |
+| AppIcon `ios-marketing` 1024x1024 | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` (line 106-110: `AppIcon-1024.png`, idiom `ios-marketing`) | Repo-local App Store validator + PNG validity check | Marketing asset validated and covered by release validators | `SUBMIT_READY` | Keep covered by `make ios-appstore-verify` |
 | Screenshot set (7 scenarios) | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` (lines 4-11) | `ios/fastlane/Fastfile` lane `validate_assets` + dimension/color-gamut validators + `make ios-appstore-verify` | Scenarios defined; only `core_value` is `SUBMIT_READY` | Mixed (`SUBMIT_READY` / `IMPLEMENTATION_REQUIRED`) | Per-scenario runtime/privacy/smoke proof before promotion |
-| Localized metadata (en-US, ru-RU, es-ES) | `ios/fastlane/metadata/` | `ios/fastlane/Fastfile` lane `validate_metadata_package` | Metadata synchronized in PR #1630 and guarded by validators | `SUBMIT_READY` for current public claims | Keep synchronized before protected upload |
+| Localized metadata (en-US, ru-RU, es-ES) | `ios/fastlane/metadata/` | `ios/fastlane/Fastfile` lane `validate_metadata_package` | Metadata package is synchronized, but localized descriptions still require manual claim review before protected submission | `IMPLEMENTATION_REQUIRED` | Narrow public copy or attach release-enabled/smoke/privacy proof before protected upload |
 | Reviewer notes | `ios/fastlane/metadata/review_information/notes.txt` | `ios/fastlane/Fastfile` lane `validate_metadata_package` + semantic validators | Covers wellness, AI consent, provider disclosure, HealthKit, StoreKit, test account handling, feature limitations, screenshot policy, and validator posture | `SUBMIT_READY` for current public claims | Operator supplies credentials in App Store Connect before protected submission |
 | App Privacy package | `ios/fastlane/app_privacy_details.json` | `ios/fastlane/Fastfile` lane `upload_app_privacy` preflight | Declares `HEALTH`, `PURCHASE_HISTORY`, `OTHER_USER_CONTENT` as `DATA_LINKED_TO_YOU` (post PR-1) | `SUBMIT_READY` | Recheck `DIAGNOSTICS` category before protected submission if telemetry is enabled |
 
@@ -166,7 +166,7 @@ in release configuration.
 python3 scripts/release/check_appstore_screenshot_asset_gate.py
 ```
 
-### Validator contract (not yet implemented)
+### Validator contract (implemented repo-local)
 
 The validator should eventually:
 
@@ -184,9 +184,9 @@ The validator should eventually:
 
 ### Implementation status
 
-The validator contract is now implemented by PR #1631. `make
-ios-appstore-verify` is the unified repo-local gate for App Store readiness
-checks and does not perform App Store Connect uploads.
+The validator contract is implemented. `make ios-appstore-verify` is the
+unified repo-local gate for App Store readiness checks and does not perform App
+Store Connect uploads.
 
 Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
@@ -211,32 +211,32 @@ This document does not:
 Explicit blockers that must be resolved before screenshot scenarios can be
 reclassified to `SUBMIT_READY`. Each links to backlog or the epic PR train.
 
-- [x] **Release BASE_URL**: Resolved in PR #1622. Release builds require an
+- [x] **Release BASE_URL**: Closed by the landed release train. Release builds require an
   explicit HTTPS `BASE_URL`; missing or invalid values fail before submission.
   This no longer blocks screenshot scenario governance.
   - Owner: PR-7 (`release/appstore-readiness-pr7-base-url-fail-fast`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **AI/CBT consent gate**: Resolved in PR #1628 and PR #1629. AI requests
+- [x] **AI/CBT consent gate**: Closed by the landed release train. AI requests
   require explicit wellness-only consent before off-device processing. This
   no longer blocks screenshot governance, though `ai_assistant` remains
   excluded from public screenshots until all `SUBMIT_READY` criteria are met.
   - Owner: PR-10 / PR-10b (`release/appstore-readiness-pr10-ai-wellness-consent`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **Reviewer notes incomplete**: Resolved in PR #1630. Reviewer notes now
+- [x] **Reviewer notes incomplete**: Closed by the landed release train. Reviewer notes now
   cover AI disclosure, third-party provider, test account handling, feature
   limitations, HealthKit, StoreKit, and screenshot policy.
   - Owner: PR-11 (`release/appstore-readiness-pr11-reviewer-pack`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **HealthKit Swift 6 cleanup**: Resolved in PR #1627. HealthKit remains
+- [x] **HealthKit Swift 6 cleanup**: Closed by the landed release train. HealthKit remains
   read-only and Swift 6 readiness is covered by release guards.
   - Owner: PR-9 (`release/appstore-readiness-pr9-healthkit-swift6`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **AppIcon marketing asset validation**: Resolved in PR #1625 and covered
-  by the unified repo-local validator added in PR #1631.
+- [x] **AppIcon marketing asset validation**: Closed by the landed release train and covered
+  by the unified repo-local validator.
   - Owner: PR-8 (`release/appstore-readiness-pr8-appicon-marketing-asset`)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
@@ -258,7 +258,7 @@ reclassified to `SUBMIT_READY`. Each links to backlog or the epic PR train.
   - Owner: Feature flag enablement PR (planned)
   - Backlog: [ledger-p0-appstore-release-readiness-full-feature](../../docs/roadmap/BACKLOG_LEDGER.md#ledger-p0-appstore-release-readiness-full-feature)
 
-- [x] **CI release validators**: Resolved in PR #1631. `make
+- [x] **CI release validators**: Closed by the landed release train. `make
   ios-appstore-verify` now runs repo-local App Store readiness gates, including
   screenshot policy validation, without App Store Connect credentials.
   - Owner: PR-12 (`release/appstore-readiness-pr12-validation-gates`)
@@ -302,8 +302,8 @@ reclassified to `SUBMIT_READY`. Each links to backlog or the epic PR train.
    classified `IMPLEMENTATION_REQUIRED` or `BLOCKED`. A scenario must be
    explicitly promoted to `SUBMIT_READY` with evidence.
 
-8. **Validator is repo-local and upload-free.** PR #1631 implemented the
-   validator. Protected App Store Connect uploads remain operator-owned and
+8. **Validator is repo-local and upload-free.** The release validator is
+   implemented. Protected App Store Connect uploads remain operator-owned and
    require separate protected-run evidence.
 
 ## Validation Commands
