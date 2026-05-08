@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD013 -->
-# PR 1710 Fixed In Commit Mapping
+# PR 1710 Fixed in Commit Mapping
 
 ## Scope
 
@@ -11,9 +11,14 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
 
 ## Discussion Thread Pass
 
-Pre-open role-agent and premortem review found actionable docs/test issues before PR opening. They were fixed before this mapping file was created.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Internal Findings Closed Before Mapping
 
 - Pre-open finding: future prompt guard scanned the full backlog ledger and matched unrelated historical `draft PR` text.
   - Disposition: FIXED
@@ -49,6 +54,21 @@ Pre-open role-agent and premortem review found actionable docs/test issues befor
   - Disposition: FIXED
   - Commit: `5a3ced20a22bf2757bc525c7e6eb9ec2ecd6dc42`
   - Evidence: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` requires `check_preflight.py --mode execute --path <path>` for final pre-open validation.
+
+- Post-open finding: external-tool authority wording allowed a coordinator packet alone to grant stronger authority.
+  - Disposition: FIXED
+  - Commit: `8fb9e62e27f096390aa76f700ecc7aa91ad7a2a1`
+  - Evidence: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` now requires a separate repo-reviewed contract to promote any narrower authority, and `tests/test_design_automation_next_lane_docs.py` guards against the old wording.
+
+- Post-open finding: final execute-mode preflight command was not copy-paste runnable because it omitted the required routing flags.
+  - Disposition: FIXED
+  - Commit: `a319925fb46d5d80ac13815dc702c184f452e0e3`
+  - Evidence: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` now requires `--primary`, `--reviewer`, `--path`, and `--secondary` for coordinator-declared secondary agents; `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute --primary agent-coordinator --secondary cursor-specialist-agent --reviewer architecture-specialist --path docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md --path tests/test_design_automation_next_lane_docs.py --path docs/roadmap/BACKLOG_LEDGER.md` passed after staging.
+
+- Post-open finding: canonical mapping artifact used an invalid heading and mixed prose bullets inside the parser-owned mapping section.
+  - Disposition: FIXED
+  - Commit: `a319925fb46d5d80ac13815dc702c184f452e0e3`
+  - Evidence: this file now uses the exact `## Fixed in Commit Mapping` heading and keeps internal non-GitHub findings outside the parser-owned section.
 
 ## Premortem Evidence
 

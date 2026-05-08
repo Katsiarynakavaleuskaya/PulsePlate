@@ -118,7 +118,7 @@ DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
 PATH=.venv/bin:$PATH pre-commit run --all-files
 ```
 
-Use `check_preflight.py --mode execute --path <path>` for the final pre-open validation pass after edits and before push.
+Use `check_preflight.py --mode execute --primary <primary-agent> --reviewer <reviewer-agent> --path <path>` for the final pre-open validation pass after edits and before push. Include `--secondary <agent>` when the coordinator packet declares secondary agents.
 
 Additional targeted commands are allowed only when they are not `make` targets and are tied to the touched surface. Environment setup target `make venv-sync` is allowed in startup only; it is not validation evidence.
 

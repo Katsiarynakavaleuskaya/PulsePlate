@@ -246,7 +246,14 @@ def test_design_epic_pr_prompt_protocol_requires_execute_mode_preflight() -> Non
     """Require execute-mode preflight before final pre-open validation."""
     text = _read(PROTOCOL)
 
-    assert "Use `check_preflight.py --mode execute --path <path>`" in text
+    assert (
+        "check_preflight.py --mode execute --primary <primary-agent> --reviewer <reviewer-agent> --path <path>"
+        in text
+    )
+    assert (
+        "Include `--secondary <agent>` when the coordinator packet declares secondary agents."
+        in text
+    )
     assert "Environment setup target `make venv-sync` is allowed in startup only" in text
 
 
