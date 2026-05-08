@@ -16,7 +16,20 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209064923 -> 320e257471ec5af546391bfdd8ad4d507fcbb4d5
+Disposition: FIXED
+Commit: 320e257471ec5af546391bfdd8ad4d507fcbb4d5
+Evidence: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` requires execute-mode `check_preflight.py` with `--primary`, `--reviewer`, and scoped `--path`; `tests/test_design_automation_next_lane_docs.py` asserts the command wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209085108 -> 320e257471ec5af546391bfdd8ad4d507fcbb4d5
+Disposition: FIXED
+Commit: 320e257471ec5af546391bfdd8ad4d507fcbb4d5
+Evidence: same execute-mode routing fix as above; Cubic marked the finding addressed in commit `320e257`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209166947 -> c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+Disposition: FIXED
+Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses `Target PR: #1710` for the design-epic PR-prompt protocol tracking entry.
 
 ## Internal Findings Closed Before Mapping
 
