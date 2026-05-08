@@ -23,6 +23,7 @@ from core.ai.bounded_insight_semantic_cache import (
     REASON_MODEL_MISMATCH,
     REASON_POLICY_MISMATCH,
     REASON_PROVIDER_MISMATCH,
+    REASON_REQUEST_FINGERPRINT_MISMATCH,
     REASON_REQUEST_DISABLED,
     REASON_REQUEST_NOT_OPTED_IN,
     REASON_RESPONSE_FINGERPRINT_MISMATCH,
@@ -71,6 +72,7 @@ from tests.helpers.semantic_cache_import_guard import (
 REPO_ROOT = Path(__file__).resolve().parents[3]
 MODULE = REPO_ROOT / "core" / "ai" / "bounded_insight_semantic_cache.py"
 PRODUCED_AT = "2026-05-08T12:00:00Z"
+DEFAULT_REQUEST_FINGERPRINT = "cache-request:02e1e0ba21a97b15e01c4e3f"
 
 
 def _record() -> ExactFuzzyCacheRecord:
@@ -122,7 +124,7 @@ def _policy() -> ExactFuzzyMatchPolicy:
 def _request(
     *,
     surface: str = "insight",
-    request_fingerprint: str = "cache-request:bounded",
+    request_fingerprint: str = DEFAULT_REQUEST_FINGERPRINT,
     context_fingerprint: str = "sha256:context",
     source_fingerprints: tuple[str, ...] = ("sha256:source-a", "sha256:source-b"),
     policy_version: str = "semantic-cache-sc-g4-v1",
@@ -419,6 +421,15 @@ def test_audit_event_partition_mismatches_fallback(
 
     assert decision.decision == DECISION_FALLBACK
     assert reason in decision.reason_codes
+
+
+def test_audit_event_request_fingerprint_mismatch_fallback() -> None:
+    audit_event = replace(_candidate().audit_event, request_fingerprint="cache-request:other")
+
+    decision = _decision(candidate=_candidate(audit_event=audit_event))
+
+    assert decision.decision == DECISION_FALLBACK
+    assert REASON_REQUEST_FINGERPRINT_MISMATCH in decision.reason_codes
 
 
 def test_response_fingerprint_admission_stop_and_blocked_surface_fallback() -> None:

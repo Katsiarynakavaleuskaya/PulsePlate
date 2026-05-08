@@ -49,6 +49,7 @@ REASON_UNSUPPORTED_SURFACE = "unsupported_surface"
 REASON_CANDIDATE_MISSING = "candidate_missing"
 REASON_LOOKUP_MISS = "lookup_miss"
 REASON_MATCHED_RECORD_MISMATCH = "matched_record_mismatch"
+REASON_REQUEST_FINGERPRINT_MISMATCH = "request_fingerprint_mismatch"
 REASON_RESPONSE_FINGERPRINT_MISMATCH = "response_fingerprint_mismatch"
 REASON_SOURCE_FINGERPRINT_MISMATCH = "source_fingerprint_mismatch"
 REASON_POLICY_MISMATCH = "policy_mismatch"
@@ -477,6 +478,8 @@ def _candidate_reasons(
         reasons.append(REASON_MATCHED_RECORD_MISMATCH)
     if candidate.audit_event.candidate_response_fingerprint != candidate.response_fingerprint:
         reasons.append(REASON_RESPONSE_FINGERPRINT_MISMATCH)
+    if candidate.audit_event.request_fingerprint != request.request_fingerprint:
+        reasons.append(REASON_REQUEST_FINGERPRINT_MISMATCH)
     if (
         candidate.lookup_request.surface != request.surface
         or candidate.record.surface != request.surface
