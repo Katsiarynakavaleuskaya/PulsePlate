@@ -106,9 +106,21 @@ Evidence: Cubic found no issues across four files.
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870743961 -> 94ff2b74e
+Commit: 94ff2b74e
+Evidence: `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`; `docs/roadmap/BACKLOG_LEDGER.md`
+Reason: CodeRabbit's actionable table/newline and deferred-lane ledger findings were fixed in docs before this mapping update.
+
+Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870705408
+Evidence: Sourcery only reported weekly diff-character rate limiting and did not provide an actionable code/docs finding.
+Reason: No repo change is required for a tool quota notice.
+
+Disposition: NOT-A-BUG
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1707#pullrequestreview-3870759145
+Evidence: Cubic found no issues across four files.
+Reason: No actionable issue was reported.
 
 ## Merge Readiness
 
