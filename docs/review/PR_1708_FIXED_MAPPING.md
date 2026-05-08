@@ -19,7 +19,23 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: c79a87484
+Evidence: docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md now classifies localized metadata as IMPLEMENTATION_REQUIRED until claim-proof exists.
+Evidence: docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md now marks the repo-local validator contract as implemented without stale "not yet implemented" wording.
+Evidence: docs/release/APPSTORE_FASTLANE_METADATA_AUDIT.md and docs/release/APPSTORE_REVIEWER_SUBMISSION_MATRIX.md now use neutral release-train wording for reconciled reviewer-note evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208665242 -> c79a87484
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#pullrequestreview-4252264966 -> c79a87484
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208682953 -> c79a87484
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208685028 -> c79a87484
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208685032 -> c79a87484
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208685038 -> c79a87484
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#pullrequestreview-4252267070 -> c79a87484
+
+Disposition: FIXED
+Commit: 4e1df6e4a
+Evidence: docs/review/PR_1708_FIXED_MAPPING.md has the required Discussion Thread Pass checkboxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1708#discussion_r3208685040 -> 4e1df6e4a
 
 ## Local Role-Agent Findings
 
