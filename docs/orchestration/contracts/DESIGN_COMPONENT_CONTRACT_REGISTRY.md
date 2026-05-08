@@ -1,0 +1,85 @@
+<!-- markdownlint-disable MD013 -->
+# Design Component Contract Registry
+
+## Summary
+
+This document defines the governed contract for the future machine-readable design component registry.
+
+PR-9 does not add the executable registry file, schema generator, web implementation, iOS implementation, Storybook config, Figma write, Penpot write, or Code Connect activation. It defines the contract boundary that later implementation PRs must satisfy.
+
+## Authority
+
+The registry is a repo-governed contract index. It is not a design-tool authority.
+
+Canonical precedence:
+
+1. Repo code/docs/tests.
+2. Backend/OpenAPI product contracts.
+3. `/tokens` token authoring truth.
+4. Web runtime token truth in `frontend/src/styles/tokens.css`.
+5. iOS generated/runtime token mirrors as derived runtime outputs.
+6. UI vocabulary docs and JSON.
+
+Figma, Canva, Penpot, Storybook, and Code Connect are bridge/reference fields only unless a later repo-reviewed contract promotes a narrower authority.
+
+## Required Record Shape
+
+Later machine-readable records must include these fields:
+
+| Field | Meaning | Unknown value |
+| --- | --- | --- |
+| `component_id` | Stable registry id | `unspecified` |
+| `canonical_name` | Human-readable repo name | `unspecified` |
+| `repo_vocabulary_anchor` | UI vocabulary doc or JSON anchor | `unspecified` |
+| `web_runtime_anchor` | Web runtime file/symbol anchor | `unspecified` |
+| `ios_runtime_anchor` | iOS runtime file/symbol anchor | `unspecified` |
+| `token_dependencies` | Repo-confirmed token dependencies | `unspecified` |
+| `storybook_review_anchor` | Storybook review/documentation anchor | `unspecified` |
+| `figma_reference_anchor` | Figma evidence/reference anchor | `unspecified` |
+| `penpot_reference_anchor` | Penpot secondary-lane reference anchor | `unspecified` |
+| `code_connect_anchor` | Code Connect traceability anchor | `unspecified` |
+| `states` | Confirmed component states | `unspecified` |
+| `variants` | Confirmed component variants | `unspecified` |
+| `accessibility_contract` | Required a11y regression/contract anchor | `unspecified` |
+| `visual_regression_contract` | Required visual regression/contract anchor | `unspecified` |
+| `owner` | Repo owner or lane owner | `unspecified` |
+| `status` | `covered`, `partial`, `missing`, or `unspecified` | `unspecified` |
+
+Do not invent values. If repo truth does not confirm a value, write `unspecified`.
+
+## Bridge Coverage Contract
+
+Bridge coverage is the reportable status of each component across:
+
+- repo vocabulary,
+- web runtime,
+- iOS runtime,
+- Storybook review,
+- Figma reference,
+- Penpot reference,
+- Code Connect traceability.
+
+Bridge coverage can guide implementation ordering, but it cannot promote Figma, Canva, Penpot, Storybook, or Code Connect into source of truth.
+
+## Visual And Accessibility Gates
+
+Every implementation-ready component must have:
+
+- a visual regression decision, and
+- an accessibility regression decision.
+
+If either is missing, the implementation PR must fail closed or record a `DEFERRED` disposition with a backlog anchor and PR-body follow-up.
+
+## Unspecified Defaults
+
+The following are currently `unspecified` unless a later implementation PR proves them from repo truth:
+
+- exact registry serialization format,
+- exact schema file path,
+- exact component inventory,
+- exact Figma file and node mappings,
+- exact Penpot workspace/page mappings,
+- exact Code Connect mappings,
+- visual regression tool and threshold,
+- accessibility regression tool and threshold,
+- per-component implementation order.

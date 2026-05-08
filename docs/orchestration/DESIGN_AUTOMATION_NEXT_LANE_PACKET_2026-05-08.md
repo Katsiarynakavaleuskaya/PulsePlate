@@ -18,9 +18,7 @@ Mandatory start gate:
 
 ```bash
 git status --short
-git checkout main
 git fetch --prune origin
-git merge --ff-only origin/main
 git rev-list --left-right --count HEAD...origin/main
 git status --short
 test -x .venv/bin/python
@@ -171,8 +169,6 @@ Use repo `.venv` only:
 .venv/bin/python scripts/design/generate_design_md.py --check
 .venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py
 DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
-DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make design-guard
-DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make tokens-check
 PATH=.venv/bin:$PATH pre-commit run --all-files
 ```
 
@@ -217,15 +213,7 @@ Revert this docs/test PR. No runtime rollback is required.
 
 ## Post-Merge Cleanup
 
-After merge:
-
-```bash
-git checkout main
-git fetch origin
-git merge --ff-only origin/main
-git rev-list --left-right --count HEAD...origin/main
-git status --short
-```
+After merge, local main synchronization is operator-owned. Do not print a generated prompt command block that switches the root checkout.
 
 Remove only this lane's local branch, worktree if used, temporary artifacts, caches, logs, and untracked symlink/worktree-only leftovers if any were created. Do not delete unrelated root changes or collaborator work.
 

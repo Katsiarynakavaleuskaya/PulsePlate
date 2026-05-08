@@ -45,6 +45,9 @@ Classify the work:
 - Button / Component Drift Inspector -> PR-4 deterministic scorecard plus Storybook/vocabulary parity module.
 - Marketing Asset Pack Compiler -> late GTM compiler over approved design/copy truth.
 - Launch Copy Compliance Linter -> marketing/release copy guard aligned with wellness/compliance rules.
+- PR-9 Design-System Automation -> docs-only web+iOS runtime parity lane that requires component contract registry, bridge coverage inventory, visual regression decision, accessibility regression decision, token/runtime parity boundary, and later implementation slices in that order.
+
+For PR-9 Design-System Automation, state explicitly that the PR does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, or Code Connect activation.
 
 ## Files changed
 
@@ -77,6 +80,8 @@ Mapping is evidence after fix or decision; mapping is not the fix.
 
 For future design-epic PR prompts, premortem runs before PR opening and again after the first bot-review cycle.
 
+For PR-9 Design-System Automation, record the pre-open role-agent execution notes and required skill passes before opening the PR.
+
 ## Bug-hunter pass
 
 Confirm no second source of truth, no manual generated mirror edits, no runtime drift outside scope, no unsupported wellness claims, and no hidden binary artifacts.
@@ -101,6 +106,8 @@ See `docs/review/PR_<N>_FIXED_MAPPING.md`.
 Do not mark until current-head PR checks, review dispositions, mapping, wait-window, and strict merge-readiness wrapper pass.
 
 Do not claim green main from this PR.
+
+For PR-9 Design-System Automation, also confirm the local Agent Run Summary exists under `artifacts/agent_runs/` or record why host-local summary generation was unavailable. Do not commit local agent-run artifacts.
 
 ## Rollback
 

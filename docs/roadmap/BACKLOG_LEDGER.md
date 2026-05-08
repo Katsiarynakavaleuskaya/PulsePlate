@@ -1259,6 +1259,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Reason: Future design-epic PR prompts need a guarded protocol for clean worktree startup, worktree-local Python setup, coordinator-expanded mandatory agents, premortem execution on the actual diff, post-open and post-bot review passes, fixed mapping after fix/decision, and operator-owned post-merge local main synchronization.
     - Links: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
     - DoD: Protocol doc exists, workflow/template point future design-epic prompts at it, deterministic docs guards reject stale prompt patterns, and the lane remains docs/tests/governance only without rewriting the merged post-PR-8 next-lane decision.
+  - PR-9 design-system automation docs lane tracking:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Target PR: `docs(design): open PR-9 design system automation lane for web+iOS runtime parity`, branch `codex/design-runtime-pr9-design-system-automation-docs`
+    - Reason: The completed PR-0 through PR-8 design runtime train has strong governance, Storybook parity, token discipline, and evidence automation, but future web+iOS implementation needs machine-readable design infrastructure before runtime slices can safely start.
+    - Required sequence: component contract registry -> bridge coverage inventory -> visual regression lane -> accessibility regression lane -> token/runtime parity boundary -> later web+iOS implementation slices.
+    - Links: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
+    - DoD: PR-9 packet, design-system automation spec, component contract registry contract, workflow/template pointers, deterministic docs guards, fixed-mapping governance, and any narrow orchestration preflight bugfix discovered by required agents exist; the lane remains governance/tests only and does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, Code Connect activation, backend, OpenAPI, auth, billing, StoreKit, or HealthKit behavior.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
@@ -1292,8 +1300,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [x] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (design-system productization and governance)
-  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`) -> PR #1519 (`feat(tokens): add product-level token layer for planning and premium surfaces`, PR-3) -> PR #1527 (`feat(frontend): converge web shell onto governed tokens`, PR-4) -> PR #1569 (`feat(ios): adopt governed design-system primitives`, PR-5, branch `codex/ios-design-system-adoption-v1`) -> PR-5B (`feat(ios): adopt design tokens on Home Plate Progress`, branch `codex/ios-design-system-adoption-v1-clean`) -> PR #1581 (`feat(design): add accessibility motion state contract`, PR-6) -> PR #1595 (`feat(design): lock figma manifest exports`, PR-7) -> PR #1606 (`feat(storybook): expand design parity review surfaces`, PR-8) -> PR-TBD-DESIGN-RUNTIME-CLOSEOUT
-  - Status: ✅ PR-0 merged; PR-1 merged in PR #1504; PR-2 merged in PR #1510; PR-3 product token expansion merged in PR #1519; PR-4 web shell convergence merged in PR #1527; PR-5 merged in PR #1569; PR-5B Home / Plate / Progress adoption is no longer an active next slice for this train; PR-6 accessibility / motion / state contract merged in PR #1581; PR-7 export lock and manifest hardening merged in PR #1595; PR-8 Storybook parity merged in PR #1606. The PR-0 through PR-8 design runtime web+iOS train is complete; any future design runtime wave requires a new coordinator-owned packet before implementation starts.
+  - Target PR: PR #1497 (`docs(design): add coordinator-first design runtime system web-ios runbook`) -> PR #1504 (`feat(frontend): add missing governed UI primitives v1`) -> PR #1510 (`feat(frontend): normalize specialized design families into shared governed patterns`) -> PR #1519 (`feat(tokens): add product-level token layer for planning and premium surfaces`, PR-3) -> PR #1527 (`feat(frontend): converge web shell onto governed tokens`, PR-4) -> PR #1569 (`feat(ios): adopt governed design-system primitives`, PR-5, branch `codex/ios-design-system-adoption-v1`) -> PR-5B (`feat(ios): adopt design tokens on Home Plate Progress`, branch `codex/ios-design-system-adoption-v1-clean`) -> PR #1581 (`feat(design): add accessibility motion state contract`, PR-6) -> PR #1595 (`feat(design): lock figma manifest exports`, PR-7) -> PR #1606 (`feat(storybook): expand design parity review surfaces`, PR-8) -> PR-9 docs-only design-system automation packet
+  - Status: ✅ PR-0 merged; PR-1 merged in PR #1504; PR-2 merged in PR #1510; PR-3 product token expansion merged in PR #1519; PR-4 web shell convergence merged in PR #1527; PR-5 merged in PR #1569; PR-5B Home / Plate / Progress adoption is no longer an active next slice for this train; PR-6 accessibility / motion / state contract merged in PR #1581; PR-7 export lock and manifest hardening merged in PR #1595; PR-8 Storybook parity merged in PR #1606. The PR-0 through PR-8 design runtime web+iOS train is complete; PR-9 is reopened only as a docs/test governance packet for machine-readable design-system automation infrastructure before any future implementation slice.
   - Area: docs / orchestration / design-system / frontend / ios / storybook
   - Finding Type: coordinator-owned epic bootstrap and sequencing contract
   - Reason: PulsePlate already has governed design-runtime, token-pipeline,
@@ -1343,6 +1351,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       becoming the token-pipeline schema
     - PR-8 Storybook review parity is merged and the runbook does not imply an
       undocumented PR-9 or active follow-on implementation slice
+    - PR-9 docs-only packet exists before any future implementation slice and
+      records component contract registry, bridge coverage, visual regression,
+      accessibility regression, and token/runtime parity boundaries
 
 <a id="ledger-p1-design-agent-runtime-pr-chain"></a>
 - [ ] P1: Coordinator-led design-agent runtime PR chain (PR1-PR4)
