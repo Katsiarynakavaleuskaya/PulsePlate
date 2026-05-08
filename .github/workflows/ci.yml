@@ -630,6 +630,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
                   tests/core/ai/test_exact_fuzzy_cache.py \
                   tests/test_app_endpoints_combined.py \
@@ -644,6 +645,7 @@ jobs:
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py
                 ;;
@@ -875,6 +877,7 @@ jobs:
               route_contract_safety)
                 add_suite \
                   tests/test_api.py \
+                  tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
                   tests/core/ai/test_exact_fuzzy_cache.py \
                   tests/test_app_endpoints_combined.py \
@@ -889,6 +892,7 @@ jobs:
                   tests/test_metrics.py \
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
+                  tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py
                 ;;

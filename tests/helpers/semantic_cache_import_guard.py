@@ -27,7 +27,10 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "openai",
     "anthropic",
 )
-ALLOWED_SEMANTIC_CACHE_IMPORTS = ("core.ai.exact_fuzzy_cache",)
+ALLOWED_SEMANTIC_CACHE_IMPORTS = (
+    "core.ai.cache_observability",
+    "core.ai.exact_fuzzy_cache",
+)
 
 FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "datetime.now",

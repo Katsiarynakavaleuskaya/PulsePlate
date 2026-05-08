@@ -38,6 +38,12 @@ That contract is offline only and non-serving; it adds audit-event,
 negative-control, metric, stop-rule, rollback-threshold, and kill-switch
 contracts without opening the gate or wiring runtime cache behavior.
 
+The SC-G4 bounded `/insight` experiment contract is defined in
+[`SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md`](../orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md).
+That contract is metadata-only, off by default, request-disableable,
+kill-switchable, fail-closed, and non-serving; it does not open the global
+semantic-cache gate, wire `/insight`, or approve any backend.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
@@ -108,6 +114,11 @@ Any future semantic cache record must include:
 - TTL
 - model/version key
 - safety/classification flags
+
+For SC-G4 specifically, the current decision layer must use safe fingerprints,
+IDs, reason codes, and metadata only. It must not store raw prompts, raw
+queries, normalized queries, raw model responses, raw answers, or provider
+payloads.
 
 Minimum metrics:
 - eligible_hit_rate

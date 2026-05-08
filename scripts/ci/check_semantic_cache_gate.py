@@ -23,6 +23,13 @@ DEFAULT_OBSERVABILITY_CONTRACT = (
     / "contracts"
     / "SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md"
 )
+DEFAULT_BOUNDED_INSIGHT_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md"
+)
 
 REQUIRED_MARKERS = {
     "SEMANTIC_CACHE_GATE_STATUS": "closed",
@@ -394,6 +401,135 @@ OBSERVABILITY_FORBIDDEN_PATTERNS = (
     ("cache raw responses", re.compile(r"\bcache\s+raw\s+(?:model\s+)?responses?\b")),
 )
 
+BOUNDED_INSIGHT_REQUIRED_ANCHORS = (
+    ("SC-G4 bounded insight", re.compile(r"\bsc-g4 bounded /insight semantic-cache experiment\b")),
+    ("does not open gate", re.compile(r"\bdoes not open (?:the )?semantic-cache gate\b")),
+    ("does not enable runtime caching", re.compile(r"\bdoes not enable runtime caching\b")),
+    ("does not enable insight serving", re.compile(r"\bdoes not enable /insight serving\b")),
+    ("gate remains closed", re.compile(r"\bgate remains closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed:\s*false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed:\s*false\b")),
+    ("off by default", re.compile(r"\boff by default\b")),
+    ("environment flag", re.compile(r"\benvironment flag\b")),
+    ("runtime flag snapshot", re.compile(r"\bruntime flag snapshot\b")),
+    ("explicit request opt-in", re.compile(r"\bexplicit request opt-in\b")),
+    ("request disable", re.compile(r"\brequest disable\b")),
+    ("kill switch snapshot", re.compile(r"\bkill switch snapshot\b")),
+    ("fallback", re.compile(r"\bfallback\b")),
+    ("source fingerprints", re.compile(r"\bsource fingerprints\b")),
+    ("eval event IDs", re.compile(r"\beval event ids\b")),
+    ("admission decision ID", re.compile(r"\badmission decision id\b")),
+    ("promotion IDs", re.compile(r"\bpromotion ids\b")),
+    ("replay entry IDs", re.compile(r"\breplay entry ids\b")),
+    ("policy version", re.compile(r"\bpolicy version\b")),
+    ("provider key", re.compile(r"\bprovider key\b")),
+    ("model key", re.compile(r"\bmodel key\b")),
+    ("context fingerprint", re.compile(r"\bcontext fingerprint\b")),
+    ("user tier", re.compile(r"\buser tier\b")),
+    ("transparency notice id", re.compile(r"\btransparency notice id\b")),
+    ("response fingerprint", re.compile(r"\bresponse fingerprint\b")),
+    (
+        "no raw prompts",
+        re.compile(r"\b(?:must not contain or persist|blocked payload fields).*raw prompts\b"),
+    ),
+    (
+        "no raw queries",
+        re.compile(r"\b(?:must not contain or persist|blocked payload fields).*raw queries\b"),
+    ),
+    (
+        "no raw model responses",
+        re.compile(
+            r"\b(?:must not contain or persist|blocked payload fields).*raw model responses\b"
+        ),
+    ),
+    (
+        "no raw answers",
+        re.compile(r"\b(?:must not contain or persist|blocked payload fields).*raw answers\b"),
+    ),
+    ("advisory wiki blocked", re.compile(r"\badvisory wiki\b")),
+    ("no Redis", re.compile(r"\bsc-g4 blocks:.*redis\b")),
+    ("no GPTCache", re.compile(r"\bsc-g4 blocks:.*gptcache\b")),
+    ("no embeddings", re.compile(r"\bsc-g4 blocks:.*embeddings\b")),
+    ("no vector search", re.compile(r"\bsc-g4 blocks:.*vector search\b")),
+    ("no provider calls", re.compile(r"\bsc-g4 blocks:.*provider calls\b")),
+    ("SC-G5 remains future", re.compile(r"\bsc-g5 backend selection remains future\b")),
+)
+
+BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
+    (
+        "semantic cache active",
+        re.compile(r"\bsemantic\s+cache\s+(?:is\s+)?(?:active|enabled|open)\b"),
+    ),
+    (
+        "semantic cache can serve insight",
+        re.compile(r"\bsemantic\s+cache\s+can\s+serve\s+/insight\s+responses\b"),
+    ),
+    ("SC-G4 opens gate", re.compile(r"\bsc-g4\s+opens\s+(?:the\s+)?gate\b")),
+    (
+        "SC-G4 enables insight serving",
+        re.compile(r"\bsc-g4\s+enables\s+/insight\s+serving\b"),
+    ),
+    (
+        "SC-G4 allows embeddings",
+        re.compile(r"\bsc-g4\s+(?:allows|approves|enables|permits)\s+embeddings\b"),
+    ),
+    (
+        "SC-G4 allows vector search",
+        re.compile(r"\bsc-g4\s+(?:allows|approves|enables|permits)\s+vector\s+search\b"),
+    ),
+    (
+        "SC-G4 approves Redis/GPTCache",
+        re.compile(
+            r"\bsc-g4\s+(?:allows|approves|enables|permits|supports)\s+"
+            r"(?:redis|gptcache|redis/gptcache)\b"
+        ),
+    ),
+    ("SC-G4 allows Redis", re.compile(r"\bsc-g4\s+(?:allows|enables|permits)\s+redis\b")),
+    ("SC-G4 allows GPTCache", re.compile(r"\bsc-g4\s+(?:allows|enables|permits)\s+gptcache\b")),
+    (
+        "Redis allowed",
+        re.compile(r"\bredis\s+(?:is\s+)?(?:allowed|approved|enabled|supported)\b"),
+    ),
+    (
+        "GPTCache supported",
+        re.compile(r"\bgptcache\s+(?:is\s+)?(?:allowed|approved|enabled|supported)\b"),
+    ),
+    (
+        "SC-G4 allows provider calls",
+        re.compile(r"\bsc-g4\s+(?:allows|approves|enables|permits)\s+provider\s+calls\b"),
+    ),
+    (
+        "default-on experiment",
+        re.compile(r"\b(?:default on|default-on|on by default)\b"),
+    ),
+    ("cache raw prompts", re.compile(r"\bcache(?:s)?\s+raw\s+prompts?\b")),
+    ("cache raw queries", re.compile(r"\bcache(?:s)?\s+raw\s+quer(?:y|ies)\b")),
+    ("cache raw responses", re.compile(r"\bcache(?:s)?\s+raw\s+(?:model\s+)?responses?\b")),
+    ("cache raw answers", re.compile(r"\bcache(?:s)?\s+raw\s+answers?\b")),
+    (
+        "raw payload allowed",
+        re.compile(
+            r"\braw\s+(?:prompts?|quer(?:y|ies)|(?:model\s+)?responses?|answers?)\s+"
+            r"(?:are\s+)?(?:allowed|approved|enabled|supported|stored|persisted)\b"
+        ),
+    ),
+    (
+        "SC-G4 may store raw payloads",
+        re.compile(
+            r"\bsc-g4\s+(?:may|can)\s+(?:store|persist|cache)\s+raw\s+"
+            r"(?:prompts?|quer(?:y|ies)|(?:model\s+)?responses?|answers?)\b"
+        ),
+    ),
+    (
+        "provider payloads for replay",
+        re.compile(r"\bprovider\s+payloads?\s+(?:for|in|to)\s+replay\b"),
+    ),
+    (
+        "advisory wiki seeds product cache",
+        re.compile(r"\badvisory\s+wiki\s+(?:may\s+seed|can\s+seed|seeds)\s+product\s+cache\b"),
+    ),
+)
+
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 
 
@@ -571,6 +707,36 @@ def validate_semantic_cache_observability_contract(text: str) -> list[str]:
     return errors
 
 
+def validate_semantic_cache_bounded_insight_experiment_contract(text: str) -> list[str]:
+    """Return stable validation errors for unsafe SC-G4 bounded experiment contracts."""
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in BOUNDED_INSIGHT_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"bounded insight contract missing anchor: {label}")
+
+    rollout_section_index = normalized.find("required rollout order remains:")
+    rollout_section = (
+        normalized[rollout_section_index:] if rollout_section_index != -1 else normalized
+    )
+    errors.extend(
+        _validate_rollout_order(
+            rollout_section,
+            missing_prefix="bounded insight contract missing phase",
+            out_of_order_prefix="bounded insight contract phase out of order",
+        )
+    )
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden bounded insight contract claim: {label}"
+        for label, pattern in BOUNDED_INSIGHT_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check semantic-cache gate markers.")
     parser.add_argument(
@@ -596,6 +762,12 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_OBSERVABILITY_CONTRACT,
         help="SC-G3 observability false-hit harness markdown document to validate.",
+    )
+    parser.add_argument(
+        "--bounded-insight-contract",
+        type=Path,
+        default=DEFAULT_BOUNDED_INSIGHT_CONTRACT,
+        help="SC-G4 bounded insight experiment markdown document to validate.",
     )
     args = parser.parse_args(argv)
 
@@ -625,6 +797,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    bounded_insight_contract = args.bounded_insight_contract
+    if not bounded_insight_contract.exists():
+        print(
+            f"ERROR: bounded insight experiment contract missing: {bounded_insight_contract}",
+            file=sys.stderr,
+        )
+        return 1
+
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
     errors.extend(
@@ -633,6 +813,11 @@ def main(argv: list[str] | None = None) -> int:
     errors.extend(
         validate_semantic_cache_observability_contract(
             observability_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_bounded_insight_experiment_contract(
+            bounded_insight_contract.read_text(encoding="utf-8")
         )
     )
     if errors:
@@ -644,6 +829,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"semantic-cache rollout contract closed: {contract}")
     print(f"exact/fuzzy scaffold contract closed: {scaffold_contract}")
     print(f"cache observability contract closed: {observability_contract}")
+    print(f"bounded insight experiment contract closed: {bounded_insight_contract}")
     return 0
 
 

@@ -2379,7 +2379,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evidence Graph Runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI runtime governance / evidence lineage)
-  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `feat/ai-runtime-cache-observability-false-hit-harness`
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `feat/ai-runtime-bounded-insight-semantic-cache-experiment`
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
   - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers
@@ -2408,6 +2408,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - SC-G1 semantic-cache rollout gate contract defines the future gate-open criteria, rollout sequence, false-hit risk model, observability, kill switch, and blocked surfaces while keeping semantic-cache markers closed
     - SC-G2 exact/fuzzy cache scaffold adds deterministic lexical matching contracts and guards while preserving closed semantic-cache markers, with no runtime serving, embeddings, Redis/GPTCache, vector search, provider changes, `/insight` wiring, DB, FastAPI, or OpenAPI changes
     - SC-G3 cache observability and false-hit harness adds offline audit events, negative controls, metric contracts, stop rules, rollback thresholds, and kill-switch modeling while preserving closed semantic-cache markers, with no runtime serving, embeddings, Redis/GPTCache, vector search, provider changes, `/insight` wiring, DB, FastAPI, or OpenAPI changes
+    - SC-G4 bounded `/insight` semantic-cache experiment adds a deterministic, metadata-only, off-by-default, request-disableable, kill-switchable decision layer while preserving closed semantic-cache markers, with no runtime serving, Redis/GPTCache, embeddings, vector search, provider calls, DB, FastAPI, OpenAPI, or `/insight` route wiring changes
 
 <a id="ledger-p1-apple-server-api-migration"></a>
 - [ ] P1: Apple receipt verification migration to App Store Server API
