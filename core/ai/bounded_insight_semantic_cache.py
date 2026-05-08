@@ -60,6 +60,7 @@ REASON_USER_TIER_MISMATCH = "user_tier_mismatch"
 REASON_TRANSPARENCY_NOTICE_MISMATCH = "transparency_notice_mismatch"
 REASON_EVIDENCE_LINKAGE_MISSING = "evidence_linkage_missing"
 REASON_EVIDENCE_LINKAGE_MISMATCH = "evidence_linkage_mismatch"
+REASON_SAFETY_FLAGS_MISMATCH = "safety_flags_mismatch"
 REASON_ADMISSION_BLOCKED = "admission_blocked"
 REASON_FALSE_HIT_BLOCKED = "false_hit_blocked"
 REASON_STOP_RULE_BLOCKED = "stop_rule_blocked"
@@ -527,6 +528,8 @@ def _candidate_reasons(
         or candidate.audit_event.transparency_notice_id != request.transparency_notice_id
     ):
         reasons.append(REASON_TRANSPARENCY_NOTICE_MISMATCH)
+    if candidate.record.safety_flags != request.safety_flags:
+        reasons.append(REASON_SAFETY_FLAGS_MISMATCH)
     if _has_evidence_linkage_mismatch(request=request, candidate=candidate):
         reasons.append(REASON_EVIDENCE_LINKAGE_MISMATCH)
     if not candidate.admission_allowed:
@@ -556,7 +559,7 @@ def _build_decision(
     elif not normalized_reasons:
         normalized_reasons = (REASON_CANDIDATE_MISSING,)
     payload: JsonValue = {
-        "candidate_record_id": candidate.record.record_id if candidate is not None else None,
+        "candidate_record_id": _eligible_candidate_record_id(candidate),
         "decision": decision,
         "policy_version": request.policy_version,
         "reason_codes": list(normalized_reasons),
@@ -567,10 +570,10 @@ def _build_decision(
         decision_id=f"bounded-insight-cache:{_fingerprint_payload(payload)[:24]}",
         decision=decision,
         surface=request.surface,
-        candidate_record_id=candidate.record.record_id if candidate is not None else None,
-        response_fingerprint=candidate.response_fingerprint if candidate is not None else None,
-        match_mode=candidate.lookup_result.match_mode if candidate is not None else None,
-        score_bps=candidate.lookup_result.score_bps if candidate is not None else None,
+        candidate_record_id=_eligible_candidate_record_id(candidate),
+        response_fingerprint=_eligible_candidate_response_fingerprint(candidate),
+        match_mode=_eligible_match_mode(candidate),
+        score_bps=_eligible_score_bps(candidate),
         request_fingerprint=request.request_fingerprint,
         source_fingerprints=request.source_fingerprints,
         policy_version=request.policy_version,
@@ -587,6 +590,44 @@ def _build_decision(
         reason_codes=normalized_reasons,
         metadata={"decision_scope": "metadata_only", "serves_cached_payload": False},
     )
+
+
+def _has_bound_hit_candidate(candidate: BoundedInsightExperimentCandidate | None) -> bool:
+    return (
+        candidate is not None
+        and candidate.lookup_result.decision == MATCH_DECISION_HIT
+        and candidate.lookup_result.matched_record_id == candidate.record.record_id
+        and candidate.audit_event.candidate_record_id == candidate.record.record_id
+        and candidate.audit_event.candidate_response_fingerprint == candidate.response_fingerprint
+    )
+
+
+def _eligible_candidate_record_id(
+    candidate: BoundedInsightExperimentCandidate | None,
+) -> str | None:
+    if candidate is None or not _has_bound_hit_candidate(candidate):
+        return None
+    return candidate.record.record_id
+
+
+def _eligible_candidate_response_fingerprint(
+    candidate: BoundedInsightExperimentCandidate | None,
+) -> str | None:
+    if candidate is None or not _has_bound_hit_candidate(candidate):
+        return None
+    return candidate.response_fingerprint
+
+
+def _eligible_match_mode(candidate: BoundedInsightExperimentCandidate | None) -> str | None:
+    if candidate is None or not _has_bound_hit_candidate(candidate):
+        return None
+    return candidate.lookup_result.match_mode
+
+
+def _eligible_score_bps(candidate: BoundedInsightExperimentCandidate | None) -> int | None:
+    if candidate is None or not _has_bound_hit_candidate(candidate):
+        return None
+    return candidate.lookup_result.score_bps
 
 
 def _is_missing_evidence_linkage(request: BoundedInsightExperimentRequest) -> bool:

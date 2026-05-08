@@ -35,7 +35,7 @@ SC-G4 bounded `/insight` semantic-cache experiment. The PR adds a deterministic,
 | --- | --- | --- |
 | Require promotion/replay linkage before eligibility | FIXED | Commit `e388863c4`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 | Validate audit event partition fields | FIXED | Commit `e388863c4`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
-| Fix Phase2 mapping artifact format | FIXED | Commit `e388863c4`; `docs/review/PR_1705_FIXED_MAPPING.md`, PR body mirror |
+| Fix Phase 2 mapping artifact format | FIXED | Commit `e388863c4`; `docs/review/PR_1705_FIXED_MAPPING.md`, PR body mirror |
 | Require Evidence Graph ID equality across request, record, and audit event | FIXED | Commit `83c372b1f`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py` |
 | Harden SC-G4 checker against unsafe bare backend/raw-payload wording | FIXED | Commit `83c372b1f`; `scripts/ci/check_semantic_cache_gate.py`, `tests/test_semantic_cache_bounded_insight_experiment_contract.py` |
 | Keep pre-push mypy strict on linkage mismatch helper | FIXED | Commit `18a333152`; `core/ai/bounded_insight_semantic_cache.py`; `python -m mypy ...` PASS |

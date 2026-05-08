@@ -28,6 +28,7 @@ from core.ai.bounded_insight_semantic_cache import (
     REASON_REQUEST_NOT_OPTED_IN,
     REASON_RESPONSE_FINGERPRINT_MISMATCH,
     REASON_RUNTIME_FLAG_DISABLED,
+    REASON_SAFETY_FLAGS_MISMATCH,
     REASON_SOURCE_FINGERPRINT_MISMATCH,
     REASON_STOP_RULE_BLOCKED,
     REASON_TRANSPARENCY_NOTICE_MISMATCH,
@@ -358,6 +359,15 @@ def test_missing_candidate_and_lookup_miss_fallback() -> None:
 
     assert miss.decision == DECISION_FALLBACK
     assert REASON_LOOKUP_MISS in miss.reason_codes
+    assert miss.candidate_record_id is None
+    assert miss.response_fingerprint is None
+    assert miss.match_mode is None
+    assert miss.score_bps is None
+    serialized = dict(to_stable_mapping(miss))
+    assert serialized["candidate_record_id"] is None
+    assert serialized["response_fingerprint"] is None
+    assert serialized["match_mode"] is None
+    assert serialized["score_bps"] is None
 
 
 @pytest.mark.parametrize(
@@ -430,6 +440,15 @@ def test_audit_event_request_fingerprint_mismatch_fallback() -> None:
 
     assert decision.decision == DECISION_FALLBACK
     assert REASON_REQUEST_FINGERPRINT_MISMATCH in decision.reason_codes
+
+
+def test_record_safety_flags_mismatch_fallback() -> None:
+    record = replace(_record(), safety_flags=("legacy-policy",))
+
+    decision = _decision(candidate=_candidate(record=record))
+
+    assert decision.decision == DECISION_FALLBACK
+    assert REASON_SAFETY_FLAGS_MISMATCH in decision.reason_codes
 
 
 def test_response_fingerprint_admission_stop_and_blocked_surface_fallback() -> None:
