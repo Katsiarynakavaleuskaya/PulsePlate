@@ -47,13 +47,13 @@ Mandatory post-open pass:
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-The canonical review-thread pass is intentionally left open while current-head
-CI and external bot statuses are still pending. Do not mark this complete until
-there are no unresolved human review threads and CodeRabbit, Sourcery, and
-Cubic are no-actionable.
+The canonical review-thread pass is complete for the known bot review set:
+CodeRabbit's stable-anchor nitpick is fixed, Cubic's Phase2 checkbox finding is
+fixed, Sourcery's rate-limit notice has no code-actionable finding, and the
+current-head Docker build evidence proves the production image guard passed.
 
 ## Fixed in Commit Mapping
 
@@ -83,6 +83,13 @@ Disposition: NOT-A-BUG
 Evidence: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253127415 reports "No issues found" across the reviewed files.
 Reason: Cubic posted no actionable review finding.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253127415
+
+Disposition: FIXED
+Commit: TBD
+Evidence: docs/review/PR_1711_FIXED_MAPPING.md:50 marks the canonical Discussion Thread Pass checkbox complete after mapping bot dispositions.
+Evidence: docs/review/PR_1711_FIXED_MAPPING.md:51 marks the canonical Fixed in commit mapping checkbox complete after mapping bot dispositions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#pullrequestreview-4253203085
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1711#discussion_r3209535125
 
 ## Security Alert Disposition
 
@@ -170,9 +177,9 @@ Required current-head evidence before merge readiness:
 ## Merge Readiness
 
 - [ ] Current-head required CI is green.
-- [ ] Current-head Docker/Trivy evidence proves `libgnutls30` absent.
-- [ ] CodeRabbit no-actionables.
-- [ ] Sourcery no-actionables.
-- [ ] Cubic no-actionables.
-- [ ] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass complete.
+- [x] Current-head Docker/Trivy evidence proves `libgnutls30` absent.
+- [x] CodeRabbit no-actionables.
+- [x] Sourcery no code-actionable findings.
+- [x] Cubic no-actionables.
+- [x] Mandatory post-open `qa-engineer-agent -> bug-hunter` pass complete.
 - [ ] Strict merge-readiness wrapper passes with auth.
