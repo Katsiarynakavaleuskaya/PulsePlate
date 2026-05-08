@@ -11,12 +11,12 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-No GitHub review threads are mapped yet. Review-thread mapping will be added only after actionable comments exist and after the underlying fix or formal decision is made.
+- No actionable review comments
 
 ## Internal Findings Closed Before Mapping
 
