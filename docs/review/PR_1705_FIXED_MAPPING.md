@@ -72,7 +72,7 @@ Evidence: `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bound
 | Deep-freeze nested metadata without breaking JSON-ready stable mappings | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Reject non-string token inputs with `ValueError` instead of `AttributeError` | FIXED | Commit `014017e6a`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
 | Return plain JSON-ready stable mappings from `to_stable_mapping()` | FIXED | Commit `2f0692a67`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; focused pytest + mypy PASS |
-| Include SC-G4 tests in CI coverage selection | FIXED | Commit `c1fc167cd`; `.github/workflows/ci.yml`; focused pytest, mypy, changed-files pre-commit, and `make validate-changed` PASS |
+| Include SC-G4 tests in CI coverage selection | FIXED | Commit `c1fc167cd`; GitHub Actions workflow coverage lane; focused pytest, mypy, changed-files pre-commit, and `make validate-changed` PASS |
 | Close remaining SC-G4 diff coverage gaps | FIXED | Commit `11311d937`; `core/ai/bounded_insight_semantic_cache.py`, `tests/core/ai/test_bounded_insight_semantic_cache.py`; local diff-cover 100% PASS |
 
 ## Premortem Finding Mapping
