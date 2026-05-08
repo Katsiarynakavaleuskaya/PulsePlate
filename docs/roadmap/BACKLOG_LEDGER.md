@@ -1255,7 +1255,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Design-epic PR-prompt protocol tracking:
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
-    - Target PR: `docs(orchestration): add design-epic PR prompt protocol v2026-05-08`, branch `codex/design-epic-pr-prompt-protocol-v2026-05-08`
+    - Target PR: `#1710`
     - Reason: Future design-epic PR prompts need a guarded protocol for clean worktree startup, worktree-local Python setup, coordinator-expanded mandatory agents, premortem execution on the actual diff, post-open and post-bot review passes, fixed mapping after fix/decision, and operator-owned post-merge local main synchronization.
     - Links: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
     - DoD: Protocol doc exists, workflow/template point future design-epic prompts at it, deterministic docs guards reject stale prompt patterns, and the lane remains docs/tests/governance only without rewriting the merged post-PR-8 next-lane decision.
