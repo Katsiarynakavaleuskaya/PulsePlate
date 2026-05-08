@@ -19,6 +19,8 @@ This artifact records evidence after fixes or formal decisions. It is not a subs
 Disposition: FIXED
 Commit: 69ad71d086a2f6dc309556ace54bc94a9048c846
 Evidence: `tests/test_design_automation_next_lane_docs.py` now asserts each ordered sequence item exists in the PR-9 packet before comparing order, preventing misleading failures when text only exists in a wider corpus; `tests/test_orchestration_preflight.py` now covers `Path(...)` input and truncated directory input for `find_nearest_agents_file`; `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md` now requires `PATH=.venv/bin:$PATH pre-commit run --all-files` in the PR-9 validation recipe.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#pullrequestreview-4255231475 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#pullrequestreview-4255237535 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211234317 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211234323 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211238801 -> 69ad71d086a2f6dc309556ace54bc94a9048c846
@@ -31,6 +33,8 @@ Evidence: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md
 Disposition: FIXED
 Commit: 8aad80b0a5533bf7428e3c5397dc826a578b8342
 Evidence: `scripts/orchestration/context_pack.py` now rejects empty/current-directory scoped paths, rejects `..`, requires the top-level path segment to be a directory, and verifies the resolved candidate remains under `REPO_ROOT`; `tests/test_orchestration_preflight.py` covers string and `Path` traversal inputs, current-directory inputs, and a file-segment bypass attempt.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#pullrequestreview-4255256769 -> 8aad80b0a5533bf7428e3c5397dc826a578b8342
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#pullrequestreview-4255263466 -> 8aad80b0a5533bf7428e3c5397dc826a578b8342
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211257215 -> 8aad80b0a5533bf7428e3c5397dc826a578b8342
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1713#discussion_r3211263180 -> 8aad80b0a5533bf7428e3c5397dc826a578b8342
 
