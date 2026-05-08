@@ -719,7 +719,7 @@ def _freeze_json_value(value: JsonValue) -> JsonValue:
 
 
 def _stable_json_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
-    return MappingProxyType({key: _json_safe_copy(item) for key, item in sorted(value.items())})
+    return {key: _json_safe_copy(item) for key, item in sorted(value.items())}
 
 
 def _json_safe_copy(value: JsonValue | Mapping[str, JsonValue]) -> JsonValue:

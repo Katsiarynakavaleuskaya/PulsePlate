@@ -587,7 +587,7 @@ def test_decision_identity_and_serialization_are_deterministic_and_safe() -> Non
 
     assert first.decision_id == second.decision_id
     assert to_stable_mapping(first) == to_stable_mapping(second)
-    serialized = json.dumps(dict(to_stable_mapping(first)), sort_keys=True)
+    serialized = json.dumps(to_stable_mapping(first), sort_keys=True)
     assert "Plan protein breakfast" not in serialized
     assert "raw_query" not in serialized
     assert "normalized_query" not in serialized
