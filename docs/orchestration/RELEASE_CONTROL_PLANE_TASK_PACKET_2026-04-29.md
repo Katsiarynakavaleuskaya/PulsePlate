@@ -106,7 +106,7 @@ changes.
 | PR-5 | `release/release-control-plane-pr5-ci-gates` | Merged CI integration for release packet, gate result, build equivalence, SBOM/provenance references, and fail-closed decision in PR #1682 | focused CI/workflow contract tests |
 | PR-6 | `release/release-control-plane-pr6-production-artifact-wiring` | Merged production tag wiring for real release-control-plane evidence artifacts in PR #1688 | production workflow contract tests |
 | Post-#1692 | `ci/release-control-plane-evidence-publication` | Merged governed manual publication workflow for the production evidence artifact required by CD in PR #1699 | evidence publication workflow contract tests |
-| Post-#1699 | `ci/release-control-plane-source-producers` | Active governed source producers for `Release Manifest Evidence` and `Build Equivalence Evidence` | source producer workflow contract tests |
+| Post-#1699 | `ci/release-control-plane-source-producers` | Merged governed source producers for `Release Manifest Evidence` and `Build Equivalence Evidence` in PR #1703 | source producer workflow contract tests |
 
 ## Release Packet Contract
 
@@ -296,15 +296,16 @@ behavior.
 
 ### Post-PR-1699 Governed Source Producers
 
-After PR #1699, the publisher has a governed manual publication lane but still
-needs repo-owned source producers for release manifest and build-equivalence
-evidence. The `ci/release-control-plane-source-producers` follow-up adds:
+After PR #1699, the publisher had a governed manual publication lane but still
+needed repo-owned source producers for release manifest and build-equivalence
+evidence. PR #1703 merged the `ci/release-control-plane-source-producers`
+follow-up and added:
 
 - `Release Manifest Evidence` at `.github/workflows/release-manifest-evidence.yml`
 - `Build Equivalence Evidence` at `.github/workflows/build-equivalence-evidence.yml`
 
 `RAG Release Gates` remains the existing RAG/ML producer. The source producers
-must be `workflow_dispatch` only, validate source run provenance and matching
+are `workflow_dispatch` only, validate source run provenance and matching
 `git_sha`, reject fixtures/placeholders/fallbacks, publish stable root artifact
 paths (`release_manifest.json` and `build_equivalence_result.json`), and avoid
 App Store Connect execution, Fastlane upload mutation, runtime/API/iOS, RAG
@@ -318,6 +319,15 @@ artifact root, emitted by the `Docker Build and Push` publish lane only after
 exact-digest provenance/SBOM attestation verification passes. That artifact must
 contain `sbom_digest.txt`, `provenance_digest.txt`, and
 `attestation_status.txt`.
+
+### PR #1703 Closeout
+
+PR #1703 completed the release-control-plane evidence plumbing through governed
+RAG release gates, governed source producers, the governed publisher, and the
+production CD gate. No further release-control-plane evidence-plumbing PR is
+currently required. Broader App Store Connect execution, Fastlane protected
+upload mutation, protected upload automation, and final App Store readiness
+remain separate deferred release/App Store work.
 
 ## Bootstrap Commands
 
