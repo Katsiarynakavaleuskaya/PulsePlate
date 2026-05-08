@@ -68,6 +68,9 @@ jobs:
           set -euo pipefail
           python3 scripts/ci/check_docker_runtime_dependency_surface.py \
             --image pulseplate:test \
+            --blocked-debian-package apt \
+            --blocked-debian-package gpgv \
+            --blocked-debian-package libgnutls30 \
             --output-json docker-runtime-dependency-surface.json
 
       - name: Resolve Docker image telemetry baseline

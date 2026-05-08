@@ -200,10 +200,8 @@ CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "
 # Stage 3: Production stage (hardened)
 FROM runtime-base AS production
 
-# NOTE: On Debian-based images, `apt` depends on `gpgv` and removing either can break the base system.
-# We intentionally keep them in the production image and document the Trivy finding via `.trivyignore`.
-# RU: Временный возврат к root нужен только для удаления pip-скриптов из root-owned venv/system paths.
-# EN: Temporarily switch back to root only to remove pip binaries from root-owned venv/system paths.
+# RU: Временный возврат к root нужен только для production-only slimming/hardening.
+# EN: Temporarily switch back to root only for production-only slimming/hardening.
 USER root
 
 # RU: Убираем pip из production-stage, но не трогаем runtime-base/development.
@@ -226,6 +224,32 @@ if importlib.util.find_spec("pip") is not None:
     sys.stderr.write("pip leaked into production system site-packages\n")
     sys.exit(1)
 PY
+
+# RU: Убираем package-manager TLS surface только из production; runtime-base/development
+# RU: остаются с apt для dev/staging workflows. apt/gpgv essential для Debian,
+# RU: поэтому удаление намеренно ограничено final production stage и проверяется fail-closed.
+# EN: Remove the package-manager TLS surface only from production; runtime-base/development
+# EN: keep apt for dev/staging workflows. apt/gpgv are Debian-essential, so this
+# EN: removal is intentionally limited to the final production stage and checked fail-closed.
+# SECURITY: production-package-pruning-start
+RUN dpkg --purge --force-depends apt gpgv libgnutls30 \
+    && rm -rf /var/lib/apt/lists/* /var/cache/apt/* \
+    && for package in apt gpgv libgnutls30; do \
+        status="$(dpkg-query -W -f='${db:Status-Abbrev}' "${package}" 2>/dev/null || true)"; \
+        if [ "${status#ii}" != "${status}" ]; then \
+            echo "${package} remains installed after production package pruning" >&2; \
+            exit 1; \
+        fi; \
+    done \
+    && /usr/local/bin/python - <<'PY'
+import ssl
+import sys
+
+if not ssl.OPENSSL_VERSION:
+    sys.stderr.write("Python ssl module is unavailable after production package pruning\n")
+    sys.exit(1)
+PY
+# SECURITY: production-package-pruning-end
 
 # RU: Финальный runtime остаётся non-root как и в runtime-base.
 # EN: Final runtime stays non-root, matching the runtime-base contract.

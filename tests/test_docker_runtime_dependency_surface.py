@@ -70,6 +70,24 @@ def test_parse_installed_packages_rejects_invalid_payload() -> None:
         runtime_surface.parse_installed_packages(json.dumps({"fastapi": "0.135.1"}))
 
 
+def test_parse_installed_debian_packages_normalizes_inventory() -> None:
+    payload = (
+        "ii \tlibGnuTLS30:amd64\t3.7.9-2+deb12u6\n"
+        "rc \tapt\t\n"
+        "ii \topenssl\t3.0.17-1~deb12u3\n"
+    )
+
+    assert runtime_surface.parse_installed_debian_packages(payload) == {
+        "libgnutls30": "3.7.9-2+deb12u6",
+        "openssl": "3.0.17-1~deb12u3",
+    }
+
+
+def test_parse_installed_debian_packages_rejects_invalid_payload() -> None:
+    with pytest.raises(ValueError, match="'<status>\\\\t<name>\\\\t<version>'"):
+        runtime_surface.parse_installed_debian_packages("libgnutls30 3.7.9-2+deb12u6\n")
+
+
 def test_find_blocked_packages_flags_ci_and_vector_stack() -> None:
     installed = (
         "bandit",
@@ -93,6 +111,19 @@ def test_find_blocked_packages_flags_ci_and_vector_stack() -> None:
     )
 
 
+def test_find_blocked_debian_packages_flags_exact_package_names() -> None:
+    installed = {
+        "libc6": "2.36-9+deb12u13",
+        "libgnutls30": "3.7.9-2+deb12u6",
+        "openssl": "3.0.17-1~deb12u3",
+    }
+
+    assert runtime_surface.find_blocked_debian_packages(
+        installed,
+        ("libgnutls30", "missing-package"),
+    ) == ("libgnutls30=3.7.9-2+deb12u6",)
+
+
 def test_build_result_uses_inspected_packages(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         runtime_surface,
@@ -108,13 +139,46 @@ def test_build_result_uses_inspected_packages(monkeypatch: pytest.MonkeyPatch) -
     assert result.passed is False
 
 
+def test_build_result_fails_for_blocked_debian_package(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        runtime_surface,
+        "inspect_image_packages",
+        lambda _image: ("fastapi", "uvicorn"),
+    )
+    monkeypatch.setattr(
+        runtime_surface,
+        "inspect_image_debian_packages",
+        lambda _image: {
+            "apt": "2.6.1",
+            "gpgv": "2.2.40-1.1",
+            "libgnutls30": "3.7.9-2+deb12u6",
+            "openssl": "3.0.17-1~deb12u3",
+        },
+    )
+
+    result = runtime_surface.build_result(
+        "pulseplate:test",
+        ("pytest",),
+        ("apt", "gpgv", "libgnutls30"),
+    )
+
+    assert result.blocked == ()
+    assert result.installed_debian_count == 4
+    assert result.blocked_debian_packages == (
+        "apt=2.6.1",
+        "gpgv=2.2.40-1.1",
+        "libgnutls30=3.7.9-2+deb12u6",
+    )
+    assert result.passed is False
+
+
 def test_main_writes_json_and_returns_failure_for_blocked_packages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(
         runtime_surface,
         "build_result",
-        lambda _image, _blocked: runtime_surface.DependencySurfaceResult(
+        lambda _image, _blocked, _blocked_debian: runtime_surface.DependencySurfaceResult(
             image="pulseplate:test",
             installed_count=3,
             blocked=("pytest",),
@@ -140,10 +204,13 @@ def test_main_extends_default_blocked_prefixes(monkeypatch: pytest.MonkeyPatch) 
     captured: dict[str, object] = {}
 
     def _fake_build_result(
-        image: str, blocked_prefixes: tuple[str, ...]
+        image: str,
+        blocked_prefixes: tuple[str, ...],
+        blocked_debian_packages: tuple[str, ...],
     ) -> runtime_surface.DependencySurfaceResult:
         captured["image"] = image
         captured["blocked_prefixes"] = blocked_prefixes
+        captured["blocked_debian_packages"] = blocked_debian_packages
         return runtime_surface.DependencySurfaceResult(
             image=image,
             installed_count=0,
@@ -162,6 +229,46 @@ def test_main_extends_default_blocked_prefixes(monkeypatch: pytest.MonkeyPatch) 
     assert captured["blocked_prefixes"] == runtime_surface.DEFAULT_BLOCKED_PREFIXES + (
         "custom-guard",
     )
+    assert captured["blocked_debian_packages"] == ()
+
+
+def test_main_accepts_blocked_debian_packages(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, object] = {}
+
+    def _fake_build_result(
+        image: str,
+        blocked_prefixes: tuple[str, ...],
+        blocked_debian_packages: tuple[str, ...],
+    ) -> runtime_surface.DependencySurfaceResult:
+        captured["image"] = image
+        captured["blocked_prefixes"] = blocked_prefixes
+        captured["blocked_debian_packages"] = blocked_debian_packages
+        return runtime_surface.DependencySurfaceResult(
+            image=image,
+            installed_count=0,
+            blocked=(),
+            passed=True,
+        )
+
+    monkeypatch.setattr(runtime_surface, "build_result", _fake_build_result)
+
+    exit_code = runtime_surface.main(
+        [
+            "--image",
+            "pulseplate:test",
+            "--blocked-debian-package",
+            "apt",
+            "--blocked-debian-package",
+            "gpgv",
+            "--blocked-debian-package",
+            "libgnutls30",
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["image"] == "pulseplate:test"
+    assert captured["blocked_prefixes"] == runtime_surface.DEFAULT_BLOCKED_PREFIXES
+    assert captured["blocked_debian_packages"] == ("apt", "gpgv", "libgnutls30")
 
 
 def test_main_returns_success_for_clean_runtime(
@@ -170,7 +277,7 @@ def test_main_returns_success_for_clean_runtime(
     monkeypatch.setattr(
         runtime_surface,
         "build_result",
-        lambda _image, _blocked: runtime_surface.DependencySurfaceResult(
+        lambda _image, _blocked, _blocked_debian: runtime_surface.DependencySurfaceResult(
             image="pulseplate:test",
             installed_count=2,
             blocked=(),
