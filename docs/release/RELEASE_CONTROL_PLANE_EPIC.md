@@ -139,13 +139,18 @@ review governance.
 
 9. **Post-PR-1699: governed source evidence producers**
    - Branch: `ci/release-control-plane-source-producers`
-   - Active follow-up after PR #1699.
-   - Add the governed manual source producers consumed by the PR #1699 publisher:
+   - Merged as PR #1703 on 2026-05-07.
+   - Added the governed manual source producers consumed by the PR #1699 publisher:
      `Release Manifest Evidence` and `Build Equivalence Evidence`.
    - The existing `RAG Release Gates` workflow remains the RAG/ML producer and is not redefined here.
    - Source producer artifacts use stable paths: `release_manifest.json` and
      `build_equivalence_result.json`.
    - App Store Connect upload execution, Fastlane upload mutation, runtime changes, and fake production fixtures remain out of scope.
+
+10. **Release-control-plane evidence plumbing closeout**
+   - Completed through PR #1703: governed RAG release gates -> governed source producers -> governed publisher -> production CD gate.
+   - No further release-control-plane evidence-plumbing PR is currently required.
+   - Broader App Store Connect execution, Fastlane protected upload mutation, protected upload automation, and final App Store readiness remain separate deferred release/App Store work.
 
 ## Boundaries
 
@@ -230,3 +235,8 @@ Blocked: diagnosis, treatment, therapy, crisis support, guaranteed outcomes.
     artifact publication ceremony that production CD already expects. It
     publishes evidence; it does not create release truth, bypass the fail-closed
     gate, or perform App Store/Fastlane upload execution.
+12. The post-PR-1699 source-producer follow-up completes the release-control-plane
+    evidence chain by adding governed source producers for release manifest and
+    build-equivalence evidence. This closes evidence plumbing only; it does not
+    complete App Store Connect execution, Fastlane protected upload mutation, or
+    final App Store readiness.
