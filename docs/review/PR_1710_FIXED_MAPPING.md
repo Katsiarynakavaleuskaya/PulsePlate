@@ -98,12 +98,12 @@ Decision: proceed with changes. The required changes were applied before PR open
 
 Pre-merge checklist for this PR:
 
-- Confirm the protocol is framed as design-epic support docs, not a standalone prompt-canon lane.
-- Confirm PR #1707 historical next-lane truth remains intact.
-- Confirm generated prompt command blocks reject root checkout switching, provisional PR-state wording, full local root verification bundle commands, and stale prompt make targets.
-- Confirm generic design workflow gates remain separate from generated prompt protocol commands.
-- Confirm mapping remains evidence after fix/decision.
-- Confirm no runtime, token, generated mirror, Figma, Canva, Storybook, asset, web, iOS, or backend files are changed.
+- [ ] Confirm the protocol is framed as design-epic support docs, not a standalone prompt-canon lane.
+- [ ] Confirm PR #1707 historical next-lane truth remains intact.
+- [ ] Confirm generated prompt command blocks reject root checkout switching, provisional PR-state wording, full local root verification bundle commands, and stale prompt make targets.
+- [ ] Confirm generic design workflow gates remain separate from generated prompt protocol commands.
+- [ ] Confirm mapping remains evidence after fix/decision.
+- [ ] Confirm no runtime, token, generated mirror, Figma, Canva, Storybook, asset, web, iOS, or backend files are changed.
 
 ## Agent Run Summary
 
