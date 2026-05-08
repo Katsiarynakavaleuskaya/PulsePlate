@@ -1252,6 +1252,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Reason: PR-8 intentionally stopped before any automatic implementation lane. The next safe step is a coordinator-owned decision packet that selects the next module while preserving repo truth and requiring a separate future implementation packet.
     - Links: `docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`, `docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md`
     - DoD: Decision packet selects the next design automation module, records deferred lanes, defines future implementation boundaries, and keeps runtime, token, generated mirror, Figma, Canva, Storybook, screenshots, and asset implementation out of scope.
+  - Design-epic PR-prompt protocol tracking:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Target PR: `docs(orchestration): add design-epic PR prompt protocol v2026-05-08`, branch `codex/design-epic-pr-prompt-protocol-v2026-05-08`
+    - Reason: Future design-epic PR prompts need a guarded protocol for clean worktree startup, worktree-local Python setup, coordinator-expanded mandatory agents, premortem execution on the actual diff, post-open and post-bot review passes, fixed mapping after fix/decision, and operator-owned post-merge local main synchronization.
+    - Links: `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
+    - DoD: Protocol doc exists, workflow/template point future design-epic prompts at it, deterministic docs guards reject stale prompt patterns, and the lane remains docs/tests/governance only without rewriting the merged post-PR-8 next-lane decision.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1

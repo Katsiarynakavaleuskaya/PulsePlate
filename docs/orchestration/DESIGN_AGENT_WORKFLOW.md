@@ -7,6 +7,8 @@ This workflow governs future design-impacting PulsePlate PRs after the Design In
 
 It is a process layer only. Repo code, tests, `/tokens` as token authoring truth, generated mirrors as derived runtime artifacts, UI vocabulary, backend/OpenAPI contracts, and implemented runtime components remain governed by repo truth.
 
+Future design-epic PR prompts must follow `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` for clean worktree startup, actual-diff premortem execution, coordinator-expanded role order, post-open review chains, and fixed-mapping-after-fix governance.
+
 ## 1. Start Gate
 
 Before edits, design-impacting PRs must:
@@ -115,6 +117,8 @@ Do not resolve review threads without explicit disposition evidence. Do not upda
 ## 9. Merge Readiness
 
 Design-impacting PRs use bounded local checks and current-head PR checks.
+
+The command bundle below is general merge-readiness evidence for design-impacting PRs. Generated future design-epic PR prompts use the narrower bounded prompt bundle in `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` unless a coordinator packet explicitly supersedes it.
 
 Use `.venv/bin/python` for repo Python commands and:
 

@@ -3,6 +3,8 @@
 
 Use this template for design-impacting PRs. It is a repo-governed process layer and does not make design evidence canonical.
 
+For future design-epic PR prompts, apply `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` before filling this template.
+
 ## Summary
 
 Describe the design-impacting change and the surface it governs.
@@ -61,7 +63,7 @@ Use repo `.venv`:
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make tokens-check`
 - `PATH=.venv/bin:$PATH pre-commit run --all-files`
 
-Add targeted evidence/tooling/runtime checks for touched surfaces only.
+Add targeted evidence/tooling/runtime checks for touched surfaces only. Generated future design-epic PR prompts use the narrower prompt bundle in `docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md` unless a coordinator packet explicitly supersedes it.
 
 ## Security notes
 
@@ -73,9 +75,13 @@ Premortem must review the actual docs/code/tests diff. Real findings must be fix
 
 Mapping is evidence after fix or decision; mapping is not the fix.
 
+For future design-epic PR prompts, premortem runs before PR opening and again after the first bot-review cycle.
+
 ## Bug-hunter pass
 
 Confirm no second source of truth, no manual generated mirror edits, no runtime drift outside scope, no unsupported wellness claims, and no hidden binary artifacts.
+
+For future design-epic PR prompts, post-open review must include `qa-engineer-agent`, `bug-hunter`, `security-auditor`, and Codex Security. After the first bot review, repeat `agent-coordinator`, `qa-engineer-agent`, `bug-hunter`, `security-auditor`, and premortem on the updated diff.
 
 ## Deferred / Follow-ups
 
