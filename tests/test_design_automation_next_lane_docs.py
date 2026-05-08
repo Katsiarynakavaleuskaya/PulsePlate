@@ -266,6 +266,9 @@ def test_design_epic_pr_prompt_protocol_requires_review_chains() -> None:
     for phrase in required:
         assert phrase in corpus
 
+    assert "separate repo-reviewed contract promotes a narrower authority" in corpus
+    assert "coordinator packet explicitly scopes stronger authority" not in corpus
+
 
 def test_design_epic_pr_prompt_protocol_keeps_next_lane_truth_historical() -> None:
     """Keep the merged post-PR-8 next-lane decision as the design-epic vector."""

@@ -20,7 +20,7 @@ Future design-epic PR prompts must:
 - list `make validate-changed` as the only default `make` target in generated prompt command blocks;
 - state that bounded local checks are evidence only and do not prove merge readiness;
 - require PR body, checkbox, fixed-mapping, review-governance, and merge-readiness docs to be read before PR opening;
-- keep Figma, Canva, Storybook, Browser Use, Slack, Hugging Face, Supabase, and research connectors as evidence or reference layers unless the coordinator packet explicitly scopes stronger authority.
+- keep Figma, Canva, Storybook, Browser Use, Slack, Hugging Face, Supabase, and research connectors as evidence or reference layers unless a separate repo-reviewed contract promotes a narrower authority.
 
 Future design-epic PR prompts must not:
 
