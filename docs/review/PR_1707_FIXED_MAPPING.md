@@ -73,7 +73,13 @@ Reason: Diff-scoped security review found no secrets, external write authority, 
 - `PATH=.venv/bin:$PATH pre-commit run --from-ref origin/main --to-ref HEAD` PASS
 - Pre-push hooks during `git push -u origin docs/design-automation-next-lane-decision-v1` PASS
 
-Local note: `PATH=.venv/bin:$PATH pre-commit run --all-files` was attempted twice. All hooks except `check-added-large-files` completed; `check-added-large-files` was terminated with SIGTERM during full-repo scan. Changed-file and pre-push large-file hooks passed. This entry is not recorded as PASS.
+Local note: `PATH=.venv/bin:$PATH pre-commit run --all-files` was attempted
+three times. The first two attempts terminated in repo-wide
+`check-added-large-files`; the third attempt hung in `check-added-large-files`
+for more than six minutes and was stopped. The packet records the accepted
+docs-only substitute: changed-file pre-commit plus successful pre-push hooks,
+with changed-file large-file coverage and diff-scope verification. Full
+all-files pre-commit is not recorded as PASS.
 
 ## Review Thread Mapping
 

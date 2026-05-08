@@ -176,6 +176,20 @@ DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make tokens-check
 PATH=.venv/bin:$PATH pre-commit run --all-files
 ```
 
+For this docs/test-only lane, if `PATH=.venv/bin:$PATH pre-commit run --all-files`
+hangs or is terminated in the repo-wide `check-added-large-files` scan, the
+accepted bounded substitute is:
+
+```bash
+PATH=.venv/bin:$PATH pre-commit run --from-ref origin/main --to-ref HEAD
+git push
+```
+
+The substitute is valid only if pre-push hooks complete, changed-file large-file
+checks pass, the failure is documented in the PR body and fixed mapping, and no
+runtime, token, generated mirror, binary asset, screenshot, video, trace,
+Figma, Canva, or Storybook config path appears in the diff.
+
 Do not run full local `make verify` for this docs/test decision lane. Do not claim green main.
 
 ## Merge Readiness
