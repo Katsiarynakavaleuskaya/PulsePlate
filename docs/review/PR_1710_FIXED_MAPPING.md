@@ -31,29 +31,29 @@ Disposition: FIXED
 Commit: 320e257471ec5af546391bfdd8ad4d507fcbb4d5
 Evidence: Cubic review summary reported the execute-mode preflight finding mapped above at `discussion_r3209085108` and fixed by the same commit.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209166947 -> c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209166947 -> c9f2427898eb4ccde0120fa91a1a75ffa0b8dae9
 Disposition: FIXED
-Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+Commit: c9f2427898eb4ccde0120fa91a1a75ffa0b8dae9
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` now uses `Target PR: #1710` for the design-epic PR-prompt protocol tracking entry.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252800795 -> c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252800795 -> c9f2427898eb4ccde0120fa91a1a75ffa0b8dae9
 Disposition: FIXED
-Commit: c9f2427890dc2b3f95b6ddf1b8f5f41b6be252dd
+Commit: c9f2427898eb4ccde0120fa91a1a75ffa0b8dae9
 Evidence: CodeRabbit review summary reported one actionable ledger finding, mapped above at `discussion_r3209166947` and fixed by the same commit.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209249327 -> 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#discussion_r3209249327 -> 7603bda25a840335a55406ad0e849efe6c3c8939
 Disposition: FIXED
-Commit: 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Commit: 7603bda25a840335a55406ad0e849efe6c3c8939
 Evidence: the pre-merge checklist in this artifact now uses unchecked checkbox syntax for each checklist item.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252891670 -> 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252891670 -> 7603bda25a840335a55406ad0e849efe6c3c8939
 Disposition: FIXED
-Commit: 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Commit: 7603bda25a840335a55406ad0e849efe6c3c8939
 Evidence: CodeRabbit review summary reported the checklist syntax finding mapped above at `discussion_r3209249327` and fixed by the same commit.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252916551 -> 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1710#pullrequestreview-4252916551 -> 7603bda25a840335a55406ad0e849efe6c3c8939
 Disposition: FIXED
-Commit: 7603bda253f6b53a03f721ee53b4c6f9a61e4fe2
+Commit: 7603bda25a840335a55406ad0e849efe6c3c8939
 Evidence: later CodeRabbit review summary duplicated the checklist syntax finding and is covered by the same checklist fix.
 
 ## Internal Findings Closed Before Mapping
