@@ -619,16 +619,17 @@ def _has_evidence_linkage_mismatch(
 ) -> bool:
     lineage = candidate.record.lineage
     audit_event = candidate.audit_event
-    return (
-        lineage.eval_event_ids != request.eval_event_ids
-        or lineage.admission_decision_id != request.admission_decision_id
-        or lineage.promotion_ids != request.promotion_ids
-        or lineage.replay_entry_ids != request.replay_entry_ids
-        or audit_event.eval_event_ids != request.eval_event_ids
-        or audit_event.admission_decision_id != request.admission_decision_id
-        or audit_event.promotion_ids != request.promotion_ids
-        or audit_event.replay_entry_ids != request.replay_entry_ids
+    mismatches = (
+        bool(lineage.eval_event_ids != request.eval_event_ids),
+        bool(lineage.admission_decision_id != request.admission_decision_id),
+        bool(lineage.promotion_ids != request.promotion_ids),
+        bool(lineage.replay_entry_ids != request.replay_entry_ids),
+        bool(audit_event.eval_event_ids != request.eval_event_ids),
+        bool(audit_event.admission_decision_id != request.admission_decision_id),
+        bool(audit_event.promotion_ids != request.promotion_ids),
+        bool(audit_event.replay_entry_ids != request.replay_entry_ids),
     )
+    return any(mismatches)
 
 
 def _fingerprint_payload(payload: JsonValue) -> str:
