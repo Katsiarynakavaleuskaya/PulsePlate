@@ -1222,10 +1222,42 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Priority: P1
     - Target PR: `docs(design): select next design automation module after PR-8`, branch `docs/design-automation-next-lane-decision-v1`
     - Selected future lane: Icon Asset Validator / App Store asset guard lane
-    - Deferred lanes: Launch Copy Compliance Linter, Marketing Asset Pack Compiler, Button / Component Drift Inspector expansion, adjacent design-agent research lane
+    - Deferred lane entries:
+      - `design-automation-deferred-launch-copy-linter`
+      - `design-automation-deferred-marketing-asset-pack`
+      - `design-automation-deferred-component-drift-expansion`
+      - `design-automation-deferred-design-agent-research`
     - Reason: PR-8 intentionally stopped before any automatic implementation lane. The next safe step is a coordinator-owned decision packet that selects the next module while preserving repo truth and requiring a separate future implementation packet.
     - Links: `docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`, `docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md`
     - DoD: Decision packet selects the next design automation module, records deferred lanes, defines future implementation boundaries, and keeps runtime, token, generated mirror, Figma, Canva, Storybook, screenshots, and asset implementation out of scope.
+  - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Target PR: TBD, separate coordinator packet required before implementation
+    - Reason for deferral: Launch copy compliance is valuable but should follow the asset guard selection so release-facing visual asset validation has deterministic ownership first.
+    - Links to relevant audit/docs: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`, `docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md`
+    - DoD: A future PR defines wellness/compliance copy sources, blocked-claim policy, bounded checks, and review mapping before any linter implementation.
+  - Deferred design automation lane: `design-automation-deferred-marketing-asset-pack`
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P2
+    - Target PR: TBD, separate coordinator packet required before implementation
+    - Reason for deferral: Marketing asset compilation depends on approved asset and copy truth and must not precede the asset guard and copy-compliance lanes.
+    - Links to relevant audit/docs: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`, `docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md`
+    - DoD: A future PR identifies approved input artifacts, packaging boundaries, no external write authority, rollback, and release review gates before any compiler implementation.
+  - Deferred design automation lane: `design-automation-deferred-component-drift-expansion`
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P2
+    - Target PR: TBD, separate coordinator packet required before implementation
+    - Reason for deferral: Component drift expansion can become runtime redesign unless it is tied to a concrete repo-owned evidence gap and deterministic comparison scope.
+    - Links to relevant audit/docs: `docs/design/DESIGN_SCORECARD_CHECKS.md`, `docs/design/UI_COMPONENT_VOCABULARY.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`
+    - DoD: A future PR names the exact component/evidence gap, permitted docs/tooling/test surfaces, forbidden runtime redesign surfaces, and bounded validation plan.
+  - Deferred design automation lane: `design-automation-deferred-design-agent-research`
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P2
+    - Target PR: TBD, separate coordinator packet required before implementation
+    - Reason for deferral: Design-agent adjacent research remains process/eval-only and should not compete with the selected deterministic release asset guard lane.
+    - Links to relevant audit/docs: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `docs/research/DESIGN_GEPA_PROMPT_RUBRIC_EVOLUTION_LANE.md`, `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md`
+    - DoD: A future PR preserves repo truth, marks research outputs non-canonical, avoids runtime/prompt self-modification, and defines deterministic review gates before any research expansion.
 
 <a id="ledger-p1-design-runtime-system-web-ios-epic"></a>
 - [x] P1: Coordinator-first design runtime system web+iOS epic bootstrap and PR train
