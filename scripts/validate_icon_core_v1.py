@@ -143,7 +143,7 @@ def validate(
         errors.append(f"missing required governance files: {', '.join(missing_governance)}")
 
     if require_canonical_masters:
-        missing_masters = sorted((CANONICAL_MASTER_SET | CANONICAL_DERIVED_SET) - file_set)
+        missing_masters = sorted(CANONICAL_MASTER_SET - file_set)
         if missing_masters:
             errors.append(
                 "missing canonical masters (require-canonical-masters mode): "

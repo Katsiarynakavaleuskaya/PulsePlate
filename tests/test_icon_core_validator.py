@@ -319,10 +319,10 @@ def test_require_lock_values_rejects_noncanonical_placeholders(
     assert any("meta.json lock placeholders found" in err for err in errors)
 
 
-def test_require_canonical_masters_requires_derived_files(
+def test_require_canonical_masters_does_not_require_derived_files(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Master enforcement mode should require derived canonical files too."""
+    """--require-canonical-masters checks masters only; derived PNGs remain optional on disk."""
 
     errors = _run_validator(
         monkeypatch,
@@ -331,9 +331,7 @@ def test_require_canonical_masters_requires_derived_files(
         include_masters=True,
         include_derived=False,
     )
-    assert any("icon_core_v1_120.png" in err for err in errors)
-    assert any("icon_core_v1_32.png" in err for err in errors)
-    assert any("icon_core_v1_24.png" in err for err in errors)
+    assert errors == []
 
 
 def test_strict_mode_reports_missing_required_top_level_meta_fields(
