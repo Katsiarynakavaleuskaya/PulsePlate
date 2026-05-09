@@ -5,7 +5,7 @@
 - Branch: `feat/design-icon-asset-validator-v1`
 - Title: `feat(design): add icon asset validator lock-mode and guard tests`
 - Initial reviewed head: `9cd0bc9305f1432d94777b5ff18ceca239911728`
-- Review-fix commit: `3374e3a88` (+ prior `8f1eb0999`)
+- Review-fix commit: `183bc1b5d` (+ `3374e3a88`, `8f1eb0999`)
 - Status: addressed Sourcery/CodeRabbit/Cubic inline threads; canonical Phase2 artifact.
 
 ## Discussion Thread Pass
@@ -28,7 +28,7 @@ Open review-bot actionables were triaged against current head. This artifact is 
 
 Disposition: FIXED
 
-Commit: 3374e3a88
+Commit: 183bc1b5d
 
 Evidence: `scripts/validate_icon_core_v1.py` gates `assets`/`hashes` shape checks behind key presence to avoid duplicate errors with top-level required-field validation.
 
@@ -39,6 +39,8 @@ Evidence: `docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md` uses “App Store ass
 Evidence: Aggregated Sourcery and CodeRabbit review threads (`#pullrequestreview-4257495522`, `#pullrequestreview-4257497445`) are dispositioned to the same implementation commit; inline discussion URLs above cover file-level feedback.
 
 Evidence: Cubic P2 (`discussion_r3213807371`): `--require-canonical-masters` must enforce `CANONICAL_MASTER_SET` only; derived PNGs stay optional on disk; regression test renamed to `test_require_canonical_masters_does_not_require_derived_files`.
+
+Evidence: `183bc1b5d` removes duplicate “missing meta.json” line when `meta.json` is already listed in `missing required governance files`; covered by `test_missing_meta_json_is_single_governance_error`.
 
 ## Local Validation Evidence
 
@@ -52,7 +54,7 @@ Evidence: Cubic P2 (`discussion_r3213807371`): `--require-canonical-masters` mus
 ## Risks / Rollback
 
 - Risk: stricter strict-mode aggregation may omit shape errors when top-level keys are missing until keys are present. Mitigation: top-level required set still requires `assets`/`hashes` names.
-- Rollback: revert commit `3374e3a88` (and prior `8f1eb0999` if needed) and remove this artifact if the gate contract must be relaxed.
+- Rollback: revert commits `183bc1b5d` / `3374e3a88` (and prior `8f1eb0999` if needed) and remove this artifact if the gate contract must be relaxed.
 
 ## Deferred / Follow-ups
 
