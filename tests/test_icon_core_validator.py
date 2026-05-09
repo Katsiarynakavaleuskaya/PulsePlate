@@ -1,0 +1,222 @@
+"""Tests for icon core v1 validator behavior."""
+
+from __future__ import annotations
+
+import json
+import pathlib
+import subprocess
+import sys
+
+import pytest
+
+from scripts import validate_icon_core_v1 as validator
+
+
+def _write_icon_core_fixture(
+    tmp_root: pathlib.Path,
+    *,
+    include_masters: bool,
+    include_meta: bool = True,
+    unexpected_files: list[str] | None = None,
+    meta_payload: dict | str | None = None,
+) -> pathlib.Path:
+    """Create a temporary icon-core fixture and return the core directory path."""
+
+    core_dir = tmp_root / "assets" / "brand" / "icon" / "core" / "v1.0"
+    core_dir.mkdir(parents=True, exist_ok=True)
+
+    (core_dir / "README.md").write_text("fixture\n", encoding="utf-8")
+
+    if include_masters:
+        for name in (
+            "icon_core_v1.svg",
+            "icon_core_v1_1024.png",
+            "icon_core_v1_60.png",
+        ):
+            (core_dir / name).write_text(f"{name}\n", encoding="utf-8")
+
+    if unexpected_files:
+        for filename in unexpected_files:
+            (core_dir / filename).write_text("unexpected\n", encoding="utf-8")
+
+    if include_meta:
+        if isinstance(meta_payload, str):
+            payload = meta_payload
+        elif meta_payload is None:
+            payload = json.dumps(
+                {
+                    "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+                    "version": "v1.0",
+                    "master_policy": "dual-master-svg-png",
+                    "figma_source_type": "design",
+                    "figma_design_url": "spec://design-url",
+                    "figma_file_key": "design-file-key",
+                    "figma_node_id": "1024:2048",
+                    "assets": {
+                        "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+                        "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_1024.png",
+                        "png_master_60": "assets/brand/icon/core/v1.0/icon_core_60.png",
+                        "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_120.png",
+                        "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_32.png",
+                        "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_24.png",
+                    },
+                    "hashes": {
+                        "master_svg_sha256": "sha256:svg",
+                        "master_png_1024_sha256": "sha256:png1024",
+                        "master_png_60_sha256": "sha256:png60",
+                        "silhouette_mask_sha256_1024": "sha256:mask1024",
+                        "silhouette_mask_sha256_60": "sha256:mask60",
+                    },
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        else:
+            payload = json.dumps(meta_payload, indent=2, ensure_ascii=False)
+
+        (core_dir / "meta.json").write_text(payload, encoding="utf-8")
+
+    return core_dir
+
+
+def _run_validator(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_root: pathlib.Path,
+    *,
+    strict: bool = False,
+    require_lock_values: bool = False,
+    include_masters: bool = True,
+    include_meta: bool = True,
+    unexpected_files: list[str] | None = None,
+    meta_payload: dict | str | None = None,
+) -> list[str]:
+    core_dir = _write_icon_core_fixture(
+        tmp_root,
+        include_masters=include_masters,
+        include_meta=include_meta,
+        unexpected_files=unexpected_files,
+        meta_payload=meta_payload,
+    )
+    monkeypatch.setattr(validator, "CORE_DIR", core_dir)
+    return validator.validate(strict=strict, require_lock_values=require_lock_values)
+
+
+def test_default_validator_passes_current_repo_fixture() -> None:
+    """Current repository fixture should pass in default mode."""
+
+    result = subprocess.run(
+        [sys.executable, "scripts/validate_icon_core_v1.py"],
+        cwd=pathlib.Path(__file__).resolve().parents[1],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0
+    assert "OK: icon core v1.0 structure valid (default mode)" in result.stdout
+
+
+def test_strict_catches_missing_masters(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict mode should fail when canonical masters are missing."""
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        include_masters=False,
+    )
+    assert any(err.startswith("missing canonical masters (strict mode)") for err in errors)
+
+
+def test_malformed_meta_json_is_detected(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed meta JSON must be reported as validation error."""
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        include_masters=True,
+        meta_payload='{"contract_id": "bad", "assets": ',
+    )
+    assert any("invalid meta.json" in err for err in errors)
+
+
+def test_unexpected_file_is_detected(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Unexpected files in the icon core directory must fail validation."""
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        include_masters=True,
+        unexpected_files=["tmp_backup.txt"],
+    )
+    assert any(err.startswith("unexpected files in") for err in errors)
+
+
+def test_require_lock_values_rejects_placeholders(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Lock mode must reject TBD placeholders and report exact fields."""
+
+    meta_with_placeholders = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "TBD_AFTER_WINNER_LOCK",
+        "figma_file_key": "TBD_AFTER_WINNER_LOCK",
+        "figma_node_id": "TBD_AFTER_WINNER_LOCK",
+        "assets": {
+            "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+            "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_1_60.png",
+            "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+            "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+            "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
+        },
+        "hashes": {
+            "master_svg_sha256": "TBD_AFTER_WINNER_LOCK",
+            "master_png_1024_sha256": "TBD_AFTER_WINNER_LOCK",
+            "master_png_60_sha256": "TBD_AFTER_WINNER_LOCK",
+            "silhouette_mask_sha256_1024": "TBD_AFTER_WINNER_LOCK",
+            "silhouette_mask_sha256_60": "TBD_AFTER_WINNER_LOCK",
+        },
+    }
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        require_lock_values=True,
+        include_masters=True,
+        meta_payload=meta_with_placeholders,
+    )
+    assert any("meta.json lock placeholders found" in err for err in errors)
+
+
+def test_default_and_strict_regression_without_tbd(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default and strict validator modes should both pass with filled lock values."""
+
+    errors_default = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=False,
+        require_lock_values=True,
+        include_masters=True,
+    )
+    errors_strict = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        require_lock_values=True,
+        include_masters=True,
+    )
+    assert errors_default == []
+    assert errors_strict == []

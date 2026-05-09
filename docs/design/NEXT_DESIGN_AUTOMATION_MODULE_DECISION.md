@@ -9,6 +9,13 @@ The selected next lane is the **Icon Asset Validator / App Store asset guard lan
 
 This document is a process decision only. It does not implement the selected lane, does not create an undocumented PR-9 implementation train, and does not mutate runtime web, runtime iOS, backend, OpenAPI, `/tokens`, generated mirrors, Figma, Canva, Storybook config, screenshots, videos, traces, or external assets.
 
+## Current PR-6 Status (for implementation planning)
+
+- This PR implements the **Icon Asset Validator / App Store asset guard lane** implementation slice only.
+- Scope is deliberately limited to repo-local validation, tests, and governance updates.
+- No runtime UI, screenshot generation, StoreKit changes, network uploads, or asset uploads are included.
+- Figma/Canva/Storybook are evidence/reference only unless explicitly promoted by a future packet.
+
 ## Current Repo Truth
 
 The Design Intelligence wave has landed through PR-8:

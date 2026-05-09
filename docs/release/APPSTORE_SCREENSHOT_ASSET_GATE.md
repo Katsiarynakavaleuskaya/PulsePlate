@@ -25,9 +25,20 @@ gated, not deleted.
 | `docs/release/APPSTORE_FEATURE_ASSET_MATRIX.md` | Feature-to-asset mapping with release flags and privacy |
 | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Canonical screenshot scenario enum (`AppStoreScreenshotScenario`) |
 | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` | AppIcon asset catalog with `ios-marketing` 1024x1024 entry |
+| `scripts/validate_icon_core_v1.py` | Repo-local icon core validator contract and lock-mode checks |
 | `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md` | Protected upload procedure and evidence requirements |
 | `ios/fastlane/Fastfile` | Fastlane snapshot, validation, and upload lanes |
 | `ios/fastlane/metadata/review_information/notes.txt` | Reviewer notes (current state on main) |
+
+Repo-local validator scripts are enforcement-only and must remain:
+- deterministic,
+- network-free,
+- and without mutation of app store assets, metadata, App Store Connect state, or Figma/Canva payloads.
+
+For this lane:
+- `Figma`, `Canva`, and `Storybook` are evidence/reference layers only.
+- App Store Connect is operational proof during protected upload only; it is not repo logic.
+- `scripts/validate_icon_core_v1.py` enforces local gate correctness and never uploads or generates assets.
 
 Root `AGENTS.md` section `App Store release readiness gates` remains the
 hard-gate source of truth for release readiness checks. This gate document
@@ -205,6 +216,8 @@ This document does not:
 - Change the validator script or release validation implementation
 - Change billing, subscription, or entitlement logic
 - Change AI provider configuration
+- Generate, export, capture, or replace icon/App Store binaries in this lane
+- Create network uploads or protected App Store Connect dispatches in this lane
 
 ## Blockers
 
