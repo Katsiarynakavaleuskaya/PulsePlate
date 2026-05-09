@@ -5,7 +5,7 @@
 - Branch: `feat/design-icon-asset-validator-v1`
 - Title: `feat(design): add icon asset validator lock-mode and guard tests`
 - Initial reviewed head: `9cd0bc9305f1432d94777b5ff18ceca239911728`
-- Review-fix commit: `183bc1b5d` (+ `3374e3a88`, `8f1eb0999`)
+- Review-fix commit: `474c8f0f5` (tips this branch; includes `183bc1b5d`, `3374e3a88`, `8f1eb0999`)
 - Status: addressed Sourcery/CodeRabbit/Cubic inline threads; canonical Phase2 artifact.
 
 ## Discussion Thread Pass
@@ -28,7 +28,7 @@ Open review-bot actionables were triaged against current head. This artifact is 
 
 Disposition: FIXED
 
-Commit: 183bc1b5d
+Commit: 474c8f0f5
 
 Evidence: `scripts/validate_icon_core_v1.py` gates `assets`/`hashes` shape checks behind key presence to avoid duplicate errors with top-level required-field validation.
 
