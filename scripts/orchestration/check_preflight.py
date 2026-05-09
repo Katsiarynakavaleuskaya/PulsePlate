@@ -54,8 +54,8 @@ def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str]:
         text=True,
         check=False,
     )
-    out = (r.stdout or "").strip() + "\n" + (r.stderr or "").strip()
-    return r.returncode, out.strip()
+    out = (r.stdout or "") + ("\n" + r.stderr if r.stderr else "")
+    return r.returncode, out.rstrip()
 
 
 def _parse_dirty_paths(status_output: str) -> list[str]:
@@ -100,7 +100,7 @@ def check_worktrees_untracked() -> bool:
         print("FAIL: git ls-files worktrees failed")
         print(out)
         return False
-    lines = [ln.strip() for ln in out.splitlines() if ln.strip()]
+    lines = [ln for ln in out.splitlines() if ln.strip()]
     if lines:
         print("FAIL: worktrees/ must not be tracked. Tracked paths:")
         for p in lines[:20]:

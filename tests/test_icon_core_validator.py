@@ -16,6 +16,7 @@ def _write_icon_core_fixture(
     tmp_root: pathlib.Path,
     *,
     include_masters: bool,
+    include_derived: bool = False,
     include_meta: bool = True,
     unexpected_files: list[str] | None = None,
     meta_payload: dict | str | None = None,
@@ -32,6 +33,14 @@ def _write_icon_core_fixture(
             "icon_core_v1.svg",
             "icon_core_v1_1024.png",
             "icon_core_v1_60.png",
+        ):
+            (core_dir / name).write_text(f"{name}\n", encoding="utf-8")
+
+    if include_derived:
+        for name in (
+            "icon_core_v1_120.png",
+            "icon_core_v1_32.png",
+            "icon_core_v1_24.png",
         ):
             (core_dir / name).write_text(f"{name}\n", encoding="utf-8")
 
@@ -54,11 +63,11 @@ def _write_icon_core_fixture(
                     "figma_node_id": "1024:2048",
                     "assets": {
                         "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
-                        "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_1024.png",
-                        "png_master_60": "assets/brand/icon/core/v1.0/icon_core_60.png",
-                        "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_120.png",
-                        "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_32.png",
-                        "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_24.png",
+                        "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+                        "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+                        "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+                        "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+                        "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
                     },
                     "hashes": {
                         "master_svg_sha256": "sha256:svg",
@@ -85,7 +94,9 @@ def _run_validator(
     *,
     strict: bool = False,
     require_lock_values: bool = False,
+    require_canonical_masters: bool = False,
     include_masters: bool = True,
+    include_derived: bool = False,
     include_meta: bool = True,
     unexpected_files: list[str] | None = None,
     meta_payload: dict | str | None = None,
@@ -93,12 +104,17 @@ def _run_validator(
     core_dir = _write_icon_core_fixture(
         tmp_root,
         include_masters=include_masters,
+        include_derived=include_derived,
         include_meta=include_meta,
         unexpected_files=unexpected_files,
         meta_payload=meta_payload,
     )
     monkeypatch.setattr(validator, "CORE_DIR", core_dir)
-    return validator.validate(strict=strict, require_lock_values=require_lock_values)
+    return validator.validate(
+        strict=strict,
+        require_lock_values=require_lock_values,
+        require_canonical_masters=require_canonical_masters,
+    )
 
 
 def test_default_validator_passes_current_repo_fixture() -> None:
@@ -116,18 +132,21 @@ def test_default_validator_passes_current_repo_fixture() -> None:
     assert "OK: icon core v1.0 structure valid (default mode)" in result.stdout
 
 
-def test_strict_catches_missing_masters(
+def test_require_canonical_masters_catches_missing_masters(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Strict mode should fail when canonical masters are missing."""
+    """Master enforcement mode should fail when canonical masters are missing."""
 
     errors = _run_validator(
         monkeypatch,
         tmp_path,
-        strict=True,
+        require_canonical_masters=True,
         include_masters=False,
     )
-    assert any(err.startswith("missing canonical masters (strict mode)") for err in errors)
+    assert any(
+        err.startswith("missing canonical masters (require-canonical-masters mode)")
+        for err in errors
+    )
 
 
 def test_malformed_meta_json_is_detected(
@@ -142,6 +161,68 @@ def test_malformed_meta_json_is_detected(
         meta_payload='{"contract_id": "bad", "assets": ',
     )
     assert any("invalid meta.json" in err for err in errors)
+
+
+def test_asset_paths_must_match_canonical_names(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Metadata asset paths must point at canonical icon-core filenames."""
+
+    bad_meta = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "spec://design-url",
+        "figma_file_key": "design-file-key",
+        "figma_node_id": "1024:2048",
+        "assets": {
+            "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+            "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_1024.png",
+            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_60.png",
+            "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+            "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+            "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
+        },
+        "hashes": {
+            "master_svg_sha256": "sha256:svg",
+            "master_png_1024_sha256": "sha256:png1024",
+            "master_png_60_sha256": "sha256:png60",
+            "silhouette_mask_sha256_1024": "sha256:mask1024",
+            "silhouette_mask_sha256_60": "sha256:mask60",
+        },
+    }
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        include_masters=True,
+        meta_payload=bad_meta,
+    )
+    assert (
+        "meta.json assets.png_master_1024 must be assets/brand/icon/core/v1.0/icon_core_v1_1024.png"
+        in errors
+    )
+    assert (
+        "meta.json assets.png_master_60 must be assets/brand/icon/core/v1.0/icon_core_v1_60.png"
+        in errors
+    )
+
+
+def test_canonical_derived_files_are_allowed(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Repo-owned derived icon files should be allowed when they are later added."""
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        include_masters=True,
+        include_derived=True,
+    )
+    assert errors == []
 
 
 def test_unexpected_file_is_detected(
@@ -174,7 +255,7 @@ def test_require_lock_values_rejects_placeholders(
         "assets": {
             "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
             "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
-            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_1_60.png",
+            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
             "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
             "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
             "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
@@ -191,7 +272,6 @@ def test_require_lock_values_rejects_placeholders(
     errors = _run_validator(
         monkeypatch,
         tmp_path,
-        strict=True,
         require_lock_values=True,
         include_masters=True,
         meta_payload=meta_with_placeholders,
@@ -199,15 +279,181 @@ def test_require_lock_values_rejects_placeholders(
     assert any("meta.json lock placeholders found" in err for err in errors)
 
 
-def test_default_and_strict_regression_without_tbd(
+def test_require_lock_values_rejects_noncanonical_placeholders(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Default and strict validator modes should both pass with filled lock values."""
+    """Lock mode must reject empty, TBD-like, and non-hash placeholder values."""
+
+    meta_with_noncanonical_placeholders = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "TBD",
+        "figma_file_key": "",
+        "figma_node_id": "unknown",
+        "assets": {
+            "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+            "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+            "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+            "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+            "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
+        },
+        "hashes": {
+            "master_svg_sha256": "",
+            "master_png_1024_sha256": "TBD",
+            "master_png_60_sha256": "sha256:png60",
+            "silhouette_mask_sha256_1024": "not-a-sha",
+            "silhouette_mask_sha256_60": "sha256:mask60",
+        },
+    }
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        require_lock_values=True,
+        include_masters=True,
+        meta_payload=meta_with_noncanonical_placeholders,
+    )
+    assert any("meta.json lock placeholders found" in err for err in errors)
+
+
+def test_require_canonical_masters_requires_derived_files(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Master enforcement mode should require derived canonical files too."""
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        require_canonical_masters=True,
+        include_masters=True,
+        include_derived=False,
+    )
+    assert any("icon_core_v1_120.png" in err for err in errors)
+    assert any("icon_core_v1_32.png" in err for err in errors)
+    assert any("icon_core_v1_24.png" in err for err in errors)
+
+
+def test_strict_mode_reports_missing_required_top_level_meta_fields(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Strict contract validation must list missing top-level meta fields."""
+
+    meta = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        # Deliberately omit several REQUIRED_META_TOP_LEVEL_FIELDS.
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+    }
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        include_masters=True,
+        meta_payload=meta,
+    )
+    assert any("meta.json missing required top-level fields" in err for err in errors)
+    assert any("assets" in err for err in errors)
+    assert any("hashes" in err for err in errors)
+
+
+def test_strict_mode_reports_missing_asset_keys_without_duplicate_shape_errors(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing assets keys should not also emit a generic non-object error."""
+
+    meta = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "spec://design-url",
+        "figma_file_key": "design-file-key",
+        "figma_node_id": "1024:2048",
+        "assets": {
+            "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+        },
+        "hashes": {
+            "master_svg_sha256": "sha256:svg",
+            "master_png_1024_sha256": "sha256:png1024",
+            "master_png_60_sha256": "sha256:png60",
+            "silhouette_mask_sha256_1024": "sha256:mask1024",
+            "silhouette_mask_sha256_60": "sha256:mask60",
+        },
+    }
+
+    errors = _run_validator(
+        monkeypatch, tmp_path, strict=True, include_masters=True, meta_payload=meta
+    )
+    assert any("meta.json assets missing required keys" in err for err in errors)
+    assert "meta.json must define assets as an object" not in errors
+
+
+def test_strict_mode_rejects_non_object_assets_and_hashes(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """assets/hashes must be JSON objects when present under strict validation."""
+
+    meta_assets_list = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "spec://design-url",
+        "figma_file_key": "design-file-key",
+        "figma_node_id": "1024:2048",
+        "assets": [],
+        "hashes": {
+            "master_svg_sha256": "sha256:svg",
+            "master_png_1024_sha256": "sha256:png1024",
+            "master_png_60_sha256": "sha256:png60",
+            "silhouette_mask_sha256_1024": "sha256:mask1024",
+            "silhouette_mask_sha256_60": "sha256:mask60",
+        },
+    }
+
+    errors_assets = _run_validator(
+        monkeypatch, tmp_path, strict=True, include_masters=True, meta_payload=meta_assets_list
+    )
+    assert "meta.json must define assets as an object" in errors_assets
+
+    meta_hashes_str = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "spec://design-url",
+        "figma_file_key": "design-file-key",
+        "figma_node_id": "1024:2048",
+        "assets": {
+            "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+            "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+            "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+            "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+            "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
+        },
+        "hashes": "not-a-dict",
+    }
+
+    errors_hashes = _run_validator(
+        monkeypatch, tmp_path, strict=True, include_masters=True, meta_payload=meta_hashes_str
+    )
+    assert "meta.json must define hashes as an object" in errors_hashes
+
+
+def test_default_and_compat_strict_cli_regression_without_tbd(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Default and strict validation should pass with filled lock values."""
 
     errors_default = _run_validator(
         monkeypatch,
         tmp_path,
-        strict=False,
         require_lock_values=True,
         include_masters=True,
     )

@@ -5,7 +5,9 @@ Default mode is intentionally lightweight:
 - fail on unexpected files in core/v1.0
 - require governance files (README.md + meta.json)
 
-Strict mode additionally requires canonical masters to exist.
+Strict mode validates required metadata fields and canonical asset paths.
+Canonical files and confirmed lock values are required only when explicitly
+requested because the current repo contract may still be pre-lock.
 """
 
 from __future__ import annotations
@@ -23,6 +25,11 @@ CANONICAL_MASTER_SET = {
     "icon_core_v1_1024.png",
     "icon_core_v1_60.png",
 }
+CANONICAL_DERIVED_SET = {
+    "icon_core_v1_120.png",
+    "icon_core_v1_32.png",
+    "icon_core_v1_24.png",
+}
 
 REQUIRED_META_TOP_LEVEL_FIELDS = {
     "contract_id",
@@ -37,9 +44,17 @@ REQUIRED_META_TOP_LEVEL_FIELDS = {
 }
 
 LOCK_PLACEHOLDER_VALUE = "TBD_AFTER_WINNER_LOCK"
+PLACEHOLDER_VALUES = {
+    "",
+    "TBD",
+    "TODO",
+    "UNKNOWN",
+    "UNSPECIFIED",
+    LOCK_PLACEHOLDER_VALUE,
+}
 
 
-ALLOWED_FILES = GOVERNANCE_REQUIRED | CANONICAL_MASTER_SET
+ALLOWED_FILES = GOVERNANCE_REQUIRED | CANONICAL_MASTER_SET | CANONICAL_DERIVED_SET
 REQUIRED_ASSET_KEYS = {
     "svg_master",
     "png_master_1024",
@@ -47,6 +62,14 @@ REQUIRED_ASSET_KEYS = {
     "png_derived_120",
     "png_derived_32",
     "png_derived_24",
+}
+REQUIRED_ASSET_PATHS = {
+    "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+    "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+    "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+    "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+    "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+    "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
 }
 REQUIRED_HASH_KEYS = {
     "master_svg_sha256",
@@ -63,25 +86,44 @@ def _find_placeholder_values(data: dict[str, object]) -> list[str]:
     placeholders: list[str] = []
     for key in ("figma_design_url", "figma_file_key", "figma_node_id"):
         value = data.get(key)
-        if value == LOCK_PLACEHOLDER_VALUE:
-            placeholders.append(f"{key}={LOCK_PLACEHOLDER_VALUE}")
+        if not _is_concrete_lock_value(value):
+            placeholders.append(f"{key}={value!r}")
 
     assets = data.get("assets")
     if isinstance(assets, dict):
         for key, value in assets.items():
-            if value == LOCK_PLACEHOLDER_VALUE:
-                placeholders.append(f"assets.{key}={LOCK_PLACEHOLDER_VALUE}")
+            if not _is_concrete_lock_value(value):
+                placeholders.append(f"assets.{key}={value!r}")
 
     hashes = data.get("hashes")
     if isinstance(hashes, dict):
         for key, value in hashes.items():
-            if value == LOCK_PLACEHOLDER_VALUE:
-                placeholders.append(f"hashes.{key}={LOCK_PLACEHOLDER_VALUE}")
+            if not _is_concrete_hash_value(value):
+                placeholders.append(f"hashes.{key}={value!r}")
 
     return placeholders
 
 
-def validate(strict: bool, *, require_lock_values: bool = False) -> list[str]:
+def _is_concrete_lock_value(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    normalized = value.strip()
+    return bool(normalized) and normalized.upper() not in PLACEHOLDER_VALUES
+
+
+def _is_concrete_hash_value(value: object) -> bool:
+    if not _is_concrete_lock_value(value):
+        return False
+    normalized = str(value).strip()
+    return normalized.startswith("sha256:") and len(normalized) > len("sha256:")
+
+
+def validate(
+    *,
+    strict: bool = False,
+    require_lock_values: bool = False,
+    require_canonical_masters: bool = False,
+) -> list[str]:
     errors: list[str] = []
 
     if not CORE_DIR.exists():
@@ -100,10 +142,13 @@ def validate(strict: bool, *, require_lock_values: bool = False) -> list[str]:
     if missing_governance:
         errors.append(f"missing required governance files: {', '.join(missing_governance)}")
 
-    if strict:
-        missing_masters = sorted(CANONICAL_MASTER_SET - file_set)
+    if require_canonical_masters:
+        missing_masters = sorted((CANONICAL_MASTER_SET | CANONICAL_DERIVED_SET) - file_set)
         if missing_masters:
-            errors.append(f"missing canonical masters (strict mode): {', '.join(missing_masters)}")
+            errors.append(
+                "missing canonical masters (require-canonical-masters mode): "
+                + ", ".join(missing_masters)
+            )
 
     meta_path = CORE_DIR / "meta.json"
     if meta_path.exists():
@@ -117,31 +162,40 @@ def validate(strict: bool, *, require_lock_values: bool = False) -> list[str]:
             errors.append(f"invalid meta.json: {exc}")
             return errors
 
-        missing_meta_fields = sorted(REQUIRED_META_TOP_LEVEL_FIELDS - set(meta.keys()))
-        if missing_meta_fields:
-            errors.append(
-                f"meta.json missing required top-level fields: {', '.join(missing_meta_fields)}"
-            )
-
-        assets = meta.get("assets")
-        if not isinstance(assets, dict):
-            errors.append("meta.json must define assets as an object")
-        else:
-            missing_asset_keys = sorted(REQUIRED_ASSET_KEYS - set(assets.keys()))
-            if missing_asset_keys:
+        validate_meta_contract = strict or require_lock_values
+        if validate_meta_contract:
+            missing_meta_fields = sorted(REQUIRED_META_TOP_LEVEL_FIELDS - set(meta.keys()))
+            if missing_meta_fields:
                 errors.append(
-                    f"meta.json assets missing required keys: {', '.join(missing_asset_keys)}"
+                    "meta.json missing required top-level fields: " + ", ".join(missing_meta_fields)
                 )
 
-        hashes = meta.get("hashes")
-        if not isinstance(hashes, dict):
-            errors.append("meta.json must define hashes as an object")
-        else:
-            missing_hash_keys = sorted(REQUIRED_HASH_KEYS - set(hashes.keys()))
-            if missing_hash_keys:
-                errors.append(
-                    f"meta.json hashes missing required keys: {', '.join(missing_hash_keys)}"
-                )
+            if "assets" in meta:
+                assets = meta["assets"]
+                if not isinstance(assets, dict):
+                    errors.append("meta.json must define assets as an object")
+                else:
+                    missing_asset_keys = sorted(REQUIRED_ASSET_KEYS - set(assets.keys()))
+                    if missing_asset_keys:
+                        errors.append(
+                            "meta.json assets missing required keys: "
+                            + ", ".join(missing_asset_keys)
+                        )
+                    for key, expected_path in sorted(REQUIRED_ASSET_PATHS.items()):
+                        if assets.get(key) != expected_path:
+                            errors.append(f"meta.json assets.{key} must be {expected_path}")
+
+            if "hashes" in meta:
+                hashes = meta["hashes"]
+                if not isinstance(hashes, dict):
+                    errors.append("meta.json must define hashes as an object")
+                else:
+                    missing_hash_keys = sorted(REQUIRED_HASH_KEYS - set(hashes.keys()))
+                    if missing_hash_keys:
+                        errors.append(
+                            "meta.json hashes missing required keys: "
+                            + ", ".join(missing_hash_keys)
+                        )
 
         if require_lock_values:
             placeholders = _find_placeholder_values(meta)
@@ -160,7 +214,12 @@ def main() -> None:
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Require canonical master files to exist.",
+        help="Validate required metadata fields and canonical asset paths.",
+    )
+    parser.add_argument(
+        "--require-canonical-masters",
+        action="store_true",
+        help="Require canonical master asset files to exist.",
     )
     parser.add_argument(
         "--require-lock-values",
@@ -169,7 +228,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    errors = validate(strict=args.strict, require_lock_values=args.require_lock_values)
+    errors = validate(
+        strict=args.strict,
+        require_lock_values=args.require_lock_values,
+        require_canonical_masters=args.require_canonical_masters,
+    )
     if errors:
         for line in errors:
             print(line)
