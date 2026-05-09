@@ -203,9 +203,6 @@ def validate(
                 errors.append("meta.json lock placeholders found: " + ", ".join(placeholders))
         return errors
 
-    else:
-        errors.append("missing required governance file: meta.json")
-
     return errors
 
 

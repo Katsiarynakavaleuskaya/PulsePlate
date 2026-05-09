@@ -149,6 +149,22 @@ def test_require_canonical_masters_catches_missing_masters(
     )
 
 
+def test_missing_meta_json_is_single_governance_error(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Absent meta.json should not produce duplicate governance-line errors."""
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        include_masters=True,
+        include_meta=False,
+    )
+    meta_lines = [e for e in errors if "meta.json" in e]
+    assert len(meta_lines) == 1
+    assert meta_lines[0].startswith("missing required governance files:")
+
+
 def test_malformed_meta_json_is_detected(
     tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
