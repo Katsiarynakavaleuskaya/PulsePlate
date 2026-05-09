@@ -25,9 +25,20 @@ gated, not deleted.
 | `docs/release/APPSTORE_FEATURE_ASSET_MATRIX.md` | Feature-to-asset mapping with release flags and privacy |
 | `ios/PulsePlate/AppStore/AppStoreScreenshotContext.swift` | Canonical screenshot scenario enum (`AppStoreScreenshotScenario`) |
 | `ios/PulsePlate/Assets.xcassets/AppIcon.appiconset/Contents.json` | AppIcon asset catalog with `ios-marketing` 1024x1024 entry |
+| `scripts/validate_icon_core_v1.py` | Repo-local icon core validator contract, strict metadata checks, and opt-in lock-mode checks |
 | `docs/runbooks/IOS_APPSTORE_ASSETS_ROLLOUT.md` | Protected upload procedure and evidence requirements |
 | `ios/fastlane/Fastfile` | Fastlane snapshot, validation, and upload lanes |
 | `ios/fastlane/metadata/review_information/notes.txt` | Reviewer notes (current state on main) |
+
+Repo-local validator scripts are enforcement-only and must remain:
+- deterministic,
+- network-free,
+- and without mutation of App Store assets, metadata, App Store Connect state, or Figma/Canva payloads.
+
+For this lane:
+- `Figma`, `Canva`, and `Storybook` are evidence/reference layers only.
+- App Store Connect is operational proof during protected upload only; it is not repo logic.
+- `scripts/validate_icon_core_v1.py` enforces local gate correctness and never uploads or generates assets. Default and strict metadata checks run repo-locally; lock-value and canonical-master enforcement remain explicit opt-in modes until the repo-owned lock values and masters are confirmed.
 
 Root `AGENTS.md` section `App Store release readiness gates` remains the
 hard-gate source of truth for release readiness checks. This gate document
@@ -202,9 +213,11 @@ This document does not:
 - Access MCP, Figma, or App Store Connect API
 - Introduce network or provider calls
 - Add secrets or environment variable requirements
-- Change the validator script or release validation implementation
+- Generate assets or change protected upload/release mutation implementation
 - Change billing, subscription, or entitlement logic
 - Change AI provider configuration
+- Generate, export, capture, or replace icon/App Store binaries in this lane
+- Create network uploads or protected App Store Connect dispatches in this lane
 
 ## Blockers
 
@@ -308,12 +321,16 @@ reclassified to `SUBMIT_READY`. Each links to backlog or the epic PR train.
 
 ## Validation Commands
 
-Commands that should pass for this docs/release PR:
+Commands that should pass for the icon asset validator guard lane:
 
 ```bash
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
-pre-commit run --all-files
-python3 scripts/release/check_ios_appstore_verify.py
-! git diff --name-only origin/main...HEAD | rg -q -v '^docs/.*\.md$|^ios/fastlane/metadata/review_information/notes\.txt$'
+.venv/bin/python scripts/validate_icon_core_v1.py
+.venv/bin/python scripts/validate_icon_core_v1.py --strict
+DEV_PYTHON=.venv/bin/python make icon-core-validate
+DEV_PYTHON=.venv/bin/python make ios-appstore-verify
+.venv/bin/python -m pytest -q tests/test_icon_core_validator.py
+PATH=.venv/bin:$PATH pre-commit run --files <touched-files>
+DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
 ```

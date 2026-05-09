@@ -66,6 +66,41 @@ def test_execute_mode_fails_when_dirty_tree_outside_scope(monkeypatch: pytest.Mo
     )
 
 
+def test_execute_mode_preserves_leading_status_space_for_top_level_file(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Top-level files must not be truncated when porcelain status begins with a space."""
+
+    monkeypatch.setattr(preflight, "check_sot_files", lambda: True)
+    monkeypatch.setattr(preflight, "check_worktrees_untracked", lambda: True)
+    monkeypatch.setattr(preflight, "check_agent_consistency", lambda: True)
+    monkeypatch.setattr(preflight, "check_artifact_gitignore", lambda: True)
+    monkeypatch.setattr(preflight, "check_scoped_agents_exist", lambda _paths: True)
+    monkeypatch.setattr(
+        preflight,
+        "_run",
+        lambda cmd, cwd=None: (0, " M Makefile\n M docs/orchestration/workflow.md"),
+    )
+
+    assert (
+        preflight.main(
+            [
+                "--mode",
+                "execute",
+                "--path",
+                "Makefile",
+                "--path",
+                "docs/orchestration",
+                "--primary",
+                "agent-coordinator",
+                "--reviewer",
+                "architecture-specialist",
+            ]
+        )
+        == 0
+    )
+
+
 def test_merge_mode_requires_gate_evidence(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """Merge mode must fail when gate evidence file is missing."""
 

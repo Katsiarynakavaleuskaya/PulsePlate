@@ -226,7 +226,8 @@ TOKEN_PARITY_TESTS := tests/test_design_token_parity.py tests/test_design_invari
 
 ## Validate icon core v1.0 folder structure
 icon-core-validate:
-	python3 scripts/validate_icon_core_v1.py
+	$(DEV_PYTHON) scripts/validate_icon_core_v1.py
+	$(DEV_PYTHON) scripts/validate_icon_core_v1.py --strict
 
 ## Enforce design invariant manifest, palette, and lock hashes
 design-guard:
@@ -560,6 +561,7 @@ ios-appstore-upload-privacy: ## Upload App Privacy answers (requires Apple ID se
 
 ios-appstore-verify: ## Verify App Store submission readiness (repo-local, no upload)
 	@echo "$(YELLOW)Verifying iOS App Store submission readiness...$(NC)"
+	$(DEV_PYTHON) scripts/validate_icon_core_v1.py --strict
 	$(DEV_PYTHON) scripts/release/check_ios_appstore_verify.py
 	$(DEV_PYTHON) -m pytest -q tests/ios/
 	$(DEV_PYTHON) -m pytest -q tests/guards/test_wellness_language_blockers_guard.py

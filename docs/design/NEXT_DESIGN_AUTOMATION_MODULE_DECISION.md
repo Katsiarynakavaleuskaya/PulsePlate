@@ -9,6 +9,14 @@ The selected next lane is the **Icon Asset Validator / App Store asset guard lan
 
 This document is a process decision only. It does not implement the selected lane, does not create an undocumented PR-9 implementation train, and does not mutate runtime web, runtime iOS, backend, OpenAPI, `/tokens`, generated mirrors, Figma, Canva, Storybook config, screenshots, videos, traces, or external assets.
 
+## Active Implementation Status
+
+- The active implementation slice is `feat/design-icon-asset-validator-v1`.
+- Its scope is deliberately limited to repo-local validation, tests, and governance updates.
+- It establishes process, repo-local validation, tests, and governance for the Icon Asset Validator / App Store asset guard lane, including pre-lock metadata-shape validation and explicit opt-in lock/master checks; it does not provide final locked icon masters or confirmed hash values (no runtime or delivery implementation).
+- No runtime UI, screenshot generation, StoreKit changes, network uploads, or asset uploads are included.
+- Figma/Canva/Storybook are evidence/reference only unless explicitly promoted by a future packet.
+
 ## Current Repo Truth
 
 The Design Intelligence wave has landed through PR-8:
@@ -19,7 +27,7 @@ The Design Intelligence wave has landed through PR-8:
 - PR-7 added the repeatable design-agent workflow and PR template.
 - PR-8 added a GEPA-compatible prompt/rubric evolution lane as research/eval/process-only.
 
-The runbook says the Design Intelligence wave does not imply an undocumented design-runtime PR-9 or runtime ownership without a later packet. Therefore the next action is a coordinator-owned selection packet, not an implementation PR.
+The runbook says the Design Intelligence wave does not imply an undocumented design-runtime PR-9 or runtime ownership without a later packet. This decision packet selects the next lane and records the boundary that the active implementation slice follows.
 
 Repo code/docs/tests, `/tokens` as token authoring truth, generated mirrors as derived artifacts, UI vocabulary, backend/OpenAPI contracts, and runtime code remain canonical. DESIGN.md, decision packets, research docs, Figma, Canva, Storybook, evidence packs, scorecards, templates, and prompt outputs remain evidence/reference/process layers only.
 
@@ -41,7 +49,7 @@ The candidates come from the landed design-agent workflow module classification:
 
 The selected next lane is **Icon Asset Validator / App Store asset guard lane**.
 
-The future implementation PR should be a release/design asset guard PR, not a generic Design Intelligence PR-9 and not a broad App Store release implementation.
+The implementation PR should be a release/design asset guard PR, not a generic Design Intelligence PR-9 and not a broad App Store release implementation.
 
 Suggested future branch shape:
 
@@ -51,7 +59,7 @@ Suggested future title shape:
 
 - `feat(design): add icon asset validator guard`
 
-Exact future branch/title must still be confirmed by its own coordinator packet.
+Exact branch/title must still be confirmed by its own coordinator packet.
 
 ## Why This Lane Is Next
 
@@ -76,7 +84,7 @@ Deferral does not mean rejection. It means these lanes are not first after PR-8 
 
 ## Future Implementation Boundary
 
-A future Icon Asset Validator implementation PR may touch only explicitly scoped release/design asset governance surfaces, such as:
+An Icon Asset Validator implementation PR may touch only explicitly scoped release/design asset governance surfaces, such as:
 
 - App icon or release asset manifest validation docs.
 - Deterministic validator scripts or tests for repo-owned asset metadata.
@@ -103,7 +111,7 @@ It must not touch:
 
 Controls:
 
-- This PR remains docs/test-only.
+- The active validator slice remains repo-local tooling/docs/tests/governance only.
 - The selected lane requires a separate future packet and PR.
 - Repo truth and `/tokens` precedence are restated here and guarded by tests.
 - Deferred lanes are explicit.
