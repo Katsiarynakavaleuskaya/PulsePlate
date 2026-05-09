@@ -22,6 +22,8 @@ Open review-bot actionables were triaged against current head. This artifact is 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#discussion_r3212898589 -> 8f1eb0999
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#discussion_r3212899779 -> 8f1eb0999
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#discussion_r3212900480 -> 8f1eb0999
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#pullrequestreview-4257495522 -> 8f1eb0999
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#pullrequestreview-4257497445 -> 8f1eb0999
 
 Disposition: FIXED
 
@@ -33,7 +35,7 @@ Evidence: `tests/test_icon_core_validator.py` adds strict-mode coverage for miss
 
 Evidence: `docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md` uses “App Store assets” for consistency with App Store Connect naming.
 
-Evidence: `docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md` reconciles active slice wording as process/governance-only (no runtime or delivery implementation).
+Evidence: Aggregated Sourcery and CodeRabbit review threads (`#pullrequestreview-4257495522`, `#pullrequestreview-4257497445`) are dispositioned to the same implementation commit; inline discussion URLs above cover file-level feedback.
 
 ## Local Validation Evidence
 
