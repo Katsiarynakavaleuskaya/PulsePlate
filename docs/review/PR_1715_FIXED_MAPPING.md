@@ -25,6 +25,7 @@ Open review-bot actionables were triaged against current head. This artifact is 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#discussion_r3212900480 -> 8f1eb0999
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#pullrequestreview-4257495522 -> 8f1eb0999
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#pullrequestreview-4257497445 -> 8f1eb0999
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#pullrequestreview-4258427610 -> 3374e3a88
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1715#discussion_r3213807371 -> 3374e3a88
 
 Disposition: FIXED
@@ -39,7 +40,7 @@ Evidence: `docs/release/APPSTORE_SCREENSHOT_ASSET_GATE.md` uses “App Store ass
 
 Evidence: Aggregated Sourcery and CodeRabbit review threads (`#pullrequestreview-4257495522`, `#pullrequestreview-4257497445`) are dispositioned to the same implementation commit; inline discussion URLs above cover file-level feedback.
 
-Evidence: Cubic P2 (`discussion_r3213807371`): `--require-canonical-masters` must enforce `CANONICAL_MASTER_SET` only; derived PNGs stay optional on disk; regression test renamed to `test_require_canonical_masters_does_not_require_derived_files`.
+Evidence: Cubic aggregated review `#pullrequestreview-4258427610` (P2 canonical-masters vs derived files) dispositioned to `3374e3a88` (same fix as `discussion_r3213807371`).
 
 Evidence: `183bc1b5d` removes duplicate “missing meta.json” line when `meta.json` is already listed in `missing required governance files`; covered by `test_missing_meta_json_is_single_governance_error`.
 
