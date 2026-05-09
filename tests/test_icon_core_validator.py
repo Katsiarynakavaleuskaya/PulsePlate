@@ -100,8 +100,9 @@ def _run_validator(
     include_meta: bool = True,
     unexpected_files: list[str] | None = None,
     meta_payload: dict | str | None = None,
+    repo_root: pathlib.Path | None = None,
 ) -> list[str]:
-    core_dir = _write_icon_core_fixture(
+    _write_icon_core_fixture(
         tmp_root,
         include_masters=include_masters,
         include_derived=include_derived,
@@ -109,11 +110,12 @@ def _run_validator(
         unexpected_files=unexpected_files,
         meta_payload=meta_payload,
     )
-    monkeypatch.setattr(validator, "CORE_DIR", core_dir)
+    root = repo_root if repo_root is not None else tmp_root
     return validator.validate(
         strict=strict,
         require_lock_values=require_lock_values,
         require_canonical_masters=require_canonical_masters,
+        repo_root=root,
     )
 
 
@@ -177,6 +179,60 @@ def test_malformed_meta_json_is_detected(
         meta_payload='{"contract_id": "bad", "assets": ',
     )
     assert any("invalid meta.json" in err for err in errors)
+    assert any("JSON parse error at line" in err for err in errors)
+
+
+def test_meta_json_size_cap(tmp_path: pathlib.Path) -> None:
+    """Very large meta.json must fail without feeding megabytes to json.load."""
+
+    core = _write_icon_core_fixture(
+        tmp_path,
+        include_masters=True,
+        include_meta=False,
+    )
+    (core / "meta.json").write_bytes(b"x" * (validator.META_JSON_MAX_BYTES + 1))
+    errors = validator.validate(repo_root=tmp_path)
+    assert any("meta.json exceeds max size" in e for e in errors)
+
+
+def test_symlinked_core_dir_outside_repo_rejected(tmp_path: pathlib.Path) -> None:
+    """Resolved icon core path must stay under repo root (symlink escape)."""
+
+    if not hasattr(pathlib.Path, "symlink_to"):
+        pytest.skip("symlink_to not available")
+
+    outside = tmp_path / "outside"
+    outside.mkdir(parents=True)
+    (outside / "README.md").write_text("outside\n", encoding="utf-8")
+
+    repo = tmp_path / "repo"
+    link_parent = repo / "assets" / "brand" / "icon" / "core"
+    link_parent.mkdir(parents=True)
+    link = link_parent / "v1.0"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("cannot create symlink in this environment")
+
+    errors = validator.validate(repo_root=repo)
+    assert any("resolves outside repo root" in e for e in errors)
+
+
+def test_cli_accepts_repo_root(tmp_path: pathlib.Path) -> None:
+    """CLI --repo-root must validate a subtree without cwd being that repo."""
+
+    repo = pathlib.Path(__file__).resolve().parents[1]
+    _write_icon_core_fixture(tmp_path, include_masters=True)
+    script = repo / "scripts" / "validate_icon_core_v1.py"
+    result = subprocess.run(
+        [sys.executable, str(script), "--repo-root", str(tmp_path)],
+        cwd="/",
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0
+    assert "OK: icon core v1.0 structure valid" in result.stdout
 
 
 def test_asset_paths_must_match_canonical_names(

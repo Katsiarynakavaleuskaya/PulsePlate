@@ -8,6 +8,11 @@ Default mode is intentionally lightweight:
 Strict mode validates required metadata fields and canonical asset paths.
 Canonical files and confirmed lock values are required only when explicitly
 requested because the current repo contract may still be pre-lock.
+
+Repository root defaults to the parent of ``scripts/`` (stable in CI regardless
+of process cwd). Pass ``--repo-root`` / ``repo_root=`` to override. The
+resolved icon core directory must stay under that root (blocks symlink escape).
+``meta.json`` larger than ``META_JSON_MAX_BYTES`` is rejected before parsing.
 """
 
 from __future__ import annotations
@@ -16,7 +21,23 @@ import argparse
 import json
 from pathlib import Path
 
-CORE_DIR = Path("assets/brand/icon/core/v1.0")
+ICON_CORE_SUBPATH = Path("assets") / "brand" / "icon" / "core" / "v1.0"
+META_JSON_MAX_BYTES = 256 * 1024
+
+
+def _default_repo_root() -> Path:
+    """Repository root when the script lives in scripts/."""
+
+    return Path(__file__).resolve().parent.parent
+
+
+def _resolve_repo_root(repo_root: Path | str | None) -> Path:
+    if repo_root is None:
+        return _default_repo_root()
+    return Path(repo_root).expanduser().resolve()
+
+
+CORE_DIR = (_default_repo_root() / ICON_CORE_SUBPATH).resolve()
 
 GOVERNANCE_REQUIRED = {"README.md", "meta.json"}
 
@@ -123,20 +144,28 @@ def validate(
     strict: bool = False,
     require_lock_values: bool = False,
     require_canonical_masters: bool = False,
+    repo_root: Path | str | None = None,
 ) -> list[str]:
     errors: list[str] = []
 
-    if not CORE_DIR.exists():
-        return [f"missing directory: {CORE_DIR}"]
-    if not CORE_DIR.is_dir():
-        return [f"not a directory: {CORE_DIR}"]
+    root = _resolve_repo_root(repo_root)
+    core_dir = (root / ICON_CORE_SUBPATH).resolve()
+    try:
+        core_dir.relative_to(root.resolve())
+    except ValueError:
+        return [f"icon core directory resolves outside repo root: {core_dir}"]
 
-    files = sorted(p.name for p in CORE_DIR.iterdir() if p.is_file())
+    if not core_dir.exists():
+        return [f"missing directory: {core_dir}"]
+    if not core_dir.is_dir():
+        return [f"not a directory: {core_dir}"]
+
+    files = sorted(p.name for p in core_dir.iterdir() if p.is_file())
     file_set = set(files)
 
     unexpected = sorted(file_set - ALLOWED_FILES)
     if unexpected:
-        errors.append(f"unexpected files in {CORE_DIR}: {', '.join(unexpected)}")
+        errors.append(f"unexpected files in {core_dir}: {', '.join(unexpected)}")
 
     missing_governance = sorted(GOVERNANCE_REQUIRED - file_set)
     if missing_governance:
@@ -150,8 +179,18 @@ def validate(
                 + ", ".join(missing_masters)
             )
 
-    meta_path = CORE_DIR / "meta.json"
+    meta_path = core_dir / "meta.json"
     if meta_path.exists():
+        try:
+            meta_size = meta_path.stat().st_size
+        except OSError as exc:
+            errors.append(f"cannot stat meta.json: {exc}")
+            return errors
+        if meta_size > META_JSON_MAX_BYTES:
+            errors.append(
+                f"meta.json exceeds max size ({META_JSON_MAX_BYTES} bytes): {meta_size} bytes"
+            )
+            return errors
         try:
             with meta_path.open("r", encoding="utf-8") as f:
                 meta = json.load(f)
@@ -159,7 +198,9 @@ def validate(
                 errors.append("meta.json must be a JSON object")
                 return errors
         except json.JSONDecodeError as exc:
-            errors.append(f"invalid meta.json: {exc}")
+            errors.append(
+                f"invalid meta.json: JSON parse error at line {exc.lineno} column {exc.colno}"
+            )
             return errors
 
         validate_meta_contract = strict or require_lock_values
@@ -223,12 +264,19 @@ def main() -> None:
         action="store_true",
         help="Require TBD lock placeholders to be replaced with concrete values.",
     )
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Repository root (default: parent of scripts/). Use when cwd is not the repo root.",
+    )
     args = parser.parse_args()
 
     errors = validate(
         strict=args.strict,
         require_lock_values=args.require_lock_values,
         require_canonical_masters=args.require_canonical_masters,
+        repo_root=args.repo_root,
     )
     if errors:
         for line in errors:

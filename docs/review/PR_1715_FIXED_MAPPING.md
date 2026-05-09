@@ -5,7 +5,8 @@
 - Branch: `feat/design-icon-asset-validator-v1`
 - Title: `feat(design): add icon asset validator lock-mode and guard tests`
 - Initial reviewed head: `9cd0bc9305f1432d94777b5ff18ceca239911728`
-- Review-fix commit: `f16886190` (branch tip; includes `474c8f0f5`, `183bc1b5d`, `3374e3a88`, `8f1eb0999`)
+- Review-fix commit: `f16886190` (includes `474c8f0f5`, `183bc1b5d`, `3374e3a88`, `8f1eb0999`; review-bot / Cubic threads)
+- Premortem / security-auditor hardening: see **Premortem / security-auditor closure** below (commit \`fix(validate): anchor repo root and harden meta.json handling\` on this branch)
 - Status: addressed Sourcery/CodeRabbit/Cubic inline threads; canonical Phase2 artifact.
 
 ## Discussion Thread Pass
@@ -42,19 +43,32 @@ Evidence: Cubic P2 (`discussion_r3213807371`): `--require-canonical-masters` mus
 
 Evidence: `183bc1b5d` removes duplicate “missing meta.json” line when `meta.json` is already listed in `missing required governance files`; covered by `test_missing_meta_json_is_single_governance_error`.
 
+### Premortem / security-auditor closure
+
+Disposition: FIXED
+
+Evidence: `scripts/validate_icon_core_v1.py` adds `_default_repo_root()` / `_resolve_repo_root()`, `ICON_CORE_SUBPATH`, and `validate(..., repo_root=)`. Resolved `core_dir` must satisfy `core_dir.relative_to(root.resolve())` or validation fails fast (path containment; blocks symlink / `--repo-root` escape).
+
+Evidence: CLI `--repo-root` for non-repo cwd; `META_JSON_MAX_BYTES` (256 KiB) enforced via `stat` before `json.load`; `JSONDecodeError` reported as `line` / `column` only (no full exception string).
+
+Evidence: `tests/test_icon_core_validator.py` — `test_meta_json_size_cap`, `test_symlinked_core_dir_outside_repo_rejected` (skip if symlinks unsupported), `test_cli_accepts_repo_root`; `test_malformed_meta_json_is_detected` asserts `JSON parse error at line` prefix; `_run_validator` uses `repo_root=tmp_root` instead of patching `CORE_DIR`.
+
 ## Local Validation Evidence
 
+- `python3 -m pytest tests/test_icon_core_validator.py -q --noconftest` — PASS
 - `python3 -m pytest tests/test_icon_core_validator.py` - PASS (venv / `--noconftest` when root conftest deps absent)
 - `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1715 --body "$(gh pr view 1715 --repo Katsiarynakavaleuskaya/PulsePlate --json body -q .body)"` - intended PASS after artifact commit and body checkbox update
 
 ## Security Notes
 
-- Validator remains network-free and deterministic; changes are meta-shape and test coverage only.
+- Validator remains network-free and deterministic.
+- Repo-root anchoring and `meta.json` size cap reduce abuse of the gate script on shared runners or pathological inputs; no guard weakening.
 
 ## Risks / Rollback
 
 - Risk: stricter strict-mode aggregation may omit shape errors when top-level keys are missing until keys are present. Mitigation: top-level required set still requires `assets`/`hashes` names.
-- Rollback: revert commits `183bc1b5d` / `3374e3a88` (and prior `8f1eb0999` if needed) and remove this artifact if the gate contract must be relaxed.
+- Risk: very large `meta.json` on disk could spike memory on `json.load` before strict contracts apply. Mitigation: 256 KiB cap rejects oversize files before parse.
+- Rollback: revert premortem hardening commit for `validate_icon_core_v1` / tests / this artifact; revert earlier `183bc1b5d` / `3374e3a88` (and prior `8f1eb0999` if needed) only if the broader gate contract must be relaxed.
 
 ## Deferred / Follow-ups
 
