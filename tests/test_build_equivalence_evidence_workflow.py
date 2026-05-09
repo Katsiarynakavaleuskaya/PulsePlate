@@ -109,15 +109,22 @@ def test_workflow_permissions_environment_and_inputs_are_bounded() -> None:
         "git_sha",
         "release_manifest_source",
         "review_artifact_digest",
+        "review_artifact_digest_source",
         "production_candidate_artifact_digest",
+        "production_candidate_artifact_digest_source",
         "evidence_artifact_name",
     }
 
     assert set(inputs) == expected_inputs
     assert all(inputs[name]["required"] is True for name in expected_inputs)
-    assert "run_id" in inputs["release_manifest_source"]["description"]
-    assert "artifact_name" in inputs["release_manifest_source"]["description"]
-    assert "path" in inputs["release_manifest_source"]["description"]
+    for source_input in (
+        "release_manifest_source",
+        "review_artifact_digest_source",
+        "production_candidate_artifact_digest_source",
+    ):
+        assert "run_id" in inputs[source_input]["description"]
+        assert "artifact_name" in inputs[source_input]["description"]
+        assert "path" in inputs[source_input]["description"]
     assert workflow["permissions"] == {"actions": "read", "contents": "read"}
     assert _job(workflow)["environment"]["name"] == "release-evidence"
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
@@ -142,17 +149,26 @@ def test_workflow_validates_release_manifest_source_run_and_git_sha() -> None:
     assert '[ "$run_conclusion" != "success" ]' in script
     assert '[ "$run_event" != "workflow_dispatch" ]' in script
     assert '"Release Manifest Evidence" ".github/workflows/release-manifest-evidence.yml"' in script
+    assert '"Docker Build and Push" ".github/workflows/build.yml"' in script
     assert "source run head SHA does not match git_sha" in script
     assert "Build Equivalence Evidence workflow ref must match git_sha" in script
 
 
-def test_workflow_keeps_review_and_production_candidate_digests_explicit() -> None:
+def test_workflow_binds_review_and_production_candidate_digests_to_sources() -> None:
     script = _run_script()
     workflow_text = WORKFLOW_PATH.read_text(encoding="utf-8")
 
-    assert "review_artifact_digest_source" not in workflow_text
-    assert "production_candidate_artifact_digest_source" not in workflow_text
-    assert "fetch_digest_source" not in script
+    assert "review_artifact_digest_source" in workflow_text
+    assert "production_candidate_artifact_digest_source" in workflow_text
+    assert "--label review_artifact_digest" in script
+    assert "--label production_candidate_artifact_digest" in script
+    assert "--expected-path release-control-plane-build-sources" in script
+    assert "fetch_text_source" in script
+    assert "artifact_digest.txt" in script
+    assert 'gh run download "$review_digest_run_id"' in script
+    assert 'gh run download "$production_digest_run_id"' in script
+    assert "governed ${label} source does not match explicit input" in script
+    assert "path escapes downloaded artifact" in script
     assert "scripts/release/evidence_source.py oci-digest --label review_artifact_digest" in script
     assert (
         "scripts/release/evidence_source.py oci-digest --label production_candidate_artifact_digest"
@@ -266,8 +282,10 @@ def test_workflow_has_no_app_store_fastlane_or_runtime_surface() -> None:
     assert "ci/release-control-plane-source-producers" in LEDGER_PATH.read_text(encoding="utf-8")
 
 
-def test_docker_build_workflow_does_not_self_certify_review_or_production_digests() -> None:
+def test_docker_build_workflow_publishes_governed_artifact_digest_source() -> None:
     workflow_text = BUILD_WORKFLOW_PATH.read_text(encoding="utf-8")
 
+    assert "artifact_digest.txt" in workflow_text
+    assert "${{ steps.docker-build-push.outputs.digest }}" in workflow_text
     assert "review_artifact_digest.txt" not in workflow_text
     assert "production_candidate_artifact_digest.txt" not in workflow_text

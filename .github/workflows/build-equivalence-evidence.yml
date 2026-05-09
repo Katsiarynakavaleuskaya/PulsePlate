@@ -16,8 +16,16 @@ on:
         description: "App Review build artifact digest in sha256:<64 lowercase hex> format"
         required: true
         type: string
+      review_artifact_digest_source:
+        description: "Single-line JSON with run_id, artifact_name, path=release-control-plane-build-sources for governed App Review artifact digest"
+        required: true
+        type: string
       production_candidate_artifact_digest:
         description: "Production-candidate build artifact digest in sha256:<64 lowercase hex> format"
+        required: true
+        type: string
+      production_candidate_artifact_digest_source:
+        description: "Single-line JSON with run_id, artifact_name, path=release-control-plane-build-sources for governed production-candidate artifact digest"
         required: true
         type: string
       evidence_artifact_name:
@@ -54,8 +62,10 @@ jobs:
           EXPECTED_GIT_SHA: ${{ inputs.git_sha }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PRODUCTION_CANDIDATE_ARTIFACT_DIGEST: ${{ inputs.production_candidate_artifact_digest }}
+          PRODUCTION_CANDIDATE_ARTIFACT_DIGEST_SOURCE: ${{ inputs.production_candidate_artifact_digest_source }}
           RELEASE_MANIFEST_SOURCE: ${{ inputs.release_manifest_source }}
           REVIEW_ARTIFACT_DIGEST: ${{ inputs.review_artifact_digest }}
+          REVIEW_ARTIFACT_DIGEST_SOURCE: ${{ inputs.review_artifact_digest_source }}
         run: |
           set -euo pipefail
 
@@ -73,6 +83,34 @@ jobs:
           release_manifest_artifact_name="$RELEASE_MANIFEST_ARTIFACT_NAME"
           # shellcheck disable=SC2153
           release_manifest_source_path="$RELEASE_MANIFEST_PATH"
+          review_digest_source_env="${RUNNER_TEMP}/build-equivalence-review-digest-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label review_artifact_digest \
+            --prefix REVIEW_ARTIFACT_DIGEST_SOURCE \
+            --expected-path release-control-plane-build-sources \
+            --source-json "$REVIEW_ARTIFACT_DIGEST_SOURCE" > "$review_digest_source_env"
+          # shellcheck disable=SC1090
+          . "$review_digest_source_env"
+          # shellcheck disable=SC2153
+          review_digest_run_id="$REVIEW_ARTIFACT_DIGEST_SOURCE_RUN_ID"
+          # shellcheck disable=SC2153
+          review_digest_artifact_name="$REVIEW_ARTIFACT_DIGEST_SOURCE_ARTIFACT_NAME"
+          # shellcheck disable=SC2153
+          review_digest_source_path="$REVIEW_ARTIFACT_DIGEST_SOURCE_PATH"
+          production_digest_source_env="${RUNNER_TEMP}/build-equivalence-production-digest-source.env"
+          python scripts/release/evidence_source.py source-env \
+            --label production_candidate_artifact_digest \
+            --prefix PRODUCTION_CANDIDATE_ARTIFACT_DIGEST_SOURCE \
+            --expected-path release-control-plane-build-sources \
+            --source-json "$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST_SOURCE" > "$production_digest_source_env"
+          # shellcheck disable=SC1090
+          . "$production_digest_source_env"
+          # shellcheck disable=SC2153
+          production_digest_run_id="$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST_SOURCE_RUN_ID"
+          # shellcheck disable=SC2153
+          production_digest_artifact_name="$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST_SOURCE_ARTIFACT_NAME"
+          # shellcheck disable=SC2153
+          production_digest_source_path="$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST_SOURCE_PATH"
 
           EVIDENCE_ARTIFACT_NAME="$(python scripts/release/evidence_source.py artifact-name "$EVIDENCE_ARTIFACT_NAME")"
           expected_git_sha_lc="$(python scripts/release/evidence_source.py git-sha "$EXPECTED_GIT_SHA")"
@@ -129,12 +167,59 @@ jobs:
 
           validate_source_run "release manifest" "$release_manifest_run_id" \
             "Release Manifest Evidence" ".github/workflows/release-manifest-evidence.yml"
+          validate_source_run "review artifact digest" "$review_digest_run_id" \
+            "Docker Build and Push" ".github/workflows/build.yml"
+          validate_source_run "production-candidate artifact digest" "$production_digest_run_id" \
+            "Docker Build and Push" ".github/workflows/build.yml"
+
+          fetch_text_source() {
+            label="$1"
+            source_path="$2"
+            download_dir="$3"
+            expected_value="$4"
+            mkdir -p "$download_dir"
+            source_file="${download_dir}/${source_path}/artifact_digest.txt"
+            if [ ! -f "$source_file" ]; then
+              echo "ERROR: Missing governed ${label} at ${source_path}/artifact_digest.txt"
+              exit 1
+            fi
+            resolved_download_dir="$(cd "$download_dir" && pwd -P)"
+            resolved_source_file="$(python - "$source_file" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).resolve())
+          PY
+            )"
+            case "$resolved_source_file" in
+              "$resolved_download_dir"/*) ;;
+              *) echo "ERROR: ${label} path escapes downloaded artifact"; exit 1 ;;
+            esac
+            actual_value="$(python - "$source_file" <<'PY'
+          from pathlib import Path
+          import sys
+
+          print(Path(sys.argv[1]).read_text(encoding="utf-8").strip())
+          PY
+            )"
+            actual_value="$(python scripts/release/evidence_source.py oci-digest --label "${label}_source" "$actual_value")"
+            if [ "$actual_value" != "$expected_value" ]; then
+              echo "ERROR: governed ${label} source does not match explicit input"
+              exit 1
+            fi
+          }
 
           download_dir="${RUNNER_TEMP}/build-equivalence-release-manifest-source"
+          review_digest_download_dir="${RUNNER_TEMP}/build-equivalence-review-digest-source"
+          production_digest_download_dir="${RUNNER_TEMP}/build-equivalence-production-digest-source"
           output_dir="${RUNNER_TEMP}/build-equivalence-evidence"
           identities_dir="${RUNNER_TEMP}/build-equivalence-identities"
-          mkdir -p "$download_dir" "$output_dir" "$identities_dir"
+          mkdir -p "$download_dir" "$review_digest_download_dir" "$production_digest_download_dir" "$output_dir" "$identities_dir"
           gh run download "$release_manifest_run_id" --name "$release_manifest_artifact_name" --dir "$download_dir"
+          gh run download "$review_digest_run_id" --name "$review_digest_artifact_name" --dir "$review_digest_download_dir"
+          gh run download "$production_digest_run_id" --name "$production_digest_artifact_name" --dir "$production_digest_download_dir"
+          fetch_text_source "review artifact digest" "$review_digest_source_path" "$review_digest_download_dir" "$REVIEW_ARTIFACT_DIGEST"
+          fetch_text_source "production-candidate artifact digest" "$production_digest_source_path" "$production_digest_download_dir" "$PRODUCTION_CANDIDATE_ARTIFACT_DIGEST"
           release_manifest_path="${download_dir}/${release_manifest_source_path}"
           if [ ! -f "$release_manifest_path" ]; then
             echo "ERROR: Missing governed release_manifest.json at ${release_manifest_source_path}"

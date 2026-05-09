@@ -499,6 +499,10 @@ jobs:
           attestation_payload = json.loads(attestation.read_text(encoding="utf-8"))
           if attestation_payload.get("passed") is not True:
               raise SystemExit("ERROR: Docker provenance/SBOM attestations are not verified")
+          (source_dir / "artifact_digest.txt").write_text(
+              "${{ steps.docker-build-push.outputs.digest }}\n",
+              encoding="utf-8",
+          )
           (source_dir / "sbom_digest.txt").write_text(
               f"sha256:{hashlib.sha256(sbom.read_bytes()).hexdigest()}\n",
               encoding="utf-8",
@@ -515,6 +519,7 @@ jobs:
         with:
           name: release-control-plane-build-sources
           path: |
+            release-control-plane-build-sources/artifact_digest.txt
             release-control-plane-build-sources/sbom_digest.txt
             release-control-plane-build-sources/provenance_digest.txt
             release-control-plane-build-sources/attestation_status.txt
