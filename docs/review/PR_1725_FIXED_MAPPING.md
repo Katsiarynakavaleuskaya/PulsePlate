@@ -10,7 +10,7 @@
   - `63d367bb0` — clarify `emergency_python_wheels.json` scope (mirror-lag fallback, not 521 fallback) and correct Wrangler auth wording (Codex P2 + Cubic P3)
   - `d2dbc9e39` — fix HTTP probe to PEP 503 `/simple/<package>/` path and bound `curl` with `--connect-timeout` / `--max-time` (Sourcery P2 + P3)
   - `90cdcd080` — replace remaining `+simple/` typos with `/simple/` (CodeRabbit Major + cubic-dev-ai P2), uncheck premature merge-readiness boxes (CodeRabbit Minor), and tighten emergency-wheels `reason` wording so it cannot read as a generic 521 fallback (Codex P2 hardening)
-  - HEAD — align canonical artifact `Title` with full PR title (CodeRabbit Minor) and document `test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces` stale-commit CI failure resolution (HEAD is coherent: `mypy==2.0.0` pinned across `requirements-dev.in`, `requirements-dev.txt`, `requirements-all.txt`, and `scripts/ci/emergency_python_wheels.json`)
+  - `80f7586e0` — align canonical artifact `Title` with full PR title (CodeRabbit Minor `discussion_r3215334120`) and document `test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces` stale-commit CI failure resolution (HEAD is coherent: `mypy==2.0.0` pinned across `requirements-dev.in`, `requirements-dev.txt`, `requirements-all.txt`, and `scripts/ci/emergency_python_wheels.json`)
 - Scope: `scripts/ci/emergency_python_wheels.json`, `RUNBOOK_AGENT.md`, `docs/roadmap/BACKLOG_LEDGER.md`, `.secrets.baseline` — repo-side bridge + triage doc; no application runtime surface, no security policy weakening.
 
 ## Discussion Thread Pass
@@ -63,6 +63,12 @@ Evidence: same `+simple/` → `/simple/` correction across RUNBOOK_AGENT.md, BAC
 Disposition: FIXED
 Commit: 90cdcd080173b7921f81bcba039ad63e11025249
 Evidence: docs/review/PR_1725_FIXED_MAPPING.md `## Merge Readiness` section — the two prematurely-checked boxes (`Pre-flight + agent consistency`, `Canonical artifact`) are now `[ ]` and their descriptive text explicitly notes they will be re-checked only on final HEAD before claiming merge-ready, in line with root `AGENTS.md` merge-readiness rules. Reviewer: CodeRabbit (Minor).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#discussion_r3215334120 -> 80f7586e0d26475b72ef237e2619192f6913f963
+
+Disposition: FIXED
+Commit: 80f7586e0d26475b72ef237e2619192f6913f963
+Evidence: docs/review/PR_1725_FIXED_MAPPING.md line 6 — the `Title:` field in the canonical artifact now reads exactly `fix(ci): private PyPI proxy premortem — emergency wheels, runbook, Cloudflare 521 checklist`, matching the full PR title returned by `gh pr view 1725 --json title`. Reviewer: CodeRabbit (Minor).
 
 ## Stale-commit CI failure (informational; not a new actionable review thread)
 
