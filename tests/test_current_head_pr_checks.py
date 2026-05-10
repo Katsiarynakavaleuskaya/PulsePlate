@@ -107,7 +107,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
-            True,
+            False,
         ),
         (
             current_head_checks.CheckEntry(
@@ -119,7 +119,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Optional CI",
                 conclusion="FAILURE",
             ),
-            True,
+            False,
         ),
         (
             current_head_checks.CheckEntry(
@@ -433,7 +433,7 @@ def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clea
     assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
 
 
-def test_main_fails_when_merge_state_is_not_clean_and_specialized_advisory_check_is_pending(
+def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_check_is_pending(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -467,14 +467,17 @@ def test_main_fails_when_merge_state_is_not_clean_and_specialized_advisory_check
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "Required check metadata unavailable" in captured.out
-    assert "Current-head blocking fallback checks:" in captured.out
+    assert "Current-head advisory checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
-    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
+    assert (
+        "Blocking canonical fallback current-head checks remain pending or failed."
+        not in captured.out
+    )
 
 
-def test_main_fails_when_specialized_ci_job_is_pending_in_fallback_mode(
+def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -508,10 +511,13 @@ def test_main_fails_when_specialized_ci_job_is_pending_in_fallback_mode(
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
-    assert "Current-head blocking fallback checks:" in captured.out
-    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
+    assert "Current-head advisory checks:" in captured.out
+    assert (
+        "Blocking canonical fallback current-head checks remain pending or failed."
+        not in captured.out
+    )
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_is_pending(
@@ -550,10 +556,9 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
-    assert "Current-head blocking fallback checks:" in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
     assert (
-        "Blocking fallback current-head checks remain pending or failed." in captured.out
+        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
     )
 
 
@@ -593,10 +598,9 @@ def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pe
     captured = capsys.readouterr()
     assert exit_code == 1
     assert "GitHub mergeStateStatus=CLEAN" not in captured.out
-    assert "Current-head blocking fallback checks:" in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
     assert (
-        "Blocking fallback current-head checks remain pending or failed." in captured.out
+        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
     )
 
 
