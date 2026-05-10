@@ -16,7 +16,9 @@ Dependency-security hotfix: treat new bot threads via disposition below once CI/
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1724#pullrequestreview-4259625562
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_docs_phase1_gates.py:96` enforces explicit `` `file:line` `` anchors for `docs/security/*.md`; Sourcery suggestion to drop line-specific anchors would fail CI. Review body matches boilerplate **Prompt for AI Agents**; no code change for this hotfix scope.
 
 ## Local Validation Evidence
 
