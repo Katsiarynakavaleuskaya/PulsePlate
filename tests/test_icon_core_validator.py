@@ -70,11 +70,11 @@ def _write_icon_core_fixture(
                         "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
                     },
                     "hashes": {
-                        "master_svg_sha256": "sha256:svg",
-                        "master_png_1024_sha256": "sha256:png1024",
-                        "master_png_60_sha256": "sha256:png60",
-                        "silhouette_mask_sha256_1024": "sha256:mask1024",
-                        "silhouette_mask_sha256_60": "sha256:mask60",
+                        "master_svg_sha256": "sha256:" + "a" * 64,
+                        "master_png_1024_sha256": "sha256:" + "b" * 64,
+                        "master_png_60_sha256": "sha256:" + "c" * 64,
+                        "silhouette_mask_sha256_1024": "sha256:" + "d" * 64,
+                        "silhouette_mask_sha256_60": "sha256:" + "e" * 64,
                     },
                 },
                 indent=2,
@@ -257,11 +257,11 @@ def test_asset_paths_must_match_canonical_names(
             "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
         },
         "hashes": {
-            "master_svg_sha256": "sha256:svg",
-            "master_png_1024_sha256": "sha256:png1024",
-            "master_png_60_sha256": "sha256:png60",
-            "silhouette_mask_sha256_1024": "sha256:mask1024",
-            "silhouette_mask_sha256_60": "sha256:mask60",
+            "master_svg_sha256": "sha256:" + "a" * 64,
+            "master_png_1024_sha256": "sha256:" + "b" * 64,
+            "master_png_60_sha256": "sha256:" + "c" * 64,
+            "silhouette_mask_sha256_1024": "sha256:" + "d" * 64,
+            "silhouette_mask_sha256_60": "sha256:" + "e" * 64,
         },
     }
 
@@ -375,9 +375,9 @@ def test_require_lock_values_rejects_noncanonical_placeholders(
         "hashes": {
             "master_svg_sha256": "",
             "master_png_1024_sha256": "TBD",
-            "master_png_60_sha256": "sha256:png60",
+            "master_png_60_sha256": "sha256:" + "c" * 64,
             "silhouette_mask_sha256_1024": "not-a-sha",
-            "silhouette_mask_sha256_60": "sha256:mask60",
+            "silhouette_mask_sha256_60": "sha256:" + "e" * 64,
         },
     }
 
@@ -389,6 +389,50 @@ def test_require_lock_values_rejects_noncanonical_placeholders(
         meta_payload=meta_with_noncanonical_placeholders,
     )
     assert any("meta.json lock placeholders found" in err for err in errors)
+
+
+def test_require_lock_values_rejects_invalid_sha256_digest_shapes(
+    tmp_path: pathlib.Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Lock mode must reject sha256-prefixed values without a real digest."""
+
+    invalid_hashes = {
+        "master_svg_sha256": "sha256:x",
+        "master_png_1024_sha256": "sha256:TBD_AFTER_WINNER_LOCK",
+        "master_png_60_sha256": "sha256:not-a-sha",
+        "silhouette_mask_sha256_1024": "sha256:ABCDEF",
+        "silhouette_mask_sha256_60": "sha256:123",
+    }
+    meta_with_invalid_hashes = {
+        "contract_id": "EMBLEM_CORE_v1.0_LOCK",
+        "version": "v1.0",
+        "master_policy": "dual-master-svg-png",
+        "figma_source_type": "design",
+        "figma_design_url": "spec://design-url",
+        "figma_file_key": "design-file-key",
+        "figma_node_id": "1024:2048",
+        "assets": {
+            "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
+            "png_master_1024": "assets/brand/icon/core/v1.0/icon_core_v1_1024.png",
+            "png_master_60": "assets/brand/icon/core/v1.0/icon_core_v1_60.png",
+            "png_derived_120": "assets/brand/icon/core/v1.0/icon_core_v1_120.png",
+            "png_derived_32": "assets/brand/icon/core/v1.0/icon_core_v1_32.png",
+            "png_derived_24": "assets/brand/icon/core/v1.0/icon_core_v1_24.png",
+        },
+        "hashes": invalid_hashes,
+    }
+
+    errors = _run_validator(
+        monkeypatch,
+        tmp_path,
+        require_lock_values=True,
+        include_masters=True,
+        meta_payload=meta_with_invalid_hashes,
+    )
+
+    assert any("meta.json lock placeholders found" in err for err in errors)
+    for key in invalid_hashes:
+        assert any(f"hashes.{key}=" in err for err in errors)
 
 
 def test_require_canonical_masters_does_not_require_derived_files(
@@ -448,11 +492,11 @@ def test_strict_mode_reports_missing_asset_keys_without_duplicate_shape_errors(
             "svg_master": "assets/brand/icon/core/v1.0/icon_core_v1.svg",
         },
         "hashes": {
-            "master_svg_sha256": "sha256:svg",
-            "master_png_1024_sha256": "sha256:png1024",
-            "master_png_60_sha256": "sha256:png60",
-            "silhouette_mask_sha256_1024": "sha256:mask1024",
-            "silhouette_mask_sha256_60": "sha256:mask60",
+            "master_svg_sha256": "sha256:" + "a" * 64,
+            "master_png_1024_sha256": "sha256:" + "b" * 64,
+            "master_png_60_sha256": "sha256:" + "c" * 64,
+            "silhouette_mask_sha256_1024": "sha256:" + "d" * 64,
+            "silhouette_mask_sha256_60": "sha256:" + "e" * 64,
         },
     }
 
@@ -478,16 +522,20 @@ def test_strict_mode_rejects_non_object_assets_and_hashes(
         "figma_node_id": "1024:2048",
         "assets": [],
         "hashes": {
-            "master_svg_sha256": "sha256:svg",
-            "master_png_1024_sha256": "sha256:png1024",
-            "master_png_60_sha256": "sha256:png60",
-            "silhouette_mask_sha256_1024": "sha256:mask1024",
-            "silhouette_mask_sha256_60": "sha256:mask60",
+            "master_svg_sha256": "sha256:" + "a" * 64,
+            "master_png_1024_sha256": "sha256:" + "b" * 64,
+            "master_png_60_sha256": "sha256:" + "c" * 64,
+            "silhouette_mask_sha256_1024": "sha256:" + "d" * 64,
+            "silhouette_mask_sha256_60": "sha256:" + "e" * 64,
         },
     }
 
     errors_assets = _run_validator(
-        monkeypatch, tmp_path, strict=True, include_masters=True, meta_payload=meta_assets_list
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        include_masters=True,
+        meta_payload=meta_assets_list,
     )
     assert "meta.json must define assets as an object" in errors_assets
 
@@ -511,7 +559,11 @@ def test_strict_mode_rejects_non_object_assets_and_hashes(
     }
 
     errors_hashes = _run_validator(
-        monkeypatch, tmp_path, strict=True, include_masters=True, meta_payload=meta_hashes_str
+        monkeypatch,
+        tmp_path,
+        strict=True,
+        include_masters=True,
+        meta_payload=meta_hashes_str,
     )
     assert "meta.json must define hashes as an object" in errors_hashes
 
