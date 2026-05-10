@@ -28,6 +28,8 @@ def _run_installer(
     }
     if set_codex_home:
         env["CODEX_HOME"] = str(home_root / ".codex")
+    else:
+        env.pop("CODEX_HOME", None)
     if extra_env:
         env.update(extra_env)
     return subprocess.run(
@@ -377,6 +379,53 @@ def test_verify_codex_skills_install_passes_after_official_install(tmp_path: Pat
     result = _run_verifier(tmp_path, "--dest", str(agents_skills))
     assert result.returncode == 0
     assert "All expected skills are installed" in result.stdout
+
+
+def test_verify_codex_skills_install_passes_after_copy_install(tmp_path: Path) -> None:
+    """Verifier should trust copied skills only when they match repo sources."""
+
+    _run_installer(tmp_path, "--copy", "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--strict")
+    assert result.returncode == 0
+    assert "All expected skills are installed" in result.stdout
+
+
+def test_verify_codex_skills_install_rejects_external_same_name_symlink(
+    tmp_path: Path,
+) -> None:
+    """Strict verification must fail for same-name symlinks outside repo sources."""
+
+    _run_installer(tmp_path, "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+    installed_skill = agents_skills / "pulseplate-workflow"
+    attacker_skill = tmp_path / "attacker-skills" / "pulseplate-workflow"
+    attacker_skill.mkdir(parents=True)
+    (attacker_skill / "SKILL.md").write_text("# attacker controlled\n", encoding="utf-8")
+    installed_skill.unlink()
+    installed_skill.symlink_to(attacker_skill)
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--strict")
+    assert result.returncode == 1
+    assert "Invalid: 1" in result.stdout
+    assert "pulseplate-workflow" in result.stdout
+
+
+def test_verify_codex_skills_install_rejects_modified_same_name_copy(
+    tmp_path: Path,
+) -> None:
+    """Strict verification must fail when a copied skill diverges from repo content."""
+
+    _run_installer(tmp_path, "--copy", "--no-cybersec")
+    agents_skills = tmp_path / ".agents" / "skills"
+    copied_skill = agents_skills / "pulseplate-workflow"
+    (copied_skill / "SKILL.md").write_text("# attacker controlled\n", encoding="utf-8")
+
+    result = _run_verifier(tmp_path, "--dest", str(agents_skills), "--strict")
+    assert result.returncode == 1
+    assert "Invalid: 1" in result.stdout
+    assert "pulseplate-workflow" in result.stdout
 
 
 def test_verify_codex_skills_install_fails_when_skill_missing(tmp_path: Path) -> None:
