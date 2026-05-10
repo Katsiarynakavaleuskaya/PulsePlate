@@ -3,12 +3,14 @@
 
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725>
 - Branch: `fix/private-pypi-proxy-premortem-521`
-- Title: `fix(ci): private PyPI proxy premortem — emergency wheels, runbook, baseline`
+- Title: `fix(ci): private PyPI proxy premortem — emergency wheels, runbook, Cloudflare 521 checklist`
 - Implementing commits:
   - `7225d2cd3` — initial premortem fix (emergency wheels expand, runbook 521 triage, baseline refresh, ledger entry)
   - `5218e0c42` — scope Cloudflare 521 triage to *packages hostname only*; marketing 521 stays intentional (operator decision)
   - `63d367bb0` — clarify `emergency_python_wheels.json` scope (mirror-lag fallback, not 521 fallback) and correct Wrangler auth wording (Codex P2 + Cubic P3)
   - `d2dbc9e39` — fix HTTP probe to PEP 503 `/simple/<package>/` path and bound `curl` with `--connect-timeout` / `--max-time` (Sourcery P2 + P3)
+  - `90cdcd080` — replace remaining `+simple/` typos with `/simple/` (CodeRabbit Major + cubic-dev-ai P2), uncheck premature merge-readiness boxes (CodeRabbit Minor), and tighten emergency-wheels `reason` wording so it cannot read as a generic 521 fallback (Codex P2 hardening)
+  - HEAD — align canonical artifact `Title` with full PR title (CodeRabbit Minor) and document `test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces` stale-commit CI failure resolution (HEAD is coherent: `mypy==2.0.0` pinned across `requirements-dev.in`, `requirements-dev.txt`, `requirements-all.txt`, and `scripts/ci/emergency_python_wheels.json`)
 - Scope: `scripts/ci/emergency_python_wheels.json`, `RUNBOOK_AGENT.md`, `docs/roadmap/BACKLOG_LEDGER.md`, `.secrets.baseline` — repo-side bridge + triage doc; no application runtime surface, no security policy weakening.
 
 ## Discussion Thread Pass
@@ -43,6 +45,36 @@ Evidence: same Wrangler-auth correction in RUNBOOK_AGENT.md; this is the top-lev
 Disposition: FIXED
 Commit: d2dbc9e39bc11a9d8cb64e3f0e5499e4953e48f4
 Evidence: RUNBOOK_AGENT.md HTTP-probe step — the probe URL is now PEP 503 compliant (${PULSEPLATE_PYTHON_INDEX_URL%/}/simple/aiosqlite/) so it actually exercises the simple-index surface pip consumes, and the curl invocation is bounded by --connect-timeout 5 --max-time 10 so a hung Cloudflare origin cannot stall triage. Both Sourcery findings (P2 simple-index path and P3 timeout bounds) are addressed in this single commit. Reviewer: Sourcery (top-level review).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#discussion_r3215317022 -> 90cdcd080173b7921f81bcba039ad63e11025249
+
+Disposition: FIXED
+Commit: 90cdcd080173b7921f81bcba039ad63e11025249
+Evidence: RUNBOOK_AGENT.md, docs/roadmap/BACKLOG_LEDGER.md, and docs/review/PR_1725_FIXED_MAPPING.md (×2) — every `+simple/` token has been replaced with `/simple/` so the documented PEP 503 probe path matches the simple repository API base actually used by pip / lockfiles. `rg "\+simple/"` returns no matches across the repo. Reviewer: CodeRabbit (Major).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#discussion_r3215324265 -> 90cdcd080173b7921f81bcba039ad63e11025249
+
+Disposition: FIXED
+Commit: 90cdcd080173b7921f81bcba039ad63e11025249
+Evidence: same `+simple/` → `/simple/` correction across RUNBOOK_AGENT.md, BACKLOG_LEDGER.md, and PR_1725_FIXED_MAPPING.md. The `+simple/` token does not correspond to any PEP 503 concept; the canonical simple repository API base path is `/simple/` (e.g. `https://pypi.org/simple/`). Reviewer: cubic-dev-ai (P2; same root cause as CodeRabbit Major above).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#discussion_r3215317016 -> 90cdcd080173b7921f81bcba039ad63e11025249
+
+Disposition: FIXED
+Commit: 90cdcd080173b7921f81bcba039ad63e11025249
+Evidence: docs/review/PR_1725_FIXED_MAPPING.md `## Merge Readiness` section — the two prematurely-checked boxes (`Pre-flight + agent consistency`, `Canonical artifact`) are now `[ ]` and their descriptive text explicitly notes they will be re-checked only on final HEAD before claiming merge-ready, in line with root `AGENTS.md` merge-readiness rules. Reviewer: CodeRabbit (Minor).
+
+## Stale-commit CI failure (informational; not a new actionable review thread)
+
+- Failure: `tests/test_install_locked_python_requirements.py::test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces` — `AssertionError: assert ('mypy', '1.20.2') in {('mypy', '2.0.0')}` reported by the operator from a stale CI run.
+- Disposition: FIXED on HEAD (no new code change required vs current HEAD; not a review thread, so no `Fixed in Commit Mapping` entry).
+- Evidence: on the current branch HEAD all four mypy surfaces agree at `2.0.0`:
+  - `scripts/ci/emergency_python_wheels.json` → `"package": "mypy"`, `"version": "2.0.0"`
+  - `requirements-dev.in` → `mypy==2.0.0`
+  - `requirements-dev.txt` → `mypy==2.0.0`
+  - `requirements-all.txt` → `mypy>=2.0.0`
+  - Local rerun: `pytest -q tests/test_install_locked_python_requirements.py::test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces` → PASS.
+- Root cause: a transient mismatch on an early intermediate commit before the dev-requirements surfaces and the emergency manifest were re-aligned. The convergence is preserved by `tests/test_install_locked_python_requirements.py` (`test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces`) and `tests/test_python_supply_chain_controls.py`, both of which now pass on HEAD. No additional code fix is required; CI on current head must be re-run before claiming merge-ready (this is one of the explicit unchecked boxes under `## Merge Readiness`).
 
 ## Local Validation Evidence
 
