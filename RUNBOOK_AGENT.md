@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-03-26 (Automation readiness alignment)
+**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist scoped to packages hostname; marketing origin gate is intentional; HTTP probe corrected to PEP 503 `/simple/<package>/` path and bounded with `--connect-timeout` / `--max-time`)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -365,6 +365,48 @@ opaque “bad interpreter” errors. Shebangs using `#!/usr/bin/env ...` are not
 validated in v1. Run `make verify` from repo root and do not rely on an
 externally activated interpreter: `verify-env` requires the repo `.venv`
 interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
+
+## Python private index proxy (`PULSEPLATE_PYTHON_INDEX_URL`) triage
+
+**Canonical contract:** see `docs/DEPENDENCY_MANAGEMENT.md` and `scripts/ci/install_locked_python_requirements.py`. Installs must use the approved proxy; public PyPI hosts are blocked for the canonical installer path.
+
+**Symptoms**
+
+- `curl` / browser to `…/simple/<package>/` returns **521** (often Cloudflare origin down) or **5xx**.
+- `pip` / `make venv-sync` reports *No matching distribution* for a pin that exists on PyPI.
+- CI Python setup fails at preflight or locked install.
+
+**Operator checks (dev-operator / SRE)**
+
+1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and URL ends with policy-allowed form (see installer + docs).
+2. **HTTP probe** (no secrets in command output, bounded so a hung origin cannot stall triage): `curl -sS --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/simple/aiosqlite/"` — expect **200** when healthy. Use the **PEP 503 `/simple/<package>/` path** (here `aiosqlite`) — probing the bare package path (e.g. `…/aiosqlite/`) does not exercise the simple-index surface that pip actually consumes and can return 200 from a cache while pip still fails. If your `PULSEPLATE_PYTHON_INDEX_URL` is **already** the simple-index root (i.e. ends with `/simple` or `/simple/`), drop the extra `/simple` so the path stays `…/simple/aiosqlite/` (do not double up to `…/simple/simple/aiosqlite/`).
+3. **Preflight without full install:** from repo root with venv active,
+   `python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
+   (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
+4. **Scope of `scripts/ci/emergency_python_wheels.json`** — this manifest is **not a 521 fallback**. It is a **mirror-lag fallback for the exact, listed wheels only** (sha256-only, `files.pythonhosted.org` URLs, TTL `expires_at`). The installer (`install_from_proxy_with_emergency_fallback`) retries with the **same** `--index-url` and only adds `--find-links` for wheels whose exact pins are listed here, so any unlisted dependency in `requirements*.txt` / `requirements-ci-lite.txt` still requires a working `--index-url`. Therefore:
+   - When the proxy returns 200 but **lags** for one of the listed pins → the emergency manifest can keep installs going; this is the supported case.
+   - When the proxy itself is fully unhealthy (true Cloudflare 521 / origin down) → the emergency manifest **cannot keep installs going on its own** for unlisted pins. Do **not** present it as a "521 fallback" to operators. The only correct operator paths in that case are: (a) restore the *packages* origin per the SRE/infra section below, or (b) use an out-of-band complete offline wheelhouse (not part of this PR's scope). This is also the reason `ledger-p1-private-pypi-proxy-mirror-parity` exists — see `docs/roadmap/BACKLOG_LEDGER.md`.
+   - Any change to the manifest must pass `tests/test_python_supply_chain_controls.py` and installer tests; security review applies.
+
+**SRE / infra (scoped fix for 521)**
+
+> **Important hostname split.** A 521 on `pulseplate.app` (the public marketing
+> site) may be **intentional release gating** — the operator can hold that origin
+> down on purpose until the public site is ready. **Do not "revive" the
+> marketing origin** as part of CI triage. The only CI-blocking surface is the
+> **packages hostname** behind `PULSEPLATE_PYTHON_INDEX_URL` (e.g.
+> `packages.pulseplate.app`), which **must** serve PEP 503 `/simple/` for the
+> locked pins. Treat the two hostnames as independent origins behind the same
+> Cloudflare zone. If both share one origin today, splitting them is part of the
+> backlog parity work — see
+> `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`.
+
+- **Root cause (when the packages hostname is the one returning 521):** HTTP **521** means Cloudflare reached the edge but the **origin** did not return a valid HTTP response (origin down, wrong port, TLS mismatch, firewall dropping CF IPs, overload). Fix the **origin** behind the *packages* proxied hostname only; do not touch the marketing origin without explicit operator approval.
+- **Cloudflare dashboard** (zone `pulseplate.app`, account-specific) — scope every check to the **packages hostname** record, not the apex marketing record: **DNS** → confirm the packages **A/AAAA/CNAME** points at the live mirror origin; **SSL/TLS** → mode compatible with that origin (often *Full (strict)* if the origin has a valid cert); **Security** → WAF / rate limits / Bot Fight not blocking the packages path; **Analytics** → filter by status 521 **and hostname** so you don't accidentally read the intentional-gate apex traffic; **Load Balancing** (if used): pool health and origin status for the packages pool only.
+- **Origin / mirror:** restore Bandersnatch / devpi / Nexus / Artifactory sync, disk, egress for the *packages* origin; ensure **full** PEP 503 simple index for locked pins (including `aiosqlite` and CI manylinux wheels).
+- **Repo agents / Cursor:** this assistant has **no** login to your Cloudflare account; use the dashboard or API-token-backed tooling (`curl` / Terraform / WAF API). **Wrangler** can be used when Cloudflare credentials are already configured — it supports both `wrangler login` (browser-based OAuth) and API-token / API-key auth (e.g. `CLOUDFLARE_API_TOKEN`, or `CLOUDFLARE_EMAIL` + `CLOUDFLARE_API_KEY` for legacy global-key flows) — but it does **not** replace zone SSL/DNS/origin fixes for a custom origin, and it must not be used to flip the intentional-gate state of the marketing origin without an explicit operator decision logged in the backlog.
+
+**Leak guard:** GitHub `python-setup` uses `set -euo pipefail` without `xtrace` so expanded index URLs are not echoed to logs (see `docs/review/PR_1429_FIXED_MAPPING.md` evidence).
 
 Run from repo root before any push/PR:
 
