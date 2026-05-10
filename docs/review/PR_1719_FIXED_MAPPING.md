@@ -5,7 +5,8 @@
 - Branch: `dependabot/pip/types-pyyaml-6.0.12.20260508`
 - Title: `deps(deps-dev): bump types-pyyaml from 6.0.12.20260408 to 6.0.12.20260508`
 - Implementing commit (types-pyyaml pin): `1580f7bb408fe9b6c10ee9b03c37014a587f92b6`
-- Merge-base sync: `chore(merge): merge origin/main into dependabot types-pyyaml bump` — `805db97dc5cc9dc3ab6b6a24a3f52bacba405e08` (includes #1718/#1722 and prior mapping artifacts on `main`).
+- Merge-base sync: `chore(pr): merge origin/main into dependabot types-pyyaml (#1719)` — `fb20f96f1bf42968300d032675344c0073faa6e8` (includes #1723 pre-commit emergency wheel and prior artifacts on `main`).
+- Pip lock guard remediation: `fix(security): remove pip pin from requirements-dev lock` — `2c1fbcb2ce294824c0c871dfc6628401c8d1f787` (drops disallowed `pip==...` stanza per `tests/test_dependency_security_guard.py` / GHSA-58qw policy).
 - Scope: `requirements-dev.txt` — Dependabot typeshed stub bump for `types-pyyaml` (dev-only typing support).
 
 ## Discussion Thread Pass
@@ -24,6 +25,7 @@ Dependabot deps-dev bump only; no unresolved actionable bot threads.
 - Pre-flight: `python3 -m scripts.orchestration.check_preflight` — PASS.
 - Pre-flight: `python3 scripts/orchestration/check_agent_consistency.py` — PASS.
 - `make validate-min` — PASS.
+- `pytest tests/test_dependency_security_guard.py` — PASS (includes `pip` pin absence guard per `docs/security/GHSA-58qw-9mgm-455v-pip.md`).
 - `pre-commit run --all-files` — PASS (before push).
 
 ### Machine-heavy / operator-approved narrow gate
@@ -33,6 +35,7 @@ Dependabot deps-dev bump only; no unresolved actionable bot threads.
 ## Security Notes
 
 - `types-pyyaml` is a types-only dev stub; no runtime execution path change for production `requirements.txt`.
+- Removed stray `pip==...` entry from `requirements-dev.txt` to satisfy repo guard aligned with GHSA-58qw-9mgm-455v remediation (unsafe pip pins must stay absent).
 
 ## Risks / Rollback
 
@@ -43,7 +46,7 @@ Dependabot deps-dev bump only; no unresolved actionable bot threads.
 
 - [x] Pre-flight + agent consistency: PASS
 - [x] Canonical artifact (this file) on branch
-- [x] `origin/main` merged into branch (`805db97dc5cc9dc3ab6b6a24a3f52bacba405e08`)
+- [x] `origin/main` merged into branch (tip carries #1723; see merge commit `fb20f96f1`)
 - [x] Narrow gates: `make validate-min` + `pre-commit run --all-files`
 
 ## Deferred / Follow-ups
