@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p1-private-pypi-proxy-mirror-parity"></a>
+- [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host)
+  - Owner: @katsiaryna_kavaleuskaya (SRE/DevOps)
+  - Priority: P1
+  - Target PR: infra (out of band) + close when `curl` simple pages and CI preflight are green
+  - Status: Open
+  - Area: supply-chain / infra / CI
+  - Reason (EN): Approved proxy `PULSEPLATE_PYTHON_INDEX_URL` must return HTTP 200 for `+simple/` paths used by lockfiles; intermittent **521** / empty index blocks `make venv-sync` and locked CI installs. Repository may use time-boxed `scripts/ci/emergency_python_wheels.json` only as a bridge; parity and removal of emergencies remain infra-owned.
+  - Links: `docs/DEPENDENCY_MANAGEMENT.md`, `RUNBOOK_AGENT.md` (Python private index triage), `scripts/ci/install_locked_python_requirements.py`
+  - DoD: Origin + Cloudflare healthy; sync job current; `curl` 200 for representative pins (e.g. `aiosqlite`); `install_locked_python_requirements.py --preflight-only` succeeds in CI with prod URL; emergency manifest entries for mirror-lag can be retired after security sign-off.
+
 <a id="ledger-p1-devcontainer-foundation"></a>
 - [x] P1: Docker devcontainer foundation for local development
   - Owner: @katsiaryna_kavaleuskaya

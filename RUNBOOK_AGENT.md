@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-03-26 (Automation readiness alignment)
+**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -365,6 +365,34 @@ opaque “bad interpreter” errors. Shebangs using `#!/usr/bin/env ...` are not
 validated in v1. Run `make verify` from repo root and do not rely on an
 externally activated interpreter: `verify-env` requires the repo `.venv`
 interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
+
+## Python private index proxy (`PULSEPLATE_PYTHON_INDEX_URL`) triage
+
+**Canonical contract:** see `docs/DEPENDENCY_MANAGEMENT.md` and `scripts/ci/install_locked_python_requirements.py`. Installs must use the approved proxy; public PyPI hosts are blocked for the canonical installer path.
+
+**Symptoms**
+
+- `curl` / browser to `…/simple/<package>/` returns **521** (often Cloudflare origin down) or **5xx**.
+- `pip` / `make venv-sync` reports *No matching distribution* for a pin that exists on PyPI.
+- CI Python setup fails at preflight or locked install.
+
+**Operator checks (dev-operator / SRE)**
+
+1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and URL ends with policy-allowed form (see installer + docs).
+2. **HTTP probe** (no secrets in command output): `curl -sS -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/aiosqlite/"` — expect **200** when healthy.
+3. **Preflight without full install:** from repo root with venv active,
+   `python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
+   (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
+4. If the proxy is degraded but release must continue: **temporary** verified wheels live in `scripts/ci/emergency_python_wheels.json` (sha256-only, `files.pythonhosted.org` URLs, TTL `expires_at`). Any change must pass `tests/test_python_supply_chain_controls.py` and installer tests; security review applies.
+
+**SRE / infra (main fix for 521)**
+
+- **Root cause:** HTTP **521** means Cloudflare reached the edge but the **origin** did not return a valid HTTP response (origin down, wrong port, TLS mismatch, firewall dropping CF IPs, overload). Fix the **origin** behind the proxied hostname (e.g. `packages.pulseplate.app`), not the repo.
+- **Cloudflare dashboard** (zone `pulseplate.app`, account-specific): **DNS** → confirm the **A/AAAA/CNAME** for the packages hostname points at the live mirror origin; **SSL/TLS** → mode compatible with origin (often *Full (strict)* if origin has a valid cert); **Security** → WAF / rate limits / Bot Fight not blocking origin path; **Analytics** → filter by status 521 and hostname. **Load Balancing** (if used): pool health and origin status.
+- **Origin / mirror:** restore Bandersnatch / devpi / Nexus / Artifactory sync, disk, egress; ensure **full** PEP 503 simple index for locked pins (including `aiosqlite` and CI manylinux wheels).
+- **Repo agents / Cursor:** this assistant has **no** login to your Cloudflare account; use dashboard or API token + `curl`/Terraform/WAF API. **Wrangler** (`npx wrangler whoami`) only works with `CLOUDFLARE_API_TOKEN` — it does not replace zone SSL/DNS fixes for a custom origin.
+
+**Leak guard:** GitHub `python-setup` uses `set -euo pipefail` without `xtrace` so expanded index URLs are not echoed to logs (see `docs/review/PR_1429_FIXED_MAPPING.md` evidence).
 
 Run from repo root before any push/PR:
 
