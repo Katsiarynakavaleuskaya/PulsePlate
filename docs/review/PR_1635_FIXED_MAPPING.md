@@ -4,7 +4,7 @@
 
 PR #1635 redacts a developer-local absolute path from
 `docs/review/PR_1612_FIXED_MAPPING.md`, replacing
-`/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/pytest`
+`<redacted-local-absolute-path>/.venv/bin/pytest`
 with repo-relative `.venv/bin/pytest` to prevent leaking workstation/username
 details through the docs corpus.
 
