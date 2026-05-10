@@ -70,6 +70,24 @@ Disposition: FIXED
 Commit: 80f7586e0d26475b72ef237e2619192f6913f963
 Evidence: docs/review/PR_1725_FIXED_MAPPING.md line 6 — the `Title:` field in the canonical artifact now reads exactly `fix(ci): private PyPI proxy premortem — emergency wheels, runbook, Cloudflare 521 checklist`, matching the full PR title returned by `gh pr view 1725 --json title`. Reviewer: CodeRabbit (Minor).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#pullrequestreview-4259750266 -> 90cdcd080173b7921f81bcba039ad63e11025249
+
+Disposition: FIXED
+Commit: 90cdcd080173b7921f81bcba039ad63e11025249
+Evidence: top-level CodeRabbit review summarising two inline findings already mapped above — `discussion_r3215317016` (uncheck premature merge-readiness boxes) and `discussion_r3215317022` (`+simple/` → `/simple/` typo). Both inline root-causes were resolved in commit `90cdcd080173b7921f81bcba039ad63e11025249`; no additional code change required for this top-level review. Reviewer: CodeRabbit (top-level review).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#pullrequestreview-4259755550 -> 90cdcd080173b7921f81bcba039ad63e11025249
+
+Disposition: FIXED
+Commit: 90cdcd080173b7921f81bcba039ad63e11025249
+Evidence: top-level cubic-dev-ai review summarising the inline finding `discussion_r3215324265` (P2: `+simple/` → `/simple/` PEP 503 path token correction) already mapped above. The inline root-cause was resolved in commit `90cdcd080173b7921f81bcba039ad63e11025249` (`rg "\\+simple/"` returns no matches across the repo); no additional code change required for this top-level review. Reviewer: cubic-dev-ai (top-level review, P2 same-root-cause).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1725#pullrequestreview-4259763403 -> 80f7586e0d26475b72ef237e2619192f6913f963
+
+Disposition: FIXED
+Commit: 80f7586e0d26475b72ef237e2619192f6913f963
+Evidence: top-level CodeRabbit review summarising the inline finding `discussion_r3215334120` (Title-field mismatch with full PR title) already mapped above. The inline root-cause was resolved in commit `80f7586e0d26475b72ef237e2619192f6913f963`; no additional code change required for this top-level review. Reviewer: CodeRabbit (top-level review, Minor same-root-cause).
+
 ## Stale-commit CI failure (informational; not a new actionable review thread)
 
 - Failure: `tests/test_install_locked_python_requirements.py::test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces` — `AssertionError: assert ('mypy', '1.20.2') in {('mypy', '2.0.0')}` reported by the operator from a stale CI run.
