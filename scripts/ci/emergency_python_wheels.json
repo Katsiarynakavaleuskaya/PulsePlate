@@ -141,10 +141,10 @@
     },
     {
       "package": "transformers",
-      "version": "5.5.4",
-      "filename": "transformers-5.5.4-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/29/fb/162a66789c65e5afa3b051309240c26bf37fbc8fea285b4546ae747995a2/transformers-5.5.4-py3-none-any.whl",
-      "sha256": "0bd6281b82966fe5a7a16f553ea517a9db1dee6284d7cb224dfd88fc0dd1c167"
+      "version": "5.8.0",
+      "filename": "transformers-5.8.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/97/7b/5621d08b34ac35deb9fa14b58d27d124d21ef125ee1c64bc724ca47dfb63/transformers-5.8.0-py3-none-any.whl",
+      "sha256": "e9d2cae6d195a7e1e05164c5ebf26142a7044e4dc4267274f4809204f92827e4"
     }
   ]
 }
