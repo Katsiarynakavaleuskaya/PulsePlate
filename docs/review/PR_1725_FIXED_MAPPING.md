@@ -81,13 +81,13 @@ Evidence: RUNBOOK_AGENT.md HTTP-probe step — the probe URL is now PEP 503 comp
 ## Cloudflare 521 — explicit scope
 
 - The HTTP 521 currently observed on the public marketing apex `pulseplate.app` is an **intentional operator-side release gate** (the unfinished public site is held down on purpose) and **must not** be reverted as part of this PR or as part of the SRE/infra triage in `RUNBOOK_AGENT.md`.
-- The CI-blocking surface is strictly the *packages hostname* behind `PULSEPLATE_PYTHON_INDEX_URL` (e.g. `packages.pulseplate.app`), which must serve PEP 503 `+simple/` for the locked pins. The runbook section now reflects that distinction; the ledger item enforces it as P1 mirror-parity work.
+- The CI-blocking surface is strictly the *packages hostname* behind `PULSEPLATE_PYTHON_INDEX_URL` (e.g. `packages.pulseplate.app`), which must serve PEP 503 `/simple/` for the locked pins. The runbook section now reflects that distinction; the ledger item enforces it as P1 mirror-parity work.
 - This PR does **not** change the marketing-apex state, Cloudflare zone configuration, DNS records, or SSL/TLS modes. It only documents the scope and provides the time-boxed repo-side bridge.
 
 ## Merge Readiness
 
-- [x] Pre-flight + agent consistency: PASS (local gates in evidence section)
-- [x] Canonical artifact: this file
+- [ ] Pre-flight + agent consistency: PASS (local gates in evidence section) — re-run on final HEAD before claiming merge-ready
+- [ ] Canonical artifact: this file (kept open until all current-head signals + reviewer passes converge)
 - [ ] PR body Phase2 mirror synchronized (checked boxes + `### Fixed in Commit Mapping` → canonical artifact pointer)
 - [ ] Required current-head CI jobs green (`CI` canonical lane + governance checks; Frontend CI, CodeQL, Docker Build and Push, RAG Release Gates)
 - [ ] Post-open reviewers: `qa-engineer-agent` → `bug-hunter` mandatory pass completed per root `AGENTS.md`
@@ -95,6 +95,6 @@ Evidence: RUNBOOK_AGENT.md HTTP-probe step — the probe URL is now PEP 503 comp
 
 ## Deferred / Follow-ups
 
-- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity` — Origin/Cloudflare healthy independently of marketing apex; `curl` 200 on `+simple/` for representative pins; preflight installer green with prod URL; emergency manifest entries retired after security sign-off.
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity` — Origin/Cloudflare healthy independently of marketing apex; `curl` 200 on `/simple/` for representative pins; preflight installer green with prod URL; emergency manifest entries retired after security sign-off.
 - Hostname split (packages vs marketing) is part of the same ledger item if origins are currently shared.
 - If the operator decides to lift the marketing apex 521 gate, that decision is logged separately (out of scope here).

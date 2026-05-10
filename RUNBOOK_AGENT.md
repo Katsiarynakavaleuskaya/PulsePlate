@@ -395,7 +395,7 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 > down on purpose until the public site is ready. **Do not "revive" the
 > marketing origin** as part of CI triage. The only CI-blocking surface is the
 > **packages hostname** behind `PULSEPLATE_PYTHON_INDEX_URL` (e.g.
-> `packages.pulseplate.app`), which **must** serve PEP 503 `+simple/` for the
+> `packages.pulseplate.app`), which **must** serve PEP 503 `/simple/` for the
 > locked pins. Treat the two hostnames as independent origins behind the same
 > Cloudflare zone. If both share one origin today, splitting them is part of the
 > backlog parity work — see

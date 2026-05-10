@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-05-10",
   "expires_at": "2026-06-15",
-  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, pre-commit, mypy 2.0.0 (cp313 manylinux x86_64), aiosqlite, sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy is unhealthy (e.g. Cloudflare 521) or lags pinned wheels.",
+  "reason": "Time-boxed mirror-lag bridge for the EXACT listed wheels only (cp313 manylinux x86_64 where applicable). NOT a generic Cloudflare 521 / proxy-outage fallback: if the approved private proxy is fully unhealthy, any locked install needing a wheel not enumerated in this manifest will still fail. Recovery is infra-owned: see RUNBOOK_AGENT.md (`Python private index proxy (PULSEPLATE_PYTHON_INDEX_URL) triage`) and BACKLOG_LEDGER.md (`ledger-p1-private-pypi-proxy-mirror-parity`).",
   "artifacts": [
     {
       "package": "cryptography",
