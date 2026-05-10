@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist scoped to packages hostname; marketing origin gate is intentional)
+**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist scoped to packages hostname; marketing origin gate is intentional; HTTP probe corrected to PEP 503 `/simple/<package>/` path and bounded with `--connect-timeout` / `--max-time`)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -379,7 +379,7 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
 **Operator checks (dev-operator / SRE)**
 
 1. Confirm env is set: `test -n "$PULSEPLATE_PYTHON_INDEX_URL"` and URL ends with policy-allowed form (see installer + docs).
-2. **HTTP probe** (no secrets in command output): `curl -sS -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/aiosqlite/"` — expect **200** when healthy.
+2. **HTTP probe** (no secrets in command output, bounded so a hung origin cannot stall triage): `curl -sS --connect-timeout 5 --max-time 10 -o /dev/null -w '%{http_code}\n' "${PULSEPLATE_PYTHON_INDEX_URL%/}/simple/aiosqlite/"` — expect **200** when healthy. Use the **PEP 503 `/simple/<package>/` path** (here `aiosqlite`) — probing the bare package path (e.g. `…/aiosqlite/`) does not exercise the simple-index surface that pip actually consumes and can return 200 from a cache while pip still fails. If your `PULSEPLATE_PYTHON_INDEX_URL` is **already** the simple-index root (i.e. ends with `/simple` or `/simple/`), drop the extra `/simple` so the path stays `…/simple/aiosqlite/` (do not double up to `…/simple/simple/aiosqlite/`).
 3. **Preflight without full install:** from repo root with venv active,
    `python3 scripts/ci/install_locked_python_requirements.py --preflight-only`
    (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
