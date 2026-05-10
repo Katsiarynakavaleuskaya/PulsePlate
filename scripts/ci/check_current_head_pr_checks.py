@@ -320,15 +320,9 @@ def _required_snapshot(
 
 def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
     """Return whether fallback merge gating must still block on this advisory entry."""
-    if entry.state not in {"pending", "failed"}:
-        return False
-    if entry.source_kind == "status_context":
-        return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
-    return (
-        entry.source_kind == "check_run"
-        and entry.workflow_name == "CI"
-        and entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
-    )
+    # Fail closed when required-check metadata is unavailable: any pending/failed
+    # current-head entry remains merge-blocking until metadata can be resolved.
+    return entry.state in {"pending", "failed"}
 
 
 def _partition_fallback_advisory_entries(
@@ -466,8 +460,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         print(
             "Required check metadata unavailable; merge gating falls back to GitHub "
-            "mergeStateStatus. Current-head checks stay advisory unless a canonical "
-            "ordinary-PR CI signal remains pending or failed."
+            "mergeStateStatus. Current-head checks fail closed: any pending/failed "
+            "current-head check remains blocking."
         )
         if advisory_blocking_entries:
             _print_entries("Current-head blocking fallback checks:", advisory_blocking_entries)
@@ -481,8 +475,6 @@ def main(argv: list[str] | None = None) -> int:
             print(_format_entry(entry))
 
     blocking_entries = [entry for entry in current_required if entry.state in {"pending", "failed"}]
-    # RU: В fallback-режиме без metadata блокирует только канонический workflow CI.
-    # EN: In metadata-unavailable fallback, only the canonical CI workflow remains blocking.
     merge_state_note_needed = not required_metadata_available and merge_state != "CLEAN"
     if blocking_entries or advisory_blocking_entries:
         print("ERROR: current-head check filter failed.")
@@ -491,7 +483,7 @@ def main(argv: list[str] | None = None) -> int:
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
         if advisory_blocking_entries:
-            print("- Blocking canonical fallback current-head checks remain pending or failed.")
+            print("- Blocking fallback current-head checks remain pending or failed.")
         return 1
 
     if merge_state_note_needed:
