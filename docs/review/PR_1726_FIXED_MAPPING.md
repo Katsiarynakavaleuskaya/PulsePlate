@@ -35,8 +35,10 @@ No new P0/P1 risks identified beyond existing scope.
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: core/evidence/replay.py:206, tests/core/evidence/test_replay.py:288
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215460445 -> 4a25b56d3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215463433 -> 4a25b56d3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#pullrequestreview-4259863855 -> 4a25b56d3
 
 ## Merge Readiness
 
