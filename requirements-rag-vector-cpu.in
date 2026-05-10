@@ -11,6 +11,6 @@
 # `torch==2.11.0` from the default PyPI index may resolve to CUDA-enabled
 # builds on Linux.
 sentence-transformers==5.4.1
-transformers==5.6.2
+transformers==5.8.0
 torch==2.11.0
 pgvector==0.4.2
