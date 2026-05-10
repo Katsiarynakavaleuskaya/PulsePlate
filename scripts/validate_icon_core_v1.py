@@ -19,10 +19,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 ICON_CORE_SUBPATH = Path("assets") / "brand" / "icon" / "core" / "v1.0"
 META_JSON_MAX_BYTES = 256 * 1024
+SHA256_LOCK_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
 
 
 def _default_repo_root() -> Path:
@@ -136,7 +138,7 @@ def _is_concrete_hash_value(value: object) -> bool:
     if not _is_concrete_lock_value(value):
         return False
     normalized = str(value).strip()
-    return normalized.startswith("sha256:") and len(normalized) > len("sha256:")
+    return SHA256_LOCK_RE.fullmatch(normalized) is not None
 
 
 def validate(
