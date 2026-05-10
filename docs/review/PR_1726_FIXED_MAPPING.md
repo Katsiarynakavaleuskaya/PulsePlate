@@ -16,7 +16,8 @@ Title: `fix(evidence): replay supersession chains topologically`
 - `.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py`
 - `make validate-min`
 - `pre-commit run --all-files`
-- `gh pr checks 1726` (local snapshot)
+- `make validate-changed`
+- `gh pr checks 1726` (local snapshot after last push)
 
 ## Premortem Risk Review
 
@@ -29,6 +30,11 @@ No new P0/P1 risks identified beyond existing scope.
   `test_existing_supersession_chain_supports_cumulative_supersedes` to cover
   cumulative supersede replay behavior.
 - Existing idempotency/conflict/orphan behavior preserved in replay seeding.
+- Added linear-traversal and orphaning edge-case tests in
+  `tests/core/evidence/test_replay.py`:
+  - `test_existing_supersession_chain_with_multiple_leaves_is_orphaned`
+  - `test_existing_supersession_chain_with_disconnected_supersession_cycle_is_orphaned`
+  - `test_existing_supersession_chain_with_cumulative_supersede_uses_linear_traversal`
 
 ## Fixed in Commit Mapping
 
@@ -39,6 +45,8 @@ Evidence: core/evidence/replay.py:206, tests/core/evidence/test_replay.py:288
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215460445 -> 4a25b56d3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215463433 -> 4a25b56d3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#pullrequestreview-4259863855 -> 4a25b56d3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215460445 -> 7c82f761d (ordering/clarity + edge coverage)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215463433 -> 7c82f761d (disconnected/orphan coverage)
 
 ## Merge Readiness
 

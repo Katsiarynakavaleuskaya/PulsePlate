@@ -210,7 +210,7 @@ def _resolve_existing_scope_active(
     if not supersedes:
         return active_entry
 
-    child_ids: set[str] = set()
+    superseded_ids: set[str] = set()
     entry_by_id: dict[str, PromotionLedgerEntry] = {
         entry.ledger_entry_id: entry for entry in entries
     }
@@ -230,7 +230,7 @@ def _resolve_existing_scope_active(
                     f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}"
                 )
             child_by_parent.setdefault(parent_id, []).append(entry)
-            child_ids.add(parent_id)
+            superseded_ids.add(parent_id)
 
     active_ids: set[str] = set()
     to_visit = [active_entry.ledger_entry_id]
@@ -250,7 +250,7 @@ def _resolve_existing_scope_active(
         orphan = min(orphans, key=_entry_sort_key)
         raise ValueError(f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}")
 
-    leaves = tuple(entry for entry in supersedes if entry.ledger_entry_id not in child_ids)
+    leaves = tuple(entry for entry in supersedes if entry.ledger_entry_id not in superseded_ids)
     if not leaves:
         orphan = min(supersedes, key=_entry_sort_key)
         raise ValueError(f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}")

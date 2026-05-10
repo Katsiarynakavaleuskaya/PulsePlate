@@ -276,7 +276,7 @@ def test_existing_supersession_chain_resolves_current_active_entry() -> None:
     assert summary.diff.conflict == ()
 
 
-def test_existing_supersession_chain_replays_all_entries() -> None:
+def test_existing_supersession_chain_replays_existing_entries_as_a_set() -> None:
     first = _entry(run_id="1")
     second = _entry(
         run_id="2",
@@ -296,9 +296,109 @@ def test_existing_supersession_chain_replays_all_entries() -> None:
     summary = dry_run_replay(existing_entries=(first, third, second))
 
     assert summary.applied_entry_ids == tuple(
-        sorted((first.ledger_entry_id, second.ledger_entry_id, third.ledger_entry_id))
+        sorted(
+            (
+                first.ledger_entry_id,
+                second.ledger_entry_id,
+                third.ledger_entry_id,
+            )
+        )
     )
     assert summary.diff.conflict == ()
+
+
+def test_existing_supersession_chain_with_multiple_leaves_is_orphaned() -> None:
+    active = _entry(run_id="1")
+    first = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-first",
+        supersedes=(active.ledger_entry_id,),
+    )
+    second = _entry(
+        run_id="3",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-second",
+        supersedes=(active.ledger_entry_id,),
+    )
+
+    with pytest.raises(ValueError, match="conflicting active"):
+        dry_run_replay(existing_entries=(active, first, second))
+
+
+def test_existing_supersession_chain_with_disconnected_supersession_cycle_is_orphaned() -> None:
+    active = _entry(run_id="1")
+    first = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-first",
+        supersedes=(active.ledger_entry_id,),
+    )
+    cycle_first = _entry(
+        run_id="3",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-cycle-first",
+        supersedes=("promotion-ledger:placeholder",),
+    )
+    sibling = _entry(
+        run_id="4",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-cycle-second",
+        supersedes=(cycle_first.ledger_entry_id,),
+    )
+    object.__setattr__(
+        cycle_first,
+        "supersedes",
+        (sibling.ledger_entry_id,),
+    )
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(active, first, cycle_first, sibling))
+
+
+def test_existing_supersession_chain_with_cumulative_supersede_uses_linear_traversal() -> None:
+    active = _entry(run_id="1")
+    first = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-first",
+        supersedes=(active.ledger_entry_id,),
+    )
+    second = _entry(
+        run_id="3",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-second",
+        supersedes=(active.ledger_entry_id,),
+    )
+    third = _entry(
+        run_id="4",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-third",
+        supersedes=(first.ledger_entry_id, second.ledger_entry_id),
+    )
+
+    summary = dry_run_replay(existing_entries=(active, first, second, third))
+
+    assert summary.diff.superseded == ()
+    assert summary.diff.conflict == ()
+    assert summary.applied_entry_ids == tuple(
+        sorted(
+            (
+                active.ledger_entry_id,
+                first.ledger_entry_id,
+                second.ledger_entry_id,
+                third.ledger_entry_id,
+            )
+        )
+    )
 
 
 def test_existing_supersession_chain_supports_cumulative_supersedes() -> None:
