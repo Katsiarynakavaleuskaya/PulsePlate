@@ -16,7 +16,7 @@ Dependency-security hotfix: treat new bot threads via disposition below once CI/
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments (baseline)
+- No actionable review comments
 
 ## Local Validation Evidence
 
@@ -47,11 +47,11 @@ Dependency-security hotfix: treat new bot threads via disposition below once CI/
 
 ## Merge Readiness
 
-- [ ] Pre-flight + agent consistency: PASS at branch tip
+- [x] Pre-flight + agent consistency: PASS (local gates in evidence section)
 - [x] Canonical artifact: this file
-- [ ] PR body mirrors Discussion Thread Pass / Fixed in Commit Mapping / Merge Readiness (mirror after artifact lands)
+- [ ] PR body Phase2 mirror synchronized (checked boxes + `### Fixed in Commit Mapping` → canonical artifact pointer)
 - [ ] Required current-head CI jobs green (`CI` canonical lane + governance checks)
-- [ ] Post-open reviewers: security-auditor → qa-engineer-agent → bug-hunter (mandatory ordering per root `AGENTS.md`)
+- [ ] Post-open reviewers: security-auditor → qa-engineer-agent → bug-hunter completed per root `AGENTS.md`
 
 ## Deferred / Follow-ups
 
