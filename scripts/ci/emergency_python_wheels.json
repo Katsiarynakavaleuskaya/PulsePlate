@@ -2,7 +2,7 @@
   "schema_version": 1,
   "generated_at": "2026-05-10",
   "expires_at": "2026-05-27",
-  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, mypy (cp313 manylinux), sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
+  "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, pre-commit, mypy (cp313 manylinux), sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
     {
       "package": "cryptography",
@@ -80,6 +80,13 @@
       "filename": "hypothesis-6.152.4-py3-none-any.whl",
       "url": "https://files.pythonhosted.org/packages/19/89/0f50dd0d92e8a7dffc24f69ab910ff81db89b2f082ba42682bd57695e4d2/hypothesis-6.152.4-py3-none-any.whl",
       "sha256": "e730fd93c7578182efadc7f90b3c5437ee4d55edf738930eb5043c81ac1d97e8"
+    },
+    {
+      "package": "pre-commit",
+      "version": "4.6.0",
+      "filename": "pre_commit-4.6.0-py2.py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/80/6e/4b28b62ecb6aae56769c34a8ff1d661473ec1e9519e2d5f8b2c150086b26/pre_commit-4.6.0-py2.py3-none-any.whl",
+      "sha256": "e2cf246f7299edcabcf15f9b0571fdce06058527f0a06535068a86d38089f29b"
     },
     {
       "package": "mypy",
