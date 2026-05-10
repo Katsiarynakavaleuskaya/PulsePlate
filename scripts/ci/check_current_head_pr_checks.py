@@ -30,6 +30,7 @@ class CheckEntry:
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
 CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
+CANONICAL_FALLBACK_WORKFLOW_NAMES = {"CI"}
 # Keep this list aligned to the GitHub check-run display names emitted by the
 # canonical `.github/workflows/ci.yml` workflow, including matrix suffixes.
 CANONICAL_FALLBACK_CI_CHECK_NAMES = {
@@ -326,7 +327,7 @@ def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
         return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
     return (
         entry.source_kind == "check_run"
-        and entry.workflow_name == "CI"
+        and entry.workflow_name in CANONICAL_FALLBACK_WORKFLOW_NAMES
         and entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
     )
 

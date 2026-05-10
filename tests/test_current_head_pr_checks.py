@@ -145,6 +145,18 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
             ),
             False,
         ),
+        (
+            current_head_checks.CheckEntry(
+                name="lint",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/lint-other-workflow",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            False,
+        ),
     ],
 )
 def test_is_blocking_fallback_advisory(
