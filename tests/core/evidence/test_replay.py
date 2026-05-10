@@ -201,6 +201,21 @@ def test_existing_orphan_supersede_fails_closed() -> None:
         dry_run_replay(existing_entries=(superseding,))
 
 
+def test_existing_supersede_with_empty_parent_ids_is_orphan() -> None:
+    active = _entry(run_id="1")
+    superseding = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:existing-supersede-without-parent",
+        supersedes=(active.ledger_entry_id,),
+    )
+    object.__setattr__(superseding, "supersedes", ())
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(active, superseding))
+
+
 def test_supersede_reject_and_defer_buckets_are_deterministic() -> None:
     existing = _entry(run_id="1")
     superseding = _entry(
