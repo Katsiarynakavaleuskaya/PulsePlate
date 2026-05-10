@@ -65,7 +65,7 @@ filelock==3.24.3
     #   virtualenv
 flake8==7.3.0
     # via -r requirements-dev.in
-hypothesis==6.151.10
+hypothesis==6.152.4
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -150,7 +150,7 @@ pluggy==1.6.0
     #   diff-cover
     #   pytest
     #   pytest-cov
-pre-commit==4.5.1
+pre-commit==4.6.0
     # via -r requirements-dev.in
 py-serializable==2.1.0
     # via cyclonedx-python-lib
