@@ -10,6 +10,7 @@ No mutations, no network, no secrets, no shell profile access.
 from __future__ import annotations
 
 import argparse
+import filecmp
 import json
 import os
 import sys
@@ -22,18 +23,18 @@ CYBERSEC_SKILLS_ROOT = REPO_ROOT / "tools" / "cybersecurity_skills" / "skills"
 
 def _discover_expected_skills(
     include_cybersec: bool = False,
-) -> list[str]:
-    """Return sorted list of expected skill names from repo source of truth."""
-    skills: list[str] = []
+) -> dict[str, Path]:
+    """Return expected skill names mapped to repo source-of-truth paths."""
+    skills: dict[str, Path] = {}
     if PULSEPLATE_SKILLS_ROOT.is_dir():
         for entry in sorted(PULSEPLATE_SKILLS_ROOT.iterdir()):
             if entry.is_dir() and (entry / "SKILL.md").exists():
-                skills.append(entry.name)
+                skills[entry.name] = entry
     if include_cybersec and CYBERSEC_SKILLS_ROOT.is_dir():
         for entry in sorted(CYBERSEC_SKILLS_ROOT.iterdir()):
             if entry.is_dir() and (entry / "SKILL.md").exists():
-                skills.append(entry.name)
-    return sorted(skills)
+                skills[entry.name] = entry
+    return dict(sorted(skills.items()))
 
 
 def _resolve_destination(
@@ -55,34 +56,91 @@ def _resolve_destination(
     return Path.home() / ".agents" / "skills"
 
 
-def _inspect_installed_skill(dest_dir: Path, skill_name: str) -> dict[str, str]:
+COPY_MARKER_FILE = ".pulseplate_codex_skill_source"
+
+
+def _canonical_path(path: Path) -> str | None:
+    """Return the canonical path for an existing path, or None if unresolved."""
+    try:
+        return str(path.resolve(strict=True))
+    except (OSError, RuntimeError):
+        return None
+
+
+def _relative_entries(root: Path) -> set[Path]:
+    """Return all relative entries under a skill directory, excluding copy marker."""
+    return {
+        entry.relative_to(root)
+        for entry in root.rglob("*")
+        if entry.relative_to(root) != Path(COPY_MARKER_FILE)
+    }
+
+
+def _copied_skill_matches_source(skill_path: Path, source_skill: Path) -> bool:
+    """Return whether a copied skill directory matches its repo source."""
+    source_entries = _relative_entries(source_skill)
+    copied_entries = _relative_entries(skill_path)
+    if source_entries != copied_entries:
+        return False
+    for relative_entry in source_entries:
+        source_entry = source_skill / relative_entry
+        copied_entry = skill_path / relative_entry
+        if source_entry.is_dir() or copied_entry.is_dir():
+            if not (source_entry.is_dir() and copied_entry.is_dir()):
+                return False
+            continue
+        if not (source_entry.is_file() and copied_entry.is_file()):
+            return False
+        if not filecmp.cmp(source_entry, copied_entry, shallow=False):
+            return False
+    return True
+
+
+def _inspect_installed_skill(
+    dest_dir: Path,
+    skill_name: str,
+    source_skill: Path,
+) -> dict[str, str]:
     """Inspect a single skill entry at the destination."""
     skill_path = dest_dir / skill_name
+    expected_resolved = _canonical_path(source_skill)
     if skill_path.is_symlink():
         link_target = os.readlink(str(skill_path))
-        try:
-            resolved_target = str(skill_path.resolve())
-        except (OSError, RuntimeError):
-            resolved_target = link_target
+        resolved_target = _canonical_path(skill_path) or link_target
         has_skill_md = (skill_path / "SKILL.md").exists()
+        is_repo_managed = has_skill_md and resolved_target == expected_resolved
         return {
             "name": skill_name,
-            "status": "linked" if has_skill_md else "linked_invalid",
+            "status": "linked" if is_repo_managed else "linked_invalid",
             "type": "symlink",
             "target": link_target,
             "resolved": resolved_target,
+            "expected": expected_resolved or str(source_skill),
         }
     if skill_path.is_dir():
+        marker_path = skill_path / COPY_MARKER_FILE
+        marker_value = (
+            marker_path.read_text(encoding="utf-8").strip() if marker_path.exists() else ""
+        )
+        marker_resolved = _canonical_path(Path(marker_value)) if marker_value else None
         has_skill_md = (skill_path / "SKILL.md").exists()
+        is_repo_managed = (
+            has_skill_md
+            and marker_resolved == expected_resolved
+            and _copied_skill_matches_source(skill_path, source_skill)
+        )
         return {
             "name": skill_name,
-            "status": "copied" if has_skill_md else "copied_invalid",
+            "status": "copied" if is_repo_managed else "copied_invalid",
             "type": "directory",
+            "marker": marker_value,
+            "expected": expected_resolved or str(source_skill),
         }
     return {
         "name": skill_name,
         "status": "missing",
         "type": "absent",
+        "expected": expected_resolved or str(source_skill),
     }
 
 
@@ -94,7 +152,8 @@ def verify(
     output_json: bool,
 ) -> int:
     """Run verification and return exit code."""
-    expected = _discover_expected_skills(include_cybersec=include_cybersec)
+    expected_sources = _discover_expected_skills(include_cybersec=include_cybersec)
+    expected = list(expected_sources)
     dest_dir = _resolve_destination(target, dest)
 
     missing: list[str] = []
@@ -102,8 +161,8 @@ def verify(
     installed: list[str] = []
     details: list[dict[str, str]] = []
 
-    for skill_name in expected:
-        info = _inspect_installed_skill(dest_dir, skill_name)
+    for skill_name, source_skill in expected_sources.items():
+        info = _inspect_installed_skill(dest_dir, skill_name, source_skill)
         details.append(info)
         if info["status"] == "missing":
             missing.append(skill_name)
@@ -157,7 +216,10 @@ def verify(
         if missing:
             print("\nMissing skills:\n  " + "\n  ".join(missing))
         if invalid:
-            print("\nInvalid skills (no SKILL.md):\n  " + "\n  ".join(invalid))
+            print(
+                "\nInvalid skills (not repo-managed or content mismatch):\n  "
+                + "\n  ".join(invalid)
+            )
         if not missing and not invalid:
             print("\nAll expected skills are installed.")
 
