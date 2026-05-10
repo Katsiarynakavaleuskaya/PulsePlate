@@ -121,6 +121,20 @@ def test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces() -> None
     assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
 
 
+def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:
+    manifest = _repo_emergency_manifest()
+    expected_version = _manifest_artifact_version(manifest, "transformers")
+
+    for requirement_path in (
+        "requirements-rag-vector.in",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.in",
+        "requirements-rag-vector-cpu.txt",
+    ):
+        requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
+        assert ("transformers", expected_version) in _exact_requirement_pairs(requirement_text)
+
+
 def test_compatible_release_version_accepts_environment_markers() -> None:
     contents = 'ruff~=0.15.11 ; python_version >= "3.13"\n'
 
