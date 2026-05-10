@@ -81,6 +81,8 @@ _BMI_THRESHOLD_CONTEXT = (
     r"(?:"
     r"(?<![A-Za-z0-9])bmi(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])(?:bmi|whr)(?-i:[A-Z])[A-Za-z0-9]*(?![A-Za-z0-9])|"
+    r"(?<![A-Za-z0-9])(?:category|threshold|underweight|normal|overweight|obesity|healthy)"
+    r"(?-i:[A-Z])[A-Za-z0-9]*(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])category(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])threshold(?![A-Za-z0-9])|"
     r"(?<![A-Za-z0-9])underweight(?![A-Za-z0-9])|"
@@ -506,6 +508,11 @@ def test_bmi_thresholds_re_matches_real_bmi_and_whr_contexts() -> None:
         "25.0 is the normal BMI threshold",
         "25.0 is the Normal BMI Threshold",
         "normal Bmi threshold 25.0",
+        "normalThreshold = 25.0",
+        "underweightThreshold = 18.5",
+        "overweightThreshold = 30.0",
+        "healthyRangeMax = 24.9",
+        "categoryNormalMax = 25.0",
     )
     for case in matching_cases:
         assert BMI_THRESHOLDS_RE.search(case) is not None, f"Should match: {case}"
