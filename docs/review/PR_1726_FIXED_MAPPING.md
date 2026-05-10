@@ -42,11 +42,10 @@ Disposition: FIXED
 Commit: see mapping entries below
 Evidence: core/evidence/replay.py:206, tests/core/evidence/test_replay.py:288
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215460445 -> 4a25b56d3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215463433 -> 4a25b56d3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#pullrequestreview-4259863855 -> 4a25b56d3
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215460445 -> b2b0c24da
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215463433 -> b2b0c24da
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215460445 -> c5d4990be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#discussion_r3215463433 -> c5d4990be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#pullrequestreview-4259863855 -> c5d4990be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1726#pullrequestreview-4259960495 -> c5d4990be
 
 ## Merge Readiness
 
