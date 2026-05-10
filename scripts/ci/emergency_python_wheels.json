@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-04-27",
+  "generated_at": "2026-05-10",
   "expires_at": "2026-05-27",
   "reason": "Temporary exact-wheel fallback for cryptography, Pillow, python-multipart, pytest, faker, hypothesis, mypy (cp313 manylinux), sentence-transformers, ruff, types-pyyaml, and transformers while the approved private proxy lags the patched upstream releases used by active dependency PRs.",
   "artifacts": [
@@ -76,10 +76,10 @@
     },
     {
       "package": "hypothesis",
-      "version": "6.152.1",
-      "filename": "hypothesis-6.152.1-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/5d/83/860fb3075e00b0fc19a22a2301bc3c96f00437558c3911bdd0a3573a4a53/hypothesis-6.152.1-py3-none-any.whl",
-      "sha256": "40a3619d9e0cb97b018857c7986f75cf5de2e5ec0fa8a0b172d00747758f749e"
+      "version": "6.152.4",
+      "filename": "hypothesis-6.152.4-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/19/89/0f50dd0d92e8a7dffc24f69ab910ff81db89b2f082ba42682bd57695e4d2/hypothesis-6.152.4-py3-none-any.whl",
+      "sha256": "e730fd93c7578182efadc7f90b3c5437ee4d55edf738930eb5043c81ac1d97e8"
     },
     {
       "package": "mypy",
