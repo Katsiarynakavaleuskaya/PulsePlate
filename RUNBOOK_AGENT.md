@@ -1,6 +1,6 @@
 # PulsePlate — Agent Runbook (CI + Merge Cycle)
 
-**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist)
+**Last updated:** 2026-05-10 (Python private index proxy triage; Cloudflare 521 checklist scoped to packages hostname; marketing origin gate is intentional)
 
 **What this is:** Quick reference for diagnosing CI failures, import hygiene regressions, and current-head merge-cycle state.
 **When to use:** CI fails, tests hang, import errors, SQLAlchemy mapper issues, or a PR needs a strict merge-readiness pass.
@@ -385,12 +385,23 @@ interpreter itself. Evidence: `scripts/ci/check_local_verify_environment.py`.
    (reads the same index + optional `scripts/ci/emergency_python_wheels.json` per policy).
 4. If the proxy is degraded but release must continue: **temporary** verified wheels live in `scripts/ci/emergency_python_wheels.json` (sha256-only, `files.pythonhosted.org` URLs, TTL `expires_at`). Any change must pass `tests/test_python_supply_chain_controls.py` and installer tests; security review applies.
 
-**SRE / infra (main fix for 521)**
+**SRE / infra (scoped fix for 521)**
 
-- **Root cause:** HTTP **521** means Cloudflare reached the edge but the **origin** did not return a valid HTTP response (origin down, wrong port, TLS mismatch, firewall dropping CF IPs, overload). Fix the **origin** behind the proxied hostname (e.g. `packages.pulseplate.app`), not the repo.
-- **Cloudflare dashboard** (zone `pulseplate.app`, account-specific): **DNS** → confirm the **A/AAAA/CNAME** for the packages hostname points at the live mirror origin; **SSL/TLS** → mode compatible with origin (often *Full (strict)* if origin has a valid cert); **Security** → WAF / rate limits / Bot Fight not blocking origin path; **Analytics** → filter by status 521 and hostname. **Load Balancing** (if used): pool health and origin status.
-- **Origin / mirror:** restore Bandersnatch / devpi / Nexus / Artifactory sync, disk, egress; ensure **full** PEP 503 simple index for locked pins (including `aiosqlite` and CI manylinux wheels).
-- **Repo agents / Cursor:** this assistant has **no** login to your Cloudflare account; use dashboard or API token + `curl`/Terraform/WAF API. **Wrangler** (`npx wrangler whoami`) only works with `CLOUDFLARE_API_TOKEN` — it does not replace zone SSL/DNS fixes for a custom origin.
+> **Important hostname split.** A 521 on `pulseplate.app` (the public marketing
+> site) may be **intentional release gating** — the operator can hold that origin
+> down on purpose until the public site is ready. **Do not "revive" the
+> marketing origin** as part of CI triage. The only CI-blocking surface is the
+> **packages hostname** behind `PULSEPLATE_PYTHON_INDEX_URL` (e.g.
+> `packages.pulseplate.app`), which **must** serve PEP 503 `+simple/` for the
+> locked pins. Treat the two hostnames as independent origins behind the same
+> Cloudflare zone. If both share one origin today, splitting them is part of the
+> backlog parity work — see
+> `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-private-pypi-proxy-mirror-parity`.
+
+- **Root cause (when the packages hostname is the one returning 521):** HTTP **521** means Cloudflare reached the edge but the **origin** did not return a valid HTTP response (origin down, wrong port, TLS mismatch, firewall dropping CF IPs, overload). Fix the **origin** behind the *packages* proxied hostname only; do not touch the marketing origin without explicit operator approval.
+- **Cloudflare dashboard** (zone `pulseplate.app`, account-specific) — scope every check to the **packages hostname** record, not the apex marketing record: **DNS** → confirm the packages **A/AAAA/CNAME** points at the live mirror origin; **SSL/TLS** → mode compatible with that origin (often *Full (strict)* if the origin has a valid cert); **Security** → WAF / rate limits / Bot Fight not blocking the packages path; **Analytics** → filter by status 521 **and hostname** so you don't accidentally read the intentional-gate apex traffic; **Load Balancing** (if used): pool health and origin status for the packages pool only.
+- **Origin / mirror:** restore Bandersnatch / devpi / Nexus / Artifactory sync, disk, egress for the *packages* origin; ensure **full** PEP 503 simple index for locked pins (including `aiosqlite` and CI manylinux wheels).
+- **Repo agents / Cursor:** this assistant has **no** login to your Cloudflare account; use dashboard or API token + `curl`/Terraform/WAF API. **Wrangler** (`npx wrangler whoami`) only works with `CLOUDFLARE_API_TOKEN` — it does not replace zone SSL/DNS fixes for a custom origin, and it must not be used to flip the intentional-gate state of the marketing origin without an explicit operator decision logged in the backlog.
 
 **Leak guard:** GitHub `python-setup` uses `set -euo pipefail` without `xtrace` so expanded index URLs are not echoed to logs (see `docs/review/PR_1429_FIXED_MAPPING.md` evidence).
 

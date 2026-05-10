@@ -25,15 +25,15 @@ If it is not recorded here — it does not exist.
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
 <a id="ledger-p1-private-pypi-proxy-mirror-parity"></a>
-- [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host)
+- [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host only — marketing 521 stays intentional)
   - Owner: @katsiaryna_kavaleuskaya (SRE/DevOps)
   - Priority: P1
   - Target PR: infra (out of band) + close when `curl` simple pages and CI preflight are green
   - Status: Open
   - Area: supply-chain / infra / CI
-  - Reason (EN): Approved proxy `PULSEPLATE_PYTHON_INDEX_URL` must return HTTP 200 for `+simple/` paths used by lockfiles; intermittent **521** / empty index blocks `make venv-sync` and locked CI installs. Repository may use time-boxed `scripts/ci/emergency_python_wheels.json` only as a bridge; parity and removal of emergencies remain infra-owned.
-  - Links: `docs/DEPENDENCY_MANAGEMENT.md`, `RUNBOOK_AGENT.md` (Python private index triage), `scripts/ci/install_locked_python_requirements.py`
-  - DoD: Origin + Cloudflare healthy; sync job current; `curl` 200 for representative pins (e.g. `aiosqlite`); `install_locked_python_requirements.py --preflight-only` succeeds in CI with prod URL; emergency manifest entries for mirror-lag can be retired after security sign-off.
+  - Reason (EN): Approved proxy `PULSEPLATE_PYTHON_INDEX_URL` must return HTTP 200 for `+simple/` paths used by lockfiles; intermittent **521** / empty index blocks `make venv-sync` and locked CI installs. **Scope clarification:** the public marketing apex `pulseplate.app` may legitimately remain at HTTP 521 because the operator is intentionally gating user access to the unfinished public site — that gate is **not** an outage and must not be reverted as part of this work. The fix is scoped to the *packages* hostname (e.g. `packages.pulseplate.app`) behind `PULSEPLATE_PYTHON_INDEX_URL`. If both hostnames currently share one origin, splitting them so the packages mirror can be healthy while the marketing origin stays gated is part of this item. Repository may use time-boxed `scripts/ci/emergency_python_wheels.json` only as a bridge; parity and removal of emergencies remain infra-owned.
+  - Links: `docs/DEPENDENCY_MANAGEMENT.md`, `RUNBOOK_AGENT.md` (Python private index triage; hostname split note), `scripts/ci/install_locked_python_requirements.py`
+  - DoD: Packages hostname origin + Cloudflare path healthy independently of the marketing apex; sync job current; `curl` 200 for representative pins (e.g. `aiosqlite`) on the packages hostname; `install_locked_python_requirements.py --preflight-only` succeeds in CI with prod URL; emergency manifest entries for mirror-lag can be retired after security sign-off; marketing apex gate state is untouched (or explicitly re-decided in a separate operator-approved entry).
 
 <a id="ledger-p1-devcontainer-foundation"></a>
 - [x] P1: Docker devcontainer foundation for local development
