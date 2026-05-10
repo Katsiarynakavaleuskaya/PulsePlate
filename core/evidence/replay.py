@@ -162,7 +162,7 @@ def _seed_existing_replay_state(
     """Build fail-closed replay indexes from existing ledger entries."""
 
     seen_idempotency: dict[str, PromotionLedgerEntry] = {}
-    active_by_scope: dict[str, PromotionLedgerEntry] = {}
+    promoting_by_scope: dict[str, list[PromotionLedgerEntry]] = {}
     for entry in existing:
         previous = seen_idempotency.get(entry.idempotency_key)
         if previous is not None:
@@ -171,21 +171,60 @@ def _seed_existing_replay_state(
             )
         seen_idempotency[entry.idempotency_key] = entry
 
-        if entry.decision == "promote":
-            active_entry = active_by_scope.get(entry.promotion_id)
-            if active_entry is not None:
-                raise ValueError(
-                    f"existing ledger has conflicting active promotion_id: {entry.promotion_id}"
-                )
-            active_by_scope[entry.promotion_id] = entry
-        elif entry.decision == "supersede":
-            active_entry = active_by_scope.get(entry.promotion_id)
-            if active_entry is None or active_entry.ledger_entry_id not in entry.supersedes:
-                raise ValueError(
-                    f"existing ledger has orphan supersede entry: {entry.ledger_entry_id}"
-                )
-            active_by_scope[entry.promotion_id] = entry
+        if entry.decision in {"promote", "supersede"}:
+            promoting_by_scope.setdefault(entry.promotion_id, []).append(entry)
+
+    active_by_scope = _resolve_existing_active_entries(promoting_by_scope)
     return seen_idempotency, active_by_scope
+
+
+def _resolve_existing_active_entries(
+    promoting_by_scope: dict[str, list[PromotionLedgerEntry]],
+) -> dict[str, PromotionLedgerEntry]:
+    """Resolve active existing promotion entries in supersession order."""
+
+    active_by_scope: dict[str, PromotionLedgerEntry] = {}
+    for promotion_id in sorted(promoting_by_scope):
+        active_by_scope[promotion_id] = _resolve_existing_scope_active(
+            promotion_id,
+            promoting_by_scope[promotion_id],
+        )
+    return active_by_scope
+
+
+def _resolve_existing_scope_active(
+    promotion_id: str,
+    entries: list[PromotionLedgerEntry],
+) -> PromotionLedgerEntry:
+    """Resolve one existing promotion scope without trusting hash order."""
+
+    promoted = tuple(entry for entry in entries if entry.decision == "promote")
+    if not promoted:
+        orphan = min(entries, key=_entry_sort_key)
+        raise ValueError(f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}")
+    if len(promoted) > 1:
+        raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
+
+    active_entry = promoted[0]
+    remaining_supersedes = [entry for entry in entries if entry.decision == "supersede"]
+    while remaining_supersedes:
+        successors = tuple(
+            entry
+            for entry in remaining_supersedes
+            if active_entry.ledger_entry_id in entry.supersedes
+        )
+        if not successors:
+            orphan = min(remaining_supersedes, key=_entry_sort_key)
+            raise ValueError(
+                f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}"
+            )
+        if len(successors) > 1:
+            raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
+
+        active_entry = successors[0]
+        remaining_supersedes.remove(active_entry)
+
+    return active_entry
 
 
 def _entry_sort_key(entry: PromotionLedgerEntry) -> tuple[str, str, str, str]:
