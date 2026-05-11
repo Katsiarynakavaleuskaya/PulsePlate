@@ -68,6 +68,14 @@
       "sha256": "2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"
     },
     {
+      "package": "pip",
+      "version": "26.0.1",
+      "expires_at": "2026-06-15",
+      "filename": "pip-26.0.1-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/de/f0/c81e05b613866b76d2d1066490adf1a3dbc4ee9d9c839961c3fc8a6997af/pip-26.0.1-py3-none-any.whl",
+      "sha256": "bdb1b08f4274833d62c1aa29e20907365a2ceb950410df15fc9521bad440122b"
+    },
+    {
       "package": "faker",
       "version": "40.15.0",
       "filename": "faker-40.15.0-py3-none-any.whl",

@@ -154,6 +154,20 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Explicitly upgrade pip before wheel resolution.",
     )
     parser.add_argument(
+        "--upgrade-pip-spec",
+        default="pip",
+        help=(
+            "pip requirement spec used with --upgrade-pip or --upgrade-pip-only. "
+            "Docker uses this to keep a range in the Dockerfile while emergency fallback "
+            "remains exact-artifact scoped."
+        ),
+    )
+    parser.add_argument(
+        "--upgrade-pip-only",
+        action="store_true",
+        help="Upgrade pip via the governed proxy/fallback path and exit without installing requirements.",
+    )
+    parser.add_argument(
         "--guard-script",
         type=Path,
         default=DEFAULT_STARTUP_HOOK_GUARD_PATH,
@@ -783,6 +797,108 @@ def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: 
     return any(marker in message for marker in resolver_markers)
 
 
+def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
+    """Return True when pip failed because the pip spec is absent from the proxy."""
+    message = str(runtime_error).lower()
+    resolver_markers = (
+        "no matching distribution found for pip",
+        "could not find a version that satisfies the requirement pip",
+    )
+    return any(marker in message for marker in resolver_markers)
+
+
+def _parse_simple_version(value: str) -> tuple[int, ...]:
+    """Parse the numeric version shape used by emergency pip bootstrap wheels."""
+    if re.fullmatch(r"\d+(?:\.\d+)*", value) is None:
+        raise RuntimeError(f"Unsupported emergency pip version format: {value!r}")
+    return tuple(int(part) for part in value.split("."))
+
+
+def _compare_versions(left: str, right: str) -> int:
+    left_parts = list(_parse_simple_version(left))
+    right_parts = list(_parse_simple_version(right))
+    width = max(len(left_parts), len(right_parts))
+    left_parts.extend([0] * (width - len(left_parts)))
+    right_parts.extend([0] * (width - len(right_parts)))
+    if left_parts < right_parts:
+        return -1
+    if left_parts > right_parts:
+        return 1
+    return 0
+
+
+def _pip_spec_allows_version(pip_spec: str, version: str) -> bool:
+    """Return True when a narrow pip requirement spec permits an emergency artifact."""
+    normalized_spec = pip_spec.strip().lower()
+    package_match = re.match(r"^pip\s*(.*)$", normalized_spec)
+    if package_match is None:
+        raise RuntimeError(f"pip upgrade spec must target pip: {pip_spec!r}")
+    constraints = package_match.group(1).strip()
+    if not constraints:
+        return True
+
+    for raw_constraint in constraints.split(","):
+        constraint = raw_constraint.strip()
+        match = re.fullmatch(r"(==|>=|<=|>|<)\s*(\d+(?:\.\d+)*)", constraint)
+        if match is None:
+            raise RuntimeError(f"Unsupported pip upgrade spec constraint: {pip_spec!r}")
+        operator, expected_version = match.groups()
+        comparison = _compare_versions(version, expected_version)
+        if operator == "==" and comparison != 0:
+            return False
+        if operator == ">=" and comparison < 0:
+            return False
+        if operator == "<=" and comparison > 0:
+            return False
+        if operator == ">" and comparison <= 0:
+            return False
+        if operator == "<" and comparison >= 0:
+            return False
+    return True
+
+
+def _select_pip_emergency_artifact(
+    *,
+    manifest_path: Path | None,
+    pip_spec: str,
+) -> dict[str, str]:
+    """Select the highest active emergency pip artifact allowed by the Docker range."""
+    candidates = [
+        artifact
+        for artifact in load_emergency_wheel_manifest(manifest_path)
+        if artifact["package"].lower() == "pip"
+        and _pip_spec_allows_version(pip_spec, artifact["version"])
+    ]
+    if not candidates:
+        raise RuntimeError(f"No active emergency pip artifact satisfies upgrade spec {pip_spec!r}.")
+    return max(candidates, key=lambda artifact: _parse_simple_version(artifact["version"]))
+
+
+def _stage_pip_upgrade_emergency_wheel(
+    *,
+    wheelhouse_dir: Path,
+    manifest_path: Path | None,
+    pip_spec: str,
+) -> Path:
+    """Download the exact emergency pip wheel selected for the upgrade range."""
+    artifact = _select_pip_emergency_artifact(
+        manifest_path=manifest_path,
+        pip_spec=pip_spec,
+    )
+    destination = wheelhouse_dir / artifact["filename"]
+    if destination.exists():
+        existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
+        if existing_sha256 != artifact["sha256"]:
+            raise RuntimeError(f"Existing emergency pip wheel has unexpected sha256: {destination}")
+    else:
+        _download_with_sha256(
+            url=artifact["url"],
+            destination=destination,
+            expected_sha256=artifact["sha256"],
+        )
+    return destination
+
+
 def verify_emergency_artifact_for_floor(
     *,
     manifest_path: Path | None,
@@ -930,22 +1046,60 @@ def run_command(command: Sequence[str]) -> None:
 def upgrade_pip(
     python_executable: str,
     *,
+    pip_spec: str,
     index_url: str,
     trusted_host: str | None,
+    emergency_wheel_manifest: Path | None,
 ) -> None:
+    use_pip_cache = docker_pip_layer_cache_enabled()
     command = [
         python_executable,
         "-m",
         "pip",
         "install",
         "--upgrade",
-        "pip",
+        "--retries",
+        str(PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        "--only-binary",
+        ":all:",
         "--index-url",
         index_url,
+        pip_spec,
     ]
+    if not use_pip_cache:
+        command.insert(command.index("install") + 1, "--no-cache-dir")
     if trusted_host:
         command.extend(["--trusted-host", trusted_host])
-    run_command(command)
+    try:
+        run_command(command)
+        return
+    except RuntimeError as exc:
+        if not _pip_upgrade_resolver_miss(exc):
+            raise
+
+    with tempfile.TemporaryDirectory(prefix="pulseplate-pip-emergency-wheelhouse-") as temp_dir:
+        wheelhouse_dir = Path(temp_dir)
+        _stage_pip_upgrade_emergency_wheel(
+            wheelhouse_dir=wheelhouse_dir,
+            manifest_path=emergency_wheel_manifest,
+            pip_spec=pip_spec,
+        )
+        fallback_command = [
+            python_executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--no-index",
+            "--find-links",
+            str(wheelhouse_dir),
+            pip_spec,
+        ]
+        if not use_pip_cache:
+            fallback_command.insert(fallback_command.index("install") + 1, "--no-cache-dir")
+        run_command(fallback_command)
 
 
 def collect_startup_hook_failure_lines(
@@ -1308,12 +1462,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Python executable: {args.python_executable}")
             return 1
 
-        if args.upgrade_pip:
+        if args.upgrade_pip or args.upgrade_pip_only:
             upgrade_pip(
                 args.python_executable,
+                pip_spec=args.upgrade_pip_spec,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
+        if args.upgrade_pip_only:
+            return 0
 
         if args.preflight_only:
             run_dependency_floor_preflight(

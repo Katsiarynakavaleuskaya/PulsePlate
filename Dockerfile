@@ -31,12 +31,14 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
 
 # Centralize pip version range (SoT) for CVE fixes.
 ARG PIP_VERSION_RANGE
+COPY scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 
 # SECURITY (CVE-2026-1703):
 # Ensure pip is upgraded in the venv before installing dependencies.
 # We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
 # requirements.in cannot affect pip shipped in the base image.
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
+# Mirror-lag fallback is governed by install_locked_python_requirements.py and the sha256 manifest.
 # BuildKit cache mount speeds rebuilds; omit --no-cache-dir so pip can use the mounted HTTP cache.
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
@@ -44,14 +46,25 @@ RUN --mount=type=cache,target=/root/.cache/pip \
       exit 1; \
     fi; \
     if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
-      /opt/venv/bin/python -m pip install --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
+      /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable /opt/venv/bin/python \
+        --upgrade-pip-only \
+        --upgrade-pip-spec "${PIP_VERSION_RANGE}" \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
+        --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
     else \
-      /opt/venv/bin/python -m pip install --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
+      /opt/venv/bin/python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable /opt/venv/bin/python \
+        --upgrade-pip-only \
+        --upgrade-pip-spec "${PIP_VERSION_RANGE}" \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
     fi
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./
-COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
+COPY scripts/ci/check_python_startup_hooks.py /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
@@ -115,16 +128,29 @@ ENV PYTHONUNBUFFERED=1 \
 # We must upgrade pip inside the image (system + venv) because scanners flag installed pip dist-info.
 # requirements.in cannot affect pip shipped in the base image.
 # Policy: do not pin exact pip in Dockerfile; use a safe version range instead.
+COPY scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \
       exit 1; \
     fi; \
     if [ -n "${PULSEPLATE_PYTHON_TRUSTED_HOST:-}" ]; then \
-      python -m pip install --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
+      python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable python \
+        --upgrade-pip-only \
+        --upgrade-pip-spec "${PIP_VERSION_RANGE}" \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}" \
+        --trusted-host "${PULSEPLATE_PYTHON_TRUSTED_HOST}"; \
     else \
-      python -m pip install --upgrade "${PIP_VERSION_RANGE}" --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
-    fi
+      python /tmp/pulseplate-ci/install_locked_python_requirements.py \
+        --python-executable python \
+        --upgrade-pip-only \
+        --upgrade-pip-spec "${PIP_VERSION_RANGE}" \
+        --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
+        --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
+    fi && \
+    rm -rf /tmp/pulseplate-ci
 
 # Install runtime dependencies only (curl removed - using Python for healthcheck)
 # NOTE: libtasn1-6 comes transitively via libgnutls30 (required for TLS/HTTPS).

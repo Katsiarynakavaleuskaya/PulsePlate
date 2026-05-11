@@ -135,6 +135,15 @@ def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> N
         assert ("transformers", expected_version) in _exact_requirement_pairs(requirement_text)
 
 
+def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "--upgrade-pip-only" in dockerfile
+    assert '--upgrade-pip-spec "${PIP_VERSION_RANGE}"' in dockerfile
+    assert 'python -m pip install --upgrade "${PIP_VERSION_RANGE}"' not in dockerfile
+    assert '/opt/venv/bin/python -m pip install --upgrade "${PIP_VERSION_RANGE}"' not in dockerfile
+
+
 def test_compatible_release_version_accepts_environment_markers() -> None:
     contents = 'ruff~=0.15.11 ; python_version >= "3.13"\n'
 
@@ -1377,6 +1386,155 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
+def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.0.1",
+                        "filename": "pip-26.0.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_commands: list[list[str]] = []
+    observed_downloads: list[tuple[str, str]] = []
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+        if "--index-url" in command:
+            raise RuntimeError(
+                "Command failed: python -m pip install stub: exit 1\n"
+                "No matching distribution found for pip<27.0,>=26.0"
+            )
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.upgrade_pip(
+        "python",
+        pip_spec="pip>=26.0,<27.0",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert len(observed_commands) == 2
+    assert "--index-url" in observed_commands[0]
+    assert APPROVED_PROXY_URL in observed_commands[0]
+    assert "--no-index" in observed_commands[1]
+    assert "--find-links" in observed_commands[1]
+    assert "--index-url" not in observed_commands[1]
+    assert observed_commands[1][-1] == "pip>=26.0,<27.0"
+    assert observed_downloads == [
+        ("https://files.pythonhosted.org/packages/example/pip-26.0.1.whl", "b" * 64)
+    ]
+
+
+def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.0.1",
+                        "filename": "pip-26.0.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def proxy_outage(_command: list[str]) -> None:
+        raise RuntimeError("Command failed: python -m pip install: TLS handshake timed out")
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", proxy_outage)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
+def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "25.3.0",
+                        "filename": "pip-25.3.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-25.3.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def resolver_miss(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install stub: exit 1\n"
+            "Could not find a version that satisfies the requirement pip<27.0,>=26.0"
+        )
+
+    monkeypatch.setattr(installer, "run_command", resolver_miss)
+
+    with pytest.raises(RuntimeError, match="No active emergency pip artifact"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+
 def test_build_pip_download_command_fails_when_constraints_file_is_missing(
     tmp_path: Path,
 ) -> None:
@@ -1609,10 +1767,56 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
         "-m",
         "pip",
         "install",
+        "--no-cache-dir",
         "--upgrade",
-        "pip",
+        "--retries",
+        str(installer.PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(installer.PIP_NETWORK_TIMEOUT_SECONDS),
+        "--only-binary",
+        ":all:",
         "--index-url",
         APPROVED_PROXY_URL,
+        "pip",
+    ]
+
+
+def test_main_upgrade_pip_only_skips_requirements_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_requirements = tmp_path / "missing-requirements.txt"
+    observed_calls: list[dict[str, object]] = []
+
+    def fake_upgrade_pip(python_executable: str, **kwargs: object) -> None:
+        kwargs["python_executable"] = python_executable
+        observed_calls.append(kwargs)
+
+    monkeypatch.setattr(installer, "upgrade_pip", fake_upgrade_pip)
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(missing_requirements),
+            "--upgrade-pip-only",
+            "--upgrade-pip-spec",
+            "pip>=26.0,<27.0",
+            "--index-url",
+            APPROVED_PROXY_URL,
+        ]
+    )
+
+    assert result == 0
+    assert observed_calls == [
+        {
+            "python_executable": "python",
+            "pip_spec": "pip>=26.0,<27.0",
+            "index_url": APPROVED_PROXY_URL,
+            "trusted_host": None,
+            "emergency_wheel_manifest": None,
+        }
     ]
 
 
