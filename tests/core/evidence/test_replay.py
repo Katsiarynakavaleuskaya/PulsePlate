@@ -15,7 +15,7 @@ from core.evidence.promotion_ledger import (
     PromotionLedgerEntry,
     create_promotion_ledger_entry,
 )
-from core.evidence.replay import dry_run_replay
+from core.evidence.replay import dry_run_replay, _resolve_existing_scope_active
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 _REPLAY_MODULE = _REPO_ROOT / "core" / "evidence" / "replay.py"
@@ -201,6 +201,56 @@ def test_existing_orphan_supersede_fails_closed() -> None:
         dry_run_replay(existing_entries=(superseding,))
 
 
+def test_resolve_existing_scope_active_reports_missing_parent_entry() -> None:
+    active = _entry(run_id="1")
+    orphan = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:resolve-scope-missing-parent",
+        supersedes=("promotion-ledger:missing",),
+    )
+
+    with pytest.raises(ValueError, match="existing ledger has orphan supersede entry"):
+        _resolve_existing_scope_active(active.promotion_id, [active, orphan])
+
+
+def test_resolve_existing_scope_active_reports_no_supersession_leaves() -> None:
+    active = _entry(run_id="1")
+    first = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:resolve-scope-no-leaf-first",
+        supersedes=(active.ledger_entry_id, "promotion-ledger:second"),
+    )
+    second = _entry(
+        run_id="3",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:resolve-scope-no-leaf-second",
+        supersedes=(first.ledger_entry_id, active.ledger_entry_id),
+    )
+    object.__setattr__(first, "supersedes", (second.ledger_entry_id, active.ledger_entry_id))
+
+    with pytest.raises(ValueError, match="existing ledger has orphan supersede entry"):
+        _resolve_existing_scope_active(active.promotion_id, [active, first, second])
+
+
+def test_existing_supersede_with_unknown_parent_is_orphaned() -> None:
+    active = _entry(run_id="1")
+    superseding = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:existing-supersede-with-unknown-parent",
+        supersedes=("promotion-ledger:missing",),
+    )
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(active, superseding))
+
+
 def test_existing_supersede_with_empty_parent_ids_is_orphan() -> None:
     active = _entry(run_id="1")
     superseding = _entry(
@@ -214,6 +264,28 @@ def test_existing_supersede_with_empty_parent_ids_is_orphan() -> None:
 
     with pytest.raises(ValueError, match="orphan supersede"):
         dry_run_replay(existing_entries=(active, superseding))
+
+
+def test_existing_supersession_chain_without_leaves_is_orphaned() -> None:
+    active = _entry(run_id="1")
+    first = _entry(
+        run_id="2",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-no-leaf-first",
+        supersedes=(active.ledger_entry_id, "promotion-ledger:second"),
+    )
+    second = _entry(
+        run_id="3",
+        promotion_id=active.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-no-leaf-second",
+        supersedes=(first.ledger_entry_id, active.ledger_entry_id),
+    )
+    object.__setattr__(first, "supersedes", (second.ledger_entry_id, active.ledger_entry_id))
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(active, first, second))
 
 
 def test_supersede_reject_and_defer_buckets_are_deterministic() -> None:
