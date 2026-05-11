@@ -174,29 +174,21 @@ def _seed_existing_replay_state(
         if entry.decision in {"promote", "supersede"}:
             promoting_by_scope.setdefault(entry.promotion_id, []).append(entry)
 
-    active_by_scope = _resolve_existing_active_entries(promoting_by_scope)
+    active_by_scope: dict[str, PromotionLedgerEntry] = {}
+    for promotion_id, entries in sorted(promoting_by_scope.items()):
+        active_by_scope[promotion_id] = _resolve_existing_active_entries(
+            promotion_id=promotion_id,
+            entries=tuple(entries),
+        )
     return seen_idempotency, active_by_scope
 
 
 def _resolve_existing_active_entries(
-    promoting_by_scope: dict[str, list[PromotionLedgerEntry]],
-) -> dict[str, PromotionLedgerEntry]:
-    """Resolve active existing promotion entries in supersession order."""
-
-    active_by_scope: dict[str, PromotionLedgerEntry] = {}
-    for promotion_id in sorted(promoting_by_scope):
-        active_by_scope[promotion_id] = _resolve_existing_scope_active(
-            promotion_id,
-            promoting_by_scope[promotion_id],
-        )
-    return active_by_scope
-
-
-def _resolve_existing_scope_active(
+    *,
     promotion_id: str,
-    entries: list[PromotionLedgerEntry],
+    entries: tuple[PromotionLedgerEntry, ...],
 ) -> PromotionLedgerEntry:
-    """Resolve one existing promotion scope without trusting hash order."""
+    """Resolve the active existing entry for one promotion scope."""
 
     promoted = tuple(entry for entry in entries if entry.decision == "promote")
     if not promoted:
@@ -205,59 +197,43 @@ def _resolve_existing_scope_active(
     if len(promoted) > 1:
         raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
 
-    active_entry = promoted[0]
     supersedes = tuple(entry for entry in entries if entry.decision == "supersede")
     if not supersedes:
-        return active_entry
+        return promoted[0]
 
-    superseded_ids: set[str] = set()
-    entry_by_id: dict[str, PromotionLedgerEntry] = {
-        entry.ledger_entry_id: entry for entry in entries
-    }
+    active_entry = promoted[0]
+    promoting_by_id = {entry.ledger_entry_id: entry for entry in entries}
     child_by_parent: dict[str, list[PromotionLedgerEntry]] = {}
+    superseded_ids: set[str] = set()
     for entry in supersedes:
-        parent_ids = entry.supersedes
-        if not parent_ids:
-            orphan = entry
-            raise ValueError(
-                f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}"
-            )
-
-        for parent_id in parent_ids:
-            if parent_id not in entry_by_id:
-                orphan = entry
+        for parent_id in entry.supersedes:
+            if parent_id not in promoting_by_id:
                 raise ValueError(
-                    f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}"
+                    f"existing ledger has orphan supersede entry: {entry.ledger_entry_id}"
                 )
             child_by_parent.setdefault(parent_id, []).append(entry)
             superseded_ids.add(parent_id)
 
-    active_ids: set[str] = set()
-    to_visit = [active_entry.ledger_entry_id]
-    while to_visit:
-        current_id = to_visit.pop()
-        if current_id in active_ids:
-            continue
-        active_ids.add(current_id)
-        children = child_by_parent.get(current_id)
-        if not children:
-            continue
-        for child in sorted(children, key=_entry_sort_key):
-            to_visit.append(child.ledger_entry_id)
-
-    if len(active_ids) != len(entry_by_id):
-        orphans = tuple(entry for entry in entries if entry.ledger_entry_id not in active_ids)
-        orphan = min(orphans, key=_entry_sort_key)
-        raise ValueError(f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}")
-
     leaves = tuple(entry for entry in supersedes if entry.ledger_entry_id not in superseded_ids)
-    if not leaves:
-        orphan = min(supersedes, key=_entry_sort_key)
-        raise ValueError(f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}")
-    if len(leaves) > 1:
+    if len(leaves) != 1:
         raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
 
-    return min(leaves, key=_entry_sort_key)
+    while True:
+        successors = child_by_parent.get(active_entry.ledger_entry_id, ())
+        if not successors:
+            return active_entry
+
+        if len(successors) == 1:
+            active_entry = sorted(successors, key=_entry_sort_key)[0]
+            continue
+
+        successor_ids = {entry.ledger_entry_id for entry in successors}
+        next_candidates = tuple(
+            entry for entry in successors if not (set(entry.supersedes) & successor_ids)
+        )
+        if len(next_candidates) != 1:
+            raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
+        active_entry = sorted(next_candidates, key=_entry_sort_key)[0]
 
 
 def _entry_sort_key(entry: PromotionLedgerEntry) -> tuple[str, str, str, str]:
