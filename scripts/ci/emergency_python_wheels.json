@@ -119,6 +119,13 @@
       "sha256": "6fccfad17a27334bd0193681b369f476eda3409f17381a2d65aa7df3f7275645"
     },
     {
+      "package": "requests",
+      "version": "2.33.0",
+      "filename": "requests-2.33.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/56/5d/c814546c2333ceea4ba42262d8c4d55763003e767fa169adc693bd524478/requests-2.33.0-py3-none-any.whl",
+      "sha256": "3324635456fa185245e24865e810cecec7b4caf933d7eb133dcde67d48cee69b"
+    },
+    {
       "package": "sentence-transformers",
       "version": "5.4.1",
       "filename": "sentence_transformers-5.4.1-py3-none-any.whl",
