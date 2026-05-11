@@ -305,6 +305,37 @@ def test_existing_cumulative_supersession_chain_resolves_current_active_entry() 
     )
 
 
+def test_existing_scope_with_single_promote_becomes_current_active_entry() -> None:
+    existing = _entry(run_id="1")
+
+    summary = dry_run_replay(existing_entries=(existing,))
+
+    assert summary.existing_entry_ids == (existing.ledger_entry_id,)
+    assert summary.diff.superseded == ()
+    assert summary.applied_entry_ids == (existing.ledger_entry_id,)
+
+
+def test_existing_scope_with_multiple_supersede_leaves_fails_closed() -> None:
+    base = _entry(run_id="1")
+    first = _entry(
+        run_id="2",
+        promotion_id=base.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:parallel-supersede-first",
+        supersedes=(base.ledger_entry_id,),
+    )
+    second = _entry(
+        run_id="3",
+        promotion_id=base.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:parallel-supersede-second",
+        supersedes=(base.ledger_entry_id,),
+    )
+
+    with pytest.raises(ValueError, match="conflicting active promotion_id"):
+        dry_run_replay(existing_entries=(base, first, second))
+
+
 def test_replay_does_not_mutate_caller_owned_lists() -> None:
     existing = [_entry(run_id="1")]
     candidates = [_entry(run_id="2")]
