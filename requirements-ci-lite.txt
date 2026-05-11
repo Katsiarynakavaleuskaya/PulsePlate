@@ -359,7 +359,7 @@ typing-inspection==0.4.2
     #   -c requirements.txt
     #   fastapi
     #   pydantic
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   -c requirements.txt
     #   requests
