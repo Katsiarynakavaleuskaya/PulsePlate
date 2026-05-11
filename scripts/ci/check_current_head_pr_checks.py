@@ -491,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
         if advisory_blocking_entries:
-            print("- Blocking canonical fallback current-head checks remain pending or failed.")
+            print("- Blocking fallback current-head checks remain pending or failed.")
         return 1
 
     if merge_state_note_needed:

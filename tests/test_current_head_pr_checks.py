@@ -553,9 +553,7 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
     assert "Current-head blocking fallback checks:" in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pending(
@@ -596,9 +594,7 @@ def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pe
     assert "GitHub mergeStateStatus=CLEAN" not in captured.out
     assert "Current-head blocking fallback checks:" in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_passes_when_required_check_set_is_empty_but_available(
