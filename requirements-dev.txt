@@ -237,7 +237,7 @@ typing-extensions==4.15.0
     # via
     #   -c requirements.txt
     #   mypy
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   -c requirements.txt
     #   requests
