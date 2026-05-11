@@ -261,6 +261,31 @@ def test_existing_supersession_chain_resolves_current_active_entry() -> None:
     assert summary.diff.conflict == ()
 
 
+def test_existing_supersession_chain_replays_in_dependency_order() -> None:
+    first = _entry(run_id="1")
+    second = _entry(
+        run_id="2",
+        promotion_id=first.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-first",
+        supersedes=(first.ledger_entry_id,),
+    )
+    third = _entry(
+        run_id="3",
+        promotion_id=first.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-second",
+        supersedes=(second.ledger_entry_id,),
+    )
+
+    summary = dry_run_replay(existing_entries=(first, third, second))
+
+    assert summary.applied_entry_ids == tuple(
+        sorted((first.ledger_entry_id, second.ledger_entry_id, third.ledger_entry_id))
+    )
+    assert summary.diff.conflict == ()
+
+
 def test_replay_does_not_mutate_caller_owned_lists() -> None:
     existing = [_entry(run_id="1")]
     candidates = [_entry(run_id="2")]
