@@ -17,10 +17,15 @@
 - `65b9a882f` - `fix(cloudflare): align worker name with deployed service`
 
 ## Discussion Thread Pass
-- Pending post-open external review comments.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Known post-open role findings have been dispositioned:
+- Security-auditor: governance mapping artifact finding - FIXED by `e378dc407`.
+- Bug-hunter: stale PR body mirror - FIXED by PR body update; superseded PR #1735 - FIXED by closing #1735; current-head validation - pending CI evidence, not a mapping-thread action.
 
 ## Fixed in Commit Mapping
-- No actionable review threads mapped yet.
+- No actionable review comments
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_WORKER_NAME_FIXED_MAPPING.md` - PASS
