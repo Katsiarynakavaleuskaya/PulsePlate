@@ -16,6 +16,7 @@
 
 ## Implementing Commits
 - `b4f7fd390` - `fix(ci): bound fallback current-head blockers`
+- `4be17a1e6` - `fix(ci): refine fallback specialized surfaces`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -80,6 +81,11 @@ Disposition: FIXED
 Commit: 4be17a1e6
 Evidence: docs/review/PR_1739_FIXED_MAPPING.md uses repo-portable pytest commands in the Validation section; all actionable comments from the review are mapped above.
 Reason: The CodeRabbit review summary contained a validation-record nitpick and referenced the latest actionable review set, both fixed in the mapped commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230169702
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md lists `4be17a1e6` under Implementing Commits.
+Reason: The traceability issue was already corrected in this artifact before merge-readiness; no production code change is required for a review-artifact completeness comment.
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
