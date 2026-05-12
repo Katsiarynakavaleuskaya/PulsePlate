@@ -17,6 +17,7 @@
   - `e3f5766a074f15cef2ced165fc22a8e241778172` - keep the trusted-host health-probe connection construction explicit and typed for pre-push MyPy.
   - `b3b925aaee7c402f6008c152d3c8e38d2010751e` - harden approved-proxy health probes for HTTP mirrors, redirects, real simple-index body validation, and dependency-floor preflight fallback.
   - `ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc` - use a non-blocked pip emergency artifact, accept normalized wheel names, and gate runtime fallback on resolver-miss plus approved project health.
+  - `72cc39bf7d265a3e5d34af259bf0a81bedc2efd8` - tighten Docker stage extraction and direct pip-upgrade negative assertions in the Dockerfile policy test.
 
 ## Discussion Thread Pass
 
@@ -222,6 +223,18 @@ Disposition: FIXED
 Commit: ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
 Evidence: scripts/ci/install_locked_python_requirements.py:866, tests/test_install_locked_python_requirements.py:261
 Reason: Cubic's review-level simple-index validation finding is mapped to the normalized project and underscore wheel filename fix.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226556040 -> 72cc39bf7d265a3e5d34af259bf0a81bedc2efd8
+Disposition: FIXED
+Commit: 72cc39bf7d265a3e5d34af259bf0a81bedc2efd8
+Evidence: tests/test_install_locked_python_requirements.py:378, tests/test_install_locked_python_requirements.py:383
+Reason: The Dockerfile stage helper now requires the requested `AS <stage>` alias and fails instead of matching an unnamed `FROM` stage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4272455056 -> 72cc39bf7d265a3e5d34af259bf0a81bedc2efd8
+Disposition: FIXED
+Commit: 72cc39bf7d265a3e5d34af259bf0a81bedc2efd8
+Evidence: tests/test_install_locked_python_requirements.py:359, tests/test_install_locked_python_requirements.py:375, tests/test_install_locked_python_requirements.py:378
+Reason: CodeRabbit's actionable stage-helper finding and duplicate direct-upgrade matcher finding are fixed by stage-scoped extraction and a stronger per-stage negative assertion; the baseline allowlist note is advisory scanner-noise cleanup outside this main hotfix scope.
 
 ## Merge Readiness
 
