@@ -60,11 +60,12 @@ RUN --mount=type=cache,target=/root/.cache/pip \
         --upgrade-pip-spec "${PIP_VERSION_RANGE}" \
         --emergency-wheel-manifest /tmp/pulseplate-ci/emergency_python_wheels.json \
         --index-url "${PULSEPLATE_PYTHON_INDEX_URL}"; \
-    fi
+    fi && \
+    rm -rf /tmp/pulseplate-ci
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt requirements-ci-lite.txt requirements-docker-runtime.txt constraints.txt ./
-COPY scripts/ci/check_python_startup_hooks.py /tmp/pulseplate-ci/
+COPY scripts/ci/check_python_startup_hooks.py scripts/ci/install_locked_python_requirements.py scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/
 RUN --mount=type=cache,target=/root/.cache/pip \
     if [ -z "${PULSEPLATE_PYTHON_INDEX_URL:-}" ]; then \
       echo "PULSEPLATE_PYTHON_INDEX_URL is required for Docker builds." >&2; \

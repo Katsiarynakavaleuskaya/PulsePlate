@@ -157,7 +157,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--upgrade-pip-spec",
         default="pip",
         help=(
-            "pip requirement spec used with --upgrade-pip or --upgrade-pip-only. "
+            "Simple numeric pip requirement spec (no extras/markers/wildcards), e.g. "
+            "'pip', 'pip==24.0', or 'pip>=23,<24', used with --upgrade-pip or "
+            "--upgrade-pip-only. "
             "Docker uses this to keep a range in the Dockerfile while emergency fallback "
             "remains exact-artifact scoped."
         ),
@@ -818,12 +820,14 @@ def _pip_upgrade_network_failure(message: str) -> bool:
         "connection refused",
         "connect timeout",
         "cloudflare",
+        "521",
         "error 5",
         "http 5",
         "max retries exceeded",
         "proxy error",
         "read timeout",
         "retrying",
+        "server error",
         "ssl",
         "temporarily unavailable",
         "timed out",
@@ -866,7 +870,9 @@ def _pip_spec_allows_version(pip_spec: str, version: str) -> bool:
         constraint = raw_constraint.strip()
         match = re.fullmatch(r"(==|>=|<=|>|<)\s*(\d+(?:\.\d+)*)", constraint)
         if match is None:
-            raise RuntimeError(f"Unsupported pip upgrade spec constraint: {pip_spec!r}")
+            raise RuntimeError(
+                f"Unsupported pip upgrade spec constraint {constraint!r} in {pip_spec!r}"
+            )
         operator, expected_version = match.groups()
         comparison = _compare_versions(version, expected_version)
         if operator == "==" and comparison != 0:

@@ -24,8 +24,8 @@ Reason: Draft PR remains blocked on private package proxy mirror parity; current
 
 ## Merge Readiness
 
-- [x] Pre-flight + agent consistency: PASS locally on hotfix branch.
-- [x] Canonical artifact: this file.
+- [ ] Pre-flight + agent consistency: PASS locally on hotfix branch.
+- [ ] Canonical artifact: this file.
 - [ ] PR body Phase2 mirror synchronized after this artifact commit is pushed.
 - [ ] Required current-head CI jobs green.
 - [ ] Docker Build and Push reaches image security scan and uploads current-head evidence.
@@ -35,10 +35,9 @@ Reason: Draft PR remains blocked on private package proxy mirror parity; current
 
 ## Local Validation Evidence
 
-- Startup gate: `python3 scripts/orchestration/check_preflight.py --path Dockerfile --path .github/workflows/build.yml --path .github/workflows/cd.yml --path .github/workflows/security.yml --path scripts/ci/install_locked_python_requirements.py --path scripts/ci/emergency_python_wheels.json --path tests/test_install_locked_python_requirements.py --path docs/roadmap/BACKLOG_LEDGER.md` - PASS.
+- Startup gate: `python3 scripts/orchestration/check_preflight.py --path Dockerfile --path .github/workflows/build.yml --path .github/workflows/cd.yml --path .github/workflows/security.yml --path scripts/ci/install_locked_python_requirements.py --path scripts/ci/emergency_python_wheels.json --path tests/test_install_locked_python_requirements.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_1738_FIXED_MAPPING.md` - PASS.
 - Agent consistency: `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- Focused tests: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_repo_policy_guards.py` - PASS.
-- Branch-diff backend tests: `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python BRANCH_DIFF_MODE=1 bash scripts/run-backend-tests-pre-commit.sh` - PASS.
-- Pre-commit: `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run --all-files` - PASS.
-- Full local gate: `make verify` - PASS after using an ignored local `.venv` symlink to the repo venv; symlink and coverage artifacts were removed after the run.
+- Focused tests: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_repo_policy_guards.py` - PASS.
+- Phase2/focused security guards: `python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_pr_body_phase2_gates.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS.
+- Pre-commit: `pre-commit run --all-files` - PASS on the final pushed head.
 - Pre-push hooks: PASS, including mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test.

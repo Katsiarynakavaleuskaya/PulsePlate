@@ -92,6 +92,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "alembic",
         "annotated-doc",
         "annotated-types",
+        "anyio",
         "mako",
         "pillow",
         "python-multipart",
@@ -141,11 +142,58 @@ def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> N
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
     dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    builder_stage = _dockerfile_stage(dockerfile, "builder")
+    runtime_stage = _dockerfile_stage(dockerfile, "runtime-base")
 
-    assert "--upgrade-pip-only" in dockerfile
-    assert '--upgrade-pip-spec "${PIP_VERSION_RANGE}"' in dockerfile
-    assert 'python -m pip install --upgrade "${PIP_VERSION_RANGE}"' not in dockerfile
-    assert '/opt/venv/bin/python -m pip install --upgrade "${PIP_VERSION_RANGE}"' not in dockerfile
+    for stage in (builder_stage, runtime_stage):
+        assert "--upgrade-pip-only" in stage
+        assert '--upgrade-pip-spec "${PIP_VERSION_RANGE}"' in stage
+        assert re.search(
+            r"/tmp/pulseplate-ci/install_locked_python_requirements\.py\s+\\\n"
+            r"\s*--python-executable (?:/opt/venv/bin/python|python)\s+\\\n"
+            r"\s*--upgrade-pip-only\s+\\\n"
+            r'\s*--upgrade-pip-spec "\$\{PIP_VERSION_RANGE\}"',
+            stage,
+        )
+
+    assert not re.search(
+        r"(?:python|/opt/venv/bin/python)\s+-m\s+pip\s+install\s+--upgrade\s+"
+        r'"?\$\{PIP_VERSION_RANGE\}"?',
+        dockerfile,
+    )
+
+
+def _dockerfile_stage(dockerfile: str, stage_name: str) -> str:
+    stage_pattern = re.compile(
+        rf"^FROM\s+\S+(?:\s+AS\s+{re.escape(stage_name)})?\s*$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    stage_match = stage_pattern.search(dockerfile)
+    assert stage_match is not None, f"Dockerfile stage not found: {stage_name}"
+    next_stage_match = re.search(r"^FROM\s+", dockerfile[stage_match.end() :], re.MULTILINE)
+    stage_end = (
+        stage_match.end() + next_stage_match.start()
+        if next_stage_match is not None
+        else len(dockerfile)
+    )
+    return dockerfile[stage_match.start() : stage_end]
+
+
+def test_repo_docker_runtime_install_uses_locked_installer_fallback() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert (
+        "COPY scripts/ci/check_python_startup_hooks.py "
+        "scripts/ci/install_locked_python_requirements.py "
+        "scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/"
+    ) in dockerfile
+    assert re.search(
+        r"/tmp/pulseplate-ci/install_locked_python_requirements\.py\s+\\\n"
+        r"\s*--python-executable (?:/opt/venv/bin/python|python)\s+\\\n"
+        r'\s*--requirements-file "\$\{PULSEPLATE_REQUIREMENTS_FILE\}"\s+\\\n'
+        r"\s*--guard-script /tmp/pulseplate-ci/check_python_startup_hooks\.py",
+        dockerfile,
+    )
 
 
 def test_compatible_release_version_accepts_environment_markers() -> None:
@@ -1537,6 +1585,57 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
+def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.0.1",
+                        "filename": "pip-26.0.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def cloudflare_521_with_final_resolver_text(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: 521 Server Error: Web Server Is Down for url\n"
+            "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+        )
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", cloudflare_521_with_final_resolver_text)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="521 Server Error"):
         installer.upgrade_pip(
             "python",
             pip_spec="pip>=26.0,<27.0",
