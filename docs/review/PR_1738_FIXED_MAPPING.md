@@ -7,6 +7,8 @@
 - Implementing commits:
   - `d1a242507dde7ecf8f05c51582f469e929c2efce` - update the generated detect-secrets baseline for the new pinned emergency wheel digest.
   - `75d780cc3ef2b2a9300b2c9f126298b5a527b176` - route Docker pip bootstrap through the governed installer emergency fallback path.
+  - `83d5da71416134807e7bf54e4a4c43ec02e8e9bc` - extend the exact emergency manifest for `requests==2.33.0`.
+  - `10520d5f28b10070a3bcbd4563fc01b0a1ba8245` - harden proxy-outage classification, Docker helper cleanup, anyio fallback, and review-requested tests.
 
 ## Discussion Thread Pass
 
@@ -17,10 +19,93 @@ Per root `AGENTS.md` review governance, each actionable bot/human comment receiv
 
 ### Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223607486 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: tests/test_install_locked_python_requirements.py:135, tests/test_install_locked_python_requirements.py:182
+Reason: Dockerfile coverage now checks both pip-bootstrap stages and the runtime dependency stage for the governed installer fallback contract.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617091 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:823, tests/test_install_locked_python_requirements.py:1599
+Reason: Cloudflare/proxy 521 transport failures are classified as proxy outages and do not trigger emergency wheel fallback.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617517
+Disposition: NOT-A-BUG
+Evidence: Dockerfile:55, scripts/ci/install_locked_python_requirements.py:703
+Reason: `--trusted-host` remains an explicit operator-supplied build argument path that already existed before this PR; the PR does not introduce unconditional TLS bypass or a new public-index trust path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617522 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md:15
+Reason: Discussion-thread and fixed-mapping pass are now explicitly checked after the thread-specific dispositions were recorded.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617533 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md:112
+Reason: Merge-readiness checklist items are unchecked until current-head CI, security scan, review disposition, and wait-window evidence exist.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617541 -> 83d5da71416134807e7bf54e4a4c43ec02e8e9bc
+Disposition: FIXED
+Commit: 83d5da71416134807e7bf54e4a4c43ec02e8e9bc
+Evidence: scripts/ci/emergency_python_wheels.json:162
+Reason: `requests==2.33.0` is present as an exact, pinned emergency bridge entry.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4269020449 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:157, scripts/ci/install_locked_python_requirements.py:874, tests/test_install_locked_python_requirements.py:135
+Reason: The review's pip-spec help, invalid-constraint diagnostics, and Docker fallback-test coverage are now addressed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4269034135 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md:20, scripts/ci/emergency_python_wheels.json:162
+Reason: CodeRabbit actionable items are mapped individually; the requested `requests==2.33.0` entry is present and the readiness checkboxes no longer overclaim.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4269046049 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:823, tests/test_install_locked_python_requirements.py:1599
+Reason: Cubic's proxy-outage classification concern is addressed by fail-closed 521/server-error handling and a deterministic regression test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223627241 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:823, tests/test_install_locked_python_requirements.py:1599
+Reason: A 521 response with final resolver text now stays fail-closed instead of being treated as package-missing fallback eligibility.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4269709547 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:157, scripts/ci/install_locked_python_requirements.py:874, Dockerfile:64
+Reason: The second Sourcery review's actionable help text, invalid constraint diagnostic, and Docker cleanup findings are addressed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224214521 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:157
+Reason: `--upgrade-pip-spec` help now describes the restricted numeric pip requirement forms actually accepted by the parser.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224214527 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: scripts/ci/install_locked_python_requirements.py:874
+Reason: Unsupported pip upgrade constraints now include the exact rejected constraint and the original spec in the error.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224214530 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Disposition: FIXED
+Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
+Evidence: Dockerfile:64, Dockerfile:68
+Reason: The first builder pip-upgrade helper copy is removed after use, and the runtime dependency stage recopies the needed helper files before install.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738
 Disposition: DEFERRED
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync
-Reason: Draft PR remains blocked on private package proxy mirror parity; current-head review comments remain open and must not be resolved until each receives thread-specific proof.
+Reason: The approved private package proxy must still be restored as source-of-truth and serve every still-active emergency manifest entry natively; this PR keeps only exact, TTL-bound bridge entries and does not add a generic public-index fallback.
 
 ## Merge Readiness
 
