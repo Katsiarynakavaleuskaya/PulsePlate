@@ -51,6 +51,36 @@ Commit: b4f7fd390
 Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps all actionable review comments from that review; scripts/ci/check_current_head_pr_checks.py and tests/test_current_head_pr_checks.py contain the bounded fallback fix.
 Reason: The Sourcery review summary pointed to the actionable review set, which is fully dispositioned above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230113752 -> 4be17a1e6
+Disposition: FIXED
+Commit: 4be17a1e6
+Evidence: scripts/ci/check_current_head_pr_checks.py checks iOS job-name prefixes before canonical CI fallback names; tests/test_current_head_pr_checks.py covers attached iOS CI blocking.
+Reason: Attached iOS CI jobs from the canonical CI workflow now block fallback when iOS paths changed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230113754 -> 4be17a1e6
+Disposition: FIXED
+Commit: 4be17a1e6
+Evidence: scripts/ci/check_current_head_pr_checks.py expands `FRONTEND_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers `.nvmrc` attaching Frontend CI.
+Reason: Frontend fallback routing now includes the workflow trigger surfaces needed for frontend/design-token checks.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230113763 -> 4be17a1e6
+Disposition: FIXED
+Commit: 4be17a1e6
+Evidence: scripts/ci/check_current_head_pr_checks.py no longer classifies `Greenlight iOS Preflight` as fallback-blocking; tests/test_current_head_pr_checks.py keeps Greenlight report-only checks advisory.
+Reason: Greenlight is report-only and remains a soft/advisory signal in fallback mode.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230113767 -> 4be17a1e6
+Disposition: FIXED
+Commit: 4be17a1e6
+Evidence: scripts/ci/check_current_head_pr_checks.py expands Docker runtime dependency surfaces; tests/test_current_head_pr_checks.py covers `requirements-docker-runtime.txt` attaching Docker fallback.
+Reason: Docker fallback now blocks when runtime dependency files that feed the production image change.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#pullrequestreview-4276547815 -> 4be17a1e6
+Disposition: FIXED
+Commit: 4be17a1e6
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md uses repo-portable pytest commands in the Validation section; all actionable comments from the review are mapped above.
+Reason: The CodeRabbit review summary contained a validation-record nitpick and referenced the latest actionable review set, both fixed in the mapped commit.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
