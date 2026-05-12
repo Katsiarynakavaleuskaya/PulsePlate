@@ -10,14 +10,14 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after latest bot/human review activity.
-- [ ] Fixed in commit mapping completed after latest bot/human review activity.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Per root `AGENTS.md` review governance, each actionable bot/human comment receives a disposition (`FIXED` / `NOT-A-BUG` / `DEFERRED`) with proof before thread resolution.
 
 ### Fixed in Commit Mapping
 
-No review threads have been dispositioned yet. This draft PR must update this section after post-open review and before any merge-readiness claim.
+- No actionable review comments
 
 ## Merge Readiness
 
