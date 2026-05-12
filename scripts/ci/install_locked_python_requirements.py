@@ -12,12 +12,13 @@ from datetime import date
 import json
 import os
 import re
+import ssl
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
 from typing import Iterator, Sequence, cast
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import ParseResult, quote, unquote, urlparse
 from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -856,7 +857,24 @@ def _redact_url_credentials(url: str) -> str:
     return parsed._replace(netloc=netloc).geturl()
 
 
-def _require_private_index_project_health(*, index_url: str, package: str) -> None:
+def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResult) -> bool:
+    """Return True when the operator trusted-host applies to the project URL host."""
+    if not trusted_host:
+        return False
+    hostname = str(parsed_url.hostname or "").rstrip(".").lower()
+    if not hostname:
+        return False
+    trusted = trusted_host.strip().rstrip(".").lower()
+    host_with_port = hostname if parsed_url.port is None else f"{hostname}:{parsed_url.port}"
+    return trusted in {hostname, host_with_port}
+
+
+def _require_private_index_project_health(
+    *,
+    index_url: str,
+    package: str,
+    trusted_host: str | None,
+) -> None:
     """Fail closed unless the approved proxy serves the package project page."""
     project_url = _simple_project_url(index_url, package)
     safe_url = _redact_url_credentials(project_url)
@@ -874,11 +892,15 @@ def _require_private_index_project_health(*, index_url: str, package: str) -> No
         password = "" if parsed.password is None else unquote(parsed.password)
         credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
         headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
-    conn = http.client.HTTPSConnection(
-        parsed.hostname,
-        port=parsed.port,
-        timeout=PIP_NETWORK_TIMEOUT_SECONDS,
-    )
+    connection_kwargs: dict[str, object] = {
+        "port": parsed.port,
+        "timeout": PIP_NETWORK_TIMEOUT_SECONDS,
+    }
+    if _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
+        # fmt: off
+        connection_kwargs["context"] = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
+        # fmt: on
+    conn = http.client.HTTPSConnection(parsed.hostname, **connection_kwargs)
     try:
         conn.request("GET", path, headers=headers)
         response = conn.getresponse()
@@ -1171,7 +1193,11 @@ def upgrade_pip(
     except RuntimeError as exc:
         if not _pip_upgrade_resolver_miss(exc):
             raise
-        _require_private_index_project_health(index_url=index_url, package="pip")
+        _require_private_index_project_health(
+            index_url=index_url,
+            package="pip",
+            trusted_host=trusted_host,
+        )
 
     with tempfile.TemporaryDirectory(prefix="pulseplate-pip-emergency-wheelhouse-") as temp_dir:
         wheelhouse_dir = Path(temp_dir)

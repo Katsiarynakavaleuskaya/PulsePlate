@@ -103,7 +103,15 @@ def _allow_private_index_project_health(
     observed_requests: list[tuple[str, str, int]] = []
 
     class FakeHTTPSConnection:
-        def __init__(self, host: str, *, port: int | None = None, timeout: int) -> None:
+        def __init__(
+            self,
+            host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert context is None
             self.host = host if port is None else f"{host}:{port}"
             self.timeout = timeout
 
@@ -125,6 +133,52 @@ def _allow_private_index_project_health(
 
     monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
     return observed_requests
+
+
+def test_private_index_project_health_honors_matching_trusted_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_contexts: list[object | None] = []
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            observed_contexts.append(context)
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host="packages.example.internal",
+    )
+
+    assert len(observed_contexts) == 1
+    assert observed_contexts[0] is not None
 
 
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
