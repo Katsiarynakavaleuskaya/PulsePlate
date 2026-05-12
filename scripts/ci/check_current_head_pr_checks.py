@@ -43,6 +43,9 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "security",
     "OpenAPI sync (backend -> frontend artifacts)",
     "test-pr (3.13)",
+    "test-main (3.11)",
+    "test-main (3.12)",
+    "test-main (3.13)",
     "coverage-pr",
     "diff-coverage",
 }
@@ -62,6 +65,7 @@ FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI", "Accessibility Tests"}
 FRONTEND_SURFACE_PREFIXES = {
     ".github/actions/npm-ci-with-retry/",
     ".github/actions/python-setup/",
+    ".github/workflows/accessibility.yml",
     ".github/workflows/frontend-ci.yml",
     ".nvmrc",
     "constraints.txt",
@@ -97,7 +101,12 @@ FRONTEND_SURFACE_PREFIXES = {
     "web/",
 }
 IOS_FALLBACK_CHECK_PREFIXES = {"iOS "}
-IOS_SURFACE_PREFIXES = {"ios/", ".github/workflows/ios", "fastlane/"}
+IOS_SURFACE_PREFIXES = {
+    "ios/",
+    ".github/actions/",
+    ".github/workflows/",
+    "fastlane/",
+}
 
 
 def _github_token() -> str:

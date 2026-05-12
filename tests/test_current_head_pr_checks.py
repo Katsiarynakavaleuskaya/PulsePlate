@@ -20,6 +20,7 @@ CANONICAL_FALLBACK_JOB_IDS = {
     "security",
     "openapi-sync",
     "test-pr",
+    "test-main",
     "coverage-pr",
     "diff-coverage",
 }
@@ -37,24 +38,31 @@ def _load_ci_workflow_jobs() -> dict[str, dict[str, object]]:
     return jobs
 
 
-def _job_display_name(job_id: str, definition: dict[str, object]) -> str:
+def _job_display_names(job_id: str, definition: dict[str, object]) -> set[str]:
     name = str(definition.get("name") or job_id)
     matrix = (definition.get("strategy") or {}).get("matrix") or {}
     python_versions = matrix.get("python-version")
     if job_id == "test-pr" and python_versions == ["3.13"]:
-        return f"{name} (3.13)"
-    return name
+        return {f"{name} (3.13)"}
+    matrix_include = matrix.get("include")
+    if job_id == "test-main" and isinstance(matrix_include, list):
+        versions = {
+            str(entry.get("python-version"))
+            for entry in matrix_include
+            if isinstance(entry, dict) and entry.get("python-version")
+        }
+        return {f"{name} ({version})" for version in sorted(versions)}
+    return {name}
 
 
 def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
     jobs = _load_ci_workflow_jobs()
-    expected_display_names = {
-        _job_display_name(job_id, jobs[job_id]) for job_id in CANONICAL_FALLBACK_JOB_IDS
-    }
+    expected_display_names = set()
+    for job_id in CANONICAL_FALLBACK_JOB_IDS:
+        expected_display_names.update(_job_display_names(job_id, jobs[job_id]))
 
     assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
     assert "test-feature" not in CANONICAL_FALLBACK_JOB_IDS
-    assert "test-main" not in CANONICAL_FALLBACK_JOB_IDS
 
 
 @pytest.mark.parametrize(
@@ -179,6 +187,32 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
         ),
         (
             current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-ci-workflow",
+                workflow_name="CI",
+                conclusion="",
+            ),
+            {".github/workflows/ci.yml"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-action",
+                workflow_name="CI",
+                conclusion="",
+            ),
+            {".github/actions/python-setup/action.yml"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
                 name="Greenlight preflight (report-only)",
                 source_kind="check_run",
                 state="failed",
@@ -201,6 +235,32 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
                 conclusion="",
             ),
             {".nvmrc"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="axe smoke",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/accessibility",
+                workflow_name="Accessibility Tests",
+                conclusion="",
+            ),
+            {".github/workflows/accessibility.yml"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="test-main (3.11)",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/test-main",
+                workflow_name="CI",
+                conclusion="FAILURE",
+            ),
+            {".github/workflows/ci.yml"},
             True,
         ),
         (
