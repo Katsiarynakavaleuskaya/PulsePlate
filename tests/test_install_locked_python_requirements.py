@@ -77,8 +77,13 @@ def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> 
 
 
 class _FakeSimpleIndexResponse:
-    def __init__(self, status: int = 200) -> None:
+    def __init__(
+        self,
+        status: int = 200,
+        body: bytes = b'<html><a href="pip-26.0.1-py3-none-any.whl">pip</a></html>',
+    ) -> None:
         self._status = status
+        self._body = body
 
     def __enter__(self) -> "_FakeSimpleIndexResponse":
         return self
@@ -94,7 +99,7 @@ class _FakeSimpleIndexResponse:
         return self._status
 
     def read(self) -> bytes:
-        return b""
+        return self._body
 
 
 def _allow_private_index_project_health(
@@ -179,6 +184,78 @@ def test_private_index_project_health_honors_matching_trusted_host(
 
     assert len(observed_contexts) == 1
     assert observed_contexts[0] is not None
+
+
+def test_private_index_project_health_supports_approved_http_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[tuple[str, int | None, int]] = []
+
+    class FakeHTTPConnection:
+        def __init__(self, host: str, *, port: int | None = None, timeout: int) -> None:
+            observed.append((host, port, timeout))
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", FakeHTTPConnection)
+
+    installer._require_private_index_project_health(
+        index_url="http://packages.example.internal/simple",
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert observed == [("packages.example.internal", None, installer.PIP_NETWORK_TIMEOUT_SECONDS)]
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "match"),
+    [
+        (302, b'<html><a href="pip-26.0.1-py3-none-any.whl">pip</a></html>', "HTTP 302"),
+        (200, b"<html>login required</html>", "invalid simple-index project page"),
+    ],
+)
+def test_private_index_project_health_rejects_redirects_and_non_project_pages(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    body: bytes,
+    match: str,
+) -> None:
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(status=status, body=body)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    with pytest.raises(RuntimeError, match=match):
+        installer._require_private_index_project_health(
+            index_url=APPROVED_PROXY_URL,
+            package="pip",
+            trusted_host=None,
+        )
 
 
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
@@ -2631,7 +2708,13 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     def fail_run_command(_command: list[str]) -> None:
         raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
+    observed_health: list[tuple[str, str, str | None]] = []
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        observed_health.append((index_url, package, trusted_host))
+
     monkeypatch.setattr(installer, "run_command", fail_run_command)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
 
     installer.run_dependency_floor_preflight(
         python_executable="python",
@@ -2639,6 +2722,63 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
         trusted_host=None,
         emergency_wheel_manifest=manifest,
     )
+
+    assert observed_health == [(APPROVED_PROXY_URL, "cryptography", None)]
+
+
+def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7"},
+    )
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
+    )
+
+    def resolver_miss(_command: list[str]) -> None:
+        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        raise RuntimeError(f"proxy health check failed: {package}: {index_url}: {trusted_host}")
+
+    monkeypatch.setattr(installer, "run_command", resolver_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+
+    with pytest.raises(RuntimeError, match="proxy health check failed"):
+        installer.run_dependency_floor_preflight(
+            python_executable="python",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
 
 
 def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_emergency(
@@ -2717,11 +2857,17 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     def resolver_miss(_command: list[str]) -> None:
         raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "cryptography"
+        assert trusted_host is None
+
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
         observed_downloads.append((url, expected_sha256))
         destination.write_bytes(b"wheel-bytes")
 
     monkeypatch.setattr(installer, "run_command", resolver_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
