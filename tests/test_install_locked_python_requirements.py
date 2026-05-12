@@ -91,6 +91,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     assert {package for package, _version in ci_lite_emergency_pairs} >= {
         "alembic",
         "annotated-doc",
+        "annotated-types",
         "mako",
         "pillow",
         "python-multipart",

@@ -574,7 +574,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Target PR: `PR-TBD` (follow-up after main Docker/CD proxy unblock)
   - Status: Active as of `12 May 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.0.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `requests 2.33.0`, `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.4`, `ruff 0.15.12`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.8.0`). `PR #1378`, `PR #1418`, and the main Docker/CD proxy unblock extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.0.1`, `alembic 1.18.4`, `annotated-doc 0.0.4` и `requests 2.33.0`. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.0.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `requests 2.33.0`, `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.4`, `ruff 0.15.12`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.8.0`). `PR #1378`, `PR #1418`, and the main Docker/CD proxy unblock extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.0.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0` и `requests 2.33.0`. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
@@ -585,7 +585,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Evidence:
     - Emergency manifest entries for the still-active fallback set remain pinned in
       `scripts/ci/emergency_python_wheels.json` by package/version keys, including
-      `pip 26.0.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `requests 2.33.0`,
+      `pip 26.0.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`,
+      `annotated-types 0.7.0`, `requests 2.33.0`,
       `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`,
       `hypothesis 6.152.4`, `sentence-transformers 5.4.1`, `ruff 0.15.12`,
       `types-pyyaml 6.0.12.20260408`, and `transformers 5.8.0`.
