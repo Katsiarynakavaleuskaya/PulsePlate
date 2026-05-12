@@ -80,7 +80,7 @@ class _FakeSimpleIndexResponse:
     def __init__(
         self,
         status: int = 200,
-        body: bytes = b'<html><a href="pip-26.0.1-py3-none-any.whl">pip</a></html>',
+        body: bytes = b'<html><a href="pip-26.1.1-py3-none-any.whl">pip</a></html>',
     ) -> None:
         self._status = status
         self._body = body
@@ -225,7 +225,7 @@ def test_private_index_project_health_supports_approved_http_proxy(
 @pytest.mark.parametrize(
     ("status", "body", "match"),
     [
-        (302, b'<html><a href="pip-26.0.1-py3-none-any.whl">pip</a></html>', "HTTP 302"),
+        (302, b'<html><a href="pip-26.1.1-py3-none-any.whl">pip</a></html>', "HTTP 302"),
         (200, b"<html>login required</html>", "invalid simple-index project page"),
     ],
 )
@@ -256,6 +256,33 @@ def test_private_index_project_health_rejects_redirects_and_non_project_pages(
             package="pip",
             trusted_host=None,
         )
+
+
+def test_private_index_project_health_accepts_underscore_wheel_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(
+                body=b'<html><a href="python_multipart-0.0.27-py3-none-any.whl">wheel</a></html>'
+            )
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="python-multipart",
+        trusted_host=None,
+    )
 
 
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
@@ -1518,6 +1545,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     manifest.write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "generated_at": "2026-04-09",
                 "expires_at": "2099-12-31",
                 "artifacts": [
@@ -1540,7 +1568,12 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         build_attempts["count"] += 1
         observed_calls.append(Path(kwargs["wheelhouse_dir"]))
         if build_attempts["count"] == 1:
-            raise RuntimeError("proxy miss")
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "cryptography"
+        assert trusted_host is None
 
     def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
@@ -1550,6 +1583,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         return [destination]
 
     monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
 
     installer.build_wheelhouse_with_emergency_fallback(
@@ -1576,6 +1610,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     manifest.write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "generated_at": "2026-04-09",
                 "expires_at": "2099-12-31",
                 "artifacts": [
@@ -1597,7 +1632,12 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         find_links_dir = kwargs["find_links_dir"]
         observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
         if find_links_dir is None:
-            raise RuntimeError("proxy miss")
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "cryptography"
+        assert trusted_host is None
 
     def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
@@ -1607,6 +1647,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         return [destination]
 
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
 
     installer.install_from_proxy_with_emergency_fallback(
@@ -1622,6 +1663,59 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
 
 
+def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_transport(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError("Command failed: python -m pip install: connection timed out")
+
+    def fake_stage_emergency_wheels(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_transport)
+    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+
+    with pytest.raises(RuntimeError, match="connection timed out"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
+
+
 def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1635,9 +1729,9 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
                 "artifacts": [
                     {
                         "package": "pip",
-                        "version": "26.0.1",
-                        "filename": "pip-26.0.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -1684,12 +1778,12 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     ]
     assert observed_downloads == [
         (
-            "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+            "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
             "b" * 64,
             observed_downloads[0][2],
         )
     ]
-    assert observed_downloads[0][2].name == "pip-26.0.1-py3-none-any.whl"
+    assert observed_downloads[0][2].name == "pip-26.1.1-py3-none-any.whl"
 
 
 def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
@@ -1705,9 +1799,9 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
                 "artifacts": [
                     {
                         "package": "pip",
-                        "version": "26.0.1",
-                        "filename": "pip-26.0.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -1751,9 +1845,9 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
                 "artifacts": [
                     {
                         "package": "pip",
-                        "version": "26.0.1",
-                        "filename": "pip-26.0.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -1802,9 +1896,9 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
                 "artifacts": [
                     {
                         "package": "pip",
-                        "version": "26.0.1",
-                        "filename": "pip-26.0.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
                         "sha256": "b" * 64,
                     }
                 ],
@@ -1853,9 +1947,9 @@ def test_upgrade_pip_does_not_use_emergency_wheel_when_proxy_521_is_suppressed(
                 "artifacts": [
                     {
                         "package": "pip",
-                        "version": "26.0.1",
-                        "filename": "pip-26.0.1-py3-none-any.whl",
-                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
                         "sha256": "b" * 64,
                     }
                 ],

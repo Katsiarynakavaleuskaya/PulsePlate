@@ -457,6 +457,36 @@ def requirement_surfaces_request_artifact(
     return expected_pin in _load_exact_requirement_pins(validated_constraints_file)
 
 
+def emergency_artifacts_requested_by_surfaces(
+    *,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    manifest_path: Path | None,
+) -> list[dict[str, str]]:
+    """Return active emergency artifacts requested by selected requirement surfaces."""
+    requested_requirement_pins: set[str] = set()
+    for requirement_file in requirement_files:
+        requested_requirement_pins.update(_load_exact_requirement_pins(requirement_file))
+
+    validated_constraints_file = validate_constraints_file(constraints_file)
+    requested_constraint_pins = (
+        _load_exact_requirement_pins(validated_constraints_file)
+        if validated_constraints_file is not None
+        else set()
+    )
+
+    requested_artifacts: list[dict[str, str]] = []
+    for artifact in load_emergency_wheel_manifest(manifest_path):
+        expected_pin = f"{artifact['package'].lower()}=={artifact['version'].lower()}"
+        if (
+            expected_pin not in requested_requirement_pins
+            and expected_pin not in requested_constraint_pins
+        ):
+            continue
+        requested_artifacts.append(artifact)
+    return requested_artifacts
+
+
 def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
     """Download an artifact and verify its sha256 before trusting it."""
     digest = hashlib.sha256()
@@ -499,25 +529,12 @@ def stage_emergency_wheels(
     manifest_path: Path | None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
-    requested_requirement_pins: set[str] = set()
-    for requirement_file in requirement_files:
-        requested_requirement_pins.update(_load_exact_requirement_pins(requirement_file))
-
-    validated_constraints_file = validate_constraints_file(constraints_file)
-    requested_constraint_pins = (
-        _load_exact_requirement_pins(validated_constraints_file)
-        if validated_constraints_file is not None
-        else set()
-    )
-
     staged_paths: list[Path] = []
-    for artifact in load_emergency_wheel_manifest(manifest_path):
-        expected_pin = f"{artifact['package'].lower()}=={artifact['version'].lower()}"
-        if (
-            expected_pin not in requested_requirement_pins
-            and expected_pin not in requested_constraint_pins
-        ):
-            continue
+    for artifact in emergency_artifacts_requested_by_surfaces(
+        requirement_files=requirement_files,
+        constraints_file=constraints_file,
+        manifest_path=manifest_path,
+    ):
         wheelhouse_dir.mkdir(parents=True, exist_ok=True)
         destination = wheelhouse_dir / artifact["filename"]
         if destination.exists():
@@ -849,8 +866,9 @@ def _simple_project_url(index_url: str, package: str) -> str:
 def _simple_project_page_looks_valid(*, package: str, body: bytes) -> bool:
     """Return True when a response body looks like a PEP 503 project page."""
     normalized_package = re.sub(r"[-_.]+", "-", package).lower()
+    package_markers = (f"{normalized_package}-", f"{normalized_package.replace('-', '_')}-")
     text = body[:100_000].decode("utf-8", errors="ignore").lower()
-    return "href=" in text and f"{normalized_package}-" in text
+    return "href=" in text and any(marker in text for marker in package_markers)
 
 
 def _redact_url_credentials(url: str) -> str:
@@ -1406,7 +1424,26 @@ def build_wheelhouse_with_emergency_fallback(
             index_url=index_url,
             trusted_host=trusted_host,
         )
-    except RuntimeError:
+    except RuntimeError as exc:
+        requested_artifacts = emergency_artifacts_requested_by_surfaces(
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            manifest_path=emergency_wheel_manifest,
+        )
+        if not requested_artifacts:
+            raise
+        for artifact in requested_artifacts:
+            if not _resolver_miss_error(
+                exc,
+                package=artifact["package"],
+                version=artifact["version"],
+            ):
+                raise
+            _require_private_index_project_health(
+                index_url=index_url,
+                package=artifact["package"],
+                trusted_host=trusted_host,
+            )
         staged_wheels = stage_emergency_wheels(
             requirement_files=requirement_files,
             constraints_file=constraints_file,
@@ -1447,7 +1484,26 @@ def install_from_proxy_with_emergency_fallback(
             find_links_dir=None,
             allow_pip_download_cache=allow_pip_download_cache,
         )
-    except RuntimeError:
+    except RuntimeError as exc:
+        requested_artifacts = emergency_artifacts_requested_by_surfaces(
+            requirement_files=requirement_files,
+            constraints_file=constraints_file,
+            manifest_path=emergency_wheel_manifest,
+        )
+        if not requested_artifacts:
+            raise
+        for artifact in requested_artifacts:
+            if not _resolver_miss_error(
+                exc,
+                package=artifact["package"],
+                version=artifact["version"],
+            ):
+                raise
+            _require_private_index_project_health(
+                index_url=index_url,
+                package=artifact["package"],
+                trusted_host=trusted_host,
+            )
         staged_wheels = stage_emergency_wheels(
             requirement_files=requirement_files,
             constraints_file=constraints_file,
