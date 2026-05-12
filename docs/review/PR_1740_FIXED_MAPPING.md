@@ -24,6 +24,7 @@ Known post-open role findings have been dispositioned:
 - Security-auditor: governance mapping artifact finding - FIXED by `e378dc407`.
 - Bug-hunter: stale PR body mirror - FIXED by PR body update; superseded PR #1735 - FIXED by closing #1735; current-head validation - pending CI evidence, not a mapping-thread action.
 - Codex review: Phase2 checkbox and no-actionable marker findings - fixed by using the exact parser-required checklist and mapping marker forms.
+- CodeRabbit review: stale fixed-mapping artifact path in validation evidence - FIXED by `5cbc6ec70`.
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229434597 -> 7840d4c07
@@ -37,6 +38,18 @@ Disposition: FIXED
 Commit: 7840d4c07
 Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Discussion Thread Pass section)
 Reason: The artifact contains the exact required checked Phase2 discussion and mapping checklist lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229477736 -> 5cbc6ec70
+Disposition: FIXED
+Commit: 5cbc6ec70
+Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Validation section)
+Reason: The stale `PR_WORKER_NAME_FIXED_MAPPING.md` validation examples now point to canonical `PR_1740_FIXED_MAPPING.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#pullrequestreview-4275839165 -> 5cbc6ec70
+Disposition: FIXED
+Commit: 5cbc6ec70
+Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Validation section)
+Reason: The CodeRabbit review summary contained one actionable inline comment, fixed in the mapped post-comment commit.
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_1740_FIXED_MAPPING.md` - PASS
