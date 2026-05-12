@@ -18,6 +18,7 @@
   - `b3b925aaee7c402f6008c152d3c8e38d2010751e` - harden approved-proxy health probes for HTTP mirrors, redirects, real simple-index body validation, and dependency-floor preflight fallback.
   - `ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc` - use a non-blocked pip emergency artifact, accept normalized wheel names, and gate runtime fallback on resolver-miss plus approved project health.
   - `72cc39bf7d265a3e5d34af259bf0a81bedc2efd8` - tighten Docker stage extraction and direct pip-upgrade negative assertions in the Dockerfile policy test.
+  - `b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a` - allow multi-artifact fallback when at least one requested emergency artifact is named by the resolver miss while non-resolver failures remain fail-closed.
 
 ## Discussion Thread Pass
 
@@ -235,6 +236,18 @@ Disposition: FIXED
 Commit: 72cc39bf7d265a3e5d34af259bf0a81bedc2efd8
 Evidence: tests/test_install_locked_python_requirements.py:359, tests/test_install_locked_python_requirements.py:375, tests/test_install_locked_python_requirements.py:378
 Reason: CodeRabbit's actionable stage-helper finding and duplicate direct-upgrade matcher finding are fixed by stage-scoped extraction and a stronger per-stage negative assertion; the baseline allowlist note is advisory scanner-noise cleanup outside this main hotfix scope.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226775004 -> b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a
+Disposition: FIXED
+Commit: b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a
+Evidence: scripts/ci/install_locked_python_requirements.py:1407, scripts/ci/install_locked_python_requirements.py:1452, tests/test_install_locked_python_requirements.py:1667
+Reason: The fallback no longer requires one pip error to mention every requested emergency artifact; it requires at least one requested resolver-miss artifact, health-checks the matched package, and keeps non-resolver errors fail-closed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4272704144 -> b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a
+Disposition: FIXED
+Commit: b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a
+Evidence: scripts/ci/install_locked_python_requirements.py:1512, scripts/ci/install_locked_python_requirements.py:1524, tests/test_install_locked_python_requirements.py:1739
+Reason: Cubic's review-level multi-artifact fallback finding is covered by the shared resolver-miss artifact helper and runtime regression test.
 
 ## Merge Readiness
 
