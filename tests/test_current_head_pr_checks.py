@@ -1,13 +1,60 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
+import yaml
 
 from scripts.ci import check_current_head_pr_checks as current_head_checks
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CANONICAL_FALLBACK_JOB_IDS = {
+    "changes",
+    "pr_scope_guard",
+    "trivy_ignore_policy_expiry",
+    "pygments_exception_guard",
+    "docs_phase1_gates",
+    "pr_body_phase2_gates",
+    "merge_readiness_gate",
+    "lint",
+    "security",
+    "openapi-sync",
+    "test-pr",
+    "coverage-pr",
+    "diff-coverage",
+}
 
 
 @pytest.fixture(autouse=True)
 def _default_changed_paths(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(current_head_checks, "_fetch_pr_changed_paths", lambda *args: set())
+
+
+def _load_ci_workflow_jobs() -> dict[str, dict[str, object]]:
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text())
+    jobs = workflow.get("jobs")
+    assert isinstance(jobs, dict)
+    return jobs
+
+
+def _job_display_name(job_id: str, definition: dict[str, object]) -> str:
+    name = str(definition.get("name") or job_id)
+    matrix = (definition.get("strategy") or {}).get("matrix") or {}
+    python_versions = matrix.get("python-version")
+    if job_id == "test-pr" and python_versions == ["3.13"]:
+        return f"{name} (3.13)"
+    return name
+
+
+def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
+    jobs = _load_ci_workflow_jobs()
+    expected_display_names = {
+        _job_display_name(job_id, jobs[job_id]) for job_id in CANONICAL_FALLBACK_JOB_IDS
+    }
+
+    assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
+    assert "test-feature" not in CANONICAL_FALLBACK_JOB_IDS
+    assert "test-main" not in CANONICAL_FALLBACK_JOB_IDS
 
 
 @pytest.mark.parametrize(

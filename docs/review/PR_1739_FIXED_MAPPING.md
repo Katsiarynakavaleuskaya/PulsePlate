@@ -45,6 +45,12 @@ Commit: b4f7fd390
 Evidence: scripts/ci/check_current_head_pr_checks.py (`CANONICAL_FALLBACK_CI_CHECK_NAMES` excludes push-only feature/main lanes); tests/test_current_head_pr_checks.py (optional lane remains advisory in fallback).
 Reason: Push-only or optional current-head checks stay advisory in fallback unless they are canonical PR checks or attached specialized-surface checks.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#pullrequestreview-4269878518 -> b4f7fd390
+Disposition: FIXED
+Commit: b4f7fd390
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps all actionable review comments from that review; scripts/ci/check_current_head_pr_checks.py and tests/test_current_head_pr_checks.py contain the bounded fallback fix.
+Reason: The Sourcery review summary pointed to the actionable review set, which is fully dispositioned above.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
