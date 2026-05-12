@@ -15,6 +15,7 @@
   - `776dbef49820e86b3ddb84cc5c336ae1ef912d6c` - make the approved-index health probe honor matching `--trusted-host` semantics without widening fallback eligibility.
   - `eb369e79e2d2b322352f8cf43266a170dfebc88f` - map the trusted-host review finding and replace fragile mapping self-line references with stable section evidence.
   - `e3f5766a074f15cef2ced165fc22a8e241778172` - keep the trusted-host health-probe connection construction explicit and typed for pre-push MyPy.
+  - `b3b925aaee7c402f6008c152d3c8e38d2010751e` - harden approved-proxy health probes for HTTP mirrors, redirects, real simple-index body validation, and dependency-floor preflight fallback.
 
 ## Discussion Thread Pass
 
@@ -160,6 +161,36 @@ Disposition: FIXED
 Commit: eb369e79e2d2b322352f8cf43266a170dfebc88f
 Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Discussion Thread Pass, Fixed in Commit Mapping, Merge Readiness, and Local Validation Evidence sections)
 Reason: CodeRabbit's fragile self-reference nit is addressed by replacing mapping-file line references with stable section-level evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226160640 -> b3b925aaee7c402f6008c152d3c8e38d2010751e
+Disposition: FIXED
+Commit: b3b925aaee7c402f6008c152d3c8e38d2010751e
+Evidence: scripts/ci/install_locked_python_requirements.py:889, scripts/ci/install_locked_python_requirements.py:902, tests/test_install_locked_python_requirements.py:189
+Reason: Approved HTTP package proxies remain eligible through `HTTPConnection`; HTTPS proxies keep the trusted-host path separate.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226160643 -> b3b925aaee7c402f6008c152d3c8e38d2010751e
+Disposition: FIXED
+Commit: b3b925aaee7c402f6008c152d3c8e38d2010751e
+Evidence: scripts/ci/install_locked_python_requirements.py:867, scripts/ci/install_locked_python_requirements.py:908, tests/test_install_locked_python_requirements.py:143
+Reason: The health probe honors an explicitly matching trusted host before staging exact emergency artifacts.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226160645 -> b3b925aaee7c402f6008c152d3c8e38d2010751e
+Disposition: FIXED
+Commit: b3b925aaee7c402f6008c152d3c8e38d2010751e
+Evidence: scripts/ci/install_locked_python_requirements.py:936, tests/test_install_locked_python_requirements.py:225
+Reason: Proxy health now requires a 2xx response, so redirects to login, maintenance, or canonicalization targets remain fail-closed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226160653 -> b3b925aaee7c402f6008c152d3c8e38d2010751e
+Disposition: FIXED
+Commit: b3b925aaee7c402f6008c152d3c8e38d2010751e
+Evidence: scripts/ci/install_locked_python_requirements.py:1123, tests/test_install_locked_python_requirements.py:2729
+Reason: Dependency-floor preflight now requires approved project health before accepting emergency artifacts after a resolver miss.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226160656 -> b3b925aaee7c402f6008c152d3c8e38d2010751e
+Disposition: FIXED
+Commit: b3b925aaee7c402f6008c152d3c8e38d2010751e
+Evidence: scripts/ci/install_locked_python_requirements.py:849, scripts/ci/install_locked_python_requirements.py:941, tests/test_install_locked_python_requirements.py:225
+Reason: A 200 response must look like a PEP 503 project page for the requested package before fallback is allowed.
 
 ## Merge Readiness
 
