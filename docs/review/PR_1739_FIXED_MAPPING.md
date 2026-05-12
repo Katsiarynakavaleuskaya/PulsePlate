@@ -122,6 +122,16 @@ Commit: 50064a367
 Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps all actionable comments from that review; scripts/ci/check_current_head_pr_checks.py and tests/test_current_head_pr_checks.py contain the diagnostic fallback-surface fixes.
 Reason: The Codex review summary pointed to the latest actionable review set, which is fully dispositioned above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230239375
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md uses repo-portable validation commands.
+Reason: The local absolute path was removed from validation evidence before merge-readiness; no production code change is required for this artifact hygiene finding.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#pullrequestreview-4276694119
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps the actionable CodeRabbit inline comment from that review.
+Reason: The review summary only reports the inline validation-path comment, which is dispositioned above.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
@@ -129,7 +139,7 @@ Reason: The Codex review summary pointed to the latest actionable review set, wh
 - `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1739 canonical restart: recover fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `1eb2fe0337b1`
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_repo_policy_guards.py` - PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_current_head_pr_checks.py` - PASS
+- `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 
 ## Security Notes
 - This change does not weaken required branch-protection checks.
