@@ -4,18 +4,21 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import http.client
 import hashlib
 from contextlib import contextmanager
 from datetime import date
 import json
 import os
 import re
+import ssl
 import subprocess  # nosec B404: subprocess is required for bounded pip/python invocations during locked installation (remove-by: 2026-07-31, ref: PR-litellm-hardening)
 import sys
 import tempfile
 from pathlib import Path
 from typing import Iterator, Sequence, cast
-from urllib.parse import urlparse
+from urllib.parse import ParseResult, quote, unquote, urlparse
 from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -152,6 +155,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--upgrade-pip",
         action="store_true",
         help="Explicitly upgrade pip before wheel resolution.",
+    )
+    parser.add_argument(
+        "--upgrade-pip-spec",
+        default="pip",
+        help=(
+            "Simple numeric pip requirement spec (no extras/markers/wildcards), e.g. "
+            "'pip', 'pip==24.0', or 'pip>=23,<24', used with --upgrade-pip or "
+            "--upgrade-pip-only. "
+            "Docker uses this to keep a range in the Dockerfile while emergency fallback "
+            "remains exact-artifact scoped."
+        ),
+    )
+    parser.add_argument(
+        "--upgrade-pip-only",
+        action="store_true",
+        help="Upgrade pip via the governed proxy/fallback path and exit without installing requirements.",
     )
     parser.add_argument(
         "--guard-script",
@@ -438,6 +457,36 @@ def requirement_surfaces_request_artifact(
     return expected_pin in _load_exact_requirement_pins(validated_constraints_file)
 
 
+def emergency_artifacts_requested_by_surfaces(
+    *,
+    requirement_files: Sequence[Path],
+    constraints_file: Path | None,
+    manifest_path: Path | None,
+) -> list[dict[str, str]]:
+    """Return active emergency artifacts requested by selected requirement surfaces."""
+    requested_requirement_pins: set[str] = set()
+    for requirement_file in requirement_files:
+        requested_requirement_pins.update(_load_exact_requirement_pins(requirement_file))
+
+    validated_constraints_file = validate_constraints_file(constraints_file)
+    requested_constraint_pins = (
+        _load_exact_requirement_pins(validated_constraints_file)
+        if validated_constraints_file is not None
+        else set()
+    )
+
+    requested_artifacts: list[dict[str, str]] = []
+    for artifact in load_emergency_wheel_manifest(manifest_path):
+        expected_pin = f"{artifact['package'].lower()}=={artifact['version'].lower()}"
+        if (
+            expected_pin not in requested_requirement_pins
+            and expected_pin not in requested_constraint_pins
+        ):
+            continue
+        requested_artifacts.append(artifact)
+    return requested_artifacts
+
+
 def _download_with_sha256(*, url: str, destination: Path, expected_sha256: str) -> None:
     """Download an artifact and verify its sha256 before trusting it."""
     digest = hashlib.sha256()
@@ -480,25 +529,25 @@ def stage_emergency_wheels(
     manifest_path: Path | None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
-    requested_requirement_pins: set[str] = set()
-    for requirement_file in requirement_files:
-        requested_requirement_pins.update(_load_exact_requirement_pins(requirement_file))
-
-    validated_constraints_file = validate_constraints_file(constraints_file)
-    requested_constraint_pins = (
-        _load_exact_requirement_pins(validated_constraints_file)
-        if validated_constraints_file is not None
-        else set()
+    requested_artifacts = emergency_artifacts_requested_by_surfaces(
+        requirement_files=requirement_files,
+        constraints_file=constraints_file,
+        manifest_path=manifest_path,
+    )
+    return _stage_emergency_artifacts(
+        artifacts=requested_artifacts,
+        wheelhouse_dir=wheelhouse_dir,
     )
 
+
+def _stage_emergency_artifacts(
+    *,
+    artifacts: Sequence[dict[str, str]],
+    wheelhouse_dir: Path,
+) -> list[Path]:
+    """Download selected exact emergency artifacts into a wheelhouse."""
     staged_paths: list[Path] = []
-    for artifact in load_emergency_wheel_manifest(manifest_path):
-        expected_pin = f"{artifact['package'].lower()}=={artifact['version'].lower()}"
-        if (
-            expected_pin not in requested_requirement_pins
-            and expected_pin not in requested_constraint_pins
-        ):
-            continue
+    for artifact in artifacts:
         wheelhouse_dir.mkdir(parents=True, exist_ok=True)
         destination = wheelhouse_dir / artifact["filename"]
         if destination.exists():
@@ -775,12 +824,252 @@ def load_dependency_security_floors(
 def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
+    if _pip_upgrade_network_failure(message.lower()):
+        return False
     requirement_text = f"{package}=={version}"
     resolver_markers = (
         f"No matching distribution found for {requirement_text}",
         f"Could not find a version that satisfies the requirement {requirement_text}",
     )
     return any(marker in message for marker in resolver_markers)
+
+
+def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
+    """Return True when pip failed because the pip spec is absent from the proxy."""
+    message = str(runtime_error).lower()
+    resolver_markers = (
+        "no matching distribution found for pip",
+        "could not find a version that satisfies the requirement pip",
+    )
+    return any(
+        marker in message for marker in resolver_markers
+    ) and not _pip_upgrade_network_failure(message)
+
+
+def _pip_upgrade_network_failure(message: str) -> bool:
+    """Return True when pip output includes transport/proxy failure markers."""
+    network_markers = (
+        "connection aborted",
+        "connection error",
+        "connection reset",
+        "connection refused",
+        "connect timeout",
+        "cloudflare",
+        "521",
+        "error 5",
+        "http 5",
+        "max retries exceeded",
+        "proxy error",
+        "read timeout",
+        "retrying",
+        "server error",
+        "ssl",
+        "temporarily unavailable",
+        "timed out",
+        "tls",
+    )
+    return any(marker in message for marker in network_markers)
+
+
+def _simple_project_url(index_url: str, package: str) -> str:
+    """Return the approved index project URL used to prove proxy health before fallback."""
+    normalized_package = re.sub(r"[-_.]+", "-", package).lower()
+    base = index_url.rstrip("/") + "/"
+    return f"{base}{quote(normalized_package, safe='')}/"
+
+
+def _simple_project_page_looks_valid(*, package: str, body: bytes) -> bool:
+    """Return True when a response body looks like a PEP 503 project page."""
+    normalized_package = re.sub(r"[-_.]+", "-", package).lower()
+    package_markers = (f"{normalized_package}-", f"{normalized_package.replace('-', '_')}-")
+    text = body[:100_000].decode("utf-8", errors="ignore").lower()
+    return "href=" in text and any(marker in text for marker in package_markers)
+
+
+def _redact_url_credentials(url: str) -> str:
+    """Remove inline credentials from a URL before including it in diagnostics."""
+    parsed = urlparse(url)
+    if parsed.hostname is None:
+        return url
+    netloc = parsed.hostname
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    return parsed._replace(netloc=netloc).geturl()
+
+
+def _trusted_host_matches_url(*, trusted_host: str | None, parsed_url: ParseResult) -> bool:
+    """Return True when the operator trusted-host applies to the project URL host."""
+    if not trusted_host:
+        return False
+    hostname = str(parsed_url.hostname or "").rstrip(".").lower()
+    if not hostname:
+        return False
+    trusted = trusted_host.strip().rstrip(".").lower()
+    host_with_port = hostname if parsed_url.port is None else f"{hostname}:{parsed_url.port}"
+    return trusted in {hostname, host_with_port}
+
+
+def _require_private_index_project_health(
+    *,
+    index_url: str,
+    package: str,
+    trusted_host: str | None,
+) -> None:
+    """Fail closed unless the approved proxy serves the package project page."""
+    project_url = _simple_project_url(index_url, package)
+    safe_url = _redact_url_credentials(project_url)
+    parsed = urlparse(project_url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise RuntimeError(
+            "Approved Python package proxy health check requires an http(s) project URL: "
+            f"{package}: {safe_url}"
+        )
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    headers: dict[str, str] = {}
+    if parsed.username is not None:
+        password = "" if parsed.password is None else unquote(parsed.password)
+        credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
+        headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
+    if parsed.scheme == "http":
+        conn = http.client.HTTPConnection(
+            parsed.hostname,
+            port=parsed.port,
+            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+        )
+    elif _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
+        # fmt: off
+        trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
+        # fmt: on
+        conn = http.client.HTTPSConnection(
+            parsed.hostname,
+            port=parsed.port,
+            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            context=trusted_context,
+        )
+    else:
+        conn = http.client.HTTPSConnection(
+            parsed.hostname,
+            port=parsed.port,
+            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+        )
+    try:
+        conn.request("GET", path, headers=headers)
+        response = conn.getresponse()
+        status = response.status
+        body = response.read()
+    except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before emergency fallback: "
+            f"{package}: {safe_url}: {exc}"
+        ) from exc
+    finally:
+        conn.close()
+    if status < 200 or status >= 300:
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before emergency fallback: "
+            f"{package}: {safe_url}: HTTP {status}"
+        )
+    if not _simple_project_page_looks_valid(package=package, body=body):
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before emergency fallback: "
+            f"{package}: {safe_url}: invalid simple-index project page"
+        )
+
+
+def _parse_simple_version(value: str) -> tuple[int, ...]:
+    """Parse the numeric version shape used by emergency pip bootstrap wheels."""
+    if re.fullmatch(r"\d+(?:\.\d+)*", value) is None:
+        raise RuntimeError(f"Unsupported emergency pip version format: {value!r}")
+    return tuple(int(part) for part in value.split("."))
+
+
+def _compare_versions(left: str, right: str) -> int:
+    left_parts = list(_parse_simple_version(left))
+    right_parts = list(_parse_simple_version(right))
+    width = max(len(left_parts), len(right_parts))
+    left_parts.extend([0] * (width - len(left_parts)))
+    right_parts.extend([0] * (width - len(right_parts)))
+    if left_parts < right_parts:
+        return -1
+    if left_parts > right_parts:
+        return 1
+    return 0
+
+
+def _pip_spec_allows_version(pip_spec: str, version: str) -> bool:
+    """Return True when a narrow pip requirement spec permits an emergency artifact."""
+    normalized_spec = pip_spec.strip().lower()
+    package_match = re.match(r"^pip\s*(.*)$", normalized_spec)
+    if package_match is None:
+        raise RuntimeError(f"pip upgrade spec must target pip: {pip_spec!r}")
+    constraints = package_match.group(1).strip()
+    if not constraints:
+        return True
+
+    for raw_constraint in constraints.split(","):
+        constraint = raw_constraint.strip()
+        match = re.fullmatch(r"(==|>=|<=|>|<)\s*(\d+(?:\.\d+)*)", constraint)
+        if match is None:
+            raise RuntimeError(
+                f"Unsupported pip upgrade spec constraint {constraint!r} in {pip_spec!r}"
+            )
+        operator, expected_version = match.groups()
+        comparison = _compare_versions(version, expected_version)
+        if operator == "==" and comparison != 0:
+            return False
+        if operator == ">=" and comparison < 0:
+            return False
+        if operator == "<=" and comparison > 0:
+            return False
+        if operator == ">" and comparison <= 0:
+            return False
+        if operator == "<" and comparison >= 0:
+            return False
+    return True
+
+
+def _select_pip_emergency_artifact(
+    *,
+    manifest_path: Path | None,
+    pip_spec: str,
+) -> dict[str, str]:
+    """Select the highest active emergency pip artifact allowed by the Docker range."""
+    candidates = [
+        artifact
+        for artifact in load_emergency_wheel_manifest(manifest_path)
+        if artifact["package"].lower() == "pip"
+        and _pip_spec_allows_version(pip_spec, artifact["version"])
+    ]
+    if not candidates:
+        raise RuntimeError(f"No active emergency pip artifact satisfies upgrade spec {pip_spec!r}.")
+    return max(candidates, key=lambda artifact: _parse_simple_version(artifact["version"]))
+
+
+def _stage_pip_upgrade_emergency_wheel(
+    *,
+    wheelhouse_dir: Path,
+    manifest_path: Path | None,
+    pip_spec: str,
+) -> Path:
+    """Download the exact emergency pip wheel selected for the upgrade range."""
+    artifact = _select_pip_emergency_artifact(
+        manifest_path=manifest_path,
+        pip_spec=pip_spec,
+    )
+    destination = wheelhouse_dir / artifact["filename"]
+    if destination.exists():
+        existing_sha256 = hashlib.sha256(destination.read_bytes()).hexdigest()
+        if existing_sha256 != artifact["sha256"]:
+            raise RuntimeError(f"Existing emergency pip wheel has unexpected sha256: {destination}")
+    else:
+        _download_with_sha256(
+            url=artifact["url"],
+            destination=destination,
+            expected_sha256=artifact["sha256"],
+        )
+    return destination
 
 
 def verify_emergency_artifact_for_floor(
@@ -864,18 +1153,22 @@ def run_dependency_floor_preflight(
             try:
                 run_command(command)
             except RuntimeError as exc:
-                if _resolver_miss_error(exc, package=package, version=version) and (
-                    verify_emergency_artifact_for_floor(
+                if _resolver_miss_error(exc, package=package, version=version):
+                    _require_private_index_project_health(
+                        index_url=index_url,
+                        package=package,
+                        trusted_host=trusted_host,
+                    )
+                    if verify_emergency_artifact_for_floor(
                         manifest_path=emergency_wheel_manifest,
                         package=package,
                         version=version,
-                    )
-                ):
-                    print(
-                        "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
-                        f"{package}=={version}"
-                    )
-                    continue
+                    ):
+                        print(
+                            "WARNING: floor preflight proxy miss tolerated via emergency fallback: "
+                            f"{package}=={version}"
+                        )
+                        continue
                 raise RuntimeError(
                     "Dependency floor preflight failed for approved proxy: "
                     f"{package}=={version}: {exc}"
@@ -930,22 +1223,65 @@ def run_command(command: Sequence[str]) -> None:
 def upgrade_pip(
     python_executable: str,
     *,
+    pip_spec: str,
     index_url: str,
     trusted_host: str | None,
+    emergency_wheel_manifest: Path | None,
 ) -> None:
+    use_pip_cache = docker_pip_layer_cache_enabled()
     command = [
         python_executable,
         "-m",
         "pip",
         "install",
         "--upgrade",
-        "pip",
+        "--retries",
+        str(PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(PIP_NETWORK_TIMEOUT_SECONDS),
+        "--only-binary",
+        ":all:",
         "--index-url",
         index_url,
+        pip_spec,
     ]
+    if not use_pip_cache:
+        command.insert(command.index("install") + 1, "--no-cache-dir")
     if trusted_host:
         command.extend(["--trusted-host", trusted_host])
-    run_command(command)
+    try:
+        run_command(command)
+        return
+    except RuntimeError as exc:
+        if not _pip_upgrade_resolver_miss(exc):
+            raise
+        _require_private_index_project_health(
+            index_url=index_url,
+            package="pip",
+            trusted_host=trusted_host,
+        )
+
+    with tempfile.TemporaryDirectory(prefix="pulseplate-pip-emergency-wheelhouse-") as temp_dir:
+        wheelhouse_dir = Path(temp_dir)
+        _stage_pip_upgrade_emergency_wheel(
+            wheelhouse_dir=wheelhouse_dir,
+            manifest_path=emergency_wheel_manifest,
+            pip_spec=pip_spec,
+        )
+        fallback_command = [
+            python_executable,
+            "-m",
+            "pip",
+            "install",
+            "--upgrade",
+            "--no-index",
+            "--find-links",
+            str(wheelhouse_dir),
+            pip_spec,
+        ]
+        if not use_pip_cache:
+            fallback_command.insert(fallback_command.index("install") + 1, "--no-cache-dir")
+        run_command(fallback_command)
 
 
 def collect_startup_hook_failure_lines(
@@ -1083,6 +1419,28 @@ def build_wheelhouse(
             )
 
 
+def _artifacts_with_resolver_miss(
+    exc: RuntimeError,
+    *,
+    requested_artifacts: Sequence[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Return requested emergency artifacts named by the resolver miss output."""
+    return [
+        artifact
+        for artifact in requested_artifacts
+        if _resolver_miss_error(
+            exc,
+            package=artifact["package"],
+            version=artifact["version"],
+        )
+    ]
+
+
+def _emergency_artifact_key(artifact: dict[str, str]) -> tuple[str, str]:
+    """Return a stable key for already-staged emergency artifacts."""
+    return (artifact["package"].lower(), artifact["version"].lower())
+
+
 def build_wheelhouse_with_emergency_fallback(
     *,
     python_executable: str,
@@ -1094,32 +1452,52 @@ def build_wheelhouse_with_emergency_fallback(
     emergency_wheel_manifest: Path | None,
 ) -> None:
     """Retry wheelhouse build with staged emergency wheels only after proxy failure."""
-    try:
-        build_wheelhouse(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            index_url=index_url,
-            trusted_host=trusted_host,
-        )
-    except RuntimeError:
-        staged_wheels = stage_emergency_wheels(
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            manifest_path=emergency_wheel_manifest,
-        )
-        if not staged_wheels:
-            raise
-        build_wheelhouse(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            index_url=index_url,
-            trusted_host=trusted_host,
-        )
+    requested_artifacts: list[dict[str, str]] | None = None
+    staged_artifact_keys: set[tuple[str, str]] = set()
+    while True:
+        try:
+            build_wheelhouse(
+                python_executable=python_executable,
+                requirement_files=requirement_files,
+                constraints_file=constraints_file,
+                wheelhouse_dir=wheelhouse_dir,
+                index_url=index_url,
+                trusted_host=trusted_host,
+            )
+            return
+        except RuntimeError as exc:
+            if requested_artifacts is None:
+                requested_artifacts = emergency_artifacts_requested_by_surfaces(
+                    requirement_files=requirement_files,
+                    constraints_file=constraints_file,
+                    manifest_path=emergency_wheel_manifest,
+                )
+            remaining_artifacts = [
+                artifact
+                for artifact in requested_artifacts
+                if _emergency_artifact_key(artifact) not in staged_artifact_keys
+            ]
+            resolver_miss_artifacts = _artifacts_with_resolver_miss(
+                exc,
+                requested_artifacts=remaining_artifacts,
+            )
+            if not resolver_miss_artifacts:
+                raise
+            for artifact in resolver_miss_artifacts:
+                _require_private_index_project_health(
+                    index_url=index_url,
+                    package=artifact["package"],
+                    trusted_host=trusted_host,
+                )
+            staged_wheels = _stage_emergency_artifacts(
+                artifacts=resolver_miss_artifacts,
+                wheelhouse_dir=wheelhouse_dir,
+            )
+            if not staged_wheels:
+                raise
+            staged_artifact_keys.update(
+                _emergency_artifact_key(artifact) for artifact in resolver_miss_artifacts
+            )
 
 
 def install_from_proxy_with_emergency_fallback(
@@ -1134,34 +1512,53 @@ def install_from_proxy_with_emergency_fallback(
     allow_pip_download_cache: bool | None = None,
 ) -> None:
     """Retry proxy install with local emergency wheels only after the proxy fails."""
-    try:
-        install_from_proxy(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            index_url=index_url,
-            trusted_host=trusted_host,
-            find_links_dir=None,
-            allow_pip_download_cache=allow_pip_download_cache,
-        )
-    except RuntimeError:
-        staged_wheels = stage_emergency_wheels(
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=emergency_wheelhouse_dir,
-            manifest_path=emergency_wheel_manifest,
-        )
-        if not staged_wheels:
-            raise
-        install_from_proxy(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            index_url=index_url,
-            trusted_host=trusted_host,
-            find_links_dir=emergency_wheelhouse_dir,
-            allow_pip_download_cache=allow_pip_download_cache,
-        )
+    requested_artifacts: list[dict[str, str]] | None = None
+    staged_artifact_keys: set[tuple[str, str]] = set()
+    while True:
+        try:
+            install_from_proxy(
+                python_executable=python_executable,
+                requirement_files=requirement_files,
+                constraints_file=constraints_file,
+                index_url=index_url,
+                trusted_host=trusted_host,
+                find_links_dir=emergency_wheelhouse_dir if staged_artifact_keys else None,
+                allow_pip_download_cache=allow_pip_download_cache,
+            )
+            return
+        except RuntimeError as exc:
+            if requested_artifacts is None:
+                requested_artifacts = emergency_artifacts_requested_by_surfaces(
+                    requirement_files=requirement_files,
+                    constraints_file=constraints_file,
+                    manifest_path=emergency_wheel_manifest,
+                )
+            remaining_artifacts = [
+                artifact
+                for artifact in requested_artifacts
+                if _emergency_artifact_key(artifact) not in staged_artifact_keys
+            ]
+            resolver_miss_artifacts = _artifacts_with_resolver_miss(
+                exc,
+                requested_artifacts=remaining_artifacts,
+            )
+            if not resolver_miss_artifacts:
+                raise
+            for artifact in resolver_miss_artifacts:
+                _require_private_index_project_health(
+                    index_url=index_url,
+                    package=artifact["package"],
+                    trusted_host=trusted_host,
+                )
+            staged_wheels = _stage_emergency_artifacts(
+                artifacts=resolver_miss_artifacts,
+                wheelhouse_dir=emergency_wheelhouse_dir,
+            )
+            if not staged_wheels:
+                raise
+            staged_artifact_keys.update(
+                _emergency_artifact_key(artifact) for artifact in resolver_miss_artifacts
+            )
 
 
 def install_with_guard(
@@ -1308,12 +1705,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"Python executable: {args.python_executable}")
             return 1
 
-        if args.upgrade_pip:
+        if args.upgrade_pip or args.upgrade_pip_only:
             upgrade_pip(
                 args.python_executable,
+                pip_spec=args.upgrade_pip_spec,
                 index_url=index_url,
                 trusted_host=trusted_host,
+                emergency_wheel_manifest=args.emergency_wheel_manifest,
             )
+        if args.upgrade_pip_only:
+            return 0
 
         if args.preflight_only:
             run_dependency_floor_preflight(

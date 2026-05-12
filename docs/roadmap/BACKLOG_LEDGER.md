@@ -571,10 +571,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Retire active emergency wheel manifest entries after approved mirror sync
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (security / supply-chain / CI blocker)
-  - Target PR: `PR-TBD` (follow-up after `PR #1418`)
-  - Status: Active as of `13 April 2026`
+  - Target PR: `PR-TBD` (follow-up after main Docker/CD proxy unblock)
+  - Status: Active as of `12 May 2026`
   - Area: security / CI / dependencies
-  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.1`, `ruff 0.15.11`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.5.4`). `PR #1378` and `PR #1418` extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces (включая `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.1`, `ruff 0.15.11`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1` и `transformers 5.5.4`). `PR #1378` и `PR #1418` расширяют этот временный exact-wheel fallback с pinned `sha256`, а не уязвимым репином и не широким bypass на публичный индекс. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
+  - Reason (EN): The repo must stay on patched exact releases while the approved private index catches up, and the current emergency wheel manifest still covers multiple active bootstrap/runtime dependency surfaces (including `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4`, `requests 2.33.0`, `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`, `hypothesis 6.152.4`, `ruff 0.15.12`, `types-pyyaml 6.0.12.20260408`, `sentence-transformers 5.4.1`, and `transformers 5.8.0`). `PR #1378`, `PR #1418`, and the main Docker/CD proxy unblock extend that time-boxed exact-wheel fallback with pinned `sha256` digests instead of a vulnerable repin or a broad public-index bypass. Retire the manifest only after the approved mirror serves every still-active fallback entry natively. (RU: Репозиторий должен оставаться на исправленных точных релизах, пока одобренное приватное зеркало догоняет апстрим, и текущий emergency wheel manifest всё ещё покрывает несколько активных bootstrap/runtime dependency surfaces, включая `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`, `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`, `certifi 2026.1.4` и `requests 2.33.0`. Удалять manifest можно только после того, как одобренное зеркало начнёт отдавать всё ещё активные fallback-entry нативно.)
   - Links:
     - `docs/security/CRYPTOGRAPHY_46_0_7_PRIVATE_INDEX_ADVISORY.md:1`
     - `docs/security/GHSA-whj4-6x5x-4v2j-pillow.md:1`
@@ -584,18 +584,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `Dockerfile`
   - Evidence:
     - Emergency manifest entries for the still-active fallback set remain pinned in
-      `scripts/ci/emergency_python_wheels.json:8-19` (`cryptography 46.0.7`),
-      `scripts/ci/emergency_python_wheels.json:22-61` (`pillow 12.2.0`),
-      `scripts/ci/emergency_python_wheels.json:64-69` (`pytest 9.0.3`),
-      `scripts/ci/emergency_python_wheels.json:71-76` (`faker 40.15.0`),
-      `scripts/ci/emergency_python_wheels.json:78-83` (`hypothesis 6.152.1`),
-      `scripts/ci/emergency_python_wheels.json:100-105`
-      (`sentence-transformers 5.4.1`),
-      `scripts/ci/emergency_python_wheels.json:107-112` (`ruff 0.15.11`),
-      `scripts/ci/emergency_python_wheels.json:114-119`
-      (`types-pyyaml 6.0.12.20260408`), and
-      `scripts/ci/emergency_python_wheels.json:121-126`
-      (`transformers 5.5.4`).
+      `scripts/ci/emergency_python_wheels.json` by package/version keys, including
+      `pip 26.1.1`, `alembic 1.18.4`, `annotated-doc 0.0.4`,
+      `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`,
+      `certifi 2026.1.4`, `requests 2.33.0`,
+      `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`,
+      `hypothesis 6.152.4`, `sentence-transformers 5.4.1`, `ruff 0.15.12`,
+      `types-pyyaml 6.0.12.20260408`, and `transformers 5.8.0`.
     - Installer/bootstrap fallback logic is implemented in
       `scripts/ci/install_locked_python_requirements.py:275-359`
       (manifest load/validation), `scripts/ci/install_locked_python_requirements.py:401-420`

@@ -76,6 +76,215 @@ def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> 
     )
 
 
+class _FakeSimpleIndexResponse:
+    def __init__(
+        self,
+        status: int = 200,
+        body: bytes = b'<html><a href="pip-26.1.1-py3-none-any.whl">pip</a></html>',
+    ) -> None:
+        self._status = status
+        self._body = body
+
+    def __enter__(self) -> "_FakeSimpleIndexResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def getcode(self) -> int:
+        return self._status
+
+    @property
+    def status(self) -> int:
+        return self._status
+
+    def read(self) -> bytes:
+        return self._body
+
+
+def _allow_private_index_project_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, str, int]]:
+    observed_requests: list[tuple[str, str, int]] = []
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert context is None
+            self.host = host if port is None else f"{host}:{port}"
+            self.timeout = timeout
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert headers == {}
+            observed_requests.append((self.host, path, self.timeout))
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+    return observed_requests
+
+
+def test_private_index_project_health_honors_matching_trusted_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_contexts: list[object | None] = []
+
+    class FakeHTTPSConnection:
+        def __init__(
+            self,
+            _host: str,
+            *,
+            port: int | None = None,
+            timeout: int,
+            context: object | None = None,
+        ) -> None:
+            assert port is None
+            assert timeout == installer.PIP_NETWORK_TIMEOUT_SECONDS
+            observed_contexts.append(context)
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="pip",
+        trusted_host="packages.example.internal",
+    )
+
+    assert len(observed_contexts) == 1
+    assert observed_contexts[0] is not None
+
+
+def test_private_index_project_health_supports_approved_http_proxy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed: list[tuple[str, int | None, int]] = []
+
+    class FakeHTTPConnection:
+        def __init__(self, host: str, *, port: int | None = None, timeout: int) -> None:
+            observed.append((host, port, timeout))
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert path == "/simple/pip/"
+            assert headers == {}
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPConnection", FakeHTTPConnection)
+
+    installer._require_private_index_project_health(
+        index_url="http://packages.example.internal/simple",
+        package="pip",
+        trusted_host=None,
+    )
+
+    assert observed == [("packages.example.internal", None, installer.PIP_NETWORK_TIMEOUT_SECONDS)]
+
+
+@pytest.mark.parametrize(
+    ("status", "body", "match"),
+    [
+        (302, b'<html><a href="pip-26.1.1-py3-none-any.whl">pip</a></html>', "HTTP 302"),
+        (200, b"<html>login required</html>", "invalid simple-index project page"),
+    ],
+)
+def test_private_index_project_health_rejects_redirects_and_non_project_pages(
+    monkeypatch: pytest.MonkeyPatch,
+    status: int,
+    body: bytes,
+    match: str,
+) -> None:
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(status=status, body=body)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    with pytest.raises(RuntimeError, match=match):
+        installer._require_private_index_project_health(
+            index_url=APPROVED_PROXY_URL,
+            package="pip",
+            trusted_host=None,
+        )
+
+
+def test_private_index_project_health_accepts_underscore_wheel_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeHTTPSConnection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(
+                body=b'<html><a href="python_multipart-0.0.27-py3-none-any.whl">wheel</a></html>'
+            )
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+
+    installer._require_private_index_project_health(
+        index_url=APPROVED_PROXY_URL,
+        package="python-multipart",
+        trusted_host=None,
+    )
+
+
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     manifest = _repo_emergency_manifest()
     artifacts = {(item["package"], item["version"]) for item in manifest["artifacts"]}
@@ -89,9 +298,16 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
 
     assert artifacts, "Emergency wheel manifest should track at least one fallback artifact."
     assert {package for package, _version in ci_lite_emergency_pairs} >= {
+        "alembic",
+        "annotated-doc",
+        "annotated-types",
+        "anyio",
+        "bandit",
+        "certifi",
         "mako",
         "pillow",
         "python-multipart",
+        "requests",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
     assert ("python-multipart", "0.0.27") in requirements_ci_lite_pins
@@ -133,6 +349,63 @@ def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> N
     ):
         requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
         assert ("transformers", expected_version) in _exact_requirement_pairs(requirement_text)
+
+
+def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    builder_stage = _dockerfile_stage(dockerfile, "builder")
+    runtime_stage = _dockerfile_stage(dockerfile, "runtime-base")
+
+    banned_direct_upgrade = re.compile(
+        r"(?:python|/opt/venv/bin/python)\s+-m\s+pip\s+install(?:\s+[^\s\\]+)*"
+        r'\s+--upgrade\s+"?\$\{PIP_VERSION_RANGE\}"?',
+        re.MULTILINE,
+    )
+
+    for stage in (builder_stage, runtime_stage):
+        assert "--upgrade-pip-only" in stage
+        assert '--upgrade-pip-spec "${PIP_VERSION_RANGE}"' in stage
+        assert re.search(
+            r"/tmp/pulseplate-ci/install_locked_python_requirements\.py\s+\\\n"
+            r"\s*--python-executable (?:/opt/venv/bin/python|python)\s+\\\n"
+            r"\s*--upgrade-pip-only\s+\\\n"
+            r'\s*--upgrade-pip-spec "\$\{PIP_VERSION_RANGE\}"',
+            stage,
+        )
+        assert not banned_direct_upgrade.search(stage)
+
+
+def _dockerfile_stage(dockerfile: str, stage_name: str) -> str:
+    stage_pattern = re.compile(
+        rf"^FROM\s+\S+\s+AS\s+{re.escape(stage_name)}\s*$",
+        re.MULTILINE | re.IGNORECASE,
+    )
+    stage_match = stage_pattern.search(dockerfile)
+    assert stage_match is not None, f"Dockerfile stage not found: {stage_name}"
+    next_stage_match = re.search(r"^FROM\s+", dockerfile[stage_match.end() :], re.MULTILINE)
+    stage_end = (
+        stage_match.end() + next_stage_match.start()
+        if next_stage_match is not None
+        else len(dockerfile)
+    )
+    return dockerfile[stage_match.start() : stage_end]
+
+
+def test_repo_docker_runtime_install_uses_locked_installer_fallback() -> None:
+    dockerfile = (REPO_ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert (
+        "COPY scripts/ci/check_python_startup_hooks.py "
+        "scripts/ci/install_locked_python_requirements.py "
+        "scripts/ci/emergency_python_wheels.json /tmp/pulseplate-ci/"
+    ) in dockerfile
+    assert re.search(
+        r"/tmp/pulseplate-ci/install_locked_python_requirements\.py\s+\\\n"
+        r"\s*--python-executable (?:/opt/venv/bin/python|python)\s+\\\n"
+        r'\s*--requirements-file "\$\{PULSEPLATE_REQUIREMENTS_FILE\}"\s+\\\n'
+        r"\s*--guard-script /tmp/pulseplate-ci/check_python_startup_hooks\.py",
+        dockerfile,
+    )
 
 
 def test_compatible_release_version_accepts_environment_markers() -> None:
@@ -1273,6 +1546,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     manifest.write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "generated_at": "2026-04-09",
                 "expires_at": "2099-12-31",
                 "artifacts": [
@@ -1295,9 +1569,15 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         build_attempts["count"] += 1
         observed_calls.append(Path(kwargs["wheelhouse_dir"]))
         if build_attempts["count"] == 1:
-            raise RuntimeError("proxy miss")
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
-    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "cryptography"
+        assert trusted_host is None
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
         destination = wheelhouse_dir / "cryptography-46.0.7.whl"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1305,7 +1585,8 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         return [destination]
 
     monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
-    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
         python_executable="python",
@@ -1321,6 +1602,156 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
     assert build_attempts["count"] == 2
 
 
+def test_build_wheelhouse_with_emergency_fallback_stages_only_resolver_miss_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    build_attempts = {"count": 0}
+    health_packages: list[str] = []
+
+    def fake_build_wheelhouse(**_kwargs: object) -> None:
+        build_attempts["count"] += 1
+        if build_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["requests"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        destination = wheelhouse_dir / "requests-2.33.0-py3-none-any.whl"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"wheel-bytes")
+        return [destination]
+
+    monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.build_wheelhouse_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests"]
+    assert build_attempts["count"] == 2
+
+
+def test_build_wheelhouse_with_emergency_fallback_continues_for_second_requested_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    build_attempts = {"count": 0}
+    health_packages: list[str] = []
+    staged_packages: list[list[str]] = []
+
+    def fake_build_wheelhouse(**_kwargs: object) -> None:
+        build_attempts["count"] += 1
+        if build_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+        if build_attempts["count"] == 2:
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        packages = [artifact["package"] for artifact in kwargs["artifacts"]]
+        staged_packages.append(packages)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / f"{package}.whl" for package in packages]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.build_wheelhouse_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests", "cryptography"]
+    assert staged_packages == [["requests"], ["cryptography"]]
+    assert build_attempts["count"] == 3
+
+
 def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_after_proxy_failure(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1331,6 +1762,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     manifest.write_text(
         json.dumps(
             {
+                "schema_version": 1,
                 "generated_at": "2026-04-09",
                 "expires_at": "2099-12-31",
                 "artifacts": [
@@ -1352,9 +1784,15 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         find_links_dir = kwargs["find_links_dir"]
         observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
         if find_links_dir is None:
-            raise RuntimeError("proxy miss")
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
-    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "cryptography"
+        assert trusted_host is None
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
         destination = wheelhouse_dir / "cryptography-46.0.7.whl"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1362,7 +1800,8 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         return [destination]
 
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
-    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",
@@ -1375,6 +1814,598 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
     )
 
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if find_links_dir is None:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["requests"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / "requests-2.33.0-py3-none-any.whl"]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests"]
+    assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_continues_for_second_requested_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_attempts = {"count": 0}
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+    staged_packages: list[list[str]] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        install_attempts["count"] += 1
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if install_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+        if install_attempts["count"] == 2:
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        packages = [artifact["package"] for artifact in kwargs["artifacts"]]
+        staged_packages.append(packages)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / f"{package}.whl" for package in packages]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests", "cryptography"]
+    assert staged_packages == [["requests"], ["cryptography"]]
+    assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
+    assert install_attempts["count"] == 3
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_mixed_network_resolver(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "WARNING: Retrying after Cloudflare 521 connection timed out\n"
+            "ERROR: Could not find a version that satisfies the requirement requests==2.33.0\n"
+            "ERROR: No matching distribution found for requests==2.33.0"
+        )
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_mixed_network_resolver)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="Cloudflare 521"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_transport(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError("Command failed: python -m pip install: connection timed out")
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_transport)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="connection timed out"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
+
+
+def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    observed_commands: list[list[str]] = []
+    observed_downloads: list[tuple[str, str, Path]] = []
+    observed_index_health_urls = _allow_private_index_project_health(monkeypatch)
+
+    def fake_run_command(command: list[str]) -> None:
+        observed_commands.append(command)
+        if "--index-url" in command:
+            raise RuntimeError(
+                "Command failed: python -m pip install stub: exit 1\n"
+                "No matching distribution found for pip<27.0,>=26.0"
+            )
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, expected_sha256, destination))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "run_command", fake_run_command)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    installer.upgrade_pip(
+        "python",
+        pip_spec="pip>=26.0,<27.0",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert len(observed_commands) == 2
+    assert "--index-url" in observed_commands[0]
+    assert APPROVED_PROXY_URL in observed_commands[0]
+    assert "--no-index" in observed_commands[1]
+    assert "--find-links" in observed_commands[1]
+    assert "--index-url" not in observed_commands[1]
+    assert observed_commands[1][-1] == "pip>=26.0,<27.0"
+    assert observed_index_health_urls == [
+        ("packages.example.internal", "/simple/pip/", installer.PIP_NETWORK_TIMEOUT_SECONDS)
+    ]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+            "b" * 64,
+            observed_downloads[0][2],
+        )
+    ]
+    assert observed_downloads[0][2].name == "pip-26.1.1-py3-none-any.whl"
+
+
+def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def proxy_outage(_command: list[str]) -> None:
+        raise RuntimeError("Command failed: python -m pip install: TLS handshake timed out")
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", proxy_outage)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
+def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def proxy_outage_with_final_resolver_text(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "WARNING: Retrying after connection error: TLS handshake timed out\n"
+            "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+        )
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", proxy_outage_with_final_resolver_text)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
+def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def cloudflare_521_with_final_resolver_text(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: 521 Server Error: Web Server Is Down for url\n"
+            "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+        )
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", cloudflare_521_with_final_resolver_text)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="521 Server Error"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
+def test_upgrade_pip_does_not_use_emergency_wheel_when_proxy_521_is_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.1.1",
+                        "filename": "pip-26.1.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.1.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def generic_resolver_miss_from_proxy_outage(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+        )
+
+    class Cloudflare521Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(status=521)
+
+        def close(self) -> None:
+            return None
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", generic_resolver_miss_from_proxy_outage)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Cloudflare521Connection)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="proxy health check failed.*521"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
+def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "25.3.0",
+                        "filename": "pip-25.3.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-25.3.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def resolver_miss(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install stub: exit 1\n"
+            "Could not find a version that satisfies the requirement pip<27.0,>=26.0"
+        )
+
+    _allow_private_index_project_health(monkeypatch)
+    monkeypatch.setattr(installer, "run_command", resolver_miss)
+
+    with pytest.raises(RuntimeError, match="No active emergency pip artifact"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
 
 
 def test_build_pip_download_command_fails_when_constraints_file_is_missing(
@@ -1609,10 +2640,56 @@ def test_main_runs_optional_pip_upgrade_only_when_requested(
         "-m",
         "pip",
         "install",
+        "--no-cache-dir",
         "--upgrade",
-        "pip",
+        "--retries",
+        str(installer.PIP_NETWORK_RETRIES),
+        "--timeout",
+        str(installer.PIP_NETWORK_TIMEOUT_SECONDS),
+        "--only-binary",
+        ":all:",
         "--index-url",
         APPROVED_PROXY_URL,
+        "pip",
+    ]
+
+
+def test_main_upgrade_pip_only_skips_requirements_resolution(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    missing_requirements = tmp_path / "missing-requirements.txt"
+    observed_calls: list[dict[str, object]] = []
+
+    def fake_upgrade_pip(python_executable: str, **kwargs: object) -> None:
+        kwargs["python_executable"] = python_executable
+        observed_calls.append(kwargs)
+
+    monkeypatch.setattr(installer, "upgrade_pip", fake_upgrade_pip)
+
+    result = installer.main(
+        [
+            "--python-executable",
+            "python",
+            "--requirements-file",
+            str(missing_requirements),
+            "--upgrade-pip-only",
+            "--upgrade-pip-spec",
+            "pip>=26.0,<27.0",
+            "--index-url",
+            APPROVED_PROXY_URL,
+        ]
+    )
+
+    assert result == 0
+    assert observed_calls == [
+        {
+            "python_executable": "python",
+            "pip_spec": "pip>=26.0,<27.0",
+            "index_url": APPROVED_PROXY_URL,
+            "trusted_host": None,
+            "emergency_wheel_manifest": None,
+        }
     ]
 
 
@@ -2092,7 +3169,13 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
     def fail_run_command(_command: list[str]) -> None:
         raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
+    observed_health: list[tuple[str, str, str | None]] = []
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        observed_health.append((index_url, package, trusted_host))
+
     monkeypatch.setattr(installer, "run_command", fail_run_command)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
 
     installer.run_dependency_floor_preflight(
         python_executable="python",
@@ -2100,6 +3183,63 @@ def test_run_dependency_floor_preflight_allows_exact_emergency_artifact(
         trusted_host=None,
         emergency_wheel_manifest=manifest,
     )
+
+    assert observed_health == [(APPROVED_PROXY_URL, "cryptography", None)]
+
+
+def test_run_dependency_floor_preflight_rejects_resolver_miss_when_proxy_health_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+    monkeypatch.setattr(
+        installer,
+        "load_dependency_security_floors",
+        lambda: {"cryptography": "46.0.7"},
+    )
+    monkeypatch.setattr(
+        installer,
+        "_download_with_sha256",
+        lambda **_kwargs: downloads.__setitem__("count", downloads["count"] + 1),
+    )
+
+    def resolver_miss(_command: list[str]) -> None:
+        raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def fail_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        raise RuntimeError(f"proxy health check failed: {package}: {index_url}: {trusted_host}")
+
+    monkeypatch.setattr(installer, "run_command", resolver_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", fail_health)
+
+    with pytest.raises(RuntimeError, match="proxy health check failed"):
+        installer.run_dependency_floor_preflight(
+            python_executable="python",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
 
 
 def test_run_dependency_floor_preflight_rejects_non_resolver_failure_even_with_emergency(
@@ -2178,11 +3318,17 @@ def test_run_dependency_floor_preflight_verifies_emergency_artifact_download(
     def resolver_miss(_command: list[str]) -> None:
         raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
 
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert package == "cryptography"
+        assert trusted_host is None
+
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
         observed_downloads.append((url, expected_sha256))
         destination.write_bytes(b"wheel-bytes")
 
     monkeypatch.setattr(installer, "run_command", resolver_miss)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
     monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
 
     installer.run_dependency_floor_preflight(
