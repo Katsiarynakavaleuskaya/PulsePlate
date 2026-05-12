@@ -892,15 +892,22 @@ def _require_private_index_project_health(
         password = "" if parsed.password is None else unquote(parsed.password)
         credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
         headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
-    connection_kwargs: dict[str, object] = {
-        "port": parsed.port,
-        "timeout": PIP_NETWORK_TIMEOUT_SECONDS,
-    }
     if _trusted_host_matches_url(trusted_host=trusted_host, parsed_url=parsed):
         # fmt: off
-        connection_kwargs["context"] = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
+        trusted_context = ssl._create_unverified_context()  # nosec B323: mirrors explicit operator `--trusted-host` semantics for this health probe only (remove-by: 2026-06-30, ref: PR-1738)
         # fmt: on
-    conn = http.client.HTTPSConnection(parsed.hostname, **connection_kwargs)
+        conn = http.client.HTTPSConnection(
+            parsed.hostname,
+            port=parsed.port,
+            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+            context=trusted_context,
+        )
+    else:
+        conn = http.client.HTTPSConnection(
+            parsed.hostname,
+            port=parsed.port,
+            timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+        )
     try:
         conn.request("GET", path, headers=headers)
         response = conn.getresponse()
