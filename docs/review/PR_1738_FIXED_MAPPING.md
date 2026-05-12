@@ -11,6 +11,7 @@
   - `10520d5f28b10070a3bcbd4563fc01b0a1ba8245` - harden proxy-outage classification, Docker helper cleanup, anyio fallback, and review-requested tests.
   - `4826bf69b48cb7dc327aec8bdc3434e5b73b8916` - require approved index project health before pip emergency fallback and strengthen wheel filename coverage.
   - `1d2b9d6693803fd328cd39bac896dc53d22fde86` - add the exact `bandit==1.9.4` emergency wheel for CI-lite setup while the approved proxy lags.
+  - `c3995510b5297a1f8971ef8f3733d25c7e779b28` - add the exact `certifi==2026.1.4` emergency wheel for CI-lite setup while the approved proxy lags.
 
 ## Discussion Thread Pass
 
