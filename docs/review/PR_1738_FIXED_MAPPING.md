@@ -19,6 +19,7 @@
   - `ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc` - use a non-blocked pip emergency artifact, accept normalized wheel names, and gate runtime fallback on resolver-miss plus approved project health.
   - `72cc39bf7d265a3e5d34af259bf0a81bedc2efd8` - tighten Docker stage extraction and direct pip-upgrade negative assertions in the Dockerfile policy test.
   - `b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a` - allow multi-artifact fallback when at least one requested emergency artifact is named by the resolver miss while non-resolver failures remain fail-closed.
+  - `23e1ec211b98c0caca01380c09bbcbf796fa277c` - stage only matched resolver-miss artifacts, reject mixed network/resolver output, and support sequential approved emergency misses.
 
 ## Discussion Thread Pass
 
@@ -248,6 +249,36 @@ Disposition: FIXED
 Commit: b3c7a2a2d276d5d8477f62d98e23a6b3c47e6c7a
 Evidence: scripts/ci/install_locked_python_requirements.py:1512, scripts/ci/install_locked_python_requirements.py:1524, tests/test_install_locked_python_requirements.py:1739
 Reason: Cubic's review-level multi-artifact fallback finding is covered by the shared resolver-miss artifact helper and runtime regression test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226967162 -> 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Disposition: FIXED
+Commit: 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Evidence: scripts/ci/install_locked_python_requirements.py:1475, scripts/ci/install_locked_python_requirements.py:1492, tests/test_install_locked_python_requirements.py:1605
+Reason: The wheelhouse fallback now stages only artifacts named by the current resolver miss instead of every emergency artifact requested by the selected requirement surfaces.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4272925511 -> 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Disposition: FIXED
+Commit: 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Evidence: scripts/ci/install_locked_python_requirements.py:1439, scripts/ci/install_locked_python_requirements.py:1498, tests/test_install_locked_python_requirements.py:1677
+Reason: Cubic's review-level scoped-staging finding is fixed with already-staged artifact tracking and sequential resolver-miss regression coverage.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3227024426 -> 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Disposition: FIXED
+Commit: 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Evidence: scripts/ci/install_locked_python_requirements.py:1536, scripts/ci/install_locked_python_requirements.py:1553, tests/test_install_locked_python_requirements.py:1893
+Reason: Runtime install fallback now stages only the resolver-miss artifact on each retry and can continue to a second requested approved miss without preloading unrelated public wheels.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3227024447 -> 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Disposition: FIXED
+Commit: 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Evidence: scripts/ci/install_locked_python_requirements.py:1475, scripts/ci/install_locked_python_requirements.py:1498, tests/test_install_locked_python_requirements.py:1677
+Reason: Wheelhouse fallback now uses the same scoped artifact loop as runtime fallback and continues only for newly observed requested resolver misses.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4272998945 -> 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Disposition: FIXED
+Commit: 23e1ec211b98c0caca01380c09bbcbf796fa277c
+Evidence: scripts/ci/install_locked_python_requirements.py:827, tests/test_install_locked_python_requirements.py:1968
+Reason: Codex's review-level scoped-staging findings and the security-auditor mixed network/resolver finding are fixed: mixed network markers block fallback, and each retry stages only newly matched resolver-miss artifacts.
 
 ## Merge Readiness
 
