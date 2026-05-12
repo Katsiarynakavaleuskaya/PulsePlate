@@ -144,6 +144,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "annotated-doc",
         "annotated-types",
         "anyio",
+        "bandit",
         "mako",
         "pillow",
         "python-multipart",

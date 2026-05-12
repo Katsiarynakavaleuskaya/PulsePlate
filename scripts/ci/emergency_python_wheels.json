@@ -144,6 +144,14 @@
       "sha256": "dad2376a628f98eeca4881fc56cd06affd18f659b17a747d3ff0307ced94b1bb"
     },
     {
+      "package": "bandit",
+      "version": "1.9.4",
+      "expires_at": "2026-06-15",
+      "filename": "bandit-1.9.4-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/05/a4/a26d5b25671d27e03afb5401a0be5899d94ff8fab6a698b1ac5be3ec29ef/bandit-1.9.4-py3-none-any.whl",
+      "sha256": "f89ffa663767f5a0585ea075f01020207e966a9c0f2b9ef56a57c7963a3f6f8e"
+    },
+    {
       "package": "mako",
       "version": "1.3.12",
       "expires_at": "2026-05-17",
