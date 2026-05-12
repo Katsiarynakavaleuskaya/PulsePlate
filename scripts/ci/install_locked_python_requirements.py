@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import argparse
+import base64
+import http.client
 import hashlib
 from contextlib import contextmanager
 from datetime import date
@@ -15,7 +17,7 @@ import sys
 import tempfile
 from pathlib import Path
 from typing import Iterator, Sequence, cast
-from urllib.parse import urlparse
+from urllib.parse import quote, unquote, urlparse
 from urllib.request import urlopen
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -836,6 +838,66 @@ def _pip_upgrade_network_failure(message: str) -> bool:
     return any(marker in message for marker in network_markers)
 
 
+def _simple_project_url(index_url: str, package: str) -> str:
+    """Return the approved index project URL used to prove proxy health before fallback."""
+    normalized_package = re.sub(r"[-_.]+", "-", package).lower()
+    base = index_url.rstrip("/") + "/"
+    return f"{base}{quote(normalized_package, safe='')}/"
+
+
+def _redact_url_credentials(url: str) -> str:
+    """Remove inline credentials from a URL before including it in diagnostics."""
+    parsed = urlparse(url)
+    if parsed.hostname is None:
+        return url
+    netloc = parsed.hostname
+    if parsed.port is not None:
+        netloc = f"{netloc}:{parsed.port}"
+    return parsed._replace(netloc=netloc).geturl()
+
+
+def _require_private_index_project_health(*, index_url: str, package: str) -> None:
+    """Fail closed unless the approved proxy serves the package project page."""
+    project_url = _simple_project_url(index_url, package)
+    safe_url = _redact_url_credentials(project_url)
+    parsed = urlparse(project_url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise RuntimeError(
+            "Approved Python package proxy health check requires an HTTPS project URL: "
+            f"{package}: {safe_url}"
+        )
+    path = parsed.path or "/"
+    if parsed.query:
+        path = f"{path}?{parsed.query}"
+    headers: dict[str, str] = {}
+    if parsed.username is not None:
+        password = "" if parsed.password is None else unquote(parsed.password)
+        credentials = f"{unquote(parsed.username)}:{password}".encode("utf-8")
+        headers["Authorization"] = "Basic " + base64.b64encode(credentials).decode("ascii")
+    conn = http.client.HTTPSConnection(
+        parsed.hostname,
+        port=parsed.port,
+        timeout=PIP_NETWORK_TIMEOUT_SECONDS,
+    )
+    try:
+        conn.request("GET", path, headers=headers)
+        response = conn.getresponse()
+        status = response.status
+        response.read()
+    except Exception as exc:  # noqa: BLE001 - any probe failure must keep fallback fail-closed.
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before emergency fallback: "
+            f"{package}: {safe_url}: {exc}"
+        ) from exc
+    finally:
+        conn.close()
+    if status >= 400:
+        raise RuntimeError(
+            "Approved Python package proxy health check failed before emergency fallback: "
+            f"{package}: {safe_url}: HTTP {status}"
+        )
+
+
 def _parse_simple_version(value: str) -> tuple[int, ...]:
     """Parse the numeric version shape used by emergency pip bootstrap wheels."""
     if re.fullmatch(r"\d+(?:\.\d+)*", value) is None:
@@ -1109,6 +1171,7 @@ def upgrade_pip(
     except RuntimeError as exc:
         if not _pip_upgrade_resolver_miss(exc):
             raise
+        _require_private_index_project_health(index_url=index_url, package="pip")
 
     with tempfile.TemporaryDirectory(prefix="pulseplate-pip-emergency-wheelhouse-") as temp_dir:
         wheelhouse_dir = Path(temp_dir)

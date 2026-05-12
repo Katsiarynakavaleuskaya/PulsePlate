@@ -76,6 +76,57 @@ def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> 
     )
 
 
+class _FakeSimpleIndexResponse:
+    def __init__(self, status: int = 200) -> None:
+        self._status = status
+
+    def __enter__(self) -> "_FakeSimpleIndexResponse":
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        return None
+
+    def getcode(self) -> int:
+        return self._status
+
+    @property
+    def status(self) -> int:
+        return self._status
+
+    def read(self) -> bytes:
+        return b""
+
+
+def _allow_private_index_project_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> list[tuple[str, str, int]]:
+    observed_requests: list[tuple[str, str, int]] = []
+
+    class FakeHTTPSConnection:
+        def __init__(self, host: str, *, port: int | None = None, timeout: int) -> None:
+            self.host = host if port is None else f"{host}:{port}"
+            self.timeout = timeout
+
+        def request(
+            self,
+            _method: str,
+            path: str,
+            *,
+            headers: dict[str, str],
+        ) -> None:
+            assert headers == {}
+            observed_requests.append((self.host, path, self.timeout))
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse()
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", FakeHTTPSConnection)
+    return observed_requests
+
+
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     manifest = _repo_emergency_manifest()
     artifacts = {(item["package"], item["version"]) for item in manifest["artifacts"]}
@@ -1462,7 +1513,8 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
         encoding="utf-8",
     )
     observed_commands: list[list[str]] = []
-    observed_downloads: list[tuple[str, str]] = []
+    observed_downloads: list[tuple[str, str, Path]] = []
+    observed_index_health_urls = _allow_private_index_project_health(monkeypatch)
 
     def fake_run_command(command: list[str]) -> None:
         observed_commands.append(command)
@@ -1473,7 +1525,7 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
             )
 
     def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
-        observed_downloads.append((url, expected_sha256))
+        observed_downloads.append((url, expected_sha256, destination))
         destination.write_bytes(b"wheel-bytes")
 
     monkeypatch.setattr(installer, "run_command", fake_run_command)
@@ -1494,9 +1546,17 @@ def test_upgrade_pip_uses_emergency_wheel_after_proxy_resolver_miss(
     assert "--find-links" in observed_commands[1]
     assert "--index-url" not in observed_commands[1]
     assert observed_commands[1][-1] == "pip>=26.0,<27.0"
-    assert observed_downloads == [
-        ("https://files.pythonhosted.org/packages/example/pip-26.0.1.whl", "b" * 64)
+    assert observed_index_health_urls == [
+        ("packages.example.internal", "/simple/pip/", installer.PIP_NETWORK_TIMEOUT_SECONDS)
     ]
+    assert observed_downloads == [
+        (
+            "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+            "b" * 64,
+            observed_downloads[0][2],
+        )
+    ]
+    assert observed_downloads[0][2].name == "pip-26.0.1-py3-none-any.whl"
 
 
 def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
@@ -1647,6 +1707,70 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_521_failure(
     assert downloads["count"] == 0
 
 
+def test_upgrade_pip_does_not_use_emergency_wheel_when_proxy_521_is_suppressed(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.0.1",
+                        "filename": "pip-26.0.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def generic_resolver_miss_from_proxy_outage(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+        )
+
+    class Cloudflare521Connection:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def request(self, *_args: object, **_kwargs: object) -> None:
+            return None
+
+        def getresponse(self) -> _FakeSimpleIndexResponse:
+            return _FakeSimpleIndexResponse(status=521)
+
+        def close(self) -> None:
+            return None
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", generic_resolver_miss_from_proxy_outage)
+    monkeypatch.setattr(installer.http.client, "HTTPSConnection", Cloudflare521Connection)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="proxy health check failed.*521"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
 def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1677,6 +1801,7 @@ def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
             "Could not find a version that satisfies the requirement pip<27.0,>=26.0"
         )
 
+    _allow_private_index_project_health(monkeypatch)
     monkeypatch.setattr(installer, "run_command", resolver_miss)
 
     with pytest.raises(RuntimeError, match="No active emergency pip artifact"):
