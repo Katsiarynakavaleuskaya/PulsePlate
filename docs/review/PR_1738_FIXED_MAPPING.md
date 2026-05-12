@@ -14,6 +14,7 @@
   - `c3995510b5297a1f8971ef8f3733d25c7e779b28` - add the exact `certifi==2026.1.4` emergency wheel for CI-lite setup while the approved proxy lags.
   - `776dbef49820e86b3ddb84cc5c336ae1ef912d6c` - make the approved-index health probe honor matching `--trusted-host` semantics without widening fallback eligibility.
   - `eb369e79e2d2b322352f8cf43266a170dfebc88f` - map the trusted-host review finding and replace fragile mapping self-line references with stable section evidence.
+  - `e3f5766a074f15cef2ced165fc22a8e241778172` - keep the trusted-host health-probe connection construction explicit and typed for pre-push MyPy.
 
 ## Discussion Thread Pass
 
