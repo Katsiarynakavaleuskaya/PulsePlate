@@ -23,6 +23,7 @@
 Known post-open role findings have been dispositioned:
 - Security-auditor: governance mapping artifact finding - FIXED by `e378dc407`.
 - Bug-hunter: stale PR body mirror - FIXED by PR body update; superseded PR #1735 - FIXED by closing #1735; current-head validation - pending CI evidence, not a mapping-thread action.
+- Codex review: Phase2 checkbox and no-actionable marker findings - fixed by using the exact parser-required checklist and mapping marker forms.
 
 ## Fixed in Commit Mapping
 - No actionable review comments
