@@ -145,6 +145,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "annotated-types",
         "anyio",
         "bandit",
+        "certifi",
         "mako",
         "pillow",
         "python-multipart",
