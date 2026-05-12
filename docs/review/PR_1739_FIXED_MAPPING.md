@@ -56,8 +56,8 @@ Reason: The Sourcery review summary pointed to the actionable review set, which 
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Recover PR 1739 fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `f0b7158469f5`
 - `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1739 canonical restart: recover fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `1eb2fe0337b1`
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_current_head_pr_checks.py` - PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` - PASS
+- `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
+- `python3 -m pytest -q tests/test_repo_policy_guards.py` - PASS
 
 ## Security Notes
 - This change does not weaken required branch-protection checks.

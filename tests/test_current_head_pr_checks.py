@@ -164,6 +164,58 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
             set(),
             False,
         ),
+        (
+            current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-ci",
+                workflow_name="CI",
+                conclusion="",
+            ),
+            {"ios/PulsePlate/App.swift"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="Greenlight preflight (report-only)",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/greenlight",
+                workflow_name="Greenlight iOS Preflight",
+                conclusion="FAILURE",
+            ),
+            {"ios/PulsePlate/App.swift"},
+            False,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build-and-test",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/frontend",
+                workflow_name="Frontend CI",
+                conclusion="",
+            ),
+            {".nvmrc"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="security-scan",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-runtime",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {"requirements-docker-runtime.txt"},
+            True,
+        ),
     ],
 )
 def test_is_blocking_fallback_advisory(
@@ -574,6 +626,96 @@ def test_main_passes_when_unattached_specialized_ci_job_is_pending_in_fallback_m
     assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
     assert "Current-head advisory checks:" in captured.out
     assert "current-head-checks: passed." in captured.out
+
+
+def test_main_fails_when_attached_ios_ci_job_is_pending_in_fallback_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_changed_paths",
+        lambda *args: {"ios/PulsePlate/App.swift"},
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "iOS unit tests (xcodebuild)",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-ios-unit",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
+
+
+def test_main_keeps_greenlight_report_only_job_advisory_in_fallback_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_changed_paths",
+        lambda *args: {"ios/PulsePlate/App.swift"},
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "Greenlight preflight (report-only)",
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": "2026-03-12T05:09:03Z",
+                    "detailsUrl": "https://example.invalid/greenlight-failed",
+                    "checkSuite": {
+                        "workflowRun": {"workflow": {"name": "Greenlight iOS Preflight"}}
+                    },
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "- Greenlight preflight (report-only): failed [Greenlight iOS Preflight]" in captured.out
+    assert "Current-head advisory checks:" in captured.out
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_is_pending(

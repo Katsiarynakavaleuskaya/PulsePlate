@@ -52,12 +52,50 @@ DOCKER_SURFACE_PREFIXES = {
     ".github/workflows/cd.yml",
     "Dockerfile",
     "docker-compose",
+    "constraints.txt",
+    "requirements-docker-runtime.in",
+    "requirements-docker-runtime.txt",
     "scripts/ci/emergency_python_wheels.json",
     "scripts/ci/install_locked_python_requirements.py",
 }
 FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI", "Accessibility Tests"}
-FRONTEND_SURFACE_PREFIXES = {"frontend/", "web/", "package.json", "package-lock.json"}
-IOS_FALLBACK_WORKFLOW_NAMES = {"Greenlight iOS Preflight"}
+FRONTEND_SURFACE_PREFIXES = {
+    ".github/actions/npm-ci-with-retry/",
+    ".github/actions/python-setup/",
+    ".github/workflows/frontend-ci.yml",
+    ".nvmrc",
+    "constraints.txt",
+    "docs/design/",
+    "docs/figma/",
+    "docs/orchestration/IOS_FRONTEND_MULTIAGENT_PLAYBOOK.md",
+    "docs/roadmap/BACKLOG_LEDGER.md",
+    "docs/runbooks/DESIGN_TOOLING_OPERATING_MODEL.md",
+    "docs/runbooks/FIGMA_MCP_DESIGN_SYSTEM_RULES.md",
+    "frontend/",
+    "ios/PulsePlate/Assets.xcassets/AccentGreen.colorset/",
+    "ios/PulsePlate/Assets.xcassets/AppPrimary.colorset/",
+    "ios/PulsePlate/Assets.xcassets/Gold.colorset/",
+    "ios/PulsePlate/Assets.xcassets/HeartRed.colorset/",
+    "ios/PulsePlate/Assets.xcassets/Navy.colorset/",
+    "ios/PulsePlate/DesignSystem/",
+    "ios/PulsePlate/Extensions/Color+Assets.swift",
+    "Makefile",
+    "package.json",
+    "package-lock.json",
+    "requirements-ci-lite.in",
+    "requirements-ci-lite.txt",
+    "requirements.txt",
+    "scripts/ci/check_python_startup_hooks.py",
+    "scripts/ci/emergency_python_wheels.json",
+    "scripts/ci/install_locked_python_requirements.py",
+    "scripts/design_guard.py",
+    "tests/test_design_invariant_guard.py",
+    "tests/test_design_token_parity.py",
+    "tests/test_frontend_raw_hex_guard.py",
+    "tests/test_python_supply_chain_controls.py",
+    "tokens/",
+    "web/",
+}
 IOS_FALLBACK_CHECK_PREFIXES = {"iOS "}
 IOS_SURFACE_PREFIXES = {"ios/", ".github/workflows/ios", "fastlane/"}
 
@@ -367,16 +405,14 @@ def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -
         return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
     if entry.source_kind != "check_run":
         return False
+    if any(entry.name.startswith(prefix) for prefix in IOS_FALLBACK_CHECK_PREFIXES):
+        return _path_touches_any(changed_paths, IOS_SURFACE_PREFIXES)
     if entry.workflow_name in CANONICAL_FALLBACK_WORKFLOW_NAMES:
         return entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
     if entry.workflow_name in DOCKER_FALLBACK_WORKFLOW_NAMES:
         return _path_touches_any(changed_paths, DOCKER_SURFACE_PREFIXES)
     if entry.workflow_name in FRONTEND_FALLBACK_WORKFLOW_NAMES:
         return _path_touches_any(changed_paths, FRONTEND_SURFACE_PREFIXES)
-    if entry.workflow_name in IOS_FALLBACK_WORKFLOW_NAMES or any(
-        entry.name.startswith(prefix) for prefix in IOS_FALLBACK_CHECK_PREFIXES
-    ):
-        return _path_touches_any(changed_paths, IOS_SURFACE_PREFIXES)
     return False
 
 
