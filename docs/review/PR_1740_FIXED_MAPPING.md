@@ -25,6 +25,7 @@ Known post-open role findings have been dispositioned:
 - Bug-hunter: stale PR body mirror - FIXED by PR body update; superseded PR #1735 - FIXED by closing #1735; current-head validation - pending CI evidence, not a mapping-thread action.
 - Codex review: Phase2 checkbox and no-actionable marker findings - fixed by using the exact parser-required checklist and mapping marker forms.
 - CodeRabbit review: stale fixed-mapping artifact path in validation evidence - FIXED by `5cbc6ec70`.
+- Codex review: request to remap prior FIXED entries to head SHA - NOT-A-BUG; repo policy maps each thread to the concrete post-comment fix commit.
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229434597 -> 7840d4c07
@@ -50,6 +51,11 @@ Disposition: FIXED
 Commit: 5cbc6ec70
 Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Validation section)
 Reason: The CodeRabbit review summary contained one actionable inline comment, fixed in the mapped post-comment commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229485755
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 7840d4c07 HEAD` and `git merge-base --is-ancestor 5cbc6ec70 HEAD` both pass locally on `codex/worker-name-pulseplate-clean`.
+Reason: The repo review-governance contract maps FIXED comments to the concrete post-comment fix commit; those mapped commits are ancestors of this PR branch and are valid proof commits.
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_1740_FIXED_MAPPING.md` - PASS
