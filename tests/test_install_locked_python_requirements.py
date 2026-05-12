@@ -356,6 +356,12 @@ def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
     builder_stage = _dockerfile_stage(dockerfile, "builder")
     runtime_stage = _dockerfile_stage(dockerfile, "runtime-base")
 
+    banned_direct_upgrade = re.compile(
+        r"(?:python|/opt/venv/bin/python)\s+-m\s+pip\s+install(?:\s+[^\s\\]+)*"
+        r'\s+--upgrade\s+"?\$\{PIP_VERSION_RANGE\}"?',
+        re.MULTILINE,
+    )
+
     for stage in (builder_stage, runtime_stage):
         assert "--upgrade-pip-only" in stage
         assert '--upgrade-pip-spec "${PIP_VERSION_RANGE}"' in stage
@@ -366,17 +372,12 @@ def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:
             r'\s*--upgrade-pip-spec "\$\{PIP_VERSION_RANGE\}"',
             stage,
         )
-
-    assert not re.search(
-        r"(?:python|/opt/venv/bin/python)\s+-m\s+pip\s+install\s+--upgrade\s+"
-        r'"?\$\{PIP_VERSION_RANGE\}"?',
-        dockerfile,
-    )
+        assert not banned_direct_upgrade.search(stage)
 
 
 def _dockerfile_stage(dockerfile: str, stage_name: str) -> str:
     stage_pattern = re.compile(
-        rf"^FROM\s+\S+(?:\s+AS\s+{re.escape(stage_name)})?\s*$",
+        rf"^FROM\s+\S+\s+AS\s+{re.escape(stage_name)}\s*$",
         re.MULTILINE | re.IGNORECASE,
     )
     stage_match = stage_pattern.search(dockerfile)
