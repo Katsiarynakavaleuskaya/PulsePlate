@@ -16,6 +16,7 @@
   - `eb369e79e2d2b322352f8cf43266a170dfebc88f` - map the trusted-host review finding and replace fragile mapping self-line references with stable section evidence.
   - `e3f5766a074f15cef2ced165fc22a8e241778172` - keep the trusted-host health-probe connection construction explicit and typed for pre-push MyPy.
   - `b3b925aaee7c402f6008c152d3c8e38d2010751e` - harden approved-proxy health probes for HTTP mirrors, redirects, real simple-index body validation, and dependency-floor preflight fallback.
+  - `ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc` - use a non-blocked pip emergency artifact, accept normalized wheel names, and gate runtime fallback on resolver-miss plus approved project health.
 
 ## Discussion Thread Pass
 
@@ -191,6 +192,36 @@ Disposition: FIXED
 Commit: b3b925aaee7c402f6008c152d3c8e38d2010751e
 Evidence: scripts/ci/install_locked_python_requirements.py:849, scripts/ci/install_locked_python_requirements.py:941, tests/test_install_locked_python_requirements.py:225
 Reason: A 200 response must look like a PEP 503 project page for the requested package before fallback is allowed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226468084 -> ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Disposition: FIXED
+Commit: ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Evidence: scripts/ci/install_locked_python_requirements.py:866, tests/test_install_locked_python_requirements.py:261
+Reason: The approved-index project-page validator now accepts both normalized project names and underscore wheel filename forms such as `python_multipart-...`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226525879 -> ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Disposition: FIXED
+Commit: ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Evidence: scripts/ci/install_locked_python_requirements.py:866, tests/test_install_locked_python_requirements.py:261
+Reason: The CodeRabbit duplicate of the normalized-name finding is covered by the same validator change and regression test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226525883 -> ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Disposition: FIXED
+Commit: ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Evidence: scripts/ci/emergency_python_wheels.json:71, scripts/ci/install_locked_python_requirements.py:986
+Reason: The emergency pip artifact is now `pip==26.1.1`, which satisfies the Docker `pip>=26,<27` bootstrap range without matching the blocked `pip<=26.0.1` dependency-floor schema.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226525889 -> ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Disposition: FIXED
+Commit: ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Evidence: scripts/ci/install_locked_python_requirements.py:1465, scripts/ci/install_locked_python_requirements.py:1488, tests/test_install_locked_python_requirements.py:1666
+Reason: Runtime install fallback now stages emergency wheels only for exact requested artifacts whose failure is a resolver miss and whose approved project page passes health validation; transport failures stay fail-closed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4272353628 -> ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Disposition: FIXED
+Commit: ec408ae79c33cd27e5ccb5a23eb2fd76827ff6dc
+Evidence: scripts/ci/install_locked_python_requirements.py:866, tests/test_install_locked_python_requirements.py:261
+Reason: Cubic's review-level simple-index validation finding is mapped to the normalized project and underscore wheel filename fix.
 
 ## Merge Readiness
 
