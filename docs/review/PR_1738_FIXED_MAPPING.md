@@ -13,6 +13,7 @@
   - `1d2b9d6693803fd328cd39bac896dc53d22fde86` - add the exact `bandit==1.9.4` emergency wheel for CI-lite setup while the approved proxy lags.
   - `c3995510b5297a1f8971ef8f3733d25c7e779b28` - add the exact `certifi==2026.1.4` emergency wheel for CI-lite setup while the approved proxy lags.
   - `776dbef49820e86b3ddb84cc5c336ae1ef912d6c` - make the approved-index health probe honor matching `--trusted-host` semantics without widening fallback eligibility.
+  - `eb369e79e2d2b322352f8cf43266a170dfebc88f` - map the trusted-host review finding and replace fragile mapping self-line references with stable section evidence.
 
 ## Discussion Thread Pass
 
@@ -152,6 +153,12 @@ Disposition: FIXED
 Commit: 776dbef49820e86b3ddb84cc5c336ae1ef912d6c
 Evidence: scripts/ci/install_locked_python_requirements.py:860, scripts/ci/install_locked_python_requirements.py:899, tests/test_install_locked_python_requirements.py:138
 Reason: Cubic's review-level trusted-host finding is covered by the matching-host helper, probe call path, and regression test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4271982023 -> eb369e79e2d2b322352f8cf43266a170dfebc88f
+Disposition: FIXED
+Commit: eb369e79e2d2b322352f8cf43266a170dfebc88f
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Discussion Thread Pass, Fixed in Commit Mapping, Merge Readiness, and Local Validation Evidence sections)
+Reason: CodeRabbit's fragile self-reference nit is addressed by replacing mapping-file line references with stable section-level evidence.
 
 ## Merge Readiness
 
