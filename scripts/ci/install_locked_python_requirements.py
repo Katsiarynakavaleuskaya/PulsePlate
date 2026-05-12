@@ -1404,6 +1404,23 @@ def build_wheelhouse(
             )
 
 
+def _artifacts_with_resolver_miss(
+    exc: RuntimeError,
+    *,
+    requested_artifacts: Sequence[dict[str, str]],
+) -> list[dict[str, str]]:
+    """Return requested emergency artifacts named by the resolver miss output."""
+    return [
+        artifact
+        for artifact in requested_artifacts
+        if _resolver_miss_error(
+            exc,
+            package=artifact["package"],
+            version=artifact["version"],
+        )
+    ]
+
+
 def build_wheelhouse_with_emergency_fallback(
     *,
     python_executable: str,
@@ -1432,13 +1449,13 @@ def build_wheelhouse_with_emergency_fallback(
         )
         if not requested_artifacts:
             raise
-        for artifact in requested_artifacts:
-            if not _resolver_miss_error(
-                exc,
-                package=artifact["package"],
-                version=artifact["version"],
-            ):
-                raise
+        resolver_miss_artifacts = _artifacts_with_resolver_miss(
+            exc,
+            requested_artifacts=requested_artifacts,
+        )
+        if not resolver_miss_artifacts:
+            raise
+        for artifact in resolver_miss_artifacts:
             _require_private_index_project_health(
                 index_url=index_url,
                 package=artifact["package"],
@@ -1492,13 +1509,13 @@ def install_from_proxy_with_emergency_fallback(
         )
         if not requested_artifacts:
             raise
-        for artifact in requested_artifacts:
-            if not _resolver_miss_error(
-                exc,
-                package=artifact["package"],
-                version=artifact["version"],
-            ):
-                raise
+        resolver_miss_artifacts = _artifacts_with_resolver_miss(
+            exc,
+            requested_artifacts=requested_artifacts,
+        )
+        if not resolver_miss_artifacts:
+            raise
+        for artifact in resolver_miss_artifacts:
             _require_private_index_project_health(
                 index_url=index_url,
                 package=artifact["package"],
