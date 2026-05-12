@@ -29,6 +29,37 @@ class CheckEntry:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
+CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
+CANONICAL_FALLBACK_WORKFLOW_NAMES = {"CI"}
+CANONICAL_FALLBACK_CI_CHECK_NAMES = {
+    "Determine changed paths (for conditional jobs)",
+    "pr_scope_guard",
+    "Trivy ignore-policy expiry",
+    "Pygments exception seam guard",
+    "Docs Phase1 gates",
+    "PR Body Phase2 gates",
+    "Merge readiness gate",
+    "lint",
+    "security",
+    "OpenAPI sync (backend -> frontend artifacts)",
+    "test-pr (3.13)",
+    "coverage-pr",
+    "diff-coverage",
+}
+DOCKER_FALLBACK_WORKFLOW_NAMES = {"Docker Build and Push"}
+DOCKER_SURFACE_PREFIXES = {
+    ".github/workflows/build.yml",
+    ".github/workflows/cd.yml",
+    "Dockerfile",
+    "docker-compose",
+    "scripts/ci/emergency_python_wheels.json",
+    "scripts/ci/install_locked_python_requirements.py",
+}
+FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI", "Accessibility Tests"}
+FRONTEND_SURFACE_PREFIXES = {"frontend/", "web/", "package.json", "package-lock.json"}
+IOS_FALLBACK_WORKFLOW_NAMES = {"Greenlight iOS Preflight"}
+IOS_FALLBACK_CHECK_PREFIXES = {"iOS "}
+IOS_SURFACE_PREFIXES = {"ios/", ".github/workflows/ios", "fastlane/"}
 
 
 def _github_token() -> str:
@@ -202,6 +233,29 @@ def _fetch_required_check_names(repo: str, base_ref: str, token: str) -> tuple[s
     return required, True
 
 
+def _fetch_pr_changed_paths(pr_number: int, repo: str, token: str) -> set[str]:
+    """Fetch changed file paths for touched-surface fallback routing."""
+    owner, name = repo.split("/", maxsplit=1)
+    paths: set[str] = set()
+    page = 1
+    while True:
+        url = (
+            f"https://api.github.com/repos/{owner}/{name}/pulls/{pr_number}/files"
+            f"?per_page=100&page={page}"
+        )
+        data = _api_request(url, token=token)
+        if not data:
+            break
+        for item in data:
+            filename = str((item or {}).get("filename") or "").strip()
+            if filename:
+                paths.add(filename)
+        if len(data) < 100:
+            break
+        page += 1
+    return paths
+
+
 def _normalize_node(node: dict[str, Any]) -> CheckEntry:
     """Normalize a GraphQL check node into a deterministic entry."""
     node_type = str(node.get("__typename") or "")
@@ -300,24 +354,47 @@ def _required_snapshot(
     return snapshot
 
 
-def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
+def _path_touches_any(paths: set[str], prefixes: set[str]) -> bool:
+    """Return whether any changed path attaches a fallback surface."""
+    return any(path == prefix or path.startswith(prefix) for path in paths for prefix in prefixes)
+
+
+def _is_blocking_fallback_advisory(entry: CheckEntry, changed_paths: set[str]) -> bool:
     """Return whether fallback merge gating must block on this advisory entry."""
-    return entry.state in {"pending", "failed"}
+    if entry.state not in {"pending", "failed"}:
+        return False
+    if entry.source_kind == "status_context":
+        return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
+    if entry.source_kind != "check_run":
+        return False
+    if entry.workflow_name in CANONICAL_FALLBACK_WORKFLOW_NAMES:
+        return entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
+    if entry.workflow_name in DOCKER_FALLBACK_WORKFLOW_NAMES:
+        return _path_touches_any(changed_paths, DOCKER_SURFACE_PREFIXES)
+    if entry.workflow_name in FRONTEND_FALLBACK_WORKFLOW_NAMES:
+        return _path_touches_any(changed_paths, FRONTEND_SURFACE_PREFIXES)
+    if entry.workflow_name in IOS_FALLBACK_WORKFLOW_NAMES or any(
+        entry.name.startswith(prefix) for prefix in IOS_FALLBACK_CHECK_PREFIXES
+    ):
+        return _path_touches_any(changed_paths, IOS_SURFACE_PREFIXES)
+    return False
 
 
 def _partition_fallback_advisory_entries(
-    entries: list[CheckEntry],
+    entries: list[CheckEntry], changed_paths: set[str]
 ) -> tuple[list[CheckEntry], list[CheckEntry]]:
     """Split fallback-blocking entries from advisory-only entries.
 
-    RU: В fallback-режиме pending/failed current-head проверки блокируют merge.
-    EN: In fallback mode, pending/failed current-head checks block merge.
+    RU: В fallback-режиме canonical PR checks блокируют merge; specialized
+    checks блокируют только когда changed paths прикрепляют surface.
+    EN: In fallback mode, canonical PR checks block merge; specialized checks
+    block only when changed paths attach that surface.
     """
 
     blocking_entries: list[CheckEntry] = []
     advisory_only_entries: list[CheckEntry] = []
     for entry in entries:
-        if _is_blocking_fallback_advisory(entry):
+        if _is_blocking_fallback_advisory(entry, changed_paths):
             blocking_entries.append(entry)
         else:
             advisory_only_entries.append(entry)
@@ -412,6 +489,7 @@ def main(argv: list[str] | None = None) -> int:
         required_names, required_metadata_available = _fetch_required_check_names(
             repo, base_ref, token
         )
+        changed_paths = _fetch_pr_changed_paths(pr_number, repo, token)
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
         return 1
@@ -436,12 +514,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if not required_metadata_available:
         advisory_blocking_entries, advisory_entries = _partition_fallback_advisory_entries(
-            advisory_entries
+            advisory_entries, changed_paths
         )
         print(
             "Required check metadata unavailable; merge gating falls back to a "
-            "fail-closed current-head check snapshot. Pending or failed checks remain "
-            "blocking until branch-protection metadata is available."
+            "fail-closed current-head check snapshot. Canonical PR checks remain "
+            "blocking; specialized checks block only when changed files attach their surface."
         )
         if advisory_blocking_entries:
             _print_entries("Current-head blocking fallback checks:", advisory_blocking_entries)
@@ -469,7 +547,8 @@ def main(argv: list[str] | None = None) -> int:
     if merge_state_note_needed:
         print(
             f"NOTE: GitHub mergeStateStatus={merge_state or 'UNKNOWN'} is stale/non-blocking "
-            "because required check metadata is unavailable and no current-head checks are pending or failed."
+            "because required check metadata is unavailable and no fallback-blocking "
+            "current-head checks are pending or failed."
         )
 
     # RU/EN: superseded failures stay visible but non-blocking once latest head is clean.

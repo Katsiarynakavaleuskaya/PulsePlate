@@ -5,8 +5,13 @@ import pytest
 from scripts.ci import check_current_head_pr_checks as current_head_checks
 
 
+@pytest.fixture(autouse=True)
+def _default_changed_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_changed_paths", lambda *args: set())
+
+
 @pytest.mark.parametrize(
-    ("entry", "expected"),
+    ("entry", "changed_paths", "expected"),
     [
         (
             current_head_checks.CheckEntry(
@@ -18,6 +23,7 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="CI",
                 conclusion="",
             ),
+            set(),
             True,
         ),
         (
@@ -30,6 +36,7 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="CI",
                 conclusion="FAILURE",
             ),
+            set(),
             True,
         ),
         (
@@ -42,6 +49,7 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
+            {"Dockerfile"},
             True,
         ),
         (
@@ -54,7 +62,8 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="Optional CI",
                 conclusion="FAILURE",
             ),
-            True,
+            set(),
+            False,
         ),
         (
             current_head_checks.CheckEntry(
@@ -66,7 +75,21 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="",
                 conclusion="",
             ),
+            set(),
             True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="CodeRabbit",
+                source_kind="status_context",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/coderabbit",
+                workflow_name="",
+                conclusion="",
+            ),
+            set(),
+            False,
         ),
         (
             current_head_checks.CheckEntry(
@@ -78,6 +101,7 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="CI",
                 conclusion="SUCCESS",
             ),
+            set(),
             False,
         ),
         (
@@ -90,14 +114,15 @@ from scripts.ci import check_current_head_pr_checks as current_head_checks
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
-            True,
+            set(),
+            False,
         ),
     ],
 )
 def test_is_blocking_fallback_advisory(
-    entry: current_head_checks.CheckEntry, expected: bool
+    entry: current_head_checks.CheckEntry, changed_paths: set[str], expected: bool
 ) -> None:
-    assert current_head_checks._is_blocking_fallback_advisory(entry) is expected
+    assert current_head_checks._is_blocking_fallback_advisory(entry, changed_paths) is expected
 
 
 def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() -> None:
@@ -378,10 +403,10 @@ def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clea
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
-    assert "no current-head checks are pending or failed" in captured.out
+    assert "no fallback-blocking current-head checks are pending or failed" in captured.out
 
 
-def test_main_fails_when_merge_state_is_not_clean_and_specialized_check_is_pending(
+def test_main_passes_when_merge_state_is_not_clean_and_unattached_specialized_check_is_pending(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -415,14 +440,56 @@ def test_main_fails_when_merge_state_is_not_clean_and_specialized_check_is_pendi
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "Required check metadata unavailable" in captured.out
+    assert "Current-head advisory checks:" in captured.out
+    assert "- security-scan: pending [Docker Build and Push]" in captured.out
+    assert "current-head-checks: passed." in captured.out
+
+
+def test_main_fails_when_merge_state_is_not_clean_and_attached_specialized_check_is_pending(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_pr_changed_paths", lambda *args: {"Dockerfile"}
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "security-scan",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-security-scan",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
     assert "Current-head blocking fallback checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
-    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
-def test_main_fails_when_specialized_ci_job_is_pending_in_fallback_mode(
+def test_main_passes_when_unattached_specialized_ci_job_is_pending_in_fallback_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -456,10 +523,10 @@ def test_main_fails_when_specialized_ci_job_is_pending_in_fallback_mode(
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
-    assert "Current-head blocking fallback checks:" in captured.out
-    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
+    assert "Current-head advisory checks:" in captured.out
+    assert "current-head-checks: passed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_is_pending(
@@ -653,7 +720,7 @@ def test_main_fails_when_github_metadata_query_errors(
     assert "ERROR: failed to query GitHub check state: HTTP 503" in captured.out
 
 
-def test_main_fails_when_required_check_metadata_is_unavailable_and_optional_lane_fails(
+def test_main_passes_when_required_check_metadata_is_unavailable_and_optional_lane_fails(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -687,8 +754,8 @@ def test_main_fails_when_required_check_metadata_is_unavailable_and_optional_lan
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 1
+    assert exit_code == 0
     assert "Required check metadata unavailable" in captured.out
-    assert "Current-head blocking fallback checks:" in captured.out
+    assert "Current-head advisory checks:" in captured.out
     assert "- optional-e2e: failed [Optional CI]" in captured.out
-    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
+    assert "current-head-checks: passed." in captured.out
