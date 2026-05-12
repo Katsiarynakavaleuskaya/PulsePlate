@@ -12,6 +12,7 @@
   - `4826bf69b48cb7dc327aec8bdc3434e5b73b8916` - require approved index project health before pip emergency fallback and strengthen wheel filename coverage.
   - `1d2b9d6693803fd328cd39bac896dc53d22fde86` - add the exact `bandit==1.9.4` emergency wheel for CI-lite setup while the approved proxy lags.
   - `c3995510b5297a1f8971ef8f3733d25c7e779b28` - add the exact `certifi==2026.1.4` emergency wheel for CI-lite setup while the approved proxy lags.
+  - `776dbef49820e86b3ddb84cc5c336ae1ef912d6c` - make the approved-index health probe honor matching `--trusted-host` semantics without widening fallback eligibility.
 
 ## Discussion Thread Pass
 
@@ -42,13 +43,13 @@ Reason: `--trusted-host` remains an explicit operator-supplied build argument pa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617522 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
 Disposition: FIXED
 Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
-Evidence: docs/review/PR_1738_FIXED_MAPPING.md:16
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Discussion Thread Pass section)
 Reason: Discussion-thread and fixed-mapping pass are now explicitly checked after the thread-specific dispositions were recorded.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617533 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
 Disposition: FIXED
 Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
-Evidence: docs/review/PR_1738_FIXED_MAPPING.md:143
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Merge Readiness section)
 Reason: Merge-readiness checklist items are unchecked until current-head CI, security scan, review disposition, and wait-window evidence exist.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3223617541 -> 83d5da71416134807e7bf54e4a4c43ec02e8e9bc
@@ -66,7 +67,7 @@ Reason: The review's pip-spec help, invalid-constraint diagnostics, and Docker f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4269034135 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
 Disposition: FIXED
 Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
-Evidence: docs/review/PR_1738_FIXED_MAPPING.md:21, scripts/ci/emergency_python_wheels.json:162
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Fixed in Commit Mapping section), scripts/ci/emergency_python_wheels.json:162
 Reason: CodeRabbit actionable items are mapped individually; the requested `requests==2.33.0` entry is present and the readiness checkboxes no longer overclaim.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4269046049 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
@@ -108,7 +109,7 @@ Reason: The first builder pip-upgrade helper copy is removed after use, and the 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224229039 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
 Disposition: FIXED
 Commit: 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
-Evidence: docs/review/PR_1738_FIXED_MAPPING.md:156, docs/review/PR_1738_FIXED_MAPPING.md:158
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Local Validation Evidence section)
 Reason: Local validation examples use portable commands instead of machine-specific absolute interpreter paths.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224229050 -> 10520d5f28b10070a3bcbd4563fc01b0a1ba8245
@@ -132,13 +133,25 @@ Reason: Generic pip resolver miss output can use emergency fallback only after t
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224278200 -> 4826bf69b48cb7dc327aec8bdc3434e5b73b8916
 Disposition: FIXED
 Commit: 4826bf69b48cb7dc327aec8bdc3434e5b73b8916
-Evidence: docs/review/PR_1738_FIXED_MAPPING.md:21
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Fixed in Commit Mapping section)
 Reason: The canonical mapping section now records concrete thread/review URLs instead of relying on a PR-root mapping entry.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3224278206
 Disposition: NOT-A-BUG
-Evidence: docs/review/PR_1738_FIXED_MAPPING.md:16, docs/review/PR_1738_FIXED_MAPPING.md:21
+Evidence: docs/review/PR_1738_FIXED_MAPPING.md (Discussion Thread Pass and Fixed in Commit Mapping sections)
 Reason: The checkboxes are intentionally checked only in the committed artifact that also includes concrete dispositions for all known actionable review threads.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#discussion_r3226048269 -> 776dbef49820e86b3ddb84cc5c336ae1ef912d6c
+Disposition: FIXED
+Commit: 776dbef49820e86b3ddb84cc5c336ae1ef912d6c
+Evidence: scripts/ci/install_locked_python_requirements.py:860, scripts/ci/install_locked_python_requirements.py:899, tests/test_install_locked_python_requirements.py:138
+Reason: The health probe now mirrors an explicit matching `--trusted-host` when opening the approved project URL while preserving fail-closed proxy-health behavior.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738#pullrequestreview-4271870841 -> 776dbef49820e86b3ddb84cc5c336ae1ef912d6c
+Disposition: FIXED
+Commit: 776dbef49820e86b3ddb84cc5c336ae1ef912d6c
+Evidence: scripts/ci/install_locked_python_requirements.py:860, scripts/ci/install_locked_python_requirements.py:899, tests/test_install_locked_python_requirements.py:138
+Reason: Cubic's review-level trusted-host finding is covered by the matching-host helper, probe call path, and regression test.
 
 ## Merge Readiness
 
