@@ -26,7 +26,17 @@ Known post-open role findings have been dispositioned:
 - Codex review: Phase2 checkbox and no-actionable marker findings - fixed by using the exact parser-required checklist and mapping marker forms.
 
 ## Fixed in Commit Mapping
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229434597 -> 7840d4c07
+Disposition: FIXED
+Commit: 7840d4c07
+Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Fixed in Commit Mapping section)
+Reason: The canonical no-actionable marker was replaced with parser-valid mapping entries once actionable review comments existed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229434615 -> 7840d4c07
+Disposition: FIXED
+Commit: 7840d4c07
+Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Discussion Thread Pass section)
+Reason: The artifact contains the exact required checked Phase2 discussion and mapping checklist lines.
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_WORKER_NAME_FIXED_MAPPING.md` - PASS
