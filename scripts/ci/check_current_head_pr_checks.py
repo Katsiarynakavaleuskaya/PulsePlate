@@ -29,25 +29,6 @@ class CheckEntry:
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PENDING_STATUS_CONTEXT_STATES = {"EXPECTED", "PENDING"}
-CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES = {"CI"}
-CANONICAL_FALLBACK_WORKFLOW_NAMES = {"CI"}
-# Keep this list aligned to the GitHub check-run display names emitted by the
-# canonical `.github/workflows/ci.yml` workflow, including matrix suffixes.
-CANONICAL_FALLBACK_CI_CHECK_NAMES = {
-    "Determine changed paths (for conditional jobs)",
-    "pr_scope_guard",
-    "Trivy ignore-policy expiry",
-    "Pygments exception seam guard",
-    "Docs Phase1 gates",
-    "PR Body Phase2 gates",
-    "Merge readiness gate",
-    "lint",
-    "security",
-    "OpenAPI sync (backend -> frontend artifacts)",
-    "test-pr (3.13)",
-    "coverage-pr",
-    "diff-coverage",
-}
 
 
 def _github_token() -> str:
@@ -320,16 +301,8 @@ def _required_snapshot(
 
 
 def _is_blocking_fallback_advisory(entry: CheckEntry) -> bool:
-    """Return whether fallback merge gating must still block on this advisory entry."""
-    if entry.state not in {"pending", "failed"}:
-        return False
-    if entry.source_kind == "status_context":
-        return entry.name in CANONICAL_FALLBACK_STATUS_CONTEXT_NAMES
-    return (
-        entry.source_kind == "check_run"
-        and entry.workflow_name in CANONICAL_FALLBACK_WORKFLOW_NAMES
-        and entry.name in CANONICAL_FALLBACK_CI_CHECK_NAMES
-    )
+    """Return whether fallback merge gating must block on this advisory entry."""
+    return entry.state in {"pending", "failed"}
 
 
 def _partition_fallback_advisory_entries(
@@ -337,8 +310,8 @@ def _partition_fallback_advisory_entries(
 ) -> tuple[list[CheckEntry], list[CheckEntry]]:
     """Split fallback-blocking entries from advisory-only entries.
 
-    RU: В fallback-режиме часть advisory-проверок все еще блокирует merge.
-    EN: In fallback mode, some advisory checks still remain merge-blocking.
+    RU: В fallback-режиме pending/failed current-head проверки блокируют merge.
+    EN: In fallback mode, pending/failed current-head checks block merge.
     """
 
     blocking_entries: list[CheckEntry] = []
@@ -466,9 +439,9 @@ def main(argv: list[str] | None = None) -> int:
             advisory_entries
         )
         print(
-            "Required check metadata unavailable; merge gating falls back to GitHub "
-            "mergeStateStatus. Current-head checks stay advisory unless a canonical "
-            "ordinary-PR CI signal remains pending or failed."
+            "Required check metadata unavailable; merge gating falls back to a "
+            "fail-closed current-head check snapshot. Pending or failed checks remain "
+            "blocking until branch-protection metadata is available."
         )
         if advisory_blocking_entries:
             _print_entries("Current-head blocking fallback checks:", advisory_blocking_entries)
@@ -490,13 +463,13 @@ def main(argv: list[str] | None = None) -> int:
         if blocking_entries:
             print("- Blocking current-head checks remain pending or failed.")
         if advisory_blocking_entries:
-            print("- Blocking canonical fallback current-head checks remain pending or failed.")
+            print("- Blocking fallback current-head checks remain pending or failed.")
         return 1
 
     if merge_state_note_needed:
         print(
             f"NOTE: GitHub mergeStateStatus={merge_state or 'UNKNOWN'} is stale/non-blocking "
-            "because required check metadata is unavailable and the latest advisory checks passed."
+            "because required check metadata is unavailable and no current-head checks are pending or failed."
         )
 
     # RU/EN: superseded failures stay visible but non-blocking once latest head is clean.

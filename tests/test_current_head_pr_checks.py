@@ -1,73 +1,8 @@
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from scripts.ci import check_current_head_pr_checks as current_head_checks
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
-CANONICAL_FALLBACK_JOB_IDS = {
-    "changes",
-    "pr_scope_guard",
-    "trivy_ignore_policy_expiry",
-    "pygments_exception_guard",
-    "docs_phase1_gates",
-    "pr_body_phase2_gates",
-    "merge_readiness_gate",
-    "lint",
-    "security",
-    "openapi-sync",
-    "test-pr",
-    "coverage-pr",
-    "diff-coverage",
-}
-ADVISORY_PULL_REQUEST_JOB_IDS = {
-    "test-main",
-    "test-feature",
-    "coverage-feature",
-    "coverage-main",
-    "ios-tests",
-    "ios-ui-smoke",
-}
-
-
-def _load_ci_workflow_jobs() -> dict[str, dict[str, object]]:
-    import yaml
-
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
-    jobs = workflow.get("jobs")
-    assert isinstance(jobs, dict)
-    return jobs
-
-
-def _job_display_name(job_id: str, definition: dict[str, object]) -> str:
-    name = str(definition.get("name") or job_id)
-    matrix = (definition.get("strategy") or {}).get("matrix") or {}
-    python_versions = matrix.get("python-version")
-    if job_id == "test-pr" and python_versions == ["3.13"]:
-        return f"{name} (3.13)"
-    return name
-
-
-def test_fallback_ci_allowlist_matches_ci_workflow() -> None:
-    jobs = _load_ci_workflow_jobs()
-    classified_job_ids = CANONICAL_FALLBACK_JOB_IDS | ADVISORY_PULL_REQUEST_JOB_IDS
-
-    assert set(jobs) == classified_job_ids
-    expected_display_names = {
-        _job_display_name(job_id, jobs[job_id]) for job_id in CANONICAL_FALLBACK_JOB_IDS
-    }
-
-    assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
-
-
-def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
-    jobs = _load_ci_workflow_jobs()
-
-    assert _job_display_name("test-pr", jobs["test-pr"]) == "test-pr (3.13)"
-    assert "build-and-test" not in jobs
-    assert "build-and-test" not in current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES
 
 
 @pytest.mark.parametrize(
@@ -107,7 +42,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
-            False,
+            True,
         ),
         (
             current_head_checks.CheckEntry(
@@ -119,7 +54,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Optional CI",
                 conclusion="FAILURE",
             ),
-            False,
+            True,
         ),
         (
             current_head_checks.CheckEntry(
@@ -155,7 +90,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
-            False,
+            True,
         ),
     ],
 )
@@ -443,9 +378,10 @@ def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clea
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
+    assert "no current-head checks are pending or failed" in captured.out
 
 
-def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_check_is_pending(
+def test_main_fails_when_merge_state_is_not_clean_and_specialized_check_is_pending(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -479,17 +415,14 @@ def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_chec
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 0
+    assert exit_code == 1
     assert "Required check metadata unavailable" in captured.out
-    assert "Current-head advisory checks:" in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed."
-        not in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
-def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
+def test_main_fails_when_specialized_ci_job_is_pending_in_fallback_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -523,13 +456,10 @@ def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 0
+    assert exit_code == 1
     assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
-    assert "Current-head advisory checks:" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed."
-        not in captured.out
-    )
+    assert "Current-head blocking fallback checks:" in captured.out
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_is_pending(
@@ -569,9 +499,7 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
     assert exit_code == 1
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pending(
@@ -611,9 +539,7 @@ def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pe
     assert exit_code == 1
     assert "GitHub mergeStateStatus=CLEAN" not in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_passes_when_required_check_set_is_empty_but_available(
@@ -727,7 +653,7 @@ def test_main_fails_when_github_metadata_query_errors(
     assert "ERROR: failed to query GitHub check state: HTTP 503" in captured.out
 
 
-def test_main_passes_when_required_check_metadata_is_unavailable_and_optional_lane_fails(
+def test_main_fails_when_required_check_metadata_is_unavailable_and_optional_lane_fails(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -761,8 +687,8 @@ def test_main_passes_when_required_check_metadata_is_unavailable_and_optional_la
     )
 
     captured = capsys.readouterr()
-    assert exit_code == 0
+    assert exit_code == 1
     assert "Required check metadata unavailable" in captured.out
-    assert "Current-head advisory checks:" in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
     assert "- optional-e2e: failed [Optional CI]" in captured.out
-    assert "current-head-checks: passed." in captured.out
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
