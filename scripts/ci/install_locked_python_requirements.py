@@ -804,7 +804,32 @@ def _pip_upgrade_resolver_miss(runtime_error: RuntimeError) -> bool:
         "no matching distribution found for pip",
         "could not find a version that satisfies the requirement pip",
     )
-    return any(marker in message for marker in resolver_markers)
+    return any(
+        marker in message for marker in resolver_markers
+    ) and not _pip_upgrade_network_failure(message)
+
+
+def _pip_upgrade_network_failure(message: str) -> bool:
+    """Return True when pip output includes transport/proxy failure markers."""
+    network_markers = (
+        "connection aborted",
+        "connection error",
+        "connection reset",
+        "connection refused",
+        "connect timeout",
+        "cloudflare",
+        "error 5",
+        "http 5",
+        "max retries exceeded",
+        "proxy error",
+        "read timeout",
+        "retrying",
+        "ssl",
+        "temporarily unavailable",
+        "timed out",
+        "tls",
+    )
+    return any(marker in message for marker in network_markers)
 
 
 def _parse_simple_version(value: str) -> tuple[int, ...]:

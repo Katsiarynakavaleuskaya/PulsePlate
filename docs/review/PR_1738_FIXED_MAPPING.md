@@ -17,7 +17,10 @@ Per root `AGENTS.md` review governance, each actionable bot/human comment receiv
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1738
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-cryptography-private-index-sync
+Reason: Draft PR remains blocked on private package proxy mirror parity; current-head review comments remain open and must not be resolved until each receives thread-specific proof.
 
 ## Merge Readiness
 

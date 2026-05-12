@@ -1497,6 +1497,57 @@ def test_upgrade_pip_does_not_use_emergency_wheel_for_non_resolver_failure(
     assert downloads["count"] == 0
 
 
+def test_upgrade_pip_does_not_use_emergency_wheel_for_mixed_network_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "pip",
+                        "version": "26.0.1",
+                        "filename": "pip-26.0.1-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/pip-26.0.1.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    downloads = {"count": 0}
+
+    def proxy_outage_with_final_resolver_text(_command: list[str]) -> None:
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "WARNING: Retrying after connection error: TLS handshake timed out\n"
+            "ERROR: Could not find a version that satisfies the requirement pip<27.0,>=26.0\n"
+            "ERROR: No matching distribution found for pip<27.0,>=26.0"
+        )
+
+    def fake_download(**_kwargs: object) -> None:
+        downloads["count"] += 1
+
+    monkeypatch.setattr(installer, "run_command", proxy_outage_with_final_resolver_text)
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    with pytest.raises(RuntimeError, match="TLS handshake timed out"):
+        installer.upgrade_pip(
+            "python",
+            pip_spec="pip>=26.0,<27.0",
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert downloads["count"] == 0
+
+
 def test_upgrade_pip_rejects_emergency_artifact_outside_requested_range(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
