@@ -17,6 +17,7 @@
 ## Implementing Commits
 - `b4f7fd390` - `fix(ci): bound fallback current-head blockers`
 - `4be17a1e6` - `fix(ci): refine fallback specialized surfaces`
+- `50064a367` - `fix(ci): attach diagnostic fallback surfaces`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -87,6 +88,40 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1739_FIXED_MAPPING.md lists `4be17a1e6` under Implementing Commits.
 Reason: The traceability issue was already corrected in this artifact before merge-readiness; no production code change is required for a review-artifact completeness comment.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#pullrequestreview-4276615286
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps the actionable CodeRabbit inline comment from that review.
+Reason: The review summary only reports the inline artifact-completeness comment, which is dispositioned above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186042 -> 50064a367
+Disposition: FIXED
+Commit: 50064a367
+Evidence: scripts/ci/check_current_head_pr_checks.py expands `IOS_SURFACE_PREFIXES` to include workflow/action files; tests/test_current_head_pr_checks.py covers iOS fallback blocking for `.github/workflows/ci.yml` and `.github/actions/python-setup/action.yml`.
+Reason: Attached iOS CI jobs now remain fallback-blocking when workflow/action edits attach the iOS lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186050 -> 50064a367
+Disposition: FIXED
+Commit: 50064a367
+Evidence: scripts/ci/check_current_head_pr_checks.py includes `.github/workflows/accessibility.yml` in `FRONTEND_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers `Accessibility Tests` fallback blocking for that workflow file.
+Reason: Accessibility workflow edits now attach the frontend/accessibility fallback lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186053
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor b4f7fd390 HEAD` and `git merge-base --is-ancestor 4be17a1e6 HEAD` both return `0` at current local head.
+Reason: The mapped commits are ancestors of the current PR head; no remapping to a squashed synthetic head is needed for this branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186062 -> 50064a367
+Disposition: FIXED
+Commit: 50064a367
+Evidence: scripts/ci/check_current_head_pr_checks.py includes `test-main (3.11)`, `test-main (3.12)`, and `test-main (3.13)` in `CANONICAL_FALLBACK_CI_CHECK_NAMES`; tests/test_current_head_pr_checks.py covers a failed attached `test-main (3.11)` fallback blocker.
+Reason: PR-triggered diagnostic `test-main` matrix jobs are now fallback-blocking when GitHub attaches them.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#pullrequestreview-4276633266 -> 50064a367
+Disposition: FIXED
+Commit: 50064a367
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps all actionable comments from that review; scripts/ci/check_current_head_pr_checks.py and tests/test_current_head_pr_checks.py contain the diagnostic fallback-surface fixes.
+Reason: The Codex review summary pointed to the latest actionable review set, which is fully dispositioned above.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
@@ -94,6 +129,7 @@ Reason: The traceability issue was already corrected in this artifact before mer
 - `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1739 canonical restart: recover fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `1eb2fe0337b1`
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_repo_policy_guards.py` - PASS
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 
 ## Security Notes
 - This change does not weaken required branch-protection checks.
