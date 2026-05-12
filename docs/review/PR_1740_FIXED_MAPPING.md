@@ -26,6 +26,7 @@ Known post-open role findings have been dispositioned:
 - Codex review: Phase2 checkbox and no-actionable marker findings - fixed by using the exact parser-required checklist and mapping marker forms.
 - CodeRabbit review: stale fixed-mapping artifact path in validation evidence - FIXED by `5cbc6ec70`.
 - Codex review: request to remap prior FIXED entries to head SHA - NOT-A-BUG; repo policy maps each thread to the concrete post-comment fix commit.
+- Codex review: synthetic reviewed-commit SHA check for FIXED proofs - NOT-A-BUG; live PR branch contains the mapped proof commits and GitHub merge-readiness passed.
 
 ## Fixed in Commit Mapping
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229434597 -> 7840d4c07
@@ -56,6 +57,11 @@ Reason: The CodeRabbit review summary contained one actionable inline comment, f
 Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 7840d4c07 HEAD` and `git merge-base --is-ancestor 5cbc6ec70 HEAD` both pass locally on `codex/worker-name-pulseplate-clean`.
 Reason: The repo review-governance contract maps FIXED comments to the concrete post-comment fix commit; those mapped commits are ancestors of this PR branch and are valid proof commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1740#discussion_r3229559403
+Disposition: NOT-A-BUG
+Evidence: `gh pr view 1740 --json commits` lists `7840d4c07` and `5cbc6ec70` in the PR branch; GitHub `Merge readiness gate` passed on current head `80db48a8`.
+Reason: The reported `eaef797` object is not the live PR branch head. The canonical gate validates the real branch history, where the mapped FIXED proof commits are available.
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_1740_FIXED_MAPPING.md` - PASS
