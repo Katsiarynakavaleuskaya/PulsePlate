@@ -39,8 +39,8 @@ Evidence: docs/review/PR_1740_FIXED_MAPPING.md (Discussion Thread Pass section)
 Reason: The artifact contains the exact required checked Phase2 discussion and mapping checklist lines.
 
 ## Validation
-- `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_WORKER_NAME_FIXED_MAPPING.md` - PASS
-- `python3 scripts/orchestration/task_bootstrap.py --goal "Clean Worker name update after main Docker recovery" --task-class infra --path wrangler.toml --path docs/review/PR_WORKER_NAME_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase pre_open` - PASS, packet `96a2aadcace9`
+- `python3 scripts/orchestration/check_preflight.py --path wrangler.toml --path docs/review/PR_1740_FIXED_MAPPING.md` - PASS
+- `python3 scripts/orchestration/task_bootstrap.py --goal "Clean Worker name update after main Docker recovery" --task-class infra --path wrangler.toml --path docs/review/PR_1740_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase pre_open` - PASS, packet `96a2aadcace9`
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Post-open review for clean Worker name replacement PR 1740" --task-class infra --path wrangler.toml --path docs/review/PR_1740_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `98cbd0da6ea8`
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` - PASS
