@@ -1576,7 +1576,8 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
         assert package == "cryptography"
         assert trusted_host is None
 
-    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
         destination = wheelhouse_dir / "cryptography-46.0.7.whl"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1585,7 +1586,7 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
 
     monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
-    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.build_wheelhouse_with_emergency_fallback(
         python_executable="python",
@@ -1599,6 +1600,156 @@ def test_build_wheelhouse_with_emergency_fallback_retries_only_after_proxy_failu
 
     assert observed_calls == [tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
     assert build_attempts["count"] == 2
+
+
+def test_build_wheelhouse_with_emergency_fallback_stages_only_resolver_miss_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    build_attempts = {"count": 0}
+    health_packages: list[str] = []
+
+    def fake_build_wheelhouse(**_kwargs: object) -> None:
+        build_attempts["count"] += 1
+        if build_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["requests"]
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        destination = wheelhouse_dir / "requests-2.33.0-py3-none-any.whl"
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(b"wheel-bytes")
+        return [destination]
+
+    monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.build_wheelhouse_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests"]
+    assert build_attempts["count"] == 2
+
+
+def test_build_wheelhouse_with_emergency_fallback_continues_for_second_requested_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    build_attempts = {"count": 0}
+    health_packages: list[str] = []
+    staged_packages: list[list[str]] = []
+
+    def fake_build_wheelhouse(**_kwargs: object) -> None:
+        build_attempts["count"] += 1
+        if build_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+        if build_attempts["count"] == 2:
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        packages = [artifact["package"] for artifact in kwargs["artifacts"]]
+        staged_packages.append(packages)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / f"{package}.whl" for package in packages]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "build_wheelhouse", fake_build_wheelhouse)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.build_wheelhouse_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests", "cryptography"]
+    assert staged_packages == [["requests"], ["cryptography"]]
+    assert build_attempts["count"] == 3
 
 
 def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_after_proxy_failure(
@@ -1640,7 +1791,8 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
         assert package == "cryptography"
         assert trusted_host is None
 
-    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["cryptography"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
         destination = wheelhouse_dir / "cryptography-46.0.7.whl"
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -1649,7 +1801,7 @@ def test_install_from_proxy_with_emergency_fallback_retries_with_find_links_afte
 
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
-    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",
@@ -1711,12 +1863,10 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
         assert trusted_host is None
         health_packages.append(package)
 
-    def fake_stage_emergency_wheels(**kwargs: object) -> list[Path]:
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        assert [artifact["package"] for artifact in kwargs["artifacts"]] == ["requests"]
         wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
-        staged = [
-            wheelhouse_dir / "requests-2.33.0-py3-none-any.whl",
-            wheelhouse_dir / "cryptography-46.0.7.whl",
-        ]
+        staged = [wheelhouse_dir / "requests-2.33.0-py3-none-any.whl"]
         for destination in staged:
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(b"wheel-bytes")
@@ -1724,7 +1874,7 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
 
     monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
     monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
-    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     installer.install_from_proxy_with_emergency_fallback(
         python_executable="python",
@@ -1738,6 +1888,146 @@ def test_install_from_proxy_with_emergency_fallback_accepts_one_requested_resolv
 
     assert health_packages == ["requests"]
     assert observed_find_links == [None, tmp_path / "wheelhouse"]
+
+
+def test_install_from_proxy_with_emergency_fallback_continues_for_second_requested_miss(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\ncryptography==46.0.7\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    },
+                    {
+                        "package": "cryptography",
+                        "version": "46.0.7",
+                        "filename": "cryptography-46.0.7.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/cryptography-46.0.7.whl",
+                        "sha256": "c" * 64,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    install_attempts = {"count": 0}
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+    staged_packages: list[list[str]] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        install_attempts["count"] += 1
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if install_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("requests", "2.33.0")
+        if install_attempts["count"] == 2:
+            raise _resolver_miss_runtimeerror_like_run_command("cryptography", "46.0.7")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        packages = [artifact["package"] for artifact in kwargs["artifacts"]]
+        staged_packages.append(packages)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / f"{package}.whl" for package in packages]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[requirements],
+        constraints_file=None,
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=manifest,
+    )
+
+    assert health_packages == ["requests", "cryptography"]
+    assert staged_packages == [["requests"], ["cryptography"]]
+    assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
+    assert install_attempts["count"] == 3
+
+
+def test_install_from_proxy_with_emergency_fallback_rejects_mixed_network_resolver_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    requirements = tmp_path / "requirements.txt"
+    requirements.write_text("requests==2.33.0\n", encoding="utf-8")
+    manifest = tmp_path / "emergency.json"
+    manifest.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "generated_at": "2026-04-09",
+                "expires_at": "2099-12-31",
+                "artifacts": [
+                    {
+                        "package": "requests",
+                        "version": "2.33.0",
+                        "filename": "requests-2.33.0-py3-none-any.whl",
+                        "url": "https://files.pythonhosted.org/packages/example/requests-2.33.0.whl",
+                        "sha256": "b" * 64,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    stage_calls = {"count": 0}
+
+    def fail_mixed_network_resolver(**kwargs: object) -> None:
+        assert kwargs["find_links_dir"] is None
+        raise RuntimeError(
+            "Command failed: python -m pip install: exit 1\n"
+            "WARNING: Retrying after Cloudflare 521 connection timed out\n"
+            "ERROR: Could not find a version that satisfies the requirement requests==2.33.0\n"
+            "ERROR: No matching distribution found for requests==2.33.0"
+        )
+
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
+        stage_calls["count"] += 1
+        return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
+
+    monkeypatch.setattr(installer, "install_from_proxy", fail_mixed_network_resolver)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    with pytest.raises(RuntimeError, match="Cloudflare 521"):
+        installer.install_from_proxy_with_emergency_fallback(
+            python_executable="python",
+            requirement_files=[requirements],
+            constraints_file=None,
+            index_url=APPROVED_PROXY_URL,
+            trusted_host=None,
+            emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+            emergency_wheel_manifest=manifest,
+        )
+
+    assert stage_calls["count"] == 0
 
 
 def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure(
@@ -1772,12 +2062,12 @@ def test_install_from_proxy_with_emergency_fallback_rejects_non_resolver_failure
         assert kwargs["find_links_dir"] is None
         raise RuntimeError("Command failed: python -m pip install: connection timed out")
 
-    def fake_stage_emergency_wheels(**_kwargs: object) -> list[Path]:
+    def fake_stage_emergency_artifacts(**_kwargs: object) -> list[Path]:
         stage_calls["count"] += 1
         return [tmp_path / "wheelhouse" / "requests-2.33.0-py3-none-any.whl"]
 
     monkeypatch.setattr(installer, "install_from_proxy", fail_transport)
-    monkeypatch.setattr(installer, "stage_emergency_wheels", fake_stage_emergency_wheels)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
 
     with pytest.raises(RuntimeError, match="connection timed out"):
         installer.install_from_proxy_with_emergency_fallback(

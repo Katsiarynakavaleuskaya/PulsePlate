@@ -529,12 +529,25 @@ def stage_emergency_wheels(
     manifest_path: Path | None,
 ) -> list[Path]:
     """Download exact emergency wheels requested by the selected requirement files."""
-    staged_paths: list[Path] = []
-    for artifact in emergency_artifacts_requested_by_surfaces(
+    requested_artifacts = emergency_artifacts_requested_by_surfaces(
         requirement_files=requirement_files,
         constraints_file=constraints_file,
         manifest_path=manifest_path,
-    ):
+    )
+    return _stage_emergency_artifacts(
+        artifacts=requested_artifacts,
+        wheelhouse_dir=wheelhouse_dir,
+    )
+
+
+def _stage_emergency_artifacts(
+    *,
+    artifacts: Sequence[dict[str, str]],
+    wheelhouse_dir: Path,
+) -> list[Path]:
+    """Download selected exact emergency artifacts into a wheelhouse."""
+    staged_paths: list[Path] = []
+    for artifact in artifacts:
         wheelhouse_dir.mkdir(parents=True, exist_ok=True)
         destination = wheelhouse_dir / artifact["filename"]
         if destination.exists():
@@ -811,6 +824,8 @@ def load_dependency_security_floors(
 def _resolver_miss_error(runtime_error: RuntimeError, *, package: str, version: str) -> bool:
     """Return True when pip failed because package floor is unavailable on index."""
     message = str(runtime_error)
+    if _pip_upgrade_network_failure(message.lower()):
+        return False
     requirement_text = f"{package}=={version}"
     resolver_markers = (
         f"No matching distribution found for {requirement_text}",
@@ -1421,6 +1436,11 @@ def _artifacts_with_resolver_miss(
     ]
 
 
+def _emergency_artifact_key(artifact: dict[str, str]) -> tuple[str, str]:
+    """Return a stable key for already-staged emergency artifacts."""
+    return (artifact["package"].lower(), artifact["version"].lower())
+
+
 def build_wheelhouse_with_emergency_fallback(
     *,
     python_executable: str,
@@ -1432,51 +1452,52 @@ def build_wheelhouse_with_emergency_fallback(
     emergency_wheel_manifest: Path | None,
 ) -> None:
     """Retry wheelhouse build with staged emergency wheels only after proxy failure."""
-    try:
-        build_wheelhouse(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            index_url=index_url,
-            trusted_host=trusted_host,
-        )
-    except RuntimeError as exc:
-        requested_artifacts = emergency_artifacts_requested_by_surfaces(
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            manifest_path=emergency_wheel_manifest,
-        )
-        if not requested_artifacts:
-            raise
-        resolver_miss_artifacts = _artifacts_with_resolver_miss(
-            exc,
-            requested_artifacts=requested_artifacts,
-        )
-        if not resolver_miss_artifacts:
-            raise
-        for artifact in resolver_miss_artifacts:
-            _require_private_index_project_health(
+    requested_artifacts: list[dict[str, str]] | None = None
+    staged_artifact_keys: set[tuple[str, str]] = set()
+    while True:
+        try:
+            build_wheelhouse(
+                python_executable=python_executable,
+                requirement_files=requirement_files,
+                constraints_file=constraints_file,
+                wheelhouse_dir=wheelhouse_dir,
                 index_url=index_url,
-                package=artifact["package"],
                 trusted_host=trusted_host,
             )
-        staged_wheels = stage_emergency_wheels(
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            manifest_path=emergency_wheel_manifest,
-        )
-        if not staged_wheels:
-            raise
-        build_wheelhouse(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=wheelhouse_dir,
-            index_url=index_url,
-            trusted_host=trusted_host,
-        )
+            return
+        except RuntimeError as exc:
+            if requested_artifacts is None:
+                requested_artifacts = emergency_artifacts_requested_by_surfaces(
+                    requirement_files=requirement_files,
+                    constraints_file=constraints_file,
+                    manifest_path=emergency_wheel_manifest,
+                )
+            remaining_artifacts = [
+                artifact
+                for artifact in requested_artifacts
+                if _emergency_artifact_key(artifact) not in staged_artifact_keys
+            ]
+            resolver_miss_artifacts = _artifacts_with_resolver_miss(
+                exc,
+                requested_artifacts=remaining_artifacts,
+            )
+            if not resolver_miss_artifacts:
+                raise
+            for artifact in resolver_miss_artifacts:
+                _require_private_index_project_health(
+                    index_url=index_url,
+                    package=artifact["package"],
+                    trusted_host=trusted_host,
+                )
+            staged_wheels = _stage_emergency_artifacts(
+                artifacts=resolver_miss_artifacts,
+                wheelhouse_dir=wheelhouse_dir,
+            )
+            if not staged_wheels:
+                raise
+            staged_artifact_keys.update(
+                _emergency_artifact_key(artifact) for artifact in resolver_miss_artifacts
+            )
 
 
 def install_from_proxy_with_emergency_fallback(
@@ -1491,53 +1512,53 @@ def install_from_proxy_with_emergency_fallback(
     allow_pip_download_cache: bool | None = None,
 ) -> None:
     """Retry proxy install with local emergency wheels only after the proxy fails."""
-    try:
-        install_from_proxy(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            index_url=index_url,
-            trusted_host=trusted_host,
-            find_links_dir=None,
-            allow_pip_download_cache=allow_pip_download_cache,
-        )
-    except RuntimeError as exc:
-        requested_artifacts = emergency_artifacts_requested_by_surfaces(
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            manifest_path=emergency_wheel_manifest,
-        )
-        if not requested_artifacts:
-            raise
-        resolver_miss_artifacts = _artifacts_with_resolver_miss(
-            exc,
-            requested_artifacts=requested_artifacts,
-        )
-        if not resolver_miss_artifacts:
-            raise
-        for artifact in resolver_miss_artifacts:
-            _require_private_index_project_health(
+    requested_artifacts: list[dict[str, str]] | None = None
+    staged_artifact_keys: set[tuple[str, str]] = set()
+    while True:
+        try:
+            install_from_proxy(
+                python_executable=python_executable,
+                requirement_files=requirement_files,
+                constraints_file=constraints_file,
                 index_url=index_url,
-                package=artifact["package"],
                 trusted_host=trusted_host,
+                find_links_dir=emergency_wheelhouse_dir if staged_artifact_keys else None,
+                allow_pip_download_cache=allow_pip_download_cache,
             )
-        staged_wheels = stage_emergency_wheels(
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            wheelhouse_dir=emergency_wheelhouse_dir,
-            manifest_path=emergency_wheel_manifest,
-        )
-        if not staged_wheels:
-            raise
-        install_from_proxy(
-            python_executable=python_executable,
-            requirement_files=requirement_files,
-            constraints_file=constraints_file,
-            index_url=index_url,
-            trusted_host=trusted_host,
-            find_links_dir=emergency_wheelhouse_dir,
-            allow_pip_download_cache=allow_pip_download_cache,
-        )
+            return
+        except RuntimeError as exc:
+            if requested_artifacts is None:
+                requested_artifacts = emergency_artifacts_requested_by_surfaces(
+                    requirement_files=requirement_files,
+                    constraints_file=constraints_file,
+                    manifest_path=emergency_wheel_manifest,
+                )
+            remaining_artifacts = [
+                artifact
+                for artifact in requested_artifacts
+                if _emergency_artifact_key(artifact) not in staged_artifact_keys
+            ]
+            resolver_miss_artifacts = _artifacts_with_resolver_miss(
+                exc,
+                requested_artifacts=remaining_artifacts,
+            )
+            if not resolver_miss_artifacts:
+                raise
+            for artifact in resolver_miss_artifacts:
+                _require_private_index_project_health(
+                    index_url=index_url,
+                    package=artifact["package"],
+                    trusted_host=trusted_host,
+                )
+            staged_wheels = _stage_emergency_artifacts(
+                artifacts=resolver_miss_artifacts,
+                wheelhouse_dir=emergency_wheelhouse_dir,
+            )
+            if not staged_wheels:
+                raise
+            staged_artifact_keys.update(
+                _emergency_artifact_key(artifact) for artifact in resolver_miss_artifacts
+            )
 
 
 def install_with_guard(
