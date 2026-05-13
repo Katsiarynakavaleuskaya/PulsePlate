@@ -21,10 +21,13 @@ Initial post-open pass found no actionable human review threads. After the first
 
 ## Fixed in Commit Mapping
 
-- Cubic duplicate vocabulary id finding -> `2780cfc24a3c0b43a415dc855c48c872044d49cb`
-- Cubic dynamic import hygiene finding -> `2780cfc24a3c0b43a415dc855c48c872044d49cb`
-- CodeRabbit backlog ledger metadata / bridge coverage inventory finding -> `2780cfc24a3c0b43a415dc855c48c872044d49cb`
-- CodeRabbit fixed mapping section finding -> `a3e4e73a5c7f93305a90de84eac3436a7f5316ba` (current-head artifact already contained the required section when the later review was inspected)
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `scripts/design/design_component_registry.py` rejects duplicate vocabulary ids; `tests/test_design_component_registry.py` imports the validator normally and covers duplicate vocabulary ids; `docs/roadmap/BACKLOG_LEDGER.md` contains checkbox/status/PR metadata and a separate bridge coverage inventory follow-up.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#issuecomment-4440807068
+Disposition: NOT-A-BUG
+Evidence: Current retrieved CodeRabbit comment reports no actionable comments for the recent review; prior actionable findings are dispositioned above and in the table below.
 
 ## Review Thread Disposition Table
 
