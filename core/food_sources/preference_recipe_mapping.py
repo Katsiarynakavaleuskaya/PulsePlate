@@ -14,6 +14,8 @@ from pathlib import Path
 import re
 
 from core.food_sources.recipe_dish_corpus import (
+    EVIDENCE_POLICY as PR14_EVIDENCE_POLICY,
+    FINAL_GATE_DECISION as PR14_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR14_NEXT_RECOMMENDED_LANE,
     RecipeDishCorpusGovernance,
     RecipeDishCorpusGovernanceError,
@@ -51,6 +53,10 @@ EXPECTED_COVERAGE_REF = "docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_20
 EXPECTED_RECIPE_DISH_CORPUS_REF = (
     "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
 )
+EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION = "requires_dish_mapping"
+EXPECTED_PR11_PREFERENCE_GAP_STATUS = "planner_gap_not_source_authority"
+EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION = "not_approved"
+EXPECTED_PR11_PREFERENCE_NEXT_ACTION = "preference_recipe_mapping_contract"
 
 BLOCKED_METHODS = (
     "scraping",
@@ -101,7 +107,7 @@ _MAPPING_FLAG_KEYS = (
     "llm_output_authority_allowed",
 )
 
-_FORBIDDEN_NOTE_PHRASES = (
+_EXTRA_FORBIDDEN_NOTE_PHRASES = (
     "approved recipe text",
     "recipe text approved",
     "recipe text authority",
@@ -160,6 +166,40 @@ _FORBIDDEN_NOTE_PHRASES = (
     "product display allowed",
     "product display is allowed",
 )
+
+
+def _blocked_method_note_phrases() -> tuple[str, ...]:
+    phrases: list[str] = []
+    seen: set[str] = set()
+    for method in BLOCKED_METHODS:
+        normalized = method.replace("_", " ")
+        variants = {normalized}
+        if normalized == "api call":
+            variants.add("api calls")
+        elif normalized == "download":
+            variants.update({"downloads", "source download", "source downloads"})
+        elif normalized == "paid api use":
+            variants.add("paid source use")
+        elif normalized == "digitalocean postgres load":
+            variants.add("postgres load")
+        elif normalized == "automated collection":
+            variants.add("automation")
+        for variant in sorted(variants):
+            for phrase in (
+                f"{variant} approved",
+                f"{variant} is approved",
+                f"approved {variant}",
+                f"{variant} allowed",
+                f"{variant} is allowed",
+                f"allowed {variant}",
+            ):
+                if phrase not in seen:
+                    seen.add(phrase)
+                    phrases.append(phrase)
+    return tuple(phrases)
+
+
+_FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
 
 _GOVERNANCE_KEYS = frozenset(
     {
@@ -361,6 +401,61 @@ def _coverage_domain_by_name(coverage: SourceGapAudit) -> dict[str, object]:
     return {entry.domain: entry for entry in coverage.coverage_domains}
 
 
+def _require_pr14_handoff(
+    recipe_dish_corpus: RecipeDishCorpusGovernance,
+    context: str,
+) -> None:
+    if recipe_dish_corpus.next_recommended_lane != PR14_NEXT_RECOMMENDED_LANE:
+        raise _mapping_error(context, "PR14 must recommend preference_recipe_mapping_contract")
+    if recipe_dish_corpus.evidence_policy != PR14_EVIDENCE_POLICY:
+        raise _mapping_error(context, f"PR14 evidence_policy must be {PR14_EVIDENCE_POLICY}")
+    if recipe_dish_corpus.final_gate_decision != PR14_FINAL_GATE_DECISION:
+        raise _mapping_error(
+            context, f"PR14 final_gate_decision must be {PR14_FINAL_GATE_DECISION}"
+        )
+
+
+def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> None:
+    domains = _coverage_domain_by_name(coverage)
+    preference_domain = domains.get(SOURCE)
+    if preference_domain is None:
+        raise _mapping_error(context, "PR11 must include preference_menu_planning")
+    if (
+        getattr(preference_domain, "coverage_decision")
+        != EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION
+    ):
+        raise _mapping_error(
+            context,
+            "PR11 preference_menu_planning coverage_decision must be "
+            f"{EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION}",
+        )
+    if getattr(preference_domain, "gap_status") != EXPECTED_PR11_PREFERENCE_GAP_STATUS:
+        raise _mapping_error(
+            context,
+            f"PR11 preference_menu_planning gap_status must be {EXPECTED_PR11_PREFERENCE_GAP_STATUS}",
+        )
+    if (
+        getattr(preference_domain, "authority_decision")
+        != EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION
+    ):
+        raise _mapping_error(
+            context,
+            "PR11 preference_menu_planning authority_decision must be "
+            f"{EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION}",
+        )
+    if getattr(preference_domain, "next_action") != EXPECTED_PR11_PREFERENCE_NEXT_ACTION:
+        raise _mapping_error(
+            context,
+            "PR11 preference_menu_planning must recommend preference_recipe_mapping_contract",
+        )
+    if getattr(preference_domain, "approved_ingest") or getattr(
+        preference_domain, "approved_runtime_authority"
+    ):
+        raise _mapping_error(
+            context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
+        )
+
+
 def _parse_mapping_contract(value: object, *, context: str) -> PreferenceMappingContract:
     data = _require_mapping(value, context)
     unexpected_keys = sorted(set(data) - _MAPPING_KEYS)
@@ -402,23 +497,8 @@ def parse_preference_recipe_mapping_governance(
 ) -> PreferenceRecipeMappingGovernance:
     """Parse and validate the PR15 preference recipe mapping contract artifact."""
 
-    if recipe_dish_corpus.next_recommended_lane != PR14_NEXT_RECOMMENDED_LANE:
-        raise _mapping_error(context, "PR14 must recommend preference_recipe_mapping_contract")
-    domains = _coverage_domain_by_name(coverage)
-    preference_domain = domains.get(SOURCE)
-    if preference_domain is None:
-        raise _mapping_error(context, "PR11 must include preference_menu_planning")
-    if getattr(preference_domain, "next_action") != "preference_recipe_mapping_contract":
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning must recommend preference_recipe_mapping_contract",
-        )
-    if getattr(preference_domain, "approved_ingest") or getattr(
-        preference_domain, "approved_runtime_authority"
-    ):
-        raise _mapping_error(
-            context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
-        )
+    _require_pr14_handoff(recipe_dish_corpus, context)
+    _require_pr11_preference_handoff(coverage, context)
 
     data = _require_mapping(payload, context)
     unexpected_keys = sorted(set(data) - _GOVERNANCE_KEYS)

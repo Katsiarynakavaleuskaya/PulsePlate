@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+from dataclasses import replace
 import json
 import subprocess
 import sys
@@ -11,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from core.food_sources.preference_recipe_mapping import (
+    BLOCKED_METHODS,
     PreferenceRecipeMappingError,
     build_preference_recipe_mapping_report,
     load_preference_recipe_mapping_governance,
@@ -107,6 +109,31 @@ def _mapping_row(payload: dict[str, object], mapping_key: str) -> dict[str, obje
         if isinstance(row, dict) and row.get("mapping_key") == mapping_key:
             return row
     raise AssertionError(f"missing mapping contract {mapping_key}")
+
+
+def _coverage_with_preference_domain(
+    *,
+    coverage_decision: str | None = None,
+    gap_status: str | None = None,
+    authority_decision: str | None = None,
+    next_action: str | None = None,
+) -> SourceGapAudit:
+    coverage_payload = copy.deepcopy(_coverage())
+    domains = tuple(
+        (
+            replace(
+                domain,
+                coverage_decision=coverage_decision or domain.coverage_decision,
+                gap_status=gap_status or domain.gap_status,
+                authority_decision=authority_decision or domain.authority_decision,
+                next_action=next_action or domain.next_action,
+            )
+            if domain.domain == "preference_menu_planning"
+            else domain
+        )
+        for domain in coverage_payload.coverage_domains
+    )
+    return replace(coverage_payload, coverage_domains=domains)
 
 
 def test_load_preference_recipe_mapping_accepts_canonical_artifact() -> None:
@@ -281,40 +308,39 @@ def test_preference_recipe_mapping_rejects_per_mapping_unsafe_flags(flag_name: s
 
 def test_preference_recipe_mapping_rejects_pr11_lane_drift() -> None:
     payload = _governance_payload()
-    coverage_payload = copy.deepcopy(_coverage())
-    wrong_domains = []
-    for domain in coverage_payload.coverage_domains:
-        if domain.domain == "preference_menu_planning":
-            wrong_domains.append(
-                type(domain)(
-                    domain=domain.domain,
-                    coverage_decision=domain.coverage_decision,
-                    primary_sources=domain.primary_sources,
-                    auxiliary_sources=domain.auxiliary_sources,
-                    gap_status=domain.gap_status,
-                    authority_decision=domain.authority_decision,
-                    approved_ingest=domain.approved_ingest,
-                    approved_runtime_authority=domain.approved_runtime_authority,
-                    next_action="some_other_lane",
-                    notes=domain.notes,
-                )
-            )
-        else:
-            wrong_domains.append(domain)
-    coverage_payload = type(coverage_payload)(
-        schema_version=coverage_payload.schema_version,
-        generated_on=coverage_payload.generated_on,
-        catalog_ref=coverage_payload.catalog_ref,
-        onboarding_ref=coverage_payload.onboarding_ref,
-        pr10_landed_pr=coverage_payload.pr10_landed_pr,
-        coverage_domains=tuple(wrong_domains),
-        source_gap_decisions=coverage_payload.source_gap_decisions,
-        next_recommended_lane=coverage_payload.next_recommended_lane,
-        final_gate_decision=coverage_payload.final_gate_decision,
-        notes=coverage_payload.notes,
-    )
+    coverage_payload = _coverage_with_preference_domain(next_action="some_other_lane")
 
     with pytest.raises(PreferenceRecipeMappingError, match="PR11 preference_menu_planning"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("coverage_decision", "approved_source_mapping"),
+        ("gap_status", "planner_gap_as_source_authority"),
+        ("authority_decision", "source_authority"),
+    ),
+)
+def test_preference_recipe_mapping_rejects_pr11_authority_decision_drift(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    if field_name == "coverage_decision":
+        coverage_payload = _coverage_with_preference_domain(coverage_decision=bad_value)
+    elif field_name == "gap_status":
+        coverage_payload = _coverage_with_preference_domain(gap_status=bad_value)
+    else:
+        coverage_payload = _coverage_with_preference_domain(authority_decision=bad_value)
+
+    with pytest.raises(
+        PreferenceRecipeMappingError, match=f"PR11 preference_menu_planning .*{field_name}"
+    ):
         parse_preference_recipe_mapping_governance(
             payload,
             coverage=coverage_payload,
@@ -325,23 +351,34 @@ def test_preference_recipe_mapping_rejects_pr11_lane_drift() -> None:
 def test_preference_recipe_mapping_rejects_pr14_lane_drift() -> None:
     payload = _governance_payload()
     recipe_governance = _recipe_dish_corpus()
-    recipe_governance = type(recipe_governance)(
-        schema_version=recipe_governance.schema_version,
-        generated_on=recipe_governance.generated_on,
-        per_chain_legal_ref=recipe_governance.per_chain_legal_ref,
-        pr13_landed_pr=recipe_governance.pr13_landed_pr,
-        source=recipe_governance.source,
-        source_classification=recipe_governance.source_classification,
-        source_family=recipe_governance.source_family,
-        evidence_policy=recipe_governance.evidence_policy,
-        blocked_methods=recipe_governance.blocked_methods,
-        recipe_corpus_reviews=recipe_governance.recipe_corpus_reviews,
-        next_recommended_lane="some_other_lane",
-        final_gate_decision=recipe_governance.final_gate_decision,
-        notes=recipe_governance.notes,
-    )
+    recipe_governance = replace(recipe_governance, next_recommended_lane="some_other_lane")
 
     with pytest.raises(PreferenceRecipeMappingError, match="PR14 must recommend"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=recipe_governance,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("evidence_policy", "recipe_dish_corpus_governance_allows_source_use"),
+        ("final_gate_decision", "recipe_dish_corpus_ingest_ready"),
+    ),
+)
+def test_preference_recipe_mapping_rejects_pr14_no_ingest_handoff_drift(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    if field_name == "evidence_policy":
+        recipe_governance = replace(_recipe_dish_corpus(), evidence_policy=bad_value)
+    else:
+        recipe_governance = replace(_recipe_dish_corpus(), final_gate_decision=bad_value)
+
+    with pytest.raises(PreferenceRecipeMappingError, match=f"PR14 .*{field_name}"):
         parse_preference_recipe_mapping_governance(
             payload,
             coverage=_coverage(),
@@ -375,6 +412,23 @@ def test_preference_recipe_mapping_rejects_pr14_lane_drift() -> None:
 def test_preference_recipe_mapping_rejects_notes_that_contradict_policy(note: str) -> None:
     payload = _governance_payload()
     payload["notes"] = note
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+@pytest.mark.parametrize("method", BLOCKED_METHODS)
+@pytest.mark.parametrize("approval", ("approved", "is approved", "allowed", "is allowed"))
+def test_preference_recipe_mapping_rejects_blocked_method_note_approvals(
+    method: str,
+    approval: str,
+) -> None:
+    payload = _governance_payload()
+    payload["notes"] = f"{method} {approval}"
 
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
         parse_preference_recipe_mapping_governance(
