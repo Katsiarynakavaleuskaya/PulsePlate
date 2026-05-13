@@ -61,11 +61,10 @@ DOCKER_SURFACE_PREFIXES = {
     "scripts/ci/emergency_python_wheels.json",
     "scripts/ci/install_locked_python_requirements.py",
 }
-FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI", "Accessibility Tests"}
+FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI"}
 FRONTEND_SURFACE_PREFIXES = {
     ".github/actions/npm-ci-with-retry/",
     ".github/actions/python-setup/",
-    ".github/workflows/accessibility.yml",
     ".github/workflows/frontend-ci.yml",
     ".nvmrc",
     "constraints.txt",
@@ -534,7 +533,6 @@ def main(argv: list[str] | None = None) -> int:
         required_names, required_metadata_available = _fetch_required_check_names(
             repo, base_ref, token
         )
-        changed_paths = _fetch_pr_changed_paths(pr_number, repo, token)
     except urllib.error.HTTPError as exc:
         print(f"ERROR: failed to query GitHub check state: HTTP {exc.code}")
         return 1
@@ -558,6 +556,11 @@ def main(argv: list[str] | None = None) -> int:
     _print_entries("Current-head required checks:", current_required)
 
     if not required_metadata_available:
+        try:
+            changed_paths = _fetch_pr_changed_paths(pr_number, repo, token)
+        except urllib.error.HTTPError as exc:
+            print(f"ERROR: failed to query GitHub changed files: HTTP {exc.code}")
+            return 1
         advisory_blocking_entries, advisory_entries = _partition_fallback_advisory_entries(
             advisory_entries, changed_paths
         )

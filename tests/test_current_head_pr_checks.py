@@ -248,7 +248,7 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
                 conclusion="",
             ),
             {".github/workflows/accessibility.yml"},
-            True,
+            False,
         ),
         (
             current_head_checks.CheckEntry(
@@ -892,6 +892,49 @@ def test_main_passes_when_required_check_set_is_empty_but_available(
     assert exit_code == 0
     assert "Current-head required checks:" in captured.out
     assert "- none" in captured.out
+
+
+def test_main_does_not_fetch_changed_paths_when_required_metadata_is_available(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "CLEAN",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "build",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": "2026-03-12T05:09:03Z",
+                    "detailsUrl": "https://example.invalid/passed",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: ({"build"}, True)
+    )
+
+    def fail_if_called(*args: object) -> set[str]:
+        raise AssertionError("changed paths should be fetched only in fallback mode")
+
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_changed_paths", fail_if_called)
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "current-head-checks: passed." in captured.out
 
 
 def test_status_context_expected_is_treated_as_pending() -> None:
