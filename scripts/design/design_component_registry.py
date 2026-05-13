@@ -84,6 +84,8 @@ def _load_vocabulary(repo_root: Path = REPO_ROOT) -> dict[str, dict[str, Any]]:
     for index, item in enumerate(data):
         if not isinstance(item, dict) or not isinstance(item.get("id"), str):
             raise RegistryError(f"{VOCABULARY_PATH}: item {index} requires string id")
+        if item["id"] in vocabulary:
+            raise RegistryError(f"{VOCABULARY_PATH}: duplicate component id {item['id']!r}")
         vocabulary[item["id"]] = item
     return vocabulary
 
@@ -258,7 +260,8 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: list[str] | None = None, *, stdout: TextIO = sys.stdout) -> int:
+def main(argv: list[str] | None = None, *, stdout: TextIO | None = None) -> int:
+    stdout = stdout or sys.stdout
     args = _build_parser().parse_args(argv)
     if args.command == "validate":
         errors = validate_registry(args.path)
