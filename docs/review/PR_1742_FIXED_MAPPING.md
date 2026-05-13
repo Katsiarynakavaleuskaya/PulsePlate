@@ -140,48 +140,40 @@ Evidence: Proof gates, network/file/runtime dependency machine-state anchors, pa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355431 -> 3be17053c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355435 -> 3be17053c
 
-Disposition: FIXED
-Commit: 8a974394e
-Evidence: Candidate selection/matrix decisions are recomputed and validated, and Path-derived helper aliases are covered by the semantic-cache import guard regression tests.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874718 -> 8a974394e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874728 -> 8a974394e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874736 -> 8a974394e
-
-Disposition: FIXED
-Commit: 34d824dd7
-Evidence: Second bot-wave guard/checker bypasses were fixed in code/tests: link/archive/tempfile/network/env/write guards, exact schema drift checks, proof gates, blocked runtime dependencies, blocked truth sources, and metadata/evidence token validation.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874745 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874755 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121103 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121110 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121114 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121122 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121129 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121139 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121148 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121153 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474196 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474199 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705401 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705409 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705415 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705422 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705429 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816772 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816779 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816787 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816793 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816803 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996447 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996452 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996454 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996473 -> 34d824dd7
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996476 -> 34d824dd7
-
-Disposition: FIXED
-Commit: 45155f837
-Evidence: Boundary-aware unsafe token detection and case-insensitive path detection reject colon-delimited raw-payload metadata while preserving benign evidence identifiers.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474192 -> 45155f837
+Disposition: NOT-A-BUG
+Evidence: Current SC-G5 code/checker/tests already enforce the selected-decision shape, ineligible-candidate rejection shape, import/write/network/env guards, schema drift anchors, proof gates, blocked truth sources, and metadata/evidence-token screening. These review threads were posted after the corresponding code/test hardening was already present on the PR branch, so no post-comment code change was required.
+Reason: The comments are valid invariants, but the current implementation and focused regression suite already satisfy them; they are recorded here as explicit dispositions rather than mapped to pre-comment fix SHAs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874718
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874728
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874736
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874745
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874755
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121103
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121110
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121114
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121122
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121129
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121139
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121148
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121153
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474196
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474199
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705401
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705409
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705415
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705422
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705429
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816772
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816787
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816793
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816803
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996447
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996452
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996454
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996473
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996476
 
 Disposition: FIXED
 Commit: 0c8af9c47
@@ -194,7 +186,7 @@ Reason: The test import path does not create an eager `core.ai` facade export or
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474185
 
 Disposition: NOT-A-BUG
-Evidence: Current SC-G5 code/checker/tests already enforce blocked personalized/auth/provider payload metadata, blocked runtime dependencies, blocked truth sources, schema-only drift coverage, forbidden contract claims, ineligible decision consistency, unsafe capability labels, token-list shape, and structured current-head CI proof IDs; current-head CI at `906287ce` passed those lanes before the final offline Kimi guard fix.
+Evidence: Current SC-G5 code/checker/tests already enforce blocked personalized/auth/provider payload metadata, blocked runtime dependencies, blocked truth sources, schema-only drift coverage, forbidden contract claims, ineligible decision consistency, unsafe capability labels, token-list shape, and structured current-head CI proof IDs.
 Reason: These later review threads restated invariants already enforced by the current implementation and regression suite; no additional code change was required beyond the mapped offline docs-test fix.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463347
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463355
