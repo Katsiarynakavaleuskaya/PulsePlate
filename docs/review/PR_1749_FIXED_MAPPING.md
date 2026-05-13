@@ -18,6 +18,7 @@
   - `389e5c3d5d62ad6721842e8fc686db8a0b91107d` - valid ancestor proof mapping.
   - `791caa567ff0f3f4bed2051e93141f16bf667554` - latest review-fix mapping.
   - `c15f2ac344b92be833567d7c64745fd3c11d0013` - notification diagnostic hardening.
+  - `a8d7432917674a63bd844e36d95748ab1e03d3e7` - diagnostic fix mapping update.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -50,7 +51,7 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168816 -> 6b837c9207ccddb00f2663a8d73762f458b154d9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168825 -> 6b837c9207ccddb00f2663a8d73762f458b154d9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284047218 -> c15f2ac344b92be833567d7c64745fd3c11d0013
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302268 -> 791caa567ff0f3f4bed2051e93141f16bf667554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302268 -> a8d7432917674a63bd844e36d95748ab1e03d3e7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302273 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302278 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284068594 -> c15f2ac344b92be833567d7c64745fd3c11d0013
@@ -75,6 +76,10 @@ Evidence: `scripts/orchestration/experiment_notify.py` now rejects promoted acce
 Disposition: FIXED
 Commit: 389e5c3d5d62ad6721842e8fc686db8a0b91107d
 Evidence: This artifact now uses full valid commit SHAs reachable from the current branch head for every mapped FIXED proof.
+
+Disposition: FIXED
+Commit: a8d7432917674a63bd844e36d95748ab1e03d3e7
+Evidence: This artifact maps the latest stale-SHA review thread to a current-head ancestor commit made after the review comment.
 
 Disposition: FIXED
 Commit: c15f2ac344b92be833567d7c64745fd3c11d0013
