@@ -82,6 +82,11 @@ Disposition: NOT-A-BUG
 Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now has a blank line before the `discussion_r3235533880` mapping block; Cubic marked the thread addressed by `0d43a3cad2d38577da0895c61befa6b9c845712a`.
 Reason: The resolved Cubic thread was generated from stale file context and is already satisfied in the live artifact.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#pullrequestreview-4283256351
+Disposition: NOT-A-BUG
+Evidence: This Cubic review aggregates the resolved inline `discussion_r3235633560`; the live artifact already separates mapping blocks and the inline thread is mapped above.
+Reason: The aggregate review is not a separate code finding beyond the already-mapped inline thread.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#pullrequestreview-4283143515 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Disposition: FIXED
 Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
