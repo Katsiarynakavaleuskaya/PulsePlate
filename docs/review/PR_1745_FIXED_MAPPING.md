@@ -1,0 +1,45 @@
+# PR 1745 Fixed In Commit Mapping
+
+## PR
+
+- PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745
+- Title: `feat(design): add design component contract registry seed`
+- Branch: `codex/design-component-contract-registry-seed-v1`
+- Current head SHA: `2ecb4a97a613f5e46d35442368d4b73283b6484d`
+
+## Scope Summary
+
+This PR adds the first machine-readable design component contract registry seed, a repo-local validator, deterministic tests, and narrow governance pointers. It does not implement runtime web/iOS, tokens, generated mirrors, Storybook config, Figma/Canva/Kimi/Penpot writes, screenshots, binary assets, backend, OpenAPI, billing, auth, StoreKit, HealthKit, deploy, or CI workflow changes.
+
+## Review Thread Disposition Table
+
+| Source | URL | Disposition | Commit | Evidence |
+| --- | --- | --- | --- | --- |
+| Pre-open premortem | local diff review | FIXED | `2ecb4a97a613f5e46d35442368d4b73283b6484d` | `tests/test_design_component_registry.py` covers malformed JSON, non-object JSON, missing fields, unknown ids, duplicates, invalid status, empty strings, and external authority promotion. |
+| Post-open initial review | no review thread URL yet | NOT-A-BUG | n/a | Mapping artifact created after PR number assignment; no human/bot review thread had been dispositioned at artifact creation time. |
+
+## Command Evidence
+
+- `python3 scripts/orchestration/check_preflight.py` - PASS
+- `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute ...` - PASS
+- `.venv/bin/python scripts/orchestration/check_agent_consistency.py` - PASS
+- `.venv/bin/python scripts/orchestration/task_bootstrap.py --goal "Add design component contract registry seed" ...` - PASS, packet `24ef699bc5fa`
+- `.venv/bin/python scripts/design/design_component_registry.py validate docs/orchestration/contracts/design_component_registry.v1.json` - PASS
+- `.venv/bin/python scripts/design/design_component_registry.py summarize docs/orchestration/contracts/design_component_registry.v1.json` - PASS
+- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 11 tests
+- `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py` - PASS, 31 tests
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 42 changed-file tests after commits
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
+- Pre-push hooks - PASS
+
+## Unresolved / Deferred
+
+- Post-open bot and human review threads: pending.
+- CodeRabbit/Sourcery/Cubic status: pending.
+- Codex Security plugin post-open diff scan: pending.
+- Strict merge-readiness wrapper: pending.
+- Next design lane remains `feat(design): add design bridge coverage inventory`; it is a follow-up lane, not deferred runtime work from this PR.
+
+## Mapping Policy
+
+This mapping is evidence after a fix or formal disposition. It does not replace fixing root causes. Future actionable human or bot comments must be classified as `FIXED`, `NOT-A-BUG`, or `DEFERRED` before any thread is resolved or any merge-readiness checkbox is marked.
