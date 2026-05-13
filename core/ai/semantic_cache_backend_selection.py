@@ -69,7 +69,20 @@ _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _PATH_RE = re.compile(r"(?:^|[\s=])(?:file://|/|~[/\\]|[A-Za-z]:[\\/]|\\\\)")
 _RELATIVE_PATH_RE = re.compile(r"(?:^|[\s=])(?:\./|\.\./|[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 _UNSAFE_TOKEN_RE = re.compile(
-    r"secret|credential|authorization|api[_:-]?key|bearer|cookie|private[_:-]?key|sk-[a-z0-9]",
+    r"secret"
+    r"|token"
+    r"|jwt"
+    r"|credential"
+    r"|authorization"
+    r"|api[_:-]?key"
+    r"|bearer"
+    r"|cookie"
+    r"|private[_:-]?key"
+    r"|sk-[a-z0-9]"
+    r"|ghp_[a-z0-9_]+"
+    r"|github_pat_[a-z0-9_]+"
+    r"|xox[baprs]-[a-z0-9-]+"
+    r"|eyj[a-z0-9_-]*\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)?",
     re.IGNORECASE,
 )
 _UNSAFE_METADATA_RE = re.compile(

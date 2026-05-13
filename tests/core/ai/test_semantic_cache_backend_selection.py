@@ -689,6 +689,17 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         replace(_candidate(), candidate_id="candidate$bad")
     with pytest.raises(ValueError, match="unsafe token"):
         replace(_candidate(), candidate_id="sk-secret")
+    for unsafe_value in (
+        "access_token",
+        "ghp_test_token",
+        "github_pat_test_token",
+        "xoxb-test-token",
+        "eyJ.test.signature",
+    ):
+        with pytest.raises(ValueError, match="unsafe token"):
+            replace(_candidate(), current_head_ci_proof_id=unsafe_value)
+        with pytest.raises(ValueError, match="unsafe token"):
+            replace(_candidate(), human_approval_record_id=unsafe_value)
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
