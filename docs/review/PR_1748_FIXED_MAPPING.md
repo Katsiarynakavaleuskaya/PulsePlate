@@ -44,6 +44,11 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: focused workflow tests pass (`27 passed`).
   - Evidence: `guard_actions_pin.py --root .` passes.
   - Evidence: `make validate-changed`, full pre-commit, commit hooks, and pre-push hooks passed.
+- Current-head CI finding: FIXED by `ddaff0637691788eee07e02be746f97ddc26fe82`
+  - Finding: `test-main (3.11, 60)` failed because the Kimi docs-only guard required `origin/main...HEAD`, but GitHub's PR checkout did not have `origin/main`.
+  - Evidence: CI job `75817373389` failed at `tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only` with `fatal: ambiguous argument 'origin/main...HEAD'`.
+  - Evidence: `tests/test_design_automation_next_lane_docs.py` now falls back to the PR merge commit base `HEAD^1...HEAD` when `origin/main...HEAD` is unavailable.
+  - Evidence: `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py tests/test_ci_workflow_pr_size_governance_contract.py` passes (`56 passed`).
 
 ## Fixed in Commit Mapping
 
@@ -59,6 +64,10 @@ Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now includes the exact required
 Disposition: NOT-A-BUG
 Evidence: Current PR head `828aee1179d74b2501ab04346fe7762d377f2208` includes `00c376a4e77be4af919d9cce0bd79c3ec93e83ae` in history; `git merge-base --is-ancestor 00c376a4e77be4af919d9cce0bd79c3ec93e83ae HEAD` returned `0`.
 Reason: The bot comment referenced a stale reviewed commit sibling; the current PR branch history contains the mapped implementation commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
+Disposition: FIXED
+Commit: ddaff0637691788eee07e02be746f97ddc26fe82
+Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi docs-only guard and adds a fallback diff base for GitHub PR checkouts that lack `origin/main`; focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
 
 ## Local Validation
 
@@ -72,8 +81,10 @@ Reason: The bot comment referenced a stale reviewed commit sibling; the current 
 - `PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): migrate paths-filter to node24 pin"` - PASS hooks
 - `git push -u origin codex/fix-ci-paths-filter-node24` - PASS pre-push hooks
+- `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py tests/test_ci_workflow_pr_size_governance_contract.py` - PASS (`56 passed`)
+- `PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after current-head CI fix
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after PR open.
+- Current-head PR checks are pending after current-head CI fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
