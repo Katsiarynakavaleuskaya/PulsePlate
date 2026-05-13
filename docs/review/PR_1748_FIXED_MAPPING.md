@@ -51,6 +51,14 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
 Disposition: FIXED
 Commit: 00c376a4e77be4af919d9cce0bd79c3ec93e83ae
 Evidence: `.github/workflows/ci.yml` uses `dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d`; `tests/test_ci_workflow_pr_size_governance_contract.py` asserts the pin and iOS filter contract.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235352148 -> 828aee1179d74b2501ab04346fe7762d377f2208
+Disposition: FIXED
+Commit: 828aee1179d74b2501ab04346fe7762d377f2208
+Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now includes the exact required `- [x] Discussion-thread pass completed` and `- [x] Fixed in commit mapping completed` checkbox labels; `check_pr_body_phase2_gates.py --pr-number 1748 --body ...` passes locally.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235352156
+Disposition: NOT-A-BUG
+Evidence: Current PR head `828aee1179d74b2501ab04346fe7762d377f2208` includes `00c376a4e77be4af919d9cce0bd79c3ec93e83ae` in history; `git merge-base --is-ancestor 00c376a4e77be4af919d9cce0bd79c3ec93e83ae HEAD` returned `0`.
+Reason: The bot comment referenced a stale reviewed commit sibling; the current PR branch history contains the mapped implementation commit.
 
 ## Local Validation
 
