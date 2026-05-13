@@ -12,6 +12,8 @@
   - `8db30a3cf` — fail closed on unknown supersession ancestor references.
   - `1c81daf00` — keep current-head merge-readiness checkbox open until final current-head pass.
   - `a0e81b4b4` — remove workstation-local absolute paths from review evidence.
+  - `b495847c7` — disposition current-head reachability review thread after live branch proof.
+  - `c27b00b9d` — cover disconnected known supersede cycles for diff coverage.
 
 ## Discussion Thread Pass
 
@@ -87,6 +89,11 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 42cb54728 HEAD`, `git merge-base --is-ancestor 8db30a3cf HEAD`, `git merge-base --is-ancestor a0e81b4b4 HEAD`, and `git merge-base --is-ancestor 48922b778 HEAD` returned `0` locally on branch `codex/fix-replay-sort-clean`; `git rev-parse HEAD` returned `48922b7786f8cfe9034b29db0ac3ca9322926094`.
 Reason: The comment references a non-current reviewed SHA; the mapped FIXED commits are reachable from the live PR head used for current-head CI.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25793116493/job/75765042475 -> c27b00b9d
+Disposition: FIXED
+Commit: c27b00b9d
+Evidence: `tests/core/evidence/test_replay.py::test_existing_disconnected_known_supersede_cycle_fails_closed` covers the fail-closed orphan branch for a known-id supersede cycle; focused replay tests passed with `36 passed`.
+
 ## Premortem Risk Review
 
 - Decision: `proceed with changes`.
@@ -100,6 +107,8 @@ Reason: The comment references a non-current reviewed SHA; the mapped FIXED comm
   - Disposition: FIXED via `3dee930fc`, with disconnected successor, parallel successor, and existing non-promoting entry tests.
 - Unknown supersede references: malformed ancestry can appear satisfied when it includes the active id plus a missing id.
   - Disposition: FIXED via `8db30a3cf`, with explicit known-id validation before successor selection.
+- Diff coverage regression: current-head CI reported `core/evidence/replay.py` lines 243-244 uncovered.
+  - Disposition: FIXED via `c27b00b9d`, with `test_existing_disconnected_known_supersede_cycle_fails_closed`.
 
 ## Merge Readiness
 
@@ -121,6 +130,7 @@ Reason: The comment references a non-current reviewed SHA; the mapped FIXED comm
 - `make validate-changed` — PASS
 - `./.venv/bin/python -m pytest tests/core/evidence/test_replay.py -q` — PASS
 - `.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`35 passed`)
+- `.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`36 passed`)
 - `.venv/bin/python -m ruff check core/evidence/replay.py tests/core/evidence/test_replay.py` — PASS
 - `./.venv/bin/python -m bandit -r core/evidence scripts/orchestration -ll` — PASS (no security issues)
 - `./.venv/bin/pip-audit -r requirements.txt` — FAIL expected baseline: existing `urllib3==2.6.3` CVEs (`CVE-2026-44431`, `CVE-2026-44432`) outside PR scope.
