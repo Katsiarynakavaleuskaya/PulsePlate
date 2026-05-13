@@ -21,6 +21,7 @@
   - `a8d7432917674a63bd844e36d95748ab1e03d3e7` - diagnostic fix mapping update.
   - `d2e15ebb1c51584d5d97da639bd04868185708d2` - stale proof mapping update.
   - `9e42c202155683886b49ee381c3f1b15b67a0955` - promotion evidence and diagnostic validation.
+  - `527ea55bce9345189a09403f13dc310c45d74a63` - promotion evidence mapping update.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -58,6 +59,7 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302278 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284068594 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236321888 -> c15f2ac344b92be833567d7c64745fd3c11d0013
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236445973 -> 527ea55bce9345189a09403f13dc310c45d74a63
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284209741 -> 9e42c202155683886b49ee381c3f1b15b67a0955
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236445976 -> 9e42c202155683886b49ee381c3f1b15b67a0955
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236445980 -> 9e42c202155683886b49ee381c3f1b15b67a0955
@@ -89,6 +91,10 @@ Evidence: This artifact now uses full valid commit SHAs reachable from the curre
 Disposition: FIXED
 Commit: a8d7432917674a63bd844e36d95748ab1e03d3e7
 Evidence: This artifact maps the latest stale-SHA review thread to a current-head ancestor commit made after the review comment.
+
+Disposition: FIXED
+Commit: 527ea55bce9345189a09403f13dc310c45d74a63
+Evidence: This artifact maps the latest current-head stale-proof review thread to a current-head ancestor commit made after the review comment.
 
 Disposition: FIXED
 Commit: c15f2ac344b92be833567d7c64745fd3c11d0013
