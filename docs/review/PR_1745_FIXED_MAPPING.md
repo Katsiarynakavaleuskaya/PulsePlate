@@ -242,6 +242,11 @@ Disposition: FIXED
 Commit: 9fdc2ca63ed78b28506aa48a1de23f3f991c189b
 Evidence: Component records now reject fields outside the contract shape; `tests/test_design_component_registry.py` rejects `figma_node`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235407615 -> 284735c75f87d732450e4380c44b59b5c9f91079f
+Disposition: FIXED
+Commit: 284735c75f87d732450e4380c44b59b5c9f91079f
+Evidence: Registry top-level shape now rejects fields outside the contract schema; `tests/test_design_component_registry.py` rejects top-level `figma_node`.
+
 ## Review Thread Disposition Table
 
 | Source | URL | Disposition | Commit | Evidence |
@@ -278,6 +283,7 @@ Evidence: Component records now reject fields outside the contract shape; `tests
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229358 | NOT-A-BUG | n/a | Proof commits are reachable from the PR branch head; the bot checked a stale reviewed snapshot SHA. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229365 | FIXED | `9fdc2ca63ed78b28506aa48a1de23f3f991c189b` | Partial status requires a repo-backed web runtime anchor. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229374 | FIXED | `9fdc2ca63ed78b28506aa48a1de23f3f991c189b` | Component rows reject unexpected fields. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235407615 | FIXED | `284735c75f87d732450e4380c44b59b5c9f91079f` | Registry top-level shape now rejects fields outside the contract schema. |
 
 ## Command Evidence
 
