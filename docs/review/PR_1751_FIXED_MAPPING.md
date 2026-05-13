@@ -2,8 +2,8 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed.
-- [ ] Fixed in commit mapping completed.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Implementing Commits
 
@@ -52,9 +52,9 @@ At lane start, local `main` was synced with `origin/main` (`0 0`), but GitHub st
 
 Operator explicitly held main on control and approved opening this PR lane. This PR must remain draft and must not claim merge readiness while required current-head checks, bot review, or main fallout are unresolved.
 
-## Fixed Thread Mapping
+## Fixed in Commit Mapping
 
-No GitHub review threads were open when this artifact was created.
+- No actionable review comments
 
 ## Merge Readiness
 
