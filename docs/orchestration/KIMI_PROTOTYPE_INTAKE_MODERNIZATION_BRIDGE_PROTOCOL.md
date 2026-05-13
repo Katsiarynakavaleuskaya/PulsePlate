@@ -11,7 +11,7 @@ It is a docs/governance bridge only. It does not authorize runtime web, iOS, bac
 
 Current read-only evidence records for this lane are:
 
-| Evidence id | Source name | Source URL / locator | Captured at | Owner | Reviewer | Artifact class | Access notes | Promotion status | Repo evidence anchors | Allowed use |
+| Evidence id | Source name | Source URL / locator | Captured at | Owner | Reviewer | Artifact class | Access notes | Status | Repo evidence anchors | Allowed use |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `kimi-page-2026-05-13` | Kimi published page | `https://7zngnnxxihim6.kimi.page/` | `2026-05-13` | `@katsiaryna_kavaleuskaya` | `agent-coordinator` | `page` | operator-provided public URL | `read_only` | `docs/design/REFERENCE_MANIFEST_SCHEMA.md`, `docs/design/REFERENCE_SCORECARD.md` | Inspect product/visual direction and user-facing flow ideas |
 | `kimi-drive-folder-2026-05-13` | Kimi Drive prototype folder | `https://drive.google.com/drive/folders/1kVBP5Gjolmg_RUiorx5B_biw51ueGwXe` | `2026-05-13` | `@katsiaryna_kavaleuskaya` | `agent-coordinator` | `drive_folder` | connector visibility status `access_not_verified` | `read_only` | `docs/design/REFERENCE_MANIFEST_SCHEMA.md`, `docs/design/REFERENCE_SCORECARD.md` | Record available artifact inventory, not file contents as repo truth |
@@ -38,11 +38,12 @@ Unknown values must remain `unspecified`. Do not infer component ownership, toke
 
 ## Intake Record Contract
 
-Every current or future Kimi evidence record must include these fields before it can influence a brief:
+Every current or future Kimi evidence record must be compatible with `docs/design/REFERENCE_MANIFEST_SCHEMA.md` and include these fields before it can influence a brief:
 
 | Field | Meaning | Unknown value |
 | --- | --- | --- |
 | `evidence_id` | Stable repo-local id | `unspecified` |
+| `reference_id` | Manifest-compatible stable repo-local id | `unspecified` |
 | `source_name` | Human source label | `unspecified` |
 | `source_url` | Kimi, Drive, Figma, or other locator | `unspecified` |
 | `captured_at` | Evidence capture date/time | `unspecified` |
@@ -50,20 +51,34 @@ Every current or future Kimi evidence record must include these fields before it
 | `owner` | Operator or lane owner | `unspecified` |
 | `reviewer` | Role agent or human reviewer | `unspecified` |
 | `allowed_use` | Read-only purpose | `read_only` |
-| `promotion_status` | `read_only`, `normalized`, `candidate_for_brief`, or `rejected` | `read_only` |
+| `status` | `read_only`, `normalized`, `candidate_for_brief`, or `rejected` | `read_only` |
+| `product_category` | Manifest product category such as wellness, SaaS, ecommerce, coaching, or analytics | `unspecified` |
+| `platform` | Manifest platform array such as `web`, `ios`, `android`, `desktop`, `cross_platform`, or `unknown` | `unspecified` |
+| `surface_type` | Manifest surface array such as landing, dashboard, onboarding, paywall, or settings | `unspecified` |
+| `visual_archetype` | Normalized visual pattern, not vendor wording | `unspecified` |
+| `palette_archetype` | Derived palette family, not copied color values | `unspecified` |
+| `typography_archetype` | Derived type hierarchy pattern | `unspecified` |
+| `spacing_density` | `compact`, `balanced`, `comfortable`, `editorial`, or `unknown` | `unspecified` |
+| `radius_profile` | `sharp`, `subtle`, `medium`, `soft`, `pill`, `mixed`, or `unknown` | `unspecified` |
+| `component_patterns` | Normalized component patterns observed | `unspecified` |
+| `layout_patterns` | Normalized layout patterns observed | `unspecified` |
+| `motion_notes` | Motion pattern and reduced-motion risk notes | `unspecified` |
 | `normalization_notes` | How observations map into PulsePlate vocabulary | `unspecified` |
 | `forbidden_copy_elements` | Code, assets, layouts, copy, or claims that must not be copied | `unspecified` |
 | `mapped_pulseplate_components` | Repo-confirmed component vocabulary or registry anchors | `unspecified` |
 | `repo_evidence_anchors` | Repo docs/tests/contracts supporting any promotion | `unspecified` |
 | `wellness_safety_notes` | Wellness-only claim review | `unspecified` |
-| `accessibility_risk_notes` | Contrast, focus, motion, keyboard, touch, readability risks | `unspecified` |
+| `accessibility_notes` | Contrast, focus, motion, keyboard, touch, readability risks | `unspecified` |
 | `security_privacy_notes` | Secret, PII, internal URL, bundle, or external-write risks | `unspecified` |
 | `license_status` | External artifact license or permission status | `unspecified` |
 | `attribution_required` | Whether attribution is required before any brief promotion | `unspecified` |
 | `legal_copy_risks` | Copy, layout, claim, or asset reuse risks | `unspecified` |
+| `monetization_notes` | Conversion/paywall/pricing signal notes without copying claims | `unspecified` |
+| `icon-silhouette-check` | Manifest guard status: `required`, `passed`, `not_applicable`, or `blocked` | `required` |
+| `design-guard` | Manifest guard status: `required`, `passed`, `not_applicable`, or `blocked` | `required` |
 | `adopt_adapt_reject_decision` | Deterministic scorecard decision: `adopt`, `adapt`, or `reject` | `unspecified` |
 
-`candidate_for_brief` is forbidden unless `adopt_adapt_reject_decision`, `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete. `reject` decisions cannot influence a brief. Incomplete evidence stays `read_only` or `normalized`.
+`status=candidate_for_brief` is forbidden unless every required field in `docs/design/REFERENCE_MANIFEST_SCHEMA.md` is complete, including `adopt_adapt_reject_decision`, `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, repo evidence anchors, `product_category`, `platform`, `surface_type`, visual/palette/typography archetypes, component/layout patterns, `monetization_notes`, `icon-silhouette-check`, and `design-guard`. `reject` decisions cannot influence a brief. Incomplete evidence stays `read_only` or `normalized`.
 
 ## Modernization Extraction
 

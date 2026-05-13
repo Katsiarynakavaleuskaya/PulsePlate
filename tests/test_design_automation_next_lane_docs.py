@@ -526,7 +526,7 @@ def test_kimi_current_evidence_records_have_provenance() -> None:
     protocol = _read(KIMI_PROTOCOL)
 
     required = [
-        "| Evidence id | Source name | Source URL / locator | Captured at | Owner | Reviewer | Artifact class | Access notes | Promotion status | Repo evidence anchors | Allowed use |",
+        "| Evidence id | Source name | Source URL / locator | Captured at | Owner | Reviewer | Artifact class | Access notes | Status | Repo evidence anchors | Allowed use |",
         *(f"`{evidence_id}`" for evidence_id in KIMI_EVIDENCE_IDS),
         f"`{KIMI_CAPTURE_DATE}`",
         "`@katsiaryna_kavaleuskaya`",
@@ -534,7 +534,7 @@ def test_kimi_current_evidence_records_have_provenance() -> None:
         "connector visibility status `access_not_verified`",
         "bundle hash `unspecified`",
         "node mappings `unspecified` unless repo-confirmed",
-        "Every current or future Kimi evidence record must include these fields before it can influence a brief:",
+        "Every current or future Kimi evidence record must be compatible with `docs/design/REFERENCE_MANIFEST_SCHEMA.md` and include these fields before it can influence a brief:",
     ]
 
     for phrase in required:
@@ -592,17 +592,32 @@ def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
         "`owner`",
         "`reviewer`",
         "`allowed_use`",
-        "`promotion_status`",
+        "`reference_id`",
+        "`status`",
+        "`product_category`",
+        "`platform`",
+        "`surface_type`",
+        "`visual_archetype`",
+        "`palette_archetype`",
+        "`typography_archetype`",
+        "`spacing_density`",
+        "`radius_profile`",
+        "`component_patterns`",
+        "`layout_patterns`",
+        "`motion_notes`",
         "`normalization_notes`",
         "`forbidden_copy_elements`",
         "`mapped_pulseplate_components`",
         "`repo_evidence_anchors`",
         "`wellness_safety_notes`",
-        "`accessibility_risk_notes`",
+        "`accessibility_notes`",
         "`security_privacy_notes`",
         "`license_status`",
         "`attribution_required`",
         "`legal_copy_risks`",
+        "`monetization_notes`",
+        "`icon-silhouette-check`",
+        "`design-guard`",
         "`adopt_adapt_reject_decision`",
     ]
 
@@ -614,7 +629,8 @@ def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
         "`normalized`",
         "`candidate_for_brief`",
         "`rejected`",
-        "`candidate_for_brief` is forbidden unless `adopt_adapt_reject_decision`, `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete.",
+        "`status=candidate_for_brief` is forbidden unless every required field in `docs/design/REFERENCE_MANIFEST_SCHEMA.md` is complete",
+        "`product_category`, `platform`, `surface_type`, visual/palette/typography archetypes, component/layout patterns, `monetization_notes`, `icon-silhouette-check`, and `design-guard`",
         "`reject` decisions cannot influence a brief.",
     ]
 
