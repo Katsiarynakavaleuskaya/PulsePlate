@@ -61,8 +61,9 @@ Every current or future Kimi evidence record must include these fields before it
 | `license_status` | External artifact license or permission status | `unspecified` |
 | `attribution_required` | Whether attribution is required before any brief promotion | `unspecified` |
 | `legal_copy_risks` | Copy, layout, claim, or asset reuse risks | `unspecified` |
+| `adopt_adapt_reject_decision` | Deterministic scorecard decision: `adopt`, `adapt`, or `reject` | `unspecified` |
 
-`candidate_for_brief` is forbidden unless `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete. Incomplete evidence stays `read_only` or `normalized`.
+`candidate_for_brief` is forbidden unless `adopt_adapt_reject_decision`, `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete. `reject` decisions cannot influence a brief. Incomplete evidence stays `read_only` or `normalized`.
 
 ## Modernization Extraction
 

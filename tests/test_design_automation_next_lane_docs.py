@@ -603,6 +603,7 @@ def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
         "`license_status`",
         "`attribution_required`",
         "`legal_copy_risks`",
+        "`adopt_adapt_reject_decision`",
     ]
 
     for field in required_fields:
@@ -613,7 +614,8 @@ def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
         "`normalized`",
         "`candidate_for_brief`",
         "`rejected`",
-        "`candidate_for_brief` is forbidden unless `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete.",
+        "`candidate_for_brief` is forbidden unless `adopt_adapt_reject_decision`, `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete.",
+        "`reject` decisions cannot influence a brief.",
     ]
 
     for phrase in required_status:
