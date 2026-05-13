@@ -376,6 +376,20 @@ def test_result_evidence_allows_directory_surface_with_dots() -> None:
     assert "- `docs/prompts/v1.2/program.md`" in content
 
 
+def test_result_evidence_rejects_nested_paths_under_file_surface() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet() | {"mutable_candidate_surface": ["core/rag/allowed.py"]}
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = ["core/rag/allowed.py/child.py"]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="mutable_candidate_surface",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
 def test_result_oracle_commands_must_come_from_packet() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(
@@ -543,6 +557,18 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
     assert "super-secret" not in experiment_notify._oracle_command_name(
         "API_TOKEN=super-secret python3 -m pytest"
     )
+    assert (
+        experiment_notify._oracle_command_name("API_TOKEN='super\nsecret' python3 -m pytest")
+        == "python3"
+    )
+    assert "super" not in experiment_notify._oracle_command_name(
+        "API_TOKEN='super\nsecret' python3 -m pytest"
+    )
+    assert (
+        experiment_notify._oracle_command_name("/Users/alice/.ssh/id_rsa --help")
+        == "[redacted-command]"
+    )
+    assert "id_rsa" not in experiment_notify._oracle_command_name("/Users/alice/.ssh/id_rsa --help")
     assert experiment_notify._safe_repo_path("/Users/example/private-token/path.py") == (
         "[redacted-path]"
     )
@@ -604,6 +630,18 @@ def test_notification_redacts_home_credential_and_control_character_paths(
     assert "credentials" not in content
     for unsafe_path in unsafe_paths:
         assert experiment_notify._safe_repo_path(unsafe_path) == "[redacted-path]"
+
+
+def test_read_json_load_failures_do_not_echo_unsafe_paths(tmp_path: Path) -> None:
+    unsafe_path = tmp_path / ".ssh" / "id_rsa"
+
+    with pytest.raises(ValueError, match="Unable to load packet JSON") as exc_info:
+        experiment_notify._read_json_object(unsafe_path, label="packet")
+
+    message = str(exc_info.value)
+    assert ".ssh" not in message
+    assert "id_rsa" not in message
+    assert str(tmp_path) not in message
 
 
 def test_resolve_output_path_rejects_escape(

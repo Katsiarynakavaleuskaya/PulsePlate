@@ -49,7 +49,21 @@ SENSITIVE_PATH_PART_RE = re.compile(
     re.I,
 )
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r'^(?:"?[A-Za-z]:|"?\\\\|"?//)')
-SHELL_ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
+SHELL_ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+FILE_LIKE_SURFACE_SUFFIXES = {
+    ".cfg",
+    ".conf",
+    ".ini",
+    ".json",
+    ".lock",
+    ".md",
+    ".py",
+    ".sh",
+    ".toml",
+    ".txt",
+    ".yaml",
+    ".yml",
+}
 
 
 class ExperimentNotificationError(RuntimeError):
@@ -60,7 +74,7 @@ def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise ValueError(f"Unable to load {label} JSON: {exc}") from exc
+        raise ValueError(f"Unable to load {label} JSON.") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"{label} must be a JSON object.")
     return payload
@@ -220,9 +234,18 @@ def _mutable_surface_contains_path(mutable_surface: set[str], path: str) -> bool
     for surface in mutable_surface:
         if path == surface:
             return True
-        if path.startswith(f"{surface.rstrip('/')}/"):
+        if _surface_allows_nested_paths(surface) and path.startswith(f"{surface.rstrip('/')}/"):
             return True
     return False
+
+
+def _surface_allows_nested_paths(surface: str) -> bool:
+    """Return whether a mutable surface entry should match nested result paths."""
+
+    if surface.endswith("/"):
+        return True
+    suffix = PurePosixPath(surface).suffix.lower()
+    return suffix not in FILE_LIKE_SURFACE_SUFFIXES
 
 
 def _require_promotion_evidence_matches_result(
@@ -392,6 +415,8 @@ def _oracle_command_name(command: Any) -> str:
     if "\\" in binary:
         return _safe_inline(PureWindowsPath(binary).name)
     if "/" in binary:
+        if any(SENSITIVE_PATH_PART_RE.search(part) for part in PurePosixPath(binary).parts):
+            return "[redacted-command]"
         return _safe_inline(Path(binary).name)
     return _safe_inline(binary)
 
