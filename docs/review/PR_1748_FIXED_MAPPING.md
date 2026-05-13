@@ -7,6 +7,7 @@
 - Base: `main`
 - Evidence head at mapping creation: `00c376a4e77be4af919d9cce0bd79c3ec93e83ae`
 - Note: later mapping-only commits may advance the branch head; use GitHub PR current-head checks for live merge-readiness truth.
+- Proof contract: FIXED commit SHAs in this artifact are PR branch-history proofs. Bot-reviewed synthetic merge, squash-preview, or stale reviewed-head SHAs are not the source of truth for local strict disposition verification; the canonical guard verifies the live PR branch checkout and current-head CI.
 
 ## Scope
 
@@ -87,6 +88,11 @@ Reason: The bot evaluated stale reviewed head `a7be3d0fae558eab8168d378bc6cbd2bc
 Disposition: FIXED
 Commit: ba51206144f52319f4ae1fdbdef07aeeac5961a6
 Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches PR event bounds with enough history, computes `git merge-base base_sha head_sha`, and uses a three-dot merge-base comparison instead of the unsafe `base_sha..head_sha` range. Focused local pytest passes (`13 passed`) and full pre-commit passes.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3237164627
+Disposition: NOT-A-BUG
+Evidence: Current PR head `0a7cd1747cdac51a1e6f2ec8168377aa874fb033` contains the mapped FIXED proof commits in branch history; local strict disposition guard passed after the prior reviewed-head thread was mapped and resolved.
+Reason: The bot evaluated reviewed squash-preview commit `f1080963dcfdd2bdeb9b0fd9927b0ffdfd6a437d`, while the repo canonical merge-readiness contract validates the live PR branch checkout and current-head CI, not stale synthetic reviewed heads.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
