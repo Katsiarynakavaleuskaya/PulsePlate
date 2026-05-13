@@ -49,6 +49,11 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: CI job `75817373389` failed at `tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only` with `fatal: ambiguous argument 'origin/main...HEAD'`.
   - Evidence: `tests/test_design_automation_next_lane_docs.py` now falls back to the PR merge commit base `HEAD^1...HEAD` when `origin/main...HEAD` is unavailable.
   - Evidence: `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py tests/test_ci_workflow_pr_size_governance_contract.py` passes (`56 passed`).
+- Current-head CI finding: FIXED by `3257b86dc6391820d6234c1edf7787b9701ee4e8`
+  - Finding: latest `test-main (3.11, 60)` failed because the Kimi docs-only guard inspected a synthetic PR merge checkout instead of the actual PR `base..head` diff, then treated this CI/tooling PR as Kimi bridge drift.
+  - Evidence: CI job `75859256675` failed at `tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only` with unexpected paths `.github/workflows/ci.yml` and `tests/test_ci_workflow_pr_size_governance_contract.py`.
+  - Evidence: `tests/test_design_automation_next_lane_docs.py` now prefers the GitHub event `pull_request.base.sha..pull_request.head.sha` diff before local fallback bases.
+  - Evidence: `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py` passes.
 
 ## Fixed in Commit Mapping
 
@@ -76,6 +81,11 @@ Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi do
 Disposition: FIXED
 Commit: edc5e7766e28924ff4350d52dc97b85b917ab0c2
 Evidence: `tests/test_design_automation_next_lane_docs.py` now reads the GitHub pull_request event base SHA, fetches that exact base object in depth-1 CI checkouts, and diffs `base_sha..HEAD` without requiring local base refs or merge-parent ancestry; focused local pytest passes (`56 passed`).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25820129900/job/75859256675 -> 3257b86dc6391820d6234c1edf7787b9701ee4e8
+Disposition: FIXED
+Commit: 3257b86dc6391820d6234c1edf7787b9701ee4e8
+Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches and diffs the actual GitHub PR event `pull_request.base.sha..pull_request.head.sha` before synthetic merge/local fallback bases, so the Kimi docs-only guard only activates for a real Kimi protocol diff. Focused local pytest passes for `test_kimi_protocol_current_diff_stays_docs_only` plus the workflow contract suite.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
@@ -174,8 +184,11 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after shallow PR checkout fix
 - `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py` - PASS (`56 passed`) after test-main artifact collision fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after test-main artifact collision fix
+- `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after PR head diff guard fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after PR head diff guard fix
+- `PATH=../../.venv/bin:$PATH git commit -m "test(ci): use PR head diff for Kimi guard"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after current-head CI fix.
+- Current-head PR checks are pending after PR head diff guard fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
