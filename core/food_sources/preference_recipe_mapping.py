@@ -88,7 +88,7 @@ EXPECTED_PR11_SOURCE_GAP_ORDER = (
     "regional_catalogs",
     "jptn_food_facts",
 )
-EXPECTED_PR11_DOMAIN_SOURCE_REFS = {
+EXPECTED_PR11_DOMAIN_SOURCE_REFS: dict[str, dict[str, tuple[str, ...]]] = {
     "generic_food_composition": {
         "primary_sources": ("usda_foundation",),
         "auxiliary_sources": ("usda_fndds",),
@@ -122,7 +122,7 @@ EXPECTED_PR11_DOMAIN_SOURCE_REFS = {
         "auxiliary_sources": ("chain_public_nutrition_pages",),
     },
 }
-EXPECTED_PR11_SOURCE_GAP_BLOCKING_REASONS = {
+EXPECTED_PR11_SOURCE_GAP_BLOCKING_REASONS: dict[str, tuple[str, ...]] = {
     "usda_foundation": (
         "Source-specific manifest, checksum, row, schema, and rollback gates still precede ingest.",
     ),
