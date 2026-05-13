@@ -86,6 +86,12 @@ Evidence: `tests/core/ai/test_semantic_cache_backend_selection.py` includes `tes
 Reason: The test import path intentionally exercises the repo import contract; SC-G5 still has no eager export or runtime serving side door.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249567
 
+Disposition: FIXED
+Commit: 45155f837
+Evidence: `_PATH_RE` is case-insensitive and `_UNSAFE_TOKEN_RE` uses boundary-aware `sk-` matching; regression coverage rejects uppercase `FILE://` metadata and accepts benign `risk-audit` evidence IDs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233467998 -> 45155f837
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233468011 -> 45155f837
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
