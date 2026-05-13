@@ -20,6 +20,7 @@
 - `50064a367` - `fix(ci): attach diagnostic fallback surfaces`
 - `b06d905e6` - `fix(ci): keep soft fallback lanes advisory`
 - `af229508d` - `fix(ci): cover Docker fallback support surfaces`
+- `2757e0d53` - `fix(ci): attach Docker telemetry fallback surfaces`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -190,6 +191,17 @@ Commit: af229508d
 Evidence: scripts/ci/check_current_head_pr_checks.py includes Docker helper scripts in `DOCKER_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers a Docker helper script as a Docker fallback blocker.
 Reason: Docker workflow helper-script edits now attach the Docker fallback lane.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232374816
+Disposition: NOT-A-BUG
+Evidence: The live PR head is the branch head reported by `gh pr view 1739 --json headRefOid`, and the listed implementing commits are ancestors of the local/remote branch head.
+Reason: The reviewed squash SHA in the comment is not the live PR branch head used by this lane; no remapping to a synthetic reviewed SHA is needed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232374821 -> 2757e0d53
+Disposition: FIXED
+Commit: 2757e0d53
+Evidence: scripts/ci/check_current_head_pr_checks.py includes `docs/telemetry/docker_image_` in `DOCKER_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers `docs/telemetry/docker_image_budget.production.json` as a Docker fallback blocker.
+Reason: Docker image budget/baseline telemetry edits now attach the Docker fallback lane.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
@@ -197,6 +209,7 @@ Reason: Docker workflow helper-script edits now attach the Docker fallback lane.
 - `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1739 canonical restart: recover fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `1eb2fe0337b1`
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_repo_policy_guards.py` - PASS
+- `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
