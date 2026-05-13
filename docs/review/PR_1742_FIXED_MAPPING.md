@@ -86,6 +86,15 @@ Evidence: `tests/core/ai/test_semantic_cache_backend_selection.py` includes `tes
 Reason: The test import path intentionally exercises the repo import contract; SC-G5 still has no eager export or runtime serving side door.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249567
 
+## Post-Open Agent Review Fixes
+
+| Source | Disposition | Commit | Evidence |
+| --- | --- | --- | --- |
+| QA final pass: overbroad `sk-` token matching rejected benign `risk-audit`; uppercase `FILE://` metadata bypassed path blocking. | FIXED | `45155f837` | Boundary-aware token regex and case-insensitive path regex; regression tests in `tests/core/ai/test_semantic_cache_backend_selection.py`. |
+| Bug-hunter final pass: caller-relaxed criteria could allow safety breaches; generic CI/human proof IDs could satisfy proof gates; import guard missed subprocess and dynamic Path.open write modes. | FIXED | `45155f837` | Criteria now enforce zero-tolerance safety gates and structured proof IDs; import guard blocks process launchers and unknown write modes with focused tests. |
+| Security final pass: proof IDs accepted blocked payload/truth-source terms and emitted them in stable mappings. | FIXED | `45155f837` | Evidence/proof ID validation blocks raw-payload, HealthKit, account, billing, legal, compliance, advisory/wiki, and workforce-memory terms before serialization. |
+| Codex Security final scan after substantive fix. | CLEAN | `45155f837` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/45155f837_20260513T110057Z/report.md` reports no surviving findings. |
+
 ## Bot Review Tracking
 
 | Source | Status | Disposition |
@@ -93,7 +102,7 @@ Reason: The test import path intentionally exercises the repo import contract; S
 | CodeRabbit | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Sourcery | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Cubic | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Pending final post-fix scan | Final scan must be rerun after commit `3be17053c`; latest security-auditor P1 was fixed in that commit. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `45155f837` reports no surviving findings. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
