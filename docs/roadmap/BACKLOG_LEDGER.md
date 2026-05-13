@@ -2825,6 +2825,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Evidence bundle format is explicit: `PR #1379` + merge SHA, `file:line` pointers to runtime/test truth, and optional runtime/test artifact links when available
     - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
 
+<a id="ledger-p1-philosophy-epic-v2-pr0-packet"></a>
+- [ ] P1: Philosophy Epic V2 PR-0 governance packet
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: `codex/philosophy-epic-v2-pr0-packet`
+  - Status: 🟡 In progress (PR-0 packet branch opened from `origin/main` on 2026-05-13; docs/governance only)
+  - Area: AI / RAG / philosophy / orchestration governance
+  - Finding Type: epic-sequencing and premortem-closure gate
+  - Reason (EN): Two operator-provided Philosophy Epic V2 PDFs define valuable analytical, linguistic, semantic-cache, FitChef, CBT, and rollout ideas, but current repo truth already has bounded philosophical runtime, offline logic+philosophy replay, and a closed semantic-cache gate. PR-0 creates the governed packet that reconciles those inputs before any runtime activation, prevents PDF/design input from becoming runtime authority by accident, and makes `pulseplate-premortem-risk-review` findings blocking unless they are fixed or formally dispositioned.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-reliability-experiment-sublane`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md`
+    - `docs/orchestration/AI_RELIABILITY_EXPERIMENT_SUBLANE_W1_PACKET_2026-05-01.md`
+    - `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md`
+  - DoD:
+    - PR-0 remains docs/governance only: no runtime flags, OpenAPI, DB, frontend, iOS, provider, FitChef/CBT runtime, or semantic-cache implementation changes
+    - Packet records the PDF intake, repo-truth precedence, role order, plugin/skill boundaries, validation plan, PR body seed, and next-PR handoff
+    - Premortem findings are closed in the packet as `FIXED`, `NOT-A-BUG`, or `DEFERRED`; follow-up PRs inherit the same closure rule before readiness claims
+    - PR-1 is constrained by current semantic-cache gate markers and may not implement or enable semantic cache while the gate remains closed
+    - Canonical post-open `qa-engineer-agent -> bug-hunter` plus security review are run and mapped before readiness
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` is added after the PR number exists and mirrored into the PR body
+
 
 <a id="ledger-p1-recursive-methods"></a>
 - [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)
