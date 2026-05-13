@@ -68,6 +68,10 @@ Reason: The bot comment referenced a stale reviewed commit sibling; the current 
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
 Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi docs-only guard and adds a fallback diff base for GitHub PR checkouts that lack `origin/main`; focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235533880 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
+Disposition: FIXED
+Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
+Evidence: `tests/test_design_automation_next_lane_docs.py` now probes `origin/main...HEAD`, then `main...HEAD`, then the first parent of a real PR merge commit; it fails closed if none are available. Focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
 
 ## Local Validation
 
