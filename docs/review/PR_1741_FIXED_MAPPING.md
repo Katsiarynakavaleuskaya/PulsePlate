@@ -4,7 +4,8 @@
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741>
 - Branch: `codex/kimi-prototype-intake-modernization-bridge`
 - Title: `docs(design): add Kimi prototype intake and modernization bridge protocol`
-- Current head SHA: `c05d7c9583d1651b367988f9279681f4a0d1485e`
+- Mapping opened at head SHA: `c05d7c9583d1651b367988f9279681f4a0d1485e`
+- Latest fix commit SHA: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
 - Scope: docs/governance Kimi prototype intake bridge; no runtime, token, generated mirror, Figma/Canva/Kimi write, screenshot, binary, deploy, backend, OpenAPI, auth, billing, StoreKit, HealthKit, or Cloudflare changes.
 
 ## Coordinator Packet
@@ -17,17 +18,32 @@
 ## Implementing Commits
 
 - `c05d7c9583d1651b367988f9279681f4a0d1485e` - `docs(design): add Kimi prototype intake bridge`
+- `9d9e59c51e5e05bfe494d311a1f16ace3d97899c` - `docs(review): add PR 1741 fixed mapping`
+- `893fbdae8e454530f962f9d41a5d311de5ffdd9c` - `test(design): harden Kimi bridge guardrails`
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 Per root `AGENTS.md` review governance, each actionable bot/human comment receives a disposition (`FIXED` / `NOT-A-BUG` / `DEFERRED`) with proof before thread resolution.
+Mapping is evidence after fix/decision and is not a substitute for fixing docs, tests, code, or process.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments yet. Mapping is evidence after fix/decision and is not a substitute for fixing docs, tests, code, or process.
+Disposition: FIXED
+Commit: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
+Evidence: `tests/test_design_automation_next_lane_docs.py` now fails closed with a clear `pytest.fail` message when `git` or `origin/main...HEAD` diff evidence is unavailable; Kimi metadata constants reduce future evidence brittleness.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279782308 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279794312 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232686199 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+
+Disposition: FIXED
+Commit: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
+Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now explicitly includes `docs/orchestration/AGENTS.md` in the allowed touch list, adds `license_status` / `attribution_required` / `legal_copy_risks`, and makes missing future web/iOS prerequisite gates blockers rather than `DEFERRED` permission to proceed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279832007 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719435 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719439 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 
 ## Pre-Open Premortem Findings
 
@@ -48,6 +64,9 @@ Per root `AGENTS.md` review governance, each actionable bot/human comment receiv
 - `.venv/bin/python scripts/orchestration/task_bootstrap.py --pr-phase pre_open ...` - PASS, packet `5328c2ed8398`.
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_policy_guards.py` - PASS, 44 passed.
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py` - PASS, 29 passed.
+- `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_policy_guards.py` - PASS after post-open fixes, 44 passed.
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS after post-open fixes.
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS after post-open fixes.
 - `python3 scripts/design/generate_design_md.py --check` - PASS.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make design-guard` - PASS.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS.
@@ -63,7 +82,7 @@ Per root `AGENTS.md` review governance, each actionable bot/human comment receiv
 ## Risks / Rollback
 
 - Risk: future agents may still treat Kimi output as design truth outside this protocol. Mitigation: workflow/template/scoped AGENTS pointers and deterministic guard tests.
-- Rollback: revert commit `c05d7c9583d1651b367988f9279681f4a0d1485e`; no runtime rollback required.
+- Rollback: revert commits `893fbdae8e454530f962f9d41a5d311de5ffdd9c`, `9d9e59c51e5e05bfe494d311a1f16ace3d97899c`, and `c05d7c9583d1651b367988f9279681f4a0d1485e`; no runtime rollback required.
 
 ## Deferred / Follow-ups
 
