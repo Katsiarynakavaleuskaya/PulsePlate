@@ -1081,9 +1081,20 @@ def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_mat
         )
 
 
-def test_preference_recipe_mapping_rejects_contrastive_approval_after_negation() -> None:
+@pytest.mark.parametrize(
+    "note",
+    (
+        "no api calls or downloads allowed but source use allowed",
+        "no source use or downloads allowed although source use allowed",
+        "no source use or downloads allowed though source use allowed",
+        "no source use or downloads allowed even though source use allowed",
+    ),
+)
+def test_preference_recipe_mapping_rejects_contrastive_approval_after_negation(
+    note: str,
+) -> None:
     payload = _governance_payload()
-    payload["notes"] = "no api calls or downloads allowed but source use allowed"
+    payload["notes"] = note
 
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
         parse_preference_recipe_mapping_governance(

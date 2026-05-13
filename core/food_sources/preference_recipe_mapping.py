@@ -431,7 +431,14 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
 _NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
-_NEGATION_BOUNDARY_TERMS = (" but ", " however ", " yet ")
+_NEGATION_BOUNDARY_TERMS = (
+    " but ",
+    " however ",
+    " yet ",
+    " although ",
+    " though ",
+    " even though ",
+)
 _NOTE_APPROVAL_TERMS = (
     "approve",
     "approves",
