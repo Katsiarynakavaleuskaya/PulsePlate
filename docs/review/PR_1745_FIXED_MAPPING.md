@@ -39,7 +39,24 @@ Commit: 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
 Evidence: `scripts/design/design_component_registry.py` requires `repo_vocabulary_anchor` to match `docs/design/ui_component_vocabulary.json:<component_id>`; tests cover wrong vocabulary anchors.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#issuecomment-4440807068
 Disposition: NOT-A-BUG
+Reason: The retrieved current CodeRabbit issue comment is a status/walkthrough comment rather than an actionable review finding.
 Evidence: Current retrieved CodeRabbit comment reports no actionable comments for the recent review; prior actionable findings are dispositioned above and in the table below.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234087279 -> b09c6b7a860f9c5d4ab126a411c2143356207d70
+Disposition: FIXED
+Commit: b09c6b7a860f9c5d4ab126a411c2143356207d70
+Evidence: `scripts/design/design_component_registry.py` requires seed-unconfirmed fields to remain `unspecified`; `tests/test_design_component_registry.py` rejects invented Figma and token anchors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231626 -> b09c6b7a860f9c5d4ab126a411c2143356207d70
+Disposition: FIXED
+Commit: b09c6b7a860f9c5d4ab126a411c2143356207d70
+Evidence: This mapping block now includes a `Reason:` line for the NOT-A-BUG CodeRabbit status comment disposition.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231641 -> b09c6b7a860f9c5d4ab126a411c2143356207d70
+Disposition: FIXED
+Commit: b09c6b7a860f9c5d4ab126a411c2143356207d70
+Evidence: `scripts/design/design_component_registry.py` rejects `covered` status when bridge evidence fields remain `unspecified`; `tests/test_design_component_registry.py` covers the false-covered case.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231635 -> b09c6b7a860f9c5d4ab126a411c2143356207d70
+Disposition: FIXED
+Commit: b09c6b7a860f9c5d4ab126a411c2143356207d70
+Evidence: `## Unresolved / Deferred` now separates completed discussion-thread dispositions from pending merge-readiness re-review evidence.
 
 ## Review Thread Disposition Table
 
@@ -57,6 +74,10 @@ Evidence: Current retrieved CodeRabbit comment reports no actionable comments fo
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134033 | FIXED | `9a2e9cb68e359a1cd1fa953f99580c7a613a0090` | Evidence-only authority denylist now covers Kimi-adjacent artifacts; tests reject Google Drive and generated-code authority promotion. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134042 | FIXED | `9a2e9cb68e359a1cd1fa953f99580c7a613a0090` | Web runtime anchors are validated against `existing_repo_component` and repo file existence; tests cover wrong/deleted anchors. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134049 | FIXED | `9a2e9cb68e359a1cd1fa953f99580c7a613a0090` | Registry vocabulary anchors must match the row component id; tests cover mismatched anchors. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234087279 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | Invented unconfirmed anchors are rejected; tests cover Figma/token invention. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231626 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | NOT-A-BUG mapping disposition now includes a `Reason:` line. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231641 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | `covered` status is tied to bridge evidence; tests cover false-covered rows. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231635 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | Mapping unresolved section no longer claims pending bot re-reviews as completed discussion dispositions. |
 
 ## Command Evidence
 
@@ -66,22 +87,21 @@ Evidence: Current retrieved CodeRabbit comment reports no actionable comments fo
 - `.venv/bin/python scripts/orchestration/task_bootstrap.py --goal "Add design component contract registry seed" ...` - PASS, packet `24ef699bc5fa`
 - `.venv/bin/python scripts/design/design_component_registry.py validate docs/orchestration/contracts/design_component_registry.v1.json` - PASS
 - `.venv/bin/python scripts/design/design_component_registry.py summarize docs/orchestration/contracts/design_component_registry.v1.json` - PASS
-- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 16 tests after bot-review fixes
+- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 18 tests after bot-review fixes
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py` - PASS, 31 tests
-- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 47 changed-file tests after bot-review fixes
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 49 changed-file tests after bot-review fixes
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS
 - Local Phase2 check after PR body/mapping correction - PASS
-- Second-pass current-head validator plus changed docs tests - PASS, 47 tests
+- Second-pass current-head validator plus changed docs tests - PASS, 49 tests
 - Codex Security diff scan - PASS, no forbidden runtime/token/asset/workflow paths and no network/subprocess/secret patterns in changed validator/tests.
 
 ## Unresolved / Deferred
 
 - Post-open human review threads: none retrieved.
-- CodeRabbit: actionable comments fixed or dispositioned; latest post-mapping re-review pending after current push.
+- Actionable bot comments through the latest inspected review cycle are fixed or dispositioned above.
 - Sourcery: rate-limited, no actionable finding retrieved.
-- Cubic: actionable comments fixed; latest post-mapping re-review pending after current push.
-- Codex Review: actionable anchor/authority comments fixed; latest post-mapping re-review pending after current push.
+- Current-head CI/bot terminal evidence remains a merge-readiness requirement and is not claimed by this discussion disposition artifact.
 - Codex Security plugin post-open diff scan: completed, no actionable findings.
 - Strict merge-readiness wrapper: pending.
 - Next design lane remains `feat(design): add design bridge coverage inventory`; it is a follow-up lane, not deferred runtime work from this PR.
