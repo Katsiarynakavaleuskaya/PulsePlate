@@ -94,6 +94,10 @@ DENIED_CANONICAL_AUTHORITIES = {
     "generated code",
     "generated code bundle",
     "generated code bundles",
+    "generated brief",
+    "generated briefs",
+    "external design note",
+    "external design notes",
     "desktop export",
     "desktop exports",
 }
@@ -348,17 +352,23 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
                 f"{expected_web_anchor!r}"
             )
         else:
-            resolved_web_anchor = _repo_path(web_runtime_anchor, repo_root)
-            if not _path_stays_inside_repo(resolved_web_anchor, repo_root):
+            if Path(web_runtime_anchor).is_absolute():
                 errors.append(
-                    f"{path_prefix}.web_runtime_anchor: repo-backed anchor escapes repo root: "
+                    f"{path_prefix}.web_runtime_anchor: expected repo-relative anchor, got "
                     f"{web_runtime_anchor!r}"
                 )
-            elif not resolved_web_anchor.is_file():
-                errors.append(
-                    f"{path_prefix}.web_runtime_anchor: repo-backed anchor does not exist: "
-                    f"{web_runtime_anchor!r}"
-                )
+            else:
+                resolved_web_anchor = _repo_path(web_runtime_anchor, repo_root)
+                if not _path_stays_inside_repo(resolved_web_anchor, repo_root):
+                    errors.append(
+                        f"{path_prefix}.web_runtime_anchor: repo-backed anchor escapes repo root: "
+                        f"{web_runtime_anchor!r}"
+                    )
+                elif not resolved_web_anchor.is_file():
+                    errors.append(
+                        f"{path_prefix}.web_runtime_anchor: repo-backed anchor does not exist: "
+                        f"{web_runtime_anchor!r}"
+                    )
 
         status = component.get("status")
         if not isinstance(status, str) or status not in ALLOWED_STATUS:

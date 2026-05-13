@@ -295,6 +295,20 @@ def test_design_component_registry_rejects_kimi_adjacent_authority_promotion(
     assert any("generated code" in error for error in errors)
 
 
+def test_design_component_registry_rejects_generated_brief_authority_promotion(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"].append("generated brief")
+    broken["authority"]["canonical"].append("external design notes")
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("generated brief" in error for error in errors)
+    assert any("external design note" in error for error in errors)
+
+
 def test_design_component_registry_rejects_punctuated_authority_promotion(
     tmp_path: Path,
 ) -> None:
@@ -612,6 +626,74 @@ def test_design_component_registry_rejects_web_runtime_anchor_outside_repo(
     )
 
     assert any("repo-backed anchor escapes repo root" in error for error in errors)
+
+
+def test_design_component_registry_rejects_absolute_web_runtime_anchor(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    component_path = repo_root / "frontend/src/components/ui/Button.tsx"
+    vocabulary_dir = repo_root / "docs/design"
+    vocabulary_dir.mkdir(parents=True)
+    component_path.parent.mkdir(parents=True)
+    component_path.write_text("export {}", encoding="utf-8")
+    absolute_anchor = str(component_path)
+    (vocabulary_dir / "ui_component_vocabulary.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": "button",
+                    "canonical_name": "Button",
+                    "existing_repo_component": absolute_anchor,
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    registry = {
+        "schema_version": "design_component_registry.v1",
+        "source_of_truth": "repo",
+        "authority": {
+            "canonical": [
+                "repo code/docs/tests",
+                "docs/design/ui_component_vocabulary.json",
+            ],
+            "reference_only": [
+                "Kimi",
+                "Figma",
+                "Canva",
+                "Penpot",
+                "Storybook",
+                "Code Connect",
+            ],
+        },
+        "components": [
+            {
+                "component_id": "button",
+                "canonical_name": "Button",
+                "repo_vocabulary_anchor": "docs/design/ui_component_vocabulary.json:button",
+                "web_runtime_anchor": absolute_anchor,
+                "ios_runtime_anchor": "unspecified",
+                "token_dependencies": "unspecified",
+                "storybook_review_anchor": "unspecified",
+                "figma_reference_anchor": "unspecified",
+                "penpot_reference_anchor": "unspecified",
+                "code_connect_anchor": "unspecified",
+                "states": "unspecified",
+                "variants": "unspecified",
+                "accessibility_contract": "unspecified",
+                "visual_regression_contract": "unspecified",
+                "owner": "design-system",
+                "status": "partial",
+            }
+        ],
+    }
+
+    errors = registry_module.validate_registry(
+        _write_registry(tmp_path, registry), repo_root=repo_root
+    )
+
+    assert any("expected repo-relative anchor" in error for error in errors)
 
 
 def test_design_component_registry_cli_validate_and_summarize(
