@@ -122,6 +122,14 @@ Evidence:
 Reason: CodeRabbit's suggested `vscode-changes` branch does not match the
 actual PR #1747 source branch and would make the ledger inaccurate.
 
+### CodeRabbit Finding: Packet Uses Ambiguous Fixed Mapping Wording
+
+Disposition: FIXED
+Commit: `c33da5764`
+Evidence:
+- `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
+  now names `docs/review/PR_1747_FIXED_MAPPING.md` explicitly.
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
