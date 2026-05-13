@@ -63,8 +63,8 @@ jobs:
 
       - name: Determine changes
         id: filter
-        # SHA pin for security (v3.0.2)
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        # SHA pin for security (v4.0.1 / Node 24)
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           filters: |

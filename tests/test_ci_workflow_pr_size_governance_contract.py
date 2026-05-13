@@ -14,6 +14,20 @@ RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
     REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
 )
+PATHS_FILTER_NODE24_SHA = "".join(
+    (
+        "fbd0",
+        "ab8f",
+        "3e69",
+        "293a",
+        "f611",
+        "ebae",
+        "e636",
+        "3fc2",
+        "5e6d",
+        "187d",
+    )
+)
 
 
 def _extract_section(workflow_text: str, start_anchor: str, end_anchor: str) -> str:
@@ -101,6 +115,31 @@ def test_pr_risk_profile_uses_pull_request_head_sha() -> None:
     assert 'HEAD_SHA="${{ github.event.pull_request.head.sha }}"' in risk_profile_section
     assert '--base-sha "${BASE_SHA}" \\' in risk_profile_section
     assert '--head-sha "${HEAD_SHA}" \\' in risk_profile_section
+
+
+def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> None:
+    """Guard the Node 24 paths-filter migration and iOS path-gating contract."""
+
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    changes = jobs["changes"]
+    assert isinstance(changes, dict)
+    steps = changes["steps"]
+    assert isinstance(steps, list)
+
+    filter_step = next(step for step in steps if step.get("id") == "filter")
+    assert filter_step["uses"] == f"dorny/paths-filter@{PATHS_FILTER_NODE24_SHA}"
+
+    with_section = filter_step["with"]
+    assert isinstance(with_section, dict)
+    assert with_section["token"] == "${{ secrets.GITHUB_TOKEN }}"
+    filters = with_section["filters"]
+    assert isinstance(filters, str)
+    assert "ios:" in filters
+    assert "- 'ios/**'" in filters
+    assert "- '.github/workflows/**'" in filters
+    assert "- '.github/actions/**'" in filters
 
 
 def test_feature_push_risk_profile_uses_origin_main_merge_base() -> None:
