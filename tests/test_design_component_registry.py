@@ -191,6 +191,20 @@ def test_design_component_registry_rejects_external_authority_promotion(
     assert any("external evidence tools must not be canonical: figma" in error for error in errors)
 
 
+def test_design_component_registry_rejects_plain_external_authority_promotion(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"].append("Figma design file")
+    broken["authority"]["canonical"].append("Kimi generated prototype")
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("figma" in error for error in errors)
+    assert any("kimi" in error for error in errors)
+
+
 def test_design_component_registry_does_not_substring_match_authority_names(
     tmp_path: Path,
 ) -> None:
@@ -336,6 +350,31 @@ def test_design_component_registry_allows_covered_status_with_bridge_evidence(
 
     assert not any("unconfirmed seed fields must be 'unspecified'" in error for error in errors)
     assert not any("covered requires bridge evidence" in error for error in errors)
+
+
+def test_design_component_registry_rejects_malformed_covered_bridge_evidence(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    component = broken["components"][0]
+    component["status"] = "covered"
+    component["ios_runtime_anchor"] = "ios/PulsePlate/DesignSystem/Button.swift"
+    component["storybook_review_anchor"] = "storybook/button"
+    component["figma_reference_anchor"] = []
+    component["penpot_reference_anchor"] = {}
+    component["code_connect_anchor"] = "repo-confirmed-code-connect-button"
+    component["accessibility_contract"] = "repo-confirmed-a11y-contract"
+    component["visual_regression_contract"] = "repo-confirmed-visual-contract"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "covered requires bridge evidence" in error
+        and "figma_reference_anchor" in error
+        and "penpot_reference_anchor" in error
+        for error in errors
+    )
 
 
 def test_design_component_registry_rejects_deleted_web_runtime_anchor(

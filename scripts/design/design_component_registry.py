@@ -179,15 +179,14 @@ def _promoted_authorities(canonical: list[str]) -> list[str]:
     promoted: set[str] = set()
     canonical_entries = _normalize_authority_entries(canonical)
     for entry in canonical_entries:
-        if entry in DENIED_CANONICAL_AUTHORITIES:
-            promoted.add(entry)
-            continue
-        if "source of truth" not in entry and "canonical" not in entry:
-            continue
         for tool in DENIED_CANONICAL_AUTHORITIES:
             if re.search(rf"(?<![a-z0-9]){re.escape(tool)}(?![a-z0-9])", entry):
                 promoted.add(tool)
     return sorted(promoted)
+
+
+def _has_bridge_evidence(value: Any) -> bool:
+    return isinstance(value, str) and value not in {"", "unspecified"}
 
 
 def _validate_authority(authority: Any, errors: list[str]) -> None:
@@ -321,7 +320,9 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
             errors.append(f"{path_prefix}.status: invalid status {status!r}")
         elif status == "covered":
             missing_coverage = sorted(
-                field for field in BRIDGE_COVERAGE_FIELDS if _is_unspecified(component.get(field))
+                field
+                for field in BRIDGE_COVERAGE_FIELDS
+                if not _has_bridge_evidence(component.get(field))
             )
             if missing_coverage:
                 errors.append(
