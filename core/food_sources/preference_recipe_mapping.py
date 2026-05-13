@@ -64,10 +64,6 @@ EXPECTED_PR11_ONBOARDING_REF = "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR
 EXPECTED_RECIPE_DISH_CORPUS_REF = (
     "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
 )
-EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION = "requires_dish_mapping"
-EXPECTED_PR11_PREFERENCE_GAP_STATUS = "planner_gap_not_source_authority"
-EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION = "not_approved"
-EXPECTED_PR11_PREFERENCE_NEXT_ACTION = "preference_recipe_mapping_contract"
 EXPECTED_PR14_RECIPE_ALLOWED_ROLES = {
     "edamam_food_database": "adjacent_recipe_food_db_review_only",
     "spoonacular": "deferred_recipe_experiment_candidate_only",
@@ -433,6 +429,7 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
 _NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
+_NEGATION_BOUNDARY_TERMS = (" but ", " however ", " yet ")
 _NOTE_APPROVAL_TERMS = (
     "approve",
     "approves",
@@ -738,6 +735,8 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
     if segment_start >= 0:
         prefix_tail = prefix_tail[segment_start + 1 :]
     stripped_prefix = prefix_tail.strip()
+    if any(boundary in f" {stripped_prefix} " for boundary in _NEGATION_BOUNDARY_TERMS):
+        return False
     no_index = stripped_prefix.rfind(" no ")
     if stripped_prefix.startswith("no "):
         no_index = 0
@@ -924,9 +923,7 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
         )
     _require_safe_notes(coverage.notes, f"{context}.PR11.notes")
     domains = _coverage_domain_by_name(coverage, context)
-    preference_domain = domains.get(SOURCE)
-    if preference_domain is None:
-        raise _mapping_error(context, "PR11 must include preference_menu_planning")
+    preference_domain = domains[SOURCE]
     for domain in coverage.coverage_domains:
         expected = PR11_EXPECTED_DOMAIN_DECISIONS[domain.domain]
         for field_name, expected_value in expected.items():
@@ -950,40 +947,6 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                 f"PR11 {domain.domain} coverage_domains must not approve ingest/runtime authority",
             )
         _require_safe_notes(domain.notes, f"{context}.PR11.{domain.domain}.notes")
-    if (
-        getattr(preference_domain, "coverage_decision")
-        != EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION
-    ):
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning coverage_decision must be "
-            f"{EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION}",
-        )
-    if getattr(preference_domain, "gap_status") != EXPECTED_PR11_PREFERENCE_GAP_STATUS:
-        raise _mapping_error(
-            context,
-            f"PR11 preference_menu_planning gap_status must be {EXPECTED_PR11_PREFERENCE_GAP_STATUS}",
-        )
-    if (
-        getattr(preference_domain, "authority_decision")
-        != EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION
-    ):
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning authority_decision must be "
-            f"{EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION}",
-        )
-    if getattr(preference_domain, "next_action") != EXPECTED_PR11_PREFERENCE_NEXT_ACTION:
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning must recommend preference_recipe_mapping_contract",
-        )
-    if getattr(preference_domain, "approved_ingest") or getattr(
-        preference_domain, "approved_runtime_authority"
-    ):
-        raise _mapping_error(
-            context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
-        )
     _require_safe_notes(
         getattr(preference_domain, "notes"),
         f"{context}.PR11.preference_menu_planning.notes",
@@ -1012,9 +975,7 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
             )
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
     for source, expected in PR11_EXPECTED_SOURCE_GAP_DECISIONS.items():
-        source_gap = source_gap_decisions.get(source)
-        if source_gap is None:
-            raise _mapping_error(context, f"PR11 source_gap_decisions must include {source}")
+        source_gap = source_gap_decisions[source]
         for field_name, expected_value in expected.items():
             if getattr(source_gap, field_name) != expected_value:
                 raise _mapping_error(

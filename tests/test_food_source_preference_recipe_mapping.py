@@ -796,6 +796,22 @@ def test_preference_recipe_mapping_rechecks_pr14_blocked_methods_for_direct_hand
         )
 
 
+def test_preference_recipe_mapping_rechecks_pr14_review_source_order() -> None:
+    payload = _governance_payload()
+    recipe_governance = _recipe_dish_corpus()
+    recipe_governance = replace(
+        recipe_governance,
+        recipe_corpus_reviews=tuple(reversed(recipe_governance.recipe_corpus_reviews)),
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="recipe_corpus_reviews sources"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=recipe_governance,
+        )
+
+
 @pytest.mark.parametrize(
     ("field_name", "bad_value"),
     (
@@ -992,6 +1008,7 @@ def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_hand
         "api calls; allowed",
         "source use [approved]",
         "downloads / enabled",
+        "no only api calls allowed",
         "paid plans allowed",
         "paid plan approved",
         "edamam allowed",
@@ -1062,6 +1079,18 @@ def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_mat
         )
 
 
+def test_preference_recipe_mapping_rejects_contrastive_approval_after_negation() -> None:
+    payload = _governance_payload()
+    payload["notes"] = "no api calls or downloads allowed but source use allowed"
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
 @pytest.mark.parametrize(
     "note",
     (
@@ -1071,6 +1100,29 @@ def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_mat
     ),
 )
 def test_preference_recipe_mapping_allows_negated_present_tense_notes(note: str) -> None:
+    payload = _governance_payload()
+    payload["notes"] = note
+
+    governance = parse_preference_recipe_mapping_governance(
+        payload,
+        coverage=_coverage(),
+        recipe_dish_corpus=_recipe_dish_corpus(),
+    )
+
+    assert governance.notes == note
+
+
+@pytest.mark.parametrize(
+    "note",
+    (
+        "no api calls or downloads allowed",
+        "api calls not allowed",
+        "allowed not api calls",
+    ),
+)
+def test_preference_recipe_mapping_allows_explicitly_negated_note_approvals(
+    note: str,
+) -> None:
     payload = _governance_payload()
     payload["notes"] = note
 
@@ -1107,6 +1159,15 @@ def test_preference_recipe_mapping_rejects_schema_reference_and_next_lane_drift(
         )
 
     payload = _governance_payload()
+    payload["unexpected"] = "runtime"
+    with pytest.raises(PreferenceRecipeMappingError, match="unexpected keys"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
     payload["coverage_ref"] = "wrong.json"
     with pytest.raises(PreferenceRecipeMappingError, match="coverage_ref"):
         parse_preference_recipe_mapping_governance(
@@ -1125,8 +1186,71 @@ def test_preference_recipe_mapping_rejects_schema_reference_and_next_lane_drift(
         )
 
     payload = _governance_payload()
+    payload["pr11_landed_pr"] = 0
+    with pytest.raises(PreferenceRecipeMappingError, match="pr11_landed_pr"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    payload["pr14_landed_pr"] = 0
+    with pytest.raises(PreferenceRecipeMappingError, match="pr14_landed_pr"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    payload["source"] = "runtime_source"
+    with pytest.raises(PreferenceRecipeMappingError, match="source must be"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    payload["source_classification"] = "runtime_authority"
+    with pytest.raises(PreferenceRecipeMappingError, match="source_classification"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    payload["source_family"] = "provider"
+    with pytest.raises(PreferenceRecipeMappingError, match="source_family"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    payload["evidence_policy"] = "allows_source_use"
+    with pytest.raises(PreferenceRecipeMappingError, match="evidence_policy"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
     payload["next_recommended_lane"] = "runtime_ingest"
     with pytest.raises(PreferenceRecipeMappingError, match="next_recommended_lane"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    payload["final_gate_decision"] = "runtime_ready"
+    with pytest.raises(PreferenceRecipeMappingError, match="final_gate_decision"):
         parse_preference_recipe_mapping_governance(
             payload,
             coverage=_coverage(),
@@ -1158,6 +1282,53 @@ def test_preference_recipe_mapping_rejects_bad_blocked_methods_payload() -> None
             recipe_dish_corpus=_recipe_dish_corpus(),
         )
 
+    payload = _governance_payload()
+    payload["mapping_contracts"] = "not-a-list"
+    with pytest.raises(PreferenceRecipeMappingError, match="mapping_contracts must be a list"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rejects_bad_mapping_contract_rows() -> None:
+    payload = _governance_payload()
+    _mapping_row(payload, "mediterranean_pattern")["unexpected"] = "runtime"
+    with pytest.raises(PreferenceRecipeMappingError, match="unexpected mapping keys"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    _mapping_row(payload, "mediterranean_pattern")["mapping_key"] = "runtime_mapping"
+    with pytest.raises(PreferenceRecipeMappingError, match="unknown mapping_key"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    _mapping_row(payload, "mediterranean_pattern")["contract_status"] = "approved_for_runtime"
+    with pytest.raises(PreferenceRecipeMappingError, match="contract_status"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+    payload = _governance_payload()
+    _mapping_row(payload, "mediterranean_pattern")["allowed_role"] = "source_authority"
+    with pytest.raises(PreferenceRecipeMappingError, match="allowed_role"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
 
 def test_preference_recipe_mapping_requires_mapping_payload_and_valid_helpers(
     tmp_path: Path,
@@ -1177,10 +1348,14 @@ def test_preference_recipe_mapping_requires_mapping_payload_and_valid_helpers(
         _require_int({"number": True}, "number", "helper")
     with pytest.raises(PreferenceRecipeMappingError, match="must be a list"):
         _require_string_tuple({"items": "x"}, "items", "helper", expected=("x",))
+    with pytest.raises(PreferenceRecipeMappingError, match="non-empty string"):
+        _require_string_tuple({"items": [" "]}, "items", "helper", expected=("x",))
     with pytest.raises(PreferenceRecipeMappingError, match="contains duplicate"):
         _require_string_tuple({"items": ["x", "x"]}, "items", "helper", expected=("x",))
     with pytest.raises(PreferenceRecipeMappingError, match="all object keys"):
         _require_mapping({1: "bad"}, "helper")
+    with pytest.raises(PreferenceRecipeMappingError, match="YYYY-MM-DD"):
+        _parse_date("not-a-date", "helper")
     with pytest.raises(PreferenceRecipeMappingError, match="YYYY-MM-DD"):
         _parse_date("2026-13-99", "helper")
 
@@ -1208,6 +1383,18 @@ def test_preference_recipe_mapping_report_returns_validation_errors_for_bad_arti
     assert report["validation_errors"]
 
 
+def test_preference_recipe_mapping_load_reports_unreadable_json(tmp_path: Path) -> None:
+    bad_path = tmp_path / "bad_preference_mapping.json"
+    bad_path.write_text("{", encoding="utf-8")
+
+    with pytest.raises(PreferenceRecipeMappingError, match="Cannot read"):
+        load_preference_recipe_mapping_governance(
+            bad_path,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
 def test_preference_recipe_mapping_cli_outputs_json_report() -> None:
     result = subprocess.run(
         [
@@ -1230,6 +1417,7 @@ def test_preference_recipe_mapping_cli_outputs_json_report() -> None:
         check=True,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
     report = json.loads(result.stdout)
@@ -1267,6 +1455,7 @@ def test_preference_recipe_mapping_cli_reports_failure(tmp_path: Path) -> None:
         check=False,
         capture_output=True,
         text=True,
+        timeout=30,
     )
 
     assert result.returncode == 1
