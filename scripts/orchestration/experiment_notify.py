@@ -44,6 +44,7 @@ NOTIFICATION_ARTIFACT_DIR = (
 )
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
 ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"guard_failure", "timeout", "oom"})
+PRE_ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"policy_violation", "unchanged_result"})
 CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
 SENSITIVE_PATH_PART_RE = re.compile(
     r"(secret|token|password|private|credential|key|\.ssh|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.aws|\.gnupg|\.kube)",
@@ -218,11 +219,19 @@ def _require_result_evidence_matches_packet(
         )
     if result["status"] == "rejected":
         _require_rejected_oracles_are_prefix(expected_oracles, result_oracles)
-        if result["failure_class"] in ORACLE_FAILURE_CLASSES and not result["oracle_results"]:
+        if result["failure_class"] in PRE_ORACLE_FAILURE_CLASSES and result["oracle_results"]:
             raise ExperimentNotificationError(
-                "Rejected oracle failure result must include terminal oracle evidence."
+                "Rejected pre-oracle result must not include oracle evidence."
             )
-        if result["failure_class"] != "infra_flake" and result["oracle_results"]:
+        if result["failure_class"] == "policy_violation" and result["mutated_paths"]:
+            raise ExperimentNotificationError(
+                "Rejected policy_violation result mutated_paths must be empty."
+            )
+        if result["failure_class"] in ORACLE_FAILURE_CLASSES:
+            if not result["oracle_results"]:
+                raise ExperimentNotificationError(
+                    "Rejected oracle failure result must include terminal oracle evidence."
+                )
             terminal_oracle = result["oracle_results"][-1]
             if terminal_oracle["returncode"] == 0 and not terminal_oracle["timed_out"]:
                 raise ExperimentNotificationError(

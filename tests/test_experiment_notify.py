@@ -573,6 +573,19 @@ def test_rejected_infra_flake_allows_passing_oracle_prefix() -> None:
     assert "- Failure class: `infra_flake`" in content
 
 
+def test_rejected_metric_regression_allows_passing_oracle_prefix() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="metric_regression")
+    )
+    result["oracle_results"][0]["returncode"] = 0
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "- Result status: `rejected`" in content
+    assert "- Failure class: `metric_regression`" in content
+
+
 def test_rejected_result_terminal_oracle_must_fail() -> None:
     packet = experiment_contract.validate_experiment_packet(
         _packet()
@@ -615,6 +628,33 @@ def test_rejected_oracle_failure_requires_terminal_oracle_evidence() -> None:
     with pytest.raises(
         experiment_notify.ExperimentNotificationError,
         match="terminal oracle evidence",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_rejected_pre_oracle_class_must_not_include_oracle_evidence() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="unchanged_result")
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="must not include oracle evidence",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_rejected_policy_violation_must_not_include_mutated_paths() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="policy_violation")
+    )
+    result["oracle_results"] = []
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="mutated_paths must be empty",
     ):
         experiment_notify.render_notification_markdown(packet, result)
 
