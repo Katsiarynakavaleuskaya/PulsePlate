@@ -78,6 +78,11 @@ Disposition: NOT-A-BUG
 Evidence: Current PR head `828aee1179d74b2501ab04346fe7762d377f2208` includes `00c376a4e77be4af919d9cce0bd79c3ec93e83ae` in history; `git merge-base --is-ancestor 00c376a4e77be4af919d9cce0bd79c3ec93e83ae HEAD` returned `0`.
 Reason: The bot comment referenced a stale reviewed commit sibling; the current PR branch history contains the mapped implementation commit.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236929136
+Disposition: NOT-A-BUG
+Evidence: Current PR head `396ef4937dd7699eaa1984d74eace89f7f137f9b` includes `00c376a4e77be4af919d9cce0bd79c3ec93e83ae` and `ebff66abf7bf6200baf7862abf3573294ec068c5` in history; local `git merge-base --is-ancestor ... HEAD` returned `0` for both commits.
+Reason: The bot evaluated stale reviewed head `a7be3d0fae558eab8168d378bc6cbd2bc0eae6d6`; the canonical merge-readiness checkout is the live PR branch head, where the mapped FIXED proof commits are reachable.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
