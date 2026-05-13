@@ -33,6 +33,13 @@ Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_rec
 Reason: Sourcery flagged the combined source-family guard as hard to reason about and noted repeated onboarding/coverage map construction inside per-row parsing. Commit `a7cd60fcd` splits the source-family checks and computes the lookup maps once before row parsing.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280551747 -> a7cd60fcd
 
+Disposition: FIXED
+Commit: 1d19ed6f0
+Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1743`
+Reason: CodeRabbit flagged mapping wording/style and a pre-checked merge-readiness checkbox. Commit `1d19ed6f0` changes `Phase2` to `Phase 2` and leaves the Codex Security merge-readiness checkbox unchecked until the final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451864 -> 1d19ed6f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451870 -> 1d19ed6f0
+
 ## Pre-Open Role-Agent Review
 
 Disposition: FIXED
