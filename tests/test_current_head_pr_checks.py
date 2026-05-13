@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts.ci import check_current_head_pr_checks as current_head_checks
 
@@ -19,59 +20,53 @@ CANONICAL_FALLBACK_JOB_IDS = {
     "security",
     "openapi-sync",
     "test-pr",
+    "test-main",
     "coverage-pr",
     "diff-coverage",
 }
-ADVISORY_PULL_REQUEST_JOB_IDS = {
-    "test-main",
-    "test-feature",
-    "coverage-feature",
-    "coverage-main",
-    "ios-tests",
-    "ios-ui-smoke",
-}
+
+
+@pytest.fixture(autouse=True)
+def _default_changed_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_changed_paths", lambda *args: set())
 
 
 def _load_ci_workflow_jobs() -> dict[str, dict[str, object]]:
-    import yaml
-
-    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8"))
+    workflow = yaml.safe_load((REPO_ROOT / ".github/workflows/ci.yml").read_text())
     jobs = workflow.get("jobs")
     assert isinstance(jobs, dict)
     return jobs
 
 
-def _job_display_name(job_id: str, definition: dict[str, object]) -> str:
+def _job_display_names(job_id: str, definition: dict[str, object]) -> set[str]:
     name = str(definition.get("name") or job_id)
     matrix = (definition.get("strategy") or {}).get("matrix") or {}
     python_versions = matrix.get("python-version")
     if job_id == "test-pr" and python_versions == ["3.13"]:
-        return f"{name} (3.13)"
-    return name
+        return {f"{name} (3.13)"}
+    matrix_include = matrix.get("include")
+    if job_id == "test-main" and isinstance(matrix_include, list):
+        versions = {
+            str(entry.get("python-version"))
+            for entry in matrix_include
+            if isinstance(entry, dict) and entry.get("python-version")
+        }
+        return {f"{name} ({version})" for version in sorted(versions)}
+    return {name}
 
 
-def test_fallback_ci_allowlist_matches_ci_workflow() -> None:
+def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
     jobs = _load_ci_workflow_jobs()
-    classified_job_ids = CANONICAL_FALLBACK_JOB_IDS | ADVISORY_PULL_REQUEST_JOB_IDS
-
-    assert set(jobs) == classified_job_ids
-    expected_display_names = {
-        _job_display_name(job_id, jobs[job_id]) for job_id in CANONICAL_FALLBACK_JOB_IDS
-    }
+    expected_display_names = set()
+    for job_id in CANONICAL_FALLBACK_JOB_IDS:
+        expected_display_names.update(_job_display_names(job_id, jobs[job_id]))
 
     assert current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES == expected_display_names
-
-
-def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
-    jobs = _load_ci_workflow_jobs()
-
-    assert _job_display_name("test-pr", jobs["test-pr"]) == "test-pr (3.13)"
-    assert "build-and-test" not in jobs
-    assert "build-and-test" not in current_head_checks.CANONICAL_FALLBACK_CI_CHECK_NAMES
+    assert "test-feature" not in CANONICAL_FALLBACK_JOB_IDS
 
 
 @pytest.mark.parametrize(
-    ("entry", "expected"),
+    ("entry", "changed_paths", "expected"),
     [
         (
             current_head_checks.CheckEntry(
@@ -83,6 +78,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="CI",
                 conclusion="",
             ),
+            set(),
             True,
         ),
         (
@@ -95,6 +91,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="CI",
                 conclusion="FAILURE",
             ),
+            set(),
             True,
         ),
         (
@@ -107,7 +104,8 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
-            False,
+            {"Dockerfile"},
+            True,
         ),
         (
             current_head_checks.CheckEntry(
@@ -119,6 +117,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Optional CI",
                 conclusion="FAILURE",
             ),
+            set(),
             False,
         ),
         (
@@ -131,7 +130,21 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="",
                 conclusion="",
             ),
+            set(),
             True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="CodeRabbit",
+                source_kind="status_context",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/coderabbit",
+                workflow_name="",
+                conclusion="",
+            ),
+            set(),
+            False,
         ),
         (
             current_head_checks.CheckEntry(
@@ -143,6 +156,7 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="CI",
                 conclusion="SUCCESS",
             ),
+            set(),
             False,
         ),
         (
@@ -155,14 +169,209 @@ def test_ci_workflow_matrix_display_name_stays_in_sync() -> None:
                 workflow_name="Docker Build and Push",
                 conclusion="",
             ),
+            set(),
             False,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-ci",
+                workflow_name="CI",
+                conclusion="",
+            ),
+            {"ios/PulsePlate/App.swift"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-ci-workflow",
+                workflow_name="CI",
+                conclusion="",
+            ),
+            {".github/workflows/ci.yml"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="iOS unit tests (xcodebuild)",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/ios-action",
+                workflow_name="CI",
+                conclusion="",
+            ),
+            {".github/actions/python-setup/action.yml"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="Greenlight preflight (report-only)",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/greenlight",
+                workflow_name="Greenlight iOS Preflight",
+                conclusion="FAILURE",
+            ),
+            {"ios/PulsePlate/App.swift"},
+            False,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build-and-test",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/frontend",
+                workflow_name="Frontend CI",
+                conclusion="",
+            ),
+            {".nvmrc"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="axe smoke",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/accessibility",
+                workflow_name="Accessibility Tests",
+                conclusion="",
+            ),
+            {".github/workflows/accessibility.yml"},
+            False,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="test-main (3.11)",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/test-main",
+                workflow_name="CI",
+                conclusion="FAILURE",
+            ),
+            {".github/workflows/ci.yml"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="security-scan",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-runtime",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {"requirements-docker-runtime.txt"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="security-scan",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-trivy-policy",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {"trivy/ignore-policy.rego"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="security-scan",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-trivyignore",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {".trivyignore"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/dockerignore",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            {".dockerignore"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-startup-guard",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            {"scripts/ci/check_python_startup_hooks.py"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-helper",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            {"scripts/ci/check_docker_runtime_dependency_surface.py"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-telemetry-budget",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {"docs/telemetry/docker_image_budget.production.json"},
+            True,
         ),
     ],
 )
 def test_is_blocking_fallback_advisory(
-    entry: current_head_checks.CheckEntry, expected: bool
+    entry: current_head_checks.CheckEntry, changed_paths: set[str], expected: bool
 ) -> None:
-    assert current_head_checks._is_blocking_fallback_advisory(entry) is expected
+    assert current_head_checks._is_blocking_fallback_advisory(entry, changed_paths) is expected
+
+
+def test_changed_paths_from_pr_file_includes_previous_filename_for_renames() -> None:
+    assert current_head_checks._changed_paths_from_pr_file(
+        {
+            "filename": "docs/requirements-docker-runtime.txt",
+            "previous_filename": "requirements-docker-runtime.txt",
+        }
+    ) == {
+        "docs/requirements-docker-runtime.txt",
+        "requirements-docker-runtime.txt",
+    }
 
 
 def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() -> None:
@@ -443,9 +652,10 @@ def test_main_passes_when_merge_state_is_not_clean_but_advisory_snapshot_is_clea
     captured = capsys.readouterr()
     assert exit_code == 0
     assert "NOTE: GitHub mergeStateStatus=UNSTABLE is stale/non-blocking" in captured.out
+    assert "no fallback-blocking current-head checks are pending or failed" in captured.out
 
 
-def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_check_is_pending(
+def test_main_passes_when_merge_state_is_not_clean_and_unattached_specialized_check_is_pending(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -483,13 +693,52 @@ def test_main_passes_when_merge_state_is_not_clean_and_specialized_advisory_chec
     assert "Required check metadata unavailable" in captured.out
     assert "Current-head advisory checks:" in captured.out
     assert "- security-scan: pending [Docker Build and Push]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed."
-        not in captured.out
+    assert "current-head-checks: passed." in captured.out
+
+
+def test_main_fails_when_merge_state_is_not_clean_and_attached_specialized_check_is_pending(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_pr_changed_paths", lambda *args: {"Dockerfile"}
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "security-scan",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-security-scan",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Build and Push"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
     )
 
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
 
-def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Current-head blocking fallback checks:" in captured.out
+    assert "- security-scan: pending [Docker Build and Push]" in captured.out
+
+
+def test_main_passes_when_unattached_specialized_ci_job_is_pending_in_fallback_mode(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
@@ -526,10 +775,97 @@ def test_main_passes_when_specialized_ci_job_is_pending_in_fallback_mode(
     assert exit_code == 0
     assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
     assert "Current-head advisory checks:" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed."
-        not in captured.out
+    assert "current-head-checks: passed." in captured.out
+
+
+def test_main_fails_when_attached_ios_ci_job_is_pending_in_fallback_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_changed_paths",
+        lambda *args: {"ios/PulsePlate/App.swift"},
     )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "iOS unit tests (xcodebuild)",
+                    "status": "IN_PROGRESS",
+                    "conclusion": None,
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": None,
+                    "detailsUrl": "https://example.invalid/pending-ios-unit",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "- iOS unit tests (xcodebuild): pending [CI]" in captured.out
+    assert "Current-head blocking fallback checks:" in captured.out
+
+
+def test_main_keeps_greenlight_report_only_job_advisory_in_fallback_mode(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_changed_paths",
+        lambda *args: {"ios/PulsePlate/App.swift"},
+    )
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "UNSTABLE",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "Greenlight preflight (report-only)",
+                    "status": "COMPLETED",
+                    "conclusion": "FAILURE",
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": "2026-03-12T05:09:03Z",
+                    "detailsUrl": "https://example.invalid/greenlight-failed",
+                    "checkSuite": {
+                        "workflowRun": {"workflow": {"name": "Greenlight iOS Preflight"}}
+                    },
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: (set(), False)
+    )
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "- Greenlight preflight (report-only): failed [Greenlight iOS Preflight]" in captured.out
+    assert "Current-head advisory checks:" in captured.out
 
 
 def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_is_pending(
@@ -569,9 +905,7 @@ def test_main_fails_when_merge_state_is_not_clean_and_canonical_fallback_check_i
     assert exit_code == 1
     assert "GitHub mergeStateStatus=UNSTABLE" in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pending(
@@ -611,9 +945,7 @@ def test_main_fails_when_merge_state_is_clean_and_canonical_fallback_check_is_pe
     assert exit_code == 1
     assert "GitHub mergeStateStatus=CLEAN" not in captured.out
     assert "- Docs Phase1 gates: pending [CI]" in captured.out
-    assert (
-        "Blocking canonical fallback current-head checks remain pending or failed." in captured.out
-    )
+    assert "Blocking fallback current-head checks remain pending or failed." in captured.out
 
 
 def test_main_passes_when_required_check_set_is_empty_but_available(
@@ -650,6 +982,49 @@ def test_main_passes_when_required_check_set_is_empty_but_available(
     assert exit_code == 0
     assert "Current-head required checks:" in captured.out
     assert "- none" in captured.out
+
+
+def test_main_does_not_fetch_changed_paths_when_required_metadata_is_available(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(current_head_checks, "_github_token", lambda: "token")
+    monkeypatch.setattr(
+        current_head_checks,
+        "_fetch_pr_metadata",
+        lambda *args: (
+            False,
+            "CLEAN",
+            "main",
+            [
+                {
+                    "__typename": "CheckRun",
+                    "name": "build",
+                    "status": "COMPLETED",
+                    "conclusion": "SUCCESS",
+                    "startedAt": "2026-03-12T05:05:00Z",
+                    "completedAt": "2026-03-12T05:09:03Z",
+                    "detailsUrl": "https://example.invalid/passed",
+                    "checkSuite": {"workflowRun": {"workflow": {"name": "Docker Image CI"}}},
+                }
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        current_head_checks, "_fetch_required_check_names", lambda *args: ({"build"}, True)
+    )
+
+    def fail_if_called(*args: object) -> set[str]:
+        raise AssertionError("changed paths should be fetched only in fallback mode")
+
+    monkeypatch.setattr(current_head_checks, "_fetch_pr_changed_paths", fail_if_called)
+
+    exit_code = current_head_checks.main(
+        ["--pr-number", "1127", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "current-head-checks: passed." in captured.out
 
 
 def test_status_context_expected_is_treated_as_pending() -> None:
