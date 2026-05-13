@@ -5,18 +5,29 @@
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745
 - Title: `feat(design): add design component contract registry seed`
 - Branch: `codex/design-component-contract-registry-seed-v1`
-- Current head SHA: `2ecb4a97a613f5e46d35442368d4b73283b6484d`
+- Current head SHA at initial mapping creation: `7f16e2385e6aabc15ce49ee0b4015fd1220f5329`
 
 ## Scope Summary
 
 This PR adds the first machine-readable design component contract registry seed, a repo-local validator, deterministic tests, and narrow governance pointers. It does not implement runtime web/iOS, tokens, generated mirrors, Storybook config, Figma/Canva/Kimi/Penpot writes, screenshots, binary assets, backend, OpenAPI, billing, auth, StoreKit, HealthKit, deploy, or CI workflow changes.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Initial post-open pass found no actionable human review threads. CodeRabbit had an in-progress informational comment and Sourcery reported rate limit only; neither had actionable code/doc findings at the time of this mapping update.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Review Thread Disposition Table
 
 | Source | URL | Disposition | Commit | Evidence |
 | --- | --- | --- | --- | --- |
 | Pre-open premortem | local diff review | FIXED | `2ecb4a97a613f5e46d35442368d4b73283b6484d` | `tests/test_design_component_registry.py` covers malformed JSON, non-object JSON, missing fields, unknown ids, duplicates, invalid status, empty strings, and external authority promotion. |
-| Post-open initial review | no review thread URL yet | NOT-A-BUG | n/a | Mapping artifact created after PR number assignment; no human/bot review thread had been dispositioned at artifact creation time. |
+| Post-open initial review | no review thread URL yet | NOT-A-BUG | n/a | Mapping artifact created after PR number assignment; no actionable human/bot review thread had been dispositioned at artifact update time. |
 
 ## Command Evidence
 
