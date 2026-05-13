@@ -17,6 +17,7 @@ from core.ai.semantic_cache_backend_selection import (
     REASON_ADMISSION_BLOCKED_HITS,
     REASON_BLOCKED_SURFACE_HITS,
     REASON_CURRENT_HEAD_CI_MISSING,
+    REASON_ELIGIBLE,
     REASON_FALSE_HIT_RATE_EXCEEDED,
     REASON_HUMAN_APPROVAL_MISSING,
     REASON_CONTEXT_LEAKAGE_EXCEEDED,
@@ -412,7 +413,7 @@ def test_selector_recomputes_safety_and_ignores_forged_decisions() -> None:
         human_approval_record_id=None,
     )
     forged = SemanticCacheBackendSelectionDecision(
-        decision_id="decision:forged",
+        decision_id="semantic-cache-backend:000000000000000000000000",
         decision=DECISION_ELIGIBLE,
         policy_version="semantic-cache-sc-g5-v1",
         selected_candidate_id=None,
@@ -431,6 +432,24 @@ def test_selector_recomputes_safety_and_ignores_forged_decisions() -> None:
 
     assert decision.decision == DECISION_NO_SELECTION
     assert decision.selected_backend_label is None
+
+
+def test_decision_rejects_non_sc_g5_decision_id() -> None:
+    with pytest.raises(ValueError, match="decision_id"):
+        SemanticCacheBackendSelectionDecision(
+            decision_id="decision:forged",
+            decision=DECISION_ELIGIBLE,
+            policy_version="semantic-cache-sc-g5-v1",
+            selected_candidate_id=None,
+            selected_backend_label=None,
+            candidate_id="candidate:redis",
+            backend_label=BACKEND_LABEL_REDIS,
+            reason_codes=(REASON_ELIGIBLE,),
+            rejected_candidate_ids=(),
+            runtime_allowed=False,
+            implementation_allowed=False,
+            metadata={"scope": "forged"},
+        )
 
 
 def test_matrix_and_mapping_are_deterministic() -> None:
@@ -626,7 +645,7 @@ def test_direct_decision_objects_reject_inconsistent_shapes() -> None:
         replace(eligible, rejected_candidate_ids=("candidate:redis",))
     with pytest.raises(ValueError, match="no-selection decision shape"):
         SemanticCacheBackendSelectionDecision(
-            decision_id="decision:bad-no-selection",
+            decision_id="semantic-cache-backend-select:000000000000000000000001",
             decision=DECISION_NO_SELECTION,
             policy_version="semantic-cache-sc-g5-v1",
             selected_candidate_id=None,
@@ -646,7 +665,7 @@ def test_matrix_invariants_fail_closed() -> None:
     decision = evaluate_semantic_cache_backend_candidate(candidate=candidate, criteria=_criteria())
     matrix = evaluate_semantic_cache_backend_matrix(candidates=(candidate,), criteria=_criteria())
     forged_final = SemanticCacheBackendSelectionDecision(
-        decision_id="decision:forged-final",
+        decision_id="semantic-cache-backend-select:000000000000000000000002",
         decision=DECISION_SELECTED,
         policy_version="semantic-cache-sc-g5-v1",
         selected_candidate_id=candidate.candidate_id,
@@ -690,7 +709,7 @@ def test_matrix_constructor_rejects_forged_selected_decision_for_ineligible_cand
         criteria=_criteria(),
     )
     forged_final = SemanticCacheBackendSelectionDecision(
-        decision_id="decision:forged-final",
+        decision_id="semantic-cache-backend-select:000000000000000000000003",
         decision=DECISION_SELECTED,
         policy_version="semantic-cache-sc-g5-v1",
         selected_candidate_id=candidate.candidate_id,
@@ -940,6 +959,20 @@ def test_import_guard_rejects_unknown_path_open_kwargs(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError, match="Path.open.write-mode"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_path_effect_method_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_method_alias.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "writer = Path('payload.txt').write_text\n"
+        "mutator = Path('payload-dir').mkdir\n"
+        "opener = Path('payload.bin').open\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.method-alias"):
         assert_no_forbidden_semantic_cache_calls(source)
 
 

@@ -359,6 +359,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "junit-main-${{ matrix.python-version }}" in test_main_section
     assert "coverage-xml-${{ matrix.python-version }}" not in test_main_section
     assert "junit-${{ matrix.python-version }}" not in test_main_section
+    assert "fetch-depth: 0" in test_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block

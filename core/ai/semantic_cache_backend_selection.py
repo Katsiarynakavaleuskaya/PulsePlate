@@ -461,6 +461,7 @@ class SemanticCacheBackendSelectionDecision:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "decision_id", _validate_token("decision_id", self.decision_id))
+        _validate_decision_id_format(self.decision_id)
         if self.decision not in {
             DECISION_ELIGIBLE,
             DECISION_INELIGIBLE,
@@ -853,6 +854,15 @@ def _validate_decision_shape(decision: SemanticCacheBackendSelectionDecision) ->
         or decision.reason_codes != (REASON_NO_ELIGIBLE_CANDIDATE,)
     ):
         raise ValueError("no-selection decision shape is inconsistent")
+
+
+def _validate_decision_id_format(decision_id: str) -> None:
+    prefixes = ("semantic-cache-backend:", "semantic-cache-backend-select:")
+    if not decision_id.startswith(prefixes):
+        raise ValueError("decision_id must use an SC-G5 semantic-cache backend prefix")
+    suffix = decision_id.rsplit(":", 1)[1]
+    if len(suffix) != 24 or any(char not in "0123456789abcdef" for char in suffix):
+        raise ValueError("decision_id must include a 24-character lowercase hex suffix")
 
 
 def _evidence_signature(evidence: SemanticCacheBackendSafetyEvidence) -> Mapping[str, JsonValue]:

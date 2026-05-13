@@ -889,11 +889,11 @@ def validate_semantic_cache_backend_selection_contract(text: str) -> list[str]:
 
 
 def _validate_backend_selection_machine_state(text: str) -> list[str]:
-    match = MACHINE_JSON_RE.search(text)
-    if match is None:
-        return ["backend selection contract missing machine-readable JSON state"]
+    payload_text, state_errors = _backend_selection_machine_state_json(text)
+    if state_errors:
+        return state_errors
     try:
-        payload = json.loads(match.group("payload"))
+        payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
         return [f"backend selection contract invalid JSON state: {exc.msg}"]
     if not isinstance(payload, dict):
@@ -1023,6 +1023,22 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
     return errors
 
 
+def _backend_selection_machine_state_json(text: str) -> tuple[str, list[str]]:
+    heading = re.search(r"(?im)^##\s+Machine-Readable State\s*$", text)
+    if heading is None:
+        return "", ["backend selection contract missing Machine-Readable State heading"]
+    section = text[heading.end() :]
+    next_heading = re.search(r"(?m)^##\s+", section)
+    if next_heading is not None:
+        section = section[: next_heading.start()]
+    matches = list(MACHINE_JSON_RE.finditer(section))
+    if not matches:
+        return "", ["backend selection contract missing machine-readable JSON state"]
+    if len(matches) > 1:
+        return "", ["backend selection contract has multiple machine-readable JSON states"]
+    return matches[0].group("payload"), []
+
+
 def validate_semantic_cache_backend_selection_schema(
     *,
     schema_text: str,
@@ -1038,11 +1054,11 @@ def validate_semantic_cache_backend_selection_schema(
     if not isinstance(schema, dict):
         return ["backend selection schema must be an object"]
 
-    match = MACHINE_JSON_RE.search(contract_text)
-    if match is None:
-        return ["backend selection contract missing machine-readable JSON state"]
+    payload_text, state_errors = _backend_selection_machine_state_json(contract_text)
+    if state_errors:
+        return state_errors
     try:
-        payload = json.loads(match.group("payload"))
+        payload = json.loads(payload_text)
     except json.JSONDecodeError as exc:
         return [f"backend selection contract invalid JSON state: {exc.msg}"]
     if not isinstance(payload, dict):

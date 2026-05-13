@@ -53,6 +53,38 @@ def test_checker_passes_current_backend_selection_contract() -> None:
     assert validate_semantic_cache_backend_selection_contract(_contract_text()) == []
 
 
+def test_checker_binds_json_validation_to_machine_state_block() -> None:
+    decoy = """```json
+{"gate_status":"open"}
+```
+
+"""
+    text = decoy + _contract_text()
+
+    assert validate_semantic_cache_backend_selection_contract(text) == []
+
+    broken = _contract_text().replace("## Machine-Readable State", "## Machine State", 1)
+    errors = validate_semantic_cache_backend_selection_contract(broken)
+
+    assert any("Machine-Readable State heading" in error for error in errors)
+
+
+def test_checker_rejects_multiple_machine_state_json_blocks() -> None:
+    text = _contract_text().replace(
+        "## Premortem Closure",
+        """```json
+{"gate_status":"closed"}
+```
+
+## Premortem Closure""",
+        1,
+    )
+
+    errors = validate_semantic_cache_backend_selection_contract(text)
+
+    assert any("multiple machine-readable JSON states" in error for error in errors)
+
+
 def test_checker_rejects_gate_open_or_serving_claims() -> None:
     bad_text = (
         _contract_text()

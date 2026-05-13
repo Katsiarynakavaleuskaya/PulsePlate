@@ -208,11 +208,19 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 if alias.name != "*":
                     import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
         elif isinstance(node, ast.Assign):
+            if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
+                offenders.append("Path.method-alias")
             if _is_path_expr(node.value, import_aliases, path_aliases):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         path_aliases.add(target.id)
         elif isinstance(node, ast.AnnAssign):
+            if node.value is not None and _is_path_effect_method_ref(
+                node.value,
+                import_aliases,
+                path_aliases,
+            ):
+                offenders.append("Path.method-alias")
             if (
                 isinstance(node.target, ast.Name)
                 and node.value is not None
@@ -315,6 +323,20 @@ def _is_path_mutation_call(
     if node.attr not in {"touch", "mkdir", "rename", "replace", "unlink", "rmdir"}:
         return False
     return _is_path_expr(node.value, import_aliases, path_aliases)
+
+
+def _is_path_effect_method_ref(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Attribute):
+        return False
+    if node.attr in {"write_text", "write_bytes", "open"}:
+        return _is_path_expr(node.value, import_aliases, path_aliases)
+    if node.attr in {"touch", "mkdir", "rename", "replace", "unlink", "rmdir"}:
+        return _is_path_expr(node.value, import_aliases, path_aliases)
+    return False
 
 
 def _is_path_open_write_mode_call(
