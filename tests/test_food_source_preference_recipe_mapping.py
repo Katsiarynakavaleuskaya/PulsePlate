@@ -136,6 +136,15 @@ def _coverage_with_preference_domain(
     return replace(coverage_payload, coverage_domains=domains)
 
 
+def _coverage_with_source_gap_decision(source: str, **updates: object) -> SourceGapAudit:
+    coverage_payload = copy.deepcopy(_coverage())
+    source_gap_decisions = tuple(
+        replace(source_gap, **updates) if source_gap.source == source else source_gap
+        for source_gap in coverage_payload.source_gap_decisions
+    )
+    return replace(coverage_payload, source_gap_decisions=source_gap_decisions)
+
+
 def test_load_preference_recipe_mapping_accepts_canonical_artifact() -> None:
     governance = load_preference_recipe_mapping_governance(
         _GOVERNANCE_PATH,
@@ -321,6 +330,28 @@ def test_preference_recipe_mapping_rejects_pr11_lane_drift() -> None:
 @pytest.mark.parametrize(
     ("field_name", "bad_value"),
     (
+        ("next_recommended_lane", "runtime_source_cutover"),
+        ("final_gate_decision", "coverage_gap_audit_allows_ingest"),
+    ),
+)
+def test_preference_recipe_mapping_rejects_pr11_top_level_handoff_drift(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    coverage_payload = replace(_coverage(), **{field_name: bad_value})
+
+    with pytest.raises(PreferenceRecipeMappingError, match=f"PR11 .*{field_name}"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
         ("coverage_decision", "approved_source_mapping"),
         ("gap_status", "planner_gap_as_source_authority"),
         ("authority_decision", "source_authority"),
@@ -348,12 +379,67 @@ def test_preference_recipe_mapping_rejects_pr11_authority_decision_drift(
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("decision", "approved_recipe_source"),
+        ("source_family", "commercial_api"),
+        ("allowed_role", "source_authority"),
+        ("approved_ingest", True),
+        ("approved_runtime_authority", True),
+        ("api_calls_allowed", True),
+        ("scraping_allowed", True),
+        ("paid_source_use_allowed", True),
+    ),
+)
+def test_preference_recipe_mapping_rechecks_pr11_recipe_source_gap_rows_for_handoff(
+    field_name: str,
+    bad_value: object,
+) -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_source_gap_decision(
+        "edamam_food_database", **{field_name: bad_value}
+    )
+
+    with pytest.raises(
+        PreferenceRecipeMappingError, match="PR11 edamam_food_database source_gap_decisions"
+    ):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
 def test_preference_recipe_mapping_rejects_pr14_lane_drift() -> None:
     payload = _governance_payload()
     recipe_governance = _recipe_dish_corpus()
     recipe_governance = replace(recipe_governance, next_recommended_lane="some_other_lane")
 
     with pytest.raises(PreferenceRecipeMappingError, match="PR14 must recommend"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=recipe_governance,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("source", "spoonacular"),
+        ("source_classification", "approved_source"),
+        ("source_family", "commercial_api"),
+    ),
+)
+def test_preference_recipe_mapping_rejects_pr14_top_level_identity_drift(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    recipe_governance = replace(_recipe_dish_corpus(), **{field_name: bad_value})
+
+    with pytest.raises(PreferenceRecipeMappingError, match=f"PR14 .*{field_name}"):
         parse_preference_recipe_mapping_governance(
             payload,
             coverage=_coverage(),
@@ -448,6 +534,14 @@ def test_preference_recipe_mapping_rechecks_pr14_review_rows_for_direct_handoff(
         "user preference text authority approved",
         "LLM output authority allowed",
         "nutrition authority approved",
+        "api approved",
+        "approved api",
+        "allowed api",
+        "api allowed",
+        "approved ingest",
+        "allowed ingest",
+        "approved cache",
+        "allowed cache",
         "approved source use",
         "source use is approved",
         "source use allowed",
@@ -505,6 +599,18 @@ def test_preference_recipe_mapping_rejects_blocked_method_note_approvals(
 def test_preference_recipe_mapping_rejects_present_tense_note_approvals(note: str) -> None:
     payload = _governance_payload()
     payload["notes"] = note
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_match() -> None:
+    payload = _governance_payload()
+    payload["notes"] = "this does not approve API calls; api approved"
 
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
         parse_preference_recipe_mapping_governance(

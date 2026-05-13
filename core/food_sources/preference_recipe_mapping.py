@@ -23,6 +23,8 @@ from core.food_sources.recipe_dish_corpus import (
 )
 from core.food_sources.source_catalog import SourceCatalogError, load_source_catalog
 from core.food_sources.source_gap_audit import (
+    FINAL_GATE_DECISION as PR11_FINAL_GATE_DECISION,
+    NEXT_RECOMMENDED_LANE as PR11_NEXT_RECOMMENDED_LANE,
     SourceGapAudit,
     SourceGapAuditError,
     load_source_gap_audit,
@@ -60,6 +62,18 @@ EXPECTED_PR11_PREFERENCE_NEXT_ACTION = "preference_recipe_mapping_contract"
 EXPECTED_PR14_RECIPE_ALLOWED_ROLES = {
     "edamam_food_database": "adjacent_recipe_food_db_review_only",
     "spoonacular": "deferred_recipe_experiment_candidate_only",
+}
+EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS = {
+    "edamam_food_database": {
+        "decision": "adjacent_recipe_food_db_review_only",
+        "source_family": "recipe_corpus",
+        "allowed_role": "under_20_review_candidate_only",
+    },
+    "spoonacular": {
+        "decision": "deferred_recipe_experiments_only",
+        "source_family": "recipe_corpus",
+        "allowed_role": "deferred_experiment_candidate_only",
+    },
 }
 
 BLOCKED_METHODS = (
@@ -113,6 +127,18 @@ _MAPPING_FLAG_KEYS = (
 
 _EXTRA_FORBIDDEN_NOTE_PHRASES = (
     "approved recipe text",
+    "approved api",
+    "api approved",
+    "allowed api",
+    "api allowed",
+    "approved ingest",
+    "allowed ingest",
+    "approved runtime",
+    "allowed runtime",
+    "approved cache",
+    "allowed cache",
+    "approved redistribution",
+    "allowed redistribution",
     "recipe text approved",
     "recipe text authority",
     "recipe text is authority",
@@ -397,8 +423,9 @@ def _require_safety_flags(data: dict[str, object], context: str) -> None:
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = " ".join(value.lower().replace("-", " ").replace("_", " ").split())
     for phrase in _FORBIDDEN_NOTE_PHRASES:
-        match = re.search(rf"\b{re.escape(phrase)}\b", normalized)
-        if match and not _is_negated_approval_phrase(normalized, phrase, match.start()):
+        for match in re.finditer(rf"\b{re.escape(phrase)}\b", normalized):
+            if _is_negated_approval_phrase(normalized, phrase, match.start()):
+                continue
             raise _mapping_error(
                 context,
                 "notes must not approve recipe text, preference text, LLM output, "
@@ -422,6 +449,14 @@ def _require_pr14_handoff(
     recipe_dish_corpus: RecipeDishCorpusGovernance,
     context: str,
 ) -> None:
+    if recipe_dish_corpus.source != "recipe_dish_corpora":
+        raise _mapping_error(context, "PR14 source must be recipe_dish_corpora")
+    if recipe_dish_corpus.source_classification != "commercial_contract_review_only":
+        raise _mapping_error(
+            context, "PR14 source_classification must be commercial_contract_review_only"
+        )
+    if recipe_dish_corpus.source_family != "recipe_corpus":
+        raise _mapping_error(context, "PR14 source_family must be recipe_corpus")
     if recipe_dish_corpus.next_recommended_lane != PR14_NEXT_RECOMMENDED_LANE:
         raise _mapping_error(context, "PR14 must recommend preference_recipe_mapping_contract")
     if recipe_dish_corpus.evidence_policy != PR14_EVIDENCE_POLICY:
@@ -477,6 +512,16 @@ def _require_pr14_handoff(
 
 
 def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> None:
+    if coverage.next_recommended_lane != PR11_NEXT_RECOMMENDED_LANE:
+        raise _mapping_error(
+            context,
+            f"PR11 next_recommended_lane must be {PR11_NEXT_RECOMMENDED_LANE}",
+        )
+    if coverage.final_gate_decision != PR11_FINAL_GATE_DECISION:
+        raise _mapping_error(
+            context,
+            f"PR11 final_gate_decision must be {PR11_FINAL_GATE_DECISION}",
+        )
     domains = _coverage_domain_by_name(coverage)
     preference_domain = domains.get(SOURCE)
     if preference_domain is None:
@@ -515,6 +560,29 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
         raise _mapping_error(
             context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
         )
+    source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
+    for source, expected in EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS.items():
+        source_gap = source_gap_decisions.get(source)
+        if source_gap is None:
+            raise _mapping_error(context, f"PR11 source_gap_decisions must include {source}")
+        for field_name, expected_value in expected.items():
+            if getattr(source_gap, field_name) != expected_value:
+                raise _mapping_error(
+                    context,
+                    f"PR11 {source} source_gap_decisions {field_name} must be {expected_value}",
+                )
+        if (
+            source_gap.approved_ingest
+            or source_gap.approved_runtime_authority
+            or source_gap.api_calls_allowed
+            or source_gap.scraping_allowed
+            or source_gap.paid_source_use_allowed
+        ):
+            raise _mapping_error(
+                context,
+                f"PR11 {source} source_gap_decisions must not approve ingest, runtime, API, "
+                "scraping, or paid source use",
+            )
 
 
 def _parse_mapping_contract(value: object, *, context: str) -> PreferenceMappingContract:
