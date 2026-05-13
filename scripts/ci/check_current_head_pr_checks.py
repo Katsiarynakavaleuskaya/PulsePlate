@@ -51,6 +51,8 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
 }
 DOCKER_FALLBACK_WORKFLOW_NAMES = {"Docker Build and Push"}
 DOCKER_SURFACE_PREFIXES = {
+    ".dockerignore",
+    ".trivyignore",
     ".github/workflows/build.yml",
     ".github/workflows/cd.yml",
     "Dockerfile",
@@ -58,8 +60,14 @@ DOCKER_SURFACE_PREFIXES = {
     "constraints.txt",
     "requirements-docker-runtime.in",
     "requirements-docker-runtime.txt",
+    "scripts/ci/check_docker_image_budget.py",
+    "scripts/ci/check_docker_runtime_dependency_surface.py",
+    "scripts/ci/check_python_startup_hooks.py",
+    "scripts/ci/docker_image_telemetry.py",
     "scripts/ci/emergency_python_wheels.json",
+    "scripts/ci/fetch_docker_image_baseline.py",
     "scripts/ci/install_locked_python_requirements.py",
+    "trivy/",
 }
 FRONTEND_FALLBACK_WORKFLOW_NAMES = {"Frontend CI"}
 FRONTEND_SURFACE_PREFIXES = {
@@ -293,12 +301,22 @@ def _fetch_pr_changed_paths(pr_number: int, repo: str, token: str) -> set[str]:
         if not data:
             break
         for item in data:
-            filename = str((item or {}).get("filename") or "").strip()
-            if filename:
-                paths.add(filename)
+            paths.update(_changed_paths_from_pr_file(item or {}))
         if len(data) < 100:
             break
         page += 1
+    return paths
+
+
+def _changed_paths_from_pr_file(item: dict[str, Any]) -> set[str]:
+    """Return current and previous paths for one PR file API item."""
+    paths: set[str] = set()
+    filename = str(item.get("filename") or "").strip()
+    if filename:
+        paths.add(filename)
+    previous_filename = str(item.get("previous_filename") or "").strip()
+    if previous_filename:
+        paths.add(previous_filename)
     return paths
 
 

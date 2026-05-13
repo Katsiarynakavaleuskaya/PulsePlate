@@ -276,12 +276,89 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
             {"requirements-docker-runtime.txt"},
             True,
         ),
+        (
+            current_head_checks.CheckEntry(
+                name="security-scan",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-trivy-policy",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {"trivy/ignore-policy.rego"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="security-scan",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-trivyignore",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {".trivyignore"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/dockerignore",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            {".dockerignore"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-startup-guard",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            {"scripts/ci/check_python_startup_hooks.py"},
+            True,
+        ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="pending",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-helper",
+                workflow_name="Docker Build and Push",
+                conclusion="",
+            ),
+            {"scripts/ci/check_docker_runtime_dependency_surface.py"},
+            True,
+        ),
     ],
 )
 def test_is_blocking_fallback_advisory(
     entry: current_head_checks.CheckEntry, changed_paths: set[str], expected: bool
 ) -> None:
     assert current_head_checks._is_blocking_fallback_advisory(entry, changed_paths) is expected
+
+
+def test_changed_paths_from_pr_file_includes_previous_filename_for_renames() -> None:
+    assert current_head_checks._changed_paths_from_pr_file(
+        {
+            "filename": "docs/requirements-docker-runtime.txt",
+            "previous_filename": "requirements-docker-runtime.txt",
+        }
+    ) == {
+        "docs/requirements-docker-runtime.txt",
+        "requirements-docker-runtime.txt",
+    }
 
 
 def test_latest_entries_prefers_newest_duplicate_and_marks_older_superseded() -> None:
