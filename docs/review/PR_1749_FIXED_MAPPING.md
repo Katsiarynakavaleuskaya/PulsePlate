@@ -25,6 +25,7 @@
   - `cc7a28debe49cc228abacb8196c8c33c63e27dbe` - command diagnostic and mutable-surface containment hardening.
   - `98740bebd04302f0cd552558d09df60af8eeb48b` - fail-closed evidence drift validation.
   - `b5bf50f9f60204feb476ce2ca810fdb773d225df` - typed surface containment follow-up.
+  - `261085d5e2fc8d760dcc743fc0adeffadcaa07c5` - runner-aligned notification evidence validation.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -82,6 +83,10 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793887 -> 98740bebd04302f0cd552558d09df60af8eeb48b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793892 -> 98740bebd04302f0cd552558d09df60af8eeb48b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793897 -> 98740bebd04302f0cd552558d09df60af8eeb48b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284687950 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236869446 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236869450 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236869455 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -127,11 +132,15 @@ Disposition: FIXED
 Commit: 98740bebd04302f0cd552558d09df60af8eeb48b
 Evidence: `scripts/orchestration/experiment_notify.py` now allows nested mutable paths only for explicit or existing directory surfaces, rejects accepted results with non-null `failure_class`, requires rejected result oracle evidence to preserve packet prefix order, and redacts `GITHUB_STEP_SUMMARY` write failures. `tests/test_experiment_notify.py` covers each regression.
 
+Disposition: FIXED
+Commit: 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
+Evidence: `scripts/orchestration/experiment_notify.py` now aligns directory-surface matching with runner prefix behavior for new directories while still rejecting existing file surfaces, rejects rejected results whose terminal oracle passed, and redacts notification output write failures. `tests/test_experiment_notify.py` covers each regression.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 81 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 84 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
