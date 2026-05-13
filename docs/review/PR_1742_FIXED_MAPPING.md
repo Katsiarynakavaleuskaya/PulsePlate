@@ -52,34 +52,34 @@ Post-open bot and agent review threads were triaged after concrete fixes or expl
 Disposition: FIXED
 Commit: 083c1eeca
 Evidence: Mapping artifact checkboxes and matrix signature checks were added; local gates passed before the commit was pushed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233091753
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099804
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233091753 -> 083c1eeca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099804 -> 083c1eeca
 
 Disposition: FIXED
 Commit: 7c745043b
 Evidence: Sourcery, CodeRabbit, and Cubic findings were fixed in code/docs/tests; focused tests, mypy, semantic-cache checker, docs gate, validate-changed, and pre-commit passed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233057757
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233057761
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233091809
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099837
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233143300
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233143327
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233143335
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233057757 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233057761 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233091809 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099837 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233143300 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233143327 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233143335 -> 7c745043b
 
 Disposition: FIXED
 Commit: 710920a07
 Evidence: Follow-up Codex review findings were fixed in code/tests; focused tests, mypy, semantic-cache checker, docs gate, bounded regression bundle, validate-changed, and pre-commit passed.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099817
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099830
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099844
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249559
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249564
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249572
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249582
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249588
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249590
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249591
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249593
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099817 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099830 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233099844 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249559 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249564 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249572 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249582 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249588 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249590 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249591 -> 710920a07
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233249593 -> 710920a07
 
 Disposition: NOT-A-BUG
 Evidence: `tests/core/ai/test_semantic_cache_backend_selection.py` includes `test_no_core_ai_export_side_door`, which asserts SC-G5 remains unexported from `core/ai/__init__.py`.
@@ -93,7 +93,7 @@ Reason: The test import path intentionally exercises the repo import contract; S
 | CodeRabbit | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Sourcery | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Cubic | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Pending final post-fix scan | Threat-model, security-scan, and validation required after final substantive code change. |
+| Codex Security | Pending final post-fix scan | Final scan must be rerun after commit `3be17053c`; latest security-auditor P1 was fixed in that commit. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
