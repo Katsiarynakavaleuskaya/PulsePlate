@@ -76,6 +76,17 @@ def _changed_paths_for_current_worktree() -> list[str]:
     if staged:
         return staged
 
+    for diff_base in ("origin/main...HEAD", "HEAD^1...HEAD"):
+        branch = subprocess.run(
+            [git_bin, "diff", "--name-only", diff_base],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if branch.returncode == 0:
+            return branch.stdout.splitlines()
+
     branch = subprocess.run(
         [git_bin, "diff", "--name-only", "origin/main...HEAD"],
         cwd=REPO_ROOT,
