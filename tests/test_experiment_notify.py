@@ -128,6 +128,26 @@ def _write_json(path: Path, payload: dict[str, object]) -> Path:
     return path
 
 
+def _write_audit_artifact(repo: Path, experiment_id: str = "exp-notify") -> Path:
+    upper_id = experiment_id.upper().replace("-", "_")
+    path = repo / "docs" / "audit" / f"EXPERIMENT_{upper_id}.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# Experiment Audit Artifact: {experiment_id}\n", encoding="utf-8")
+    return path
+
+
+def _write_backlog_entry(repo: Path, experiment_id: str = "exp-notify") -> Path:
+    experiment_slug = experiment_id.replace("_", "-")
+    path = repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        f'<a id="ledger-{experiment_slug}"></a>\n'
+        f"- [ ] P1: Experiment follow-up for {experiment_id}\n",
+        encoding="utf-8",
+    )
+    return path
+
+
 def _subprocess_env_without_repo_pythonpath() -> dict[str, str]:
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
@@ -198,6 +218,7 @@ def test_notification_includes_promotion_decision(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
+    _write_audit_artifact(repo)
     packet_path = _write_json(tmp_path / "packet.json", _packet())
     result_path = _write_json(tmp_path / "result.json", _result())
     promotion_path = _write_json(tmp_path / "promotion.json", _promotion())
@@ -574,16 +595,56 @@ def test_rejected_infra_flake_allows_passing_oracle_prefix() -> None:
 
 
 def test_rejected_metric_regression_allows_passing_oracle_prefix() -> None:
-    packet = experiment_contract.validate_experiment_packet(_packet())
+    packet = experiment_contract.validate_experiment_packet(
+        _packet()
+        | {
+            "immutable_oracles": [
+                {"command": "python3 -m pytest tests/test_a.py", "expected_signal": "must pass"},
+                {"command": "python3 -m pytest tests/test_b.py", "expected_signal": "must pass"},
+            ]
+        }
+    )
     result = experiment_contract.validate_experiment_result(
         _result(status="rejected", failure_class="metric_regression")
     )
-    result["oracle_results"][0]["returncode"] = 0
+    result["oracle_results"] = [
+        {
+            "command": "python3 -m pytest tests/test_a.py",
+            "returncode": 0,
+            "timed_out": False,
+            "truncated": False,
+            "stdout": "",
+            "stderr": "",
+            "cwd": "",
+        },
+        {
+            "command": "python3 -m pytest tests/test_b.py",
+            "returncode": 0,
+            "timed_out": False,
+            "truncated": False,
+            "stdout": "",
+            "stderr": "",
+            "cwd": "",
+        },
+    ]
 
     content = experiment_notify.render_notification_markdown(packet, result)
 
     assert "- Result status: `rejected`" in content
     assert "- Failure class: `metric_regression`" in content
+
+
+def test_rejected_metric_regression_requires_full_passing_oracle_evidence() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="metric_regression")
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="oracle_results must pass",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
 
 
 def test_rejected_result_terminal_oracle_must_fail() -> None:
@@ -680,6 +741,86 @@ def test_promotion_evidence_must_match_packet_and_result() -> None:
         experiment_notify.render_notification_markdown(packet, result, promotion)
 
 
+def test_promoted_durable_artifact_must_exist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    promotion = experiment_notify._validate_promotion_decision(_promotion())
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="durable_artifact_path must exist",
+    ):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_backlog_promotion_requires_experiment_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    backlog_path = repo / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    backlog_path.parent.mkdir(parents=True, exist_ok=True)
+    backlog_path.write_text("# Backlog\n", encoding="utf-8")
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="backlog_entry")
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "result_status": "rejected",
+            "failure_class": "guard_failure",
+            "promotion_target": "backlog_entry",
+            "disposition": "deferred",
+            "durable_artifact_path": "docs/roadmap/BACKLOG_LEDGER.md",
+        }
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="experiment anchor",
+    ):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_backlog_promotion_accepts_existing_experiment_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _write_backlog_entry(repo)
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="backlog_entry")
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "result_status": "rejected",
+            "failure_class": "guard_failure",
+            "promotion_target": "backlog_entry",
+            "disposition": "deferred",
+            "durable_artifact_path": "docs/roadmap/BACKLOG_LEDGER.md",
+        }
+    )
+
+    content = experiment_notify.render_notification_markdown(packet, result, promotion)
+
+    assert "- Promotion target: `backlog_entry`" in content
+    assert "- Promotion disposition: `deferred`" in content
+
+
 def test_promotion_evidence_oracle_count_must_match_result() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(_result())
@@ -738,6 +879,7 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
 ) -> None:
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
+    _write_audit_artifact(repo)
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(_result())
     promotion = experiment_notify._validate_promotion_decision(

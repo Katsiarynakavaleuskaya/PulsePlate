@@ -184,6 +184,7 @@ def _require_matching_experiment(
             raise ExperimentNotificationError(
                 "Rejected experiment results must have promotion disposition deferred."
             )
+    _require_promotion_durable_artifact_exists(promotion)
 
 
 def _require_result_evidence_matches_packet(
@@ -227,6 +228,21 @@ def _require_result_evidence_matches_packet(
             raise ExperimentNotificationError(
                 "Rejected policy_violation result mutated_paths must be empty."
             )
+        if result["failure_class"] == "metric_regression":
+            if result_oracles != expected_oracles:
+                raise ExperimentNotificationError(
+                    "Rejected metric_regression result oracle_results must match packet immutable_oracles."
+                )
+            failed_oracles = [
+                _oracle_command_name(oracle_result["command"])
+                for oracle_result in result["oracle_results"]
+                if oracle_result["returncode"] != 0 or oracle_result["timed_out"]
+            ]
+            if failed_oracles:
+                joined = ", ".join(failed_oracles)
+                raise ExperimentNotificationError(
+                    f"Rejected metric_regression oracle_results must pass: {joined}"
+                )
         if result["failure_class"] in ORACLE_FAILURE_CLASSES:
             if not result["oracle_results"]:
                 raise ExperimentNotificationError(
@@ -315,6 +331,30 @@ def _require_promotion_evidence_matches_result(
     if evidence["oracle_count"] != len(result["oracle_results"]):
         raise ExperimentNotificationError(
             "Promotion decision evidence.oracle_count must match experiment result."
+        )
+
+
+def _require_promotion_durable_artifact_exists(promotion: dict[str, Any]) -> None:
+    """Require promotion evidence to point at a durable repo artifact."""
+
+    durable_path = REPO_ROOT / promotion["durable_artifact_path"]
+    if not durable_path.is_file():
+        raise ExperimentNotificationError("Promotion decision durable_artifact_path must exist.")
+    if promotion["promotion_target"] != "backlog_entry":
+        return
+
+    try:
+        content = durable_path.read_text(encoding="utf-8")
+    except OSError as exc:
+        raise ExperimentNotificationError(
+            "Promotion decision backlog durable_artifact_path must be readable."
+        ) from exc
+    experiment_slug = promotion["experiment_id"].replace("_", "-")
+    expected_anchor = f'<a id="ledger-{experiment_slug}"></a>'
+    expected_title = f"Experiment follow-up for {promotion['experiment_id']}"
+    if expected_anchor not in content or expected_title not in content:
+        raise ExperimentNotificationError(
+            "Promotion decision backlog durable_artifact_path must include experiment anchor."
         )
 
 
