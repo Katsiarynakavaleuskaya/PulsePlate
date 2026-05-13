@@ -365,8 +365,8 @@ def _coverage_gap_sources(coverage: SourceGapAudit) -> dict[str, object]:
 def _parse_recipe_review(
     value: object,
     *,
-    onboarding: SourceOnboarding,
-    coverage: SourceGapAudit,
+    onboarding_sources: dict[str, object],
+    coverage_sources: dict[str, object],
     context: str,
 ) -> RecipeCorpusReview:
     data = _require_mapping(value, context)
@@ -378,8 +378,8 @@ def _parse_recipe_review(
     source = _require_string(data, "source", context)
     if source not in EXPECTED_RECIPE_SOURCES:
         raise _governance_error(context, f"unknown recipe/dish corpus source: {source}")
-    onboarding_entry = _onboarding_by_source(onboarding).get(source)
-    coverage_entry = _coverage_gap_sources(coverage).get(source)
+    onboarding_entry = onboarding_sources.get(source)
+    coverage_entry = coverage_sources.get(source)
     if onboarding_entry is None or coverage_entry is None:
         raise _governance_error(context, f"{source} must exist in onboarding and coverage audits")
     if any(_require_bool(data, key, context) for key in _REVIEW_FLAG_KEYS):
@@ -393,10 +393,10 @@ def _parse_recipe_review(
     source_family = _require_string(data, "source_family", context)
     if source_classification != getattr(onboarding_entry, "source_classification"):
         raise _governance_error(context, f"{source} source_classification must match onboarding")
-    if source_family != "recipe_corpus" or source_family != getattr(
-        onboarding_entry, "source_family"
-    ):
+    if source_family != "recipe_corpus":
         raise _governance_error(context, f"{source} source_family must be recipe_corpus")
+    if source_family != getattr(onboarding_entry, "source_family"):
+        raise _governance_error(context, f"{source} source_family must match onboarding")
     if getattr(onboarding_entry, "onboarding_status") != "contract_review_blocked":
         raise _governance_error(
             context, f"{source} onboarding_status must remain contract_review_blocked"
@@ -541,11 +541,13 @@ def parse_recipe_dish_corpus_governance(
     rows = data.get("recipe_corpus_reviews")
     if not isinstance(rows, list):
         raise _governance_error(context, "recipe_corpus_reviews must be a list")
+    onboarding_sources = _onboarding_by_source(onboarding)
+    coverage_sources = _coverage_gap_sources(coverage)
     recipe_corpus_reviews = tuple(
         _parse_recipe_review(
             row,
-            onboarding=onboarding,
-            coverage=coverage,
+            onboarding_sources=onboarding_sources,
+            coverage_sources=coverage_sources,
             context=f"{context}.recipe_corpus_reviews[{index}]",
         )
         for index, row in enumerate(rows)
