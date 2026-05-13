@@ -82,6 +82,11 @@ Disposition: NOT-A-BUG
 Evidence: `git merge-base --is-ancestor 42cb54728 HEAD` and `git merge-base --is-ancestor 8db30a3cf HEAD` both returned `0` locally on branch `codex/fix-replay-sort-clean`.
 Reason: The referenced reviewed SHA is not the live PR branch head; the mapped FIXED commits are reachable ancestors of the current PR branch.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1734#discussion_r3233302285
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 42cb54728 HEAD`, `git merge-base --is-ancestor 8db30a3cf HEAD`, `git merge-base --is-ancestor a0e81b4b4 HEAD`, and `git merge-base --is-ancestor 48922b778 HEAD` returned `0` locally on branch `codex/fix-replay-sort-clean`; `git rev-parse HEAD` returned `48922b7786f8cfe9034b29db0ac3ca9322926094`.
+Reason: The comment references a non-current reviewed SHA; the mapped FIXED commits are reachable from the live PR head used for current-head CI.
+
 ## Premortem Risk Review
 
 - Decision: `proceed with changes`.
