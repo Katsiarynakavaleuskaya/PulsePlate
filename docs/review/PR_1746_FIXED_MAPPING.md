@@ -70,6 +70,32 @@ Disposition: NOT-A-BUG
 Evidence: Cubic reported "No issues found" across the first four changed files.
 Reason: no repository change was requested by the Cubic review.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281672828 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234280115 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: `## Discussion Thread Pass` now precedes `## Fixed in Commit Mapping`, leaving the parser-safe URL/disposition blocks inside the fixed-mapping section.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286834 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: review-thread disposition entries now live under `## Fixed in Commit Mapping`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286842 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: every review-thread mapping bullet now starts with the GitHub URL.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286848 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: local validation evidence now uses `.venv/bin/python` for repo Python commands.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286855 -> dd89444ee140a024c448594fa09d9414256c1303
+Disposition: FIXED
+Commit: dd89444ee140a024c448594fa09d9414256c1303
+Evidence: fixed mapping entries now use full reachable commit SHAs from this PR branch history.
+
 ## Local Validation
 
 - `.venv/bin/python scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
