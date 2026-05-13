@@ -96,6 +96,11 @@ Disposition: FIXED
 Commit: dd89444ee140a024c448594fa09d9414256c1303
 Evidence: fixed mapping entries now use full reachable commit SHAs from this PR branch history.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281684747 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: `## Discussion Thread Pass`, `## Coordinator / Premortem / Agent Findings`, and `## Fixed in Commit Mapping` are sibling level-2 sections, preserving parser compatibility and clear hierarchy.
+
 ## Local Validation
 
 - `.venv/bin/python scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
