@@ -8,6 +8,7 @@
   - `02d968265` — fix replay supersession supersedes ordering and keep fail-closed behavior.
   - `7de92822f` — merge current `origin/main` after #1738/#1740/#1739 recovery without rewriting PR history.
   - `42cb54728` — fix full-ancestry supersession replay, dependency-order evidence, and indexed successor lookup.
+  - `3dee930fc` — cover replay supersession fail-closed and non-promoting existing-entry branches for diff coverage.
 
 ## Discussion Thread Pass
 
@@ -62,6 +63,8 @@ Reason: The CodeRabbit docstring/template warning is advisory under repo policy 
   - Disposition: FIXED via `42cb54728`, with `test_existing_supersession_chain_allows_full_ancestry_supersedes`.
 - Hidden assumption: `applied_entry_ids` could be sorted while still proving topological replay.
   - Disposition: FIXED via `42cb54728`, with exact dependency-order assertions.
+- Diff-coverage blind spot: newly added fail-closed branches stay unexecuted in CI even though focused happy-path tests pass.
+  - Disposition: FIXED via `3dee930fc`, with disconnected successor, parallel successor, and existing non-promoting entry tests.
 
 ## Merge Readiness
 
@@ -82,7 +85,7 @@ Reason: The CodeRabbit docstring/template warning is advisory under repo policy 
 - `python3 scripts/orchestration/pr_review_report.py --pr 1734 --repo Katsiarynakavaleuskaya/PulsePlate` — PASS
 - `make validate-changed` — PASS
 - `./.venv/bin/python -m pytest tests/core/evidence/test_replay.py -q` — PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`31 passed`)
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`34 passed`)
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m ruff check core/evidence/replay.py tests/core/evidence/test_replay.py` — PASS
 - `./.venv/bin/python -m bandit -r core/evidence scripts/orchestration -ll` — PASS (no security issues)
 - `./.venv/bin/pip-audit -r requirements.txt` — FAIL expected baseline: existing `urllib3==2.6.3` CVEs (`CVE-2026-44431`, `CVE-2026-44432`) outside PR scope.
