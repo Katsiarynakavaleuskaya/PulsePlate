@@ -153,7 +153,7 @@ After the first bot review, rerun on current head:
 6. `pulseplate-pr-review`
 7. Codex Security plugin diff scan
 
-Before merge readiness, the local Agent Run Summary must exist under `artifacts/agent_runs/` or the PR body/fixed mapping must record why host-local summary generation was unavailable. The artifact is local-only evidence and must not be committed.
+Before merge readiness, the local Agent Run Summary must exist under `artifacts/agent_runs/`. PR body text or fixed mapping entries may reference that local evidence, but they must not replace it. The artifact is local-only evidence and must not be committed.
 
 ## Future Implementation Sequence
 

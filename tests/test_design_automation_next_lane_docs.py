@@ -794,7 +794,8 @@ def test_kimi_protocol_records_coordinator_role_and_review_chains() -> None:
         "Post-open review remains mandatory:",
         "Codex Security plugin diff scan",
         "After the first bot review, rerun on current head:",
-        "Before merge readiness, the local Agent Run Summary must exist under `artifacts/agent_runs/`",
+        "Before merge readiness, the local Agent Run Summary must exist under `artifacts/agent_runs/`.",
+        "PR body text or fixed mapping entries may reference that local evidence, but they must not replace it.",
         "The premortem must inspect the actual docs/tests diff before PR opening and again after the first bot-review cycle.",
         "Real findings must be fixed in docs/tests before mapping.",
     ]
