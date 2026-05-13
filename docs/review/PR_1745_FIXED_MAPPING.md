@@ -57,9 +57,9 @@ Evidence: `scripts/design/design_component_registry.py` rejects `covered` status
 Disposition: FIXED
 Commit: b09c6b7a8a11e4f87b15863a6db877fa1b7a8e7d
 Evidence: `## Unresolved / Deferred` now separates completed discussion-thread dispositions from pending merge-readiness re-review evidence.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 -> 283c57763a4b725c240d5ff592a1ec1f92ebf950
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 -> 283c57763a4df4ad11b8e19e641ba845d178f11c
 Disposition: FIXED
-Commit: 283c57763a4b725c240d5ff592a1ec1f92ebf950
+Commit: 283c57763a4df4ad11b8e19e641ba845d178f11c
 Evidence: The stale latest-head SHA field was removed; this artifact records reachable fixed proof commits on the reviewed branch.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234350308 -> 3233f45e78b15b41244324c086d90b4636d7206e
 Disposition: FIXED
@@ -69,9 +69,9 @@ Evidence: `scripts/design/design_component_registry.py` now normalizes authority
 Disposition: FIXED
 Commit: 3233f45e78b15b41244324c086d90b4636d7206e
 Evidence: `covered` status validation no longer conflicts with seed-unconfirmed validation; tests cover covered status with bridge evidence.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 -> 283c57763a4b725c240d5ff592a1ec1f92ebf950
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 -> 283c57763a4df4ad11b8e19e641ba845d178f11c
 Disposition: FIXED
-Commit: 283c57763a4b725c240d5ff592a1ec1f92ebf950
+Commit: 283c57763a4df4ad11b8e19e641ba845d178f11c
 Evidence: Fixed mapping proof points at commits reachable on the reviewed branch; the stale non-reachable SHA was removed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369983 -> 3233f45e78b15b41244324c086d90b4636d7206e
 Disposition: FIXED
@@ -165,6 +165,14 @@ Evidence: `tests/test_design_automation_next_lane_docs.py` only allows registry 
 Disposition: FIXED
 Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
 Evidence: Covered status bridge evidence now requires non-empty scalar strings; tests reject `[]` and `{}` bridge evidence placeholders.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234873378 -> c69dd723dc1b507fd38fa1466d5bffeedb6872e8
+Disposition: FIXED
+Commit: c69dd723dc1b507fd38fa1466d5bffeedb6872e8
+Evidence: Covered non-web bridge fields now require `repo-confirmed:` evidence anchors; tests reject invented iOS, Figma, Storybook, Penpot, Code Connect, accessibility, and visual anchors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234873381 -> c69dd723dc1b507fd38fa1466d5bffeedb6872e8
+Disposition: FIXED
+Commit: c69dd723dc1b507fd38fa1466d5bffeedb6872e8
+Evidence: Authority normalization now strips punctuation before denied-authority matching and includes singular denied variants; tests reject `Code-Connect activation` and `desktop export`.
 
 ## Review Thread Disposition Table
 
@@ -186,13 +194,15 @@ Evidence: Covered status bridge evidence now requires non-empty scalar strings; 
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231626 | FIXED | `b09c6b7a8a11e4f87b15863a6db877fa1b7a8e7d` | NOT-A-BUG mapping disposition now includes a `Reason:` line. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231641 | FIXED | `b09c6b7a8a11e4f87b15863a6db877fa1b7a8e7d` | `covered` status is tied to bridge evidence; tests cover false-covered rows. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231635 | FIXED | `b09c6b7a8a11e4f87b15863a6db877fa1b7a8e7d` | Mapping unresolved section no longer claims pending bot re-reviews as completed discussion dispositions. |
-| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 | FIXED | `283c57763a4b725c240d5ff592a1ec1f92ebf950` | Stale latest-head SHA was removed; proof commits are reachable on the branch. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 | FIXED | `283c57763a4df4ad11b8e19e641ba845d178f11c` | Stale latest-head SHA was removed; proof commits are reachable on the branch. |
 | CodeRabbit | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234350308 | FIXED | `3233f45e78b15b41244324c086d90b4636d7206e` | Authority matching avoids substring false positives while preserving source-of-truth promotion detection. |
 | Cubic | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234356516 | FIXED | `3233f45e78b15b41244324c086d90b4636d7206e` | Covered status can be represented when bridge evidence exists; false-covered rows still fail. |
-| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 | FIXED | `283c57763a4b725c240d5ff592a1ec1f92ebf950` | Fixed proof SHAs are reachable on the reviewed branch. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 | FIXED | `283c57763a4df4ad11b8e19e641ba845d178f11c` | Fixed proof SHAs are reachable on the reviewed branch. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369983 | FIXED | `3233f45e78b15b41244324c086d90b4636d7206e` | Singular screenshot authority promotion is rejected. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369989 | FIXED | `3233f45e78b15b41244324c086d90b4636d7206e` | Placeholder list drift is rejected for seed-unconfirmed fields. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369994 | FIXED | `3233f45e78b15b41244324c086d90b4636d7206e` | Array/object status values return deterministic validation errors instead of crashing. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234873378 | FIXED | `c69dd723dc1b507fd38fa1466d5bffeedb6872e8` | Covered status requires repo-confirmed bridge evidence instead of arbitrary invented strings. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234873381 | FIXED | `c69dd723dc1b507fd38fa1466d5bffeedb6872e8` | Punctuated and singular external authority variants are rejected. |
 
 ## Command Evidence
 
