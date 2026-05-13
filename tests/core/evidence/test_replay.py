@@ -201,6 +201,58 @@ def test_existing_orphan_supersede_fails_closed() -> None:
         dry_run_replay(existing_entries=(superseding,))
 
 
+def test_existing_disconnected_supersede_after_promote_fails_closed() -> None:
+    existing = _entry(run_id="1")
+    disconnected = _entry(
+        run_id="2",
+        promotion_id=existing.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:disconnected-supersede",
+        supersedes=("promotion-ledger:missing",),
+    )
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(existing, disconnected))
+
+
+def test_existing_parallel_supersede_successors_fail_closed() -> None:
+    existing = _entry(run_id="1")
+    first_successor = _entry(
+        run_id="2",
+        promotion_id=existing.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:first-successor",
+        supersedes=(existing.ledger_entry_id,),
+    )
+    second_successor = _entry(
+        run_id="3",
+        promotion_id=existing.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:second-successor",
+        supersedes=(existing.ledger_entry_id,),
+    )
+
+    with pytest.raises(ValueError, match="conflicting active promotion_id"):
+        dry_run_replay(existing_entries=(existing, second_successor, first_successor))
+
+
+def test_existing_non_promoting_entries_are_applied_after_promotions() -> None:
+    existing = _entry(run_id="1")
+    rejected = _entry(
+        run_id="2",
+        decision="reject",
+        idempotency_key="idem:existing-reject",
+    )
+
+    summary = dry_run_replay(existing_entries=(rejected, existing))
+
+    assert summary.applied_entry_ids == (
+        existing.ledger_entry_id,
+        rejected.ledger_entry_id,
+    )
+    assert summary.diff.conflict == ()
+
+
 def test_supersede_reject_and_defer_buckets_are_deterministic() -> None:
     existing = _entry(run_id="1")
     superseding = _entry(
