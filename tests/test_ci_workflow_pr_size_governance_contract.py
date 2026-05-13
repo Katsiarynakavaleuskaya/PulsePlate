@@ -40,7 +40,7 @@ def _extract_job_section(workflow_text: str, job_anchor: str) -> str:
     return workflow_text[start_index:end_index]
 
 
-def _load_ci_workflow() -> dict[str, object]:
+def _load_ci_workflow() -> dict[object, object]:
     workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
     assert isinstance(workflow, dict)
     return workflow
@@ -121,7 +121,9 @@ def test_feature_push_risk_profile_uses_origin_main_merge_base() -> None:
 
 def test_feature_push_branches_include_feature_prefix() -> None:
     workflow = _load_ci_workflow()
-    on_section = workflow.get("on", workflow.get(True))
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = workflow.get(True)
     assert isinstance(on_section, dict)
     push_section = on_section["push"]
     assert isinstance(push_section, dict)
@@ -353,6 +355,10 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "tests/results-serial.xml" not in test_main_section
     assert "tests/results-py312-shard-*.xml" in test_main_section
     assert "tests/results-py313-shard-*.xml" in test_main_section
+    assert "coverage-xml-main-${{ matrix.python-version }}" in test_main_section
+    assert "junit-main-${{ matrix.python-version }}" in test_main_section
+    assert "coverage-xml-${{ matrix.python-version }}" not in test_main_section
+    assert "junit-${{ matrix.python-version }}" not in test_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
