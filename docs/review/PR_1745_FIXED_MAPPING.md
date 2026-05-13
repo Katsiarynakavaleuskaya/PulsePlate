@@ -6,7 +6,7 @@
 - Title: `feat(design): add design component contract registry seed`
 - Branch: `codex/design-component-contract-registry-seed-v1`
 - Current head SHA at initial mapping creation: `7f16e2385e6aabc15ce49ee0b4015fd1220f5329`
-- Latest mapped head SHA: `d1371d444c8f2c3038460e0ef2a78008759a5d08`
+- Mapping artifact note: self-referential current-head SHAs are not embedded; fixed proof SHAs below are reachable commits on this branch.
 
 ## Scope Summary
 
@@ -57,10 +57,10 @@ Evidence: `scripts/design/design_component_registry.py` rejects `covered` status
 Disposition: FIXED
 Commit: b09c6b7a860f9c5d4ab126a411c2143356207d70
 Evidence: `## Unresolved / Deferred` now separates completed discussion-thread dispositions from pending merge-readiness re-review evidence.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 -> d1371d444c8f2c3038460e0ef2a78008759a5d08
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 -> 283c57763a4b725c240d5ff592a1ec1f92ebf950
 Disposition: FIXED
-Commit: d1371d444c8f2c3038460e0ef2a78008759a5d08
-Evidence: `Latest mapped head SHA` is updated to the current mapping commit and all fixed proof SHAs listed in this artifact are reachable on the reviewed branch.
+Commit: 283c57763a4b725c240d5ff592a1ec1f92ebf950
+Evidence: The stale latest-head SHA field was removed; this artifact records reachable fixed proof commits on the reviewed branch.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234350308 -> 3233f45e758d854ca36d4c375f5b18ac70420202
 Disposition: FIXED
 Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
@@ -69,10 +69,10 @@ Evidence: `scripts/design/design_component_registry.py` now normalizes authority
 Disposition: FIXED
 Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
 Evidence: `covered` status validation no longer conflicts with seed-unconfirmed validation; tests cover covered status with bridge evidence.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 -> d1371d444c8f2c3038460e0ef2a78008759a5d08
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 -> 283c57763a4b725c240d5ff592a1ec1f92ebf950
 Disposition: FIXED
-Commit: d1371d444c8f2c3038460e0ef2a78008759a5d08
-Evidence: Fixed mapping proof now points at reachable commits on the reviewed branch.
+Commit: 283c57763a4b725c240d5ff592a1ec1f92ebf950
+Evidence: Fixed mapping proof points at commits reachable on the reviewed branch; the stale non-reachable SHA was removed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369983 -> 3233f45e758d854ca36d4c375f5b18ac70420202
 Disposition: FIXED
 Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
@@ -106,10 +106,10 @@ Evidence: Status validation checks type before enum membership and returns deter
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231626 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | NOT-A-BUG mapping disposition now includes a `Reason:` line. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231641 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | `covered` status is tied to bridge evidence; tests cover false-covered rows. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231635 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | Mapping unresolved section no longer claims pending bot re-reviews as completed discussion dispositions. |
-| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 | FIXED | `d1371d444c8f2c3038460e0ef2a78008759a5d08` | Latest mapped head now points at the current mapping commit. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 | FIXED | `283c57763a4b725c240d5ff592a1ec1f92ebf950` | Stale latest-head SHA was removed; proof commits are reachable on the branch. |
 | CodeRabbit | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234350308 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Authority matching avoids substring false positives while preserving source-of-truth promotion detection. |
 | Cubic | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234356516 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Covered status can be represented when bridge evidence exists; false-covered rows still fail. |
-| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 | FIXED | `d1371d444c8f2c3038460e0ef2a78008759a5d08` | Fixed proof SHAs are reachable on the reviewed branch. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 | FIXED | `283c57763a4b725c240d5ff592a1ec1f92ebf950` | Fixed proof SHAs are reachable on the reviewed branch. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369983 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Singular screenshot authority promotion is rejected. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369989 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Placeholder list drift is rejected for seed-unconfirmed fields. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369994 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Array/object status values return deterministic validation errors instead of crashing. |
