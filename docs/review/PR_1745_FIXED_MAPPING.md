@@ -189,6 +189,18 @@ Evidence: `covered` is rejected before token/state/variant values can be promote
 Disposition: FIXED
 Commit: 73df85828b53432257f3cf58130b4238f4dbad67
 Evidence: Component `owner` values must be strings; `tests/test_design_component_registry.py` rejects non-string owner metadata.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229358
+Disposition: NOT-A-BUG
+Reason: The mapped proof commits are reachable from the PR branch head; the bot checked a reviewed snapshot SHA that is not the branch head used by the repository merge-readiness wrapper.
+Evidence: Local `git merge-base --is-ancestor 2780cfc244703e9032ea5570a37ce6818fedaa4e HEAD` returned `0`; current repository `check_review_threads_disposition.py --pr-number 1745 --require-auth` passed for all resolved threads before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229365 -> 9fdc2ca63ed78b28506aa48a1de23f3f991c189b
+Disposition: FIXED
+Commit: 9fdc2ca63ed78b28506aa48a1de23f3f991c189b
+Evidence: `partial` status now requires a repo-backed `web_runtime_anchor`; `tests/test_design_component_registry.py` rejects partial rows whose web anchor remains `unspecified`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229374 -> 9fdc2ca63ed78b28506aa48a1de23f3f991c189b
+Disposition: FIXED
+Commit: 9fdc2ca63ed78b28506aa48a1de23f3f991c189b
+Evidence: Component records now reject fields outside the contract shape; `tests/test_design_component_registry.py` rejects `figma_node`.
 
 ## Review Thread Disposition Table
 
@@ -223,6 +235,9 @@ Evidence: Component `owner` values must be strings; `tests/test_design_component
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059585 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | Required repo canonical authorities are validated. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059589 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | Covered status cannot bypass unconfirmed token/state/variant protection in this seed lane. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059597 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | Component owners must remain strings. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229358 | NOT-A-BUG | n/a | Proof commits are reachable from the PR branch head; the bot checked a stale reviewed snapshot SHA. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229365 | FIXED | `9fdc2ca63ed78b28506aa48a1de23f3f991c189b` | Partial status requires a repo-backed web runtime anchor. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229374 | FIXED | `9fdc2ca63ed78b28506aa48a1de23f3f991c189b` | Component rows reject unexpected fields. |
 
 ## Command Evidence
 
