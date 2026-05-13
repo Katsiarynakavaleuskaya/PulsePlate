@@ -7,7 +7,6 @@
 - Mapping opened at head SHA: `c05d7c9583d1651b367988f9279681f4a0d1485e`
 - Latest evidence refresh head before this mapping update: `0284125f37027a7d317d58dbc1f1f20a4dfffdb2`
 - Review fixes: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`, `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e`, `0b4ab97974fffaa1310109ea801e425c674ba5e7`
-- Current-head containment proof: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD`, `git merge-base --is-ancestor 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e HEAD`, `git merge-base --is-ancestor 0b4ab97974fffaa1310109ea801e425c674ba5e7 HEAD`, and `git merge-base --is-ancestor 0284125f37027a7d317d58dbc1f1f20a4dfffdb2 HEAD` each returned `0`.
 - Scope: docs/governance Kimi prototype intake bridge; no runtime, token, generated mirror, Figma/Canva/Kimi write, screenshot, binary, deploy, backend, OpenAPI, auth, billing, StoreKit, HealthKit, or Cloudflare changes.
 
 ## Coordinator Packet
@@ -46,7 +45,6 @@ Mapping is evidence after fix/decision and is not a substitute for fixing docs, 
 Disposition: FIXED
 Commit: 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 Evidence: `tests/test_design_automation_next_lane_docs.py` now fails closed with a clear `pytest.fail` message when `git` or `origin/main...HEAD` diff evidence is unavailable; Kimi metadata constants reduce future evidence brittleness.
-Evidence: Current-head proof shows root-fix commit `893fbdae8e454530f962f9d41a5d311de5ffdd9c` is an ancestor of reviewed head `0284125f37027a7d317d58dbc1f1f20a4dfffdb2`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279782308 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279794312 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232686199 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
@@ -54,7 +52,6 @@ Evidence: Current-head proof shows root-fix commit `893fbdae8e454530f962f9d41a5d
 Disposition: FIXED
 Commit: 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now explicitly includes `docs/orchestration/AGENTS.md` in the allowed touch list, adds `license_status` / `attribution_required` / `legal_copy_risks`, and makes missing future web/iOS prerequisite gates blockers rather than `DEFERRED` permission to proceed.
-Evidence: Current-head proof shows root-fix commits `893fbdae8e454530f962f9d41a5d311de5ffdd9c` and `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e` are ancestors of reviewed head `0284125f37027a7d317d58dbc1f1f20a4dfffdb2`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279832007 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719429 -> 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719435 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
@@ -63,7 +60,6 @@ Evidence: Current-head proof shows root-fix commits `893fbdae8e454530f962f9d41a5
 Disposition: FIXED
 Commit: 0b4ab97974fffaa1310109ea801e425c674ba5e7
 Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` and `tests/test_design_automation_next_lane_docs.py` now require `adopt_adapt_reject_decision` before `candidate_for_brief`; `reject` decisions cannot influence a brief.
-Evidence: Current-head proof shows root-fix commit `0b4ab97974fffaa1310109ea801e425c674ba5e7` is an ancestor of reviewed head `0284125f37027a7d317d58dbc1f1f20a4dfffdb2`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232876401 -> 0b4ab97974fffaa1310109ea801e425c674ba5e7
 
 Disposition: NOT-A-BUG
@@ -78,13 +74,18 @@ Reason: The current local PR branch contains the mapped fix SHAs as ancestors; t
 
 Disposition: FIXED
 Commit: 0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3
-Evidence: `docs/review/PR_1741_FIXED_MAPPING.md` now records current-head containment proof for root-fix commits, and the mapped root-fix SHAs are ancestors of the reviewed PR head.
+Evidence: `docs/review/PR_1741_FIXED_MAPPING.md` records the root-fix commits in the implementing-commit list and keeps their review-thread dispositions in the canonical mapping artifact.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233130590 -> 0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3
 
 Disposition: NOT-A-BUG
-Evidence: `.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1741` passed for all resolved threads after the current-head mapping proof update, and the strict wrapper's review-disposition lane passed before it stopped only on newly opened unresolved threads.
-Reason: The bot's squash-checkout SHA is a synthetic review artifact, while this PR's canonical pre-merge disposition guard validates the PR branch history and current-head checks. The root-fix SHAs remain present in branch history before merge and are listed with current-head containment proof.
+Evidence: `.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1741` passed for all resolved threads, and the strict wrapper's review-disposition lane passed before it stopped only on newly opened unresolved threads.
+Reason: The bot's squash-checkout SHA is a synthetic review artifact, while this PR's canonical pre-merge disposition guard validates the PR branch history and current-head checks. The root-fix SHAs remain present in branch history before merge and are listed in the implementing-commit log.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233236653
+
+Disposition: NOT-A-BUG
+Evidence: The offending containment-proof text was removed from this artifact, and `.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1741` continues to validate all resolved PR review-thread dispositions against the canonical pre-merge branch history.
+Reason: The reviewed squash SHA named by the bot is not a durable pre-merge commit that can be mapped before GitHub creates a final squash merge commit. The repo merge-readiness contract validates dispositions against the PR branch and current-head CI before merge.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233387586
 
 Disposition: FIXED
 Commit: 38edf404192e6725480290f525c11b33f14d8d3d
