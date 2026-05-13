@@ -56,22 +56,46 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
 Disposition: FIXED
 Commit: 00c376a4e77be4af919d9cce0bd79c3ec93e83ae
 Evidence: `.github/workflows/ci.yml` uses `dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d`; `tests/test_ci_workflow_pr_size_governance_contract.py` asserts the pin and iOS filter contract.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235352148 -> 828aee1179d74b2501ab04346fe7762d377f2208
 Disposition: FIXED
 Commit: 828aee1179d74b2501ab04346fe7762d377f2208
 Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now includes the exact required `- [x] Discussion-thread pass completed` and `- [x] Fixed in commit mapping completed` checkbox labels; `check_pr_body_phase2_gates.py --pr-number 1748 --body ...` passes locally.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235352156
 Disposition: NOT-A-BUG
 Evidence: Current PR head `828aee1179d74b2501ab04346fe7762d377f2208` includes `00c376a4e77be4af919d9cce0bd79c3ec93e83ae` in history; `git merge-base --is-ancestor 00c376a4e77be4af919d9cce0bd79c3ec93e83ae HEAD` returned `0`.
 Reason: The bot comment referenced a stale reviewed commit sibling; the current PR branch history contains the mapped implementation commit.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
-Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi docs-only guard and adds a fallback diff base for GitHub PR checkouts that lack `origin/main`; focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
+Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi docs-only guard and now probes `origin/main...HEAD`, `main...HEAD`, then the first parent of a real PR merge checkout before failing closed; focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235533880 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Disposition: FIXED
 Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Evidence: `tests/test_design_automation_next_lane_docs.py` now probes `origin/main...HEAD`, then `main...HEAD`, then the first parent of a real PR merge commit; it fails closed if none are available. Focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#pullrequestreview-4283143515 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
+Disposition: FIXED
+Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
+Evidence: This CodeRabbit review aggregates the inline `discussion_r3235533880`; the same fix removed the unsafe last-commit fallback and kept the Kimi docs-only guard fail-closed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578258 -> 0000000000000000000000000000000000000000
+Disposition: FIXED
+Commit: 0000000000000000000000000000000000000000
+Evidence: Placeholder pending the mapping-format commit that separates every disposition block with blank lines so `check_review_threads_disposition.py` parses NOT-A-BUG and FIXED entries independently.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578263
+Disposition: NOT-A-BUG
+Evidence: Current branch head includes `ddaff0637691788eee07e02be746f97ddc26fe82`; `git merge-base --is-ancestor ddaff0637691788eee07e02be746f97ddc26fe82 HEAD` returned `0`.
+Reason: The referenced CI proof commit is reachable from current PR history; the bot comment evaluated a stale reviewed checkout.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578268
+Disposition: NOT-A-BUG
+Evidence: `tests/test_design_automation_next_lane_docs.py:79` first probes `origin/main...HEAD` and `main...HEAD`; `tests/test_design_automation_next_lane_docs.py:88` appends a parent fallback only for merge commits with at least two parents; `tests/test_design_automation_next_lane_docs.py:105` fails closed when no stable base exists.
+Reason: Current code no longer has a single-parent last-commit fallback, so the finding is stale for the live PR head.
 
 ## Local Validation
 
