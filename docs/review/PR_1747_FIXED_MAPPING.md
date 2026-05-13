@@ -91,10 +91,40 @@ heavy run.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 No review threads were present at PR open. Post-open CodeRabbit, Codex
 Security, QA, bug-hunter, bot, and human findings must be added here as one of
 `FIXED`, `NOT-A-BUG`, or `DEFERRED` with evidence before merge readiness is
 claimed.
+
+### CodeRabbit Finding: Missing Fixed Mapping Checkboxes
+
+Disposition: FIXED
+Commit: `77adfb243`
+Evidence:
+- `docs/review/PR_1747_FIXED_MAPPING.md` now includes the required artifact
+  markers `- [x] Discussion-thread pass completed` and
+  `- [x] Fixed in commit mapping completed` under `## Discussion Thread Pass`.
+- `scripts/orchestration/review_mapping_artifact.py` defines the exact required
+  checkbox markers.
+
+### CodeRabbit Finding: Target PR Branch Should Be `vscode-changes`
+
+Disposition: NOT-A-BUG
+Evidence:
+- `gh pr view 1747 --repo Katsiarynakavaleuskaya/PulsePlate --json headRefName`
+  returns `codex/food-data-preference-recipe-mapping-contract-pr15`.
+- `docs/roadmap/BACKLOG_LEDGER.md` intentionally names
+  `codex/food-data-preference-recipe-mapping-contract-pr15`, matching the live
+  PR head branch.
+Reason: CodeRabbit's suggested `vscode-changes` branch does not match the
+actual PR #1747 source branch and would make the ledger inaccurate.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
 
 ## Merge Readiness
 
