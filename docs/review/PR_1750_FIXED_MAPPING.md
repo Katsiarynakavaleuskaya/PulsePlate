@@ -7,8 +7,9 @@ Title: `fix(food-data): restore PR15 CI coverage`
 Implementing commits:
 - `e7a6bbd13ef1f6865dcc85fd57caec9d466dada7` - restore PR15 CI coverage and close xdist/notes-guard risk.
 - `147f6c9918e5a713f7499968937866f15d920544` - fix contrastive negation after bot review.
-- `77f0583a3c6142f134bc8061af70208893e39f8d` - harden review-mapping evidence.
+- `77f0583a35e3c871e2348d8b70a5a39420168b7c` - harden review-mapping evidence.
 - `ee0b63e28ccfd14f9585a08821e260fd0b957bae` - preserve controlled PR11 handoff errors and deduplicate CLI timeouts.
+- `07728343bc053d858608a5c4eb77f289fc90ba18` - cover additional contrastive note boundaries.
 
 ## Scope
 
@@ -89,7 +90,7 @@ Evidence:
 ### Bot review: mapping artifact evidence portability
 
 Disposition: FIXED
-Commit: 77f0583a3c6142f134bc8061af70208893e39f8d
+Commit: 77f0583a35e3c871e2348d8b70a5a39420168b7c
 Evidence:
 - This artifact uses `$VENV_PYTHON` instead of local absolute interpreter paths
   in validation evidence.
@@ -110,6 +111,18 @@ Evidence:
 - CLI subprocess tests use `_CLI_TIMEOUT_SECONDS` instead of duplicated
   timeout literals.
 
+### Bot review: include common contrastive note boundaries
+
+Disposition: FIXED
+Commit: 07728343bc053d858608a5c4eb77f289fc90ba18
+Evidence:
+- `core/food_sources/preference_recipe_mapping.py` treats `although`,
+  `though`, and `even though` as contrastive boundaries when evaluating
+  whether a prior negation still protects a later approval phrase.
+- `tests/test_food_source_preference_recipe_mapping.py` rejects
+  `although`/`though`/`even though` source-use approval after an earlier
+  negated allow-list phrase.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
@@ -129,17 +142,21 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285586614 -> 147f6c9918e5a713f7499968937866f15d920544
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237635615 -> 147f6c9918e5a713f7499968937866f15d920544
 Disposition: FIXED
-Commit: 77f0583a3c6142f134bc8061af70208893e39f8d
+Commit: 77f0583a35e3c871e2348d8b70a5a39420168b7c
 Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` uses portable `$VENV_PYTHON`, removes stale no-actionable wording, and maps valid current-branch SHAs.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285614100 -> 77f0583a3c6142f134bc8061af70208893e39f8d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237656706 -> 77f0583a3c6142f134bc8061af70208893e39f8d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285617716 -> 77f0583a3c6142f134bc8061af70208893e39f8d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659595 -> 77f0583a3c6142f134bc8061af70208893e39f8d
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659599 -> 77f0583a3c6142f134bc8061af70208893e39f8d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285614100 -> 77f0583a35e3c871e2348d8b70a5a39420168b7c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237656706 -> 77f0583a35e3c871e2348d8b70a5a39420168b7c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285617716 -> 77f0583a35e3c871e2348d8b70a5a39420168b7c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659595 -> 77f0583a35e3c871e2348d8b70a5a39420168b7c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659599 -> 77f0583a35e3c871e2348d8b70a5a39420168b7c
 Disposition: FIXED
 Commit: ee0b63e28ccfd14f9585a08821e260fd0b957bae
 Evidence: `core/food_sources/preference_recipe_mapping.py` preserves controlled PR11 handoff errors; `tests/test_food_source_preference_recipe_mapping.py` covers the helper path and centralizes CLI timeout configuration.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285580137 -> ee0b63e28ccfd14f9585a08821e260fd0b957bae
+Disposition: FIXED
+Commit: 07728343bc053d858608a5c4eb77f289fc90ba18
+Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive note boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `although`, `though`, and `even though` source-use approvals after a negated allow-list phrase.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747300 -> 07728343bc053d858608a5c4eb77f289fc90ba18
 
 ## Local Validation Evidence
 
