@@ -24,6 +24,7 @@
   - `527ea55bce9345189a09403f13dc310c45d74a63` - promotion evidence mapping update.
   - `cc7a28debe49cc228abacb8196c8c33c63e27dbe` - command diagnostic and mutable-surface containment hardening.
   - `98740bebd04302f0cd552558d09df60af8eeb48b` - fail-closed evidence drift validation.
+  - `b5bf50f9f60204feb476ce2ca810fdb773d225df` - typed surface containment follow-up.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
