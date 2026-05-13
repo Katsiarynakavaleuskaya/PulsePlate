@@ -44,7 +44,7 @@ In scope:
   authority invariants, and PR11/PR14 handoff checks
 - `docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md`
 - `docs/roadmap/BACKLOG_LEDGER.md`
-- PR fixed-mapping artifact after PR number exists
+- fixed-mapping artifact: `docs/review/PR_1747_FIXED_MAPPING.md`
 
 Out of scope:
 
