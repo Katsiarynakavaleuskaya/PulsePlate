@@ -336,6 +336,26 @@ def test_result_evidence_must_stay_within_packet_mutable_surface() -> None:
         experiment_notify.render_notification_markdown(packet, result)
 
 
+def test_result_evidence_allows_directory_mutable_surface() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet()
+        | {
+            "mutable_candidate_surface": ["docs/prompts/reliability"],
+            "immutable_oracles": [
+                {"command": "python3 -m pytest tests/test_a.py", "expected_signal": "must pass"}
+            ],
+        }
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(command="python3 -m pytest tests/test_a.py")
+    )
+    result["mutated_paths"] = ["docs/prompts/reliability/program.md"]
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "- `docs/prompts/reliability/program.md`" in content
+
+
 def test_result_oracle_commands_must_come_from_packet() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(
@@ -343,7 +363,7 @@ def test_result_oracle_commands_must_come_from_packet() -> None:
     )
     result["oracle_results"] = [
         {
-            "command": "python3 -m pytest tests/unknown.py",
+            "command": "API_TOKEN=super-secret python3 -m pytest tests/unknown.py",
             "returncode": 1,
             "timed_out": False,
             "truncated": False,
@@ -356,8 +376,12 @@ def test_result_oracle_commands_must_come_from_packet() -> None:
     with pytest.raises(
         experiment_notify.ExperimentNotificationError,
         match="commands outside packet",
-    ):
+    ) as exc_info:
         experiment_notify.render_notification_markdown(packet, result)
+    message = str(exc_info.value)
+    assert "python3" in message
+    assert "API_TOKEN" not in message
+    assert "super-secret" not in message
 
 
 def test_promotion_experiment_id_mismatch_is_rejected() -> None:
@@ -421,6 +445,13 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
             "/Users/example/.venv/bin/python3 --token super-secret"
         )
         == "python3"
+    )
+    assert (
+        experiment_notify._oracle_command_name("API_TOKEN=super-secret python3 -m pytest")
+        == "python3"
+    )
+    assert "super-secret" not in experiment_notify._oracle_command_name(
+        "API_TOKEN=super-secret python3 -m pytest"
     )
     assert experiment_notify._safe_repo_path("/Users/example/private-token/path.py") == (
         "[redacted-path]"

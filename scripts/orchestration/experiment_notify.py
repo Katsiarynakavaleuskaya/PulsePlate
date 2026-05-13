@@ -45,6 +45,7 @@ SENSITIVE_PATH_PART_RE = re.compile(
     re.I,
 )
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r'^(?:"?[A-Za-z]:|"?\\\\|"?//)')
+SHELL_ENV_ASSIGNMENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=.*$")
 
 
 class ExperimentNotificationError(RuntimeError):
@@ -172,7 +173,9 @@ def _require_result_evidence_matches_packet(
 
     mutable_surface = set(packet["mutable_candidate_surface"])
     outside_surface = sorted(
-        path for path in result["mutated_paths"] if path not in mutable_surface
+        path
+        for path in result["mutated_paths"]
+        if not _mutable_surface_contains_path(mutable_surface, path)
     )
     if outside_surface:
         joined = ", ".join(outside_surface)
@@ -185,7 +188,7 @@ def _require_result_evidence_matches_packet(
     result_oracles = [oracle_result["command"] for oracle_result in result["oracle_results"]]
     unexpected_oracles = sorted(set(result_oracles) - set(expected_oracles))
     if unexpected_oracles:
-        joined = ", ".join(unexpected_oracles)
+        joined = ", ".join(_oracle_command_name(command) for command in unexpected_oracles)
         raise ExperimentNotificationError(
             f"Experiment result oracle_results include commands outside packet: {joined}"
         )
@@ -193,6 +196,18 @@ def _require_result_evidence_matches_packet(
         raise ExperimentNotificationError(
             "Accepted experiment result oracle_results must match packet immutable_oracles."
         )
+
+
+def _mutable_surface_contains_path(mutable_surface: set[str], path: str) -> bool:
+    """Return whether a result path belongs to the packet mutable surface."""
+
+    for surface in mutable_surface:
+        surface_path = PurePosixPath(surface)
+        if path == surface:
+            return True
+        if not surface_path.suffix and path.startswith(f"{surface.rstrip('/')}/"):
+            return True
+    return False
 
 
 def _validate_promotion_decision(payload: dict[str, Any]) -> dict[str, Any]:
@@ -308,6 +323,10 @@ def _oracle_command_name(command: Any) -> str:
         return "[unparseable-command]"
     if not argv:
         return "[empty-command]"
+    while argv and SHELL_ENV_ASSIGNMENT_RE.match(argv[0]):
+        argv.pop(0)
+    if not argv:
+        return "[redacted-command]"
     binary = argv[0]
     if WINDOWS_ABSOLUTE_PATH_RE.match(binary) or "\\" in binary:
         return "[redacted-command]"
