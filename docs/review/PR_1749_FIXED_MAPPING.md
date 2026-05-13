@@ -31,6 +31,7 @@
   - `a705625f9d39f652cee75463e07fd26d5a9ebab9` - rejected-result shape alignment.
   - `1127bf9c4c5b979966191c28eaa05824483a3e2b` - rejected-shape review mapping update.
   - `5f9d2ec5479f734346e4fcc423848ff8bf2fd4da` - promotion notification evidence validation.
+  - `ee5fab97b5b151d1760bf49b19a939d2cf7d8e8e` - promotion evidence review mapping update.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -106,6 +107,7 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147911 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147913 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147920 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237325467 -> ee5fab97b5b151d1760bf49b19a939d2cf7d8e8e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237325474 -> 5f9d2ec5479f734346e4fcc423848ff8bf2fd4da
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237325478 -> 5f9d2ec5479f734346e4fcc423848ff8bf2fd4da
 
@@ -176,6 +178,10 @@ Evidence: This artifact maps the latest stale-proof review thread to a current-h
 Disposition: FIXED
 Commit: 5f9d2ec5479f734346e4fcc423848ff8bf2fd4da
 Evidence: `scripts/orchestration/experiment_notify.py` now requires promotion decisions to point at an existing durable repo artifact, requires backlog promotions to include the experiment anchor/block, and requires `metric_regression` rejected results to include the full passing oracle list. `tests/test_experiment_notify.py` covers each regression.
+
+Disposition: FIXED
+Commit: ee5fab97b5b151d1760bf49b19a939d2cf7d8e8e
+Evidence: This artifact maps the latest stale-proof review thread to a current-head ancestor commit made after the review comment.
 
 ## Local Validation Evidence
 
