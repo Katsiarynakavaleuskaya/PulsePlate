@@ -247,6 +247,9 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
     missing_top_level = REQUIRED_TOP_LEVEL_FIELDS - registry.keys()
     if missing_top_level:
         errors.append("registry: missing required fields: " + ", ".join(sorted(missing_top_level)))
+    unexpected_top_level = registry.keys() - REQUIRED_TOP_LEVEL_FIELDS
+    if unexpected_top_level:
+        errors.append("registry: unexpected fields: " + ", ".join(sorted(unexpected_top_level)))
 
     if registry.get("schema_version") != SCHEMA_VERSION:
         errors.append(f"schema_version: expected {SCHEMA_VERSION!r}")

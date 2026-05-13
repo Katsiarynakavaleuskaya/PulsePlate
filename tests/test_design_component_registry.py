@@ -64,6 +64,16 @@ def test_design_component_registry_rejects_unexpected_component_field(tmp_path: 
     assert any("unexpected fields: figma_node" in error for error in errors)
 
 
+def test_design_component_registry_rejects_unexpected_top_level_field(tmp_path: Path) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["figma_node"] = "figma://invented"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("registry: unexpected fields: figma_node" in error for error in errors)
+
+
 def test_design_component_registry_rejects_malformed_json(tmp_path: Path) -> None:
     path = tmp_path / "registry.json"
     path.write_text("{", encoding="utf-8")
