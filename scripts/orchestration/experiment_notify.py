@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
-from pathlib import Path, PurePosixPath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shlex
 import sys
@@ -25,18 +25,14 @@ try:
         validate_experiment_packet,
         validate_experiment_result,
     )
-except ImportError:  # pragma: no cover - CLI fallback for direct script execution.
-    experiment_notify_repo_root = Path(__file__).resolve().parents[2]
-    if str(experiment_notify_repo_root) not in sys.path:
-        sys.path.insert(0, str(experiment_notify_repo_root))
-    from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
-    from scripts.orchestration.experiment_contract import (
-        PROMOTION_TARGETS,
-        SCHEMA_VERSION,
-        validate_experiment_id,
-        validate_experiment_packet,
-        validate_experiment_result,
+except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocation guard.
+    if exc.name != "scripts":
+        raise
+    print(
+        "FAIL: run as `python -m scripts.orchestration.experiment_notify` from repo root.",
+        file=sys.stderr,
     )
+    raise SystemExit(2) from exc
 
 
 NOTIFICATION_ARTIFACT_DIR = (
@@ -44,6 +40,7 @@ NOTIFICATION_ARTIFACT_DIR = (
 )
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
 SENSITIVE_PATH_PART_RE = re.compile(r"(secret|token|password|private|credential|key)", re.I)
+WINDOWS_ABSOLUTE_PATH_RE = re.compile(r'^(?:"?[A-Za-z]:|"?\\\\|"?//)')
 
 
 class ExperimentNotificationError(RuntimeError):
@@ -61,20 +58,49 @@ def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
+    """Resolve a notification output path inside the local artifacts directory."""
+
+    artifact_dir = NOTIFICATION_ARTIFACT_DIR.absolute()
     if raw_output:
         candidate = Path(raw_output)
+        if any(part == ".." for part in candidate.parts):
+            raise ValueError(
+                "--output must stay within artifacts/orchestration/experiments/notifications"
+            )
         if not candidate.is_absolute():
-            candidate = NOTIFICATION_ARTIFACT_DIR / candidate
+            candidate = artifact_dir / candidate
     else:
-        candidate = NOTIFICATION_ARTIFACT_DIR / f"{experiment_id}.md"
-    candidate = candidate.resolve()
+        candidate = artifact_dir / f"{experiment_id}.md"
+    candidate = candidate.absolute()
     try:
-        candidate.relative_to(NOTIFICATION_ARTIFACT_DIR.resolve())
+        candidate.relative_to(artifact_dir)
     except ValueError as exc:
         raise ValueError(
             "--output must stay within artifacts/orchestration/experiments/notifications"
         ) from exc
+    _reject_symlinked_output_components(candidate, artifact_dir=artifact_dir)
     return candidate
+
+
+def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
+    """Reject writes through existing symlinks in the notification artifact path."""
+
+    repo_artifact_root = REPO_ROOT.absolute() / "artifacts"
+    artifact_dir.relative_to(repo_artifact_root)
+    current = repo_artifact_root
+    if current.exists() and current.is_symlink():
+        raise ValueError("notification artifact ancestors must not be symlinks.")
+    for part in artifact_dir.relative_to(repo_artifact_root).parts:
+        current = current / part
+        if current.exists() and current.is_symlink():
+            raise ValueError("notification artifact ancestors must not be symlinks.")
+    if artifact_dir.exists() and artifact_dir.is_symlink():
+        raise ValueError("notification artifact directory must not be a symlink.")
+    current = artifact_dir
+    for part in candidate.relative_to(artifact_dir).parts:
+        current = current / part
+        if current.exists() and current.is_symlink():
+            raise ValueError("notification output path must not traverse a symlink.")
 
 
 def _require_matching_experiment(
@@ -82,6 +108,8 @@ def _require_matching_experiment(
     result: dict[str, Any],
     promotion: dict[str, Any] | None,
 ) -> None:
+    """Require packet, result, and optional promotion metadata to describe one run."""
+
     if packet["experiment_id"] != result["experiment_id"]:
         raise ExperimentNotificationError(
             "Experiment packet and result must reference the same experiment_id."
@@ -124,6 +152,8 @@ def _require_matching_experiment(
 
 
 def _validate_promotion_decision(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate the subset of promotion decision metadata safe to summarize."""
+
     schema_version = str(payload.get("schema_version", "")).strip()
     if schema_version != SCHEMA_VERSION:
         raise ValueError(
@@ -178,6 +208,8 @@ def _validate_durable_artifact_path_for_target(
     promotion_target: str,
     durable_artifact_path: str,
 ) -> None:
+    """Require durable artifact paths to match the declared promotion target."""
+
     upper_id = experiment_id.upper().replace("-", "_")
     expected_paths = {
         "pr_packet": f"docs/orchestration/experiment_pr_packets/{experiment_id}.md",
@@ -192,6 +224,8 @@ def _validate_durable_artifact_path_for_target(
 
 
 def _safe_inline(value: Any) -> str:
+    """Render a scalar markdown inline value without backtick injection."""
+
     text = str(value).strip()
     if not text:
         return "none"
@@ -199,9 +233,13 @@ def _safe_inline(value: Any) -> str:
 
 
 def _safe_repo_path(value: Any) -> str:
+    """Render a repo-relative path or redact unsafe path-shaped values."""
+
     text = str(value).strip()
     if not text:
         return "none"
+    if WINDOWS_ABSOLUTE_PATH_RE.match(text) or "\\" in text:
+        return "[redacted-path]"
     path = PurePosixPath(text)
     if (
         path.is_absolute()
@@ -213,19 +251,30 @@ def _safe_repo_path(value: Any) -> str:
 
 
 def _oracle_command_name(command: Any) -> str:
+    """Return only the executable name from an oracle command."""
+
+    raw_command = str(command).strip()
+    if WINDOWS_ABSOLUTE_PATH_RE.match(raw_command) or "\\" in raw_command:
+        return "[redacted-command]"
     try:
-        argv = shlex.split(str(command))
+        argv = shlex.split(raw_command)
     except ValueError:
         return "[unparseable-command]"
     if not argv:
         return "[empty-command]"
     binary = argv[0]
-    if "/" in binary or "\\" in binary:
+    if WINDOWS_ABSOLUTE_PATH_RE.match(binary) or "\\" in binary:
+        return "[redacted-command]"
+    if "\\" in binary:
+        return _safe_inline(PureWindowsPath(binary).name)
+    if "/" in binary:
         return _safe_inline(Path(binary).name)
     return _safe_inline(binary)
 
 
 def _oracle_lines(result: dict[str, Any]) -> list[str]:
+    """Render safe oracle result summary lines."""
+
     lines: list[str] = []
     for oracle_result in result["oracle_results"]:
         lines.append(
@@ -286,6 +335,8 @@ def render_notification_markdown(
 
 
 def _append_github_step_summary(markdown: str) -> None:
+    """Append markdown to GitHub step summary only when explicitly requested."""
+
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY", "").strip()
     if not summary_path:
         raise ExperimentNotificationError(
@@ -301,6 +352,8 @@ def _append_github_step_summary(markdown: str) -> None:
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI flags for artifact-only notification rendering."""
+
     parser = argparse.ArgumentParser(
         prog="experiment_notify",
         description="Render artifact-only notifications for governed experiment results.",
@@ -326,6 +379,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run the notification renderer CLI."""
+
     args = _parse_args(argv)
     packet_path = Path(args.packet).expanduser().resolve()
     result_path = Path(args.result).expanduser().resolve()

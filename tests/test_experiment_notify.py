@@ -3,7 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import subprocess
+import sys
 
 import pytest
 
@@ -123,6 +126,12 @@ def _write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return path
+
+
+def _subprocess_env_without_repo_pythonpath() -> dict[str, str]:
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    return env
 
 
 EXPECTED_NOTIFICATION = """# Experiment Result Notification: exp-notify
@@ -335,6 +344,33 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
     assert content.count("[redacted-path]") == 2
 
 
+def test_notification_redacts_windows_local_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(command=r"C:\Users\alice\repo\.venv\Scripts\python.exe -m pytest")
+    )
+    result["mutated_paths"] = [
+        r"C:\Users\alice\repo\core\rag.py",
+        r"C:Users\alice\repo\core\rag.py",
+        r"Users\alice\repo\core\rag.py",
+        r"\\server\share\pulseplate\core\rag.py",
+    ]
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "C:" not in content
+    assert "Users" not in content
+    assert "server" not in content
+    assert "share" not in content
+    assert "- `[redacted-command]` -> rc=0, timed_out=false, truncated=false" in content
+    assert content.count("[redacted-path]") == 4
+
+
 def test_resolve_output_path_rejects_escape(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -344,6 +380,101 @@ def test_resolve_output_path_rejects_escape(
 
     with pytest.raises(ValueError, match="notifications"):
         experiment_notify._resolve_output_path("../outside.md", "exp-notify")
+
+
+def test_resolve_output_path_rejects_symlinked_notification_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    outside = tmp_path / "outside"
+    notification_dir.parent.mkdir(parents=True, exist_ok=True)
+    outside.mkdir()
+    notification_dir.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        experiment_notify._resolve_output_path("exp-notify.md", "exp-notify")
+
+
+def test_resolve_output_path_rejects_symlinked_child_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    outside = tmp_path / "outside"
+    symlinked_child = notification_dir / "child"
+    notification_dir.mkdir(parents=True, exist_ok=True)
+    outside.mkdir()
+    symlinked_child.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        experiment_notify._resolve_output_path("child/exp-notify.md", "exp-notify")
+
+
+def test_resolve_output_path_rejects_symlinked_artifact_ancestor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    outside = tmp_path / "outside"
+    experiments = repo / "artifacts" / "orchestration" / "experiments"
+    experiments.parent.mkdir(parents=True, exist_ok=True)
+    outside.mkdir()
+    experiments.symlink_to(outside, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="symlink"):
+        experiment_notify._resolve_output_path("exp-notify.md", "exp-notify")
+
+
+def test_module_cli_shows_help() -> None:
+    completed = subprocess.run(
+        [sys.executable, "-m", "scripts.orchestration.experiment_notify", "--help"],
+        check=False,
+        capture_output=True,
+        env=_subprocess_env_without_repo_pythonpath(),
+        text=True,
+    )
+
+    assert completed.returncode == 0
+    assert "Render artifact-only notifications" in completed.stdout
+
+
+def test_direct_script_invocation_fails_without_repo_pythonpath() -> None:
+    script_path = Path("scripts/orchestration/experiment_notify.py")
+
+    completed = subprocess.run(
+        [sys.executable, str(script_path), "--help"],
+        check=False,
+        capture_output=True,
+        env=_subprocess_env_without_repo_pythonpath(),
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "python -m scripts.orchestration.experiment_notify" in completed.stderr
+    assert "ModuleNotFoundError" not in completed.stderr
+
+
+def test_direct_script_invocation_outside_repo_fails_without_sys_path_mutation(
+    tmp_path: Path,
+) -> None:
+    script_path = Path("scripts/orchestration/experiment_notify.py").resolve()
+
+    completed = subprocess.run(
+        [sys.executable, str(script_path), "--help"],
+        check=False,
+        capture_output=True,
+        cwd=tmp_path,
+        env=_subprocess_env_without_repo_pythonpath(),
+        text=True,
+    )
+
+    assert completed.returncode == 2
+    assert "python -m scripts.orchestration.experiment_notify" in completed.stderr
+    assert "ModuleNotFoundError" not in completed.stderr
 
 
 def test_cli_rejects_absolute_output_escape_without_writing(

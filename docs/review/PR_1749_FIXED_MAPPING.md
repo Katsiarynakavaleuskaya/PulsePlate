@@ -9,15 +9,16 @@
 
 ## Discussion Thread Pass
 
-- [x] Draft PR opened.
-- [x] Fixed in commit mapping artifact created.
-- [ ] Post-open review thread pass pending.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-No review threads have been resolved.
+No review threads have been resolved. CodeRabbit initially skipped review while the PR
+was draft; the PR was marked ready for review on 2026-05-13 and bot review is being
+re-triggered through the normal ready-for-review cycle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments as of draft PR open.
+- No actionable review comments
 
 ## Local Validation Evidence
 
@@ -54,14 +55,14 @@ Plain `make validate-changed` in this isolated worktree failed before test execu
 
 ## Merge Readiness
 
-- [x] Coordinator-first preflight/bootstrap completed.
-- [x] Canonical artifact exists.
-- [x] Local narrow gates completed.
-- [ ] Current-head CI pending.
+- [ ] Coordinator final synthesis completed.
+- [ ] Canonical artifact updated after bot/human review cycle.
+- [ ] Local narrow gates rerun after final review fixes.
+- [ ] Current-head CI pending after ready-for-review governance update.
 - [ ] Bot/human review pass pending.
 - [ ] Mandatory wait-window pending.
 
-Draft PR is not merge-ready.
+PR is not merge-ready.
 
 ## Deferred / Follow-ups
 

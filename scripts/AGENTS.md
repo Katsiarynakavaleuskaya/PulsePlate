@@ -19,11 +19,9 @@
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
 - Result artifacts stay local under `artifacts/orchestration/experiments/results/` and are evidence only, not merge-ready or promotion-ready output.
-- `experiment_notify.py` may render local/GitHub-step-summary markdown from validated
-  packet/result/promotion artifacts, but it must not send email, Slack messages,
-  GitHub comments, or any other external notification in v1.
-- Notification summaries must omit raw patch text, oracle stdout/stderr, cwd,
-  secrets, and local absolute paths.
+- `experiment_notify.py` follows the artifact-only notification contract in
+  `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or
+  relax that canonical boundary here.
 
 ## Pre-push backend tests (smart diff runner)
 
