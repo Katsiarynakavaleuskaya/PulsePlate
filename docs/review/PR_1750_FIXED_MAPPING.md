@@ -6,7 +6,7 @@ Branch: `codex/main-pr15-preference-notes-ci-hotfix`
 Title: `fix(food-data): restore PR15 CI coverage`
 Implementing commits:
 - `e7a6bbd13ef1f6865dcc85fd57caec9d466dada7` - restore PR15 CI coverage and close xdist/notes-guard risk.
-- `147f6c9918cf99dc21f6cc88dfe7cd4efa403b29` - fix contrastive negation after bot review.
+- `147f6c9918e5a713f7499968937866f15d920544` - fix contrastive negation after bot review.
 
 ## Scope
 
@@ -35,7 +35,7 @@ network, ingest, Cloudflare, or production infra behavior changes.
 Disposition: FIXED
 Commit: e7a6bbd13ef1f6865dcc85fd57caec9d466dada7
 Evidence:
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q -n 4 --dist=loadscope tests/test_food_source_preference_recipe_mapping.py`
+- `$VENV_PYTHON -m pytest -q -n 4 --dist=loadscope tests/test_food_source_preference_recipe_mapping.py`
   -> PASS.
 - Focused module coverage for `core/food_sources/preference_recipe_mapping.py`
   reached 99.83% with no missed statements.
@@ -76,7 +76,7 @@ Evidence:
 ### Bot review: preserve direct negation after contrastive clauses
 
 Disposition: FIXED
-Commit: 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
+Commit: 147f6c9918e5a713f7499968937866f15d920544
 Evidence:
 - `core/food_sources/preference_recipe_mapping.py` now evaluates negation
   against the suffix after the last contrastive connector instead of
@@ -97,23 +97,23 @@ thread dispositions before merge readiness is claimed.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
+Commit: 147f6c9918e5a713f7499968937866f15d920544
 Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_source_preference_recipe_mapping.py` fix and cover contrastive negation.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237633346 -> 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237635615 -> 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237633346 -> 147f6c9918e5a713f7499968937866f15d920544
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237635615 -> 147f6c9918e5a713f7499968937866f15d920544
 
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` -> PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_food_source_preference_recipe_mapping.py`
+- `$VENV_PYTHON -m pytest -q tests/test_food_source_preference_recipe_mapping.py`
   -> PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q -n 4 --dist=loadscope tests/test_food_source_preference_recipe_mapping.py`
+- `$VENV_PYTHON -m pytest -q -n 4 --dist=loadscope tests/test_food_source_preference_recipe_mapping.py`
   -> PASS.
 - Focused coverage for `core/food_sources/preference_recipe_mapping.py` ->
   99.83%, no missed statements.
 - `pre-commit run --all-files` -> PASS.
-- `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+- `VENV_PYTHON=$VENV_PYTHON make validate-changed`
   -> PASS.
 - Push hook -> PASS, including changed-file mypy, pip-audit, pre-push backend
   tests, full-repo Bandit, and Docker build test.
