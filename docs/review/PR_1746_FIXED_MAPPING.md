@@ -5,7 +5,8 @@
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746
 - Branch: `codex/fix-main-design-agent-workflow-kimi-contract`
 - Base: `main`
-- Current head: `c396702a4ad245869a366ebb2c4d7787acd56365`
+- Evidence head at mapping creation: `c396702a4ad245869a366ebb2c4d7787acd56365`
+- Note: later mapping-only commits may advance the branch head; use GitHub PR current-head checks for live merge-readiness truth.
 
 ## Scope
 
@@ -54,5 +55,5 @@ Fix the main `test-main` design-governance failure by aligning the Kimi evidence
 
 ## Current-Head CI
 
-- PR current-head checks started for `c396702a4ad245869a366ebb2c4d7787acd56365`.
+- PR current-head checks started for the pushed branch head; use GitHub PR current-head checks for live status.
 - Merge readiness is not claimed while checks and review-bot signals are pending.
