@@ -10,6 +10,7 @@ Implementing commits:
 - `77f0583a35e3c871e2348d8b70a5a39420168b7c` - harden review-mapping evidence.
 - `ee0b63e28ccfd14f9585a08821e260fd0b957bae` - preserve controlled PR11 handoff errors and deduplicate CLI timeouts.
 - `07728343bc053d858608a5c4eb77f289fc90ba18` - cover additional contrastive note boundaries.
+- `c51a52165e48575f601d20af9ae060783b4eb690` - correct bot mapping SHAs and add contrastive-boundary evidence.
 
 ## Scope
 
@@ -157,6 +158,11 @@ Disposition: FIXED
 Commit: 07728343bc053d858608a5c4eb77f289fc90ba18
 Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive note boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `although`, `though`, and `even though` source-use approvals after a negated allow-list phrase.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747300 -> 07728343bc053d858608a5c4eb77f289fc90ba18
+Disposition: FIXED
+Commit: c51a52165e48575f601d20af9ae060783b4eb690
+Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` now uses the reachable full SHA `77f0583a35e3c871e2348d8b70a5a39420168b7c` and records current-branch mapping evidence after the stale bot review cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747291 -> c51a52165e48575f601d20af9ae060783b4eb690
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747295 -> c51a52165e48575f601d20af9ae060783b4eb690
 
 ## Local Validation Evidence
 
