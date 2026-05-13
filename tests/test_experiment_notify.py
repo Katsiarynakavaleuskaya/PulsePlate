@@ -422,6 +422,18 @@ def test_result_evidence_rejects_nested_paths_under_extensionless_file_surface(
         experiment_notify.render_notification_markdown(packet, result)
 
 
+def test_result_evidence_allows_new_extensionless_directory_surface() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet() | {"mutable_candidate_surface": ["core/rag/new_feature"]}
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = ["core/rag/new_feature/impl.py"]
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "- `core/rag/new_feature/impl.py`" in content
+
+
 def test_result_oracle_commands_must_come_from_packet() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(
@@ -518,6 +530,38 @@ def test_rejected_result_oracles_must_preserve_packet_prefix() -> None:
     with pytest.raises(
         experiment_notify.ExperimentNotificationError,
         match="immutable_oracles prefix",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_rejected_result_terminal_oracle_must_fail() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet()
+        | {
+            "immutable_oracles": [
+                {"command": "python3 -m pytest tests/test_a.py", "expected_signal": "must pass"},
+                {"command": "python3 -m pytest tests/test_b.py", "expected_signal": "must pass"},
+            ]
+        }
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    result["oracle_results"] = [
+        {
+            "command": "python3 -m pytest tests/test_a.py",
+            "returncode": 0,
+            "timed_out": False,
+            "truncated": False,
+            "stdout": "",
+            "stderr": "",
+            "cwd": "",
+        }
+    ]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="terminal oracle must fail",
     ):
         experiment_notify.render_notification_markdown(packet, result)
 
@@ -864,6 +908,36 @@ def test_cli_rejects_absolute_output_escape_without_writing(
 
     assert exit_code == 1
     assert not outside_path.exists()
+
+
+def test_cli_write_failure_redacts_output_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    output_dir = repo / "artifacts" / "orchestration" / "experiments" / "notifications" / "exp.md"
+    output_dir.mkdir(parents=True)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--output",
+            str(output_dir),
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "unable to write experiment notification" in captured.out
+    assert "artifacts/orchestration" not in captured.out
+    assert str(repo) not in captured.out
 
 
 def test_github_step_summary_requires_explicit_flag(

@@ -217,6 +217,12 @@ def _require_result_evidence_matches_packet(
         )
     if result["status"] == "rejected":
         _require_rejected_oracles_are_prefix(expected_oracles, result_oracles)
+        if result["oracle_results"]:
+            terminal_oracle = result["oracle_results"][-1]
+            if terminal_oracle["returncode"] == 0 and not terminal_oracle["timed_out"]:
+                raise ExperimentNotificationError(
+                    "Rejected experiment result terminal oracle must fail or time out."
+                )
     if result["status"] == "accepted":
         if result["failure_class"] is not None:
             raise ExperimentNotificationError(
@@ -250,9 +256,11 @@ def _surface_allows_nested_paths(surface: str) -> bool:
 
     if surface.endswith("/"):
         return True
+    if Path(REPO_ROOT, surface).is_file():
+        return False
     if PurePosixPath(surface).suffix.lower() in FILE_LIKE_SURFACE_SUFFIXES:
         return False
-    return Path(REPO_ROOT, surface).is_dir()
+    return True
 
 
 def _require_rejected_oracles_are_prefix(
@@ -576,7 +584,10 @@ def main(argv: list[str] | None = None) -> int:
         output_path.write_text(markdown, encoding="utf-8")
         if args.github_step_summary:
             _append_github_step_summary(markdown)
-    except (OSError, ExperimentNotificationError) as exc:
+    except OSError:
+        print("FAIL: unable to write experiment notification.")
+        return 1
+    except ExperimentNotificationError as exc:
         print(f"FAIL: unable to write experiment notification: {exc}")
         return 1
 
