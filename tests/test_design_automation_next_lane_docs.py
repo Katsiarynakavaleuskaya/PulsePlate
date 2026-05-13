@@ -98,6 +98,21 @@ def _changed_paths_for_current_worktree() -> list[str]:
             text=True,
             capture_output=True,
         )
+    if branch.returncode != 0 and "no merge base" in (branch.stderr or branch.stdout):
+        subprocess.run(
+            [git_bin, "fetch", "--no-tags", "--prune", "--unshallow", "origin"],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        branch = subprocess.run(
+            [git_bin, "diff", "--name-only", "origin/main...HEAD"],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
     if branch.returncode != 0:
         detail = (branch.stderr or branch.stdout).strip()
         pytest.fail(
