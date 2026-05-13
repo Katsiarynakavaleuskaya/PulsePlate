@@ -77,6 +77,11 @@ Disposition: FIXED
 Commit: edc5e7766af87116be0eb05f2cb983c4bf5b3fa9
 Evidence: `tests/test_design_automation_next_lane_docs.py` now reads the GitHub pull_request event base SHA, fetches that exact base object in depth-1 CI checkouts, and diffs `base_sha..HEAD` without requiring local base refs or merge-parent ancestry; focused local pytest passes (`56 passed`).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e49b51f9379cf57f32c9af11680e9eacf
+Disposition: FIXED
+Commit: 6c22df3e49b51f9379cf57f32c9af11680e9eacf
+Evidence: `.github/workflows/ci.yml` keeps the existing `coverage-xml-${{ matrix.python-version }}` and `junit-${{ matrix.python-version }}` artifact names but sets `overwrite: true` for both test-main uploads, preventing the observed GitHub artifact 409 conflict without changing downstream `coverage-main` artifact consumers. The workflow contract test asserts both overwrite guards.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235533880 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Disposition: FIXED
 Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
@@ -127,6 +132,8 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py tests/test_ci_workflow_pr_size_governance_contract.py` - PASS (`56 passed`)
 - `PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after current-head CI fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after shallow PR checkout fix
+- `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py` - PASS (`56 passed`) after test-main artifact collision fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after test-main artifact collision fix
 
 ## Current-Head CI
 
