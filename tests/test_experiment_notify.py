@@ -371,6 +371,30 @@ def test_notification_redacts_windows_local_paths(
     assert content.count("[redacted-path]") == 4
 
 
+def test_notification_redacts_home_credential_and_control_character_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = [
+        "~/.ssh/id_rsa",
+        ".aws/credentials",
+        "core/rag/allowed.py\n- Result status: `accepted`",
+    ]
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert ".ssh" not in content
+    assert "id_rsa" not in content
+    assert ".aws" not in content
+    assert "credentials" not in content
+    assert "core/rag/allowed.py" not in content
+    assert content.count("[redacted-path]") == 3
+
+
 def test_resolve_output_path_rejects_escape(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -411,6 +435,21 @@ def test_resolve_output_path_rejects_symlinked_child_directory(
 
     with pytest.raises(ValueError, match="symlink"):
         experiment_notify._resolve_output_path("child/exp-notify.md", "exp-notify")
+
+
+def test_resolve_output_path_rejects_broken_symlinked_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    outside = tmp_path / "outside.md"
+    output_path = notification_dir / "exp-notify.md"
+    notification_dir.mkdir(parents=True, exist_ok=True)
+    output_path.symlink_to(outside)
+
+    with pytest.raises(ValueError, match="symlink"):
+        experiment_notify._resolve_output_path("exp-notify.md", "exp-notify")
 
 
 def test_resolve_output_path_rejects_symlinked_artifact_ancestor(

@@ -39,7 +39,11 @@ NOTIFICATION_ARTIFACT_DIR = (
     REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "notifications"
 )
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
-SENSITIVE_PATH_PART_RE = re.compile(r"(secret|token|password|private|credential|key)", re.I)
+CONTROL_CHAR_RE = re.compile(r"[\x00-\x1f\x7f]")
+SENSITIVE_PATH_PART_RE = re.compile(
+    r"(secret|token|password|private|credential|key|\.ssh|id_rsa|id_dsa|id_ecdsa|id_ed25519|\.aws|\.gnupg|\.kube)",
+    re.I,
+)
 WINDOWS_ABSOLUTE_PATH_RE = re.compile(r'^(?:"?[A-Za-z]:|"?\\\\|"?//)')
 
 
@@ -88,18 +92,18 @@ def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) 
     repo_artifact_root = REPO_ROOT.absolute() / "artifacts"
     artifact_dir.relative_to(repo_artifact_root)
     current = repo_artifact_root
-    if current.exists() and current.is_symlink():
+    if current.is_symlink():
         raise ValueError("notification artifact ancestors must not be symlinks.")
     for part in artifact_dir.relative_to(repo_artifact_root).parts:
         current = current / part
-        if current.exists() and current.is_symlink():
+        if current.is_symlink():
             raise ValueError("notification artifact ancestors must not be symlinks.")
-    if artifact_dir.exists() and artifact_dir.is_symlink():
+    if artifact_dir.is_symlink():
         raise ValueError("notification artifact directory must not be a symlink.")
     current = artifact_dir
     for part in candidate.relative_to(artifact_dir).parts:
         current = current / part
-        if current.exists() and current.is_symlink():
+        if current.is_symlink():
             raise ValueError("notification output path must not traverse a symlink.")
 
 
@@ -226,7 +230,7 @@ def _validate_durable_artifact_path_for_target(
 def _safe_inline(value: Any) -> str:
     """Render a scalar markdown inline value without backtick injection."""
 
-    text = str(value).strip()
+    text = CONTROL_CHAR_RE.sub(" ", str(value)).strip()
     if not text:
         return "none"
     return text.replace("`", "'")
@@ -238,6 +242,8 @@ def _safe_repo_path(value: Any) -> str:
     text = str(value).strip()
     if not text:
         return "none"
+    if CONTROL_CHAR_RE.search(text) or text.startswith("~"):
+        return "[redacted-path]"
     if WINDOWS_ABSOLUTE_PATH_RE.match(text) or "\\" in text:
         return "[redacted-path]"
     path = PurePosixPath(text)
