@@ -26,6 +26,7 @@
   - `98740bebd04302f0cd552558d09df60af8eeb48b` - fail-closed evidence drift validation.
   - `b5bf50f9f60204feb476ce2ca810fdb773d225df` - typed surface containment follow-up.
   - `261085d5e2fc8d760dcc743fc0adeffadcaa07c5` - runner-aligned notification evidence validation.
+  - `0b7790f853562deb0a58ddd934085636d990d7be` - sanitized validation diagnostics and accepted/rejected state checks.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -87,6 +88,11 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236869446 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236869450 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236869455 -> 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284762777 -> 0b7790f853562deb0a58ddd934085636d990d7be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937872 -> 0b7790f853562deb0a58ddd934085636d990d7be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937877 -> 0b7790f853562deb0a58ddd934085636d990d7be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937880 -> 0b7790f853562deb0a58ddd934085636d990d7be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937894 -> 0b7790f853562deb0a58ddd934085636d990d7be
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -136,11 +142,15 @@ Disposition: FIXED
 Commit: 261085d5e2fc8d760dcc743fc0adeffadcaa07c5
 Evidence: `scripts/orchestration/experiment_notify.py` now aligns directory-surface matching with runner prefix behavior for new directories while still rejecting existing file surfaces, rejects rejected results whose terminal oracle passed, and redacts notification output write failures. `tests/test_experiment_notify.py` covers each regression.
 
+Disposition: FIXED
+Commit: 0b7790f853562deb0a58ddd934085636d990d7be
+Evidence: `scripts/orchestration/experiment_notify.py` now sanitizes shared-validator `ValueError` diagnostics, allows `infra_flake` rejected results after passing oracle prefixes, and rejects accepted results with dirty shared-tree evidence before notification rendering. `tests/test_experiment_notify.py` covers each regression.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 84 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 87 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
