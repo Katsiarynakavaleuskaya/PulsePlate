@@ -2,6 +2,10 @@
 
 from pathlib import Path
 import re
+import shutil
+import subprocess
+
+import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -14,8 +18,20 @@ PR9_PACKET = (
 )
 PR9_SPEC = REPO_ROOT / "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md"
 PR9_REGISTRY = REPO_ROOT / "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+KIMI_PROTOCOL = (
+    REPO_ROOT / "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md"
+)
+KIMI_CAPTURE_DATE = "2026-05-13"
+KIMI_EVIDENCE_IDS = (
+    "kimi-page-2026-05-13",
+    "kimi-drive-folder-2026-05-13",
+    "kimi-desktop-bundle-2026-05-13",
+    "figma-reference-file-2026-05-13",
+    "canva-unspecified-2026-05-13",
+)
 WORKFLOW = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_WORKFLOW.md"
 TEMPLATE = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md"
+ORCHESTRATION_AGENTS = REPO_ROOT / "docs/orchestration/AGENTS.md"
 LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
 
 
@@ -42,6 +58,38 @@ def _active_prompt_packet_corpus() -> str:
 def _command_blocks(text: str) -> str:
     """Extract shell-like command blocks from markdown."""
     return "\n".join(re.findall(r"```(?:bash|sh|shell|zsh)\n(.*?)```", text, flags=re.DOTALL))
+
+
+def _changed_paths_for_current_worktree() -> list[str]:
+    """Return staged paths, or branch paths when nothing is staged."""
+    git_bin = shutil.which("git")
+    if git_bin is None:
+        pytest.fail("Unable to inspect Kimi docs-only guard paths: git executable not found")
+
+    staged = subprocess.run(
+        [git_bin, "diff", "--cached", "--name-only"],
+        cwd=REPO_ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+    ).stdout.splitlines()
+    if staged:
+        return staged
+
+    branch = subprocess.run(
+        [git_bin, "diff", "--name-only", "origin/main...HEAD"],
+        cwd=REPO_ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    if branch.returncode != 0:
+        detail = (branch.stderr or branch.stdout).strip()
+        pytest.fail(
+            "Unable to inspect branch diff for Kimi docs-only guard: "
+            f"{detail or 'git diff origin/main...HEAD failed'}"
+        )
+    return branch.stdout.splitlines()
 
 
 def test_next_design_automation_decision_required_sections() -> None:
@@ -448,6 +496,326 @@ def test_pr9_preserves_token_runtime_and_bridge_authority_boundaries() -> None:
         "`ios/PulsePlate/DesignSystem/DesignTokens.swift` remains iOS runtime token grouping.",
         "Web and iOS implementation slices must stay thin over repo/backend truth.",
         "Code Connect activation status is `unspecified`.",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+
+def test_kimi_prototype_intake_protocol_exists_and_records_evidence() -> None:
+    """Require the Kimi modernization bridge protocol to record evidence inputs."""
+    protocol = _read(KIMI_PROTOCOL)
+    corpus = "\n".join([protocol, _read(WORKFLOW), _read(TEMPLATE), _read(LEDGER)])
+
+    required = [
+        "# Kimi Prototype Intake Modernization Bridge Protocol",
+        "https://7zngnnxxihim6.kimi.page/",
+        "https://drive.google.com/drive/folders/1kVBP5Gjolmg_RUiorx5B_biw51ueGwXe",
+        "Kimi chat `PulsePlate сайт`, published preview `v30`, `All files` bundle",
+        "Kimi prototype intake and modernization bridge work must follow",
+        "Kimi Prototype Intake Modernization Bridge -> docs/governance intake lane",
+        "Kimi prototype intake modernization bridge tracking",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+
+def test_kimi_current_evidence_records_have_provenance() -> None:
+    """Require current Kimi evidence rows to carry access and provenance metadata."""
+    protocol = _read(KIMI_PROTOCOL)
+
+    required = [
+        "| Evidence id | Source name | Source URL / locator | Captured at | Owner | Reviewer | Artifact class | Access notes | Status | Repo evidence anchors | Allowed use |",
+        *(f"`{evidence_id}`" for evidence_id in KIMI_EVIDENCE_IDS),
+        f"`{KIMI_CAPTURE_DATE}`",
+        "`@katsiaryna_kavaleuskaya`",
+        "`agent-coordinator`",
+        "connector visibility status `access_not_verified`",
+        "bundle hash `unspecified`",
+        "node mappings `unspecified` unless repo-confirmed",
+        "Every current or future Kimi evidence record must be compatible with `docs/design/REFERENCE_MANIFEST_SCHEMA.md` and include these fields before it can influence a brief:",
+    ]
+
+    for phrase in required:
+        assert phrase in protocol
+
+    for evidence_id in KIMI_EVIDENCE_IDS[:3]:
+        row = next(line for line in protocol.splitlines() if f"`{evidence_id}`" in line)
+        assert "`read_only`" in row
+        assert f"`{KIMI_CAPTURE_DATE}`" in row
+        assert "`@katsiaryna_kavaleuskaya`" in row
+        assert "`agent-coordinator`" in row
+        assert "docs/design/REFERENCE_" in row
+
+
+def test_kimi_prototype_intake_preserves_source_truth_boundaries() -> None:
+    """Prevent Kimi prototype evidence from becoming a second source of truth."""
+    protocol = _read(KIMI_PROTOCOL)
+
+    required = [
+        "Kimi prototype artifacts, Google Drive files, Figma frames, Canva files, screenshots, generated briefs, generated code, and external design notes are evidence/reference inputs only.",
+        "They do not become PulsePlate product truth, runtime truth, OpenAPI truth, backend truth, token truth, component truth, App Store truth, or implementation authority",
+        "Repo code, docs, tests, reviewed contracts, and merge governance.",
+        "Backend/OpenAPI for product and runtime contract truth.",
+        "`/tokens` as token authoring truth.",
+        "Unknown values must remain `unspecified`.",
+    ]
+
+    for phrase in required:
+        assert phrase in protocol
+
+    forbidden_patterns = [
+        r"Kimi\s+is\s+(the\s+)?source\s+of\s+truth",
+        r"Kimi\s+is\s+(the\s+)?canonical",
+        r"Kimi\s+prototype\s+(is|becomes)\s+(the\s+)?runtime\s+truth",
+        r"Kimi\s+prototype\s+(is|becomes)\s+(the\s+)?token\s+truth",
+        r"Google\s+Drive\s+(is|becomes)\s+(the\s+)?source\s+of\s+truth",
+        r"Figma\s+(is|becomes)\s+(the\s+)?source\s+of\s+truth",
+        r"Canva\s+(is|becomes)\s+(the\s+)?source\s+of\s+truth",
+    ]
+
+    for pattern in forbidden_patterns:
+        assert re.search(pattern, protocol, flags=re.IGNORECASE) is None, pattern
+
+
+def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
+    """Require Kimi evidence to pass through provenance and normalization records."""
+    protocol = _read(KIMI_PROTOCOL)
+
+    required_fields = [
+        "`evidence_id`",
+        "`source_name`",
+        "`source_url`",
+        "`captured_at`",
+        "`artifact_class`",
+        "`owner`",
+        "`reviewer`",
+        "`allowed_use`",
+        "`reference_id`",
+        "`status`",
+        "`product_category`",
+        "`platform`",
+        "`surface_type`",
+        "`visual_archetype`",
+        "`palette_archetype`",
+        "`typography_archetype`",
+        "`spacing_density`",
+        "`radius_profile`",
+        "`component_patterns`",
+        "`layout_patterns`",
+        "`motion_notes`",
+        "`normalization_notes`",
+        "`forbidden_copy_elements`",
+        "`mapped_pulseplate_components`",
+        "`repo_evidence_anchors`",
+        "`wellness_safety_notes`",
+        "`accessibility_notes`",
+        "`security_privacy_notes`",
+        "`license_status`",
+        "`attribution_required`",
+        "`legal_copy_risks`",
+        "`monetization_notes`",
+        "`icon-silhouette-check`",
+        "`design-guard`",
+        "`adopt_adapt_reject_decision`",
+    ]
+
+    for field in required_fields:
+        assert field in protocol
+
+    required_status = [
+        "`read_only`",
+        "`normalized`",
+        "`candidate_for_brief`",
+        "`rejected`",
+        "`status=candidate_for_brief` is forbidden unless every required field in `docs/design/REFERENCE_MANIFEST_SCHEMA.md` is complete",
+        "`product_category`, `platform`, `surface_type`, visual/palette/typography archetypes, component/layout patterns, `monetization_notes`, `icon-silhouette-check`, and `design-guard`",
+        "`reject` decisions cannot influence a brief.",
+    ]
+
+    for phrase in required_status:
+        assert phrase in protocol
+
+
+def test_kimi_prototype_intake_blocks_direct_copy_and_external_writes() -> None:
+    """Keep Kimi bridge work out of runtime, token, binary, and external-write scope."""
+    protocol = _read(KIMI_PROTOCOL)
+    corpus = "\n".join([protocol, _read(TEMPLATE), _read(LEDGER)])
+
+    required = [
+        "No Kimi-generated code, component structure, styling, copy, assets, images, token values, route shape, package configuration, generated bundle, or layout may be copied directly into PulsePlate.",
+        "Kimi, Drive, Figma, Canva, App Store Connect, Cloudflare, Supabase, or deploy writes",
+        "executing, installing, vendoring, or importing generated Kimi bundles",
+        "committing screenshots, videos, binary assets, downloaded bundles, or generated design exports",
+        "does not copy Kimi-generated code, component structure, styling, copy, assets, token values, routes, or generated bundles into runtime",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    forbidden_patterns = [
+        r"copy\s+Kimi-generated\s+code\s+into\s+(runtime|PulsePlate)",
+        r"copy\s+Kimi\s+(layout|assets|copy|token values)",
+        r"execute\s+the\s+Kimi\s+bundle",
+        r"vendor\s+the\s+Kimi\s+bundle",
+        r"commit\s+Kimi\s+screenshots",
+        r"Kimi\s+writes?\s+(are|is)\s+allowed",
+        r"Figma\s+writes?\s+(are|is)\s+allowed",
+        r"Canva\s+writes?\s+(are|is)\s+allowed",
+    ]
+
+    for pattern in forbidden_patterns:
+        assert re.search(pattern, corpus, flags=re.IGNORECASE) is None, pattern
+
+
+def test_kimi_protocol_keeps_diff_docs_only_until_later_prs() -> None:
+    """Require Kimi bridge work to stop on runtime or artifact path drift."""
+    protocol = _read(KIMI_PROTOCOL)
+
+    required = [
+        "Kimi bridge work must start from an isolated clean worktree based on `origin/main`.",
+        "Do not switch the root checkout, edit unrelated `worktrees/...` lanes in place, or use a shared virtual environment from another worktree.",
+        "This lane may touch only this protocol, scoped orchestration routing docs (`docs/orchestration/AGENTS.md`), design workflow/template pointers, the backlog ledger pointer, focused deterministic docs guards, and the post-open fixed-mapping artifact after a PR number exists.",
+        "The PR must stop if the diff includes runtime web, iOS, backend, OpenAPI, token, generated mirror, Storybook config, CI workflow, package/config, screenshot, video, binary asset, downloaded bundle, deploy, App Store, Cloudflare, billing, auth, StoreKit, or HealthKit paths.",
+        "`docs/review/PR_<N>_FIXED_MAPPING.md` must not be created before a PR number exists.",
+        "Discussion-thread and merge-readiness checkboxes must remain unchecked until review disposition, current-head checks, mandatory wait-window, Agent Run Summary evidence, and strict merge-readiness wrapper evidence exist.",
+    ]
+
+    for phrase in required:
+        assert phrase in protocol
+
+
+def test_kimi_protocol_current_diff_stays_docs_only() -> None:
+    """Reject staged or branch drift into runtime, token, binary, or tooling surfaces."""
+    paths = _changed_paths_for_current_worktree()
+
+    if not any(path == str(KIMI_PROTOCOL.relative_to(REPO_ROOT)) for path in paths):
+        return
+
+    allowed_exact = {
+        "docs/orchestration/AGENTS.md",
+        "docs/orchestration/DESIGN_AGENT_WORKFLOW.md",
+        "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
+        "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md",
+        "docs/roadmap/BACKLOG_LEDGER.md",
+        "tests/test_design_automation_next_lane_docs.py",
+    }
+    allowed_review = re.compile(r"^docs/review/PR_\d+_FIXED_MAPPING\.md$")
+
+    forbidden_suffixes = (
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".webp",
+        ".mp4",
+        ".mov",
+        ".zip",
+        ".tar",
+        ".gz",
+        ".tgz",
+    )
+    forbidden_prefixes = (
+        ".github/",
+        "app/",
+        "frontend/",
+        "ios/",
+        "openapi/",
+        "tokens/",
+        "assets/",
+        "dist/",
+        "build/",
+        "node_modules/",
+    )
+    forbidden_exact = {
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "requirements.txt",
+        "requirements-dev.txt",
+        "constraints.txt",
+    }
+
+    unexpected = [
+        path for path in paths if path not in allowed_exact and not allowed_review.match(path)
+    ]
+    forbidden = [
+        path
+        for path in paths
+        if path in forbidden_exact
+        or path.startswith(forbidden_prefixes)
+        or path.lower().endswith(forbidden_suffixes)
+    ]
+
+    assert unexpected == []
+    assert forbidden == []
+
+
+def test_kimi_modernization_bridge_sequence_stays_behind_pr9_gates() -> None:
+    """Require Kimi modernization to normalize into PR-9 design-system gates."""
+    protocol = _read(KIMI_PROTOCOL)
+
+    required = [
+        "Extract normalized direction through the reference manifest and scorecard controls.",
+        "Map only verified patterns into PulsePlate UI vocabulary.",
+        "Map implementation candidates into the design component contract registry.",
+        "Require bridge coverage inventory",
+        "Require fail-closed visual regression and accessibility regression decisions.",
+        "Open later bounded web/iOS implementation slices only after the previous gates exist; missing prerequisite gates are blockers, not `DEFERRED` permission to proceed.",
+        "Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.",
+    ]
+
+    for phrase in required:
+        assert phrase in protocol
+
+    sequence = [
+        "Component contract registry",
+        "Bridge coverage inventory",
+        "Visual regression lane",
+        "Accessibility regression lane",
+        "Token/runtime parity boundary",
+        "Later web+iOS implementation slices",
+    ]
+
+    for phrase in sequence:
+        assert phrase in protocol
+
+    numbered_sequence = [f"{index}. {phrase}" for index, phrase in enumerate(sequence, start=1)]
+    positions = [protocol.index(phrase) for phrase in numbered_sequence]
+    assert all(positions[index] < positions[index + 1] for index in range(len(positions) - 1))
+
+
+def test_kimi_protocol_records_coordinator_role_and_review_chains() -> None:
+    """Require coordinator-owned role order and post-open chains for Kimi bridge work."""
+    protocol = _read(KIMI_PROTOCOL)
+    scoped_agents = _read(ORCHESTRATION_AGENTS)
+    corpus = "\n".join([protocol, scoped_agents])
+
+    for agent in [
+        "agent-coordinator",
+        "creative-designer",
+        "cursor-specialist-agent",
+        "architecture-specialist",
+        "security-auditor",
+        "qa-engineer-agent",
+        "frontend-engineer",
+        "bug-hunter",
+    ]:
+        assert agent in corpus
+
+    required = [
+        "For the Kimi prototype intake modernization bridge lane:",
+        "If `task_bootstrap.py` or `agent-coordinator` expands the role order, the expanded order becomes mandatory.",
+        "No declared role agent may be skipped without a coordinator update.",
+        "Post-open review remains mandatory:",
+        "Codex Security plugin diff scan",
+        "After the first bot review, rerun on current head:",
+        "Before merge readiness, the local Agent Run Summary must exist under `artifacts/agent_runs/`.",
+        "PR body text or fixed mapping entries may reference that local evidence, but they must not replace it.",
+        "The premortem must inspect the actual docs/tests diff before PR opening and again after the first bot-review cycle.",
+        "Real findings must be fixed in docs/tests before mapping.",
     ]
 
     for phrase in required:

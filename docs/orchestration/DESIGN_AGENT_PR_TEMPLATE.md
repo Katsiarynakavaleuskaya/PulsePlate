@@ -34,7 +34,7 @@ Explain why this design work matters for launch quality, trust, retention, reven
 
 Repo code/docs/tests, `/tokens` as token authoring truth, generated mirrors as derived runtime artifacts, UI vocabulary, backend/OpenAPI contracts, and runtime code remain governed by repo truth.
 
-DESIGN.md, evidence packs, scorecards, Figma, Canva, Storybook, external references, generated briefs, and this template are evidence/reference/process layers only.
+DESIGN.md, evidence packs, scorecards, Figma, Canva, Storybook, Kimi prototypes, external references, generated briefs, and this template are evidence/reference/process layers only.
 
 ## Design automation module classification
 
@@ -46,8 +46,11 @@ Classify the work:
 - Marketing Asset Pack Compiler -> late GTM compiler over approved design/copy truth.
 - Launch Copy Compliance Linter -> marketing/release copy guard aligned with wellness/compliance rules.
 - PR-9 Design-System Automation -> docs-only web+iOS runtime parity lane that requires component contract registry, bridge coverage inventory, visual regression decision, accessibility regression decision, token/runtime parity boundary, and later implementation slices in that order.
+- Kimi Prototype Intake Modernization Bridge -> docs/governance intake lane for Kimi page, Drive folder, and desktop code bundle evidence that must stay read-only and normalize into repo vocabulary, component contracts, visual/a11y gates, and later web+iOS slices.
 
 For PR-9 Design-System Automation, state explicitly that the PR does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, or Code Connect activation.
+
+For Kimi Prototype Intake Modernization Bridge work, state explicitly that the PR does not copy Kimi-generated code, component structure, styling, copy, assets, token values, routes, or generated bundles into runtime.
 
 ## Files changed
 

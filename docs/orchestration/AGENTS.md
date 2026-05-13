@@ -43,6 +43,24 @@ Scope: `docs/orchestration/**`
     - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md)
     - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md)
     - [`docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md`](./DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md)
+- For the Kimi prototype intake modernization bridge lane:
+  - primary: `agent-coordinator`
+  - execution order:
+    - `creative-designer`
+    - `cursor-specialist-agent`
+    - `architecture-specialist`
+    - `security-auditor`
+    - `qa-engineer-agent`
+    - `frontend-engineer`
+    - `bug-hunter`
+  - mandatory post-open lane: `qa-engineer-agent -> bug-hunter -> security-auditor`
+  - invariants:
+    - Kimi page, Google Drive folder, desktop code bundle, Figma, Canva, screenshots, and generated code remain read-only evidence/reference inputs only
+    - Kimi evidence must normalize into repo vocabulary, component contracts, bridge coverage, fail-closed visual/accessibility decisions, and token/runtime parity boundaries before any web or iOS implementation
+    - no Kimi-generated code, assets, layouts, copy, token values, generated bundles, screenshots, or binaries may be copied into runtime in this lane
+    - start from an isolated clean worktree based on `origin/main`; do not switch or edit the root checkout or unrelated `worktrees/...` lanes in place
+  - canonical protocol:
+    - [`docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md`](./KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md)
 - For the Tier 1 CI/CD consolidation wave:
   - primary: `agent-coordinator`
   - secondary: `backend-engineer`
