@@ -1118,6 +1118,8 @@ def test_preference_recipe_mapping_allows_negated_present_tense_notes(note: str)
         "no api calls or downloads allowed",
         "api calls not allowed",
         "allowed not api calls",
+        "runtime remains blocked but we do not approve source use",
+        "no api calls allowed but no source use allowed",
     ),
 )
 def test_preference_recipe_mapping_allows_explicitly_negated_note_approvals(

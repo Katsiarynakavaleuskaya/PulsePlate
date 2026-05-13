@@ -735,21 +735,31 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
     if segment_start >= 0:
         prefix_tail = prefix_tail[segment_start + 1 :]
     stripped_prefix = prefix_tail.strip()
-    if any(boundary in f" {stripped_prefix} " for boundary in _NEGATION_BOUNDARY_TERMS):
-        return False
-    no_index = stripped_prefix.rfind(" no ")
-    if stripped_prefix.startswith("no "):
+    bounded_prefix = stripped_prefix
+    padded_prefix = f" {stripped_prefix} "
+    boundary_end = max(
+        (
+            padded_prefix.rfind(boundary) + len(boundary)
+            for boundary in _NEGATION_BOUNDARY_TERMS
+            if boundary in padded_prefix
+        ),
+        default=0,
+    )
+    if boundary_end:
+        bounded_prefix = padded_prefix[boundary_end:-1].strip()
+    no_index = bounded_prefix.rfind(" no ")
+    if bounded_prefix.startswith("no "):
         no_index = 0
     if no_index >= 0:
-        negated_span = stripped_prefix[no_index:].strip()
+        negated_span = bounded_prefix[no_index:].strip()
         words = negated_span.split()
         if len(words) <= 8 and len(words) > 1 and words[1] != "only" and "or" in words:
             return True
     return any(
-        stripped_prefix.endswith(negation.strip()) for negation in _NEGATED_APPROVAL_PREFIXES
+        bounded_prefix.endswith(negation.strip()) for negation in _NEGATED_APPROVAL_PREFIXES
     ) or (
-        stripped_prefix.startswith("no ")
-        and (" or " in stripped_prefix or stripped_prefix.endswith(" or"))
+        bounded_prefix.startswith("no ")
+        and (" or " in bounded_prefix or bounded_prefix.endswith(" or"))
     )
 
 
