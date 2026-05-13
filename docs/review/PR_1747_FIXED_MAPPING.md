@@ -70,7 +70,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `$VENV_PYTHON -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
-  -> 133 passed
+  -> 155 passed after the latest review-fix cycle
 - Adjacent food-source governance regression pytest for PR11, PR12, PR13,
   PR14, catalog, and onboarding -> PASS
 - `$VENV_PYTHON -m pytest -q tests/test_repo_policy_guards.py`
@@ -237,6 +237,37 @@ Disposition: NOT-A-BUG
 Evidence: Live PR head before this follow-up was `b44172feadd8ba19bb0c319fa5f75d66d7191a2c`; local ancestry check `git merge-base --is-ancestor 0df4b0788 b44172feadd8ba19bb0c319fa5f75d66d7191a2c` passed, and `gh pr view 1747 --json headRefOid` reported that same live head.
 Reason: The review comment cited `4b2759e080a321f8fce1dc34c0be91c26dc168b7`, which was not the live PR head when the disposition was recorded.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235087851
+
+Disposition: FIXED
+Commit: 2a09022b6
+Evidence: `core/food_sources/preference_recipe_mapping.py` now scans every occurrence of each forbidden note phrase instead of only the first match; `tests/test_food_source_preference_recipe_mapping.py` rejects a later positive `api approved` statement after an earlier negated `does not approve API calls` phrase.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235269759
+
+Disposition: FIXED
+Commit: 2a09022b6
+Evidence: `core/food_sources/preference_recipe_mapping.py` rejects short `api approved`, `approved api`, `allowed api`, `api allowed`, `approved ingest`, `allowed ingest`, `approved cache`, and `allowed cache` note aliases; `tests/test_food_source_preference_recipe_mapping.py` covers these aliases.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281731
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281746
+
+Disposition: NOT-A-BUG
+Evidence: Local ancestry checks passed for the mapped proof commits against current local head `2a09022b6`: `git merge-base --is-ancestor 0df4b0788 HEAD`, `git merge-base --is-ancestor f7899072d HEAD`, and `git merge-base --is-ancestor aea4017cd HEAD`.
+Reason: The fixed-mapping proof commits are present in the PR branch history; no mapping rewrite is required for this comment beyond recording the fresh evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281738
+
+Disposition: FIXED
+Commit: 2a09022b6
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates PR11 `next_recommended_lane` and `final_gate_decision` when direct callers pass a `SourceGapAudit` object; `tests/test_food_source_preference_recipe_mapping.py` rejects PR11 top-level handoff drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281743
+
+Disposition: FIXED
+Commit: 2a09022b6
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates PR14 top-level `source`, `source_classification`, and `source_family` when direct callers pass a `RecipeDishCorpusGovernance` object; `tests/test_food_source_preference_recipe_mapping.py` rejects PR14 top-level identity drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281749
+
+Disposition: FIXED
+Commit: 2a09022b6
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rechecks PR11 Edamam/Spoonacular source-gap decisions, source family, allowed role, and unsafe approval flags; `tests/test_food_source_preference_recipe_mapping.py` rejects direct-object drift in those source-gap rows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281755
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery review body reports rate limiting only; it contains no actionable code or governance finding for this PR.
