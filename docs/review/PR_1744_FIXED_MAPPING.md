@@ -95,6 +95,12 @@ Commit: 53490258b
 Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:164
 Reason: Packet post-open instructions and validation examples now use the concrete PR #1744 mapping artifact and PR number.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4281069741 -> be1a6bc65
+Disposition: FIXED
+Commit: be1a6bc65
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:124
+Reason: The roadmap staging wording now uses readable `phase 12`.
+
 ## Premortem Finding Closure
 
 Finding: The epic silently turns design PDFs into runtime truth.
