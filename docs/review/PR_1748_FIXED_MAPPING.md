@@ -72,15 +72,30 @@ Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
 Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi docs-only guard and now probes `origin/main...HEAD`, `main...HEAD`, then the first parent of a real PR merge checkout before failing closed; focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25810975089/job/75827452584 -> edc5e7766af87116be0eb05f2cb983c4bf5b3fa9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25810975089/job/75827452584 -> edc5e7766e28924ff4350d52dc97b85b917ab0c2
 Disposition: FIXED
-Commit: edc5e7766af87116be0eb05f2cb983c4bf5b3fa9
+Commit: edc5e7766e28924ff4350d52dc97b85b917ab0c2
 Evidence: `tests/test_design_automation_next_lane_docs.py` now reads the GitHub pull_request event base SHA, fetches that exact base object in depth-1 CI checkouts, and diffs `base_sha..HEAD` without requiring local base refs or merge-parent ancestry; focused local pytest passes (`56 passed`).
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e49b51f9379cf57f32c9af11680e9eacf
 Disposition: FIXED
 Commit: 6c22df3e49b51f9379cf57f32c9af11680e9eacf
 Evidence: `.github/workflows/ci.yml` keeps the existing `coverage-xml-${{ matrix.python-version }}` and `junit-${{ matrix.python-version }}` artifact names but sets `overwrite: true` for both test-main uploads, preventing the observed GitHub artifact 409 conflict without changing downstream `coverage-main` artifact consumers. The workflow contract test asserts both overwrite guards.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882742 -> 3429ea901a80e7dcc59ef33b67ce45f64e328be6
+Disposition: FIXED
+Commit: 3429ea901a80e7dcc59ef33b67ce45f64e328be6
+Evidence: This mapping artifact now uses the real shallow-checkout fix commit SHA `edc5e7766e28924ff4350d52dc97b85b917ab0c2`; `git rev-parse edc5e7766` resolves to that commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882748
+Disposition: NOT-A-BUG
+Evidence: Current branch head contains `4128eb460ac8c1a15030a44d22d8cd5bbbe6da91`; `git merge-base --is-ancestor 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91 HEAD` returned `0`.
+Reason: The comment evaluated an older reviewed head; the live PR branch history contains the mapped FIXED proof commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882753
+Disposition: NOT-A-BUG
+Evidence: Current branch head contains `828aee1179d74b2501ab04346fe7762d377f2208`; `git merge-base --is-ancestor 828aee1179d74b2501ab04346fe7762d377f2208 HEAD` returned `0`.
+Reason: The comment evaluated an older reviewed head; the live PR branch history contains the mapped FIXED proof commit.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235533880 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Disposition: FIXED
