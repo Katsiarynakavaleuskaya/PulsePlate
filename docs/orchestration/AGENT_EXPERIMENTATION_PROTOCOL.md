@@ -199,6 +199,24 @@ The experiment is accepted for promotion only if:
 - Winning candidates are promoted through KPP into exactly one durable destination.
 - Rejected candidates are discarded, with failure reason recorded in the result packet.
 
+### Step 6: Notify
+
+Experiment notification is evidence delivery only; it does not promote a
+candidate or change merge readiness.
+
+- Local markdown notification artifacts are the default and must be written
+  under `artifacts/orchestration/experiments/notifications/`.
+- Email delivery is explicit opt-in only. A notifier must require an explicit
+  email flag and an allowlisted recipient before sending.
+- The v1 governed email recipient is `pulseplate@pm.me`; it is configured as a
+  delivery recipient, separate from any public git attribution metadata.
+- SMTP credentials and sender config must come from runtime secrets or env and
+  must never be committed.
+- Email bodies may contain only the redacted notification markdown: no raw patch
+  text, oracle stdout/stderr, secrets, absolute local paths, or user data.
+- Git attribution email, including `PulsePlate Experiment Runner
+  <pulseplate@pm.me>`, is not a result delivery channel.
+
 ---
 
 ## 5. Hard budgets
@@ -294,7 +312,7 @@ If a candidate wins, the coordinator promotes it into exactly one destination:
 - promotion decisions are emitted through `scripts/orchestration/experiment_promote.py`,
 - no duplicate canonical policy wording across multiple docs.
 
-### Artifact-only notification
+### Notification delivery
 
 `scripts/orchestration/experiment_notify.py` may render a redacted markdown
 summary from validated experiment packet, result, and optional promotion
@@ -304,8 +322,13 @@ Rules:
 
 - notification output is evidence-only and does not change promotion,
   merge-readiness, or review-thread disposition authority,
-- v1 notification must not send email, Slack messages, GitHub comments, or
-  other external delivery,
+- local markdown artifacts are the default delivery sink,
+- SMTP email delivery requires an explicit CLI flag, an explicit allowlisted
+  recipient, and runtime SMTP secret configuration,
+- v1 SMTP delivery is limited to `pulseplate@pm.me` when that address is present
+  in `EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST`,
+- Slack messages, GitHub comments, and other external delivery sinks remain out
+  of scope,
 - summaries must omit raw patch text, oracle stdout/stderr, cwd, secrets, and
   local absolute paths,
 - optional `GITHUB_STEP_SUMMARY` writes require an explicit CLI flag.
