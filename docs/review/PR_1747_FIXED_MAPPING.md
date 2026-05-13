@@ -30,7 +30,7 @@ integration.
 ### Recipe/preference/LLM text becomes nutrition authority
 
 Disposition: FIXED
-Commit: `44f42ee9f`
+Commit: 44f42ee9f
 Evidence:
 - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json`
   keeps `recipe_text_authority_allowed`,
@@ -44,7 +44,7 @@ Evidence:
 ### PR11/PR14 handoff drift
 
 Disposition: FIXED
-Commit: `44f42ee9f`
+Commit: 44f42ee9f
 Evidence:
 - `core/food_sources/preference_recipe_mapping.py` requires PR11
   `preference_menu_planning.next_action == preference_recipe_mapping_contract`.
@@ -56,7 +56,7 @@ Evidence:
 ### PR15 treated as ingest/runtime prep
 
 Disposition: FIXED
-Commit: `44f42ee9f`
+Commit: 44f42ee9f
 Evidence:
 - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
   declares the lane file-only and governance-only.
@@ -107,7 +107,7 @@ this `## Discussion Thread Pass` section with dispositions and proof.
 ### CodeRabbit Finding: Missing Fixed Mapping Checkboxes
 
 Disposition: FIXED
-Commit: `f49a4255d`
+Commit: f49a4255d
 Evidence:
 - `docs/review/PR_1747_FIXED_MAPPING.md` now includes the required artifact
   markers `- [x] Discussion-thread pass completed` and
@@ -130,7 +130,7 @@ actual PR #1747 source branch and would make the ledger inaccurate.
 ### CodeRabbit Finding: Packet Uses Ambiguous Fixed Mapping Wording
 
 Disposition: FIXED
-Commit: `c33da5764`
+Commit: c33da5764
 Evidence:
 - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
   now names `docs/review/PR_1747_FIXED_MAPPING.md` explicitly.
@@ -138,7 +138,7 @@ Evidence:
 ### CodeRabbit Finding: Fixed Mapping Section Ambiguous With CLI Findings
 
 Disposition: FIXED
-Commit: `dcda77a8f`
+Commit: dcda77a8f
 Evidence:
 - `docs/review/PR_1747_FIXED_MAPPING.md` now explicitly distinguishes
   GitHub review-thread URL mappings from local CodeRabbit CLI dispositions.
@@ -177,12 +177,12 @@ diff.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `3c83a498b`
+Commit: 3c83a498b
 Evidence: `docs/roadmap/BACKLOG_LEDGER.md` splits the PR15 status into a readable active-lane line plus merged-PR summary line.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281710415
 
 Disposition: FIXED
-Commit: `0df4b0788`
+Commit: 0df4b0788
 Evidence: `core/food_sources/preference_recipe_mapping.py` derives approval/allowed note variants from `BLOCKED_METHODS`, and `tests/test_food_source_preference_recipe_mapping.py` rejects approval/allowed forms for every blocked method plus common natural-language variants.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234315912
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234605982
@@ -190,7 +190,7 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` derives approval/allo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282056114
 
 Disposition: FIXED
-Commit: `f7899072d`
+Commit: f7899072d
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` uses portable `$VENV_PYTHON` forms for validation evidence and maps FIXED proofs to commits present in current PR head history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234407783
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281820759
@@ -198,28 +198,28 @@ Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` uses portable `$VENV_PYTHON` fo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282020905
 
 Disposition: FIXED
-Commit: `30a3a41fa`
+Commit: 30a3a41fa
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` distinguishes local CodeRabbit CLI dispositions from GitHub review-thread mappings; this section now records concrete bot review/comment URLs instead of the no-actionable marker.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234420143
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281837137
 
 Disposition: FIXED
-Commit: `0df4b0788`
+Commit: 0df4b0788
 Evidence: `core/food_sources/preference_recipe_mapping.py` validates PR14 `evidence_policy` and `final_gate_decision` in addition to `next_recommended_lane`; `tests/test_food_source_preference_recipe_mapping.py` rejects PR14 no-ingest handoff drift.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854631
 
 Disposition: FIXED
-Commit: `0df4b0788`
+Commit: 0df4b0788
 Evidence: `core/food_sources/preference_recipe_mapping.py` validates PR11 preference coverage, gap, and authority decisions before accepting the handoff; `tests/test_food_source_preference_recipe_mapping.py` rejects PR11 authority-decision drift.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854638
 
 Disposition: FIXED
-Commit: `0df4b0788`
+Commit: 0df4b0788
 Evidence: `core/food_sources/preference_recipe_mapping.py` derives forbidden note approvals from every `BLOCKED_METHODS` token; `tests/test_food_source_preference_recipe_mapping.py` rejects `approved`, `is approved`, `allowed`, and `is allowed` forms for every blocked method.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854624
 
 Disposition: FIXED
-Commit: `f7899072d`
+Commit: f7899072d
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` remaps the affected FIXED proof entries to current-head ancestor commits and records this mapping fix in the artifact itself.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854627
 
