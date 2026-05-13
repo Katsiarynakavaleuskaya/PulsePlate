@@ -453,6 +453,36 @@ class TestPremiumEndpoints:
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
+    def test_premium_bmr_runtime_patch_returns_stub_response(self):
+        """Cover the conservative BMR/TDEE fallback when runtime exports are patched away."""
+        with (
+            patch.dict(os.environ, {"API_KEY": "test_key"}),
+            patch("app.calculate_all_bmr", None),
+            patch("app.calculate_all_tdee", None),
+            patch("legacy_app.calculate_all_bmr", None),
+            patch("legacy_app.calculate_all_tdee", None),
+        ):
+            headers = {"X-API-Key": "test_key"}
+            data = {
+                "weight_kg": 80.0,
+                "height_cm": 180.0,
+                "age": 35,
+                "sex": "male",
+                "activity": "light",
+                "lang": "en",
+            }
+
+            response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["bmr"] == {"stub": 1920.0}
+        assert body["tdee"] == {"stub": 2640.0}
+        assert body["activity_level"] == "Light activity"
+        assert body["recommended_intake"]["weight_loss"] == 2112.0
+        assert body["recommended_intake"]["weight_gain"] == 3168.0
+        assert body["formulas_used"] == ["stub"]
+
     def test_premium_plate_unavailable(self):
         """Test premium plate endpoint when make_plate unavailable."""
         with (
