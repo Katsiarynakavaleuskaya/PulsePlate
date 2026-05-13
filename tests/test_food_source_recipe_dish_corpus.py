@@ -370,6 +370,12 @@ def test_recipe_dish_corpus_rejects_source_identity_drift() -> None:
         ("top_level", "approved API use for recipe source"),
         ("edamam_food_database", "approved for ingest and runtime use"),
         ("spoonacular", "cache approved for product display"),
+        ("top_level", "API calls are allowed for recipe source use"),
+        ("edamam_food_database", "source use is allowed for this candidate"),
+        ("spoonacular", "paid source use allowed after contract review"),
+        ("top_level", "downloads allowed for corpus fixtures"),
+        ("edamam_food_database", "DB writes allowed for recipe candidates"),
+        ("spoonacular", "product display allowed from cached recipe corpus"),
     ),
 )
 def test_recipe_dish_corpus_rejects_notes_that_contradict_no_use_policy(

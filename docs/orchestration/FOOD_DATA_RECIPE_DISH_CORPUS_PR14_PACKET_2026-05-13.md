@@ -107,12 +107,12 @@ artifact was misread as approval to use recipe APIs or paid food sources.
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR14 recipe dish corpus governance gate" --task-class "Orchestration" --pr-phase pre_open --requested-agent agent-coordinator --requested-agent security-auditor --requested-agent data-scientist-agent --requested-agent backend-engineer --requested-agent qa-engineer-agent --requested-agent bug-hunter --requested-agent dev-operator --path docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md --path docs/roadmap/BACKLOG_LEDGER.md --path docs/architecture --path core/food_sources --path scripts --path tests
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_food_source_recipe_dish_corpus.py -q
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_food_source_recipe_dish_corpus.py tests/test_food_source_per_chain_legal_review.py tests/test_food_source_chain_public_nutrition.py tests/test_food_source_gap_audit.py tests/test_food_source_onboarding.py tests/test_food_source_catalog.py -q
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m scripts.food_source_recipe_dish_corpus --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --coverage docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json --chain-public-nutrition docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json --per-chain-legal docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json --governance docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json --json
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pre_commit run --all-files
-make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python
+${VENV_PYTHON:-.venv/bin/python} -m pytest tests/test_food_source_recipe_dish_corpus.py -q
+${VENV_PYTHON:-.venv/bin/python} -m pytest tests/test_food_source_recipe_dish_corpus.py tests/test_food_source_per_chain_legal_review.py tests/test_food_source_chain_public_nutrition.py tests/test_food_source_gap_audit.py tests/test_food_source_onboarding.py tests/test_food_source_catalog.py -q
+${VENV_PYTHON:-.venv/bin/python} -m scripts.food_source_recipe_dish_corpus --catalog docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json --onboarding docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json --coverage docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json --chain-public-nutrition docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json --per-chain-legal docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json --governance docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json --json
+${VENV_PYTHON:-.venv/bin/python} -m pytest -q tests/test_repo_policy_guards.py
+${VENV_PYTHON:-.venv/bin/python} -m pre_commit run --all-files
+make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}
 ```
 
 Local `make verify` may be deferred only if coordinator/operator explicitly
