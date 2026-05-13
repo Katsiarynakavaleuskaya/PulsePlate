@@ -1,0 +1,427 @@
+"""Deterministic tests for governed experiment notification rendering."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+
+import scripts.orchestration.context_pack as context_pack
+import scripts.orchestration.experiment_contract as experiment_contract
+import scripts.orchestration.experiment_notify as experiment_notify
+
+
+def _init_repo(tmp_path: Path) -> Path:
+    repo = tmp_path / "repo"
+    (repo / "core" / "rag").mkdir(parents=True)
+    (repo / "core" / "rag" / "allowed.py").write_text(
+        "def candidate_value() -> int:\n    return 2\n",
+        encoding="utf-8",
+    )
+    return repo
+
+
+def _configure_repo(monkeypatch: pytest.MonkeyPatch, repo: Path) -> Path:
+    notification_dir = repo / "artifacts" / "orchestration" / "experiments" / "notifications"
+    monkeypatch.setattr(context_pack, "REPO_ROOT", repo)
+    monkeypatch.setattr(experiment_contract, "REPO_ROOT", repo)
+    monkeypatch.setattr(experiment_notify, "REPO_ROOT", repo)
+    monkeypatch.setattr(experiment_notify, "NOTIFICATION_ARTIFACT_DIR", notification_dir)
+    return notification_dir
+
+
+def _packet(
+    *,
+    experiment_id: str = "exp-notify",
+    promotion_target: str = "audit_artifact",
+) -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "experiment_id": experiment_id,
+        "decision_question": "Notify about governed experiment result",
+        "task_class": "Experimentation",
+        "domain": "ml",
+        "mutable_candidate_surface": ["core/rag/allowed.py"],
+        "immutable_oracles": [
+            {
+                "command": 'python3 -c "import sys; sys.exit(0)"',
+                "expected_signal": "must pass",
+            }
+        ],
+        "budgets": {
+            "wall_clock_seconds": 300,
+            "retry_budget": 1,
+            "max_changed_files": 1,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 1,
+            "stop_condition": "stop",
+        },
+        "metrics": {
+            "primary": "reliability_score",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
+        "negative_controls": ["oracle file unchanged", "no hidden memory"],
+        "promotion_target": promotion_target,
+    }
+
+
+def _result(
+    *,
+    experiment_id: str = "exp-notify",
+    status: str = "accepted",
+    failure_class: str | None = None,
+    command: str = 'python3 -c "import sys; sys.exit(0)"',
+) -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "experiment_id": experiment_id,
+        "candidate_patch": "candidate.patch",
+        "status": status,
+        "failure_class": failure_class,
+        "mutated_paths": ["core/rag/allowed.py"],
+        "oracle_results": [
+            {
+                "command": command,
+                "returncode": 0 if status == "accepted" else 1,
+                "timed_out": False,
+                "truncated": False,
+                "stdout": "secret stdout should never render",
+                "stderr": "secret stderr should never render",
+                "cwd": "/Users/example/local/repo",
+            }
+        ],
+        "budget_observations": {"attempts": 1},
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+    }
+
+
+def _promotion(*, experiment_id: str = "exp-notify") -> dict[str, object]:
+    return {
+        "schema_version": "1.0",
+        "experiment_id": experiment_id,
+        "result_status": "accepted",
+        "failure_class": None,
+        "promotion_target": "audit_artifact",
+        "disposition": "promoted",
+        "durable_artifact_path": "docs/audit/EXPERIMENT_EXP_NOTIFY.md",
+        "shared_tree_untouched": True,
+        "domain": "ml",
+        "evidence": {
+            "oracle_commands": ['python3 -c "import sys; sys.exit(0)"'],
+            "mutated_paths": ["core/rag/allowed.py"],
+            "oracle_count": 1,
+        },
+    }
+
+
+def _write_json(path: Path, payload: dict[str, object]) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return path
+
+
+EXPECTED_NOTIFICATION = """# Experiment Result Notification: exp-notify
+
+- Result status: `accepted`
+- Failure class: `none`
+- Shared tree untouched: `true`
+- Promotion target: `audit_artifact`
+- Promotion disposition: `not-run`
+- Durable artifact: `none`
+
+## Mutated Paths
+
+- `core/rag/allowed.py`
+
+## Oracle Summary
+
+- `python3` -> rc=0, timed_out=false, truncated=false
+
+## Delivery Boundary
+
+- Artifact-only summary; no email, Slack, PR comment, or external delivery was sent.
+- Raw patch text, oracle stdout/stderr, cwd, and local absolute paths are intentionally omitted.
+"""
+
+
+def test_main_writes_deterministic_notification(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(["--packet", str(packet_path), "--result", str(result_path)])
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    output = (
+        repo / "artifacts" / "orchestration" / "experiments" / "notifications" / "exp-notify.md"
+    )
+    content = output.read_text(encoding="utf-8")
+    assert content == EXPECTED_NOTIFICATION
+    assert json.loads(stdout) == {
+        "experiment_id": "exp-notify",
+        "github_step_summary": False,
+        "output": "artifacts/orchestration/experiments/notifications/exp-notify.md",
+    }
+
+    second_exit_code = experiment_notify.main(
+        ["--packet", str(packet_path), "--result", str(result_path)]
+    )
+    capsys.readouterr()
+
+    assert second_exit_code == 0
+    assert output.read_text(encoding="utf-8") == EXPECTED_NOTIFICATION
+
+
+def test_notification_includes_promotion_decision(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    promotion_path = _write_json(tmp_path / "promotion.json", _promotion())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--promotion",
+            str(promotion_path),
+        ]
+    )
+
+    assert exit_code == 0
+    content = (
+        repo / "artifacts" / "orchestration" / "experiments" / "notifications" / "exp-notify.md"
+    ).read_text(encoding="utf-8")
+    assert "- Promotion target: `audit_artifact`" in content
+    assert "- Promotion disposition: `promoted`" in content
+    assert "- Durable artifact: `docs/audit/EXPERIMENT_EXP_NOTIFY.md`" in content
+
+
+@pytest.mark.parametrize(
+    ("override", "match"),
+    [
+        (
+            {
+                "promotion_target": "memory_capsule",
+                "durable_artifact_path": "docs/memory/exp-notify_capsule.md",
+            },
+            "target must match",
+        ),
+        ({"disposition": "claimed"}, "disposition must be one of"),
+        ({"disposition": "deferred"}, "must have promotion disposition promoted"),
+        ({"result_status": "rejected"}, "result_status must match"),
+        ({"failure_class": "guard_failure"}, "failure_class must match"),
+        ({"shared_tree_untouched": False}, "shared_tree_untouched must match"),
+        ({"durable_artifact_path": "../outside.md"}, "repo-relative"),
+        ({"durable_artifact_path": ""}, "repo-relative"),
+        (
+            {"durable_artifact_path": "docs/review/PR_999_FIXED_MAPPING.md"},
+            "must match promotion_target",
+        ),
+    ],
+)
+def test_invalid_promotion_decision_is_rejected(
+    override: dict[str, object],
+    match: str,
+) -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+
+    with pytest.raises((ValueError, experiment_notify.ExperimentNotificationError), match=match):
+        promotion = experiment_notify._validate_promotion_decision({**_promotion(), **override})
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_wrong_rejected_promotion_policy_is_rejected() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet(promotion_target="backlog_entry")
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "result_status": "rejected",
+            "failure_class": "guard_failure",
+            "promotion_target": "backlog_entry",
+            "disposition": "promoted",
+            "durable_artifact_path": "docs/roadmap/BACKLOG_LEDGER.md",
+        }
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="must have promotion disposition deferred",
+    ):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_promotion_experiment_id_mismatch_is_rejected() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(experiment_id="other-exp"),
+            "durable_artifact_path": "docs/audit/EXPERIMENT_OTHER_EXP.md",
+        }
+    )
+
+    with pytest.raises(experiment_notify.ExperimentNotificationError, match="same experiment_id"):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_rejected_result_includes_failure_class(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "- Result status: `rejected`" in content
+    assert "- Failure class: `guard_failure`" in content
+
+
+def test_notification_redacts_raw_outputs_patch_and_local_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(command="/Users/example/.venv/bin/python3 --token super-secret")
+    )
+    result["mutated_paths"] = ["/Users/example/private-token/path.py", "../outside.py"]
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "durable_artifact_path": "docs/audit/EXPERIMENT_EXP_NOTIFY.md",
+        }
+    )
+
+    content = experiment_notify.render_notification_markdown(packet, result, promotion)
+
+    assert "secret stdout" not in content
+    assert "secret stderr" not in content
+    assert "candidate.patch" not in content
+    assert "Notify about governed experiment result" not in content
+    assert "/Users/example" not in content
+    assert "--token" not in content
+    assert "super-secret" not in content
+    assert "- `python3` -> rc=0, timed_out=false, truncated=false" in content
+    assert content.count("[redacted-path]") == 2
+
+
+def test_resolve_output_path_rejects_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+
+    with pytest.raises(ValueError, match="notifications"):
+        experiment_notify._resolve_output_path("../outside.md", "exp-notify")
+
+
+def test_cli_rejects_absolute_output_escape_without_writing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    outside_path = tmp_path / "outside.md"
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--output",
+            str(outside_path),
+        ]
+    )
+
+    assert exit_code == 1
+    assert not outside_path.exists()
+
+
+def test_github_step_summary_requires_explicit_flag(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    summary_path = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(summary_path))
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_without_flag = experiment_notify.main(
+        ["--packet", str(packet_path), "--result", str(result_path)]
+    )
+    assert exit_without_flag == 0
+    assert not summary_path.exists()
+
+    exit_with_flag = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--github-step-summary",
+        ]
+    )
+
+    assert exit_with_flag == 0
+    assert "# Experiment Result Notification: exp-notify" in summary_path.read_text(
+        encoding="utf-8"
+    )
+
+
+def test_github_step_summary_flag_fails_without_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--github-step-summary",
+        ]
+    )
+
+    assert exit_code == 1
