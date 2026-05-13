@@ -31,6 +31,7 @@
 - `018e9c580c8591de469d66cc62775bc6cf2e22be` - `docs(review): refresh PR 1741 mapping evidence`
 - `0284125f37027a7d317d58dbc1f1f20a4dfffdb2` - `docs(review): record PR 1741 final pass evidence`
 - `0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3` - `docs(review): record current-head mapping proof`
+- `38edf404192e6725480290f525c11b33f14d8d3d` - `docs(design): align Kimi intake with reference manifest`
 
 ## Discussion Thread Pass
 
@@ -79,6 +80,21 @@ Disposition: FIXED
 Commit: 0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3
 Evidence: `docs/review/PR_1741_FIXED_MAPPING.md` now records current-head containment proof for root-fix commits, and the mapped root-fix SHAs are ancestors of the reviewed PR head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233130590 -> 0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3
+
+Disposition: NOT-A-BUG
+Evidence: `.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1741` passed for all resolved threads after the current-head mapping proof update, and the strict wrapper's review-disposition lane passed before it stopped only on newly opened unresolved threads.
+Reason: The bot's squash-checkout SHA is a synthetic review artifact, while this PR's canonical pre-merge disposition guard validates the PR branch history and current-head checks. The root-fix SHAs remain present in branch history before merge and are listed with current-head containment proof.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233236653
+
+Disposition: FIXED
+Commit: 38edf404192e6725480290f525c11b33f14d8d3d
+Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now uses the manifest-compatible `status` field instead of `promotion_status`, and `tests/test_design_automation_next_lane_docs.py` guards that field.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233236658 -> 38edf404192e6725480290f525c11b33f14d8d3d
+
+Disposition: FIXED
+Commit: 38edf404192e6725480290f525c11b33f14d8d3d
+Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now requires the full reference-manifest field set before `status=candidate_for_brief`, including product/platform/surface, visual archetypes, component/layout patterns, monetization notes, and design guard statuses; `tests/test_design_automation_next_lane_docs.py` guards the required fields.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233236664 -> 38edf404192e6725480290f525c11b33f14d8d3d
 
 ## Pre-Open Premortem Findings
 
