@@ -61,6 +61,12 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: the coverage report showed the existing conservative BMR fallback branch in `legacy_app.py:3868-3881` uncovered.
   - Evidence: `tests/test_app_extended_coverage.py` now covers the runtime-patched BMR/TDEE fallback through the API without changing runtime code or lowering the threshold.
   - Evidence: focused local pytest for the new coverage test and the Kimi/workflow guard suite passes; full pre-commit passes.
+- Current-head CI finding: FIXED by `ae387ff9e6078215603d1932a8d27815c6a96ea3`
+  - Finding: `test-main (3.12, 60)` repeatedly hit the configured 60-minute job timeout after long-running shards, while 3.11 and 3.13 passed and the 3.12 log showed test progress rather than an assertion failure.
+  - Evidence: CI job `75884582375` ended as cancelled after `1h0m16s`; the prior 3.12 log showed shard progress and `6425 passed, 4 skipped, 15 deselected` before the job timeout.
+  - Evidence: `.github/workflows/ci.yml` now gives Python 3.12 the same 90-minute `test-main` budget as Python 3.13 while preserving the required check identity and matrix shape.
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` asserts `{"3.11": 60, "3.12": 90, "3.13": 90}`.
+  - Evidence: focused local pytest passes (`13 passed`) and full pre-commit passes.
 
 ## Fixed in Commit Mapping
 
@@ -113,6 +119,11 @@ Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches and diffs
 Disposition: FIXED
 Commit: ebff66abf7bf6200baf7862abf3573294ec068c5
 Evidence: `tests/test_app_extended_coverage.py` adds deterministic API coverage for the existing runtime-patched premium BMR/TDEE fallback branch that CI reported uncovered; focused local pytest and full pre-commit pass without weakening coverage thresholds.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25824281934/job/75884582375 -> ae387ff9e6078215603d1932a8d27815c6a96ea3
+Disposition: FIXED
+Commit: ae387ff9e6078215603d1932a8d27815c6a96ea3
+Evidence: `.github/workflows/ci.yml` extends only the Python 3.12 `test-main` timeout from 60 to 90 minutes after repeated timeout cancellation, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks the matrix timeout contract. Focused pytest and full pre-commit pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
@@ -221,8 +232,11 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response` - PASS after Kimi merge-base diff fix (`13 passed`)
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after Kimi merge-base diff fix
 - `PATH=../../.venv/bin:$PATH git commit -m "test(ci): diff Kimi guard from merge base"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response` - PASS after 3.12 timeout fix (`13 passed`)
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.12 timeout fix
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): extend python 3.12 main timeout"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after Kimi merge-base diff fix.
+- Current-head PR checks are pending after 3.12 timeout fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
