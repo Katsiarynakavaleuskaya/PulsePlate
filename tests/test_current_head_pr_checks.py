@@ -341,6 +341,19 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
             {"scripts/ci/check_docker_runtime_dependency_surface.py"},
             True,
         ),
+        (
+            current_head_checks.CheckEntry(
+                name="build",
+                source_kind="check_run",
+                state="failed",
+                timestamp="2026-03-12T08:36:42Z",
+                details_url="https://example.invalid/docker-telemetry-budget",
+                workflow_name="Docker Build and Push",
+                conclusion="FAILURE",
+            ),
+            {"docs/telemetry/docker_image_budget.production.json"},
+            True,
+        ),
     ],
 )
 def test_is_blocking_fallback_advisory(

@@ -57,6 +57,7 @@ DOCKER_SURFACE_PREFIXES = {
     ".github/workflows/cd.yml",
     "Dockerfile",
     "docker-compose",
+    "docs/telemetry/docker_image_",
     "constraints.txt",
     "requirements-docker-runtime.in",
     "requirements-docker-runtime.txt",
