@@ -12,6 +12,7 @@ from datetime import date
 import json
 from pathlib import Path
 import re
+from typing import Mapping, TypeVar
 
 from core.food_sources.recipe_dish_corpus import (
     BLOCKED_METHODS as PR14_BLOCKED_METHODS,
@@ -41,6 +42,7 @@ _SCHEMA_RE = re.compile(r"^food-data-preference-recipe-mapping-contract\.v\d+$")
 _PR11_SCHEMA_RE = re.compile(r"^food-data-coverage-source-gap-audit\.v\d+$")
 _PR14_SCHEMA_RE = re.compile(r"^food-data-recipe-dish-corpus-governance\.v\d+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_EntryT = TypeVar("_EntryT")
 
 SOURCE = "preference_menu_planning"
 SOURCE_CLASSIFICATION = "planning_contract_governance_only"
@@ -807,6 +809,18 @@ def _coverage_domain_by_name(coverage: SourceGapAudit, context: str) -> dict[str
     return {entry.domain: entry for entry in coverage.coverage_domains}
 
 
+def _require_existing_entry(
+    entries: Mapping[str, _EntryT],
+    key: str,
+    context: str,
+    label: str,
+) -> _EntryT:
+    try:
+        return entries[key]
+    except KeyError as exc:
+        raise _mapping_error(context, f"PR11 {label} is missing {key}") from exc
+
+
 def _require_pr14_handoff(
     recipe_dish_corpus: RecipeDishCorpusGovernance,
     context: str,
@@ -933,7 +947,7 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
         )
     _require_safe_notes(coverage.notes, f"{context}.PR11.notes")
     domains = _coverage_domain_by_name(coverage, context)
-    preference_domain = domains[SOURCE]
+    preference_domain = _require_existing_entry(domains, SOURCE, context, "coverage_domains")
     for domain in coverage.coverage_domains:
         expected = PR11_EXPECTED_DOMAIN_DECISIONS[domain.domain]
         for field_name, expected_value in expected.items():
@@ -985,7 +999,12 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
             )
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
     for source, expected in PR11_EXPECTED_SOURCE_GAP_DECISIONS.items():
-        source_gap = source_gap_decisions[source]
+        source_gap = _require_existing_entry(
+            source_gap_decisions,
+            source,
+            context,
+            "source_gap_decisions",
+        )
         for field_name, expected_value in expected.items():
             if getattr(source_gap, field_name) != expected_value:
                 raise _mapping_error(

@@ -18,6 +18,7 @@ from core.food_sources.preference_recipe_mapping import (
     load_preference_recipe_mapping_governance,
     parse_preference_recipe_mapping_governance,
     _parse_date,
+    _require_existing_entry,
     _relative_repo_path,
     _require_bool,
     _require_int,
@@ -53,6 +54,7 @@ _GOVERNANCE_PATH = (
     / "FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json"
 )
 _CLI_MODULE = "scripts.food_source_preference_recipe_mapping"
+_CLI_TIMEOUT_SECONDS = 30
 
 
 def _catalog() -> SourceCatalog:
@@ -1360,6 +1362,8 @@ def test_preference_recipe_mapping_requires_mapping_payload_and_valid_helpers(
         _parse_date("not-a-date", "helper")
     with pytest.raises(PreferenceRecipeMappingError, match="YYYY-MM-DD"):
         _parse_date("2026-13-99", "helper")
+    with pytest.raises(PreferenceRecipeMappingError, match="PR11 coverage_domains is missing"):
+        _require_existing_entry({}, "preference_menu_planning", "helper", "coverage_domains")
 
     outside = tmp_path / "outside.json"
     outside.touch()
@@ -1419,7 +1423,7 @@ def test_preference_recipe_mapping_cli_outputs_json_report() -> None:
         check=True,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=_CLI_TIMEOUT_SECONDS,
     )
 
     report = json.loads(result.stdout)
@@ -1457,7 +1461,7 @@ def test_preference_recipe_mapping_cli_reports_failure(tmp_path: Path) -> None:
         check=False,
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=_CLI_TIMEOUT_SECONDS,
     )
 
     assert result.returncode == 1
