@@ -21,6 +21,10 @@ REQUIRED_TOP_LEVEL_FIELDS = {
     "authority",
     "components",
 }
+REQUIRED_CANONICAL_AUTHORITIES = {
+    "repo code/docs/tests",
+    "docs/design/ui_component_vocabulary.json",
+}
 REQUIRED_COMPONENT_FIELDS = {
     "component_id",
     "canonical_name",
@@ -187,12 +191,6 @@ def _promoted_authorities(canonical: list[str]) -> list[str]:
     return sorted(promoted)
 
 
-def _has_bridge_evidence(field: str, value: Any) -> bool:
-    if field == "web_runtime_anchor":
-        return isinstance(value, str) and value not in {"", "unspecified"}
-    return isinstance(value, str) and value.startswith("repo-confirmed:")
-
-
 def _validate_authority(authority: Any, errors: list[str]) -> None:
     if not isinstance(authority, dict):
         errors.append("authority: expected object")
@@ -209,12 +207,22 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
         errors.append("authority.reference_only: expected list of strings")
         reference_only = []
 
+    canonical_set = _normalize_authority_entries(canonical)
     reference_set = _normalize_authority_entries(reference_only)
     promoted = _promoted_authorities(canonical)
     if promoted:
         errors.append(
             "authority.canonical: external evidence tools must not be canonical: "
             + ", ".join(promoted)
+        )
+    required_canonical_set = _normalize_authority_entries(list(REQUIRED_CANONICAL_AUTHORITIES))
+    missing_canonical = sorted(
+        authority for authority in required_canonical_set if authority not in canonical_set
+    )
+    if missing_canonical:
+        errors.append(
+            "authority.canonical: missing repo canonical authorities: "
+            + ", ".join(missing_canonical)
         )
     missing_reference = sorted(
         tool for tool in REQUIRED_REFERENCE_ONLY_AUTHORITIES if tool not in reference_set
@@ -323,16 +331,10 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
         if not isinstance(status, str) or status not in ALLOWED_STATUS:
             errors.append(f"{path_prefix}.status: invalid status {status!r}")
         elif status == "covered":
-            missing_coverage = sorted(
-                field
-                for field in BRIDGE_COVERAGE_FIELDS
-                if not _has_bridge_evidence(field, component.get(field))
+            errors.append(
+                f"{path_prefix}.status: covered requires the dedicated bridge coverage "
+                "evidence schema; seed registry rows must stay partial, missing, or unspecified"
             )
-            if missing_coverage:
-                errors.append(
-                    f"{path_prefix}.status: covered requires bridge evidence for: "
-                    + ", ".join(missing_coverage)
-                )
         else:
             invented_unconfirmed = sorted(
                 field
@@ -344,6 +346,9 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
                     f"{path_prefix}: unconfirmed seed fields must be 'unspecified': "
                     + ", ".join(invented_unconfirmed)
                 )
+        owner = component.get("owner")
+        if not isinstance(owner, str):
+            errors.append(f"{path_prefix}.owner: expected string")
 
     missing_ids = sorted(vocabulary_ids - seen)
     if missing_ids:

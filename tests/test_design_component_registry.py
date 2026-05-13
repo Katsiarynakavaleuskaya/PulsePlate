@@ -191,6 +191,23 @@ def test_design_component_registry_rejects_external_authority_promotion(
     assert any("external evidence tools must not be canonical: figma" in error for error in errors)
 
 
+def test_design_component_registry_requires_repo_canonical_authorities(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"] = []
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "missing repo canonical authorities" in error
+        and "repo code docs tests" in error
+        and "docs design ui component vocabulary json" in error
+        for error in errors
+    )
+
+
 def test_design_component_registry_rejects_plain_external_authority_promotion(
     tmp_path: Path,
 ) -> None:
@@ -337,17 +354,17 @@ def test_design_component_registry_rejects_covered_status_without_bridge_evidenc
     errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
 
     assert any(
-        "covered requires bridge evidence" in error and "web_runtime_anchor" in error
+        "covered requires the dedicated bridge coverage evidence schema" in error
         for error in errors
     )
 
 
-def test_design_component_registry_allows_covered_status_with_bridge_evidence(
+def test_design_component_registry_rejects_covered_status_until_bridge_evidence_schema(
     tmp_path: Path,
 ) -> None:
     registry = _load_registry()
-    covered = copy.deepcopy(registry)
-    component = covered["components"][0]
+    broken = copy.deepcopy(registry)
+    component = broken["components"][0]
     component["status"] = "covered"
     component["ios_runtime_anchor"] = "repo-confirmed:ios/PulsePlate/DesignSystem/Button.swift"
     component["storybook_review_anchor"] = "repo-confirmed:storybook/button"
@@ -360,10 +377,12 @@ def test_design_component_registry_allows_covered_status_with_bridge_evidence(
     component["states"] = ["default"]
     component["variants"] = ["primary"]
 
-    errors = registry_module.validate_registry(_write_registry(tmp_path, covered))
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
 
-    assert not any("unconfirmed seed fields must be 'unspecified'" in error for error in errors)
-    assert not any("covered requires bridge evidence" in error for error in errors)
+    assert any(
+        "covered requires the dedicated bridge coverage evidence schema" in error
+        for error in errors
+    )
 
 
 def test_design_component_registry_rejects_invented_covered_bridge_anchors(
@@ -384,9 +403,7 @@ def test_design_component_registry_rejects_invented_covered_bridge_anchors(
     errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
 
     assert any(
-        "covered requires bridge evidence" in error
-        and "ios_runtime_anchor" in error
-        and "figma_reference_anchor" in error
+        "covered requires the dedicated bridge coverage evidence schema" in error
         for error in errors
     )
 
@@ -409,12 +426,19 @@ def test_design_component_registry_rejects_malformed_covered_bridge_evidence(
     errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
 
     assert any(
-        "covered requires bridge evidence" in error
-        and "ios_runtime_anchor" in error
-        and "figma_reference_anchor" in error
-        and "penpot_reference_anchor" in error
+        "covered requires the dedicated bridge coverage evidence schema" in error
         for error in errors
     )
+
+
+def test_design_component_registry_rejects_non_string_owner(tmp_path: Path) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0]["owner"] = ["not-a-string"]
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("owner: expected string" in error for error in errors)
 
 
 def test_design_component_registry_rejects_deleted_web_runtime_anchor(
