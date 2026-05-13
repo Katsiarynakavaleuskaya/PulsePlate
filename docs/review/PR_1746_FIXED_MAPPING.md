@@ -44,15 +44,15 @@ Fix the main `test-main` design-governance failure by aligning the Kimi evidence
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281537842 -> 32c7fa884
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281537842 -> 32c7fa8843cf92796d52be79a51a5cc27dcf27b9
 Disposition: FIXED
-Commit: 32c7fa884
+Commit: 32c7fa8843cf92796d52be79a51a5cc27dcf27b9
 Evidence: `tests/test_design_agent_workflow_docs.py` now asserts all template headings before calling `_section(...)`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> fa4693fbb
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234214202 -> fa4693fbb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> fa4693fbb15bb7633caa871d585d6ab860f716dc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234214202 -> fa4693fbb15bb7633caa871d585d6ab860f716dc
 Disposition: FIXED
-Commit: fa4693fbb
+Commit: fa4693fbb15bb7633caa871d585d6ab860f716dc
 Evidence: this artifact now includes `## Discussion Thread Pass` with required checklist lines.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#issuecomment-4440935378
