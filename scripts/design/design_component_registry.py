@@ -165,7 +165,11 @@ def _check_empty_strings(value: Any, *, path: str, errors: list[str]) -> None:
 
 
 def _is_unspecified(value: Any) -> bool:
-    return value == "unspecified" or value == ["unspecified"]
+    if value == "unspecified":
+        return True
+    if isinstance(value, list):
+        return len(value) == 1 and value[0] == "unspecified"
+    return False
 
 
 def _validate_authority(authority: Any, errors: list[str]) -> None:
