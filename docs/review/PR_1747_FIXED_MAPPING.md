@@ -70,7 +70,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `$VENV_PYTHON -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
-  -> 155 passed after the latest review-fix cycle
+  -> 160 passed after the latest review-fix cycle
 - Adjacent food-source governance regression pytest for PR11, PR12, PR13,
   PR14, catalog, and onboarding -> PASS
 - `$VENV_PYTHON -m pytest -q tests/test_repo_policy_guards.py`
@@ -269,6 +269,31 @@ Disposition: FIXED
 Commit: 2a09022b6
 Evidence: `core/food_sources/preference_recipe_mapping.py` now rechecks PR11 Edamam/Spoonacular source-gap decisions, source family, allowed role, and unsafe approval flags; `tests/test_food_source_preference_recipe_mapping.py` rejects direct-object drift in those source-gap rows.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235281755
+
+Disposition: FIXED
+Commit: 98b9872aa
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rechecks PR14 review-row `source_classification` and `source_family`; `tests/test_food_source_preference_recipe_mapping.py` rejects direct PR14 review identity drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235508600
+
+Disposition: NOT-A-BUG
+Evidence: Live PR head before this follow-up was `101cc29c631e2c4d1de4f1ebb92e2ef5b3868534`, and strict disposition guard passed against the live PR after resolving 18 review threads. The reviewed squash-like SHA `5e0e74bc8638865a7b644883179118c750297d87` is not the live GitHub PR branch head.
+Reason: The canonical mapping proof is evaluated against the live PR branch history, where the mapped commits were present before this follow-up; no remap to the review-internal squash SHA is required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235508608
+
+Disposition: FIXED
+Commit: 98b9872aa
+Evidence: `core/food_sources/preference_recipe_mapping.py` now applies the PR15 safe-note scanner to PR14 review-row notes during direct handoff validation; `tests/test_food_source_preference_recipe_mapping.py` rejects PR14 review notes such as `api calls are allowed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235508615
+
+Disposition: FIXED
+Commit: 98b9872aa
+Evidence: `core/food_sources/preference_recipe_mapping.py` now applies the PR15 safe-note scanner to PR11 Edamam/Spoonacular source-gap notes during direct handoff validation; `tests/test_food_source_preference_recipe_mapping.py` rejects PR11 source-gap notes such as `source use approved`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235508620
+
+Disposition: FIXED
+Commit: 98b9872aa
+Evidence: `core/food_sources/preference_recipe_mapping.py` rejects duplicate PR11 `source_gap_decisions` before building the lookup; `tests/test_food_source_preference_recipe_mapping.py` covers duplicate Edamam rows with unsafe drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235508626
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery review body reports rate limiting only; it contains no actionable code or governance finding for this PR.
