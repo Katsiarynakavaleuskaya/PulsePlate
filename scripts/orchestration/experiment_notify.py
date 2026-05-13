@@ -252,7 +252,7 @@ def _surface_allows_nested_paths(surface: str) -> bool:
         return True
     if PurePosixPath(surface).suffix.lower() in FILE_LIKE_SURFACE_SUFFIXES:
         return False
-    return (REPO_ROOT / surface).is_dir()
+    return Path(REPO_ROOT, surface).is_dir()
 
 
 def _require_rejected_oracles_are_prefix(
