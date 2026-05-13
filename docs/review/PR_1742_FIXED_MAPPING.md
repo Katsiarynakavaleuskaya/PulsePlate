@@ -131,6 +131,15 @@ Evidence: Later CodeRabbit/Cubic review summaries were closed by boundary-aware 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280688583 -> 45155f837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280702807 -> 45155f837
 
+Disposition: FIXED
+Commit: 3be17053c
+Evidence: Proof gates, network/file/runtime dependency machine-state anchors, path mutation guards, and human approval machine-state evidence were fixed in code/checker/tests before these threads were resolved.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355417 -> 3be17053c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355420 -> 3be17053c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355426 -> 3be17053c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355431 -> 3be17053c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355435 -> 3be17053c
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
