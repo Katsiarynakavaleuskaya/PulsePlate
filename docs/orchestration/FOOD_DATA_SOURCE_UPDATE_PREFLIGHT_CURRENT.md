@@ -45,6 +45,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md`](./FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md)
 - Current PR14 recipe/dish corpus governance:
   [`FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json`](../architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json)
+- Current PR15 preference recipe mapping contract packet:
+  [`FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`](./FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md)
+- Current PR15 preference recipe mapping contract:
+  [`FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json`](../architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -61,3 +65,5 @@ manifest preflight gate, PR8 JPTN identity/license gate, PR9 MenuStat
 replacement gate, PR10 MenuStat source-decision gate, PR11
 coverage/source-gap audit, PR12 chain public nutrition pages governance, PR13
 per-chain legal / anti-scraping review, or PR14 recipe/dish corpus governance.
+Update it again when a later accepted packet supersedes PR15 preference recipe
+mapping contract governance.
