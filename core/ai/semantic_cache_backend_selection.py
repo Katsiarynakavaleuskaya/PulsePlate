@@ -85,6 +85,8 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|redis[_ -]?url"
     r"|gptcache"
     r"|secret"
+    r"|(?:^|[_ -])(?:access|refresh|id|session|auth)?[_ -]?token(?:$|[_ -])"
+    r"|jwt"
     r"|credential"
     r"|authorization"
     r"|api[_ -]?key"
@@ -93,6 +95,10 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|session[_ -]?id"
     r"|private[_ -]?key"
     r"|sk-[a-z0-9]"
+    r"|ghp_[a-z0-9_]+"
+    r"|github_pat_[a-z0-9_]+"
+    r"|xox[baprs]-[a-z0-9-]+"
+    r"|eyj[a-z0-9_-]*\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)?"
     r"|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
     r"|\+?\d[\d ()-]{7,}\d"
     r"|healthkit"
@@ -364,6 +370,8 @@ class SemanticCacheBackendSelectionCriteria:
             _validate_bool(name, getattr(self, name))
         if self.runtime_allowed or self.implementation_allowed:
             raise ValueError("SC-G5 criteria must keep runtime and implementation disabled")
+        if not self.require_current_head_ci or not self.require_human_approval:
+            raise ValueError("SC-G5 criteria must require CI proof and human approval")
 
 
 @dataclass(frozen=True)

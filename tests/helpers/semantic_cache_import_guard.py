@@ -26,6 +26,12 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "sentence_transformers",
     "openai",
     "anthropic",
+    "urllib",
+    "http.client",
+    "socket",
+    "requests",
+    "aiohttp",
+    "httpx",
 )
 ALLOWED_SEMANTIC_CACHE_IMPORTS = (
     "core.ai.bounded_insight_semantic_cache",
@@ -48,6 +54,36 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "Path.write_bytes",
     "pathlib.Path.write_text",
     "pathlib.Path.write_bytes",
+    "Path.touch",
+    "Path.mkdir",
+    "Path.rename",
+    "Path.replace",
+    "Path.unlink",
+    "Path.rmdir",
+    "pathlib.Path.touch",
+    "pathlib.Path.mkdir",
+    "pathlib.Path.rename",
+    "pathlib.Path.replace",
+    "pathlib.Path.unlink",
+    "pathlib.Path.rmdir",
+    "os.open",
+    "os.remove",
+    "os.unlink",
+    "os.rename",
+    "os.replace",
+    "os.rmdir",
+    "urllib.request.urlopen",
+    "http.client.HTTPConnection",
+    "http.client.HTTPSConnection",
+    "socket.create_connection",
+    "requests.get",
+    "requests.post",
+    "requests.put",
+    "requests.patch",
+    "requests.delete",
+    "httpx.get",
+    "httpx.post",
+    "aiohttp.ClientSession",
     "os.getenv",
     "os.environ.get",
 )
@@ -157,8 +193,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             call_name = _qualified_call_name(node.func, import_aliases)
             if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:
                 offenders.append(call_name)
+            if _is_network_call_name(call_name):
+                offenders.append(call_name or "network.call")
             if _is_path_write_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.write")
+            if _is_path_mutation_call(node.func, import_aliases, path_aliases):
+                offenders.append("Path.mutate")
             if _is_file_handle_write_call(node.func, file_handle_aliases):
                 offenders.append("Path.open.write")
             if call_name and (call_name.startswith("random.") or call_name.startswith("secrets.")):
@@ -183,6 +223,17 @@ def _constant_string_argument(node: ast.Call) -> str | None:
                 return value
 
     return None
+
+
+def _is_network_call_name(call_name: str | None) -> bool:
+    if call_name is None:
+        return False
+    return (
+        call_name.endswith(".urlopen")
+        or call_name.endswith(".HTTPConnection")
+        or call_name.endswith(".HTTPSConnection")
+        or call_name.endswith(".create_connection")
+    )
 
 
 def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
@@ -215,6 +266,18 @@ def _is_path_write_call(
     if node.attr == "write" and _is_path_open_call(node.value, import_aliases, path_aliases):
         return True
     return False
+
+
+def _is_path_mutation_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Attribute):
+        return False
+    if node.attr not in {"touch", "mkdir", "rename", "replace", "unlink", "rmdir"}:
+        return False
+    return _is_path_expr(node.value, import_aliases, path_aliases)
 
 
 def _is_path_open_write_mode_call(

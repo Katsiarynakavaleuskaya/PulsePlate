@@ -978,6 +978,8 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
             "Redis imports or clients",
             "GPTCache imports or clients",
             "provider calls",
+            "network calls",
+            "file writes",
             "connection strings",
         ),
         "blocked_truth_sources": ("advisory wiki", "workforce memory", "GraphRAG"),
@@ -986,6 +988,7 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
             "SC-G3 false-hit evidence",
             "SC-G4 bounded insight decision evidence",
             "current-head CI governance proof",
+            "human approval record",
         ),
         "required_rollback_proof": (
             "kill switch proof",

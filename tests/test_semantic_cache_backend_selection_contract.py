@@ -207,6 +207,15 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
         for error in errors
     )
 
+    for required_runtime_block in ('"network calls"', '"file writes"'):
+        bad_text = _contract_text().replace(required_runtime_block + ",\n", "")
+        errors = validate_semantic_cache_backend_selection_contract(bad_text)
+        assert any(required_runtime_block.strip('"') in error for error in errors)
+
+    bad_text = _contract_text().replace('"human approval record"\n', '"human approval"\n')
+    errors = validate_semantic_cache_backend_selection_contract(bad_text)
+    assert any("human approval record" in error for error in errors)
+
     bad_text = _contract_text().replace(
         '"blocked_payload_fields": [',
         '"blocked_payload_fields_removed": [',

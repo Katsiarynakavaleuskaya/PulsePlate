@@ -497,6 +497,14 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"truth": "advisory wiki"},
         {"credential": "blocked-value"},
         {"health": "HealthKit symptom"},
+        {"access_token": "safe-looking"},
+        {"refresh_token": "safe-looking"},
+        {"jwt": "safe-looking"},
+        {"token_value": "safe-looking"},
+        {"safe_key": "ghp_test_token"},
+        {"safe_key": "github_pat_test_token"},
+        {"safe_key": "xoxb-test-token"},
+        {"safe_key": "eyJ.test.signature"},
     )
     for metadata in unsafe_metadata:
         with pytest.raises(ValueError):
@@ -548,6 +556,10 @@ def test_criteria_cannot_enable_runtime_or_implementation() -> None:
         replace(_criteria(), runtime_allowed=True)
     with pytest.raises(ValueError):
         replace(_criteria(), implementation_allowed=True)
+    with pytest.raises(ValueError, match="CI proof and human approval"):
+        replace(_criteria(), require_current_head_ci=False)
+    with pytest.raises(ValueError, match="CI proof and human approval"):
+        replace(_criteria(), require_human_approval=False)
 
 
 def test_type_and_value_validation_fail_closed() -> None:
@@ -795,6 +807,49 @@ def test_import_guard_rejects_write_mode_path_open(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="Path.open.write-mode"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_path_mutations_and_os_file_mutations(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_mutations.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "import os\n"
+        "Path('payload.txt').touch()\n"
+        "(Path('payload-dir') / 'nested').mkdir()\n"
+        "target = Path('old.txt')\n"
+        "target.rename('new.txt')\n"
+        "target.unlink()\n"
+        "os.open('payload.txt', os.O_WRONLY | os.O_CREAT)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.mutate"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_network_imports_and_calls(tmp_path: Path) -> None:
+    imports = tmp_path / "unsafe_network_imports.py"
+    imports.write_text(
+        "import urllib.request\n" "import socket\n" "import http.client\n" "import requests\n",
+        encoding="utf-8",
+    )
+    calls = tmp_path / "unsafe_network_calls.py"
+    calls.write_text(
+        "import urllib.request\n"
+        "import socket\n"
+        "import http.client\n"
+        "import requests\n"
+        "urllib.request.urlopen('https://example.invalid')\n"
+        "socket.create_connection(('example.invalid', 443))\n"
+        "http.client.HTTPSConnection('example.invalid')\n"
+        "requests.get('https://example.invalid')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="forbidden semantic-cache imports"):
+        assert_no_forbidden_semantic_cache_imports(imports)
+    with pytest.raises(AssertionError, match="urlopen"):
+        assert_no_forbidden_semantic_cache_calls(calls)
 
 
 def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
