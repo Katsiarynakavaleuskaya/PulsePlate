@@ -63,7 +63,7 @@ Reference/process only:
 - Screen evidence packs.
 - Design scorecards.
 - Web acceptance briefs and iOS parity audits.
-- Figma, Canva, Storybook, external references, prompt outputs, generated briefs, and PR templates.
+- Figma, Canva, Storybook, Kimi prototypes, external references, prompt outputs, generated briefs, and PR templates.
 
 ## In Scope
 
@@ -112,7 +112,7 @@ This packet uses the operator-approved machine-heavy design-lane exception: boun
 ## Risks
 
 - Workflow accidentally creates another source of truth.
-- Template implies Figma, Canva, Storybook, evidence packs, or scorecards can override repo truth.
+- Template implies Figma, Canva, Storybook, Kimi prototypes, evidence packs, or scorecards can override repo truth.
 - Premortem becomes a mapping-only ritual instead of an actual diff review.
 - Template encourages full local `make verify` or green-main claims against operator instructions.
 - PR mutates runtime files, generated mirrors, or token outputs.
@@ -120,7 +120,7 @@ This packet uses the operator-approved machine-heavy design-lane exception: boun
 ## Required Reviews
 
 - Premortem must inspect the actual docs/test diff and real defects must be fixed before mapping.
-- Bug-hunter must inspect the actual diff for source-of-truth drift, runtime drift, generated mirror edits, hidden artifacts, and missing required sections.
+- Bug-hunter must inspect the actual diff for source-of-truth drift, Kimi prototype drift, runtime drift, generated mirror edits, hidden artifacts, and missing required sections.
 - Review comments must be mapped in `docs/review/PR_<N>_FIXED_MAPPING.md` after the PR number exists.
 
 ## Definition Of Done

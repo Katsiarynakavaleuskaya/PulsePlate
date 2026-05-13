@@ -30,7 +30,7 @@ Explain why this work matters for launch quality, trust, retention, revenue, aut
 
 Repo code/docs/tests, `/tokens` as token authoring truth, generated mirrors as derived runtime artifacts, UI vocabulary, backend/OpenAPI contracts, and runtime code remain governed by repo truth.
 
-DESIGN.md, evidence packs, scorecards, Figma, Canva, Storybook, external references, generated briefs, and this template are evidence/reference/process layers only.
+DESIGN.md, evidence packs, scorecards, Figma, Canva, Storybook, Kimi prototypes, external references, generated briefs, and this template are evidence/reference/process layers only.
 
 ## Design automation module classification
 
