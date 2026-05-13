@@ -101,6 +101,16 @@ Disposition: FIXED
 Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
 Evidence: `## Discussion Thread Pass`, `## Coordinator / Premortem / Agent Findings`, and `## Fixed in Commit Mapping` are sibling level-2 sections, preserving parser compatibility and clear hierarchy.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234377316
+Disposition: NOT-A-BUG
+Evidence: local strict wrapper `check_merge_ready.py --pr-number 1746 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passed `review-threads-disposition` with commit-after-comment before these two new review threads were opened.
+Reason: the actual blocking failure was unresolved review-thread state, not an unknown-revision failure from the mapped commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234377321 -> 9bbff3c38eca11b48b604aaeac548653b825f8e9
+Disposition: FIXED
+Commit: 9bbff3c38eca11b48b604aaeac548653b825f8e9
+Evidence: `Local Validation` now records `make validate-changed` selecting `tests/test_design_agent_workflow_docs.py` and passing 4 tests.
+
 ## Local Validation
 
 - `.venv/bin/python scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
