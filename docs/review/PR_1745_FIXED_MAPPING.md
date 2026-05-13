@@ -85,6 +85,86 @@ Evidence: Seed-unconfirmed fields now require the exact scalar string `unspecifi
 Disposition: FIXED
 Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
 Evidence: Status validation checks type before enum membership and returns deterministic invalid-status errors for arrays; tests cover `status: ["partial"]`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4281435147 -> 3e9d416a70cf5b13664d0afe4b0fa602d7791be3
+Disposition: FIXED
+Commit: 3e9d416a70cf5b13664d0afe4b0fa602d7791be3
+Evidence: Codex review findings from the reviewed `7f16e2385e` snapshot were fixed by later commits; `scripts/design/design_component_registry.py` resolves stdout at call time and current focused tests pass.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234087274 -> 3e9d416a70cf5b13664d0afe4b0fa602d7791be3
+Disposition: FIXED
+Commit: 3e9d416a70cf5b13664d0afe4b0fa602d7791be3
+Evidence: `scripts/design/design_component_registry.py` resolves `stdout` inside `main()` when no explicit stream is passed; `tests/test_design_component_registry.py` captures CLI validate/summarize output.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234087284 -> 4530231bb2219da1bb36b2dd098873b30f92f9ea
+Disposition: FIXED
+Commit: 4530231bb2219da1bb36b2dd098873b30f92f9ea
+Evidence: The stale head proof was removed from the fixed mapping artifact; mapping now uses reachable fix-proof commits instead of a mutable current-head assertion.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4281441338 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: Cubic review findings from `2026-05-13T12:16:49Z` were fixed by duplicate vocabulary-id validation and removal of file-path dynamic imports in tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234091956 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `_load_vocabulary()` rejects duplicate vocabulary ids; `tests/test_design_component_registry.py` covers duplicate vocabulary ids.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234091970 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `tests/test_design_component_registry.py` imports `scripts.design.design_component_registry` normally; the forbidden dynamic file-path import helper was removed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4281452133 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: CodeRabbit review findings from `2026-05-13T12:18:01Z` were fixed by ledger checkbox/PR metadata, a dedicated bridge coverage follow-up, normal test imports, and mapping Discussion Thread Pass sections.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234100119 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` uses checkbox format for design component registry seed tracking.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234100152 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` records Target PR `#1745` for this lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234100167 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` contains a separate `Design bridge coverage inventory` follow-up with owner, priority, target PR placeholder, reason, links, and DoD.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234100172 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: `tests/test_design_component_registry.py` no longer uses `importlib.util` dynamic module loading.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234100180 -> 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Disposition: FIXED
+Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
+Evidence: The `_load_module()` helper was removed, so the missing return type issue no longer exists.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4281750950 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: CodeRabbit exact authority matching review was fixed without substring false positives; tests cover `figmax`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4281758412 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: Cubic covered-status contradiction was fixed; tests cover both false-covered rows and covered rows with bridge evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4282102256 -> c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Disposition: FIXED
+Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Evidence: Plain external authority entries are rejected even without `source of truth` or `canonical` wording; tests cover `Figma design file` and `Kimi generated prototype`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234644203 -> c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Disposition: FIXED
+Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Evidence: `_promoted_authorities()` now scans canonical entries for denied external authorities directly, preserving exact word-boundary matching without requiring promotion phrases.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#pullrequestreview-4282112815 -> c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Disposition: FIXED
+Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Evidence: Codex review findings from reviewed commit `3e9d416a70` were fixed by direct external-authority rejection, scoped Kimi guard allowlisting, and scalar string bridge evidence checks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234652822 -> c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Disposition: FIXED
+Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Evidence: `scripts/design/design_component_registry.py` rejects `Figma design file` and `Kimi generated prototype` inside `authority.canonical`; tests cover both.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234652829 -> c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Disposition: FIXED
+Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Evidence: `tests/test_design_automation_next_lane_docs.py` only allows registry validator/test paths when the registry lane itself is active via the registry contract or JSON seed paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234652836 -> c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Disposition: FIXED
+Commit: c22998be0f3109c4d141ed3c0db41a2631af0b8b
+Evidence: Covered status bridge evidence now requires non-empty scalar strings; tests reject `[]` and `{}` bridge evidence placeholders.
 
 ## Review Thread Disposition Table
 
