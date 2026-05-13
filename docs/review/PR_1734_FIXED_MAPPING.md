@@ -104,8 +104,8 @@ Evidence: The CodeRabbit review actionables are dispositioned by `discussion_r32
 - `python3 scripts/orchestration/pr_review_report.py --pr 1734 --repo Katsiarynakavaleuskaya/PulsePlate` — PASS
 - `make validate-changed` — PASS
 - `./.venv/bin/python -m pytest tests/core/evidence/test_replay.py -q` — PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`35 passed`)
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m ruff check core/evidence/replay.py tests/core/evidence/test_replay.py` — PASS
+- `.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`35 passed`)
+- `.venv/bin/python -m ruff check core/evidence/replay.py tests/core/evidence/test_replay.py` — PASS
 - `./.venv/bin/python -m bandit -r core/evidence scripts/orchestration -ll` — PASS (no security issues)
 - `./.venv/bin/pip-audit -r requirements.txt` — FAIL expected baseline: existing `urllib3==2.6.3` CVEs (`CVE-2026-44431`, `CVE-2026-44432`) outside PR scope.
 - `python3 scripts/ci/run_safety_audit.py --root .` — FAIL: missing `safety` binary in environment.
