@@ -69,16 +69,16 @@ Evidence:
 
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
+- `$VENV_PYTHON -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
   -> 45 passed
 - Adjacent food-source governance regression pytest for PR11, PR12, PR13,
   PR14, catalog, and onboarding -> PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py`
+- `$VENV_PYTHON -m pytest -q tests/test_repo_policy_guards.py`
   -> 14 passed
 - Targeted mypy for the new module, CLI, and tests -> PASS
 - CLI JSON smoke for PR15 artifact -> `success: true`
 - `pre-commit run --all-files` -> PASS
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`
+- `make validate-changed VENV_PYTHON=$VENV_PYTHON`
   -> PASS
 - `git push` pre-push hooks -> PASS, including backend tests, full-repo
   bandit, and docker build test
