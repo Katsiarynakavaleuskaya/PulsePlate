@@ -25,6 +25,7 @@ from core.food_sources.source_catalog import SourceCatalogError, load_source_cat
 from core.food_sources.source_gap_audit import (
     FINAL_GATE_DECISION as PR11_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR11_NEXT_RECOMMENDED_LANE,
+    REQUIRED_COVERAGE_DOMAINS as PR11_REQUIRED_COVERAGE_DOMAINS,
     SourceGapAudit,
     SourceGapAuditError,
     load_source_gap_audit,
@@ -77,6 +78,20 @@ EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS = {
         "allowed_role": "deferred_experiment_candidate_only",
     },
 }
+EXPECTED_PR11_SOURCE_GAP_ORDER = (
+    "usda_foundation",
+    "usda_branded",
+    "usda_fndds",
+    "open_food_facts",
+    "menustat",
+    "chain_public_nutrition_pages",
+    "edamam_food_database",
+    "spoonacular",
+    "nutritionix",
+    "fatsecret_platform",
+    "regional_catalogs",
+    "jptn_food_facts",
+)
 
 BLOCKED_METHODS = (
     "scraping",
@@ -443,7 +458,13 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
     return any(prefix.endswith(negation) for negation in _NEGATED_APPROVAL_PREFIXES)
 
 
-def _coverage_domain_by_name(coverage: SourceGapAudit) -> dict[str, object]:
+def _coverage_domain_by_name(coverage: SourceGapAudit, context: str) -> dict[str, object]:
+    domain_order = tuple(entry.domain for entry in coverage.coverage_domains)
+    if domain_order != PR11_REQUIRED_COVERAGE_DOMAINS:
+        raise _mapping_error(
+            context,
+            "PR11 coverage_domains must be exactly: " + ", ".join(PR11_REQUIRED_COVERAGE_DOMAINS),
+        )
     return {entry.domain: entry for entry in coverage.coverage_domains}
 
 
@@ -467,6 +488,7 @@ def _require_pr14_handoff(
         raise _mapping_error(
             context, f"PR14 final_gate_decision must be {PR14_FINAL_GATE_DECISION}"
         )
+    _require_safe_notes(recipe_dish_corpus.notes, f"{context}.PR14.notes")
     review_sources = tuple(review.source for review in recipe_dish_corpus.recipe_corpus_reviews)
     if review_sources != tuple(EXPECTED_PR14_RECIPE_ALLOWED_ROLES):
         raise _mapping_error(context, "PR14 recipe_corpus_reviews sources are not allowed")
@@ -536,7 +558,8 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
             context,
             f"PR11 final_gate_decision must be {PR11_FINAL_GATE_DECISION}",
         )
-    domains = _coverage_domain_by_name(coverage)
+    _require_safe_notes(coverage.notes, f"{context}.PR11.notes")
+    domains = _coverage_domain_by_name(coverage, context)
     preference_domain = domains.get(SOURCE)
     if preference_domain is None:
         raise _mapping_error(context, "PR11 must include preference_menu_planning")
@@ -574,9 +597,19 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
         raise _mapping_error(
             context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
         )
+    _require_safe_notes(
+        getattr(preference_domain, "notes"),
+        f"{context}.PR11.preference_menu_planning.notes",
+    )
     source_gap_order = tuple(entry.source for entry in coverage.source_gap_decisions)
     if len(source_gap_order) != len(set(source_gap_order)):
         raise _mapping_error(context, "PR11 source_gap_decisions must not contain duplicates")
+    if source_gap_order != EXPECTED_PR11_SOURCE_GAP_ORDER:
+        raise _mapping_error(
+            context,
+            "PR11 source_gap_decisions must be exactly: "
+            + ", ".join(EXPECTED_PR11_SOURCE_GAP_ORDER),
+        )
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
     for source, expected in EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS.items():
         source_gap = source_gap_decisions.get(source)

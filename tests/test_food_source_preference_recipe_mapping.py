@@ -117,6 +117,7 @@ def _coverage_with_preference_domain(
     gap_status: str | None = None,
     authority_decision: str | None = None,
     next_action: str | None = None,
+    notes: str | None = None,
 ) -> SourceGapAudit:
     coverage_payload = copy.deepcopy(_coverage())
     domains = tuple(
@@ -127,6 +128,7 @@ def _coverage_with_preference_domain(
                 gap_status=gap_status or domain.gap_status,
                 authority_decision=authority_decision or domain.authority_decision,
                 next_action=next_action or domain.next_action,
+                notes=notes or domain.notes,
             )
             if domain.domain == "preference_menu_planning"
             else domain
@@ -445,11 +447,101 @@ def test_preference_recipe_mapping_rejects_duplicate_pr11_source_gap_rows() -> N
         )
 
 
+def test_preference_recipe_mapping_rejects_extra_pr11_source_gap_rows() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage()
+    extra_row = replace(
+        coverage_payload.source_gap_decisions[0],
+        source="unreviewed_recipe_api",
+        decision="approved_recipe_api",
+        approved_ingest=True,
+    )
+    coverage_payload = replace(
+        coverage_payload,
+        source_gap_decisions=(*coverage_payload.source_gap_decisions, extra_row),
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="source_gap_decisions must be exactly"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rejects_duplicate_pr11_coverage_domain_rows() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage()
+    preference_domain = next(
+        domain
+        for domain in coverage_payload.coverage_domains
+        if domain.domain == "preference_menu_planning"
+    )
+    duplicate_domain = replace(preference_domain, approved_ingest=True)
+    coverage_payload = replace(
+        coverage_payload,
+        coverage_domains=(duplicate_domain, *coverage_payload.coverage_domains),
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="coverage_domains must be exactly"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rejects_extra_pr11_coverage_domain_rows() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage()
+    extra_domain = replace(
+        coverage_payload.coverage_domains[0],
+        domain="unreviewed_preference_source",
+        approved_ingest=True,
+        notes="api calls are allowed",
+    )
+    coverage_payload = replace(
+        coverage_payload,
+        coverage_domains=(*coverage_payload.coverage_domains, extra_domain),
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="coverage_domains must be exactly"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
 def test_preference_recipe_mapping_rechecks_pr11_source_gap_notes_for_handoff() -> None:
     payload = _governance_payload()
     coverage_payload = _coverage_with_source_gap_decision(
         "edamam_food_database", notes="source use approved"
     )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rechecks_pr11_top_level_notes_for_handoff() -> None:
+    payload = _governance_payload()
+    coverage_payload = replace(_coverage(), notes="api calls are allowed")
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rechecks_pr11_preference_domain_notes_for_handoff() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_preference_domain(notes="source use approved")
 
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
         parse_preference_recipe_mapping_governance(
@@ -594,6 +686,18 @@ def test_preference_recipe_mapping_rechecks_pr14_review_identity_for_direct_hand
 def test_preference_recipe_mapping_rechecks_pr14_review_notes_for_direct_handoff() -> None:
     payload = _governance_payload()
     recipe_governance = _recipe_dish_corpus_with_first_review(notes="api calls are allowed")
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=recipe_governance,
+        )
+
+
+def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_handoff() -> None:
+    payload = _governance_payload()
+    recipe_governance = replace(_recipe_dish_corpus(), notes="api calls are allowed")
 
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
         parse_preference_recipe_mapping_governance(
