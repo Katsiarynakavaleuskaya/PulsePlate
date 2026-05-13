@@ -11,6 +11,7 @@
   - `3dee930fc` — cover replay supersession fail-closed and non-promoting existing-entry branches for diff coverage.
   - `8db30a3cf` — fail closed on unknown supersession ancestor references.
   - `1c81daf00` — keep current-head merge-readiness checkbox open until final current-head pass.
+  - `a0e81b4b4` — remove workstation-local absolute paths from review evidence.
 
 ## Discussion Thread Pass
 
@@ -70,6 +71,16 @@ Evidence: `docs/review/PR_1734_FIXED_MAPPING.md` keeps the current-head merge-re
 Disposition: FIXED
 Commit: 8db30a3cf
 Evidence: The CodeRabbit review actionables are dispositioned by `discussion_r3233099749` and `discussion_r3233099766`; code hardening landed in `8db30a3cf`, and readiness-checkbox hygiene landed in `1c81daf00`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1734#discussion_r3233145808 -> a0e81b4b4
+Disposition: FIXED
+Commit: a0e81b4b4
+Evidence: `docs/review/PR_1734_FIXED_MAPPING.md` validation evidence now uses portable `.venv/bin/python` paths instead of workstation-local absolute paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1734#discussion_r3233145816
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 42cb54728 HEAD` and `git merge-base --is-ancestor 8db30a3cf HEAD` both returned `0` locally on branch `codex/fix-replay-sort-clean`.
+Reason: The referenced reviewed SHA is not the live PR branch head; the mapped FIXED commits are reachable ancestors of the current PR branch.
 
 ## Premortem Risk Review
 
