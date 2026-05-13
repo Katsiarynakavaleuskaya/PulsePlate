@@ -28,6 +28,7 @@
   - `261085d5e2fc8d760dcc743fc0adeffadcaa07c5` - runner-aligned notification evidence validation.
   - `0b7790f853562deb0a58ddd934085636d990d7be` - sanitized validation diagnostics and accepted/rejected state checks.
   - `367504ae685a97c0cd410b2acde0bfc115a13b5a` - forged evidence rejection hardening.
+  - `a705625f9d39f652cee75463e07fd26d5a9ebab9` - rejected-result shape alignment.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -99,6 +100,9 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984659 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984667 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984673 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147911 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147913 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147920 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -156,11 +160,15 @@ Disposition: FIXED
 Commit: 367504ae685a97c0cd410b2acde0bfc115a13b5a
 Evidence: `scripts/orchestration/experiment_notify.py` now rejects traversal components before mutable-surface matching, requires terminal oracle evidence for oracle-failure rejected statuses, and redacts sensitive bare oracle command names. `tests/test_experiment_notify.py` covers each regression.
 
+Disposition: FIXED
+Commit: a705625f9d39f652cee75463e07fd26d5a9ebab9
+Evidence: `scripts/orchestration/experiment_notify.py` now rejects pre-oracle rejected-result classes when oracle evidence is present, rejects `policy_violation` evidence with mutated paths, and scopes terminal-oracle failure requirements to oracle-derived failure classes so `metric_regression` can summarize passing oracle prefixes. `tests/test_experiment_notify.py` covers each regression.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 90 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 93 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
