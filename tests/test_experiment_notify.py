@@ -434,6 +434,20 @@ def test_result_evidence_allows_new_extensionless_directory_surface() -> None:
     assert "- `core/rag/new_feature/impl.py`" in content
 
 
+def test_result_evidence_rejects_traversal_under_directory_surface() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet() | {"mutable_candidate_surface": ["core/rag/new_feature"]}
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = ["core/rag/new_feature/../../docs/orchestration/workflow.md"]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="mutable_candidate_surface",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
 def test_result_oracle_commands_must_come_from_packet() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(
@@ -591,6 +605,20 @@ def test_rejected_result_terminal_oracle_must_fail() -> None:
         experiment_notify.render_notification_markdown(packet, result)
 
 
+def test_rejected_oracle_failure_requires_terminal_oracle_evidence() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    result["oracle_results"] = []
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="terminal oracle evidence",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
 def test_promotion_evidence_must_match_packet_and_result() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(_result())
@@ -714,6 +742,7 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
         == "[redacted-command]"
     )
     assert "id_rsa" not in experiment_notify._oracle_command_name("/Users/alice/.ssh/id_rsa --help")
+    assert experiment_notify._oracle_command_name("id_rsa --help") == "[redacted-command]"
     assert experiment_notify._safe_repo_path("/Users/example/private-token/path.py") == (
         "[redacted-path]"
     )
