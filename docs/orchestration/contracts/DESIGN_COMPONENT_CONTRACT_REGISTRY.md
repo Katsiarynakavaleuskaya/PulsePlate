@@ -3,9 +3,9 @@
 
 ## Summary
 
-This document defines the governed contract for the future machine-readable design component registry.
+This document defines the governed contract for the machine-readable design component registry.
 
-PR-9 does not add the executable registry file, schema generator, web implementation, iOS implementation, Storybook config, Figma write, Penpot write, or Code Connect activation. It defines the contract boundary that later implementation PRs must satisfy.
+The first seed is `docs/orchestration/contracts/design_component_registry.v1.json`. It is validated by `scripts/design/design_component_registry.py` and remains docs/tooling/test governance only. It does not add web implementation, iOS implementation, Storybook config, Figma write, Penpot write, Canva write, Kimi write, token edit, generated mirror edit, screenshot, binary asset, or Code Connect activation.
 
 ## Authority
 
@@ -21,6 +21,25 @@ Canonical precedence:
 6. UI vocabulary docs and JSON.
 
 Figma, Canva, Penpot, Storybook, and Code Connect are bridge/reference fields only unless a later repo-reviewed contract promotes a narrower authority.
+
+Kimi prototype artifacts, Google Drive prototype folders, screenshots, generated code bundles, and desktop exports are evidence/reference inputs only. They must normalize through this registry before any bridge coverage or implementation planning.
+
+## Seed Artifact And Validator
+
+The current seed artifact is:
+
+- `docs/orchestration/contracts/design_component_registry.v1.json`
+
+The current repo-local validator is:
+
+```bash
+.venv/bin/python scripts/design/design_component_registry.py validate docs/orchestration/contracts/design_component_registry.v1.json
+.venv/bin/python scripts/design/design_component_registry.py summarize docs/orchestration/contracts/design_component_registry.v1.json
+```
+
+The seed includes every component id currently present in `docs/design/ui_component_vocabulary.json`. It may use repo-confirmed web anchors from the vocabulary record, but every unconfirmed iOS, token, Storybook, Figma, Penpot, Code Connect, state, variant, accessibility, and visual-regression field remains exactly `unspecified`.
+
+The validator fails closed on malformed JSON, missing required fields, duplicate ids, ids outside the UI vocabulary, invalid status values, empty strings, missing vocabulary ids, and external evidence tools promoted into canonical authority.
 
 ## Required Record Shape
 
@@ -72,14 +91,13 @@ If either is missing, the implementation PR must fail closed or record a `DEFERR
 
 ## Unspecified Defaults
 
-The following are currently `unspecified` unless a later implementation PR proves them from repo truth:
+The following remain `unspecified` unless a later implementation PR proves them from repo truth:
 
-- exact registry serialization format,
-- exact schema file path,
-- exact component inventory,
 - exact Figma file and node mappings,
 - exact Penpot workspace/page mappings,
 - exact Code Connect mappings,
 - visual regression tool and threshold,
 - accessibility regression tool and threshold,
 - per-component implementation order.
+
+The next design-line PR after this seed is the bridge coverage inventory. That lane may report coverage gaps; it must not treat missing coverage as permission to implement runtime UI.

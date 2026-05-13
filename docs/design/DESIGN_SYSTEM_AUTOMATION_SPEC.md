@@ -63,9 +63,16 @@ Implementation slices may start only after the registry, coverage inventory, and
 
 ## Component Contract Registry Requirement
 
-The registry is the next mandatory machine-readable layer. It must index repo-confirmed contracts, not design-tool intent alone.
+The component contract registry seed is the current first mandatory machine-readable gate. It must index repo-confirmed contracts, not design-tool intent alone.
+
+Current seed and validator:
+
+- `docs/orchestration/contracts/design_component_registry.v1.json`
+- `scripts/design/design_component_registry.py`
 
 Every unconfirmed field must be `unspecified`. Do not infer component ownership, state coverage, Figma nodes, Penpot boards, Storybook paths, Code Connect mappings, visual thresholds, or accessibility thresholds without repo evidence.
+
+This seed is not runtime implementation. It does not change web UI, iOS UI, tokens, generated mirrors, Storybook config, screenshots, binary assets, Figma, Canva, Penpot, Kimi, or Code Connect activation.
 
 ## Bridge Coverage
 
