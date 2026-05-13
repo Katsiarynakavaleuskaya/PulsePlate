@@ -215,7 +215,13 @@ def _require_result_evidence_matches_packet(
         raise ExperimentNotificationError(
             "Accepted experiment result oracle_results must match packet immutable_oracles."
         )
+    if result["status"] == "rejected":
+        _require_rejected_oracles_are_prefix(expected_oracles, result_oracles)
     if result["status"] == "accepted":
+        if result["failure_class"] is not None:
+            raise ExperimentNotificationError(
+                "Accepted experiment result failure_class must be null."
+            )
         failed_oracles = [
             _oracle_command_name(oracle_result["command"])
             for oracle_result in result["oracle_results"]
@@ -244,8 +250,21 @@ def _surface_allows_nested_paths(surface: str) -> bool:
 
     if surface.endswith("/"):
         return True
-    suffix = PurePosixPath(surface).suffix.lower()
-    return suffix not in FILE_LIKE_SURFACE_SUFFIXES
+    if PurePosixPath(surface).suffix.lower() in FILE_LIKE_SURFACE_SUFFIXES:
+        return False
+    return (REPO_ROOT / surface).is_dir()
+
+
+def _require_rejected_oracles_are_prefix(
+    expected_oracles: list[str],
+    result_oracles: list[str],
+) -> None:
+    """Require rejected results to describe a prefix of the immutable oracle list."""
+
+    if result_oracles != expected_oracles[: len(result_oracles)]:
+        raise ExperimentNotificationError(
+            "Rejected experiment result oracle_results must be a packet immutable_oracles prefix."
+        )
 
 
 def _require_promotion_evidence_matches_result(
@@ -497,7 +516,7 @@ def _append_github_step_summary(markdown: str) -> None:
             if not markdown.endswith("\n"):
                 summary_file.write("\n")
     except OSError as exc:
-        raise ExperimentNotificationError(f"Unable to write GITHUB_STEP_SUMMARY: {exc}") from exc
+        raise ExperimentNotificationError("Unable to write GITHUB_STEP_SUMMARY.") from exc
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:

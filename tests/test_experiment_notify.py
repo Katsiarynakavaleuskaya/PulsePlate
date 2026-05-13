@@ -336,7 +336,13 @@ def test_result_evidence_must_stay_within_packet_mutable_surface() -> None:
         experiment_notify.render_notification_markdown(packet, result)
 
 
-def test_result_evidence_allows_directory_mutable_surface() -> None:
+def test_result_evidence_allows_directory_mutable_surface(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    (repo / "docs" / "prompts" / "reliability").mkdir(parents=True)
     packet = experiment_contract.validate_experiment_packet(
         _packet()
         | {
@@ -356,7 +362,13 @@ def test_result_evidence_allows_directory_mutable_surface() -> None:
     assert "- `docs/prompts/reliability/program.md`" in content
 
 
-def test_result_evidence_allows_directory_surface_with_dots() -> None:
+def test_result_evidence_allows_directory_surface_with_dots(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    (repo / "docs" / "prompts" / "v1.2").mkdir(parents=True)
     packet = experiment_contract.validate_experiment_packet(
         _packet()
         | {
@@ -382,6 +394,26 @@ def test_result_evidence_rejects_nested_paths_under_file_surface() -> None:
     )
     result = experiment_contract.validate_experiment_result(_result())
     result["mutated_paths"] = ["core/rag/allowed.py/child.py"]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="mutable_candidate_surface",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_result_evidence_rejects_nested_paths_under_extensionless_file_surface(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    (repo / "core" / "rag" / "runner").write_text("#!/bin/sh\n", encoding="utf-8")
+    packet = experiment_contract.validate_experiment_packet(
+        _packet() | {"mutable_candidate_surface": ["core/rag/runner"]}
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = ["core/rag/runner/child.py"]
 
     with pytest.raises(
         experiment_notify.ExperimentNotificationError,
@@ -442,6 +474,50 @@ def test_accepted_result_with_failed_oracle_is_rejected() -> None:
     with pytest.raises(
         experiment_notify.ExperimentNotificationError,
         match="oracle_results must pass",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_accepted_result_with_failure_class_is_rejected() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    result["failure_class"] = "guard_failure"
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="failure_class must be null",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_rejected_result_oracles_must_preserve_packet_prefix() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet()
+        | {
+            "immutable_oracles": [
+                {"command": "python3 -m pytest tests/test_a.py", "expected_signal": "must pass"},
+                {"command": "python3 -m pytest tests/test_b.py", "expected_signal": "must pass"},
+            ]
+        }
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    result["oracle_results"] = [
+        {
+            "command": "python3 -m pytest tests/test_b.py",
+            "returncode": 1,
+            "timed_out": False,
+            "truncated": False,
+            "stdout": "",
+            "stderr": "",
+            "cwd": "",
+        }
+    ]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="immutable_oracles prefix",
     ):
         experiment_notify.render_notification_markdown(packet, result)
 
@@ -844,3 +920,33 @@ def test_github_step_summary_flag_fails_without_env(
     )
 
     assert exit_code == 1
+
+
+def test_github_step_summary_write_failure_redacts_unsafe_path(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    unsafe_summary_path = tmp_path / ".ssh" / "id_rsa"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(unsafe_summary_path))
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--github-step-summary",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Unable to write GITHUB_STEP_SUMMARY." in captured.out
+    assert ".ssh" not in captured.out
+    assert "id_rsa" not in captured.out
+    assert str(tmp_path) not in captured.out
