@@ -59,6 +59,7 @@ Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCO
 
 Disposition: NOT-A-BUG
 Evidence: Local worktree proof: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD` returned `0` at head `7cf6432f1ae5009ca3fd544b16dcdb9bdacd25ab`; `check_review_threads_disposition.py --pr-number 1741` passed before the follow-up scorecard fix. Existing mappings to `893fbdae8e454530f962f9d41a5d311de5ffdd9c` reference a commit on the current branch history.
+Reason: The mapped FIXED proof commit is present on this PR branch history in the local worktree, so no code/docs change is required for this review thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232876393
 
 ## Pre-Open Premortem Findings
