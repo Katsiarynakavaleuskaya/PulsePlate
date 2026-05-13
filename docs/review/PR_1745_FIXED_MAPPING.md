@@ -247,6 +247,21 @@ Disposition: FIXED
 Commit: 284735c75372647bc9166355d2013009fa70f257
 Evidence: Registry top-level shape now rejects fields outside the contract schema; `tests/test_design_component_registry.py` rejects top-level `figma_node`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648603 -> 1f30085652aad1d95b285a73b139ef8205eadcac
+Disposition: FIXED
+Commit: 1f30085652aad1d95b285a73b139ef8205eadcac
+Evidence: Kimi protocol diff guard now allows `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md` only when the component-registry lane paths are active.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648607 -> 1f30085652aad1d95b285a73b139ef8205eadcac
+Disposition: FIXED
+Commit: 1f30085652aad1d95b285a73b139ef8205eadcac
+Evidence: Registry authority shape now rejects fields outside `canonical` and `reference_only`; `tests/test_design_component_registry.py` rejects authority-level `figma_node`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648613 -> 1f30085652aad1d95b285a73b139ef8205eadcac
+Disposition: FIXED
+Commit: 1f30085652aad1d95b285a73b139ef8205eadcac
+Evidence: Repo-backed web runtime anchors are resolved before file checks and must stay under the repo root; `tests/test_design_component_registry.py` rejects traversal to an outside file.
+
 ## Review Thread Disposition Table
 
 | Source | URL | Disposition | Commit | Evidence |
@@ -284,6 +299,9 @@ Evidence: Registry top-level shape now rejects fields outside the contract schem
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229365 | FIXED | `9fdc2ca63ed78b28506aa48a1de23f3f991c189b` | Partial status requires a repo-backed web runtime anchor. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235229374 | FIXED | `9fdc2ca63ed78b28506aa48a1de23f3f991c189b` | Component rows reject unexpected fields. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235407615 | FIXED | `284735c75372647bc9166355d2013009fa70f257` | Registry top-level shape now rejects fields outside the contract schema. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648603 | FIXED | `1f30085652aad1d95b285a73b139ef8205eadcac` | Kimi protocol diff guard allows the design automation spec only under the active component-registry lane. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648607 | FIXED | `1f30085652aad1d95b285a73b139ef8205eadcac` | Authority records reject unexpected fields. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648613 | FIXED | `1f30085652aad1d95b285a73b139ef8205eadcac` | Web runtime anchors cannot resolve outside the repository root. |
 
 ## Command Evidence
 
