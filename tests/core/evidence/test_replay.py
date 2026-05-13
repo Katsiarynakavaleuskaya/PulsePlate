@@ -215,6 +215,32 @@ def test_existing_disconnected_supersede_after_promote_fails_closed() -> None:
         dry_run_replay(existing_entries=(existing, disconnected))
 
 
+def test_existing_disconnected_known_supersede_cycle_fails_closed() -> None:
+    existing = _entry(run_id="1")
+    first_disconnected = _entry(
+        run_id="2",
+        promotion_id=existing.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:first-disconnected",
+        supersedes=(existing.ledger_entry_id,),
+    )
+    second_disconnected = _entry(
+        run_id="3",
+        promotion_id=existing.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:second-disconnected",
+        supersedes=(first_disconnected.ledger_entry_id,),
+    )
+    object.__setattr__(
+        first_disconnected,
+        "supersedes",
+        (second_disconnected.ledger_entry_id,),
+    )
+
+    with pytest.raises(ValueError, match="orphan supersede"):
+        dry_run_replay(existing_entries=(existing, second_disconnected, first_disconnected))
+
+
 def test_existing_supersede_with_unknown_ancestor_fails_closed() -> None:
     existing = _entry(run_id="1")
     malformed = _entry(
