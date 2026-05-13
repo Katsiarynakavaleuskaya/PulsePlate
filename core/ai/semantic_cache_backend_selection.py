@@ -462,6 +462,13 @@ class SemanticCacheBackendEvaluationMatrix:
         )
         if self.final_decision != expected_final:
             raise ValueError("final_decision must match freshly selected backend decision")
+        expected_matrix_id = build_semantic_cache_backend_matrix_id(
+            candidates=self.candidates,
+            final_decision=self.final_decision,
+            policy_version=self.policy_version,
+        )
+        if self.matrix_id != expected_matrix_id:
+            raise ValueError("matrix_id must match canonical matrix payload")
 
 
 def evaluate_semantic_cache_backend_candidate(
@@ -521,19 +528,34 @@ def evaluate_semantic_cache_backend_matrix(
         candidates=candidates,
         criteria=criteria,
     )
-    payload: JsonValue = {
-        "candidate_ids": [candidate.candidate_id for candidate in _sorted_candidates(candidates)],
-        "final_decision_id": final_decision.decision_id,
-        "policy_version": criteria.policy_version,
-    }
     return SemanticCacheBackendEvaluationMatrix(
-        matrix_id=f"semantic-cache-backend-matrix:{_fingerprint_payload(payload)[:24]}",
+        matrix_id=build_semantic_cache_backend_matrix_id(
+            candidates=candidates,
+            final_decision=final_decision,
+            policy_version=criteria.policy_version,
+        ),
         policy_version=criteria.policy_version,
         criteria=criteria,
         candidates=_sorted_candidates(candidates),
         candidate_decisions=candidate_decisions,
         final_decision=final_decision,
     )
+
+
+def build_semantic_cache_backend_matrix_id(
+    *,
+    candidates: tuple[SemanticCacheBackendCandidate, ...],
+    final_decision: SemanticCacheBackendSelectionDecision,
+    policy_version: str,
+) -> str:
+    """Build the canonical deterministic ID for a backend evaluation matrix."""
+
+    payload: JsonValue = {
+        "candidate_ids": [candidate.candidate_id for candidate in _sorted_candidates(candidates)],
+        "final_decision_id": final_decision.decision_id,
+        "policy_version": _validate_token("policy_version", policy_version),
+    }
+    return f"semantic-cache-backend-matrix:{_fingerprint_payload(payload)[:24]}"
 
 
 def select_semantic_cache_backend(

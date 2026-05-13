@@ -445,6 +445,8 @@ def test_matrix_invariants_fail_closed() -> None:
         replace(matrix, final_decision=cast(Any, "bad"))
     with pytest.raises(ValueError, match="final_decision"):
         replace(matrix, final_decision=forged_final)
+    with pytest.raises(ValueError, match="matrix_id"):
+        replace(matrix, matrix_id="matrix:forged")
     assert decision.decision == DECISION_ELIGIBLE
 
 
@@ -551,7 +553,10 @@ def test_import_guard_rejects_path_constructor_writes(tmp_path: Path) -> None:
         "target = Path('payload.bin')\n"
         "target.write_bytes(b'payload')\n"
         "annotated: Path = Path('annotated.txt')\n"
-        "annotated.write_text('payload')\n",
+        "annotated.write_text('payload')\n"
+        "Path('opened.txt').open('w').write('payload')\n"
+        "alias = Path('alias-opened.txt')\n"
+        "alias.open('wb').write(b'payload')\n",
         encoding="utf-8",
     )
 

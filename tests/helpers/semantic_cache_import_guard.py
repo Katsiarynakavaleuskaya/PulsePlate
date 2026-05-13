@@ -183,13 +183,37 @@ def _is_path_write_call(
     import_aliases: dict[str, str],
     path_aliases: set[str],
 ) -> bool:
-    if not isinstance(node, ast.Attribute) or node.attr not in {"write_text", "write_bytes"}:
+    if not isinstance(node, ast.Attribute):
         return False
-    if isinstance(node.value, ast.Call):
-        return _is_path_constructor_call(node.value, import_aliases)
-    if isinstance(node.value, ast.Name):
-        return node.value.id in path_aliases
+    if node.attr in {"write_text", "write_bytes"}:
+        return _is_path_expr(node.value, import_aliases, path_aliases)
+    if node.attr == "write" and _is_path_open_call(node.value, import_aliases, path_aliases):
+        return True
     return False
+
+
+def _is_path_expr(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if isinstance(node, ast.Call):
+        return _is_path_constructor_call(node, import_aliases)
+    if isinstance(node, ast.Name):
+        return node.id in path_aliases
+    return False
+
+
+def _is_path_open_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "open":
+        return False
+    return _is_path_expr(node.func.value, import_aliases, path_aliases)
 
 
 def _contains_forbidden_cache_segment(name: str) -> bool:
