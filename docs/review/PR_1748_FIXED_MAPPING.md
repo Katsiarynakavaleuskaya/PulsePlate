@@ -97,6 +97,11 @@ Disposition: NOT-A-BUG
 Evidence: Current branch head contains `828aee1179d74b2501ab04346fe7762d377f2208`; `git merge-base --is-ancestor 828aee1179d74b2501ab04346fe7762d377f2208 HEAD` returned `0`.
 Reason: The comment evaluated an older reviewed head; the live PR branch history contains the mapped FIXED proof commit.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236399329
+Disposition: NOT-A-BUG
+Evidence: `GH_TOKEN=$(gh auth token) ../../.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1748 --require-auth` passed locally for all resolved review threads before this thread was resolved.
+Reason: The repo-native strict disposition guard verifies the live PR branch checkout; the bot comment referenced a synthetic reviewed head that is not the merge-readiness checkout used by the canonical guard.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295291 -> f8745840153d656d0fb96042d009f03da7f10a95
 Disposition: FIXED
 Commit: f8745840153d656d0fb96042d009f03da7f10a95
