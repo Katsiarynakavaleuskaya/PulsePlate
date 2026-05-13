@@ -30,6 +30,8 @@ from core.food_sources.source_gap_audit import (
     REQUIRED_COVERAGE_DOMAINS as PR11_REQUIRED_COVERAGE_DOMAINS,
     SourceGapAudit,
     SourceGapAuditError,
+    _EXPECTED_DOMAIN_DECISIONS as PR11_EXPECTED_DOMAIN_DECISIONS,
+    _EXPECTED_SOURCE_GAP_DECISIONS as PR11_EXPECTED_SOURCE_GAP_DECISIONS,
     load_source_gap_audit,
 )
 from core.food_sources.source_onboarding import SourceOnboardingError, load_source_onboarding
@@ -72,18 +74,6 @@ EXPECTED_PR14_RECIPE_ALLOWED_ROLES = {
 }
 EXPECTED_PR14_RECIPE_REVIEW_CLASSIFICATION = "commercial_contract"
 EXPECTED_PR14_RECIPE_REVIEW_FAMILY = "recipe_corpus"
-EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS = {
-    "edamam_food_database": {
-        "decision": "adjacent_recipe_food_db_review_only",
-        "source_family": "recipe_corpus",
-        "allowed_role": "under_20_review_candidate_only",
-    },
-    "spoonacular": {
-        "decision": "deferred_recipe_experiments_only",
-        "source_family": "recipe_corpus",
-        "allowed_role": "deferred_experiment_candidate_only",
-    },
-}
 EXPECTED_PR11_SOURCE_GAP_ORDER = (
     "usda_foundation",
     "usda_branded",
@@ -182,22 +172,67 @@ _EXTRA_FORBIDDEN_NOTE_PHRASES = (
     "source use is approved",
     "source use allowed",
     "source use is allowed",
+    "source use permitted",
+    "source use is permitted",
+    "source use granted",
+    "source use is granted",
+    "source use enabled",
+    "source use is enabled",
     "api calls allowed",
     "api calls are allowed",
     "api calls approved",
     "api calls are approved",
+    "api calls permitted",
+    "api calls are permitted",
+    "api calls granted",
+    "api calls are granted",
+    "api calls enabled",
+    "api calls are enabled",
     "ingest approved",
     "ingest allowed",
     "ingest is allowed",
+    "ingest permitted",
+    "ingest is permitted",
+    "ingest granted",
+    "ingest is granted",
+    "ingest enabled",
+    "ingest is enabled",
     "runtime authority allowed",
     "runtime authority is allowed",
+    "runtime authority permitted",
+    "runtime authority is permitted",
+    "runtime authority granted",
+    "runtime authority is granted",
+    "runtime authority enabled",
+    "runtime authority is enabled",
     "runtime approved",
+    "runtime permitted",
+    "runtime granted",
+    "runtime enabled",
     "cache authority allowed",
     "cache authority is allowed",
+    "cache authority permitted",
+    "cache authority is permitted",
+    "cache authority granted",
+    "cache authority is granted",
+    "cache authority enabled",
+    "cache authority is enabled",
     "db writes allowed",
     "db writes are allowed",
+    "db writes permitted",
+    "db writes are permitted",
+    "db writes granted",
+    "db writes are granted",
+    "db writes enabled",
+    "db writes are enabled",
     "database writes allowed",
     "database writes are allowed",
+    "database writes permitted",
+    "database writes are permitted",
+    "database writes granted",
+    "database writes are granted",
+    "database writes enabled",
+    "database writes are enabled",
     "paid api use approved",
     "paid api use is approved",
     "paid api use allowed",
@@ -210,16 +245,58 @@ _EXTRA_FORBIDDEN_NOTE_PHRASES = (
     "download allowed",
     "source downloads allowed",
     "source download allowed",
+    "downloads permitted",
+    "download permitted",
+    "source downloads permitted",
+    "source download permitted",
+    "downloads granted",
+    "download granted",
+    "source downloads granted",
+    "source download granted",
+    "downloads enabled",
+    "download enabled",
+    "source downloads enabled",
+    "source download enabled",
     "scraping allowed",
     "scraping is allowed",
+    "scraping permitted",
+    "scraping is permitted",
+    "scraping granted",
+    "scraping is granted",
+    "scraping enabled",
+    "scraping is enabled",
     "redistribution allowed",
     "redistribution is allowed",
+    "redistribution permitted",
+    "redistribution is permitted",
+    "redistribution granted",
+    "redistribution is granted",
+    "redistribution enabled",
+    "redistribution is enabled",
     "public dataset claim allowed",
     "public dataset claim is allowed",
+    "public dataset claim permitted",
+    "public dataset claim is permitted",
+    "public dataset claim granted",
+    "public dataset claim is granted",
+    "public dataset claim enabled",
+    "public dataset claim is enabled",
     "automation allowed",
     "automation is allowed",
+    "automation permitted",
+    "automation is permitted",
+    "automation granted",
+    "automation is granted",
+    "automation enabled",
+    "automation is enabled",
     "product display allowed",
     "product display is allowed",
+    "product display permitted",
+    "product display is permitted",
+    "product display granted",
+    "product display is granted",
+    "product display enabled",
+    "product display is enabled",
 )
 
 
@@ -249,6 +326,15 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
                 f"{variant} allowed",
                 f"{variant} is allowed",
                 f"allowed {variant}",
+                f"{variant} permitted",
+                f"{variant} is permitted",
+                f"permitted {variant}",
+                f"{variant} granted",
+                f"{variant} is granted",
+                f"granted {variant}",
+                f"{variant} enabled",
+                f"{variant} is enabled",
+                f"enabled {variant}",
             ):
                 if phrase not in seen:
                     seen.add(phrase)
@@ -458,10 +544,23 @@ def _require_safe_notes(value: str, context: str) -> str:
 
 
 def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> bool:
-    if not (phrase.startswith("approve ") or phrase.startswith("approves ")):
+    guarded_terms = (
+        "approve",
+        "approves",
+        "approved",
+        "allow",
+        "allowed",
+        "permitted",
+        "granted",
+        "enabled",
+    )
+    if not any(term in phrase for term in guarded_terms):
         return False
-    prefix = normalized[:start]
-    return any(prefix.endswith(negation) for negation in _NEGATED_APPROVAL_PREFIXES)
+    prefix_tail = normalized[max(0, start - 72) : start]
+    segment_start = max(prefix_tail.rfind(separator) for separator in (".", ";", ":", "?", "!"))
+    if segment_start >= 0:
+        prefix_tail = prefix_tail[segment_start + 1 :]
+    return any(negation in prefix_tail for negation in _NEGATED_APPROVAL_PREFIXES)
 
 
 def _coverage_domain_by_name(coverage: SourceGapAudit, context: str) -> dict[str, object]:
@@ -604,11 +703,20 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
     if preference_domain is None:
         raise _mapping_error(context, "PR11 must include preference_menu_planning")
     for domain in coverage.coverage_domains:
+        expected = PR11_EXPECTED_DOMAIN_DECISIONS[domain.domain]
+        for field_name, expected_value in expected.items():
+            if getattr(domain, field_name) != expected_value:
+                raise _mapping_error(
+                    context,
+                    f"PR11 {domain.domain} coverage_domains {field_name} must be "
+                    f"{expected_value}",
+                )
         if domain.approved_ingest or domain.approved_runtime_authority:
             raise _mapping_error(
                 context,
                 f"PR11 {domain.domain} coverage_domains must not approve ingest/runtime authority",
             )
+        _require_safe_notes(domain.notes, f"{context}.PR11.{domain.domain}.notes")
     if (
         getattr(preference_domain, "coverage_decision")
         != EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION
@@ -670,7 +778,7 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                 "runtime, API, scraping, or paid source use",
             )
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
-    for source, expected in EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS.items():
+    for source, expected in PR11_EXPECTED_SOURCE_GAP_DECISIONS.items():
         source_gap = source_gap_decisions.get(source)
         if source_gap is None:
             raise _mapping_error(context, f"PR11 source_gap_decisions must include {source}")

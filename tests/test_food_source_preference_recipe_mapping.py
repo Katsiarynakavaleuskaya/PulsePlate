@@ -446,6 +446,51 @@ def test_preference_recipe_mapping_rechecks_all_pr11_coverage_domain_flags() -> 
 @pytest.mark.parametrize(
     ("field_name", "bad_value"),
     (
+        ("coverage_decision", "approved_source"),
+        ("gap_status", "runtime_ready"),
+        ("authority_decision", "approved"),
+        ("next_action", "runtime_ingest"),
+    ),
+)
+def test_preference_recipe_mapping_rechecks_all_pr11_coverage_domain_decisions(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_domain_decision(
+        "restaurant_chain_menus",
+        **{field_name: bad_value},
+    )
+
+    with pytest.raises(
+        PreferenceRecipeMappingError,
+        match=f"PR11 restaurant_chain_menus coverage_domains {field_name}",
+    ):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rechecks_all_pr11_coverage_domain_notes() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_domain_decision(
+        "restaurant_chain_menus",
+        notes="source use approved",
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
         ("decision", "approved_recipe_source"),
         ("source_family", "commercial_api"),
         ("allowed_role", "source_authority"),
@@ -475,6 +520,35 @@ def test_preference_recipe_mapping_rechecks_pr11_recipe_source_gap_rows_for_hand
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("decision", "approved_current_source"),
+        ("source_family", "approved_api"),
+        ("allowed_role", "nutrition_authority"),
+    ),
+)
+def test_preference_recipe_mapping_rechecks_all_pr11_source_gap_decision_fields(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_source_gap_decision(
+        "nutritionix",
+        **{field_name: bad_value},
+    )
+
+    with pytest.raises(
+        PreferenceRecipeMappingError,
+        match=f"PR11 nutritionix source_gap_decisions {field_name}",
+    ):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
 def test_preference_recipe_mapping_rechecks_all_pr11_source_gap_flags() -> None:
     payload = _governance_payload()
     coverage_payload = _coverage_with_source_gap_decision(
@@ -486,6 +560,21 @@ def test_preference_recipe_mapping_rechecks_all_pr11_source_gap_flags() -> None:
         PreferenceRecipeMappingError,
         match="PR11 nutritionix source_gap_decisions",
     ):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rechecks_all_pr11_source_gap_notes() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_source_gap_decision(
+        "nutritionix",
+        notes="api calls are allowed",
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
         parse_preference_recipe_mapping_governance(
             payload,
             coverage=coverage_payload,
@@ -843,6 +932,11 @@ def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_hand
         "redistribution allowed",
         "public dataset claim is allowed",
         "automation allowed",
+        "api calls permitted",
+        "source use is permitted",
+        "ingest granted",
+        "runtime authority granted",
+        "api calls enabled",
     ),
 )
 def test_preference_recipe_mapping_rejects_notes_that_contradict_policy(note: str) -> None:
