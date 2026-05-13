@@ -100,11 +100,10 @@ Commit: 50064a367
 Evidence: scripts/ci/check_current_head_pr_checks.py expands `IOS_SURFACE_PREFIXES` to include workflow/action files; tests/test_current_head_pr_checks.py covers iOS fallback blocking for `.github/workflows/ci.yml` and `.github/actions/python-setup/action.yml`.
 Reason: Attached iOS CI jobs now remain fallback-blocking when workflow/action edits attach the iOS lane.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186050 -> 50064a367
-Disposition: FIXED
-Commit: 50064a367
-Evidence: scripts/ci/check_current_head_pr_checks.py includes `.github/workflows/accessibility.yml` in `FRONTEND_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers `Accessibility Tests` fallback blocking for that workflow file.
-Reason: Accessibility workflow edits now attach the frontend/accessibility fallback lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186050
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md classifies accessibility as soft/advisory unless branch protection requires it; scripts/ci/check_current_head_pr_checks.py keeps `Accessibility Tests` out of fallback-blocking workflow names; tests/test_current_head_pr_checks.py covers the accessibility workflow as advisory in fallback mode.
+Reason: Required-check fallback cannot prove branch-protection attachment for this soft lane, so keeping Accessibility Tests advisory preserves the orchestration contract.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230186053
 Disposition: NOT-A-BUG
@@ -149,6 +148,16 @@ Disposition: FIXED
 Commit: b06d905e6
 Evidence: scripts/ci/check_current_head_pr_checks.py fetches PR changed paths only when required-check metadata is unavailable; tests/test_current_head_pr_checks.py covers the required-metadata path without fetching changed paths.
 Reason: Required-check mode and draft skip no longer depend on unnecessary PR-files permissions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232015836
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1739_FIXED_MAPPING.md now records `discussion_r3230186050` as NOT-A-BUG with current accessibility advisory evidence.
+Reason: The stale FIXED proof was corrected before merge-readiness; no production code change is required for this mapping hygiene finding.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232015840
+Disposition: NOT-A-BUG
+Evidence: PR head is `05ec7c369d53a1cd46f3d227b5a5266db0a5380a`; `git merge-base --is-ancestor` returns `0` for `b4f7fd390`, `4be17a1e6`, `50064a367`, and `b06d905e6` against current local/remote head.
+Reason: The listed implementing commits are ancestors of the live PR head; no remapping to an unrelated synthetic reviewed SHA is needed.
 
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
