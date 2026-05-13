@@ -30,6 +30,7 @@
 - `c39c09537bec1f553bd621cc07d6168111f172d6` - `docs(review): add PR 1741 not-a-bug reason`
 - `018e9c580c8591de469d66cc62775bc6cf2e22be` - `docs(review): refresh PR 1741 mapping evidence`
 - `0284125f37027a7d317d58dbc1f1f20a4dfffdb2` - `docs(review): record PR 1741 final pass evidence`
+- `0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3` - `docs(review): record current-head mapping proof`
 
 ## Discussion Thread Pass
 
@@ -73,6 +74,11 @@ Disposition: NOT-A-BUG
 Evidence: Local worktree proof at head `c39c09537bec1f553bd621cc07d6168111f172d6`: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD`, `git merge-base --is-ancestor 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e HEAD`, and `git merge-base --is-ancestor 0b4ab97974fffaa1310109ea801e425c674ba5e7 HEAD` each returned `0`.
 Reason: The current local PR branch contains the mapped fix SHAs as ancestors; the review concern is not reproducible in this worktree.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232982587
+
+Disposition: FIXED
+Commit: 0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3
+Evidence: `docs/review/PR_1741_FIXED_MAPPING.md` now records current-head containment proof for root-fix commits, and the mapped root-fix SHAs are ancestors of the reviewed PR head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233130590 -> 0ba2ba8f58e7d408d49fcdca483a52d7a11df2f3
 
 ## Pre-Open Premortem Findings
 
