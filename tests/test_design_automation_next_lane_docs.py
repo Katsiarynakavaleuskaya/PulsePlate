@@ -76,14 +76,25 @@ def _changed_paths_for_current_worktree() -> list[str]:
     if staged:
         return staged
 
+    def run_diff(refspec: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [git_bin, "diff", "--name-only", refspec],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+
     branch = subprocess.run(
-        [git_bin, "diff", "--name-only", "origin/main...HEAD"],
+        [git_bin, "rev-parse", "--verify", "--quiet", "origin/main"],
         cwd=REPO_ROOT,
         check=False,
         text=True,
         capture_output=True,
     )
-    if branch.returncode != 0:
+    if branch.returncode == 0:
+        branch = run_diff("origin/main...HEAD")
+    else:
         subprocess.run(
             [git_bin, "fetch", "--no-tags", "--prune", "origin", "main:refs/remotes/origin/main"],
             cwd=REPO_ROOT,
@@ -91,13 +102,7 @@ def _changed_paths_for_current_worktree() -> list[str]:
             text=True,
             capture_output=True,
         )
-        branch = subprocess.run(
-            [git_bin, "diff", "--name-only", "origin/main...HEAD"],
-            cwd=REPO_ROOT,
-            check=False,
-            text=True,
-            capture_output=True,
-        )
+        branch = run_diff("origin/main...HEAD")
     if branch.returncode != 0 and "no merge base" in (branch.stderr or branch.stdout):
         subprocess.run(
             [git_bin, "fetch", "--no-tags", "--prune", "--unshallow", "origin"],
@@ -106,13 +111,19 @@ def _changed_paths_for_current_worktree() -> list[str]:
             text=True,
             capture_output=True,
         )
-        branch = subprocess.run(
-            [git_bin, "diff", "--name-only", "origin/main...HEAD"],
+        branch = run_diff("origin/main...HEAD")
+    if branch.returncode != 0:
+        parents = subprocess.run(
+            [git_bin, "rev-list", "--parents", "-n", "1", "HEAD"],
             cwd=REPO_ROOT,
             check=False,
             text=True,
             capture_output=True,
         )
+        parent_parts = parents.stdout.split()
+        if parents.returncode == 0 and len(parent_parts) >= 2:
+            base_parent = parent_parts[1]
+            branch = run_diff(f"{base_parent}..HEAD")
     if branch.returncode != 0:
         detail = (branch.stderr or branch.stdout).strip()
         pytest.fail(
