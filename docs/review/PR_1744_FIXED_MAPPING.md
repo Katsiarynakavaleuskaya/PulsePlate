@@ -124,6 +124,58 @@ section `Premortem Risk Review`; `docs/roadmap/BACKLOG_LEDGER.md` DoD for
 Reason: PR #1744 changes no runtime copy or product behavior. Each runtime/code
 follow-up must include wellness-only tests and guard evidence before readiness.
 
+## Post-Open Role Finding Closure
+
+Role: `qa-engineer-agent`
+
+Disposition: NOT-A-BUG
+
+Evidence: PR diff remains docs-only, PR-0 scope blocks runtime/cache/API
+activation, semantic-cache gate language is fail-closed, and the packet/backlog
+carry premortem closure requirements.
+
+Reason: QA found no actionable file-level issue requiring a code, docs, test, or
+governance fix before readiness.
+
+Role: `bug-hunter`
+
+Finding: Completed prerequisites were mixed into final merge-readiness
+checkboxes, making the artifact state ambiguous.
+
+Disposition: FIXED
+
+Commit: f388d3876
+
+Evidence: `docs/review/PR_1744_FIXED_MAPPING.md` sections `Completed Evidence`
+and `Merge Readiness`.
+
+Reason: Completed governance evidence is now separate from final readiness gates.
+
+Role: `bug-hunter`
+
+Finding: Packet status still described a pre-open packet after PR #1744 was open
+and non-draft.
+
+Disposition: FIXED
+
+Commit: f388d3876
+
+Evidence: `docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md`
+front matter.
+
+Reason: Packet status now reflects post-open review state.
+
+Role: `security-auditor` / `codex-security`
+
+Disposition: NOT-A-BUG
+
+Evidence: `git diff --check origin/main...HEAD` passed; targeted diff scan of
+changed files found no secrets, local user paths, placeholder `PR_0000`, runtime
+activation, semantic-cache enablement, or medical/therapy product behavior.
+
+Reason: PR #1744 is docs-only governance. The remaining philosophy/wellness
+terms are risk statements and guard requirements, not shipped runtime behavior.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_1744_FIXED_MAPPING.md` - PASS.
@@ -131,6 +183,10 @@ follow-up must include wellness-only tests and guard evidence before readiness.
 - `make validate-changed VENV_PYTHON=.venv/bin/python` - PASS; no Python files changed.
 - `pre-commit run --all-files` - PASS.
 - `$ROOT_REPO/.venv/bin/python -m pytest -q tests/test_semantic_cache_gate.py tests/test_semantic_cache_rollout_gate.py tests/test_semantic_cache_bounded_insight_experiment_contract.py tests/test_semantic_cache_observability_contract.py tests/test_semantic_cache_scaffold_contract.py` - PASS.
+- `git diff --check origin/main...HEAD` - PASS.
+- Targeted `rg` scan for secrets, local paths, placeholder mapping paths,
+  runtime activation, semantic-cache enablement, and medical/therapy product
+  behavior - PASS; no reportable security candidate in the changed PR files.
 - Push pre-push hooks - PASS.
 
 Bare `python3 -m pytest ...` failed before collection in the isolated worktree
