@@ -25,7 +25,7 @@ actionable comments, this artifact must be updated before readiness.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments at artifact creation time.
+- No actionable review comments
 
 ## Premortem Finding Closure
 
