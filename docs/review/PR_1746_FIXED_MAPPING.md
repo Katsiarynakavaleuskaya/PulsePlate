@@ -107,7 +107,7 @@ Evidence: `## Discussion Thread Pass`, `## Coordinator / Premortem / Agent Findi
 - `.venv/bin/python scripts/orchestration/check_agent_consistency.py` - PASS
 - `.venv/bin/python -m pytest -q tests/test_design_agent_workflow_docs.py` - PASS (`4 passed`)
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py -k kimi` - PASS (`9 passed`)
-- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS (`No Python files changed`)
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS (`Running tests: tests/test_design_agent_workflow_docs.py`; `4 passed`)
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS after black hook formatting
 - `git push` pre-push hooks - PASS, including `backend tests (pytest, pre-push)` and `bandit (pre-push, full repo)`
 
