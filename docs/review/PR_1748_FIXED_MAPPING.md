@@ -14,6 +14,8 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [x] Initial discussion-thread pass completed at PR open.
 - [x] No human, CodeRabbit, Sourcery, or Cubic actionable comments were present when this mapping was created.
 - [ ] Re-run discussion-thread pass after each new review cycle before merge readiness.
