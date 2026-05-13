@@ -23,6 +23,7 @@
   - `9e42c202155683886b49ee381c3f1b15b67a0955` - promotion evidence and diagnostic validation.
   - `527ea55bce9345189a09403f13dc310c45d74a63` - promotion evidence mapping update.
   - `cc7a28debe49cc228abacb8196c8c33c63e27dbe` - command diagnostic and mutable-surface containment hardening.
+  - `98740bebd04302f0cd552558d09df60af8eeb48b` - fail-closed evidence drift validation.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -74,6 +75,12 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236650625 -> cc7a28debe49cc228abacb8196c8c33c63e27dbe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284441229 -> cc7a28debe49cc228abacb8196c8c33c63e27dbe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236651151 -> cc7a28debe49cc228abacb8196c8c33c63e27dbe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284603279 -> 98740bebd04302f0cd552558d09df60af8eeb48b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793354 -> 98740bebd04302f0cd552558d09df60af8eeb48b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284603849 -> 98740bebd04302f0cd552558d09df60af8eeb48b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793887 -> 98740bebd04302f0cd552558d09df60af8eeb48b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793892 -> 98740bebd04302f0cd552558d09df60af8eeb48b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236793897 -> 98740bebd04302f0cd552558d09df60af8eeb48b
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -115,11 +122,15 @@ Disposition: FIXED
 Commit: cc7a28debe49cc228abacb8196c8c33c63e27dbe
 Evidence: `scripts/orchestration/experiment_notify.py` now redacts JSON load failures without echoing unsafe paths, skips multiline shell environment assignments before rendering oracle names, redacts credential-path command executables, and prevents file-like mutable surfaces from matching nested paths. `tests/test_experiment_notify.py` covers each regression.
 
+Disposition: FIXED
+Commit: 98740bebd04302f0cd552558d09df60af8eeb48b
+Evidence: `scripts/orchestration/experiment_notify.py` now allows nested mutable paths only for explicit or existing directory surfaces, rejects accepted results with non-null `failure_class`, requires rejected result oracle evidence to preserve packet prefix order, and redacts `GITHUB_STEP_SUMMARY` write failures. `tests/test_experiment_notify.py` covers each regression.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 77 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 81 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
