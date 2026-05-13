@@ -89,6 +89,12 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1744_FIXED_MAPPING.md:72
 Reason: Cubic parent review summarizes the three stale duplicate findings mapped above; current files already contain the corrected artifact/path state.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4281015649 -> 53490258b
+Disposition: FIXED
+Commit: 53490258b
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:164
+Reason: Packet post-open instructions and validation examples now use the concrete PR #1744 mapping artifact and PR number.
+
 ## Premortem Finding Closure
 
 Finding: The epic silently turns design PDFs into runtime truth.
