@@ -101,6 +101,24 @@ Commit: be1a6bc65
 Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:124
 Reason: The roadmap staging wording now uses readable `phase 12`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233841577 -> adf81a371
+Disposition: FIXED
+Commit: adf81a371
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:39
+Reason: Mapping proof text now points to stable evidence sections instead of relying on stale self-line anchors alone.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233841584 -> adf81a371
+Disposition: FIXED
+Commit: adf81a371
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:366
+Reason: The strict merge-check example now exports `GH_TOKEN` before the authenticated wrapper.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233841588 -> adf81a371
+Disposition: FIXED
+Commit: adf81a371
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:311
+Reason: The deferred premortem finding now includes the concrete backlog ledger anchor.
+
 ## Premortem Finding Closure
 
 Finding: The epic silently turns design PDFs into runtime truth.
