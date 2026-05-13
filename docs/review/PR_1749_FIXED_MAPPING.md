@@ -27,6 +27,7 @@
   - `b5bf50f9f60204feb476ce2ca810fdb773d225df` - typed surface containment follow-up.
   - `261085d5e2fc8d760dcc743fc0adeffadcaa07c5` - runner-aligned notification evidence validation.
   - `0b7790f853562deb0a58ddd934085636d990d7be` - sanitized validation diagnostics and accepted/rejected state checks.
+  - `367504ae685a97c0cd410b2acde0bfc115a13b5a` - forged evidence rejection hardening.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -93,6 +94,11 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937877 -> 0b7790f853562deb0a58ddd934085636d990d7be
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937880 -> 0b7790f853562deb0a58ddd934085636d990d7be
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236937894 -> 0b7790f853562deb0a58ddd934085636d990d7be
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284815927 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984651 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984659 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984667 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984673 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -146,11 +152,15 @@ Disposition: FIXED
 Commit: 0b7790f853562deb0a58ddd934085636d990d7be
 Evidence: `scripts/orchestration/experiment_notify.py` now sanitizes shared-validator `ValueError` diagnostics, allows `infra_flake` rejected results after passing oracle prefixes, and rejects accepted results with dirty shared-tree evidence before notification rendering. `tests/test_experiment_notify.py` covers each regression.
 
+Disposition: FIXED
+Commit: 367504ae685a97c0cd410b2acde0bfc115a13b5a
+Evidence: `scripts/orchestration/experiment_notify.py` now rejects traversal components before mutable-surface matching, requires terminal oracle evidence for oracle-failure rejected statuses, and redacts sensitive bare oracle command names. `tests/test_experiment_notify.py` covers each regression.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 87 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 90 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
