@@ -54,8 +54,7 @@ def test_design_agent_workflow_required_sections() -> None:
 def test_design_pr_templates_have_required_governance_sections() -> None:
     for path in [DOC_TEMPLATE, GITHUB_TEMPLATE]:
         text = _read(path)
-        source_of_truth = _section(text, "## Source of truth")
-        for heading in [
+        headings = [
             "## Summary",
             "## Goal",
             "## Business reason",
@@ -74,9 +73,11 @@ def test_design_pr_templates_have_required_governance_sections() -> None:
             "## Merge Readiness",
             "## Rollback",
             "## DoD",
-        ]:
+        ]
+        for heading in headings:
             assert heading in text
 
+        source_of_truth = _section(text, "## Source of truth")
         assert ".venv/bin/python" in text
         assert "DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python" in text
         assert "Mapping is evidence after fix or decision; mapping is not the fix." in text
