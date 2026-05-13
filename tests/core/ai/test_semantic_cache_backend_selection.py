@@ -556,11 +556,22 @@ def test_import_guard_rejects_path_constructor_writes(tmp_path: Path) -> None:
         "annotated.write_text('payload')\n"
         "Path('opened.txt').open('w').write('payload')\n"
         "alias = Path('alias-opened.txt')\n"
-        "alias.open('wb').write(b'payload')\n"
+        "alias.open('wb').write(b'payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_path_open_context_manager_writes(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_context.py"
+    source.write_text(
+        "from pathlib import Path\n"
         "with Path('context.txt').open('w') as handle:\n"
         "    handle.write('payload')\n",
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="Path.write"):
+    with pytest.raises(AssertionError, match="Path.open.write"):
         assert_no_forbidden_semantic_cache_calls(source)
