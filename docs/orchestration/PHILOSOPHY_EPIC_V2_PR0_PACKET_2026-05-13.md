@@ -121,7 +121,7 @@ Candidate scope:
 
 ### Later Runtime Rollout PRs
 
-The full-roadmap PDF proposes rollout activation, FitChef, phase12 staging,
+The full-roadmap PDF proposes rollout activation, FitChef, phase 12 staging,
 CBT, and production rollout PRs. Those remain follow-ups until PR-0 and the
 first safety/gate reconciliation PR establish the active order.
 
