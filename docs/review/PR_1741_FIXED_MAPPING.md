@@ -5,9 +5,8 @@
 - Branch: `codex/kimi-prototype-intake-modernization-bridge`
 - Title: `docs(design): add Kimi prototype intake and modernization bridge protocol`
 - Mapping opened at head SHA: `c05d7c9583d1651b367988f9279681f4a0d1485e`
-- Latest fix commit SHA: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
-- Agent Run Summary fix SHA: `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e`
-- Scorecard decision fix SHA: `0b4ab97974fffaa1310109ea801e425c674ba5e7`
+- Latest evidence refresh head before this mapping update: `018e9c580c8591de469d66cc62775bc6cf2e22be`
+- Review fixes: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`, `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e`, `0b4ab97974fffaa1310109ea801e425c674ba5e7`
 - Scope: docs/governance Kimi prototype intake bridge; no runtime, token, generated mirror, Figma/Canva/Kimi write, screenshot, binary, deploy, backend, OpenAPI, auth, billing, StoreKit, HealthKit, or Cloudflare changes.
 
 ## Coordinator Packet
@@ -26,6 +25,9 @@
 - `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e` - `docs(design): require agent run summary evidence`
 - `7cf6432f1ae5009ca3fd544b16dcdb9bdacd25ab` - `docs(review): map agent summary evidence fix`
 - `0b4ab97974fffaa1310109ea801e425c674ba5e7` - `docs(design): require Kimi scorecard decision`
+- `81b6f3ce3985c2c8c1fd4d548acbc65910bf1b6e` - `docs(review): map Kimi scorecard review findings`
+- `c39c09537bec1f553bd621cc07d6168111f172d6` - `docs(review): add PR 1741 not-a-bug reason`
+- `018e9c580c8591de469d66cc62775bc6cf2e22be` - `docs(review): refresh PR 1741 mapping evidence`
 
 ## Discussion Thread Pass
 
@@ -89,6 +91,12 @@ Reason: The current local PR branch contains the mapped fix SHAs as ancestors; t
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_repo_policy_guards.py` - PASS after post-open fixes, 44 passed.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS after post-open fixes.
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS after post-open fixes.
+- `.venv/bin/python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1741` - PASS after review mapping updates.
+- `.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1741` - PASS after resolving all seven mapped review threads.
+- Codex Security plugin diff scan - PASS, no reportable findings; changed-path scan found docs/tests/governance only, forbidden runtime/binary/generated path scan returned no matches, and security keyword scan showed intended prohibitions/gates only.
+- `pulseplate-premortem-risk-review` post-bot rerun - PASS/proceed with changes already applied; fixed Agent Run Summary optionality, scorecard promotion gate, and mapping evidence drift.
+- `pulseplate-pr-review` dry-run - PASS with one advisory large-diff planning note; role chain plus targeted gates cover the docs/governance diff risk.
+- Agent Run Summary local artifact - PASS, `artifacts/agent_runs/pr1741__agent-coordinator__design.json` (local, gitignored), decision `PASS`.
 - `python3 scripts/design/generate_design_md.py --check` - PASS.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make design-guard` - PASS.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS.
@@ -114,11 +122,11 @@ Reason: The current local PR branch contains the mapped fix SHAs as ancestors; t
 ## Merge Readiness
 
 - [ ] Required checks pass on current head.
-- [ ] No unresolved review threads.
+- [x] No unresolved review threads.
 - [ ] No actionable bot comments.
-- [ ] CodeRabbit PASS / no-actionables.
-- [ ] Sourcery PASS / no-actionables.
-- [ ] Cubic PASS / no-actionables.
+- [x] CodeRabbit PASS / no-actionables.
+- [x] Sourcery PASS / no-actionables.
+- [x] Cubic PASS / no-actionables.
 - [ ] Mandatory wait-window completed.
-- [ ] Agent Run Summary evidence recorded.
+- [x] Agent Run Summary evidence recorded.
 - [ ] Strict merge-readiness wrapper passed.
