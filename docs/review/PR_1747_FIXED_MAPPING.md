@@ -176,7 +176,42 @@ diff.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: `3c83a498b`
+Evidence: `docs/roadmap/BACKLOG_LEDGER.md` splits the PR15 status into a readable active-lane line plus merged-PR summary line.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281710415
+
+Disposition: FIXED
+Commit: `de3fdcf41`
+Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_source_preference_recipe_mapping.py` reject approval/allowed note variants for source use, API calls, ingest, runtime, paid API/source use, downloads, scraping, redistribution, public dataset claims, automation, DB writes, cache authority, and product display.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234315912
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234605982
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281710541
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282056114
+
+Disposition: FIXED
+Commit: `de3fdcf41`
+Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` uses portable `$VENV_PYTHON` forms for validation evidence instead of machine-specific absolute paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234407783
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281820759
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281925247
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282020905
+
+Disposition: FIXED
+Commit: `30a3a41fa`
+Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` distinguishes local CodeRabbit CLI dispositions from GitHub review-thread mappings; this section now records concrete bot review/comment URLs instead of the no-actionable marker.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234420143
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281837137
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery review body reports rate limiting only; it contains no actionable code or governance finding for this PR.
+Reason: External service quota notice does not require a code change.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281679198
+
+Disposition: NOT-A-BUG
+Evidence: Cubic review body says `No issues found` across the original 7 files.
+Reason: No actionable finding to fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281713734
 
 ## Merge Readiness
 
