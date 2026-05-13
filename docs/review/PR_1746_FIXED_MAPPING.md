@@ -52,6 +52,10 @@ Fix the main `test-main` design-governance failure by aligning the Kimi evidence
 - CodeRabbit review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> `fa4693fbb`
   - Disposition: FIXED
   - Evidence: this artifact now includes `## Discussion Thread Pass` with required checklist lines.
+- CodeRabbit summary warning https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#issuecomment-4440935378
+  - Disposition: NOT-A-BUG
+  - Evidence: repo gates for this docs/test lane do not require docstrings on test helper functions.
+  - Evidence: `pre-commit run --all-files`, focused pytest, `make validate-changed`, and pre-push hooks passed.
 - Sourcery review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281517715
   - Disposition: NOT-A-BUG
   - Evidence: Sourcery reported a weekly rate limit, not a code or governance defect.
