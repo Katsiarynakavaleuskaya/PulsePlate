@@ -54,6 +54,12 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: CI job `75859256675` failed at `tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only` with unexpected paths `.github/workflows/ci.yml` and `tests/test_ci_workflow_pr_size_governance_contract.py`.
   - Evidence: `tests/test_design_automation_next_lane_docs.py` now prefers the GitHub event `pull_request.base.sha..pull_request.head.sha` diff before local fallback bases.
   - Evidence: `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py` passes.
+- Current-head CI finding: FIXED by `ebff66abf7bf6200baf7862abf3573294ec068c5`
+  - Finding: latest `test-main (3.11, 60)` passed all tests but failed the hard 97% coverage threshold at `96.99%`.
+  - Evidence: CI job `75863761961` reported `13112 passed, 26 skipped`, then `FAIL Required test coverage of 97% not reached. Total coverage: 96.99%`.
+  - Evidence: the coverage report showed the existing conservative BMR fallback branch in `legacy_app.py:3868-3881` uncovered.
+  - Evidence: `tests/test_app_extended_coverage.py` now covers the runtime-patched BMR/TDEE fallback through the API without changing runtime code or lowering the threshold.
+  - Evidence: focused local pytest for the new coverage test and the Kimi/workflow guard suite passes; full pre-commit passes.
 
 ## Fixed in Commit Mapping
 
@@ -86,6 +92,11 @@ Evidence: `tests/test_design_automation_next_lane_docs.py` now reads the GitHub 
 Disposition: FIXED
 Commit: 3257b86dc6391820d6234c1edf7787b9701ee4e8
 Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches and diffs the actual GitHub PR event `pull_request.base.sha..pull_request.head.sha` before synthetic merge/local fallback bases, so the Kimi docs-only guard only activates for a real Kimi protocol diff. Focused local pytest passes for `test_kimi_protocol_current_diff_stays_docs_only` plus the workflow contract suite.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25821503783/job/75863761961 -> ebff66abf7bf6200baf7862abf3573294ec068c5
+Disposition: FIXED
+Commit: ebff66abf7bf6200baf7862abf3573294ec068c5
+Evidence: `tests/test_app_extended_coverage.py` adds deterministic API coverage for the existing runtime-patched premium BMR/TDEE fallback branch that CI reported uncovered; focused local pytest and full pre-commit pass without weakening coverage thresholds.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
@@ -187,8 +198,12 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after PR head diff guard fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after PR head diff guard fix
 - `PATH=../../.venv/bin:$PATH git commit -m "test(ci): use PR head diff for Kimi guard"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response` - PASS after 3.11 coverage fix
+- `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after 3.11 coverage fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.11 coverage fix
+- `PATH=../../.venv/bin:$PATH git commit -m "test(ci): cover premium bmr fallback branch"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after PR head diff guard fix.
+- Current-head PR checks are pending after 3.11 coverage fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
