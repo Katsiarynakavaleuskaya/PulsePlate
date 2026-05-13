@@ -9,6 +9,8 @@
   - `7de92822f` — merge current `origin/main` after #1738/#1740/#1739 recovery without rewriting PR history.
   - `42cb54728` — fix full-ancestry supersession replay, dependency-order evidence, and indexed successor lookup.
   - `3dee930fc` — cover replay supersession fail-closed and non-promoting existing-entry branches for diff coverage.
+  - `8db30a3cf` — fail closed on unknown supersession ancestor references.
+  - `1c81daf00` — keep current-head merge-readiness checkbox open until final current-head pass.
 
 ## Discussion Thread Pass
 
@@ -54,6 +56,21 @@ Disposition: NOT-A-BUG
 Evidence: Repo Phase2 body gate is authoritative for PR template compliance; this PR body already passed `PR Body Phase2 gates`. Test functions are not required to carry docstrings by repo policy, and production helper docstrings are present in `core/evidence/replay.py`.
 Reason: The CodeRabbit docstring/template warning is advisory under repo policy unless Phase2/body or required checks fail.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1734#discussion_r3233099749 -> 8db30a3cf
+Disposition: FIXED
+Commit: 8db30a3cf
+Evidence: `core/evidence/replay.py` validates every existing supersede reference against known same-scope ledger entry ids before successor selection; `tests/core/evidence/test_replay.py` covers `test_existing_supersede_with_unknown_ancestor_fails_closed`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1734#discussion_r3233099766 -> 1c81daf00
+Disposition: FIXED
+Commit: 1c81daf00
+Evidence: `docs/review/PR_1734_FIXED_MAPPING.md` keeps the current-head merge-readiness checkbox unchecked until the final current-head pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1734#pullrequestreview-4280292651 -> 8db30a3cf
+Disposition: FIXED
+Commit: 8db30a3cf
+Evidence: The CodeRabbit review actionables are dispositioned by `discussion_r3233099749` and `discussion_r3233099766`; code hardening landed in `8db30a3cf`, and readiness-checkbox hygiene landed in `1c81daf00`.
+
 ## Premortem Risk Review
 
 - Decision: `proceed with changes`.
@@ -65,6 +82,8 @@ Reason: The CodeRabbit docstring/template warning is advisory under repo policy 
   - Disposition: FIXED via `42cb54728`, with exact dependency-order assertions.
 - Diff-coverage blind spot: newly added fail-closed branches stay unexecuted in CI even though focused happy-path tests pass.
   - Disposition: FIXED via `3dee930fc`, with disconnected successor, parallel successor, and existing non-promoting entry tests.
+- Unknown supersede references: malformed ancestry can appear satisfied when it includes the active id plus a missing id.
+  - Disposition: FIXED via `8db30a3cf`, with explicit known-id validation before successor selection.
 
 ## Merge Readiness
 
@@ -85,7 +104,7 @@ Reason: The CodeRabbit docstring/template warning is advisory under repo policy 
 - `python3 scripts/orchestration/pr_review_report.py --pr 1734 --repo Katsiarynakavaleuskaya/PulsePlate` — PASS
 - `make validate-changed` — PASS
 - `./.venv/bin/python -m pytest tests/core/evidence/test_replay.py -q` — PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`34 passed`)
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/core/evidence/test_replay.py tests/test_repo_policy_guards.py` — PASS (`35 passed`)
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m ruff check core/evidence/replay.py tests/core/evidence/test_replay.py` — PASS
 - `./.venv/bin/python -m bandit -r core/evidence scripts/orchestration -ll` — PASS (no security issues)
 - `./.venv/bin/pip-audit -r requirements.txt` — FAIL expected baseline: existing `urllib3==2.6.3` CVEs (`CVE-2026-44431`, `CVE-2026-44432`) outside PR scope.
