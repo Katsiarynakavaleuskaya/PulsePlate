@@ -7,6 +7,7 @@ Title: `fix(food-data): restore PR15 CI coverage`
 Implementing commits:
 - `e7a6bbd13ef1f6865dcc85fd57caec9d466dada7` - restore PR15 CI coverage and close xdist/notes-guard risk.
 - `147f6c9918e5a713f7499968937866f15d920544` - fix contrastive negation after bot review.
+- `77f0583a3c6142f134bc8061af70208893e39f8d` - harden review-mapping evidence.
 
 ## Scope
 
@@ -84,15 +85,24 @@ Evidence:
 - `tests/test_food_source_preference_recipe_mapping.py` covers safe
   `but no ... allowed` phrasing plus unsafe `but source use allowed`.
 
+### Bot review: mapping artifact evidence portability
+
+Disposition: FIXED
+Commit: 77f0583a3c6142f134bc8061af70208893e39f8d
+Evidence:
+- This artifact uses `$VENV_PYTHON` instead of local absolute interpreter paths
+  in validation evidence.
+- This artifact points contrastive-negation mappings at the valid current-branch
+  commit `147f6c9918e5a713f7499968937866f15d920544`.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable GitHub review-thread URLs were present when this initial
-post-open mapping artifact was added. New bot or human findings must replace
-the no-actionable marker below with exact `FIXED`, `NOT-A-BUG`, or `DEFERRED`
-thread dispositions before merge readiness is claimed.
+Bot findings are mapped below. New bot or human findings must be added with
+exact `FIXED`, `NOT-A-BUG`, or `DEFERRED` thread dispositions before merge
+readiness is claimed.
 
 ## Fixed in Commit Mapping
 
@@ -101,6 +111,12 @@ Commit: 147f6c9918e5a713f7499968937866f15d920544
 Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_source_preference_recipe_mapping.py` fix and cover contrastive negation.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237633346 -> 147f6c9918e5a713f7499968937866f15d920544
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237635615 -> 147f6c9918e5a713f7499968937866f15d920544
+Disposition: FIXED
+Commit: 77f0583a3c6142f134bc8061af70208893e39f8d
+Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` uses portable `$VENV_PYTHON`, removes stale no-actionable wording, and maps valid current-branch SHAs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237656706 -> 77f0583a3c6142f134bc8061af70208893e39f8d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659595 -> 77f0583a3c6142f134bc8061af70208893e39f8d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659599 -> 77f0583a3c6142f134bc8061af70208893e39f8d
 
 ## Local Validation Evidence
 
