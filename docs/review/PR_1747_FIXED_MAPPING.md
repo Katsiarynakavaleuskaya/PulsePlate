@@ -70,7 +70,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `$VENV_PYTHON -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
-  -> 116 passed
+  -> 133 passed
 - Adjacent food-source governance regression pytest for PR11, PR12, PR13,
   PR14, catalog, and onboarding -> PASS
 - `$VENV_PYTHON -m pytest -q tests/test_repo_policy_guards.py`
@@ -166,7 +166,7 @@ Evidence:
 - `git diff --shortstat origin/main...HEAD` reports 8 files changed, with the
   volume concentrated in the new typed validator, deterministic tests, and
   governance artifacts.
-- Focused PR15 pytest covers 116 deterministic cases, including malformed
+- Focused PR15 pytest covers 133 deterministic cases, including malformed
   artifacts, unsafe flags, CLI success/failure, no-network/no-ingest/no-runtime
   authority invariants, and PR11/PR14 handoff drift.
 Reason: The advisory large-diff warning is acknowledged, but splitting would
@@ -219,9 +219,24 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` derives forbidden not
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854624
 
 Disposition: FIXED
+Commit: aea4017cd
+Evidence: `core/food_sources/preference_recipe_mapping.py` rejects present-tense `approve`/`approves` note approvals while allowing explicit negated present-tense notes; `tests/test_food_source_preference_recipe_mapping.py` covers both forms.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235087844
+
+Disposition: FIXED
+Commit: aea4017cd
+Evidence: `core/food_sources/preference_recipe_mapping.py` rechecks PR14 review-row statuses, cache/display decisions, rollback requirement, and allowed role for direct `RecipeDishCorpusGovernance` handoffs; `tests/test_food_source_preference_recipe_mapping.py` rejects approved/drifted PR14 review rows.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235087859
+
+Disposition: FIXED
 Commit: f7899072d
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` remaps the affected FIXED proof entries to current-head ancestor commits and records this mapping fix in the artifact itself.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854627
+
+Disposition: NOT-A-BUG
+Evidence: Live PR head before this follow-up was `b44172feadd8ba19bb0c319fa5f75d66d7191a2c`; local ancestry check `git merge-base --is-ancestor 0df4b0788 b44172feadd8ba19bb0c319fa5f75d66d7191a2c` passed, and `gh pr view 1747 --json headRefOid` reported that same live head.
+Reason: The review comment cited `4b2759e080a321f8fce1dc34c0be91c26dc168b7`, which was not the live PR head when the disposition was recorded.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235087851
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery review body reports rate limiting only; it contains no actionable code or governance finding for this PR.
