@@ -283,6 +283,12 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
                 f"{path_prefix}: missing required fields: "
                 + ", ".join(sorted(missing_component_fields))
             )
+        unexpected_component_fields = component.keys() - REQUIRED_COMPONENT_FIELDS
+        if unexpected_component_fields:
+            errors.append(
+                f"{path_prefix}: unexpected fields: "
+                + ", ".join(sorted(unexpected_component_fields))
+            )
         component_id = component.get("component_id")
         if not isinstance(component_id, str):
             errors.append(f"{path_prefix}.component_id: expected string")
@@ -334,6 +340,10 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
             errors.append(
                 f"{path_prefix}.status: covered requires the dedicated bridge coverage "
                 "evidence schema; seed registry rows must stay partial, missing, or unspecified"
+            )
+        elif status == "partial" and _is_unspecified(component.get("web_runtime_anchor")):
+            errors.append(
+                f"{path_prefix}.status: partial requires a repo-backed web_runtime_anchor"
             )
         else:
             invented_unconfirmed = sorted(

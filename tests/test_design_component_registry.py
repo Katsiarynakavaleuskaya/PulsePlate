@@ -54,6 +54,16 @@ def test_design_component_registry_rejects_missing_required_field(tmp_path: Path
     assert any("missing required fields: visual_regression_contract" in error for error in errors)
 
 
+def test_design_component_registry_rejects_unexpected_component_field(tmp_path: Path) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0]["figma_node"] = "figma://invented"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("unexpected fields: figma_node" in error for error in errors)
+
+
 def test_design_component_registry_rejects_malformed_json(tmp_path: Path) -> None:
     path = tmp_path / "registry.json"
     path.write_text("{", encoding="utf-8")
@@ -157,6 +167,21 @@ def test_design_component_registry_rejects_invalid_status(tmp_path: Path) -> Non
     errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
 
     assert any("invalid status 'ready'" in error for error in errors)
+
+
+def test_design_component_registry_rejects_partial_without_repo_backed_anchor(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    missing_component = next(
+        component for component in broken["components"] if component["component_id"] == "select"
+    )
+    missing_component["status"] = "partial"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("partial requires a repo-backed web_runtime_anchor" in error for error in errors)
 
 
 def test_design_component_registry_rejects_non_scalar_status(tmp_path: Path) -> None:
