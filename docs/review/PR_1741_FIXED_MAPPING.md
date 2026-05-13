@@ -32,14 +32,14 @@ Mapping is evidence after fix/decision and is not a substitute for fixing docs, 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
+Commit: 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 Evidence: `tests/test_design_automation_next_lane_docs.py` now fails closed with a clear `pytest.fail` message when `git` or `origin/main...HEAD` diff evidence is unavailable; Kimi metadata constants reduce future evidence brittleness.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279782308 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279794312 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232686199 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 
 Disposition: FIXED
-Commit: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
+Commit: 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now explicitly includes `docs/orchestration/AGENTS.md` in the allowed touch list, adds `license_status` / `attribution_required` / `legal_copy_risks`, and makes missing future web/iOS prerequisite gates blockers rather than `DEFERRED` permission to proceed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279832007 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719435 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
