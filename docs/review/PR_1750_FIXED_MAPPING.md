@@ -8,6 +8,7 @@ Implementing commits:
 - `e7a6bbd13ef1f6865dcc85fd57caec9d466dada7` - restore PR15 CI coverage and close xdist/notes-guard risk.
 - `147f6c9918e5a713f7499968937866f15d920544` - fix contrastive negation after bot review.
 - `77f0583a3c6142f134bc8061af70208893e39f8d` - harden review-mapping evidence.
+- `ee0b63e28ccfd14f9585a08821e260fd0b957bae` - preserve controlled PR11 handoff errors and deduplicate CLI timeouts.
 
 ## Scope
 
@@ -95,6 +96,20 @@ Evidence:
 - This artifact points contrastive-negation mappings at the valid current-branch
   commit `147f6c9918e5a713f7499968937866f15d920544`.
 
+### Bot review: preserve controlled PR11 handoff errors
+
+Disposition: FIXED
+Commit: ee0b63e28ccfd14f9585a08821e260fd0b957bae
+Evidence:
+- `core/food_sources/preference_recipe_mapping.py` now routes required PR11
+  domain/source-gap lookups through `_require_existing_entry(...)`, which
+  raises `PreferenceRecipeMappingError` via `_mapping_error(...)` instead of a
+  raw `KeyError`.
+- `tests/test_food_source_preference_recipe_mapping.py` covers the controlled
+  missing-entry helper path.
+- CLI subprocess tests use `_CLI_TIMEOUT_SECONDS` instead of duplicated
+  timeout literals.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
@@ -109,14 +124,22 @@ readiness is claimed.
 Disposition: FIXED
 Commit: 147f6c9918e5a713f7499968937866f15d920544
 Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_source_preference_recipe_mapping.py` fix and cover contrastive negation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285583509 -> 147f6c9918e5a713f7499968937866f15d920544
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237633346 -> 147f6c9918e5a713f7499968937866f15d920544
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285586614 -> 147f6c9918e5a713f7499968937866f15d920544
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237635615 -> 147f6c9918e5a713f7499968937866f15d920544
 Disposition: FIXED
 Commit: 77f0583a3c6142f134bc8061af70208893e39f8d
 Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` uses portable `$VENV_PYTHON`, removes stale no-actionable wording, and maps valid current-branch SHAs.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285614100 -> 77f0583a3c6142f134bc8061af70208893e39f8d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237656706 -> 77f0583a3c6142f134bc8061af70208893e39f8d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285617716 -> 77f0583a3c6142f134bc8061af70208893e39f8d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659595 -> 77f0583a3c6142f134bc8061af70208893e39f8d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237659599 -> 77f0583a3c6142f134bc8061af70208893e39f8d
+Disposition: FIXED
+Commit: ee0b63e28ccfd14f9585a08821e260fd0b957bae
+Evidence: `core/food_sources/preference_recipe_mapping.py` preserves controlled PR11 handoff errors; `tests/test_food_source_preference_recipe_mapping.py` covers the helper path and centralizes CLI timeout configuration.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285580137 -> ee0b63e28ccfd14f9585a08821e260fd0b957bae
 
 ## Local Validation Evidence
 
@@ -127,7 +150,7 @@ Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` uses portable `$VENV_PYTHON`, r
 - `$VENV_PYTHON -m pytest -q -n 4 --dist=loadscope tests/test_food_source_preference_recipe_mapping.py`
   -> PASS.
 - Focused coverage for `core/food_sources/preference_recipe_mapping.py` ->
-  99.83%, no missed statements.
+  99.84%, no missed statements.
 - `pre-commit run --all-files` -> PASS.
 - `VENV_PYTHON=$VENV_PYTHON make validate-changed`
   -> PASS.
