@@ -556,7 +556,9 @@ def test_import_guard_rejects_path_constructor_writes(tmp_path: Path) -> None:
         "annotated.write_text('payload')\n"
         "Path('opened.txt').open('w').write('payload')\n"
         "alias = Path('alias-opened.txt')\n"
-        "alias.open('wb').write(b'payload')\n",
+        "alias.open('wb').write(b'payload')\n"
+        "with Path('context.txt').open('w') as handle:\n"
+        "    handle.write('payload')\n",
         encoding="utf-8",
     )
 

@@ -113,6 +113,7 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     import_aliases: dict[str, str] = {}
     path_aliases: set[str] = set()
+    file_handle_aliases: set[str] = set()
     offenders: list[str] = []
 
     for node in ast.walk(tree):
@@ -135,12 +136,21 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 and _is_path_constructor_call(node.value, import_aliases)
             ):
                 path_aliases.add(node.target.id)
+        elif isinstance(node, ast.With):
+            _collect_path_open_context_aliases(
+                node,
+                import_aliases=import_aliases,
+                path_aliases=path_aliases,
+                file_handle_aliases=file_handle_aliases,
+            )
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
             if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:
                 offenders.append(call_name)
             if _is_path_write_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.write")
+            if _is_file_handle_write_call(node.func, file_handle_aliases):
+                offenders.append("Path.open.write")
             if call_name and (call_name.startswith("random.") or call_name.startswith("secrets.")):
                 offenders.append(call_name)
 
@@ -214,6 +224,31 @@ def _is_path_open_call(
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "open":
         return False
     return _is_path_expr(node.func.value, import_aliases, path_aliases)
+
+
+def _collect_path_open_context_aliases(
+    node: ast.With,
+    *,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+    file_handle_aliases: set[str],
+) -> None:
+    for item in node.items:
+        if (
+            item.optional_vars is not None
+            and isinstance(item.optional_vars, ast.Name)
+            and _is_path_open_call(item.context_expr, import_aliases, path_aliases)
+        ):
+            file_handle_aliases.add(item.optional_vars.id)
+
+
+def _is_file_handle_write_call(node: ast.expr, file_handle_aliases: set[str]) -> bool:
+    return (
+        isinstance(node, ast.Attribute)
+        and node.attr == "write"
+        and isinstance(node.value, ast.Name)
+        and node.value.id in file_handle_aliases
+    )
 
 
 def _contains_forbidden_cache_segment(name: str) -> bool:
