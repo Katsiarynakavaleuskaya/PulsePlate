@@ -7,6 +7,7 @@
 - Mapping opened at head SHA: `c05d7c9583d1651b367988f9279681f4a0d1485e`
 - Latest fix commit SHA: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
 - Agent Run Summary fix SHA: `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e`
+- Scorecard decision fix SHA: `0b4ab97974fffaa1310109ea801e425c674ba5e7`
 - Scope: docs/governance Kimi prototype intake bridge; no runtime, token, generated mirror, Figma/Canva/Kimi write, screenshot, binary, deploy, backend, OpenAPI, auth, billing, StoreKit, HealthKit, or Cloudflare changes.
 
 ## Coordinator Packet
@@ -23,6 +24,8 @@
 - `893fbdae8e454530f962f9d41a5d311de5ffdd9c` - `test(design): harden Kimi bridge guardrails`
 - `61da1654383beebed3738dfef240a14079ff0b72` - `docs(review): normalize PR 1741 mapping proof`
 - `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e` - `docs(design): require agent run summary evidence`
+- `7cf6432f1ae5009ca3fd544b16dcdb9bdacd25ab` - `docs(review): map agent summary evidence fix`
+- `0b4ab97974fffaa1310109ea801e425c674ba5e7` - `docs(design): require Kimi scorecard decision`
 
 ## Discussion Thread Pass
 
@@ -48,6 +51,15 @@ Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCO
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719429 -> 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719435 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719439 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+
+Disposition: FIXED
+Commit: 0b4ab97974fffaa1310109ea801e425c674ba5e7
+Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` and `tests/test_design_automation_next_lane_docs.py` now require `adopt_adapt_reject_decision` before `candidate_for_brief`; `reject` decisions cannot influence a brief.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232876401 -> 0b4ab97974fffaa1310109ea801e425c674ba5e7
+
+Disposition: NOT-A-BUG
+Evidence: Local worktree proof: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD` returned `0` at head `7cf6432f1ae5009ca3fd544b16dcdb9bdacd25ab`; `check_review_threads_disposition.py --pr-number 1741` passed before the follow-up scorecard fix. Existing mappings to `893fbdae8e454530f962f9d41a5d311de5ffdd9c` reference a commit on the current branch history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232876393
 
 ## Pre-Open Premortem Findings
 
