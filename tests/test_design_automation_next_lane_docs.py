@@ -5,6 +5,8 @@ import re
 import shutil
 import subprocess
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 DECISION = REPO_ROOT / "docs/design/NEXT_DESIGN_AUTOMATION_MODULE_DECISION.md"
@@ -18,6 +20,14 @@ PR9_SPEC = REPO_ROOT / "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md"
 PR9_REGISTRY = REPO_ROOT / "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
 KIMI_PROTOCOL = (
     REPO_ROOT / "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md"
+)
+KIMI_CAPTURE_DATE = "2026-05-13"
+KIMI_EVIDENCE_IDS = (
+    "kimi-page-2026-05-13",
+    "kimi-drive-folder-2026-05-13",
+    "kimi-desktop-bundle-2026-05-13",
+    "figma-reference-file-2026-05-13",
+    "canva-unspecified-2026-05-13",
 )
 WORKFLOW = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_WORKFLOW.md"
 TEMPLATE = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md"
@@ -53,7 +63,8 @@ def _command_blocks(text: str) -> str:
 def _changed_paths_for_current_worktree() -> list[str]:
     """Return staged paths, or branch paths when nothing is staged."""
     git_bin = shutil.which("git")
-    assert git_bin is not None
+    if git_bin is None:
+        pytest.fail("Unable to inspect Kimi docs-only guard paths: git executable not found")
 
     staged = subprocess.run(
         [git_bin, "diff", "--cached", "--name-only"],
@@ -68,11 +79,17 @@ def _changed_paths_for_current_worktree() -> list[str]:
     branch = subprocess.run(
         [git_bin, "diff", "--name-only", "origin/main...HEAD"],
         cwd=REPO_ROOT,
-        check=True,
+        check=False,
         text=True,
         capture_output=True,
-    ).stdout.splitlines()
-    return branch
+    )
+    if branch.returncode != 0:
+        detail = (branch.stderr or branch.stdout).strip()
+        pytest.fail(
+            "Unable to inspect branch diff for Kimi docs-only guard: "
+            f"{detail or 'git diff origin/main...HEAD failed'}"
+        )
+    return branch.stdout.splitlines()
 
 
 def test_next_design_automation_decision_required_sections() -> None:
@@ -510,12 +527,8 @@ def test_kimi_current_evidence_records_have_provenance() -> None:
 
     required = [
         "| Evidence id | Source name | Source URL / locator | Captured at | Owner | Reviewer | Artifact class | Access notes | Promotion status | Repo evidence anchors | Allowed use |",
-        "`kimi-page-2026-05-13`",
-        "`kimi-drive-folder-2026-05-13`",
-        "`kimi-desktop-bundle-2026-05-13`",
-        "`figma-reference-file-2026-05-13`",
-        "`canva-unspecified-2026-05-13`",
-        "`2026-05-13`",
+        *(f"`{evidence_id}`" for evidence_id in KIMI_EVIDENCE_IDS),
+        f"`{KIMI_CAPTURE_DATE}`",
         "`@katsiaryna_kavaleuskaya`",
         "`agent-coordinator`",
         "connector visibility status `access_not_verified`",
@@ -527,14 +540,10 @@ def test_kimi_current_evidence_records_have_provenance() -> None:
     for phrase in required:
         assert phrase in protocol
 
-    for evidence_id in [
-        "kimi-page-2026-05-13",
-        "kimi-drive-folder-2026-05-13",
-        "kimi-desktop-bundle-2026-05-13",
-    ]:
+    for evidence_id in KIMI_EVIDENCE_IDS[:3]:
         row = next(line for line in protocol.splitlines() if f"`{evidence_id}`" in line)
         assert "`read_only`" in row
-        assert "`2026-05-13`" in row
+        assert f"`{KIMI_CAPTURE_DATE}`" in row
         assert "`@katsiaryna_kavaleuskaya`" in row
         assert "`agent-coordinator`" in row
         assert "docs/design/REFERENCE_" in row
@@ -591,6 +600,9 @@ def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
         "`wellness_safety_notes`",
         "`accessibility_risk_notes`",
         "`security_privacy_notes`",
+        "`license_status`",
+        "`attribution_required`",
+        "`legal_copy_risks`",
     ]
 
     for field in required_fields:
@@ -601,7 +613,7 @@ def test_kimi_prototype_intake_requires_provenance_and_normalization() -> None:
         "`normalized`",
         "`candidate_for_brief`",
         "`rejected`",
-        "`candidate_for_brief` is forbidden unless license/copy risk, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete.",
+        "`candidate_for_brief` is forbidden unless `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete.",
     ]
 
     for phrase in required_status:
@@ -646,7 +658,7 @@ def test_kimi_protocol_keeps_diff_docs_only_until_later_prs() -> None:
     required = [
         "Kimi bridge work must start from an isolated clean worktree based on `origin/main`.",
         "Do not switch the root checkout, edit unrelated `worktrees/...` lanes in place, or use a shared virtual environment from another worktree.",
-        "This lane may touch only this protocol, design workflow/template pointers, the backlog ledger pointer, focused deterministic docs guards, and the post-open fixed-mapping artifact after a PR number exists.",
+        "This lane may touch only this protocol, scoped orchestration routing docs (`docs/orchestration/AGENTS.md`), design workflow/template pointers, the backlog ledger pointer, focused deterministic docs guards, and the post-open fixed-mapping artifact after a PR number exists.",
         "The PR must stop if the diff includes runtime web, iOS, backend, OpenAPI, token, generated mirror, Storybook config, CI workflow, package/config, screenshot, video, binary asset, downloaded bundle, deploy, App Store, Cloudflare, billing, auth, StoreKit, or HealthKit paths.",
         "`docs/review/PR_<N>_FIXED_MAPPING.md` must not be created before a PR number exists.",
         "Discussion-thread and merge-readiness checkboxes must remain unchecked until review disposition, current-head checks, mandatory wait-window, Agent Run Summary evidence, and strict merge-readiness wrapper evidence exist.",
@@ -733,6 +745,7 @@ def test_kimi_modernization_bridge_sequence_stays_behind_pr9_gates() -> None:
         "Map implementation candidates into the design component contract registry.",
         "Require bridge coverage inventory",
         "Require fail-closed visual regression and accessibility regression decisions.",
+        "Open later bounded web/iOS implementation slices only after the previous gates exist; missing prerequisite gates are blockers, not `DEFERRED` permission to proceed.",
         "Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.",
     ]
 

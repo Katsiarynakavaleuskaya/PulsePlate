@@ -58,8 +58,11 @@ Every current or future Kimi evidence record must include these fields before it
 | `wellness_safety_notes` | Wellness-only claim review | `unspecified` |
 | `accessibility_risk_notes` | Contrast, focus, motion, keyboard, touch, readability risks | `unspecified` |
 | `security_privacy_notes` | Secret, PII, internal URL, bundle, or external-write risks | `unspecified` |
+| `license_status` | External artifact license or permission status | `unspecified` |
+| `attribution_required` | Whether attribution is required before any brief promotion | `unspecified` |
+| `legal_copy_risks` | Copy, layout, claim, or asset reuse risks | `unspecified` |
 
-`candidate_for_brief` is forbidden unless license/copy risk, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete. Incomplete evidence stays `read_only` or `normalized`.
+`candidate_for_brief` is forbidden unless `license_status`, `attribution_required`, `legal_copy_risks`, forbidden-copy elements, normalization notes, mapped PulsePlate components, and repo evidence anchors are complete. Incomplete evidence stays `read_only` or `normalized`.
 
 ## Modernization Extraction
 
@@ -89,7 +92,7 @@ The bridge from Kimi evidence to implementation is:
 5. Require bridge coverage inventory for repo vocabulary, web runtime, iOS runtime, Storybook review, Figma reference, Penpot reference, and Code Connect traceability.
 6. Require fail-closed visual regression and accessibility regression decisions.
 7. Define token/runtime parity boundary before any web or iOS implementation.
-8. Open later bounded web/iOS implementation slices only after the previous gates exist or the coordinator records `DEFERRED` with backlog and PR-body evidence.
+8. Open later bounded web/iOS implementation slices only after the previous gates exist; missing prerequisite gates are blockers, not `DEFERRED` permission to proceed.
 
 Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.
 
@@ -110,7 +113,7 @@ Allowed evidence collection is limited to operator-provided URLs, connector meta
 
 Kimi bridge work must start from an isolated clean worktree based on `origin/main`. Do not switch the root checkout, edit unrelated `worktrees/...` lanes in place, or use a shared virtual environment from another worktree.
 
-This lane may touch only this protocol, design workflow/template pointers, the backlog ledger pointer, focused deterministic docs guards, and the post-open fixed-mapping artifact after a PR number exists.
+This lane may touch only this protocol, scoped orchestration routing docs (`docs/orchestration/AGENTS.md`), design workflow/template pointers, the backlog ledger pointer, focused deterministic docs guards, and the post-open fixed-mapping artifact after a PR number exists.
 
 The PR must stop if the diff includes runtime web, iOS, backend, OpenAPI, token, generated mirror, Storybook config, CI workflow, package/config, screenshot, video, binary asset, downloaded bundle, deploy, App Store, Cloudflare, billing, auth, StoreKit, or HealthKit paths.
 
