@@ -16,6 +16,8 @@
   - `155b25f088f1f0fc5d36daf7d33243e7f11d1f50` - role review pass mapping.
   - `6b837c9207ccddb00f2663a8d73762f458b154d9` - result evidence validation fixes.
   - `389e5c3d5d62ad6721842e8fc686db8a0b91107d` - valid ancestor proof mapping.
+  - `791caa567ff0f3f4bed2051e93141f16bf667554` - latest review-fix mapping.
+  - `c15f2ac344b92be833567d7c64745fd3c11d0013` - notification diagnostic hardening.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -43,9 +45,16 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961729 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961734 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236005091 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4283699021 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168813 -> 389e5c3d5d62ad6721842e8fc686db8a0b91107d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168816 -> 6b837c9207ccddb00f2663a8d73762f458b154d9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168825 -> 6b837c9207ccddb00f2663a8d73762f458b154d9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284047218 -> c15f2ac344b92be833567d7c64745fd3c11d0013
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302268 -> 791caa567ff0f3f4bed2051e93141f16bf667554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302273 -> c15f2ac344b92be833567d7c64745fd3c11d0013
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302278 -> c15f2ac344b92be833567d7c64745fd3c11d0013
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284068594 -> c15f2ac344b92be833567d7c64745fd3c11d0013
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236321888 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -67,11 +76,15 @@ Disposition: FIXED
 Commit: 389e5c3d5d62ad6721842e8fc686db8a0b91107d
 Evidence: This artifact now uses full valid commit SHAs reachable from the current branch head for every mapped FIXED proof.
 
+Disposition: FIXED
+Commit: c15f2ac344b92be833567d7c64745fd3c11d0013
+Evidence: `scripts/orchestration/experiment_notify.py` now treats directory mutable surfaces as containing nested result paths, skips leading shell `KEY=value` assignments before rendering oracle command names, and redacts unexpected-oracle diagnostics to command names. `tests/test_experiment_notify.py` covers directory surface containment, env-assignment command redaction, and secret-free fail-closed diagnostics.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 69 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 70 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
