@@ -1273,6 +1273,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Required sequence: component contract registry -> bridge coverage inventory -> visual regression lane -> accessibility regression lane -> token/runtime parity boundary -> later web+iOS implementation slices.
     - Links: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
     - DoD: PR-9 packet, design-system automation spec, component contract registry contract, workflow/template pointers, deterministic docs guards, fixed-mapping governance, and any narrow orchestration preflight bugfix discovered by required agents exist; the lane remains governance/tests only and does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, Code Connect activation, backend, OpenAPI, auth, billing, StoreKit, or HealthKit behavior.
+  - Kimi prototype intake modernization bridge tracking:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Target PR: `docs(design): add Kimi prototype intake and modernization bridge protocol`, branch `codex/kimi-prototype-intake-modernization-bridge`
+    - Reason: The current Kimi prototype provides useful modern product and visual direction, but it must be captured as read-only evidence and normalized through repo-governed tokens, component contracts, visual regression, accessibility regression, and web+iOS parity gates before any implementation slice.
+    - Links: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `docs/design/REFERENCE_MANIFEST_SCHEMA.md`, `docs/design/REFERENCE_SCORECARD.md`
+    - DoD: Kimi page, Drive folder, and desktop code bundle evidence boundaries are recorded; Kimi is not source of truth; deterministic docs guards reject Kimi/Figma/Canva source-of-truth promotion, runtime/token/generated-mirror drift, external writes, binary artifacts, and direct-copy claims; future web/iOS implementation remains blocked behind component contract registry, bridge coverage, visual regression, accessibility regression, and token/runtime parity decisions.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
