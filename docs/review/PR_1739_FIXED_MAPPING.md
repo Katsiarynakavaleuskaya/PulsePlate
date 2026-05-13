@@ -18,6 +18,7 @@
 - `b4f7fd390` - `fix(ci): bound fallback current-head blockers`
 - `4be17a1e6` - `fix(ci): refine fallback specialized surfaces`
 - `50064a367` - `fix(ci): attach diagnostic fallback surfaces`
+- `b06d905e6` - `fix(ci): keep soft fallback lanes advisory`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -132,6 +133,23 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1739_FIXED_MAPPING.md maps the actionable CodeRabbit inline comment from that review.
 Reason: The review summary only reports the inline validation-path comment, which is dispositioned above.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230273033
+Disposition: NOT-A-BUG
+Evidence: `git merge-base --is-ancestor 50064a367 HEAD` returns `0` at current local head.
+Reason: The mapped commit is an ancestor of the current PR head; no squashed-head remapping is needed for this branch.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230273047 -> b06d905e6
+Disposition: FIXED
+Commit: b06d905e6
+Evidence: scripts/ci/check_current_head_pr_checks.py keeps `Accessibility Tests` out of `FRONTEND_FALLBACK_WORKFLOW_NAMES`; tests/test_current_head_pr_checks.py covers accessibility workflow checks as advisory in fallback mode.
+Reason: Accessibility remains a soft/advisory lane unless branch protection marks it required.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3230273049 -> b06d905e6
+Disposition: FIXED
+Commit: b06d905e6
+Evidence: scripts/ci/check_current_head_pr_checks.py fetches PR changed paths only when required-check metadata is unavailable; tests/test_current_head_pr_checks.py covers the required-metadata path without fetching changed paths.
+Reason: Required-check mode and draft skip no longer depend on unnecessary PR-files permissions.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
@@ -139,6 +157,7 @@ Reason: The review summary only reports the inline validation-path comment, whic
 - `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1739 canonical restart: recover fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `1eb2fe0337b1`
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_repo_policy_guards.py` - PASS
+- `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 
 ## Security Notes
