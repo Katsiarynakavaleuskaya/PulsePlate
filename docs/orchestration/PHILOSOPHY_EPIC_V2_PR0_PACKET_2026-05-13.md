@@ -20,8 +20,8 @@ public API contracts.
 
 Operator-provided documents:
 
-- `/Users/katsiaryna_kavaleuskaya/Downloads/PulsePlate  Аналитическая философия и Лингвистическая философия — Глубокий аудит кода и расширенный эпик.pdf`
-- `/Users/katsiaryna_kavaleuskaya/Downloads/PulsePlate  Философский Эпик — Полная Карта и Расширенный Роадмап.pdf`
+- `PulsePlate_Analytical_and_Linguistic_Philosophy_Deep_Code_Audit_and_Extended_Epic.pdf`
+- `PulsePlate_Philosophical_Epic_Full_Map_and_Extended_Roadmap.pdf`
 
 Repo truth that overrides the PDFs when they conflict:
 
@@ -137,7 +137,7 @@ scripts/orchestration/start_pr_lane.sh \
   --worktree worktrees/philosophy-epic-v2-pr0-packet \
   --path docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md \
   --path docs/roadmap/BACKLOG_LEDGER.md \
-  --path docs/review/PR_0000_FIXED_MAPPING.md \
+  --path docs/review/PR_1744_FIXED_MAPPING.md \
   --requested-agent agent-coordinator \
   --requested-agent philosophy-agent \
   --requested-agent architecture-specialist \
@@ -340,7 +340,7 @@ PR-0 local gates:
 python3 scripts/orchestration/check_preflight.py --mode analyze \
   --path docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md \
   --path docs/roadmap/BACKLOG_LEDGER.md \
-  --path docs/review/PR_0000_FIXED_MAPPING.md
+  --path docs/review/PR_1744_FIXED_MAPPING.md
 python3 scripts/orchestration/check_agent_consistency.py
 pre-commit run --all-files
 make validate-changed VENV_PYTHON=.venv/bin/python

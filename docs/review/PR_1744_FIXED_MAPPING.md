@@ -84,11 +84,11 @@ follow-up must include wellness-only tests and guard evidence before readiness.
 
 ## Local Validation Evidence
 
-- `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_0000_FIXED_MAPPING.md` - PASS.
+- `python3 scripts/orchestration/check_preflight.py --mode analyze --path docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_1744_FIXED_MAPPING.md` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
 - `make validate-changed VENV_PYTHON=.venv/bin/python` - PASS; no Python files changed.
 - `pre-commit run --all-files` - PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_semantic_cache_gate.py tests/test_semantic_cache_rollout_gate.py tests/test_semantic_cache_bounded_insight_experiment_contract.py tests/test_semantic_cache_observability_contract.py tests/test_semantic_cache_scaffold_contract.py` - PASS.
+- `$ROOT_REPO/.venv/bin/python -m pytest -q tests/test_semantic_cache_gate.py tests/test_semantic_cache_rollout_gate.py tests/test_semantic_cache_bounded_insight_experiment_contract.py tests/test_semantic_cache_observability_contract.py tests/test_semantic_cache_scaffold_contract.py` - PASS.
 - Push pre-push hooks - PASS.
 
 Bare `python3 -m pytest ...` failed before collection in the isolated worktree
@@ -114,10 +114,10 @@ focused tests passed with the root repo `.venv` Python listed above.
 
 ## Merge Readiness
 
-- [x] Pre-open preflight and task bootstrap complete
-- [x] Post-open task bootstrap complete
-- [x] Canonical artifact added for PR #1744
-- [x] Premortem findings dispositioned in this artifact
+- [ ] Pre-open preflight and task bootstrap complete
+- [ ] Post-open task bootstrap complete
+- [ ] Canonical artifact added for PR #1744
+- [ ] Premortem findings dispositioned in this artifact
 - [ ] Current-head CI terminal and passing
 - [ ] No unresolved actionable review/bot comments after latest review cycle
 - [ ] Strict merge wrapper passes before readiness
