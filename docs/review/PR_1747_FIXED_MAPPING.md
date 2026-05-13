@@ -145,6 +145,35 @@ Evidence:
 - `scripts/orchestration/review_mapping_artifact.py` validation still passes
   with the repo-required `- No actionable review comments` marker.
 
+### Codex Security Diff-Scoped Scan
+
+Disposition: NOT-A-BUG
+Evidence:
+- Report:
+  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-contract-pr15/08bd8000a_20260513T133038Z/report.md`
+- Result: 0 reportable findings.
+- Scope: PR #1747 diff at head `08bd8000a`.
+Reason: The diff adds a local file-only validator/CLI and governance artifacts;
+no runtime route, OpenAPI behavior, DB migration, cache writer, provider
+integration, network fetcher, or secret-bearing path was added.
+
+### QA/Bug-Hunter Advisory: Large Diff Review Risk
+
+Disposition: NOT-A-BUG
+Evidence:
+- `gh pr diff 1747 --repo Katsiarynakavaleuskaya/PulsePlate --name-only`
+  returns only the expected 8 PR15 files.
+- `git diff --shortstat origin/main...HEAD` reports 8 files changed, with the
+  volume concentrated in the new typed validator, deterministic tests, and
+  governance artifacts.
+- Focused PR15 pytest covers 45 deterministic cases, including malformed
+  artifacts, unsafe flags, CLI success/failure, no-network/no-ingest/no-runtime
+  authority invariants, and PR11/PR14 handoff drift.
+Reason: The advisory large-diff warning is acknowledged, but splitting would
+separate the governance artifact, validator, CLI, and tests that prove the same
+contract. No unrelated runtime or provider surface is present in the live PR
+diff.
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
