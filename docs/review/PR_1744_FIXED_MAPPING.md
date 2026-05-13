@@ -69,6 +69,26 @@ Disposition: NOT-A-BUG
 Evidence: docs/review/PR_1744_FIXED_MAPPING.md:26
 Reason: Sourcery did not post a code finding; it reported a service rate limit only.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233710261
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:25
+Reason: Cubic reviewed an older artifact state; current mapping uses explicit thread entries instead of a suffixed no-actionable marker.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233710266
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:181
+Reason: Cubic reviewed an older artifact state; current validation evidence points at `docs/review/PR_1744_FIXED_MAPPING.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233710287
+Disposition: NOT-A-BUG
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:343
+Reason: Cubic reviewed an older packet state; current validation command points at `docs/review/PR_1744_FIXED_MAPPING.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4280975506
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:72
+Reason: Cubic parent review summarizes the three stale duplicate findings mapped above; current files already contain the corrected artifact/path state.
+
 ## Premortem Finding Closure
 
 Finding: The epic silently turns design PDFs into runtime truth.
