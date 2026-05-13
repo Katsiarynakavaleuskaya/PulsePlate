@@ -17,7 +17,11 @@ import sys
 from typing import Any
 
 try:
-    from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
+    from scripts.orchestration.context_pack import (
+        REPO_ROOT,
+        normalize_repo_path,
+        repo_relative_paths,
+    )
     from scripts.orchestration.experiment_contract import (
         PROMOTION_TARGETS,
         SCHEMA_VERSION,
@@ -142,6 +146,7 @@ def _require_matching_experiment(
         raise ExperimentNotificationError(
             "Promotion decision shared_tree_untouched must match experiment result."
         )
+    _require_promotion_evidence_matches_result(packet, result, promotion)
     if (
         result["status"] == "accepted"
         and promotion["disposition"] == "promoted"
@@ -173,7 +178,7 @@ def _require_result_evidence_matches_packet(
 
     mutable_surface = set(packet["mutable_candidate_surface"])
     outside_surface = sorted(
-        path
+        _safe_repo_path(path)
         for path in result["mutated_paths"]
         if not _mutable_surface_contains_path(mutable_surface, path)
     )
@@ -196,18 +201,51 @@ def _require_result_evidence_matches_packet(
         raise ExperimentNotificationError(
             "Accepted experiment result oracle_results must match packet immutable_oracles."
         )
+    if result["status"] == "accepted":
+        failed_oracles = [
+            _oracle_command_name(oracle_result["command"])
+            for oracle_result in result["oracle_results"]
+            if oracle_result["returncode"] != 0 or oracle_result["timed_out"]
+        ]
+        if failed_oracles:
+            joined = ", ".join(failed_oracles)
+            raise ExperimentNotificationError(
+                f"Accepted experiment result oracle_results must pass: {joined}"
+            )
 
 
 def _mutable_surface_contains_path(mutable_surface: set[str], path: str) -> bool:
     """Return whether a result path belongs to the packet mutable surface."""
 
     for surface in mutable_surface:
-        surface_path = PurePosixPath(surface)
         if path == surface:
             return True
-        if not surface_path.suffix and path.startswith(f"{surface.rstrip('/')}/"):
+        if path.startswith(f"{surface.rstrip('/')}/"):
             return True
     return False
+
+
+def _require_promotion_evidence_matches_result(
+    packet: dict[str, Any],
+    result: dict[str, Any],
+    promotion: dict[str, Any],
+) -> None:
+    """Require promotion evidence to describe the same packet/result pair."""
+
+    evidence = promotion["evidence"]
+    expected_oracles = [oracle["command"] for oracle in packet["immutable_oracles"]]
+    if evidence["oracle_commands"] != expected_oracles:
+        raise ExperimentNotificationError(
+            "Promotion decision evidence.oracle_commands must match packet immutable_oracles."
+        )
+    if evidence["mutated_paths"] != result["mutated_paths"]:
+        raise ExperimentNotificationError(
+            "Promotion decision evidence.mutated_paths must match experiment result."
+        )
+    if evidence["oracle_count"] != len(result["oracle_results"]):
+        raise ExperimentNotificationError(
+            "Promotion decision evidence.oracle_count must match experiment result."
+        )
 
 
 def _validate_promotion_decision(payload: dict[str, Any]) -> dict[str, Any]:
@@ -232,6 +270,7 @@ def _validate_promotion_decision(payload: dict[str, Any]) -> dict[str, Any]:
     normalized["result_status"] = str(payload.get("result_status", "")).strip()
     normalized["failure_class"] = payload.get("failure_class")
     shared_tree_untouched = payload.get("shared_tree_untouched")
+    evidence = payload.get("evidence")
     if normalized["promotion_target"] not in PROMOTION_TARGETS:
         allowed = ", ".join(PROMOTION_TARGETS)
         raise ValueError(f"Promotion decision promotion_target must be one of: {allowed}")
@@ -245,6 +284,26 @@ def _validate_promotion_decision(payload: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(shared_tree_untouched, bool):
         raise ValueError("Promotion decision shared_tree_untouched must be a boolean.")
     normalized["shared_tree_untouched"] = shared_tree_untouched
+    if not isinstance(evidence, dict):
+        raise ValueError("Promotion decision evidence must be an object.")
+    oracle_commands = evidence.get("oracle_commands")
+    mutated_paths = evidence.get("mutated_paths")
+    oracle_count = evidence.get("oracle_count")
+    if not isinstance(oracle_commands, list) or not all(
+        isinstance(command, str) for command in oracle_commands
+    ):
+        raise ValueError("Promotion decision evidence.oracle_commands must be a string list.")
+    if not isinstance(mutated_paths, list) or not all(
+        isinstance(path, str) for path in mutated_paths
+    ):
+        raise ValueError("Promotion decision evidence.mutated_paths must be a string list.")
+    if not isinstance(oracle_count, int):
+        raise ValueError("Promotion decision evidence.oracle_count must be an integer.")
+    normalized["evidence"] = {
+        "oracle_commands": list(oracle_commands),
+        "mutated_paths": repo_relative_paths(mutated_paths),
+        "oracle_count": oracle_count,
+    }
     durable_artifact_path = normalized["durable_artifact_path"]
     durable_path = PurePosixPath(durable_artifact_path)
     if (

@@ -356,6 +356,26 @@ def test_result_evidence_allows_directory_mutable_surface() -> None:
     assert "- `docs/prompts/reliability/program.md`" in content
 
 
+def test_result_evidence_allows_directory_surface_with_dots() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet()
+        | {
+            "mutable_candidate_surface": ["docs/prompts/v1.2"],
+            "immutable_oracles": [
+                {"command": "python3 -m pytest tests/test_a.py", "expected_signal": "must pass"}
+            ],
+        }
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(command="python3 -m pytest tests/test_a.py")
+    )
+    result["mutated_paths"] = ["docs/prompts/v1.2/program.md"]
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "- `docs/prompts/v1.2/program.md`" in content
+
+
 def test_result_oracle_commands_must_come_from_packet() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(
@@ -382,6 +402,76 @@ def test_result_oracle_commands_must_come_from_packet() -> None:
     assert "python3" in message
     assert "API_TOKEN" not in message
     assert "super-secret" not in message
+
+
+def test_outside_surface_diagnostic_redacts_mutated_paths() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = ["/Users/alice/.ssh/id_rsa"]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="mutable_candidate_surface",
+    ) as exc_info:
+        experiment_notify.render_notification_markdown(packet, result)
+    message = str(exc_info.value)
+    assert "[redacted-path]" in message
+    assert "/Users/alice" not in message
+    assert "id_rsa" not in message
+
+
+def test_accepted_result_with_failed_oracle_is_rejected() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    result["oracle_results"][0]["returncode"] = 1
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="oracle_results must pass",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_promotion_evidence_must_match_packet_and_result() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "evidence": {
+                "oracle_commands": ["python3 -m pytest tests/stale.py"],
+                "mutated_paths": ["core/rag/allowed.py"],
+                "oracle_count": 1,
+            },
+        }
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="evidence.oracle_commands",
+    ):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_promotion_evidence_oracle_count_must_match_result() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "evidence": {
+                "oracle_commands": ['python3 -c "import sys; sys.exit(0)"'],
+                "mutated_paths": ["core/rag/allowed.py"],
+                "oracle_count": 2,
+            },
+        }
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="evidence.oracle_count",
+    ):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
 
 
 def test_promotion_experiment_id_mismatch_is_rejected() -> None:
