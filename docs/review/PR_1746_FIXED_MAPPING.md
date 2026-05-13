@@ -111,6 +111,11 @@ Disposition: FIXED
 Commit: 9bbff3c38eca11b48b604aaeac548653b825f8e9
 Evidence: `Local Validation` now records `make validate-changed` selecting `tests/test_design_agent_workflow_docs.py` and passing 4 tests.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234452560
+Disposition: NOT-A-BUG
+Evidence: local `git merge-base --is-ancestor` returned 0 for mapped FIXED SHAs `32c7fa8843cf92796d52be79a51a5cc27dcf27b9`, `fa4693fbb15bb7633caa871d585d6ab860f716dc`, `e5dc5f021c4ac7c6ac5de5924969475da446d442`, `dd89444ee140a024c448594fa09d9414256c1303`, and `9bbff3c38eca11b48b604aaeac548653b825f8e9` against current head `6c23fb6e1c313f15d462bedd35a85075403f5555`.
+Reason: the mapped commits are reachable from the current PR branch head; the actual strict-wrapper blocker was this unresolved review thread plus pending CI, not unknown revision validation.
+
 ## Local Validation
 
 - `.venv/bin/python scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
