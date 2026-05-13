@@ -1280,6 +1280,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Reason: The current Kimi prototype provides useful modern product and visual direction, but it must be captured as read-only evidence and normalized through repo-governed tokens, component contracts, visual regression, accessibility regression, and web+iOS parity gates before any implementation slice.
     - Links: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `docs/design/REFERENCE_MANIFEST_SCHEMA.md`, `docs/design/REFERENCE_SCORECARD.md`
     - DoD: Kimi page, Drive folder, and desktop code bundle evidence boundaries are recorded; Kimi is not source of truth; deterministic docs guards reject Kimi/Figma/Canva source-of-truth promotion, runtime/token/generated-mirror drift, external writes, binary artifacts, and direct-copy claims; future web/iOS implementation remains blocked behind component contract registry, bridge coverage, visual regression, accessibility regression, and token/runtime parity decisions.
+  - Design component contract registry seed tracking:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Target PR: `feat(design): add design component contract registry seed`, branch `codex/design-component-contract-registry-seed-v1`
+    - Reason: The Kimi modernization bridge and PR-9 design-system automation sequence require a repo-owned machine-readable component registry before bridge coverage inventory or any web/iOS implementation slice can safely start.
+    - Next lane: `feat(design): add design bridge coverage inventory`
+    - Links: `docs/orchestration/contracts/design_component_registry.v1.json`, `scripts/design/design_component_registry.py`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md`, `docs/design/ui_component_vocabulary.json`
+    - DoD: Registry seed includes only repo-confirmed component ids from `docs/design/ui_component_vocabulary.json`; unconfirmed anchors remain `unspecified`; validator fails closed on malformed JSON, missing fields, unknown or duplicate ids, invalid status, empty strings, and external evidence-tool authority promotion; docs keep Kimi/Figma/Canva/Penpot/Storybook/Code Connect evidence-only; next lane is bridge coverage inventory with no runtime, token, generated mirror, Storybook config, screenshot, binary asset, or external write changes.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1

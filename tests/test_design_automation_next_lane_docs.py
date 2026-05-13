@@ -18,6 +18,8 @@ PR9_PACKET = (
 )
 PR9_SPEC = REPO_ROOT / "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md"
 PR9_REGISTRY = REPO_ROOT / "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md"
+REGISTRY_SEED = REPO_ROOT / "docs/orchestration/contracts/design_component_registry.v1.json"
+REGISTRY_VALIDATOR = REPO_ROOT / "scripts/design/design_component_registry.py"
 KIMI_PROTOCOL = (
     REPO_ROOT / "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md"
 )
@@ -438,6 +440,63 @@ def test_pr9_component_contract_registry_requires_unspecified_for_unknowns() -> 
     )
 
 
+def test_design_component_registry_seed_is_current_first_gate() -> None:
+    """Require the machine-readable registry seed and validator to stay wired."""
+    registry_doc = _read(PR9_REGISTRY)
+    spec = _read(PR9_SPEC)
+    kimi_protocol = _read(KIMI_PROTOCOL)
+    ledger = _read(LEDGER)
+    corpus = "\n".join([registry_doc, spec, kimi_protocol, ledger])
+
+    required = [
+        "docs/orchestration/contracts/design_component_registry.v1.json",
+        "scripts/design/design_component_registry.py",
+        "component contract registry seed",
+        "The component contract registry seed is the current first mandatory machine-readable gate.",
+        "Kimi-derived candidates must map through this registry before any bridge coverage inventory",
+        "Next lane: `feat(design): add design bridge coverage inventory`",
+        "external evidence tools promoted into canonical authority",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    assert REGISTRY_SEED.exists()
+    assert REGISTRY_VALIDATOR.exists()
+
+
+def test_design_component_registry_seed_preserves_external_tool_boundaries() -> None:
+    """Reject source-of-truth promotion in the machine-readable registry seed."""
+    registry_seed = _read(REGISTRY_SEED)
+    registry_doc = _read(PR9_REGISTRY)
+    corpus = "\n".join([registry_seed, registry_doc])
+
+    required = [
+        '"source_of_truth": "repo"',
+        '"reference_only": [',
+        '"Kimi"',
+        '"Figma"',
+        '"Canva"',
+        '"Penpot"',
+        '"Storybook"',
+        '"Code Connect"',
+        "Kimi prototype artifacts, Google Drive prototype folders, screenshots, generated code bundles, and desktop exports are evidence/reference inputs only.",
+    ]
+
+    for phrase in required:
+        assert phrase in corpus
+
+    forbidden_patterns = [
+        r'"canonical"\s*:\s*\[[^\]]*(Kimi|Figma|Canva|Penpot|Storybook|Code Connect)',
+        r"Kimi\s+is\s+(the\s+)?source\s+of\s+truth",
+        r"Figma\s+is\s+(the\s+)?source\s+of\s+truth",
+        r"Canva\s+is\s+(the\s+)?source\s+of\s+truth",
+    ]
+
+    for pattern in forbidden_patterns:
+        assert re.search(pattern, corpus, flags=re.IGNORECASE | re.DOTALL) is None, pattern
+
+
 def test_pr9_visual_and_accessibility_decisions_fail_closed() -> None:
     """Require visual and a11y regression decisions before implementation."""
     corpus = "\n".join([_read(PR9_PACKET), _read(PR9_SPEC), _read(PR9_REGISTRY)])
@@ -694,11 +753,16 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
         return
 
     allowed_exact = {
+        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
         "docs/orchestration/AGENTS.md",
+        "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
+        "docs/orchestration/contracts/design_component_registry.v1.json",
         "docs/orchestration/DESIGN_AGENT_WORKFLOW.md",
         "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
         "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md",
         "docs/roadmap/BACKLOG_LEDGER.md",
+        "scripts/design/design_component_registry.py",
+        "tests/test_design_component_registry.py",
         "tests/test_design_automation_next_lane_docs.py",
     }
     allowed_review = re.compile(r"^docs/review/PR_\d+_FIXED_MAPPING\.md$")
