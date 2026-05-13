@@ -226,6 +226,18 @@ def test_design_component_registry_rejects_external_authority_promotion(
     assert any("external evidence tools must not be canonical: figma" in error for error in errors)
 
 
+def test_design_component_registry_rejects_unexpected_authority_field(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["figma_node"] = "figma://invented"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("authority: unexpected fields: figma_node" in error for error in errors)
+
+
 def test_design_component_registry_requires_repo_canonical_authorities(
     tmp_path: Path,
 ) -> None:
@@ -535,6 +547,71 @@ def test_design_component_registry_rejects_deleted_web_runtime_anchor(
     )
 
     assert any("repo-backed anchor does not exist" in error for error in errors)
+
+
+def test_design_component_registry_rejects_web_runtime_anchor_outside_repo(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    vocabulary_dir = repo_root / "docs/design"
+    vocabulary_dir.mkdir(parents=True)
+    (tmp_path / "outside.tsx").write_text("export {}", encoding="utf-8")
+    (vocabulary_dir / "ui_component_vocabulary.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": "button",
+                    "canonical_name": "Button",
+                    "existing_repo_component": "../outside.tsx",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    registry = {
+        "schema_version": "design_component_registry.v1",
+        "source_of_truth": "repo",
+        "authority": {
+            "canonical": [
+                "repo code/docs/tests",
+                "docs/design/ui_component_vocabulary.json",
+            ],
+            "reference_only": [
+                "Kimi",
+                "Figma",
+                "Canva",
+                "Penpot",
+                "Storybook",
+                "Code Connect",
+            ],
+        },
+        "components": [
+            {
+                "component_id": "button",
+                "canonical_name": "Button",
+                "repo_vocabulary_anchor": "docs/design/ui_component_vocabulary.json:button",
+                "web_runtime_anchor": "../outside.tsx",
+                "ios_runtime_anchor": "unspecified",
+                "token_dependencies": "unspecified",
+                "storybook_review_anchor": "unspecified",
+                "figma_reference_anchor": "unspecified",
+                "penpot_reference_anchor": "unspecified",
+                "code_connect_anchor": "unspecified",
+                "states": "unspecified",
+                "variants": "unspecified",
+                "accessibility_contract": "unspecified",
+                "visual_regression_contract": "unspecified",
+                "owner": "design-system",
+                "status": "partial",
+            }
+        ],
+    }
+
+    errors = registry_module.validate_registry(
+        _write_registry(tmp_path, registry), repo_root=repo_root
+    )
+
+    assert any("repo-backed anchor escapes repo root" in error for error in errors)
 
 
 def test_design_component_registry_cli_validate_and_summarize(

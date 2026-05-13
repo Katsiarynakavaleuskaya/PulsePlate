@@ -759,7 +759,6 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
     registry_lane_is_active = any(path in registry_lane_paths for path in paths)
 
     allowed_exact = {
-        "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
         "docs/orchestration/AGENTS.md",
         "docs/orchestration/DESIGN_AGENT_WORKFLOW.md",
         "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
@@ -770,6 +769,7 @@ def test_kimi_protocol_current_diff_stays_docs_only() -> None:
     if registry_lane_is_active:
         allowed_exact.update(
             {
+                "docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md",
                 "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
                 "docs/orchestration/contracts/design_component_registry.v1.json",
                 "scripts/design/design_component_registry.py",

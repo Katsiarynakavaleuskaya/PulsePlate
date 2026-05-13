@@ -25,6 +25,10 @@ REQUIRED_CANONICAL_AUTHORITIES = {
     "repo code/docs/tests",
     "docs/design/ui_component_vocabulary.json",
 }
+REQUIRED_AUTHORITY_FIELDS = {
+    "canonical",
+    "reference_only",
+}
 REQUIRED_COMPONENT_FIELDS = {
     "component_id",
     "canonical_name",
@@ -104,6 +108,14 @@ def _repo_path(path: str | Path, repo_root: Path = REPO_ROOT) -> Path:
     if candidate.is_absolute():
         return candidate
     return repo_root / candidate
+
+
+def _path_stays_inside_repo(path: Path, repo_root: Path = REPO_ROOT) -> bool:
+    try:
+        path.resolve(strict=False).relative_to(repo_root.resolve(strict=True))
+    except (OSError, ValueError):
+        return False
+    return True
 
 
 def _load_json_object(path: Path, *, label: str) -> dict[str, Any]:
@@ -195,6 +207,11 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
     if not isinstance(authority, dict):
         errors.append("authority: expected object")
         return
+    unexpected_authority_fields = authority.keys() - REQUIRED_AUTHORITY_FIELDS
+    if unexpected_authority_fields:
+        errors.append(
+            "authority: unexpected fields: " + ", ".join(sorted(unexpected_authority_fields))
+        )
 
     canonical = authority.get("canonical")
     reference_only = authority.get("reference_only")
@@ -330,11 +347,18 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
                 f"{path_prefix}.web_runtime_anchor: expected repo-backed anchor "
                 f"{expected_web_anchor!r}"
             )
-        elif not _repo_path(web_runtime_anchor, repo_root).is_file():
-            errors.append(
-                f"{path_prefix}.web_runtime_anchor: repo-backed anchor does not exist: "
-                f"{web_runtime_anchor!r}"
-            )
+        else:
+            resolved_web_anchor = _repo_path(web_runtime_anchor, repo_root)
+            if not _path_stays_inside_repo(resolved_web_anchor, repo_root):
+                errors.append(
+                    f"{path_prefix}.web_runtime_anchor: repo-backed anchor escapes repo root: "
+                    f"{web_runtime_anchor!r}"
+                )
+            elif not resolved_web_anchor.is_file():
+                errors.append(
+                    f"{path_prefix}.web_runtime_anchor: repo-backed anchor does not exist: "
+                    f"{web_runtime_anchor!r}"
+                )
 
         status = component.get("status")
         if not isinstance(status, str) or status not in ALLOWED_STATUS:
