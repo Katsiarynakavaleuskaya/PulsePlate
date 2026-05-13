@@ -10,6 +10,8 @@
   - `e3f1232abc326ff805ae66737fddf5f34fd035d0` - post-open hardening and role-agent fixes.
   - `77bec5c2c3fef12c906be3c1f4625c44cb758fd8` - review-thread mapping update.
   - `52c84f793caa6ec6be226169370a87e2f8429966` - stale-commit review-thread mapping.
+  - `f9fb7ef434b2177827eb06d56602079ed65c85df` - aggregate bot review mapping.
+  - `b281fa42b32aec312a237e4cb49daf5297c00aa9` - redaction and symlink-containment follow-up fixes.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -33,6 +35,10 @@ re-triggered through the normal ready-for-review cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235799044 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235799048 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4283452129 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961723 -> b281fa42b32aec312a237e4cb49daf5297c00aa9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961729 -> b281fa42b32aec312a237e4cb49daf5297c00aa9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961734 -> b281fa42b32aec312a237e4cb49daf5297c00aa9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236005091 -> b281fa42b32aec312a237e4cb49daf5297c00aa9
 
 Disposition: FIXED
 Commit: e3f1232abc326ff805ae66737fddf5f34fd035d0
@@ -42,11 +48,15 @@ Disposition: FIXED
 Commit: 52c84f793caa6ec6be226169370a87e2f8429966
 Evidence: This artifact now lists all implementing commits instead of only the initial sink commit and maps the stale-commit review thread to the review-mapping update.
 
+Disposition: FIXED
+Commit: b281fa42b32aec312a237e4cb49daf5297c00aa9
+Evidence: `scripts/orchestration/experiment_notify.py` now checks `is_symlink()` without `exists()` gating, redacts home-relative credential paths and control-character paths, and `tests/test_experiment_notify.py` covers those regressions.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 63 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 65 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
