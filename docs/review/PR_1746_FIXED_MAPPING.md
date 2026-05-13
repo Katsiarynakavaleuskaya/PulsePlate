@@ -1,0 +1,132 @@
+# PR #1746 Fixed in Commit Mapping
+
+## PR
+
+- PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746
+- Branch: `codex/fix-main-design-agent-workflow-kimi-contract`
+- Base: `main`
+- Evidence head at mapping creation: `c396702a4ad245869a366ebb2c4d7787acd56365`
+- Note: later mapping-only commits may advance the branch head; use GitHub PR current-head checks for live merge-readiness truth.
+
+## Scope
+
+Fix the main `test-main` design-governance failure by aligning the Kimi evidence/reference contract across the design PR template, PR7/PR8 design-intelligence packets, and deterministic docs guard tests.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Coordinator / Premortem / Agent Findings
+
+- Coordinator scope lock: FIXED by `e264e9e129ed5b7c299a657f64125b4cab276280`
+  - Evidence: `tests/test_design_agent_workflow_docs.py` asserts Kimi evidence wording in the workflow and template source-of-truth sections.
+  - Evidence: `.github/PULL_REQUEST_TEMPLATE/design.md` keeps Kimi prototypes evidence/reference/process only.
+- Architecture finding: FIXED by `e264e9e129ed5b7c299a657f64125b4cab276280`
+  - Finding: GitHub design PR template omitted Kimi prototypes while the repo design PR template included them.
+  - Evidence: `.github/PULL_REQUEST_TEMPLATE/design.md` source-of-truth paragraph includes Kimi prototypes as evidence/reference/process only.
+  - Evidence: `tests/test_design_agent_workflow_docs.py` asserts the Kimi wording inside `## Source of truth` for both design PR templates.
+- QA finding: FIXED by `e264e9e129ed5b7c299a657f64125b4cab276280`
+  - Finding: Broad substring assertion could pass outside the `## Source of truth` section.
+  - Evidence: `tests/test_design_agent_workflow_docs.py` adds `_section(...)` and checks the Kimi-inclusive wording inside the source-of-truth section.
+- Bug-hunter finding: FIXED by `e264e9e129ed5b7c299a657f64125b4cab276280`
+  - Finding: PR7/PR8 packets still contained stale `Figma, Canva, Storybook, external references` wording.
+  - Evidence: `docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md` and `docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` include Kimi prototypes in the evidence-layer wording.
+  - Evidence: `tests/test_design_agent_workflow_docs.py` includes the PR8 packet in the combined guard and rejects the stale exact phrase.
+- Premortem finding 1: FIXED by `e264e9e129ed5b7c299a657f64125b4cab276280`
+  - Finding: Adjacent PR7/PR8 negative guardrails named Figma/Canva/Storybook but not Kimi.
+  - Evidence: PR7 packet names Kimi prototype drift in bug-hunter review risk.
+  - Evidence: PR8 packet blocks Kimi-generated code/layout/copy mutation and write paths.
+  - Evidence: `tests/test_design_agent_workflow_docs.py` asserts `Kimi prototype drift` and `Kimi-generated code`.
+- Premortem dangerous-failure scenario: NOT-A-BUG
+  - Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md` and `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` already prohibit treating Kimi evidence as product/runtime truth.
+  - Reason: The scenario is already blocked by current repo contracts and reinforced by this PR.
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281537842 -> 32c7fa8843cf92796d52be79a51a5cc27dcf27b9
+Disposition: FIXED
+Commit: 32c7fa8843cf92796d52be79a51a5cc27dcf27b9
+Evidence: `tests/test_design_agent_workflow_docs.py` now asserts all template headings before calling `_section(...)`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> fa4693fbb15bb7633caa871d585d6ab860f716dc
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234214202 -> fa4693fbb15bb7633caa871d585d6ab860f716dc
+Disposition: FIXED
+Commit: fa4693fbb15bb7633caa871d585d6ab860f716dc
+Evidence: this artifact now includes `## Discussion Thread Pass` with required checklist lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#issuecomment-4440935378
+Disposition: NOT-A-BUG
+Evidence: repo gates for this docs/test lane do not require docstrings on test helper functions.
+Reason: focused pytest, `make validate-changed`, `pre-commit run --all-files`, and pre-push hooks passed without requiring test-helper docstrings.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281517715
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a weekly rate limit, not a code or governance defect.
+Reason: rate-limit review output contains no actionable repository change request.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281550117
+Disposition: NOT-A-BUG
+Evidence: Cubic reported "No issues found" across the first four changed files.
+Reason: no repository change was requested by the Cubic review.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281672828 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234280115 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: `## Discussion Thread Pass` now precedes `## Fixed in Commit Mapping`, leaving the parser-safe URL/disposition blocks inside the fixed-mapping section.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286834 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: review-thread disposition entries now live under `## Fixed in Commit Mapping`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286842 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: every review-thread mapping bullet now starts with the GitHub URL.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286848 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: local validation evidence now uses `.venv/bin/python` for repo Python commands.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234286855 -> dd89444ee140a024c448594fa09d9414256c1303
+Disposition: FIXED
+Commit: dd89444ee140a024c448594fa09d9414256c1303
+Evidence: fixed mapping entries now use full reachable commit SHAs from this PR branch history.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281684747 -> e5dc5f021c4ac7c6ac5de5924969475da446d442
+Disposition: FIXED
+Commit: e5dc5f021c4ac7c6ac5de5924969475da446d442
+Evidence: `## Discussion Thread Pass`, `## Coordinator / Premortem / Agent Findings`, and `## Fixed in Commit Mapping` are sibling level-2 sections, preserving parser compatibility and clear hierarchy.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234377316
+Disposition: NOT-A-BUG
+Evidence: local strict wrapper `check_merge_ready.py --pr-number 1746 --repo Katsiarynakavaleuskaya/PulsePlate --require-auth` passed `review-threads-disposition` with commit-after-comment before these two new review threads were opened.
+Reason: the actual blocking failure was unresolved review-thread state, not an unknown-revision failure from the mapped commits.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234377321 -> 9bbff3c38eca11b48b604aaeac548653b825f8e9
+Disposition: FIXED
+Commit: 9bbff3c38eca11b48b604aaeac548653b825f8e9
+Evidence: `Local Validation` now records `make validate-changed` selecting `tests/test_design_agent_workflow_docs.py` and passing 4 tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234452560
+Disposition: NOT-A-BUG
+Evidence: local `git merge-base --is-ancestor` returned 0 for mapped FIXED SHAs `32c7fa8843cf92796d52be79a51a5cc27dcf27b9`, `fa4693fbb15bb7633caa871d585d6ab860f716dc`, `e5dc5f021c4ac7c6ac5de5924969475da446d442`, `dd89444ee140a024c448594fa09d9414256c1303`, and `9bbff3c38eca11b48b604aaeac548653b825f8e9` against current head `6c23fb6e1c313f15d462bedd35a85075403f5555`.
+Reason: the mapped commits are reachable from the current PR branch head; the actual strict-wrapper blocker was this unresolved review thread plus pending CI, not unknown revision validation.
+
+## Local Validation
+
+- `.venv/bin/python scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
+- `.venv/bin/python scripts/orchestration/check_agent_consistency.py` - PASS
+- `.venv/bin/python -m pytest -q tests/test_design_agent_workflow_docs.py` - PASS (`4 passed`)
+- `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py -k kimi` - PASS (`9 passed`)
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS (`Running tests: tests/test_design_agent_workflow_docs.py`; `4 passed`)
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS after black hook formatting
+- `git push` pre-push hooks - PASS, including `backend tests (pytest, pre-push)` and `bandit (pre-push, full repo)`
+
+## Current-Head CI
+
+- PR current-head checks started for the pushed branch head; use GitHub PR current-head checks for live status.
+- Merge readiness is not claimed while checks and review-bot signals are pending.
