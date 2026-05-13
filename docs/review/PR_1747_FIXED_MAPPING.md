@@ -241,6 +241,7 @@ Reason: The review comment cited `4b2759e080a321f8fce1dc34c0be91c26dc168b7`, whi
 Disposition: FIXED
 Commit: 2a09022b6
 Evidence: `core/food_sources/preference_recipe_mapping.py` now scans every occurrence of each forbidden note phrase instead of only the first match; `tests/test_food_source_preference_recipe_mapping.py` rejects a later positive `api approved` statement after an earlier negated `does not approve API calls` phrase.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282838820
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235269759
 
 Disposition: FIXED
