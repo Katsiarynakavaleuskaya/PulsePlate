@@ -161,7 +161,7 @@ The post-open lane remains mandatory:
 
 1. Run `task_bootstrap.py --pr-phase post_open_review`.
 2. Run the canonical `qa-engineer-agent -> bug-hunter` pass.
-3. Record all actionable findings in `docs/review/PR_<N>_FIXED_MAPPING.md`.
+3. Record all actionable findings in `docs/review/PR_1744_FIXED_MAPPING.md`.
 
 ## Required Skills And Plugins
 
@@ -355,7 +355,7 @@ python3 scripts/orchestration/task_bootstrap.py \
   --pr-phase post_open_review \
   --path docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md \
   --path docs/roadmap/BACKLOG_LEDGER.md \
-  --path docs/review/PR_<N>_FIXED_MAPPING.md \
+  --path docs/review/PR_1744_FIXED_MAPPING.md \
   --requested-agent agent-coordinator \
   --requested-agent qa-engineer-agent \
   --requested-agent bug-hunter \
@@ -363,7 +363,7 @@ python3 scripts/orchestration/task_bootstrap.py \
   --requested-agent philosophy-agent \
   --requested-agent architecture-specialist
 python3 scripts/orchestration/check_merge_ready.py \
-  --pr-number <N> \
+  --pr-number 1744 \
   --repo Katsiarynakavaleuskaya/PulsePlate \
   --require-auth
 ```
