@@ -19,7 +19,7 @@ Reason: Post-open QA, bug-hunter, data-scientist, Cubic, CodeRabbit, and Codex r
 Disposition: FIXED
 Commit: e26a32f41
 Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`
-Reason: CodeRabbit flagged unchecked Phase2 discussion/mapping checkboxes. Commit `e26a32f41` marked the checkboxes complete and replaced the parser-invalid placeholder prose with structured dispositions.
+Reason: CodeRabbit flagged unchecked Phase 2 discussion/mapping checkboxes. Commit `e26a32f41` marked the checkboxes complete and replaced the parser-invalid placeholder prose with structured dispositions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348571 -> e26a32f41
 
 Disposition: NOT-A-BUG
@@ -59,7 +59,7 @@ Reason: Pre-open coordinator and role-agent findings were fixed before PR open: 
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
 - [ ] CodeRabbit inspected; no actionable comments remain unmapped
-- [x] Codex Security inspected; no actionable comments remain unmapped
+- [ ] Codex Security inspected; no actionable comments remain unmapped
 - [ ] Post-open `qa-engineer-agent -> bug-hunter` pass completed
 - [ ] All review threads resolved on GitHub after disposition updates
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
