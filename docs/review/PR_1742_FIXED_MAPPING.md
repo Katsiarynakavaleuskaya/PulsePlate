@@ -92,6 +92,45 @@ Evidence: `_PATH_RE` is case-insensitive and `_UNSAFE_TOKEN_RE` uses boundary-aw
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233467998 -> 45155f837
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233468011 -> 45155f837
 
+Disposition: FIXED
+Commit: 34d824dd7
+Evidence: Second bot-wave guard/checker gaps were fixed in code/tests: password/pwd screening, embedded and Windows local paths, direct decision consistency, exact schema drift checks, joined Path aliases, builtins/io open aliases, shutil copy helpers, os directory creation, and unknown `Path.open(**kwargs)` modes. Focused tests, mypy, semantic-cache gates, bounded regression bundle, validate-changed, and pre-commit passed. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/34d824dd7_20260513T112843Z/report.md`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280941032 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233477733 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233477741 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233477746 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233477749 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233477751 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233477755 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233572115 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233572116 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233572121 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233572125 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233572129 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233679571 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233679575 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233679577 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233679581 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233680564 -> 34d824dd7
+
+Disposition: FIXED
+Commit: 7c745043b
+Evidence: Initial Sourcery/CodeRabbit/Cubic review summaries were closed by code/docs/tests fixes mapped above for duplicate reasons, payload fields, workforce-memory anchors, fully-qualified Path writes, and constants.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280240302 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280282003 -> 7c745043b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280341492 -> 7c745043b
+
+Disposition: FIXED
+Commit: 710920a07
+Evidence: Follow-up CodeRabbit review summary was closed by candidate/final decision identity, duplicate candidate, canonicalization, file URI, CI proof ID, token field, environment-read, and write-mode Path.open fixes mapped above.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280437664 -> 710920a07
+
+Disposition: FIXED
+Commit: 45155f837
+Evidence: Later CodeRabbit/Cubic review summaries were closed by boundary-aware token detection, case-insensitive file URI path detection, zero-tolerance criteria, structured proof IDs, and side-effect guard fixes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280688583 -> 45155f837
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4280702807 -> 45155f837
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -100,6 +139,7 @@ Evidence: `_PATH_RE` is case-insensitive and `_UNSAFE_TOKEN_RE` uses boundary-aw
 | Bug-hunter final pass: caller-relaxed criteria could allow safety breaches; generic CI/human proof IDs could satisfy proof gates; import guard missed subprocess and dynamic Path.open write modes. | FIXED | `45155f837` | Criteria now enforce zero-tolerance safety gates and structured proof IDs; import guard blocks process launchers and unknown write modes with focused tests. |
 | Security final pass: proof IDs accepted blocked payload/truth-source terms and emitted them in stable mappings. | FIXED | `45155f837` | Evidence/proof ID validation blocks raw-payload, HealthKit, account, billing, legal, compliance, advisory/wiki, and workforce-memory terms before serialization. |
 | Codex Security final scan after substantive fix. | CLEAN | `45155f837` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/45155f837_20260513T110057Z/report.md` reports no surviving findings. |
+| Second bot-wave guard/checker bypass review. | FIXED | `34d824dd7` | Guard/checker/code fixes listed in Fixed in Commit Mapping; final Codex Security scan clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/34d824dd7_20260513T112843Z/report.md`. |
 
 ## Bot Review Tracking
 
