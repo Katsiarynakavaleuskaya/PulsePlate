@@ -39,6 +39,28 @@ REQUIRED_COMPONENT_FIELDS = {
     "status",
 }
 ALLOWED_STATUS = {"covered", "partial", "missing", "unspecified"}
+SEED_UNCONFIRMED_FIELDS = {
+    "ios_runtime_anchor",
+    "token_dependencies",
+    "storybook_review_anchor",
+    "figma_reference_anchor",
+    "penpot_reference_anchor",
+    "code_connect_anchor",
+    "states",
+    "variants",
+    "accessibility_contract",
+    "visual_regression_contract",
+}
+BRIDGE_COVERAGE_FIELDS = {
+    "web_runtime_anchor",
+    "ios_runtime_anchor",
+    "storybook_review_anchor",
+    "figma_reference_anchor",
+    "penpot_reference_anchor",
+    "code_connect_anchor",
+    "accessibility_contract",
+    "visual_regression_contract",
+}
 REQUIRED_REFERENCE_ONLY_AUTHORITIES = {
     "kimi",
     "figma",
@@ -140,6 +162,10 @@ def _check_empty_strings(value: Any, *, path: str, errors: list[str]) -> None:
     if isinstance(value, dict):
         for key, item in value.items():
             _check_empty_strings(item, path=f"{path}.{key}", errors=errors)
+
+
+def _is_unspecified(value: Any) -> bool:
+    return value == "unspecified" or value == ["unspecified"]
 
 
 def _validate_authority(authority: Any, errors: list[str]) -> None:
@@ -272,6 +298,24 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
         status = component.get("status")
         if status not in ALLOWED_STATUS:
             errors.append(f"{path_prefix}.status: invalid status {status!r}")
+        if status == "covered":
+            missing_coverage = sorted(
+                field for field in BRIDGE_COVERAGE_FIELDS if _is_unspecified(component.get(field))
+            )
+            if missing_coverage:
+                errors.append(
+                    f"{path_prefix}.status: covered requires bridge evidence for: "
+                    + ", ".join(missing_coverage)
+                )
+
+        invented_unconfirmed = sorted(
+            field for field in SEED_UNCONFIRMED_FIELDS if not _is_unspecified(component.get(field))
+        )
+        if invented_unconfirmed:
+            errors.append(
+                f"{path_prefix}: unconfirmed seed fields must be 'unspecified': "
+                + ", ".join(invented_unconfirmed)
+            )
 
     missing_ids = sorted(vocabulary_ids - seen)
     if missing_ids:

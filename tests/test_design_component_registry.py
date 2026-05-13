@@ -229,6 +229,42 @@ def test_design_component_registry_rejects_wrong_web_runtime_anchor(
     )
 
 
+def test_design_component_registry_rejects_invented_unconfirmed_anchors(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0]["figma_reference_anchor"] = "figma://invented-node"
+    broken["components"][0]["token_dependencies"] = ["--color-invented"]
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "unconfirmed seed fields must be 'unspecified'" in error
+        and "figma_reference_anchor" in error
+        and "token_dependencies" in error
+        for error in errors
+    )
+
+
+def test_design_component_registry_rejects_covered_status_without_bridge_evidence(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    missing_component = next(
+        component for component in broken["components"] if component["component_id"] == "select"
+    )
+    missing_component["status"] = "covered"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "covered requires bridge evidence" in error and "web_runtime_anchor" in error
+        for error in errors
+    )
+
+
 def test_design_component_registry_rejects_deleted_web_runtime_anchor(
     tmp_path: Path,
 ) -> None:
