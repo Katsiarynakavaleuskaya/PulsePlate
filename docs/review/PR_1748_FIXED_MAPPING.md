@@ -82,9 +82,9 @@ Disposition: FIXED
 Commit: 6c22df3e49b51f9379cf57f32c9af11680e9eacf
 Evidence: `.github/workflows/ci.yml` keeps the existing `coverage-xml-${{ matrix.python-version }}` and `junit-${{ matrix.python-version }}` artifact names but sets `overwrite: true` for both test-main uploads, preventing the observed GitHub artifact 409 conflict without changing downstream `coverage-main` artifact consumers. The workflow contract test asserts both overwrite guards.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882742 -> 6bc2feb880525b8d690b3eff9fed736a61ea24c9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882742 -> 6bc2feb88ed1c2bd1b31f10cbbb5edd0d86a2163
 Disposition: FIXED
-Commit: 6bc2feb880525b8d690b3eff9fed736a61ea24c9
+Commit: 6bc2feb88ed1c2bd1b31f10cbbb5edd0d86a2163
 Evidence: This mapping correction uses the real shallow-checkout fix commit SHA `edc5e7766e28924ff4350d52dc97b85b917ab0c2`; `git rev-parse edc5e7766` resolves to that commit.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882748
