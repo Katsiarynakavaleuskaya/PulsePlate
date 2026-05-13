@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "acceptance_criteria": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "allowed_backend_labels": {
+      "items": {
+        "enum": [
+          "in_memory_label",
+          "redis_label",
+          "gptcache_label"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocked_payload_fields": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocked_runtime_dependencies": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "blocked_truth_sources": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "candidate_backend_labels": {
+      "items": {
+        "enum": [
+          "in_memory_label",
+          "redis_label",
+          "gptcache_label"
+        ],
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "default_activation": {
+      "const": "none"
+    },
+    "forbidden_claims": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "gate_status": {
+      "const": "closed"
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "label_only_backends": {
+      "const": true
+    },
+    "required_evidence": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "required_rollback_proof": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "rollout_phase": {
+      "const": "SC-G5"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "selection_mode": {
+      "const": "recommendation_only"
+    }
+  },
+  "required": [
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "rollout_phase",
+    "selection_mode",
+    "default_activation",
+    "candidate_backend_labels",
+    "allowed_backend_labels",
+    "label_only_backends",
+    "blocked_runtime_dependencies",
+    "blocked_payload_fields",
+    "blocked_truth_sources",
+    "required_evidence",
+    "required_rollback_proof",
+    "forbidden_claims",
+    "acceptance_criteria"
+  ],
+  "type": "object"
+}

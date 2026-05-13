@@ -44,6 +44,12 @@ That contract is metadata-only, off by default, request-disableable,
 kill-switchable, fail-closed, and non-serving; it does not open the global
 semantic-cache gate, wire `/insight`, or approve any backend.
 
+The backend selection contract is defined in
+[`SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md`](../orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md).
+That contract is offline, label-only, recommendation-only, and non-serving; it
+does not open the global semantic-cache gate, approve Redis/GPTCache rollout, or
+activate any backend by default.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery

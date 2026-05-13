@@ -28,8 +28,10 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "anthropic",
 )
 ALLOWED_SEMANTIC_CACHE_IMPORTS = (
+    "core.ai.bounded_insight_semantic_cache",
     "core.ai.cache_observability",
     "core.ai.exact_fuzzy_cache",
+    "core.ai.semantic_cache_backend_selection",
 )
 
 FORBIDDEN_SEMANTIC_CACHE_CALLS = (
@@ -41,6 +43,10 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "time.time",
     "time.monotonic",
     "time.perf_counter",
+    "open",
+    "Path.write_text",
+    "Path.write_bytes",
+    "os.environ.get",
 )
 
 
@@ -106,6 +112,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
 def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     import_aliases: dict[str, str] = {}
+    path_aliases: set[str] = set()
     offenders: list[str] = []
 
     for node in ast.walk(tree):
@@ -116,13 +123,18 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             for alias in node.names:
                 if alias.name != "*":
                     import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+        elif isinstance(node, ast.Assign):
+            if _is_path_constructor_call(node.value, import_aliases):
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        path_aliases.add(target.id)
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
-            if call_name is None:
-                continue
             if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:
                 offenders.append(call_name)
-            if call_name.startswith("random.") or call_name.startswith("secrets."):
+            if _is_path_write_call(node.func, import_aliases, path_aliases):
+                offenders.append("Path.write")
+            if call_name and (call_name.startswith("random.") or call_name.startswith("secrets.")):
                 offenders.append(call_name)
 
     assert offenders == [], f"forbidden semantic-cache calls found: {offenders}"
@@ -150,6 +162,27 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
             return None
         return f"{owner}.{node.attr}"
     return None
+
+
+def _is_path_constructor_call(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    name = _qualified_call_name(node.func, import_aliases)
+    return name in {"Path", "pathlib.Path"}
+
+
+def _is_path_write_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Attribute) or node.attr not in {"write_text", "write_bytes"}:
+        return False
+    if isinstance(node.value, ast.Call):
+        return _is_path_constructor_call(node.value, import_aliases)
+    if isinstance(node.value, ast.Name):
+        return node.value.id in path_aliases
+    return False
 
 
 def _contains_forbidden_cache_segment(name: str) -> bool:

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import re
 import sys
@@ -29,6 +30,13 @@ DEFAULT_BOUNDED_INSIGHT_CONTRACT = (
     / "orchestration"
     / "contracts"
     / "SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md"
+)
+DEFAULT_BACKEND_SELECTION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
 )
 
 REQUIRED_MARKERS = {
@@ -530,7 +538,107 @@ BOUNDED_INSIGHT_FORBIDDEN_PATTERNS = (
     ),
 )
 
+BACKEND_SELECTION_REQUIRED_ANCHORS = (
+    ("SC-G5 backend selection", re.compile(r"\bsc-g5 backend selection\b")),
+    ("does not open gate", re.compile(r"\bdoes not open (?:the )?semantic-cache gate\b")),
+    ("gate remains closed", re.compile(r"\bgate remains closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed:\s*false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed:\s*false\b")),
+    ("default activation none", re.compile(r"\bdefault activation:\s*none\b")),
+    ("recommendation-only metadata", re.compile(r"\brecommendation-only metadata\b")),
+    ("candidate backend labels only", re.compile(r"\bcandidate backend labels only\b")),
+    ("redis label", re.compile(r"\bredis_label\b")),
+    ("gptcache label", re.compile(r"\bgptcache_label\b")),
+    ("SC-G2 evidence", re.compile(r"\bsc-g2 contract and lineage evidence\b")),
+    (
+        "SC-G3 evidence",
+        re.compile(
+            r"\bsc-g3 audit, negative-control, metric, stop-rule, and kill-switch evidence\b"
+        ),
+    ),
+    (
+        "SC-G4 evidence",
+        re.compile(r"\bsc-g4 bounded /insight metadata-only decision evidence\b"),
+    ),
+    ("safety hard gate", re.compile(r"\bsafety is a hard gate\b")),
+    ("false hit rate", re.compile(r"\bfalse_hit_rate_bps\b")),
+    ("stale answer rate", re.compile(r"\bstale_answer_rate_bps\b")),
+    ("current-head CI", re.compile(r"\bcurrent-head ci governance proof\b")),
+    ("human approval", re.compile(r"\bhuman approval record\b")),
+    ("kill switch proof", re.compile(r"\bkill switch proof\b")),
+    ("purge invalidation proof", re.compile(r"\bpurge/invalidation proof\b")),
+    ("no runtime serving", re.compile(r"\bsc-g5 blocks:.*runtime serving\b")),
+    ("no FastAPI", re.compile(r"\bsc-g5 blocks:.*fastapi\b")),
+    ("no OpenAPI", re.compile(r"\bsc-g5 blocks:.*openapi\b")),
+    ("no DB writes", re.compile(r"\bsc-g5 blocks:.*db writes\b")),
+    ("no provider calls", re.compile(r"\bsc-g5 blocks:.*provider calls\b")),
+    ("no Redis imports", re.compile(r"\bsc-g5 blocks:.*redis imports or clients\b")),
+    ("no GPTCache imports", re.compile(r"\bsc-g5 blocks:.*gptcache imports or clients\b")),
+    ("no connection strings", re.compile(r"\bsc-g5 blocks:.*connection strings\b")),
+    ("no vector search", re.compile(r"\bsc-g5 blocks:.*vector search\b")),
+    ("no embeddings", re.compile(r"\bsc-g5 blocks:.*embeddings\b")),
+    ("no raw prompts", re.compile(r"\bmust not contain, persist, rank, or emit:.*raw prompts\b")),
+    (
+        "no raw model responses",
+        re.compile(r"\bmust not contain, persist, rank, or emit:.*raw model responses\b"),
+    ),
+    (
+        "no provider payloads",
+        re.compile(r"\bmust not contain, persist, rank, or emit:.*provider payloads\b"),
+    ),
+    ("advisory wiki blocked", re.compile(r"\bmust not use advisory wiki\b")),
+    ("workforce memory blocked", re.compile(r"\bworkforce memory\b")),
+)
+
+BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
+    ("SC-G5 opens gate", re.compile(r"\bsc-g5\s+opens\s+(?:the\s+)?gate\b")),
+    (
+        "backend selected for serving",
+        re.compile(r"\bbackend\s+(?:is\s+)?selected\s+for\s+serving\b"),
+    ),
+    (
+        "backend active",
+        re.compile(r"\bbackend\s+(?:is\s+)?(?:active|enabled|live|ready)\b"),
+    ),
+    (
+        "semantic cache serving ready",
+        re.compile(r"\bsemantic(?:-| )cache\s+serving\s+(?:is\s+)?(?:ready|active|enabled|live)\b"),
+    ),
+    (
+        "Redis approved",
+        re.compile(r"\bredis\s+(?:is\s+)?(?:approved|enabled|supported|allowed|active)\b"),
+    ),
+    (
+        "GPTCache approved",
+        re.compile(r"\bgptcache\s+(?:is\s+)?(?:approved|enabled|supported|allowed|active)\b"),
+    ),
+    (
+        "Redis/GPTCache approved",
+        re.compile(
+            r"\bredis\s*(?:/|and)\s*gptcache\s+(?:are\s+)?"
+            r"(?:approved|enabled|supported|allowed|active)\b"
+        ),
+    ),
+    (
+        "SC-G5 approves Redis",
+        re.compile(r"\bsc-g5\s+(?:approves|enables|supports|allows)\s+redis\b"),
+    ),
+    (
+        "SC-G5 approves GPTCache",
+        re.compile(r"\bsc-g5\s+(?:approves|enables|supports|allows)\s+gptcache\b"),
+    ),
+    ("Redis URL", re.compile(r"\bredis://|\bredis_url\b")),
+    ("GPTCache env", re.compile(r"\bgptcache_(?:url|backend|config|enabled)\b")),
+    ("cache raw prompts", re.compile(r"\bcache(?:s)?\s+raw\s+prompts?\b")),
+    ("cache raw responses", re.compile(r"\bcache(?:s)?\s+raw\s+(?:model\s+)?responses?\b")),
+    (
+        "provider-backed cache",
+        re.compile(r"\bprovider-backed\s+cache\b|\bprovider\s+cache\s+backend\b"),
+    ),
+)
+
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
+MACHINE_JSON_RE = re.compile(r"```json\s*(?P<payload>\{.*?\})\s*```", re.DOTALL)
 
 
 def _normalize_text(text: str) -> str:
@@ -737,6 +845,100 @@ def validate_semantic_cache_bounded_insight_experiment_contract(text: str) -> li
     return errors
 
 
+def validate_semantic_cache_backend_selection_contract(text: str) -> list[str]:
+    """Return stable validation errors for unsafe SC-G5 backend selection contracts."""
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in BACKEND_SELECTION_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"backend selection contract missing anchor: {label}")
+
+    rollout_section_index = normalized.find("required rollout order remains:")
+    rollout_section = (
+        normalized[rollout_section_index:] if rollout_section_index != -1 else normalized
+    )
+    errors.extend(
+        _validate_rollout_order(
+            rollout_section,
+            missing_prefix="backend selection contract missing phase",
+            out_of_order_prefix="backend selection contract phase out of order",
+        )
+    )
+    errors.extend(_forbidden_claim_errors(text))
+    errors.extend(
+        f"forbidden backend selection contract claim: {label}"
+        for label, pattern in BACKEND_SELECTION_FORBIDDEN_PATTERNS
+        if pattern.search(normalized)
+    )
+    errors.extend(_validate_backend_selection_machine_state(text))
+
+    return errors
+
+
+def _validate_backend_selection_machine_state(text: str) -> list[str]:
+    match = MACHINE_JSON_RE.search(text)
+    if match is None:
+        return ["backend selection contract missing machine-readable JSON state"]
+    try:
+        payload = json.loads(match.group("payload"))
+    except json.JSONDecodeError as exc:
+        return [f"backend selection contract invalid JSON state: {exc.msg}"]
+    if not isinstance(payload, dict):
+        return ["backend selection contract JSON state must be an object"]
+
+    errors: list[str] = []
+    expected_values = {
+        "gate_status": "closed",
+        "runtime_allowed": False,
+        "implementation_allowed": False,
+        "rollout_phase": "SC-G5",
+        "selection_mode": "recommendation_only",
+        "default_activation": "none",
+        "label_only_backends": True,
+    }
+    for key, expected in expected_values.items():
+        if payload.get(key) != expected:
+            errors.append(
+                f"backend selection contract JSON {key}: expected {expected!r}, "
+                f"got {payload.get(key)!r}"
+            )
+    expected_labels = ["in_memory_label", "redis_label", "gptcache_label"]
+    for key in ("candidate_backend_labels", "allowed_backend_labels"):
+        if payload.get(key) != expected_labels:
+            errors.append(f"backend selection contract JSON {key}: expected label-only list")
+    required_lists = {
+        "blocked_runtime_dependencies": (
+            "Redis imports or clients",
+            "GPTCache imports or clients",
+            "provider calls",
+            "connection strings",
+        ),
+        "blocked_truth_sources": ("advisory wiki", "workforce memory", "GraphRAG"),
+        "required_evidence": (
+            "SC-G2 lineage evidence",
+            "SC-G3 false-hit evidence",
+            "SC-G4 bounded insight decision evidence",
+            "current-head CI governance proof",
+        ),
+        "required_rollback_proof": (
+            "kill switch proof",
+            "purge/invalidation proof",
+            "disabled-state test IDs",
+            "stop-rule replay IDs",
+        ),
+    }
+    for key, required_items in required_lists.items():
+        actual = payload.get(key)
+        if not isinstance(actual, list):
+            errors.append(f"backend selection contract JSON {key}: expected list")
+            continue
+        missing = [item for item in required_items if item not in actual]
+        for item in missing:
+            errors.append(f"backend selection contract JSON {key}: missing {item}")
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check semantic-cache gate markers.")
     parser.add_argument(
@@ -768,6 +970,12 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_BOUNDED_INSIGHT_CONTRACT,
         help="SC-G4 bounded insight experiment markdown document to validate.",
+    )
+    parser.add_argument(
+        "--backend-selection-contract",
+        type=Path,
+        default=DEFAULT_BACKEND_SELECTION_CONTRACT,
+        help="SC-G5 backend selection markdown document to validate.",
     )
     args = parser.parse_args(argv)
 
@@ -805,6 +1013,14 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    backend_selection_contract = args.backend_selection_contract
+    if not backend_selection_contract.exists():
+        print(
+            f"ERROR: backend selection contract missing: {backend_selection_contract}",
+            file=sys.stderr,
+        )
+        return 1
+
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
     errors.extend(
@@ -820,6 +1036,11 @@ def main(argv: list[str] | None = None) -> int:
             bounded_insight_contract.read_text(encoding="utf-8")
         )
     )
+    errors.extend(
+        validate_semantic_cache_backend_selection_contract(
+            backend_selection_contract.read_text(encoding="utf-8")
+        )
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -830,6 +1051,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"exact/fuzzy scaffold contract closed: {scaffold_contract}")
     print(f"cache observability contract closed: {observability_contract}")
     print(f"bounded insight experiment contract closed: {bounded_insight_contract}")
+    print(f"backend selection contract closed: {backend_selection_contract}")
     return 0
 
 

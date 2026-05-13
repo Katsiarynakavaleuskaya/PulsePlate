@@ -28,6 +28,9 @@ SEMANTIC_CACHE_OBSERVABILITY_CONTRACT_DOC = (
 SEMANTIC_CACHE_BOUNDED_INSIGHT_CONTRACT_DOC = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md"
 )
+SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
@@ -61,6 +64,10 @@ def _load_semantic_cache_observability_validator() -> SemanticCacheGateValidator
 
 def _load_semantic_cache_bounded_insight_validator() -> SemanticCacheGateValidator:
     return _load_validator("validate_semantic_cache_bounded_insight_experiment_contract")
+
+
+def _load_semantic_cache_backend_selection_validator() -> SemanticCacheGateValidator:
+    return _load_validator("validate_semantic_cache_backend_selection_contract")
 
 
 def _read_text(relpath: str) -> str:
@@ -119,6 +126,12 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             validate_bounded_insight_contract = _load_semantic_cache_bounded_insight_validator()
             errors.extend(
                 f"{relpath}: {error}" for error in validate_bounded_insight_contract(content)
+            )
+
+        if relpath == SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC:
+            validate_backend_selection_contract = _load_semantic_cache_backend_selection_validator()
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_backend_selection_contract(content)
             )
 
     return errors

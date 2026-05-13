@@ -80,8 +80,12 @@ surface. The phase-specific SC-G4 contract is
 which keeps SC-G4 metadata-only, fail-closed, and non-serving while the global
 semantic-cache gate remains closed.
 
-SC-G5 may consider Redis/GPTCache only after safety evidence, rollback proof,
-and current-head CI governance exist.
+SC-G5 is the backend-selection contract step. The phase-specific SC-G5
+contract is
+[`SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md`](./SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md),
+which keeps backend candidates label-only and non-serving. It may compare
+Redis/GPTCache labels only after safety evidence, rollback proof, and
+current-head CI governance exist; it does not approve Redis/GPTCache rollout.
 
 ## Evidence Graph Linkage
 
