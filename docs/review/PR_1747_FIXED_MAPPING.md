@@ -3,6 +3,7 @@
 PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747
 Branch: `codex/food-data-preference-recipe-mapping-contract-pr15`
 Head at open: `44f42ee9f`
+Latest mapped head after active authority-note fixes: `22ab2e92b`
 
 ## Scope
 
@@ -372,6 +373,26 @@ Commit: 8b1e244cd
 Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates exact PR11 `primary_sources` and `auxiliary_sources` for every coverage-domain row and preserves exact PR11 source-gap `blocking_reasons`; `tests/test_food_source_preference_recipe_mapping.py` rejects drifted `preference_menu_planning.primary_sources` and empty `nutritionix.blocking_reasons`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236258961
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236258972
+
+Disposition: FIXED
+Commit: 22ab2e92b
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects active `allow` / `allows` authority-note grants via generated blocked-method phrases and bounded approval windows; `tests/test_food_source_preference_recipe_mapping.py` covers `allow api calls` and `allows source use`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236449960
+
+Disposition: FIXED
+Commit: 22ab2e92b
+Evidence: `core/food_sources/preference_recipe_mapping.py` now treats `recipe text`, `user preference text`, `preference text`, and `llm output` as guarded non-authority subjects in approval-window scans; `tests/test_food_source_preference_recipe_mapping.py` covers `recipe text allowed`, `user preference text allowed`, and `llm output enabled`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236449961
+
+Disposition: FIXED
+Commit: 22ab2e92b
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects `authorize` / `authorizes` / `authorized` authority-note wording; `tests/test_food_source_preference_recipe_mapping.py` covers `api calls authorized`, `source use authorized`, and `nutrition authority authorized`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236449965
+
+Disposition: FIXED
+Commit: 22ab2e92b
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects prepositional approval forms such as `approved for ...`, `allowed for ...`, `permitted for ...`, `granted for ...`, `enabled for ...`, and `authorized for ...`; `tests/test_food_source_preference_recipe_mapping.py` covers `approved for api calls`, `allowed for source use`, and `approved for recipe text`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236449969
 
 ## Merge Readiness
 
