@@ -110,8 +110,8 @@ def _candidate(
     evidence: SemanticCacheBackendSafetyEvidence | None = None,
     rollback: SemanticCacheBackendRollbackProof | None = None,
     current_head_ci_passed: bool = True,
-    current_head_ci_proof_id: str | None = "ci:current-head",
-    human_approval_record_id: str | None = "approval:human",
+    current_head_ci_proof_id: str | None = "ci:pr-1742:head-7035cff:run-25518898784",
+    human_approval_record_id: str | None = "approval:human:pr-1742",
     latency_saved_p95_ms: int = 100,
     cost_saved_microunits: int = 10,
 ) -> SemanticCacheBackendCandidate:
@@ -517,6 +517,7 @@ def test_metadata_rejects_relative_local_paths() -> None:
         {"path": "./payload.txt"},
         {"nested": {"path": "../payload.txt"}},
         {"uri": "file:///tmp/cache-evidence.json"},
+        {"uri": "FILE:///tmp/cache-evidence.json"},
     )
 
     for metadata in unsafe_metadata:
@@ -560,6 +561,24 @@ def test_criteria_cannot_enable_runtime_or_implementation() -> None:
         replace(_criteria(), require_current_head_ci=False)
     with pytest.raises(ValueError, match="CI proof and human approval"):
         replace(_criteria(), require_human_approval=False)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), max_false_hit_rate_bps=1)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), max_stale_answer_rate_bps=1)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), max_policy_mismatch_count=1)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), max_model_mismatch_count=1)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), max_context_leakage_count=1)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), allow_admission_blocked_hits=True)
+    with pytest.raises(ValueError, match="zero-tolerance"):
+        replace(_criteria(), allow_blocked_surface_hits=True)
+    with pytest.raises(ValueError, match="negative-control floor"):
+        replace(_criteria(), min_negative_control_count=0)
+    with pytest.raises(ValueError, match="fresh-comparison floor"):
+        replace(_criteria(), min_fresh_runtime_comparison_count=0)
 
 
 def test_type_and_value_validation_fail_closed() -> None:
@@ -689,17 +708,52 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         replace(_candidate(), candidate_id="candidate$bad")
     with pytest.raises(ValueError, match="unsafe token"):
         replace(_candidate(), candidate_id="sk-secret")
+    assert (
+        SemanticCacheBackendSafetyEvidence(
+            evidence_id="risk-audit",
+            sc_g2_contract_id="contract:sc-g2",
+            sc_g3_contract_id="contract:sc-g3",
+            sc_g4_contract_id="contract:sc-g4",
+            source_fingerprints=("sha256:source-a",),
+            eval_event_ids=("eval:1",),
+            admission_decision_id="admission:1",
+            promotion_ids=("promotion:1",),
+            replay_entry_ids=("replay:1",),
+            false_hit_rate_bps=0,
+            stale_answer_rate_bps=0,
+            policy_mismatch_count=0,
+            model_mismatch_count=0,
+            context_leakage_count=0,
+            admission_blocked_hit_count=0,
+            blocked_surface_hit_count=0,
+            negative_control_count=25,
+            fresh_runtime_comparison_count=25,
+            evidence_fingerprints=("sha256:evidence",),
+            metadata={"scope": "sc-g5"},
+        ).evidence_id
+        == "risk-audit"
+    )
     for unsafe_value in (
         "access_token",
         "ghp_test_token",
         "github_pat_test_token",
         "xoxb-test-token",
         "eyJ.test.signature",
+        "proof:healthkit",
+        "proof:raw_prompt",
+        "proof:account-id-123",
+        "proof:billing",
+        "proof:legal",
     ):
-        with pytest.raises(ValueError, match="unsafe token"):
+        with pytest.raises(ValueError, match="unsafe"):
             replace(_candidate(), current_head_ci_proof_id=unsafe_value)
-        with pytest.raises(ValueError, match="unsafe token"):
+        with pytest.raises(ValueError, match="unsafe"):
             replace(_candidate(), human_approval_record_id=unsafe_value)
+    for generic_value in ("foo", "bar", "proof:ci"):
+        with pytest.raises(ValueError, match="structured proof"):
+            replace(_candidate(), current_head_ci_proof_id=generic_value)
+        with pytest.raises(ValueError, match="structured proof"):
+            replace(_candidate(), human_approval_record_id=generic_value)
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
@@ -820,6 +874,21 @@ def test_import_guard_rejects_write_mode_path_open(tmp_path: Path) -> None:
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_dynamic_path_open_modes(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_dynamic_open_mode.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "mode = 'w'\n"
+        "Path('payload.txt').open(mode)\n"
+        "target = Path('payload.bin')\n"
+        "target.open(mode=mode)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.open.write-mode"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_path_mutations_and_os_file_mutations(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_mutations.py"
     source.write_text(
@@ -860,6 +929,24 @@ def test_import_guard_rejects_network_imports_and_calls(tmp_path: Path) -> None:
     with pytest.raises(AssertionError, match="forbidden semantic-cache imports"):
         assert_no_forbidden_semantic_cache_imports(imports)
     with pytest.raises(AssertionError, match="urlopen"):
+        assert_no_forbidden_semantic_cache_calls(calls)
+
+
+def test_import_guard_rejects_process_launch_imports_and_calls(tmp_path: Path) -> None:
+    imports = tmp_path / "unsafe_process_imports.py"
+    imports.write_text("import subprocess\n", encoding="utf-8")
+    calls = tmp_path / "unsafe_process_calls.py"
+    calls.write_text(
+        "import os\n"
+        "import subprocess\n"
+        "subprocess.run(['curl', 'https://example.invalid'])\n"
+        "os.system('curl https://example.invalid')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="forbidden semantic-cache imports"):
+        assert_no_forbidden_semantic_cache_imports(imports)
+    with pytest.raises(AssertionError, match="subprocess.run"):
         assert_no_forbidden_semantic_cache_calls(calls)
 
 

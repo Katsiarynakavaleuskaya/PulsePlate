@@ -32,6 +32,7 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "requests",
     "aiohttp",
     "httpx",
+    "subprocess",
 )
 ALLOWED_SEMANTIC_CACHE_IMPORTS = (
     "core.ai.bounded_insight_semantic_cache",
@@ -84,6 +85,29 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "httpx.get",
     "httpx.post",
     "aiohttp.ClientSession",
+    "subprocess.run",
+    "subprocess.Popen",
+    "subprocess.call",
+    "subprocess.check_call",
+    "subprocess.check_output",
+    "os.system",
+    "os.popen",
+    "os.spawnl",
+    "os.spawnle",
+    "os.spawnlp",
+    "os.spawnlpe",
+    "os.spawnv",
+    "os.spawnve",
+    "os.spawnvp",
+    "os.spawnvpe",
+    "os.execl",
+    "os.execle",
+    "os.execlp",
+    "os.execlpe",
+    "os.execv",
+    "os.execve",
+    "os.execvp",
+    "os.execvpe",
     "os.getenv",
     "os.environ.get",
 )
@@ -288,7 +312,9 @@ def _is_path_open_write_mode_call(
     if not _is_path_open_call(node, import_aliases, path_aliases):
         return False
     mode = _path_open_mode(node)
-    return mode is not None and any(flag in mode for flag in ("w", "a", "x", "+"))
+    if mode is None:
+        return True
+    return any(flag in mode for flag in ("w", "a", "x", "+"))
 
 
 def _path_open_mode(node: ast.Call) -> str | None:
@@ -296,12 +322,16 @@ def _path_open_mode(node: ast.Call) -> str | None:
         first_arg = node.args[0]
         if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
             return first_arg.value
+        return None
     for keyword in node.keywords:
         if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
             value = keyword.value.value
             if isinstance(value, str):
                 return value
-    return None
+            return None
+        if keyword.arg == "mode":
+            return None
+    return "r"
 
 
 def _is_path_expr(

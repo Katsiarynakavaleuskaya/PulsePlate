@@ -66,7 +66,7 @@ REASON_HUMAN_APPROVAL_MISSING = "human_approval_missing"
 REASON_NO_ELIGIBLE_CANDIDATE = "no_eligible_candidate"
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
-_PATH_RE = re.compile(r"(?:^|[\s=])(?:file://|/|~[/\\]|[A-Za-z]:[\\/]|\\\\)")
+_PATH_RE = re.compile(r"(?:^|[\s=])(?:file://|/|~[/\\]|[A-Za-z]:[\\/]|\\\\)", re.IGNORECASE)
 _RELATIVE_PATH_RE = re.compile(r"(?:^|[\s=])(?:\./|\.\./|[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 _UNSAFE_TOKEN_RE = re.compile(
     r"secret"
@@ -78,7 +78,7 @@ _UNSAFE_TOKEN_RE = re.compile(
     r"|bearer"
     r"|cookie"
     r"|private[_:-]?key"
-    r"|sk-[a-z0-9]"
+    r"|(?<![a-z0-9])sk-[a-z0-9][a-z0-9_-]*"
     r"|ghp_[a-z0-9_]+"
     r"|github_pat_[a-z0-9_]+"
     r"|xox[baprs]-[a-z0-9-]+"
@@ -129,6 +129,26 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|knowledge[_ -]?graph",
     re.IGNORECASE,
 )
+_UNSAFE_EVIDENCE_ID_RE = re.compile(
+    r"raw[_:-]?(?:query|prompt|response|answer)"
+    r"|normalized[_:-]?query"
+    r"|healthkit"
+    r"|diagnosis"
+    r"|symptom"
+    r"|medical"
+    r"|account[_:-]?(?:id|truth)?"
+    r"|billing"
+    r"|entitlement"
+    r"|legal"
+    r"|compliance"
+    r"|advisory[_:-]?wiki"
+    r"|workforce[_:-]?memory"
+    r"|graphrag"
+    r"|knowledge[_:-]?graph",
+    re.IGNORECASE,
+)
+SC_G5_MIN_NEGATIVE_CONTROL_COUNT = 10
+SC_G5_MIN_FRESH_RUNTIME_COMPARISON_COUNT = 10
 
 
 @dataclass(frozen=True)
@@ -157,7 +177,11 @@ class SemanticCacheBackendSafetyEvidence:
     metadata: Mapping[str, JsonValue]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "evidence_id", _validate_token("evidence_id", self.evidence_id))
+        object.__setattr__(
+            self,
+            "evidence_id",
+            _validate_evidence_id("evidence_id", self.evidence_id),
+        )
         object.__setattr__(
             self,
             "sc_g2_contract_id",
@@ -235,7 +259,7 @@ class SemanticCacheBackendRollbackProof:
     metadata: Mapping[str, JsonValue]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "proof_id", _validate_token("proof_id", self.proof_id))
+        object.__setattr__(self, "proof_id", _validate_evidence_id("proof_id", self.proof_id))
         for name in (
             "kill_switch_proof_id",
             "request_bypass_proof_id",
@@ -243,7 +267,7 @@ class SemanticCacheBackendRollbackProof:
             "purge_invalidation_proof_id",
             "rollback_runbook_id",
         ):
-            object.__setattr__(self, name, _validate_token(name, getattr(self, name)))
+            object.__setattr__(self, name, _validate_evidence_id(name, getattr(self, name)))
         object.__setattr__(
             self,
             "disabled_state_test_ids",
@@ -317,13 +341,21 @@ class SemanticCacheBackendCandidate:
             object.__setattr__(
                 self,
                 "current_head_ci_proof_id",
-                _validate_token("current_head_ci_proof_id", self.current_head_ci_proof_id),
+                _validate_structured_proof_id(
+                    "current_head_ci_proof_id",
+                    self.current_head_ci_proof_id,
+                    prefixes=("ci:pr-", "ci:current-head:", "verification-bundle:ci:"),
+                ),
             )
         if self.human_approval_record_id is not None:
             object.__setattr__(
                 self,
                 "human_approval_record_id",
-                _validate_token("human_approval_record_id", self.human_approval_record_id),
+                _validate_structured_proof_id(
+                    "human_approval_record_id",
+                    self.human_approval_record_id,
+                    prefixes=("approval:human:", "review:human:", "verification-bundle:approval:"),
+                ),
             )
         object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
 
@@ -385,6 +417,20 @@ class SemanticCacheBackendSelectionCriteria:
             raise ValueError("SC-G5 criteria must keep runtime and implementation disabled")
         if not self.require_current_head_ci or not self.require_human_approval:
             raise ValueError("SC-G5 criteria must require CI proof and human approval")
+        if (
+            self.max_false_hit_rate_bps != 0
+            or self.max_stale_answer_rate_bps != 0
+            or self.max_policy_mismatch_count != 0
+            or self.max_model_mismatch_count != 0
+            or self.max_context_leakage_count != 0
+            or self.allow_admission_blocked_hits
+            or self.allow_blocked_surface_hits
+        ):
+            raise ValueError("SC-G5 safety criteria must be zero-tolerance and fail closed")
+        if self.min_negative_control_count < SC_G5_MIN_NEGATIVE_CONTROL_COUNT:
+            raise ValueError("SC-G5 criteria must require the minimum negative-control floor")
+        if self.min_fresh_runtime_comparison_count < SC_G5_MIN_FRESH_RUNTIME_COMPARISON_COUNT:
+            raise ValueError("SC-G5 criteria must require the minimum fresh-comparison floor")
 
 
 @dataclass(frozen=True)
@@ -1002,6 +1048,25 @@ def _validate_token(name: str, value: str) -> str:
         raise ValueError(f"{name} contains unsafe token")
     if not _TOKEN_RE.match(normalized):
         raise ValueError(f"{name} contains unsupported characters")
+    return normalized
+
+
+def _validate_evidence_id(name: str, value: str) -> str:
+    normalized = _validate_token(name, value)
+    if _UNSAFE_EVIDENCE_ID_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe evidence identifier")
+    return normalized
+
+
+def _validate_structured_proof_id(
+    name: str,
+    value: str,
+    *,
+    prefixes: tuple[str, ...],
+) -> str:
+    normalized = _validate_evidence_id(name, value)
+    if not any(normalized.startswith(prefix) for prefix in prefixes):
+        raise ValueError(f"{name} must use a structured proof identifier")
     return normalized
 
 
