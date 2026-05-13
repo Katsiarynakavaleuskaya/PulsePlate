@@ -280,8 +280,37 @@ def test_existing_supersession_chain_replays_in_dependency_order() -> None:
 
     summary = dry_run_replay(existing_entries=(first, third, second))
 
-    assert summary.applied_entry_ids == tuple(
-        sorted((first.ledger_entry_id, second.ledger_entry_id, third.ledger_entry_id))
+    assert summary.applied_entry_ids == (
+        first.ledger_entry_id,
+        second.ledger_entry_id,
+        third.ledger_entry_id,
+    )
+    assert summary.diff.conflict == ()
+
+
+def test_existing_supersession_chain_allows_full_ancestry_supersedes() -> None:
+    first = _entry(run_id="1")
+    second = _entry(
+        run_id="2",
+        promotion_id=first.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-first",
+        supersedes=(first.ledger_entry_id,),
+    )
+    third = _entry(
+        run_id="3",
+        promotion_id=first.promotion_id,
+        decision="supersede",
+        idempotency_key="idem:supersede-full-ancestry",
+        supersedes=(first.ledger_entry_id, second.ledger_entry_id),
+    )
+
+    summary = dry_run_replay(existing_entries=(third, first, second))
+
+    assert summary.applied_entry_ids == (
+        first.ledger_entry_id,
+        second.ledger_entry_id,
+        third.ledger_entry_id,
     )
     assert summary.diff.conflict == ()
 

@@ -77,7 +77,7 @@ def dry_run_replay(
 
     existing_ids = tuple(entry.ledger_entry_id for entry in existing)
     candidate_ids = tuple(entry.ledger_entry_id for entry in candidates)
-    seen_idempotency, active_by_scope = _seed_existing_replay_state(existing)
+    seen_idempotency, active_by_scope, applied_existing_ids = _seed_existing_replay_state(existing)
     candidate_scope_owner: dict[str, PromotionLedgerEntry] = {}
 
     added: list[str] = []
@@ -86,7 +86,7 @@ def dry_run_replay(
     rejected: list[str] = []
     deferred: list[str] = []
     conflict: list[str] = []
-    applied = list(existing_ids)
+    applied = list(applied_existing_ids)
 
     for entry in candidates:
         seen_entry = seen_idempotency.get(entry.idempotency_key)
@@ -133,7 +133,7 @@ def dry_run_replay(
     return PromotionReplaySummary(
         candidate_entry_ids=candidate_ids,
         existing_entry_ids=existing_ids,
-        applied_entry_ids=tuple(sorted(applied)),
+        applied_entry_ids=tuple(applied),
         diff=PromotionDiff(
             added=tuple(sorted(added)),
             duplicate=tuple(sorted(duplicate)),
@@ -158,11 +158,16 @@ def _sorted_entries(
 
 def _seed_existing_replay_state(
     existing: tuple[PromotionLedgerEntry, ...],
-) -> tuple[dict[str, PromotionLedgerEntry], dict[str, PromotionLedgerEntry]]:
+) -> tuple[
+    dict[str, PromotionLedgerEntry],
+    dict[str, PromotionLedgerEntry],
+    tuple[str, ...],
+]:
     """Build fail-closed replay indexes from existing ledger entries."""
 
     seen_idempotency: dict[str, PromotionLedgerEntry] = {}
     promoting_by_scope: dict[str, list[PromotionLedgerEntry]] = {}
+    applied_non_promoting: list[str] = []
     for entry in existing:
         previous = seen_idempotency.get(entry.idempotency_key)
         if previous is not None:
@@ -173,29 +178,38 @@ def _seed_existing_replay_state(
 
         if entry.decision in {"promote", "supersede"}:
             promoting_by_scope.setdefault(entry.promotion_id, []).append(entry)
+        else:
+            applied_non_promoting.append(entry.ledger_entry_id)
 
-    active_by_scope = _resolve_existing_active_entries(promoting_by_scope)
-    return seen_idempotency, active_by_scope
+    active_by_scope, applied_promoting = _resolve_existing_active_entries(promoting_by_scope)
+    return (
+        seen_idempotency,
+        active_by_scope,
+        tuple(applied_promoting + tuple(applied_non_promoting)),
+    )
 
 
 def _resolve_existing_active_entries(
     promoting_by_scope: dict[str, list[PromotionLedgerEntry]],
-) -> dict[str, PromotionLedgerEntry]:
+) -> tuple[dict[str, PromotionLedgerEntry], tuple[str, ...]]:
     """Resolve active existing promotion entries in supersession order."""
 
     active_by_scope: dict[str, PromotionLedgerEntry] = {}
+    applied: list[str] = []
     for promotion_id in sorted(promoting_by_scope):
-        active_by_scope[promotion_id] = _resolve_existing_scope_active(
+        active_entry, applied_scope = _resolve_existing_scope_active(
             promotion_id,
             promoting_by_scope[promotion_id],
         )
-    return active_by_scope
+        active_by_scope[promotion_id] = active_entry
+        applied.extend(applied_scope)
+    return active_by_scope, tuple(applied)
 
 
 def _resolve_existing_scope_active(
     promotion_id: str,
     entries: list[PromotionLedgerEntry],
-) -> PromotionLedgerEntry:
+) -> tuple[PromotionLedgerEntry, tuple[str, ...]]:
     """Resolve one existing promotion scope without trusting hash order."""
 
     promoted = tuple(entry for entry in entries if entry.decision == "promote")
@@ -206,15 +220,23 @@ def _resolve_existing_scope_active(
         raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
 
     active_entry = promoted[0]
+    applied = [active_entry.ledger_entry_id]
     remaining_supersedes = [entry for entry in entries if entry.decision == "supersede"]
-    while remaining_supersedes:
+    remaining_by_id = {entry.ledger_entry_id: entry for entry in remaining_supersedes}
+    supersede_index: dict[str, list[PromotionLedgerEntry]] = {}
+    for entry in remaining_supersedes:
+        for superseded_id in entry.supersedes:
+            supersede_index.setdefault(superseded_id, []).append(entry)
+
+    while remaining_by_id:
         successors = tuple(
             entry
-            for entry in remaining_supersedes
-            if active_entry.ledger_entry_id in entry.supersedes
+            for entry in supersede_index.get(active_entry.ledger_entry_id, ())
+            if entry.ledger_entry_id in remaining_by_id
+            and not any(superseded_id in remaining_by_id for superseded_id in entry.supersedes)
         )
         if not successors:
-            orphan = min(remaining_supersedes, key=_entry_sort_key)
+            orphan = min(remaining_by_id.values(), key=_entry_sort_key)
             raise ValueError(
                 f"existing ledger has orphan supersede entry: {orphan.ledger_entry_id}"
             )
@@ -222,9 +244,10 @@ def _resolve_existing_scope_active(
             raise ValueError(f"existing ledger has conflicting active promotion_id: {promotion_id}")
 
         active_entry = successors[0]
-        remaining_supersedes.remove(active_entry)
+        del remaining_by_id[active_entry.ledger_entry_id]
+        applied.append(active_entry.ledger_entry_id)
 
-    return active_entry
+    return active_entry, tuple(applied)
 
 
 def _entry_sort_key(entry: PromotionLedgerEntry) -> tuple[str, str, str, str]:
