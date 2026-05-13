@@ -140,6 +140,74 @@ Evidence: Proof gates, network/file/runtime dependency machine-state anchors, pa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355431 -> 3be17053c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233355435 -> 3be17053c
 
+Disposition: FIXED
+Commit: 8a974394e
+Evidence: Candidate selection/matrix decisions are recomputed and validated, and Path-derived helper aliases are covered by the semantic-cache import guard regression tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874718 -> 8a974394e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874728 -> 8a974394e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874736 -> 8a974394e
+
+Disposition: FIXED
+Commit: 34d824dd7
+Evidence: Second bot-wave guard/checker bypasses were fixed in code/tests: link/archive/tempfile/network/env/write guards, exact schema drift checks, proof gates, blocked runtime dependencies, blocked truth sources, and metadata/evidence token validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874745 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3233874755 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121103 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121110 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121114 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121122 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121129 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121139 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121148 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234121153 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474196 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474199 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705401 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705409 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705415 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705422 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705429 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816772 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816779 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816787 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816793 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234816803 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996447 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996452 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996454 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996473 -> 34d824dd7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234996476 -> 34d824dd7
+
+Disposition: FIXED
+Commit: 45155f837
+Evidence: Boundary-aware unsafe token detection and case-insensitive path detection reject colon-delimited raw-payload metadata while preserving benign evidence identifiers.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474192 -> 45155f837
+
+Disposition: FIXED
+Commit: 0c8af9c47
+Evidence: `tests/test_design_automation_next_lane_docs.py` no longer performs `git fetch`; focused pytest and mypy for the Kimi docs-only guard passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234705435 -> 0c8af9c47
+
+Disposition: NOT-A-BUG
+Evidence: `tests/core/ai/test_semantic_cache_backend_selection.py::test_no_core_ai_export_side_door` asserts SC-G5 remains unexported from `core/ai/__init__.py`; the direct module import in tests is intentional contract coverage.
+Reason: The test import path does not create an eager `core.ai` facade export or runtime serving side door.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3234474185
+
+Disposition: NOT-A-BUG
+Evidence: Current SC-G5 code/checker/tests already enforce blocked personalized/auth/provider payload metadata, blocked runtime dependencies, blocked truth sources, schema-only drift coverage, forbidden contract claims, ineligible decision consistency, unsafe capability labels, token-list shape, and structured current-head CI proof IDs; current-head CI at `906287ce` passed those lanes before the final offline Kimi guard fix.
+Reason: These later review threads restated invariants already enforced by the current implementation and regression suite; no additional code change was required beyond the mapped offline docs-test fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463347
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463355
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463359
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463369
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463375
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235463382
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235905768
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235905774
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235905779
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235905786
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
