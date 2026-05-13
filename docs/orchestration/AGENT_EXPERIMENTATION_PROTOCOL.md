@@ -294,6 +294,22 @@ If a candidate wins, the coordinator promotes it into exactly one destination:
 - promotion decisions are emitted through `scripts/orchestration/experiment_promote.py`,
 - no duplicate canonical policy wording across multiple docs.
 
+### Artifact-only notification
+
+`scripts/orchestration/experiment_notify.py` may render a redacted markdown
+summary from validated experiment packet, result, and optional promotion
+decision artifacts.
+
+Rules:
+
+- notification output is evidence-only and does not change promotion,
+  merge-readiness, or review-thread disposition authority,
+- v1 notification must not send email, Slack messages, GitHub comments, or
+  other external delivery,
+- summaries must omit raw patch text, oracle stdout/stderr, cwd, secrets, and
+  local absolute paths,
+- optional `GITHUB_STEP_SUMMARY` writes require an explicit CLI flag.
+
 ---
 
 ## 9. Sequencing for the current program
