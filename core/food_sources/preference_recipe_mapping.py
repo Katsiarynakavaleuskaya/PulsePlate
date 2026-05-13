@@ -63,6 +63,8 @@ EXPECTED_PR14_RECIPE_ALLOWED_ROLES = {
     "edamam_food_database": "adjacent_recipe_food_db_review_only",
     "spoonacular": "deferred_recipe_experiment_candidate_only",
 }
+EXPECTED_PR14_RECIPE_REVIEW_CLASSIFICATION = "commercial_contract"
+EXPECTED_PR14_RECIPE_REVIEW_FAMILY = "recipe_corpus"
 EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS = {
     "edamam_food_database": {
         "decision": "adjacent_recipe_food_db_review_only",
@@ -470,6 +472,17 @@ def _require_pr14_handoff(
         raise _mapping_error(context, "PR14 recipe_corpus_reviews sources are not allowed")
     for review in recipe_dish_corpus.recipe_corpus_reviews:
         source = review.source
+        if review.source_classification != EXPECTED_PR14_RECIPE_REVIEW_CLASSIFICATION:
+            raise _mapping_error(
+                context,
+                f"PR14 {source} source_classification must be "
+                f"{EXPECTED_PR14_RECIPE_REVIEW_CLASSIFICATION}",
+            )
+        if review.source_family != EXPECTED_PR14_RECIPE_REVIEW_FAMILY:
+            raise _mapping_error(
+                context,
+                f"PR14 {source} source_family must be {EXPECTED_PR14_RECIPE_REVIEW_FAMILY}",
+            )
         if review.legal_review_status != "required_not_approved":
             raise _mapping_error(
                 context, f"PR14 {source} legal_review_status must be required_not_approved"
@@ -509,6 +522,7 @@ def _require_pr14_handoff(
             raise _mapping_error(context, f"PR14 {source} rollback_requirement is not allowed")
         if review.allowed_role != EXPECTED_PR14_RECIPE_ALLOWED_ROLES[source]:
             raise _mapping_error(context, f"PR14 {source} allowed_role is not allowed")
+        _require_safe_notes(review.notes, f"{context}.PR14.{source}.notes")
 
 
 def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> None:
@@ -560,6 +574,9 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
         raise _mapping_error(
             context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
         )
+    source_gap_order = tuple(entry.source for entry in coverage.source_gap_decisions)
+    if len(source_gap_order) != len(set(source_gap_order)):
+        raise _mapping_error(context, "PR11 source_gap_decisions must not contain duplicates")
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
     for source, expected in EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS.items():
         source_gap = source_gap_decisions.get(source)
@@ -583,6 +600,7 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                 f"PR11 {source} source_gap_decisions must not approve ingest, runtime, API, "
                 "scraping, or paid source use",
             )
+        _require_safe_notes(source_gap.notes, f"{context}.PR11.{source}.notes")
 
 
 def _parse_mapping_contract(value: object, *, context: str) -> PreferenceMappingContract:
