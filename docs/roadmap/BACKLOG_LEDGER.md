@@ -1273,6 +1273,13 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Required sequence: component contract registry -> bridge coverage inventory -> visual regression lane -> accessibility regression lane -> token/runtime parity boundary -> later web+iOS implementation slices.
     - Links: `docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md`, `docs/design/DESIGN_SYSTEM_AUTOMATION_SPEC.md`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`
     - DoD: PR-9 packet, design-system automation spec, component contract registry contract, workflow/template pointers, deterministic docs guards, fixed-mapping governance, and any narrow orchestration preflight bugfix discovered by required agents exist; the lane remains governance/tests only and does not implement web runtime, iOS runtime, Storybook config, token mirrors, Figma/Canva/Penpot writes, screenshots, Code Connect activation, backend, OpenAPI, auth, billing, StoreKit, or HealthKit behavior.
+  - Kimi prototype intake modernization bridge tracking:
+    - Owner: @katsiaryna_kavaleuskaya
+    - Priority: P1
+    - Target PR: `docs(design): add Kimi prototype intake and modernization bridge protocol`, branch `codex/kimi-prototype-intake-modernization-bridge`
+    - Reason: The current Kimi prototype provides useful modern product and visual direction, but it must be captured as read-only evidence and normalized through repo-governed tokens, component contracts, visual regression, accessibility regression, and web+iOS parity gates before any implementation slice.
+    - Links: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md`, `docs/orchestration/DESIGN_AGENT_WORKFLOW.md`, `docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md`, `docs/design/REFERENCE_MANIFEST_SCHEMA.md`, `docs/design/REFERENCE_SCORECARD.md`
+    - DoD: Kimi page, Drive folder, and desktop code bundle evidence boundaries are recorded; Kimi is not source of truth; deterministic docs guards reject Kimi/Figma/Canva source-of-truth promotion, runtime/token/generated-mirror drift, external writes, binary artifacts, and direct-copy claims; future web/iOS implementation remains blocked behind component contract registry, bridge coverage, visual regression, accessibility regression, and token/runtime parity decisions.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
@@ -2109,8 +2116,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`)
-  - Status: 🚧 Active PR13 per-chain legal / anti-scraping review lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, PR9 MenuStat replacement gate merged as PR #1590, PR10 MenuStat source decision merged as PR #1597, PR11 coverage/source-gap audit merged as PR #1601, and PR12 chain public nutrition governance merged as PR #1609
+  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`) -> PR14 (`codex/food-data-recipe-dish-corpus-governance-pr14`)
+  - Status: 🚧 Active PR14 recipe/dish corpus governance lane; PR1 planning baseline merged as PR #1513, PR2 tooling baseline merged as PR #1517, PR4 collision policy merged as PR #1531, PR3 lineage hardening merged as PR #1532, PR5 source-onboarding gate merged as PR #1559, PR6 USDA manifest preflight merged as PR #1563, PR7 Open Food Facts manifest preflight merged as PR #1572, PR8 JPTN identity/license gate merged as PR #1577, PR9 MenuStat replacement gate merged as PR #1590, PR10 MenuStat source decision merged as PR #1597, PR11 coverage/source-gap audit merged as PR #1601, PR12 chain public nutrition governance merged as PR #1609, and PR13 per-chain legal / anti-scraping review merged as PR #1613
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -2157,11 +2164,12 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - JPTN Food Facts has a deterministic identity/license gate that records missing provider identity, source URL, license, retrieval contract, schema/unit-normalization, attribution, and redistribution evidence while keeping JPTN blocked until verified
     - MenuStat is not treated as an actively updating source; PR9 defines a deterministic replacement-source decision gate that keeps Nutritionix, FatSecret Platform, Spoonacular, and chain public nutrition pages blocked until source-specific legal, contract, cache, attribution, redistribution, freshness, schema, and rollback terms are approved
     - PR10 narrows the PR9 interpretation: FatSecret Platform is explicitly not a PulsePlate project source; MenuStat is archival/reference-only and requires validation before use; chain public nutrition pages are the preferred budget-first research lane but remain manual-evidence-only until legal, anti-scraping, cache, attribution, freshness, schema, screenshot/evidence, and rollback governance is approved
-    - Under-$20 food/recipe APIs such as Edamam Food Database may be recorded only as adjacent review candidates and must not become source authority, API-call lanes, cache authority, or runtime/ingest surfaces without a dedicated source-specific packet
+    - Commercial food/recipe API candidates such as Edamam Food Database may be recorded only as adjacent review candidates and must not become source authority, API-call lanes, cache authority, or runtime/ingest surfaces without a dedicated source-specific packet
     - Core product food database authority stays USDA-first; Open Food Facts remains auxiliary and may require a later schema/PostgreSQL review lane because upstream fields/source structure changed, while restaurant menus, dish/recipe databases, and preference-menu planning remain the active unresolved source area
     - PR11 coverage/source-gap audit proves USDA + Open Food Facts cover the product food baseline only at the governance level, records restaurant menus, recipe/dish corpora, regional/local foods, manual evidence, and preference-menu planning as unresolved/deferred gaps, and prevents any gap decision from approving ingest, scraping, paid API use, DB writes, DigitalOcean Postgres, or runtime authority
     - PR12 governs official public chain nutrition pages as manual evidence only: McDonald's, Chipotle, Starbucks, and similar chain pages may be recorded as URL/screenshot evidence for internal legal review, while scraping, automated collection, API calls, downloads, cache authority, redistribution, public dataset claims, ingest, DB writes, DigitalOcean Postgres, and runtime authority remain blocked
     - PR13 records per-chain legal / anti-scraping review requirements for McDonald's, Chipotle, and Starbucks while keeping legal review, anti-scraping, cache, display, attribution, redistribution, freshness, schema, screenshot, and rollback decisions unapproved; recipe/dish corpus governance remains the next separate lane
+    - PR14 records recipe/dish corpus governance for Edamam Food Database and Spoonacular while keeping legal review, contract review, paid/API use, cache, display, attribution, redistribution, freshness, schema, rollback, ingest, DB writes, DigitalOcean Postgres, and runtime authority unapproved; preference-to-recipe mapping remains the next separate lane
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
@@ -2817,6 +2825,31 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Live code/test evidence for already-landed PRO quota parity is linked from the backlog item and anchored to merged `PR #1379`
     - Evidence bundle format is explicit: `PR #1379` + merge SHA, `file:line` pointers to runtime/test truth, and optional runtime/test artifact links when available
     - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
+
+<a id="ledger-p1-philosophy-epic-v2-pr0-packet"></a>
+- [ ] P1: Philosophy Epic V2 PR-0 governance packet
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: `codex/philosophy-epic-v2-pr0-packet`
+  - Status: 🟡 In progress (PR-0 packet branch opened from `origin/main` on 2026-05-13; docs/governance only)
+  - Area: AI / RAG / philosophy / orchestration governance
+  - Finding Type: epic-sequencing and premortem-closure gate
+  - Reason (EN): Two operator-provided Philosophy Epic V2 PDFs define valuable analytical, linguistic, semantic-cache, FitChef, CBT, and rollout ideas, but current repo truth already has bounded philosophical runtime, offline logic+philosophy replay, and a closed semantic-cache gate. PR-0 creates the governed packet that reconciles those inputs before any runtime activation, prevents PDF/design input from becoming runtime authority by accident, and makes `pulseplate-premortem-risk-review` findings blocking unless they are fixed or formally dispositioned.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophical-logic`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-reliability-experiment-sublane`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md`
+    - `docs/orchestration/AI_RELIABILITY_EXPERIMENT_SUBLANE_W1_PACKET_2026-05-01.md`
+    - `tools/codex_skills/pulseplate-premortem-risk-review/SKILL.md`
+  - DoD:
+    - PR-0 remains docs/governance only: no runtime flags, OpenAPI, DB, frontend, iOS, provider, FitChef/CBT runtime, or semantic-cache implementation changes
+    - Packet records the PDF intake, repo-truth precedence, role order, plugin/skill boundaries, validation plan, PR body seed, and next-PR handoff
+    - Premortem findings are closed in the packet as `FIXED`, `NOT-A-BUG`, or `DEFERRED`; follow-up PRs inherit the same closure rule before readiness claims
+    - PR-1 is constrained by current semantic-cache gate markers and may not implement or enable semantic cache while the gate remains closed
+    - Canonical post-open `qa-engineer-agent -> bug-hunter` plus security review are run and mapped before readiness
+    - `docs/review/PR_<N>_FIXED_MAPPING.md` is added after the PR number exists and mirrored into the PR body
 
 
 <a id="ledger-p1-recursive-methods"></a>
