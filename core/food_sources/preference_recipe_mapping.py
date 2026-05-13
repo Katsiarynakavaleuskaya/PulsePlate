@@ -57,6 +57,10 @@ EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION = "requires_dish_mapping"
 EXPECTED_PR11_PREFERENCE_GAP_STATUS = "planner_gap_not_source_authority"
 EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION = "not_approved"
 EXPECTED_PR11_PREFERENCE_NEXT_ACTION = "preference_recipe_mapping_contract"
+EXPECTED_PR14_RECIPE_ALLOWED_ROLES = {
+    "edamam_food_database": "adjacent_recipe_food_db_review_only",
+    "spoonacular": "deferred_recipe_experiment_candidate_only",
+}
 
 BLOCKED_METHODS = (
     "scraping",
@@ -122,6 +126,8 @@ _EXTRA_FORBIDDEN_NOTE_PHRASES = (
     "nutrition authority is allowed",
     "approved nutrition authority",
     "allowed nutrition authority",
+    "approve source use",
+    "approves source use",
     "approved source use",
     "source use approved",
     "source use is approved",
@@ -186,6 +192,8 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
             variants.add("automation")
         for variant in sorted(variants):
             for phrase in (
+                f"approve {variant}",
+                f"approves {variant}",
                 f"{variant} approved",
                 f"{variant} is approved",
                 f"approved {variant}",
@@ -200,6 +208,7 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
+_NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
 
 _GOVERNANCE_KEYS = frozenset(
     {
@@ -388,13 +397,21 @@ def _require_safety_flags(data: dict[str, object], context: str) -> None:
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = " ".join(value.lower().replace("-", " ").replace("_", " ").split())
     for phrase in _FORBIDDEN_NOTE_PHRASES:
-        if re.search(rf"\b{re.escape(phrase)}\b", normalized):
+        match = re.search(rf"\b{re.escape(phrase)}\b", normalized)
+        if match and not _is_negated_approval_phrase(normalized, phrase, match.start()):
             raise _mapping_error(
                 context,
                 "notes must not approve recipe text, preference text, LLM output, "
                 "source use, ingest, runtime, cache, DB writes, display, or nutrition authority",
             )
     return value
+
+
+def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> bool:
+    if not (phrase.startswith("approve ") or phrase.startswith("approves ")):
+        return False
+    prefix = normalized[:start]
+    return any(prefix.endswith(negation) for negation in _NEGATED_APPROVAL_PREFIXES)
 
 
 def _coverage_domain_by_name(coverage: SourceGapAudit) -> dict[str, object]:
@@ -413,6 +430,50 @@ def _require_pr14_handoff(
         raise _mapping_error(
             context, f"PR14 final_gate_decision must be {PR14_FINAL_GATE_DECISION}"
         )
+    review_sources = tuple(review.source for review in recipe_dish_corpus.recipe_corpus_reviews)
+    if review_sources != tuple(EXPECTED_PR14_RECIPE_ALLOWED_ROLES):
+        raise _mapping_error(context, "PR14 recipe_corpus_reviews sources are not allowed")
+    for review in recipe_dish_corpus.recipe_corpus_reviews:
+        source = review.source
+        if review.legal_review_status != "required_not_approved":
+            raise _mapping_error(
+                context, f"PR14 {source} legal_review_status must be required_not_approved"
+            )
+        if review.contract_review_status != "required_not_approved":
+            raise _mapping_error(
+                context, f"PR14 {source} contract_review_status must be required_not_approved"
+            )
+        if review.cache_decision != "blocked_contract_required":
+            raise _mapping_error(
+                context, f"PR14 {source} cache_decision must be blocked_contract_required"
+            )
+        if review.display_decision != "blocked_contract_required":
+            raise _mapping_error(
+                context, f"PR14 {source} display_decision must be blocked_contract_required"
+            )
+        if review.attribution_decision != "required_not_approved":
+            raise _mapping_error(
+                context, f"PR14 {source} attribution_decision must be required_not_approved"
+            )
+        if review.redistribution_decision != "contract_required":
+            raise _mapping_error(
+                context, f"PR14 {source} redistribution_decision must be contract_required"
+            )
+        if review.freshness_review_status != "required_not_approved":
+            raise _mapping_error(
+                context, f"PR14 {source} freshness_review_status must be required_not_approved"
+            )
+        if review.schema_review_status != "required_not_approved":
+            raise _mapping_error(
+                context, f"PR14 {source} schema_review_status must be required_not_approved"
+            )
+        if (
+            review.rollback_requirement
+            != "required_before_any_future_source_use_ingest_or_runtime_lane"
+        ):
+            raise _mapping_error(context, f"PR14 {source} rollback_requirement is not allowed")
+        if review.allowed_role != EXPECTED_PR14_RECIPE_ALLOWED_ROLES[source]:
+            raise _mapping_error(context, f"PR14 {source} allowed_role is not allowed")
 
 
 def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> None:

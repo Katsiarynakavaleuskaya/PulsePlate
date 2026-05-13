@@ -387,6 +387,61 @@ def test_preference_recipe_mapping_rejects_pr14_no_ingest_handoff_drift(
 
 
 @pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("legal_review_status", "approved"),
+        ("contract_review_status", "approved"),
+        ("cache_decision", "approved"),
+        ("display_decision", "approved"),
+        ("attribution_decision", "approved"),
+        ("redistribution_decision", "approved"),
+        ("freshness_review_status", "approved"),
+        ("schema_review_status", "approved"),
+        ("rollback_requirement", "not_required"),
+        ("allowed_role", "source_authority"),
+    ),
+)
+def test_preference_recipe_mapping_rechecks_pr14_review_rows_for_direct_handoff(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _governance_payload()
+    recipe_governance = _recipe_dish_corpus()
+    first_review = recipe_governance.recipe_corpus_reviews[0]
+    if field_name == "legal_review_status":
+        bad_review = replace(first_review, legal_review_status=bad_value)
+    elif field_name == "contract_review_status":
+        bad_review = replace(first_review, contract_review_status=bad_value)
+    elif field_name == "cache_decision":
+        bad_review = replace(first_review, cache_decision=bad_value)
+    elif field_name == "display_decision":
+        bad_review = replace(first_review, display_decision=bad_value)
+    elif field_name == "attribution_decision":
+        bad_review = replace(first_review, attribution_decision=bad_value)
+    elif field_name == "redistribution_decision":
+        bad_review = replace(first_review, redistribution_decision=bad_value)
+    elif field_name == "freshness_review_status":
+        bad_review = replace(first_review, freshness_review_status=bad_value)
+    elif field_name == "schema_review_status":
+        bad_review = replace(first_review, schema_review_status=bad_value)
+    elif field_name == "rollback_requirement":
+        bad_review = replace(first_review, rollback_requirement=bad_value)
+    else:
+        bad_review = replace(first_review, allowed_role=bad_value)
+    recipe_governance = replace(
+        recipe_governance,
+        recipe_corpus_reviews=(bad_review, *recipe_governance.recipe_corpus_reviews[1:]),
+    )
+
+    with pytest.raises(PreferenceRecipeMappingError, match=f"PR14 .*{field_name}"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=recipe_governance,
+        )
+
+
+@pytest.mark.parametrize(
     "note",
     (
         "recipe text authority is now available",
@@ -436,6 +491,48 @@ def test_preference_recipe_mapping_rejects_blocked_method_note_approvals(
             coverage=_coverage(),
             recipe_dish_corpus=_recipe_dish_corpus(),
         )
+
+
+@pytest.mark.parametrize(
+    "note",
+    (
+        "we approve source use",
+        "this approves API calls",
+        "operators approve paid API use",
+        "policy approves cache authority",
+    ),
+)
+def test_preference_recipe_mapping_rejects_present_tense_note_approvals(note: str) -> None:
+    payload = _governance_payload()
+    payload["notes"] = note
+
+    with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=_coverage(),
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+@pytest.mark.parametrize(
+    "note",
+    (
+        "we do not approve source use",
+        "this does not approve API calls",
+        "operators never approve paid API use",
+    ),
+)
+def test_preference_recipe_mapping_allows_negated_present_tense_notes(note: str) -> None:
+    payload = _governance_payload()
+    payload["notes"] = note
+
+    governance = parse_preference_recipe_mapping_governance(
+        payload,
+        coverage=_coverage(),
+        recipe_dish_corpus=_recipe_dish_corpus(),
+    )
+
+    assert governance.notes == note
 
 
 def test_preference_recipe_mapping_notes_guard_does_not_reject_substrings() -> None:
