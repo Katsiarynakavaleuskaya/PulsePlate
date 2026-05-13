@@ -392,6 +392,21 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "tests/results-serial.xml" not in test_main_section
     assert "tests/results-py312-shard-*.xml" in test_main_section
     assert "tests/results-py313-shard-*.xml" in test_main_section
+    assert (
+        "name: coverage-xml-${{ matrix.python-version }}\n"
+        "          path: coverage.xml\n"
+        "          if-no-files-found: ignore\n"
+        "          overwrite: true"
+    ) in test_main_section
+    assert (
+        "name: junit-${{ matrix.python-version }}\n"
+        "          path: |\n"
+        "            tests/results.xml\n"
+        "            tests/results-py312-shard-*.xml\n"
+        "            tests/results-py313-shard-*.xml\n"
+        "          if-no-files-found: ignore\n"
+        "          overwrite: true"
+    ) in test_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block

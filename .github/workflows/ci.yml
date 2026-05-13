@@ -1149,6 +1149,7 @@ jobs:
           name: coverage-xml-${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 7
 
       - name: Upload JUnit test report
@@ -1161,6 +1162,7 @@ jobs:
             tests/results-py312-shard-*.xml
             tests/results-py313-shard-*.xml
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 7
 
   # Coverage reporting for PRs
