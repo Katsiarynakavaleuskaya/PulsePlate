@@ -1,0 +1,85 @@
+<!-- markdownlint-disable MD034 -->
+# PR 1743 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: e40f1a2fe
+Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; `docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md`; `docs/roadmap/BACKLOG_LEDGER.md`
+Reason: Post-open QA, bug-hunter, data-scientist, Cubic, CodeRabbit, and Codex review found the same PR14 governance issues: note text still allowed source-use authority wording, the PR14 packet leaked contributor-specific absolute validation paths, and the active ledger retained price-like Edamam wording. Commit `e40f1a2fe` expands fail-closed note rejection coverage, adds deterministic tests, normalizes packet commands, and makes the ledger price-neutral.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233329043 -> e40f1a2fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233334277 -> e40f1a2fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348556 -> e40f1a2fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280548377 -> e40f1a2fe
+
+Disposition: FIXED
+Commit: e26a32f41
+Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`
+Reason: CodeRabbit flagged unchecked Phase 2 discussion/mapping checkboxes. Commit `e26a32f41` marked the checkboxes complete and replaced the parser-invalid placeholder prose with structured dispositions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348571 -> e26a32f41
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280569358 -> e26a32f41
+
+Disposition: NOT-A-BUG
+Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; CodeRabbit reported this as a warning, not a required PR check.
+Reason: CodeRabbit's top-level docstring-coverage warning is advisory for this repo and not part of the canonical PulsePlate merge-readiness gate for this narrow governance PR. The module is covered by focused deterministic tests, targeted mypy, and the PR14 CLI gate; no broad docstring-generation churn is taken in this lane.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#issuecomment-4439822665
+
+Disposition: FIXED
+Commit: a7cd60fcd
+Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; targeted mypy
+Reason: Sourcery flagged the combined source-family guard as hard to reason about and noted repeated onboarding/coverage map construction inside per-row parsing. Commit `a7cd60fcd` splits the source-family checks and computes the lookup maps once before row parsing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280551747 -> a7cd60fcd
+
+Disposition: FIXED
+Commit: 1d19ed6f0
+Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`; `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1743`
+Reason: CodeRabbit flagged mapping wording/style and a pre-checked merge-readiness checkbox. Commit `1d19ed6f0` changes `Phase2` to `Phase 2` and leaves the Codex Security merge-readiness checkbox unchecked until the final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451864 -> 1d19ed6f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451870 -> 1d19ed6f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280684402 -> 1d19ed6f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280714839 -> 1d19ed6f0
+
+Disposition: FIXED
+Commit: 7ca92f7fe
+Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; focused PR14 tests (`57 passed`); targeted mypy
+Reason: Codex and Cubic found complementary notes-guard issues: approval grammar variants still passed, while raw substring matching could reject safe words such as `disallowed`. Commit `7ca92f7fe` adds word-boundary matching plus unsafe-variant and false-positive tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233482886 -> 7ca92f7fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233484303 -> 7ca92f7fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280720962 -> 7ca92f7fe
+
+## Pre-Open Role-Agent Review
+
+Disposition: FIXED
+Evidence: `docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md`; `docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json`; `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`
+Reason: Pre-open coordinator and role-agent findings were fixed before PR open: packet reviewer routing mirrored `architecture-specialist`, validation commands use repo `.venv` / explicit `VENV_PYTHON`, price-like Edamam wording was removed, tests became mypy-clean, `file_only=False` is rejected, and free-text notes cannot contradict the no-use policy.
+
+## Validation
+
+- `python3 scripts/orchestration/check_preflight.py` — PASS
+- `python3 scripts/orchestration/check_agent_consistency.py` — PASS
+- `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR14 recipe dish corpus governance gate" --task-class Orchestration --pr-phase pre_open ...` — PASS (`dad027e3ce94`)
+- `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR14 recipe dish corpus governance gate post-open review for PR 1743" --task-class Orchestration --pr-phase post_open_review ...` — PASS (`d2290b3f3c19`)
+- `${VENV_PYTHON:-.venv/bin/python} -m pytest tests/test_food_source_recipe_dish_corpus.py -q` — PASS (`57 passed`)
+- Adjacent food-source regressions plus repo policy guards — PASS (`212 passed`)
+- PR14 CLI JSON gate — PASS (`success: true`)
+- Targeted mypy for PR14 files — PASS
+- `pre-commit run --all-files` — PASS
+- `make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` — PASS (`57 passed`)
+- Codex Security scan — PASS, no reportable findings (`/tmp/codex-security-scans/food-data-recipe-dish-corpus-governance-pr14/3551bbf36f29_20260513T103019Z/report.md`)
+- Pre-push hooks — PASS (changed-file mypy, backend tests, full repo Bandit, Docker build test)
+
+## Merge Readiness
+
+- [ ] Current-head CI green for PR branch head
+- [ ] Required checks complete (no pending jobs)
+- [ ] CodeRabbit inspected; no actionable comments remain unmapped
+- [ ] Codex Security inspected; no actionable comments remain unmapped
+- [ ] Post-open `qa-engineer-agent -> bug-hunter` pass completed
+- [ ] All review threads resolved on GitHub after disposition updates
+- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
+<!-- markdownlint-enable MD034 -->
