@@ -78,7 +78,7 @@ def _changed_paths_for_current_worktree() -> list[str]:
     if staged:
         return staged
 
-    diff_bases = ["origin/main...HEAD", "main...HEAD"]
+    diff_bases = []
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if event_path:
         try:
@@ -87,22 +87,31 @@ def _changed_paths_for_current_worktree() -> list[str]:
             errors = [f"GITHUB_EVENT_PATH: {exc}"]
         else:
             errors = []
-            base_sha = event.get("pull_request", {}).get("base", {}).get("sha")
-            if isinstance(base_sha, str) and re.fullmatch(r"[0-9a-f]{40}", base_sha):
-                fetch_base = subprocess.run(
-                    [git_bin, "fetch", "--no-tags", "--depth=1", "origin", base_sha],
+            pull_request = event.get("pull_request", {})
+            base_sha = pull_request.get("base", {}).get("sha")
+            head_sha = pull_request.get("head", {}).get("sha")
+            if (
+                isinstance(base_sha, str)
+                and isinstance(head_sha, str)
+                and re.fullmatch(r"[0-9a-f]{40}", base_sha)
+                and re.fullmatch(r"[0-9a-f]{40}", head_sha)
+            ):
+                fetch_pr_bounds = subprocess.run(
+                    [git_bin, "fetch", "--no-tags", "--depth=1", "origin", base_sha, head_sha],
                     cwd=REPO_ROOT,
                     check=False,
                     text=True,
                     capture_output=True,
                 )
-                if fetch_base.returncode == 0:
-                    diff_bases.append(f"{base_sha}..HEAD")
+                if fetch_pr_bounds.returncode == 0:
+                    diff_bases.append(f"{base_sha}..{head_sha}")
                 else:
-                    detail = (fetch_base.stderr or fetch_base.stdout).strip()
-                    errors.append(f"fetch {base_sha}: {detail or 'git fetch failed'}")
+                    detail = (fetch_pr_bounds.stderr or fetch_pr_bounds.stdout).strip()
+                    errors.append(f"fetch {base_sha}..{head_sha}: {detail or 'git fetch failed'}")
     else:
         errors = []
+
+    diff_bases.extend(["origin/main...HEAD", "main...HEAD"])
 
     parents = subprocess.run(
         [git_bin, "rev-list", "--parents", "-n", "1", "HEAD"],
