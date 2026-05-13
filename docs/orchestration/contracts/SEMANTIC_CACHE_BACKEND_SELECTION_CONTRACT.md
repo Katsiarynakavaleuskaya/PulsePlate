@@ -174,10 +174,18 @@ second source of truth as product cache source or backend-selection authority.
     "raw answers",
     "provider payloads",
     "secrets",
+    "credentials",
     "authorization headers",
     "cookies",
     "API keys",
-    "local paths"
+    "private keys",
+    "local paths",
+    "HealthKit-derived sensitive payloads",
+    "diagnosis-like health data",
+    "highly personalized coaching state",
+    "user-account truth",
+    "billing/auth/entitlement truth",
+    "legal/compliance output truth"
   ],
   "blocked_runtime_dependencies": [
     "FastAPI",

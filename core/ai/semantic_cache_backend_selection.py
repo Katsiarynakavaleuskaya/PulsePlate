@@ -588,6 +588,7 @@ def select_semantic_cache_backend(
         if decision_by_candidate.get(candidate.candidate_id)
         and decision_by_candidate[candidate.candidate_id].decision == DECISION_ELIGIBLE
     ]
+    evaluated_ids = tuple(candidate.candidate_id for candidate in ordered_candidates)
     rejected_ids = tuple(
         candidate.candidate_id for candidate in ordered_candidates if candidate not in eligible
     )
@@ -615,7 +616,9 @@ def select_semantic_cache_backend(
     selected = sorted(eligible, key=_candidate_rank_key)[0]
     payload = {
         "decision": DECISION_SELECTED,
+        "evaluated_candidate_ids": list(evaluated_ids),
         "policy_version": criteria.policy_version,
+        "rejected_candidate_ids": list(rejected_ids),
         "selected_backend_label": selected.backend_label,
         "selected_candidate_id": selected.candidate_id,
     }
@@ -711,7 +714,7 @@ def _candidate_failure_reasons(
         reasons.append(REASON_CURRENT_HEAD_CI_MISSING)
     if criteria.require_human_approval and candidate.human_approval_record_id is None:
         reasons.append(REASON_HUMAN_APPROVAL_MISSING)
-    return _normalize_unique_tokens("reason_codes", reasons)
+    return _normalize_unique_tokens("reason_codes", tuple(dict.fromkeys(reasons)))
 
 
 def _evidence_signature(evidence: SemanticCacheBackendSafetyEvidence) -> Mapping[str, JsonValue]:
@@ -870,7 +873,7 @@ def _freeze_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
 def _freeze_json_value(value: JsonValue) -> JsonValue:
     if isinstance(value, Mapping):
         return _freeze_mapping(value)
-    if isinstance(value, list | tuple):
+    if isinstance(value, (list, tuple)):
         return tuple(_freeze_json_value(item) for item in value)
     return value
 

@@ -2403,7 +2403,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Evidence Graph Runtime umbrella
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1 (AI runtime governance / evidence lineage)
-  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: `feat/ai-runtime-semantic-cache-backend-selection-contract`
+  - Target PR: PR-E0 (`codex/evidence-graph-runtime-umbrella`) -> PR-E1/E2/E3/E4/E5; current follow-up: PR #1742
   - Area: AI runtime / RAG / evals / knowledge promotion / advisory memory
   - Finding Type: asset-lineage and replay-governance gap
   - Status: PR-E5 advisory wiki evidence bridge merged; E0/E1/E2/E3/E4/E5 are baseline, #1666/#1667 eval-sidecar hardening is baseline, #1676 source-artifact path hardening is baseline, and semantic cache remains blocked behind a dedicated gate with machine-checkable closed markers

@@ -46,6 +46,9 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "open",
     "Path.write_text",
     "Path.write_bytes",
+    "pathlib.Path.write_text",
+    "pathlib.Path.write_bytes",
+    "os.getenv",
     "os.environ.get",
 )
 
@@ -160,6 +163,9 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append("Path.open.write")
             if call_name and (call_name.startswith("random.") or call_name.startswith("secrets.")):
                 offenders.append(call_name)
+        elif isinstance(node, ast.Subscript):
+            if _qualified_call_name(node.value, import_aliases) == "os.environ":
+                offenders.append("os.environ[]")
 
     assert offenders == [], f"forbidden semantic-cache calls found: {offenders}"
 
@@ -216,6 +222,8 @@ def _is_path_expr(
 ) -> bool:
     if isinstance(node, ast.Call):
         return _is_path_constructor_call(node, import_aliases)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
+        return _is_path_expr(node.left, import_aliases, path_aliases)
     if isinstance(node, ast.Name):
         return node.id in path_aliases
     return False

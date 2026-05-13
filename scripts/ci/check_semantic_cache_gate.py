@@ -587,8 +587,19 @@ BACKEND_SELECTION_REQUIRED_ANCHORS = (
         "no provider payloads",
         re.compile(r"\bmust not contain, persist, rank, or emit:.*provider payloads\b"),
     ),
-    ("advisory wiki blocked", re.compile(r"\bmust not use advisory wiki\b")),
-    ("workforce memory blocked", re.compile(r"\bworkforce memory\b")),
+    (
+        "advisory wiki blocked",
+        re.compile(
+            r"\bmust not use advisory wiki\b|\bblocked_truth_sources\b[^\]]*\badvisory wiki\b"
+        ),
+    ),
+    (
+        "workforce memory blocked",
+        re.compile(
+            r"\bmust not use\b[^.]*\bworkforce memory\b|"
+            r"\bblocked_truth_sources\b[^\]]*\bworkforce memory\b"
+        ),
+    ),
 )
 
 BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
@@ -945,11 +956,23 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
         "blocked_payload_fields": (
             "raw prompts",
             "raw queries",
+            "normalized queries",
             "raw model responses",
             "raw answers",
             "provider payloads",
             "secrets",
+            "credentials",
+            "authorization headers",
+            "cookies",
+            "API keys",
+            "private keys",
             "local paths",
+            "HealthKit-derived sensitive payloads",
+            "diagnosis-like health data",
+            "highly personalized coaching state",
+            "user-account truth",
+            "billing/auth/entitlement truth",
+            "legal/compliance output truth",
         ),
         "blocked_runtime_dependencies": (
             "Redis imports or clients",

@@ -15,6 +15,7 @@ from core.ai.semantic_cache_backend_selection import (
     DECISION_NO_SELECTION,
     DECISION_SELECTED,
     REASON_ADMISSION_BLOCKED_HITS,
+    REASON_BLOCKED_SURFACE_HITS,
     REASON_CURRENT_HEAD_CI_MISSING,
     REASON_FALSE_HIT_RATE_EXCEEDED,
     REASON_HUMAN_APPROVAL_MISSING,
@@ -217,7 +218,7 @@ def test_all_safety_threshold_failures_are_reported() -> None:
     assert REASON_POLICY_MISMATCH_EXCEEDED in decision.reason_codes
     assert REASON_MODEL_MISMATCH_EXCEEDED in decision.reason_codes
     assert REASON_CONTEXT_LEAKAGE_EXCEEDED in decision.reason_codes
-    assert "blocked_surface_hits" in decision.reason_codes
+    assert REASON_BLOCKED_SURFACE_HITS in decision.reason_codes
     assert REASON_NEGATIVE_CONTROLS_MISSING in decision.reason_codes
     assert REASON_FRESH_RUNTIME_COMPARISONS_MISSING in decision.reason_codes
 
@@ -234,6 +235,20 @@ def test_policy_or_surface_mismatch_blocks_sc_g4_compatibility() -> None:
 
     assert REASON_SC_G4_EVIDENCE_MISSING in policy_mismatch.reason_codes
     assert REASON_SC_G4_EVIDENCE_MISSING in surface_mismatch.reason_codes
+
+
+def test_policy_and_surface_mismatch_dedupe_sc_g4_reason() -> None:
+    decision = evaluate_semantic_cache_backend_candidate(
+        candidate=replace(
+            _candidate(),
+            policy_version="semantic-cache-sc-g5-other",
+            supported_surfaces=("other",),
+        ),
+        criteria=_criteria(),
+    )
+
+    assert decision.decision == DECISION_INELIGIBLE
+    assert decision.reason_codes.count(REASON_SC_G4_EVIDENCE_MISSING) == 1
 
 
 def test_rollback_ci_and_human_approval_are_required() -> None:
@@ -277,6 +292,47 @@ def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
     assert decision.reason_codes == (REASON_SELECTED,)
     assert decision.selected_candidate_id == "candidate:gptcache"
     assert decision.selected_backend_label == BACKEND_LABEL_GPTCACHE
+
+
+def test_selected_decision_identity_includes_evaluated_comparison_set() -> None:
+    winner = _candidate(
+        candidate_id="candidate:gptcache",
+        backend_label=BACKEND_LABEL_GPTCACHE,
+        latency_saved_p95_ms=120,
+        cost_saved_microunits=20,
+    )
+    baseline = select_semantic_cache_backend(
+        candidates=(winner,),
+        criteria=_criteria(),
+    )
+    with_rejected_candidate = select_semantic_cache_backend(
+        candidates=(
+            winner,
+            _candidate(
+                candidate_id="candidate:redis",
+                backend_label=BACKEND_LABEL_REDIS,
+                evidence=_evidence(false_hit_rate_bps=1),
+            ),
+        ),
+        criteria=_criteria(),
+    )
+    with_other_eligible_candidate = select_semantic_cache_backend(
+        candidates=(
+            winner,
+            _candidate(
+                candidate_id="candidate:memory",
+                backend_label=BACKEND_LABEL_IN_MEMORY,
+                latency_saved_p95_ms=80,
+                cost_saved_microunits=8,
+            ),
+        ),
+        criteria=_criteria(),
+    )
+
+    assert baseline.selected_candidate_id == with_rejected_candidate.selected_candidate_id
+    assert baseline.selected_candidate_id == with_other_eligible_candidate.selected_candidate_id
+    assert baseline.decision_id != with_rejected_candidate.decision_id
+    assert baseline.decision_id != with_other_eligible_candidate.decision_id
 
 
 def test_no_eligible_candidate_fails_closed() -> None:
@@ -596,6 +652,46 @@ def test_import_guard_rejects_path_constructor_writes(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_fully_qualified_path_writes(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_pathlib.py"
+    source.write_text(
+        "import pathlib\n"
+        "pathlib.Path.write_text(pathlib.Path('payload.txt'), 'payload')\n"
+        "pathlib.Path.write_bytes(pathlib.Path('payload.bin'), b'payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="pathlib.Path.write_text"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_joined_path_writes(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_joined_path.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "(Path('out') / 'payload.txt').write_text('payload')\n"
+        "base = Path('base')\n"
+        "(base / 'payload.bin').write_bytes(b'payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_env.py"
+    source.write_text(
+        "import os\n"
+        "os.getenv('SEMANTIC_CACHE_ENABLED')\n"
+        "os.environ['SEMANTIC_CACHE_ENABLED']\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="os.getenv"):
         assert_no_forbidden_semantic_cache_calls(source)
 
 

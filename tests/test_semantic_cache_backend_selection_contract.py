@@ -130,6 +130,47 @@ def test_schema_required_keys_and_consts_match_contract_state() -> None:
     ]
 
 
+def test_machine_state_blocks_every_payload_class_from_contract_prose() -> None:
+    state = _machine_state()
+
+    assert set(state["blocked_payload_fields"]) >= {
+        "raw prompts",
+        "raw queries",
+        "normalized queries",
+        "raw model responses",
+        "raw answers",
+        "provider payloads",
+        "secrets",
+        "credentials",
+        "authorization headers",
+        "cookies",
+        "API keys",
+        "private keys",
+        "local paths",
+        "HealthKit-derived sensitive payloads",
+        "diagnosis-like health data",
+        "highly personalized coaching state",
+        "user-account truth",
+        "billing/auth/entitlement truth",
+        "legal/compliance output truth",
+    }
+
+
+def test_checker_requires_explicit_workforce_memory_blocking_language() -> None:
+    bad_text = (
+        _contract_text()
+        .replace(
+            "SC-G5 must not use advisory wiki, workforce memory",
+            "SC-G5 mentions advisory wiki and workforce memory",
+        )
+        .replace('"workforce memory",\n', "")
+    )
+
+    errors = validate_semantic_cache_backend_selection_contract(bad_text)
+
+    assert any("workforce memory blocked" in error for error in errors)
+
+
 def test_checker_validates_backend_selection_schema_against_machine_state() -> None:
     errors = validate_semantic_cache_backend_selection_schema(
         schema_text=SCHEMA.read_text(encoding="utf-8"),
