@@ -58,9 +58,14 @@ Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCO
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232876401 -> 0b4ab97974fffaa1310109ea801e425c674ba5e7
 
 Disposition: NOT-A-BUG
-Evidence: Local worktree proof: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD` returned `0` at head `7cf6432f1ae5009ca3fd544b16dcdb9bdacd25ab`; `check_review_threads_disposition.py --pr-number 1741` passed before the follow-up scorecard fix. Existing mappings to `893fbdae8e454530f962f9d41a5d311de5ffdd9c` reference a commit on the current branch history.
-Reason: The mapped FIXED proof commit is present on this PR branch history in the local worktree, so no code/docs change is required for this review thread.
+Evidence: Local worktree proof at head `c39c09537bec1f553bd621cc07d6168111f172d6`: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD`, `git merge-base --is-ancestor 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e HEAD`, and `git merge-base --is-ancestor 0b4ab97974fffaa1310109ea801e425c674ba5e7 HEAD` each returned `0`.
+Reason: The mapped FIXED proof commits are present on this PR branch history in the local worktree, so no code/docs change is required for this review thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232876393
+
+Disposition: NOT-A-BUG
+Evidence: Local worktree proof at head `c39c09537bec1f553bd621cc07d6168111f172d6`: `git merge-base --is-ancestor 893fbdae8e454530f962f9d41a5d311de5ffdd9c HEAD`, `git merge-base --is-ancestor 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e HEAD`, and `git merge-base --is-ancestor 0b4ab97974fffaa1310109ea801e425c674ba5e7 HEAD` each returned `0`.
+Reason: The current local PR branch contains the mapped fix SHAs as ancestors; the review concern is not reproducible in this worktree.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232982587
 
 ## Pre-Open Premortem Findings
 
