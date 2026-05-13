@@ -10,7 +10,7 @@
 
 Add the Design Intelligence PR-8 research/eval lane for GEPA-compatible prompt and rubric evolution after PR-7 workflow/template governance.
 
-This packet is binding for PR-8 scope. It does not authorize runtime, token, Figma, Canva, Storybook, screenshot, asset, or infrastructure changes.
+This packet is binding for PR-8 scope. It does not authorize runtime, token, Figma, Canva, Storybook, Kimi-generated code, Kimi-generated layouts, Kimi-generated copy, screenshot, asset, or infrastructure changes.
 
 ## Touched Paths
 
@@ -108,7 +108,7 @@ Reference/evidence/process only:
 - Design scorecards.
 - Web acceptance briefs.
 - iOS parity audits.
-- Figma, Canva, Storybook, external references, prompt outputs, generated briefs, GEPA-inspired traces, and this packet.
+- Figma, Canva, Storybook, Kimi prototypes, external references, prompt outputs, generated briefs, GEPA-inspired traces, and this packet.
 
 ## In Scope
 
@@ -138,7 +138,7 @@ Check:
 - Does wording create a second source of truth?
 - Does wording imply automatic adoption or self-promotion of evolved prompts/rubrics?
 - Does any command use a system Python interpreter instead of `.venv/bin/python`?
-- Does any loophole allow runtime web, iOS, backend, token, Figma, Canva, Storybook, screenshot, asset, or infrastructure mutation?
+- Does any loophole allow runtime web, iOS, backend, token, Figma, Canva, Storybook, Kimi-generated code, Kimi-generated layouts, Kimi-generated copy, screenshot, asset, or infrastructure mutation?
 - Does the PR claim green main or full local `make verify`?
 - Does mapping attempt to substitute for fixing docs/test defects?
 
@@ -152,7 +152,7 @@ Verify:
 - No runtime files changed.
 - No `/tokens` files changed.
 - No generated mirror files changed.
-- No Figma, Canva, or Storybook-config write path.
+- No Figma, Canva, Storybook-config, or Kimi-generated code/layout/copy write path.
 - All command examples use `.venv/bin/python` or `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python`.
 - Prompt outputs are not source of truth.
 - GEPA remains research/eval/process-only.
@@ -232,6 +232,6 @@ If a later PR promotes a prompt/rubric candidate, that later PR must provide its
 - PR-8 packet exists.
 - Docs guard test exists and passes.
 - Ledger records PR-8 as active after PR-7 merge.
-- No runtime, token, generated mirror, Figma, Canva, Storybook config, screenshot, asset, or infrastructure diff exists.
+- No runtime, token, generated mirror, Figma, Canva, Storybook config, Kimi-generated code/layout/copy, screenshot, asset, or infrastructure diff exists.
 - Premortem and bug-hunter findings are fixed before mapping.
 - Bounded checks pass.

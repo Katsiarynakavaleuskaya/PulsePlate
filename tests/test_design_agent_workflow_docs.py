@@ -9,10 +9,19 @@ MAKEFILE = REPO_ROOT / "Makefile"
 PACKET = (
     REPO_ROOT / "docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md"
 )
+GEPA_PACKET = REPO_ROOT / "docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md"
 
 
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _section(text: str, heading: str) -> str:
+    start = text.index(heading)
+    next_heading = text.find("\n## ", start + len(heading))
+    if next_heading == -1:
+        return text[start:]
+    return text[start:next_heading]
 
 
 def test_design_agent_workflow_required_sections() -> None:
@@ -31,7 +40,7 @@ def test_design_agent_workflow_required_sections() -> None:
         ".venv/bin/python",
         "agent-coordinator",
         "Mapping is evidence after fix or decision; it is not the fix.",
-        "Figma, Canva, Storybook, external references",
+        "Figma, Canva, Storybook, Kimi prototypes, external references",
     ]
 
     for item in required:
@@ -45,7 +54,7 @@ def test_design_agent_workflow_required_sections() -> None:
 def test_design_pr_templates_have_required_governance_sections() -> None:
     for path in [DOC_TEMPLATE, GITHUB_TEMPLATE]:
         text = _read(path)
-        for heading in [
+        headings = [
             "## Summary",
             "## Goal",
             "## Business reason",
@@ -64,19 +73,28 @@ def test_design_pr_templates_have_required_governance_sections() -> None:
             "## Merge Readiness",
             "## Rollback",
             "## DoD",
-        ]:
+        ]
+        for heading in headings:
             assert heading in text
 
+        source_of_truth = _section(text, "## Source of truth")
         assert ".venv/bin/python" in text
         assert "DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python" in text
         assert "Mapping is evidence after fix or decision; mapping is not the fix." in text
+        assert "Figma, Canva, Storybook, Kimi prototypes, external references" in source_of_truth
         assert "No manual edits to generated token mirrors" in text
         assert "generated mirror diffs are allowed only when produced by canonical tooling" in text
 
 
 def test_design_workflow_does_not_promote_external_design_truth() -> None:
     combined = "\n".join(
-        [_read(WORKFLOW), _read(DOC_TEMPLATE), _read(GITHUB_TEMPLATE), _read(PACKET)]
+        [
+            _read(WORKFLOW),
+            _read(DOC_TEMPLATE),
+            _read(GITHUB_TEMPLATE),
+            _read(PACKET),
+            _read(GEPA_PACKET),
+        ]
     )
 
     forbidden_claims = [
@@ -98,6 +116,8 @@ def test_design_workflow_does_not_promote_external_design_truth() -> None:
         "Repo code/docs/tests",
         "`/tokens` as token authoring truth",
         "generated mirrors as derived runtime artifacts",
+        "Kimi prototype drift",
+        "Kimi-generated code",
     ]
 
     for claim in required_claims:
@@ -105,6 +125,7 @@ def test_design_workflow_does_not_promote_external_design_truth() -> None:
 
     assert "Do not claim green main" in combined
     assert "Do not override the root `AGENTS.md` merge gate." in combined
+    assert "Figma, Canva, Storybook, external references" not in combined
 
 
 def test_design_make_targets_honor_dev_python_policy() -> None:
