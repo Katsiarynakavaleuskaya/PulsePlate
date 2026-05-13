@@ -99,6 +99,11 @@ Security, QA, bug-hunter, bot, and human findings must be added here as one of
 `FIXED`, `NOT-A-BUG`, or `DEFERRED` with evidence before merge readiness is
 claimed.
 
+The formal `## Fixed in Commit Mapping` section below uses the repo-required
+`- No actionable review comments` marker because there are no GitHub
+review-thread URLs to map. Local CodeRabbit CLI review issues are recorded in
+this `## Discussion Thread Pass` section with dispositions and proof.
+
 ### CodeRabbit Finding: Missing Fixed Mapping Checkboxes
 
 Disposition: FIXED
