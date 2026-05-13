@@ -6,7 +6,7 @@
 - Title: `feat(design): add design component contract registry seed`
 - Branch: `codex/design-component-contract-registry-seed-v1`
 - Current head SHA at initial mapping creation: `7f16e2385e6aabc15ce49ee0b4015fd1220f5329`
-- Latest mapped head SHA: `d509b53b9f8c5ae0d2f9c9ac2235a77e6d9a7ac3`
+- Latest mapped head SHA: `d1371d444c8f2c3038460e0ef2a78008759a5d08`
 
 ## Scope Summary
 
@@ -57,6 +57,34 @@ Evidence: `scripts/design/design_component_registry.py` rejects `covered` status
 Disposition: FIXED
 Commit: b09c6b7a860f9c5d4ab126a411c2143356207d70
 Evidence: `## Unresolved / Deferred` now separates completed discussion-thread dispositions from pending merge-readiness re-review evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 -> d1371d444c8f2c3038460e0ef2a78008759a5d08
+Disposition: FIXED
+Commit: d1371d444c8f2c3038460e0ef2a78008759a5d08
+Evidence: `Latest mapped head SHA` is updated to the current mapping commit and all fixed proof SHAs listed in this artifact are reachable on the reviewed branch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234350308 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: `scripts/design/design_component_registry.py` now normalizes authority entries and rejects exact denied terms plus source-of-truth/canonical promotion phrases without substring false positives; tests cover `figmax`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234356516 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: `covered` status validation no longer conflicts with seed-unconfirmed validation; tests cover covered status with bridge evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 -> d1371d444c8f2c3038460e0ef2a78008759a5d08
+Disposition: FIXED
+Commit: d1371d444c8f2c3038460e0ef2a78008759a5d08
+Evidence: Fixed mapping proof now points at reachable commits on the reviewed branch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369983 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: `DENIED_CANONICAL_AUTHORITIES` includes singular `screenshot`; tests reject `screenshot source of truth`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369989 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: Seed-unconfirmed fields now require the exact scalar string `unspecified`; tests reject `["unspecified"]` placeholder lists.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369994 -> 3233f45e758d854ca36d4c375f5b18ac70420202
+Disposition: FIXED
+Commit: 3233f45e758d854ca36d4c375f5b18ac70420202
+Evidence: Status validation checks type before enum membership and returns deterministic invalid-status errors for arrays; tests cover `status: ["partial"]`.
 
 ## Review Thread Disposition Table
 
@@ -78,6 +106,13 @@ Evidence: `## Unresolved / Deferred` now separates completed discussion-thread d
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231626 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | NOT-A-BUG mapping disposition now includes a `Reason:` line. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231641 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | `covered` status is tied to bridge evidence; tests cover false-covered rows. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234231635 | FIXED | `b09c6b7a860f9c5d4ab126a411c2143356207d70` | Mapping unresolved section no longer claims pending bot re-reviews as completed discussion dispositions. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234276059 | FIXED | `d1371d444c8f2c3038460e0ef2a78008759a5d08` | Latest mapped head now points at the current mapping commit. |
+| CodeRabbit | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234350308 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Authority matching avoids substring false positives while preserving source-of-truth promotion detection. |
+| Cubic | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234356516 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Covered status can be represented when bridge evidence exists; false-covered rows still fail. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369976 | FIXED | `d1371d444c8f2c3038460e0ef2a78008759a5d08` | Fixed proof SHAs are reachable on the reviewed branch. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369983 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Singular screenshot authority promotion is rejected. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369989 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Placeholder list drift is rejected for seed-unconfirmed fields. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369994 | FIXED | `3233f45e758d854ca36d4c375f5b18ac70420202` | Array/object status values return deterministic validation errors instead of crashing. |
 
 ## Command Evidence
 
@@ -87,13 +122,13 @@ Evidence: `## Unresolved / Deferred` now separates completed discussion-thread d
 - `.venv/bin/python scripts/orchestration/task_bootstrap.py --goal "Add design component contract registry seed" ...` - PASS, packet `24ef699bc5fa`
 - `.venv/bin/python scripts/design/design_component_registry.py validate docs/orchestration/contracts/design_component_registry.v1.json` - PASS
 - `.venv/bin/python scripts/design/design_component_registry.py summarize docs/orchestration/contracts/design_component_registry.v1.json` - PASS
-- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 18 tests after bot-review fixes
+- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 23 tests after bot-review fixes
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py` - PASS, 31 tests
-- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 49 changed-file tests after bot-review fixes
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 54 changed-file tests after bot-review fixes
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS
 - Local Phase2 check after PR body/mapping correction - PASS
-- Second-pass current-head validator plus changed docs tests - PASS, 49 tests
+- Second-pass current-head validator plus changed docs tests - PASS, 54 tests
 - Codex Security diff scan - PASS, no forbidden runtime/token/asset/workflow paths and no network/subprocess/secret patterns in changed validator/tests.
 
 ## Unresolved / Deferred
