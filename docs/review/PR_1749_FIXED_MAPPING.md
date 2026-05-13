@@ -19,6 +19,8 @@
   - `791caa567ff0f3f4bed2051e93141f16bf667554` - latest review-fix mapping.
   - `c15f2ac344b92be833567d7c64745fd3c11d0013` - notification diagnostic hardening.
   - `a8d7432917674a63bd844e36d95748ab1e03d3e7` - diagnostic fix mapping update.
+  - `d2e15ebb1c51584d5d97da639bd04868185708d2` - stale proof mapping update.
+  - `9e42c202155683886b49ee381c3f1b15b67a0955` - promotion evidence and diagnostic validation.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -56,6 +58,13 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236302278 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284068594 -> c15f2ac344b92be833567d7c64745fd3c11d0013
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236321888 -> c15f2ac344b92be833567d7c64745fd3c11d0013
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284209741 -> 9e42c202155683886b49ee381c3f1b15b67a0955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236445976 -> 9e42c202155683886b49ee381c3f1b15b67a0955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236445980 -> 9e42c202155683886b49ee381c3f1b15b67a0955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236445984 -> 9e42c202155683886b49ee381c3f1b15b67a0955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#pullrequestreview-4284232269 -> 9e42c202155683886b49ee381c3f1b15b67a0955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236465759 -> 9e42c202155683886b49ee381c3f1b15b67a0955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236465778 -> 9e42c202155683886b49ee381c3f1b15b67a0955
 
 Disposition: FIXED
 Commit: e3f1232abc9a54743bc3485930c81f4de7c734ed
@@ -85,11 +94,15 @@ Disposition: FIXED
 Commit: c15f2ac344b92be833567d7c64745fd3c11d0013
 Evidence: `scripts/orchestration/experiment_notify.py` now treats directory mutable surfaces as containing nested result paths, skips leading shell `KEY=value` assignments before rendering oracle command names, and redacts unexpected-oracle diagnostics to command names. `tests/test_experiment_notify.py` covers directory surface containment, env-assignment command redaction, and secret-free fail-closed diagnostics.
 
+Disposition: FIXED
+Commit: 9e42c202155683886b49ee381c3f1b15b67a0955
+Evidence: `scripts/orchestration/experiment_notify.py` now redacts outside-surface mutated-path diagnostics, accepts nested directory mutable surfaces without suffix heuristics, validates promotion evidence oracle commands/mutated paths/oracle count against packet/result metadata, and rejects accepted results with failed or timed-out oracles. `tests/test_experiment_notify.py` covers each regression.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py --path scripts/orchestration --path docs/orchestration --path tests` - PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS.
-- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 70 tests after post-open review fixes.
+- `. ../../.venv/bin/activate && python -m pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py` - PASS, 75 tests after post-open review fixes.
 - `. ../../.venv/bin/activate && ruff check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` - PASS.
 - `. ../../.venv/bin/activate && python -m mypy scripts/orchestration/experiment_notify.py --no-incremental --cache-dir=/dev/null` - PASS.
 - `pre-commit run --all-files` - PASS after black formatted `scripts/orchestration/experiment_notify.py`.
