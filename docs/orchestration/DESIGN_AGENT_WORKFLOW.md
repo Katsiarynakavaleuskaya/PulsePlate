@@ -34,7 +34,7 @@ Design agents must inspect repo truth before proposing changes:
 - Relevant screen evidence packs, reference manifests, scorecards, acceptance briefs, and parity audits.
 - Actual web, iOS, backend, or tooling code before any implementation proposal.
 
-Figma, Canva, Storybook, Kimi prototypes, external references, prompt outputs, generated briefs, evidence packs, scorecards, and design briefs are evidence/reference layers only and do not override repo truth.
+Figma, Canva, Storybook, external references, Kimi prototypes, prompt outputs, generated briefs, evidence packs, scorecards, and design briefs are evidence/reference layers only and do not override repo truth.
 
 Kimi prototype intake and modernization bridge work must follow `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md`. Kimi page, Drive folder, and desktop code bundle artifacts remain read-only evidence; future modernization must normalize useful direction into repo vocabulary, component contracts, visual regression decisions, accessibility regression decisions, and token/runtime parity boundaries before web or iOS implementation.
 

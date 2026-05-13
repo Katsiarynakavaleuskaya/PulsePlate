@@ -995,8 +995,8 @@ def test_import_guard_rejects_process_launch_imports_and_calls(tmp_path: Path) -
     calls.write_text(
         "import os\n"
         "import subprocess\n"
-        "subprocess.run(['curl', 'https://example.invalid'])\n"
-        "os.system('curl https://example.invalid')\n",
+        "subprocess.run(['/usr/bin/curl', 'https://example.invalid'])\n"
+        "os.system('/usr/bin/curl https://example.invalid')\n",
         encoding="utf-8",
     )
 
