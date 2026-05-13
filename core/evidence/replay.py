@@ -222,6 +222,10 @@ def _resolve_existing_scope_active(
     active_entry = promoted[0]
     applied = [active_entry.ledger_entry_id]
     remaining_supersedes = [entry for entry in entries if entry.decision == "supersede"]
+    known_entry_ids = {entry.ledger_entry_id for entry in entries}
+    for entry in remaining_supersedes:
+        if any(superseded_id not in known_entry_ids for superseded_id in entry.supersedes):
+            raise ValueError(f"existing ledger has orphan supersede entry: {entry.ledger_entry_id}")
     remaining_by_id = {entry.ledger_entry_id: entry for entry in remaining_supersedes}
     supersede_index: dict[str, list[PromotionLedgerEntry]] = {}
     for entry in remaining_supersedes:
