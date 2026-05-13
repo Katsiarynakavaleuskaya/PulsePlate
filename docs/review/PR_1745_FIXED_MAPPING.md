@@ -262,6 +262,21 @@ Disposition: FIXED
 Commit: 1f30085652aad1d95b285a73b139ef8205eadcac
 Evidence: Repo-backed web runtime anchors are resolved before file checks and must stay under the repo root; `tests/test_design_component_registry.py` rejects traversal to an outside file.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235850575
+Disposition: NOT-A-BUG
+Reason: The reviewed `06769ea1` snapshot is not the current PR branch head used by the repository merge-readiness wrapper; fixed proof commits are ancestors of the live branch head.
+Evidence: Local `git merge-base --is-ancestor 9a2e9cb6885ecd000524a71fa64122d284967adc HEAD` returned `0`; local `git merge-base --is-ancestor 1f30085652aad1d95b285a73b139ef8205eadcac HEAD` returned `0`; current repository `check_review_threads_disposition.py --pr-number 1745 --require-auth` passed for all resolved threads before this mapping update.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235850587 -> 37f48d9efb2668408fc29fee3bfdc11a3decd375
+Disposition: FIXED
+Commit: 37f48d9efb2668408fc29fee3bfdc11a3decd375
+Evidence: Canonical authority promotions now deny generated briefs and external design notes; `tests/test_design_component_registry.py` rejects both terms under `authority.canonical`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235850592 -> 37f48d9efb2668408fc29fee3bfdc11a3decd375
+Disposition: FIXED
+Commit: 37f48d9efb2668408fc29fee3bfdc11a3decd375
+Evidence: Web runtime anchors must be repo-relative before repo-root/file-existence checks; `tests/test_design_component_registry.py` rejects absolute web anchors.
+
 ## Review Thread Disposition Table
 
 | Source | URL | Disposition | Commit | Evidence |
@@ -302,6 +317,9 @@ Evidence: Repo-backed web runtime anchors are resolved before file checks and mu
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648603 | FIXED | `1f30085652aad1d95b285a73b139ef8205eadcac` | Kimi protocol diff guard allows the design automation spec only under the active component-registry lane. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648607 | FIXED | `1f30085652aad1d95b285a73b139ef8205eadcac` | Authority records reject unexpected fields. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235648613 | FIXED | `1f30085652aad1d95b285a73b139ef8205eadcac` | Web runtime anchors cannot resolve outside the repository root. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235850575 | NOT-A-BUG | n/a | Proof commits are ancestors of the live branch head used by the repository merge-readiness wrapper; the reviewed `06769ea1` snapshot is not the live branch head. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235850587 | FIXED | `37f48d9efb2668408fc29fee3bfdc11a3decd375` | Canonical authority promotions deny generated briefs and external design notes. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235850592 | FIXED | `37f48d9efb2668408fc29fee3bfdc11a3decd375` | Web runtime anchors must be repo-relative. |
 
 ## Command Evidence
 
