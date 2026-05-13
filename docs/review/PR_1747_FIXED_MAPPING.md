@@ -102,7 +102,7 @@ claimed.
 ### CodeRabbit Finding: Missing Fixed Mapping Checkboxes
 
 Disposition: FIXED
-Commit: `77adfb243`
+Commit: `f49a4255d`
 Evidence:
 - `docs/review/PR_1747_FIXED_MAPPING.md` now includes the required artifact
   markers `- [x] Discussion-thread pass completed` and
