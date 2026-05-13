@@ -70,7 +70,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `$VENV_PYTHON -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
-  -> 160 passed after the latest review-fix cycle
+  -> PASS after the latest review-fix cycle
 - Adjacent food-source governance regression pytest for PR11, PR12, PR13,
   PR14, catalog, and onboarding -> PASS
 - `$VENV_PYTHON -m pytest -q tests/test_repo_policy_guards.py`
@@ -304,6 +304,28 @@ Disposition: NOT-A-BUG
 Evidence: Cubic review body says `No issues found` across the original 7 files.
 Reason: No actionable finding to fix.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281713734
+
+Disposition: FIXED
+Commit: 72bff386f
+Evidence: `core/food_sources/preference_recipe_mapping.py` now requires the direct PR11 `coverage_domains` order to match the canonical PR11 artifact order before building the lookup; `tests/test_food_source_preference_recipe_mapping.py` rejects duplicate and extra PR11 coverage-domain rows with unsafe drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680186
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680221
+
+Disposition: FIXED
+Commit: 72bff386f
+Evidence: `core/food_sources/preference_recipe_mapping.py` now applies the PR15 safe-note scanner to PR11 top-level notes and the `preference_menu_planning` coverage-domain notes during direct handoff validation; `tests/test_food_source_preference_recipe_mapping.py` rejects approving PR11 top-level and preference-domain notes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680192
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680216
+
+Disposition: FIXED
+Commit: 72bff386f
+Evidence: `core/food_sources/preference_recipe_mapping.py` now requires the direct PR11 `source_gap_decisions` order to match the canonical PR11 artifact order after duplicate detection; `tests/test_food_source_preference_recipe_mapping.py` rejects extra PR11 source-gap rows with unsafe drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680203
+
+Disposition: FIXED
+Commit: 72bff386f
+Evidence: `core/food_sources/preference_recipe_mapping.py` now applies the PR15 safe-note scanner to PR14 top-level notes during direct handoff validation; `tests/test_food_source_preference_recipe_mapping.py` rejects approving PR14 top-level notes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680210
 
 ## Merge Readiness
 
