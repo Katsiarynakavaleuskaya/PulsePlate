@@ -989,6 +989,15 @@ def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_hand
         "approved for api calls",
         "allowed for source use",
         "approved for recipe text",
+        "api calls; allowed",
+        "source use [approved]",
+        "downloads / enabled",
+        "paid plans allowed",
+        "paid plan approved",
+        "edamam allowed",
+        "spoonacular approved",
+        "public menu pages approved",
+        "chain evidence authorized",
     ),
 )
 def test_preference_recipe_mapping_rejects_notes_that_contradict_policy(note: str) -> None:

@@ -468,14 +468,21 @@ _FORBIDDEN_NOTE_SUBJECTS = tuple(
             "ingest",
             "llm output",
             "paid api use",
+            "paid plan",
+            "paid plans",
             "paid source use",
             "product display",
             "public dataset claim",
+            "public menu page",
+            "public menu pages",
             "redistribution",
             "recipe text",
             "runtime",
             "runtime authority",
             "scraping",
+            "chain evidence",
+            "edamam",
+            "spoonacular",
             "source download",
             "source downloads",
             "source use",
@@ -679,6 +686,15 @@ def _require_safe_notes(value: str, context: str) -> str:
         .replace("_", " ")
         .replace(":", " ")
         .replace(",", " ")
+        .replace(";", " ")
+        .replace("/", " ")
+        .replace("\\", " ")
+        .replace("[", " ")
+        .replace("]", " ")
+        .replace("(", " ")
+        .replace(")", " ")
+        .replace("{", " ")
+        .replace("}", " ")
         .split()
     )
     for phrase in _FORBIDDEN_NOTE_PHRASES:
@@ -722,6 +738,14 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
     if segment_start >= 0:
         prefix_tail = prefix_tail[segment_start + 1 :]
     stripped_prefix = prefix_tail.strip()
+    no_index = stripped_prefix.rfind(" no ")
+    if stripped_prefix.startswith("no "):
+        no_index = 0
+    if no_index >= 0:
+        negated_span = stripped_prefix[no_index:].strip()
+        words = negated_span.split()
+        if len(words) <= 8 and len(words) > 1 and words[1] != "only" and "or" in words:
+            return True
     return any(
         stripped_prefix.endswith(negation.strip()) for negation in _NEGATED_APPROVAL_PREFIXES
     ) or (
