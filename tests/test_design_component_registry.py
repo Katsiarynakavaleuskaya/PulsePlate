@@ -127,13 +127,13 @@ def test_design_component_registry_rejects_duplicate_vocabulary_ids(
                 "repo_vocabulary_anchor": "docs/design/ui_component_vocabulary.json#button",
                 "web_runtime_anchor": "unspecified",
                 "ios_runtime_anchor": "unspecified",
-                "token_dependencies": ["unspecified"],
+                "token_dependencies": "unspecified",
                 "storybook_review_anchor": "unspecified",
                 "figma_reference_anchor": "unspecified",
                 "penpot_reference_anchor": "unspecified",
                 "code_connect_anchor": "unspecified",
-                "states": ["unspecified"],
-                "variants": ["unspecified"],
+                "states": "unspecified",
+                "variants": "unspecified",
                 "accessibility_contract": "unspecified",
                 "visual_regression_contract": "unspecified",
                 "owner": "design-system",
@@ -159,6 +159,16 @@ def test_design_component_registry_rejects_invalid_status(tmp_path: Path) -> Non
     assert any("invalid status 'ready'" in error for error in errors)
 
 
+def test_design_component_registry_rejects_non_scalar_status(tmp_path: Path) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0]["status"] = ["partial"]
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("invalid status ['partial']" in error for error in errors)
+
+
 def test_design_component_registry_rejects_empty_strings(tmp_path: Path) -> None:
     registry = _load_registry()
     broken = copy.deepcopy(registry)
@@ -181,6 +191,18 @@ def test_design_component_registry_rejects_external_authority_promotion(
     assert any("external evidence tools must not be canonical: figma" in error for error in errors)
 
 
+def test_design_component_registry_does_not_substring_match_authority_names(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"].append("figmax")
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert not any("figma" in error for error in errors)
+
+
 def test_design_component_registry_rejects_kimi_adjacent_authority_promotion(
     tmp_path: Path,
 ) -> None:
@@ -193,6 +215,18 @@ def test_design_component_registry_rejects_kimi_adjacent_authority_promotion(
 
     assert any("google drive" in error for error in errors)
     assert any("generated code" in error for error in errors)
+
+
+def test_design_component_registry_rejects_singular_screenshot_authority_promotion(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"].append("screenshot source of truth")
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("screenshot" in error for error in errors)
 
 
 def test_design_component_registry_rejects_wrong_vocabulary_anchor(
@@ -247,6 +281,21 @@ def test_design_component_registry_rejects_invented_unconfirmed_anchors(
     )
 
 
+def test_design_component_registry_rejects_list_placeholder_for_seed_fields(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0]["token_dependencies"] = ["unspecified"]
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "unconfirmed seed fields must be 'unspecified'" in error and "token_dependencies" in error
+        for error in errors
+    )
+
+
 def test_design_component_registry_rejects_covered_status_without_bridge_evidence(
     tmp_path: Path,
 ) -> None:
@@ -263,6 +312,30 @@ def test_design_component_registry_rejects_covered_status_without_bridge_evidenc
         "covered requires bridge evidence" in error and "web_runtime_anchor" in error
         for error in errors
     )
+
+
+def test_design_component_registry_allows_covered_status_with_bridge_evidence(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    covered = copy.deepcopy(registry)
+    component = covered["components"][0]
+    component["status"] = "covered"
+    component["ios_runtime_anchor"] = "ios/PulsePlate/DesignSystem/Button.swift"
+    component["storybook_review_anchor"] = "storybook/button"
+    component["figma_reference_anchor"] = "repo-confirmed-figma-button"
+    component["penpot_reference_anchor"] = "repo-confirmed-penpot-button"
+    component["code_connect_anchor"] = "repo-confirmed-code-connect-button"
+    component["accessibility_contract"] = "repo-confirmed-a11y-contract"
+    component["visual_regression_contract"] = "repo-confirmed-visual-contract"
+    component["token_dependencies"] = ["repo-confirmed-token"]
+    component["states"] = ["default"]
+    component["variants"] = ["primary"]
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, covered))
+
+    assert not any("unconfirmed seed fields must be 'unspecified'" in error for error in errors)
+    assert not any("covered requires bridge evidence" in error for error in errors)
 
 
 def test_design_component_registry_rejects_deleted_web_runtime_anchor(
@@ -304,13 +377,13 @@ def test_design_component_registry_rejects_deleted_web_runtime_anchor(
                 "repo_vocabulary_anchor": "docs/design/ui_component_vocabulary.json:button",
                 "web_runtime_anchor": "frontend/src/components/ui/Button.tsx",
                 "ios_runtime_anchor": "unspecified",
-                "token_dependencies": ["unspecified"],
+                "token_dependencies": "unspecified",
                 "storybook_review_anchor": "unspecified",
                 "figma_reference_anchor": "unspecified",
                 "penpot_reference_anchor": "unspecified",
                 "code_connect_anchor": "unspecified",
-                "states": ["unspecified"],
-                "variants": ["unspecified"],
+                "states": "unspecified",
+                "variants": "unspecified",
                 "accessibility_contract": "unspecified",
                 "visual_regression_contract": "unspecified",
                 "owner": "design-system",

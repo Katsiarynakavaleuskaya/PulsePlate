@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from collections import Counter
 from pathlib import Path
@@ -77,8 +78,10 @@ DENIED_CANONICAL_AUTHORITIES = {
     "storybook",
     "code connect",
     "google drive",
+    "google drive prototype folder",
     "drive folder",
     "prototype folder",
+    "screenshot",
     "screenshots",
     "generated code",
     "generated code bundles",
@@ -165,11 +168,26 @@ def _check_empty_strings(value: Any, *, path: str, errors: list[str]) -> None:
 
 
 def _is_unspecified(value: Any) -> bool:
-    if value == "unspecified":
-        return True
-    if isinstance(value, list):
-        return len(value) == 1 and value[0] == "unspecified"
-    return False
+    return value == "unspecified"
+
+
+def _normalize_authority_entries(value: list[str]) -> set[str]:
+    return {" ".join(item.strip().lower().split()) for item in value}
+
+
+def _promoted_authorities(canonical: list[str]) -> list[str]:
+    promoted: set[str] = set()
+    canonical_entries = _normalize_authority_entries(canonical)
+    for entry in canonical_entries:
+        if entry in DENIED_CANONICAL_AUTHORITIES:
+            promoted.add(entry)
+            continue
+        if "source of truth" not in entry and "canonical" not in entry:
+            continue
+        for tool in DENIED_CANONICAL_AUTHORITIES:
+            if re.search(rf"(?<![a-z0-9]){re.escape(tool)}(?![a-z0-9])", entry):
+                promoted.add(tool)
+    return sorted(promoted)
 
 
 def _validate_authority(authority: Any, errors: list[str]) -> None:
@@ -188,16 +206,15 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
         errors.append("authority.reference_only: expected list of strings")
         reference_only = []
 
-    canonical_text = " ".join(canonical).lower()
-    reference_text = " ".join(reference_only).lower()
-    promoted = sorted(tool for tool in DENIED_CANONICAL_AUTHORITIES if tool in canonical_text)
+    reference_set = _normalize_authority_entries(reference_only)
+    promoted = _promoted_authorities(canonical)
     if promoted:
         errors.append(
             "authority.canonical: external evidence tools must not be canonical: "
             + ", ".join(promoted)
         )
     missing_reference = sorted(
-        tool for tool in REQUIRED_REFERENCE_ONLY_AUTHORITIES if tool not in reference_text
+        tool for tool in REQUIRED_REFERENCE_ONLY_AUTHORITIES if tool not in reference_set
     )
     if missing_reference:
         errors.append(
@@ -300,9 +317,9 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
             )
 
         status = component.get("status")
-        if status not in ALLOWED_STATUS:
+        if not isinstance(status, str) or status not in ALLOWED_STATUS:
             errors.append(f"{path_prefix}.status: invalid status {status!r}")
-        if status == "covered":
+        elif status == "covered":
             missing_coverage = sorted(
                 field for field in BRIDGE_COVERAGE_FIELDS if _is_unspecified(component.get(field))
             )
@@ -311,15 +328,17 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
                     f"{path_prefix}.status: covered requires bridge evidence for: "
                     + ", ".join(missing_coverage)
                 )
-
-        invented_unconfirmed = sorted(
-            field for field in SEED_UNCONFIRMED_FIELDS if not _is_unspecified(component.get(field))
-        )
-        if invented_unconfirmed:
-            errors.append(
-                f"{path_prefix}: unconfirmed seed fields must be 'unspecified': "
-                + ", ".join(invented_unconfirmed)
+        else:
+            invented_unconfirmed = sorted(
+                field
+                for field in SEED_UNCONFIRMED_FIELDS
+                if not _is_unspecified(component.get(field))
             )
+            if invented_unconfirmed:
+                errors.append(
+                    f"{path_prefix}: unconfirmed seed fields must be 'unspecified': "
+                    + ", ".join(invented_unconfirmed)
+                )
 
     missing_ids = sorted(vocabulary_ids - seen)
     if missing_ids:
