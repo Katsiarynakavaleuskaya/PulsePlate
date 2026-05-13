@@ -29,6 +29,7 @@
   - `0b7790f853562deb0a58ddd934085636d990d7be` - sanitized validation diagnostics and accepted/rejected state checks.
   - `367504ae685a97c0cd410b2acde0bfc115a13b5a` - forged evidence rejection hardening.
   - `a705625f9d39f652cee75463e07fd26d5a9ebab9` - rejected-result shape alignment.
+  - `1127bf9c4c5b979966191c28eaa05824483a3e2b` - rejected-shape review mapping update.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -100,6 +101,7 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984659 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984667 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236984673 -> 367504ae685a97c0cd410b2acde0bfc115a13b5a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147907 -> 1127bf9c4c5b979966191c28eaa05824483a3e2b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147911 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147913 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3237147920 -> a705625f9d39f652cee75463e07fd26d5a9ebab9
@@ -163,6 +165,10 @@ Evidence: `scripts/orchestration/experiment_notify.py` now rejects traversal com
 Disposition: FIXED
 Commit: a705625f9d39f652cee75463e07fd26d5a9ebab9
 Evidence: `scripts/orchestration/experiment_notify.py` now rejects pre-oracle rejected-result classes when oracle evidence is present, rejects `policy_violation` evidence with mutated paths, and scopes terminal-oracle failure requirements to oracle-derived failure classes so `metric_regression` can summarize passing oracle prefixes. `tests/test_experiment_notify.py` covers each regression.
+
+Disposition: FIXED
+Commit: 1127bf9c4c5b979966191c28eaa05824483a3e2b
+Evidence: This artifact maps the latest stale-proof review thread to a current-head ancestor commit made after the review comment.
 
 ## Local Validation Evidence
 
