@@ -200,6 +200,14 @@ Reason: These later review threads restated invariants already enforced by the c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235905779
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3235905786
 
+Disposition: FIXED
+Commit: b05f5fb28
+Evidence: Final bot-wave P2 findings were fixed in code/tests/CI: Path effect-method aliases are rejected, SC-G5 decision IDs require SC-G5 deterministic prefixes/suffixes, SC-G5 machine-state JSON validation is bound to the `Machine-Readable State` section, and `test-main` uses full checkout history so Kimi docs guard uses `origin/main...HEAD` instead of a last-commit fallback. Focused pytest and mypy passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3236379406 -> b05f5fb28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3236379414 -> b05f5fb28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3236379418 -> b05f5fb28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3236379421 -> b05f5fb28
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
