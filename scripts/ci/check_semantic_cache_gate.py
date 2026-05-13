@@ -888,6 +888,29 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
         return ["backend selection contract JSON state must be an object"]
 
     errors: list[str] = []
+    expected_keys = {
+        "acceptance_criteria",
+        "allowed_backend_labels",
+        "blocked_payload_fields",
+        "blocked_runtime_dependencies",
+        "blocked_truth_sources",
+        "candidate_backend_labels",
+        "default_activation",
+        "forbidden_claims",
+        "gate_status",
+        "implementation_allowed",
+        "label_only_backends",
+        "required_evidence",
+        "required_rollback_proof",
+        "rollout_phase",
+        "runtime_allowed",
+        "selection_mode",
+    }
+    actual_keys = set(payload)
+    for key in sorted(expected_keys - actual_keys):
+        errors.append(f"backend selection contract JSON missing required key: {key}")
+    for key in sorted(actual_keys - expected_keys):
+        errors.append(f"backend selection contract JSON unexpected key: {key}")
     expected_values = {
         "gate_status": "closed",
         "runtime_allowed": False,
@@ -908,6 +931,25 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
         if payload.get(key) != expected_labels:
             errors.append(f"backend selection contract JSON {key}: expected label-only list")
     required_lists = {
+        "acceptance_criteria": (
+            "gate remains closed",
+            "runtime_allowed remains false",
+            "implementation_allowed remains false",
+            "backend candidates are labels only",
+            "Redis/GPTCache are not approved for rollout",
+            "no runtime imports or backend clients",
+            "safety hard-gates ranking",
+            "rollback proof is required",
+        ),
+        "blocked_payload_fields": (
+            "raw prompts",
+            "raw queries",
+            "raw model responses",
+            "raw answers",
+            "provider payloads",
+            "secrets",
+            "local paths",
+        ),
         "blocked_runtime_dependencies": (
             "Redis imports or clients",
             "GPTCache imports or clients",
@@ -926,6 +968,14 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
             "purge/invalidation proof",
             "disabled-state test IDs",
             "stop-rule replay IDs",
+        ),
+        "forbidden_claims": (
+            "active semantic-cache claim",
+            "approved Redis rollout claim",
+            "approved GPTCache rollout claim",
+            "serving backend selection claim",
+            "raw prompt caching claim",
+            "raw response caching claim",
         ),
     }
     for key, required_items in required_lists.items():

@@ -29,6 +29,7 @@ from core.ai.semantic_cache_backend_selection import (
     REASON_SELECTED,
     REASON_STALE_ANSWER_RATE_EXCEEDED,
     SemanticCacheBackendCandidate,
+    SemanticCacheBackendEvaluationMatrix,
     SemanticCacheBackendRollbackProof,
     SemanticCacheBackendSafetyEvidence,
     SemanticCacheBackendSelectionCriteria,
@@ -415,6 +416,20 @@ def test_matrix_invariants_fail_closed() -> None:
     candidate = _candidate()
     decision = evaluate_semantic_cache_backend_candidate(candidate=candidate, criteria=_criteria())
     matrix = evaluate_semantic_cache_backend_matrix(candidates=(candidate,), criteria=_criteria())
+    forged_final = SemanticCacheBackendSelectionDecision(
+        decision_id="decision:forged-final",
+        decision=DECISION_SELECTED,
+        policy_version="semantic-cache-sc-g5-v1",
+        selected_candidate_id=candidate.candidate_id,
+        selected_backend_label=candidate.backend_label,
+        candidate_id=None,
+        backend_label=None,
+        reason_codes=(REASON_SELECTED,),
+        rejected_candidate_ids=(),
+        runtime_allowed=False,
+        implementation_allowed=False,
+        metadata={"scope": "forged"},
+    )
 
     with pytest.raises(ValueError, match="criteria"):
         replace(matrix, criteria=cast(Any, "bad"))
@@ -424,9 +439,59 @@ def test_matrix_invariants_fail_closed() -> None:
         replace(matrix, candidates=(candidate, candidate))
     with pytest.raises(ValueError, match="candidate_decisions"):
         replace(matrix, candidate_decisions=cast(Any, ("bad",)))
+    with pytest.raises(ValueError, match="candidate_decisions"):
+        replace(matrix, candidate_decisions=(forged_final,))
     with pytest.raises(ValueError, match="final_decision"):
         replace(matrix, final_decision=cast(Any, "bad"))
+    with pytest.raises(ValueError, match="final_decision"):
+        replace(matrix, final_decision=forged_final)
     assert decision.decision == DECISION_ELIGIBLE
+
+
+def test_matrix_constructor_rejects_forged_selected_decision_for_ineligible_candidate() -> None:
+    candidate = _candidate(
+        evidence=_evidence(false_hit_rate_bps=1),
+        current_head_ci_passed=False,
+        human_approval_record_id=None,
+    )
+    forged_candidate_decision = SemanticCacheBackendSelectionDecision(
+        decision_id="decision:forged-candidate",
+        decision=DECISION_ELIGIBLE,
+        policy_version="semantic-cache-sc-g5-v1",
+        selected_candidate_id=None,
+        selected_backend_label=None,
+        candidate_id=candidate.candidate_id,
+        backend_label=candidate.backend_label,
+        reason_codes=(REASON_SELECTED,),
+        rejected_candidate_ids=(),
+        runtime_allowed=False,
+        implementation_allowed=False,
+        metadata={"scope": "forged"},
+    )
+    forged_final = SemanticCacheBackendSelectionDecision(
+        decision_id="decision:forged-final",
+        decision=DECISION_SELECTED,
+        policy_version="semantic-cache-sc-g5-v1",
+        selected_candidate_id=candidate.candidate_id,
+        selected_backend_label=candidate.backend_label,
+        candidate_id=None,
+        backend_label=None,
+        reason_codes=(REASON_SELECTED,),
+        rejected_candidate_ids=(),
+        runtime_allowed=False,
+        implementation_allowed=False,
+        metadata={"scope": "forged"},
+    )
+
+    with pytest.raises(ValueError, match="candidate_decisions"):
+        SemanticCacheBackendEvaluationMatrix(
+            matrix_id="matrix:forged",
+            policy_version="semantic-cache-sc-g5-v1",
+            criteria=_criteria(),
+            candidates=(candidate,),
+            candidate_decisions=(forged_candidate_decision,),
+            final_decision=forged_final,
+        )
 
 
 def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
@@ -484,7 +549,9 @@ def test_import_guard_rejects_path_constructor_writes(tmp_path: Path) -> None:
         "from pathlib import Path\n"
         "Path('payload.txt').write_text('payload')\n"
         "target = Path('payload.bin')\n"
-        "target.write_bytes(b'payload')\n",
+        "target.write_bytes(b'payload')\n"
+        "annotated: Path = Path('annotated.txt')\n"
+        "annotated.write_text('payload')\n",
         encoding="utf-8",
     )
 

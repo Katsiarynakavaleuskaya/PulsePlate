@@ -128,6 +128,13 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         path_aliases.add(target.id)
+        elif isinstance(node, ast.AnnAssign):
+            if (
+                isinstance(node.target, ast.Name)
+                and node.value is not None
+                and _is_path_constructor_call(node.value, import_aliases)
+            ):
+                path_aliases.add(node.target.id)
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
             if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:

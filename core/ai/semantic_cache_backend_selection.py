@@ -450,6 +450,18 @@ class SemanticCacheBackendEvaluationMatrix:
                 )
         if not isinstance(self.final_decision, SemanticCacheBackendSelectionDecision):
             raise ValueError("final_decision must be SemanticCacheBackendSelectionDecision")
+        expected_decisions = tuple(
+            evaluate_semantic_cache_backend_candidate(candidate=candidate, criteria=self.criteria)
+            for candidate in self.candidates
+        )
+        if self.candidate_decisions != expected_decisions:
+            raise ValueError("candidate_decisions must match freshly evaluated candidates")
+        expected_final = select_semantic_cache_backend(
+            candidates=self.candidates,
+            criteria=self.criteria,
+        )
+        if self.final_decision != expected_final:
+            raise ValueError("final_decision must match freshly selected backend decision")
 
 
 def evaluate_semantic_cache_backend_candidate(

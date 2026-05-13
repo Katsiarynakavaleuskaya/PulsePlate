@@ -155,6 +155,21 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
         for error in errors
     )
 
+    bad_text = _contract_text().replace(
+        '"blocked_payload_fields": [',
+        '"blocked_payload_fields_removed": [',
+    )
+    errors = validate_semantic_cache_backend_selection_contract(bad_text)
+
+    assert any("missing required key: blocked_payload_fields" in error for error in errors)
+    assert any("unexpected key: blocked_payload_fields_removed" in error for error in errors)
+
+    bad_text = _contract_text().replace('"acceptance_criteria": [', '"acceptance": [')
+    errors = validate_semantic_cache_backend_selection_contract(bad_text)
+
+    assert any("missing required key: acceptance_criteria" in error for error in errors)
+    assert any("unexpected key: acceptance" in error for error in errors)
+
 
 def test_docs_phase1_runs_backend_selection_validator() -> None:
     errors = docs_phase1.check_docs_phase1_guards(markdown_files=[REL_CONTRACT])
