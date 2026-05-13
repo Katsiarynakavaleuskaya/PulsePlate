@@ -25,6 +25,18 @@ Initial post-open pass found no actionable human review threads. After the first
 Disposition: FIXED
 Commit: 2780cfc24a3c0b43a415dc855c48c872044d49cb
 Evidence: `scripts/design/design_component_registry.py` rejects duplicate vocabulary ids; `tests/test_design_component_registry.py` imports the validator normally and covers duplicate vocabulary ids; `docs/roadmap/BACKLOG_LEDGER.md` contains checkbox/status/PR metadata and a separate bridge coverage inventory follow-up.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134033 -> 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
+Disposition: FIXED
+Commit: 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
+Evidence: `scripts/design/design_component_registry.py` rejects Kimi-adjacent authority promotions including Google Drive, prototype folders, screenshots, generated code bundles, and desktop exports; `tests/test_design_component_registry.py` covers these promotions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134042 -> 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
+Disposition: FIXED
+Commit: 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
+Evidence: `scripts/design/design_component_registry.py` validates `web_runtime_anchor` against `existing_repo_component` and repo file existence; tests cover wrong and deleted web anchors.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134049 -> 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
+Disposition: FIXED
+Commit: 9a2e9cb68e359a1cd1fa953f99580c7a613a0090
+Evidence: `scripts/design/design_component_registry.py` requires `repo_vocabulary_anchor` to match `docs/design/ui_component_vocabulary.json:<component_id>`; tests cover wrong vocabulary anchors.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#issuecomment-4440807068
 Disposition: NOT-A-BUG
 Evidence: Current retrieved CodeRabbit comment reports no actionable comments for the recent review; prior actionable findings are dispositioned above and in the table below.
@@ -42,6 +54,9 @@ Evidence: Current retrieved CodeRabbit comment reports no actionable comments fo
 | Cubic | review submitted `2026-05-13T12:16:49Z` | FIXED | `2780cfc24a3c0b43a415dc855c48c872044d49cb` | `tests/test_design_component_registry.py` now imports `scripts.design.design_component_registry` normally; dynamic file-path import was removed. |
 | CodeRabbit | review submitted `2026-05-13T12:18:01Z` | FIXED | `2780cfc24a3c0b43a415dc855c48c872044d49cb` | `docs/roadmap/BACKLOG_LEDGER.md` now uses checkbox tracking, `Status: open`, PR `#1745`, and a separate `Design bridge coverage inventory` follow-up entry. |
 | CodeRabbit | review submitted `2026-05-13T12:18:01Z` | NOT-A-BUG | n/a | Current-head `docs/review/PR_1745_FIXED_MAPPING.md` includes `## Discussion Thread Pass` with both required checked checkboxes; the finding matched an earlier artifact snapshot. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134033 | FIXED | `9a2e9cb68e359a1cd1fa953f99580c7a613a0090` | Evidence-only authority denylist now covers Kimi-adjacent artifacts; tests reject Google Drive and generated-code authority promotion. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134042 | FIXED | `9a2e9cb68e359a1cd1fa953f99580c7a613a0090` | Web runtime anchors are validated against `existing_repo_component` and repo file existence; tests cover wrong/deleted anchors. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234134049 | FIXED | `9a2e9cb68e359a1cd1fa953f99580c7a613a0090` | Registry vocabulary anchors must match the row component id; tests cover mismatched anchors. |
 
 ## Command Evidence
 
@@ -51,13 +66,13 @@ Evidence: Current retrieved CodeRabbit comment reports no actionable comments fo
 - `.venv/bin/python scripts/orchestration/task_bootstrap.py --goal "Add design component contract registry seed" ...` - PASS, packet `24ef699bc5fa`
 - `.venv/bin/python scripts/design/design_component_registry.py validate docs/orchestration/contracts/design_component_registry.v1.json` - PASS
 - `.venv/bin/python scripts/design/design_component_registry.py summarize docs/orchestration/contracts/design_component_registry.v1.json` - PASS
-- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 12 tests after bot-review fixes
+- `.venv/bin/python -m pytest -q tests/test_design_component_registry.py` - PASS, 16 tests after bot-review fixes
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py` - PASS, 31 tests
-- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 43 changed-file tests after bot-review fixes
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 47 changed-file tests after bot-review fixes
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS
 - Local Phase2 check after PR body/mapping correction - PASS
-- Second-pass current-head validator plus changed docs tests - PASS, 43 tests
+- Second-pass current-head validator plus changed docs tests - PASS, 47 tests
 - Codex Security diff scan - PASS, no forbidden runtime/token/asset/workflow paths and no network/subprocess/secret patterns in changed validator/tests.
 
 ## Unresolved / Deferred
@@ -66,6 +81,7 @@ Evidence: Current retrieved CodeRabbit comment reports no actionable comments fo
 - CodeRabbit: actionable comments fixed or dispositioned; latest post-mapping re-review pending after current push.
 - Sourcery: rate-limited, no actionable finding retrieved.
 - Cubic: actionable comments fixed; latest post-mapping re-review pending after current push.
+- Codex Review: actionable anchor/authority comments fixed; latest post-mapping re-review pending after current push.
 - Codex Security plugin post-open diff scan: completed, no actionable findings.
 - Strict merge-readiness wrapper: pending.
 - Next design lane remains `feat(design): add design bridge coverage inventory`; it is a follow-up lane, not deferred runtime work from this PR.
