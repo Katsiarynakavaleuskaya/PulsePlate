@@ -1,5 +1,7 @@
 """Guards for the post-PR-8 design automation lane decision docs."""
 
+import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -77,6 +79,31 @@ def _changed_paths_for_current_worktree() -> list[str]:
         return staged
 
     diff_bases = ["origin/main...HEAD", "main...HEAD"]
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if event_path:
+        try:
+            event = json.loads(Path(event_path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            errors = [f"GITHUB_EVENT_PATH: {exc}"]
+        else:
+            errors = []
+            base_sha = event.get("pull_request", {}).get("base", {}).get("sha")
+            if isinstance(base_sha, str) and re.fullmatch(r"[0-9a-f]{40}", base_sha):
+                fetch_base = subprocess.run(
+                    [git_bin, "fetch", "--no-tags", "--depth=1", "origin", base_sha],
+                    cwd=REPO_ROOT,
+                    check=False,
+                    text=True,
+                    capture_output=True,
+                )
+                if fetch_base.returncode == 0:
+                    diff_bases.append(f"{base_sha}..HEAD")
+                else:
+                    detail = (fetch_base.stderr or fetch_base.stdout).strip()
+                    errors.append(f"fetch {base_sha}: {detail or 'git fetch failed'}")
+    else:
+        errors = []
+
     parents = subprocess.run(
         [git_bin, "rev-list", "--parents", "-n", "1", "HEAD"],
         cwd=REPO_ROOT,
@@ -88,7 +115,6 @@ def _changed_paths_for_current_worktree() -> list[str]:
     if parents.returncode == 0 and len(parent_parts) >= 3:
         diff_bases.append(f"{parent_parts[1]}...HEAD")
 
-    errors: list[str] = []
     for diff_base in diff_bases:
         branch = subprocess.run(
             [git_bin, "diff", "--name-only", diff_base],
