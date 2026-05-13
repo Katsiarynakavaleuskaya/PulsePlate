@@ -76,7 +76,20 @@ def _changed_paths_for_current_worktree() -> list[str]:
     if staged:
         return staged
 
-    for diff_base in ("origin/main...HEAD", "HEAD^1...HEAD"):
+    diff_bases = ["origin/main...HEAD", "main...HEAD"]
+    parents = subprocess.run(
+        [git_bin, "rev-list", "--parents", "-n", "1", "HEAD"],
+        cwd=REPO_ROOT,
+        check=False,
+        text=True,
+        capture_output=True,
+    )
+    parent_parts = parents.stdout.split()
+    if parents.returncode == 0 and len(parent_parts) >= 3:
+        diff_bases.append(f"{parent_parts[1]}...HEAD")
+
+    errors: list[str] = []
+    for diff_base in diff_bases:
         branch = subprocess.run(
             [git_bin, "diff", "--name-only", diff_base],
             cwd=REPO_ROOT,
@@ -86,21 +99,10 @@ def _changed_paths_for_current_worktree() -> list[str]:
         )
         if branch.returncode == 0:
             return branch.stdout.splitlines()
-
-    branch = subprocess.run(
-        [git_bin, "diff", "--name-only", "origin/main...HEAD"],
-        cwd=REPO_ROOT,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
-    if branch.returncode != 0:
         detail = (branch.stderr or branch.stdout).strip()
-        pytest.fail(
-            "Unable to inspect branch diff for Kimi docs-only guard: "
-            f"{detail or 'git diff origin/main...HEAD failed'}"
-        )
-    return branch.stdout.splitlines()
+        errors.append(f"{diff_base}: {detail or 'git diff failed'}")
+
+    pytest.fail("Unable to inspect branch diff for Kimi docs-only guard: " + "; ".join(errors))
 
 
 def test_next_design_automation_decision_required_sections() -> None:
