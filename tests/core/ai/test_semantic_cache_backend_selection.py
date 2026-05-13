@@ -110,6 +110,7 @@ def _candidate(
     evidence: SemanticCacheBackendSafetyEvidence | None = None,
     rollback: SemanticCacheBackendRollbackProof | None = None,
     current_head_ci_passed: bool = True,
+    current_head_ci_proof_id: str | None = "ci:current-head",
     human_approval_record_id: str | None = "approval:human",
     latency_saved_p95_ms: int = 100,
     cost_saved_microunits: int = 10,
@@ -128,6 +129,7 @@ def _candidate(
         provider_calls_avoided_count=5,
         cost_saved_microunits=cost_saved_microunits,
         current_head_ci_passed=current_head_ci_passed,
+        current_head_ci_proof_id=current_head_ci_proof_id,
         human_approval_record_id=human_approval_record_id,
         metadata={"scope": "sc-g5"},
     )
@@ -269,6 +271,16 @@ def test_rollback_ci_and_human_approval_are_required() -> None:
     assert REASON_HUMAN_APPROVAL_MISSING in decision.reason_codes
 
 
+def test_current_head_ci_requires_auditable_proof_id() -> None:
+    decision = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(current_head_ci_passed=True, current_head_ci_proof_id=None),
+        criteria=_criteria(),
+    )
+
+    assert decision.decision == DECISION_INELIGIBLE
+    assert REASON_CURRENT_HEAD_CI_MISSING in decision.reason_codes
+
+
 def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
     safe_slower = _candidate(
         candidate_id="candidate:redis",
@@ -292,6 +304,7 @@ def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
     assert decision.reason_codes == (REASON_SELECTED,)
     assert decision.selected_candidate_id == "candidate:gptcache"
     assert decision.selected_backend_label == BACKEND_LABEL_GPTCACHE
+    assert decision.rejected_candidate_ids == ("candidate:redis",)
 
 
 def test_selected_decision_identity_includes_evaluated_comparison_set() -> None:
@@ -333,6 +346,22 @@ def test_selected_decision_identity_includes_evaluated_comparison_set() -> None:
     assert baseline.selected_candidate_id == with_other_eligible_candidate.selected_candidate_id
     assert baseline.decision_id != with_rejected_candidate.decision_id
     assert baseline.decision_id != with_other_eligible_candidate.decision_id
+    assert with_other_eligible_candidate.rejected_candidate_ids == ("candidate:memory",)
+
+
+def test_candidate_decision_identity_includes_non_blocking_evidence() -> None:
+    baseline = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(evidence=_evidence(negative_control_count=25)),
+        criteria=_criteria(),
+    )
+    evidence_changed = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(evidence=_evidence(negative_control_count=26)),
+        criteria=_criteria(),
+    )
+
+    assert baseline.decision == DECISION_ELIGIBLE
+    assert evidence_changed.decision == DECISION_ELIGIBLE
+    assert baseline.decision_id != evidence_changed.decision_id
 
 
 def test_no_eligible_candidate_fails_closed() -> None:
@@ -351,6 +380,29 @@ def test_no_eligible_candidate_fails_closed() -> None:
     assert decision.decision == DECISION_NO_SELECTION
     assert decision.reason_codes == (REASON_NO_ELIGIBLE_CANDIDATE,)
     assert decision.selected_backend_label is None
+
+
+def test_no_selection_identity_includes_failure_details() -> None:
+    first = select_semantic_cache_backend(
+        candidates=(_candidate(evidence=_evidence(false_hit_rate_bps=1)),),
+        criteria=_criteria(),
+    )
+    second = select_semantic_cache_backend(
+        candidates=(_candidate(evidence=_evidence(stale_answer_rate_bps=1)),),
+        criteria=_criteria(),
+    )
+
+    assert first.decision == DECISION_NO_SELECTION
+    assert second.decision == DECISION_NO_SELECTION
+    assert first.rejected_candidate_ids == second.rejected_candidate_ids
+    assert first.decision_id != second.decision_id
+
+
+def test_selector_rejects_duplicate_candidate_ids() -> None:
+    candidate = _candidate()
+
+    with pytest.raises(ValueError, match="duplicate candidate_id"):
+        select_semantic_cache_backend(candidates=(candidate, candidate), criteria=_criteria())
 
 
 def test_selector_recomputes_safety_and_ignores_forged_decisions() -> None:
@@ -397,6 +449,26 @@ def test_matrix_and_mapping_are_deterministic() -> None:
     assert to_stable_mapping(first) == to_stable_mapping(second)
 
 
+def test_direct_matrix_constructor_canonicalizes_candidate_order() -> None:
+    first = _candidate(candidate_id="candidate:redis", backend_label=BACKEND_LABEL_REDIS)
+    second = _candidate(candidate_id="candidate:gptcache", backend_label=BACKEND_LABEL_GPTCACHE)
+    canonical = evaluate_semantic_cache_backend_matrix(
+        candidates=(first, second),
+        criteria=_criteria(),
+    )
+
+    direct = SemanticCacheBackendEvaluationMatrix(
+        matrix_id=canonical.matrix_id,
+        policy_version=canonical.policy_version,
+        criteria=canonical.criteria,
+        candidates=(first, second),
+        candidate_decisions=canonical.candidate_decisions,
+        final_decision=canonical.final_decision,
+    )
+
+    assert direct.candidates == canonical.candidates
+
+
 def test_matrix_identity_and_mapping_include_evidence_and_threshold_changes() -> None:
     first = evaluate_semantic_cache_backend_matrix(
         candidates=(_candidate(evidence=_evidence(negative_control_count=25)),),
@@ -436,6 +508,7 @@ def test_metadata_rejects_relative_local_paths() -> None:
         {"local_path": "relative/payload.txt"},
         {"path": "./payload.txt"},
         {"nested": {"path": "../payload.txt"}},
+        {"uri": "file:///tmp/cache-evidence.json"},
     )
 
     for metadata in unsafe_metadata:
@@ -602,6 +675,8 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         replace(_candidate(), candidate_id="candidate bad")
     with pytest.raises(ValueError, match="unsupported characters"):
         replace(_candidate(), candidate_id="candidate$bad")
+    with pytest.raises(ValueError, match="unsafe token"):
+        replace(_candidate(), candidate_id="sk-secret")
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
@@ -705,6 +780,20 @@ def test_import_guard_rejects_path_open_context_manager_writes(tmp_path: Path) -
     )
 
     with pytest.raises(AssertionError, match="Path.open.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_write_mode_path_open(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_open_mode.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "Path('truncate.txt').open('w')\n"
+        "target = Path('append.txt')\n"
+        "target.open(mode='a')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.open.write-mode"):
         assert_no_forbidden_semantic_cache_calls(source)
 
 

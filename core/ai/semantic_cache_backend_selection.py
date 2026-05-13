@@ -66,8 +66,12 @@ REASON_HUMAN_APPROVAL_MISSING = "human_approval_missing"
 REASON_NO_ELIGIBLE_CANDIDATE = "no_eligible_candidate"
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
-_PATH_RE = re.compile(r"(?:^|[\s=])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)")
+_PATH_RE = re.compile(r"(?:^|[\s=])(?:file://|/|~[/\\]|[A-Za-z]:[\\/]|\\\\)")
 _RELATIVE_PATH_RE = re.compile(r"(?:^|[\s=])(?:\./|\.\./|[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+_UNSAFE_TOKEN_RE = re.compile(
+    r"secret|credential|authorization|api[_:-]?key|bearer|cookie|private[_:-]?key|sk-[a-z0-9]",
+    re.IGNORECASE,
+)
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer)"
     r"|normalized[_ -]?query"
@@ -255,6 +259,7 @@ class SemanticCacheBackendCandidate:
     provider_calls_avoided_count: int
     cost_saved_microunits: int
     current_head_ci_passed: bool
+    current_head_ci_proof_id: str | None
     human_approval_record_id: str | None
     metadata: Mapping[str, JsonValue]
 
@@ -289,6 +294,12 @@ class SemanticCacheBackendCandidate:
         ):
             _validate_non_negative_int(name, getattr(self, name))
         _validate_bool("current_head_ci_passed", self.current_head_ci_passed)
+        if self.current_head_ci_proof_id is not None:
+            object.__setattr__(
+                self,
+                "current_head_ci_proof_id",
+                _validate_token("current_head_ci_proof_id", self.current_head_ci_proof_id),
+            )
         if self.human_approval_record_id is not None:
             object.__setattr__(
                 self,
@@ -442,9 +453,8 @@ class SemanticCacheBackendEvaluationMatrix:
         for candidate in self.candidates:
             if not isinstance(candidate, SemanticCacheBackendCandidate):
                 raise ValueError("candidates must be SemanticCacheBackendCandidate")
-        candidate_ids = [candidate.candidate_id for candidate in self.candidates]
-        if len(candidate_ids) != len(set(candidate_ids)):
-            raise ValueError("candidates contain duplicate candidate_id")
+        object.__setattr__(self, "candidates", _sorted_candidates(tuple(self.candidates)))
+        _validate_unique_candidate_ids(self.candidates)
         for decision in self.candidate_decisions:
             if not isinstance(decision, SemanticCacheBackendSelectionDecision):
                 raise ValueError(
@@ -495,6 +505,7 @@ def evaluate_semantic_cache_backend_candidate(
     payload: JsonValue = {
         "backend_label": candidate.backend_label,
         "candidate_id": candidate.candidate_id,
+        "candidate_signature": _candidate_signature(candidate),
         "decision": decision,
         "policy_version": criteria.policy_version,
         "reason_codes": list(reason_codes),
@@ -573,6 +584,7 @@ def select_semantic_cache_backend(
     """Select an inert backend label recommendation, or fail closed."""
 
     ordered_candidates = _sorted_candidates(candidates)
+    _validate_unique_candidate_ids(ordered_candidates)
     decisions = tuple(
         evaluate_semantic_cache_backend_candidate(candidate=candidate, criteria=criteria)
         for candidate in ordered_candidates
@@ -594,7 +606,9 @@ def select_semantic_cache_backend(
     )
     if not eligible:
         payload: JsonValue = {
+            "candidate_decision_ids": [decision.decision_id for decision in decisions],
             "decision": DECISION_NO_SELECTION,
+            "evaluated_candidate_ids": list(evaluated_ids),
             "policy_version": criteria.policy_version,
             "rejected_candidate_ids": list(rejected_ids),
         }
@@ -614,11 +628,15 @@ def select_semantic_cache_backend(
         )
 
     selected = sorted(eligible, key=_candidate_rank_key)[0]
+    unselected_ids = tuple(
+        candidate.candidate_id for candidate in ordered_candidates if candidate != selected
+    )
     payload = {
+        "candidate_decision_ids": [decision.decision_id for decision in decisions],
         "decision": DECISION_SELECTED,
         "evaluated_candidate_ids": list(evaluated_ids),
         "policy_version": criteria.policy_version,
-        "rejected_candidate_ids": list(rejected_ids),
+        "rejected_candidate_ids": list(unselected_ids),
         "selected_backend_label": selected.backend_label,
         "selected_candidate_id": selected.candidate_id,
     }
@@ -631,7 +649,7 @@ def select_semantic_cache_backend(
         candidate_id=None,
         backend_label=None,
         reason_codes=(REASON_SELECTED,),
-        rejected_candidate_ids=rejected_ids,
+        rejected_candidate_ids=unselected_ids,
         runtime_allowed=False,
         implementation_allowed=False,
         metadata={"decision_scope": "label_only", "serves_cached_payload": False},
@@ -710,7 +728,9 @@ def _candidate_failure_reasons(
         reasons.append(REASON_FRESH_RUNTIME_COMPARISONS_MISSING)
     if not rollback.verified:
         reasons.append(REASON_ROLLBACK_PROOF_MISSING)
-    if criteria.require_current_head_ci and not candidate.current_head_ci_passed:
+    if criteria.require_current_head_ci and (
+        not candidate.current_head_ci_passed or candidate.current_head_ci_proof_id is None
+    ):
         reasons.append(REASON_CURRENT_HEAD_CI_MISSING)
     if criteria.require_human_approval and candidate.human_approval_record_id is None:
         reasons.append(REASON_HUMAN_APPROVAL_MISSING)
@@ -771,6 +791,7 @@ def _candidate_signature(candidate: SemanticCacheBackendCandidate) -> Mapping[st
             "capability_flags": list(candidate.capability_flags),
             "cost_saved_microunits": candidate.cost_saved_microunits,
             "current_head_ci_passed": candidate.current_head_ci_passed,
+            "current_head_ci_proof_id": candidate.current_head_ci_proof_id,
             "human_approval_record_id": candidate.human_approval_record_id,
             "latency_saved_p50_ms": candidate.latency_saved_p50_ms,
             "latency_saved_p95_ms": candidate.latency_saved_p95_ms,
@@ -845,6 +866,12 @@ def _sorted_candidates(
         if not isinstance(candidate, SemanticCacheBackendCandidate):
             raise ValueError("candidates must be SemanticCacheBackendCandidate")
     return tuple(sorted(candidates, key=lambda item: (item.backend_label, item.candidate_id)))
+
+
+def _validate_unique_candidate_ids(candidates: tuple[SemanticCacheBackendCandidate, ...]) -> None:
+    candidate_ids = [candidate.candidate_id for candidate in candidates]
+    if len(candidate_ids) != len(set(candidate_ids)):
+        raise ValueError("candidates contain duplicate candidate_id")
 
 
 def _fingerprint_payload(payload: JsonValue) -> str:
@@ -950,6 +977,8 @@ def _validate_token(name: str, value: str) -> str:
         raise ValueError(f"{name} must not contain whitespace")
     if _PATH_RE.search(normalized):
         raise ValueError(f"{name} must not contain paths")
+    if _UNSAFE_TOKEN_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe token")
     if not _TOKEN_RE.match(normalized):
         raise ValueError(f"{name} contains unsupported characters")
     return normalized

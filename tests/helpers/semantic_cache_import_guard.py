@@ -163,6 +163,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append("Path.open.write")
             if call_name and (call_name.startswith("random.") or call_name.startswith("secrets.")):
                 offenders.append(call_name)
+            if _is_path_open_write_mode_call(node, import_aliases, path_aliases):
+                offenders.append("Path.open.write-mode")
         elif isinstance(node, ast.Subscript):
             if _qualified_call_name(node.value, import_aliases) == "os.environ":
                 offenders.append("os.environ[]")
@@ -213,6 +215,30 @@ def _is_path_write_call(
     if node.attr == "write" and _is_path_open_call(node.value, import_aliases, path_aliases):
         return True
     return False
+
+
+def _is_path_open_write_mode_call(
+    node: ast.Call,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not _is_path_open_call(node, import_aliases, path_aliases):
+        return False
+    mode = _path_open_mode(node)
+    return mode is not None and any(flag in mode for flag in ("w", "a", "x", "+"))
+
+
+def _path_open_mode(node: ast.Call) -> str | None:
+    if node.args:
+        first_arg = node.args[0]
+        if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
+            return first_arg.value
+    for keyword in node.keywords:
+        if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
+            value = keyword.value.value
+            if isinstance(value, str):
+                return value
+    return None
 
 
 def _is_path_expr(
