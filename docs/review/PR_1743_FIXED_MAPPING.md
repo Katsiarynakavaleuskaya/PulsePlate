@@ -16,6 +16,12 @@ Reason: Post-open QA, bug-hunter, data-scientist, Cubic, CodeRabbit, and Codex r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233334277 -> e40f1a2fe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348556 -> e40f1a2fe
 
+Disposition: FIXED
+Commit: e26a32f41
+Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`
+Reason: CodeRabbit flagged unchecked Phase2 discussion/mapping checkboxes. Commit `e26a32f41` marked the checkboxes complete and replaced the parser-invalid placeholder prose with structured dispositions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348571 -> e26a32f41
+
 Disposition: NOT-A-BUG
 Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; CodeRabbit reported this as a warning, not a required PR check.
 Reason: CodeRabbit's top-level docstring-coverage warning is advisory for this repo and not part of the canonical PulsePlate merge-readiness gate for this narrow governance PR. The module is covered by focused deterministic tests, targeted mypy, and the PR14 CLI gate; no broad docstring-generation churn is taken in this lane.
@@ -38,7 +44,7 @@ Reason: Pre-open coordinator and role-agent findings were fixed before PR open: 
 - PR14 CLI JSON gate — PASS (`success: true`)
 - Targeted mypy for PR14 files — PASS
 - `pre-commit run --all-files` — PASS
-- `make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` — PASS (`46 passed`)
+- `make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` — PASS (`52 passed`)
 - Pre-push hooks — PASS (changed-file mypy, backend tests, full repo Bandit, Docker build test)
 
 ## Merge Readiness
