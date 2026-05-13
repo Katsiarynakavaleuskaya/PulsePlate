@@ -135,6 +135,16 @@ Evidence:
 - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
   now names `docs/review/PR_1747_FIXED_MAPPING.md` explicitly.
 
+### CodeRabbit Finding: Fixed Mapping Section Ambiguous With CLI Findings
+
+Disposition: FIXED
+Commit: `30a3a41fa`
+Evidence:
+- `docs/review/PR_1747_FIXED_MAPPING.md` now explicitly distinguishes
+  GitHub review-thread URL mappings from local CodeRabbit CLI dispositions.
+- `scripts/orchestration/review_mapping_artifact.py` validation still passes
+  with the repo-required `- No actionable review comments` marker.
+
 ## Fixed in Commit Mapping
 
 - No actionable review comments
