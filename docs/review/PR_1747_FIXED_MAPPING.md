@@ -394,6 +394,26 @@ Commit: 22ab2e92b
 Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects prepositional approval forms such as `approved for ...`, `allowed for ...`, `permitted for ...`, `granted for ...`, `enabled for ...`, and `authorized for ...`; `tests/test_food_source_preference_recipe_mapping.py` covers `approved for api calls`, `allowed for source use`, and `approved for recipe text`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236449969
 
+Disposition: FIXED
+Commit: ed9ba0f90
+Evidence: `core/food_sources/preference_recipe_mapping.py` now normalizes additional note separators before approval scans while preserving canonical negated PR11 wording; `tests/test_food_source_preference_recipe_mapping.py` covers `api calls; allowed`, `source use [approved]`, and `downloads / enabled`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236625733
+
+Disposition: NOT-A-BUG
+Evidence: Live PR branch head before this follow-up was `fff1777faa7c360ceab8e3593f3d29f01ca6ffa9`, and strict disposition guard passed against the live branch history with mapped proof commits present. The reviewed `20af00f` squash-like SHA is not the live GitHub PR branch head used by the repo merge-readiness guards.
+Reason: The canonical merge-readiness guard evaluates mapped proof commits against the live PR branch history, not the transient review-internal squash commit.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236625737
+
+Disposition: FIXED
+Commit: ed9ba0f90
+Evidence: `core/food_sources/preference_recipe_mapping.py` now treats `paid plan` and `paid plans` as guarded note subjects; `tests/test_food_source_preference_recipe_mapping.py` covers `paid plans allowed` and `paid plan approved`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236625740
+
+Disposition: FIXED
+Commit: ed9ba0f90
+Evidence: `core/food_sources/preference_recipe_mapping.py` now treats PR15 source-name aliases `edamam`, `spoonacular`, `public menu page(s)`, and `chain evidence` as guarded note subjects; `tests/test_food_source_preference_recipe_mapping.py` covers `edamam allowed`, `spoonacular approved`, `public menu pages approved`, and `chain evidence authorized`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236625745
+
 ## Merge Readiness
 
 Current-head merge readiness is pending the final post-fix push/check cycle. Already completed locally before this mapping update: post-open task bootstrap, mandatory QA/bug-hunter pass, CodeRabbit review pass, Codex Security diff-scoped pass, current-head checks inspection, and review-thread disposition loop.
