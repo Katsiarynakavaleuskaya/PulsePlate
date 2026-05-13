@@ -87,6 +87,11 @@ Evidence: The offending containment-proof text was removed from this artifact, a
 Reason: The reviewed squash SHA named by the bot is not a durable pre-merge commit that can be mapped before GitHub creates a final squash merge commit. The repo merge-readiness contract validates dispositions against the PR branch and current-head CI before merge.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233387586
 
+Disposition: NOT-A-BUG
+Evidence: Strict merge wrapper current-head checks and review-disposition lanes passed on head `406da5a50c35ca5ee457183d26ee61823d54e350` before stopping only on this newly opened unresolved thread; `.venv/bin/python scripts/orchestration/check_review_threads_disposition.py --pr-number 1741` validated the resolved mapping artifact.
+Reason: The requested reviewed-head SHA is a transient squash-review artifact, not a commit that exists in the PR branch before GitHub creates the final squash merge commit. The canonical pre-merge proof model remains branch-history commit proof plus current-head CI and strict wrapper evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3233442169
+
 Disposition: FIXED
 Commit: 38edf404192e6725480290f525c11b33f14d8d3d
 Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now uses the manifest-compatible `status` field instead of `promotion_status`, and `tests/test_design_automation_next_lane_docs.py` guards that field.
