@@ -83,6 +83,11 @@ Disposition: NOT-A-BUG
 Evidence: Current PR head `396ef4937dd7699eaa1984d74eace89f7f137f9b` includes `00c376a4e77be4af919d9cce0bd79c3ec93e83ae` and `ebff66abf7bf6200baf7862abf3573294ec068c5` in history; local `git merge-base --is-ancestor ... HEAD` returned `0` for both commits.
 Reason: The bot evaluated stale reviewed head `a7be3d0fae558eab8168d378bc6cbd2bc0eae6d6`; the canonical merge-readiness checkout is the live PR branch head, where the mapped FIXED proof commits are reachable.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3237120346 -> ba51206144f52319f4ae1fdbdef07aeeac5961a6
+Disposition: FIXED
+Commit: ba51206144f52319f4ae1fdbdef07aeeac5961a6
+Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches PR event bounds with enough history, computes `git merge-base base_sha head_sha`, and uses a three-dot merge-base comparison instead of the unsafe `base_sha..head_sha` range. Focused local pytest passes (`13 passed`) and full pre-commit passes.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
@@ -207,8 +212,11 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after 3.11 coverage fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.11 coverage fix
 - `PATH=../../.venv/bin:$PATH git commit -m "test(ci): cover premium bmr fallback branch"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_ci_workflow_pr_size_governance_contract.py tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response` - PASS after Kimi merge-base diff fix (`13 passed`)
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after Kimi merge-base diff fix
+- `PATH=../../.venv/bin:$PATH git commit -m "test(ci): diff Kimi guard from merge base"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after 3.11 coverage fix.
+- Current-head PR checks are pending after Kimi merge-base diff fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
