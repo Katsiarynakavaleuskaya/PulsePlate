@@ -40,13 +40,13 @@ Reason: Packet command examples now point at `docs/review/PR_1744_FIXED_MAPPING.
 Disposition: FIXED
 Commit: 841793956
 Evidence: docs/review/PR_1744_FIXED_MAPPING.md:87
-Reason: Validation evidence now references the PR #1744 mapping artifact.
+Reason: Validation evidence now references the PR #1744 mapping artifact in the Local Validation Evidence section.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233675029 -> 841793956
 Disposition: FIXED
 Commit: 841793956
 Evidence: docs/review/PR_1744_FIXED_MAPPING.md:117
-Reason: Completed prerequisites are separated from final merge-readiness gates, which remain unchecked until final validation.
+Reason: Completed prerequisites are separated from final merge-readiness gates in the Completed Evidence and Merge Readiness sections.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4280934848 -> 841793956
 Disposition: FIXED

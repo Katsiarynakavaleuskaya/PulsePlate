@@ -308,8 +308,9 @@ Containment:
 
 Disposition for PR-0:
 
-- **DEFERRED** to each runtime/code PR, tracked by this packet and the backlog
-  DoD. PR-0 changes no runtime copy.
+- **DEFERRED** to each runtime/code PR, tracked by this packet and
+  `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr0-packet`.
+  PR-0 changes no runtime copy.
 
 Decision:
 
@@ -362,6 +363,7 @@ python3 scripts/orchestration/task_bootstrap.py \
   --requested-agent security-auditor \
   --requested-agent philosophy-agent \
   --requested-agent architecture-specialist
+export GH_TOKEN="${GH_TOKEN:-$(gh auth token)}"
 python3 scripts/orchestration/check_merge_ready.py \
   --pr-number 1744 \
   --repo Katsiarynakavaleuskaya/PulsePlate \
