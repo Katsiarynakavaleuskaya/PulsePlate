@@ -19,13 +19,55 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No actionable review threads were present when this artifact was created.
-If CodeRabbit, Sourcery, Cubic, `codex-security`, or human review later posts
-actionable comments, this artifact must be updated before readiness.
+Post-open bot comments are dispositioned below. CodeRabbit actionable findings
+were fixed in docs/governance before updating this mapping.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233675013 -> 841793956
+Disposition: FIXED
+Commit: 841793956
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:23
+Reason: Source intake now uses sanitized filenames and no user-specific local path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233675019 -> 841793956
+Disposition: FIXED
+Commit: 841793956
+Evidence: docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md:140
+Reason: Packet command examples now point at `docs/review/PR_1744_FIXED_MAPPING.md`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233675026 -> 841793956
+Disposition: FIXED
+Commit: 841793956
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:87
+Reason: Validation evidence now references the PR #1744 mapping artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233675029 -> 841793956
+Disposition: FIXED
+Commit: 841793956
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:117
+Reason: Completed prerequisites are separated from final merge-readiness gates, which remain unchecked until final validation.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4280934848 -> 841793956
+Disposition: FIXED
+Commit: 841793956
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:26
+Reason: Parent CodeRabbit review reported the four inline findings mapped above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#discussion_r3233682567
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:26
+Reason: The artifact no longer uses a no-actionable marker because actionable review entries are mapped in this section.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4280943273
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:48
+Reason: The Codex review comment duplicates the no-actionable-marker concern; current mapping mode contains explicit thread entries instead.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1744#pullrequestreview-4280918189
+Disposition: NOT-A-BUG
+Evidence: docs/review/PR_1744_FIXED_MAPPING.md:26
+Reason: Sourcery did not post a code finding; it reported a service rate limit only.
 
 ## Premortem Finding Closure
 
@@ -112,12 +154,15 @@ focused tests passed with the root repo `.venv` Python listed above.
   recorded in this artifact and in the packet.
 - Rollback: revert the docs/backlog commits for PR #1744.
 
+## Completed Evidence
+
+- [x] Pre-open preflight and task bootstrap complete
+- [x] Post-open task bootstrap complete
+- [x] Canonical artifact added for PR #1744
+- [x] Premortem findings dispositioned in this artifact
+
 ## Merge Readiness
 
-- [ ] Pre-open preflight and task bootstrap complete
-- [ ] Post-open task bootstrap complete
-- [ ] Canonical artifact added for PR #1744
-- [ ] Premortem findings dispositioned in this artifact
 - [ ] Current-head CI terminal and passing
 - [ ] No unresolved actionable review/bot comments after latest review cycle
 - [ ] Strict merge wrapper passes before readiness

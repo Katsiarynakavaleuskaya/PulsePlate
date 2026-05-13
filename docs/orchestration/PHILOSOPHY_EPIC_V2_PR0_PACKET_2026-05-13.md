@@ -1,7 +1,7 @@
 # Philosophy Epic V2 PR-0 Packet
 
 **Date:** 2026-05-13
-**Status:** Pre-open PR-0 governance packet
+**Status:** Post-open PR-0 governance packet under review
 **Branch:** `codex/philosophy-epic-v2-pr0-packet`
 **Worktree:** `worktrees/philosophy-epic-v2-pr0-packet`
 **Task packet:** `artifacts/orchestration/task_packets/141949357f9e.json`
