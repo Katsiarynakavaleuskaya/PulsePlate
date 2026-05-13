@@ -97,14 +97,29 @@ def _changed_paths_for_current_worktree() -> list[str]:
                 and re.fullmatch(r"[0-9a-f]{40}", head_sha)
             ):
                 fetch_pr_bounds = subprocess.run(
-                    [git_bin, "fetch", "--no-tags", "--depth=1", "origin", base_sha, head_sha],
+                    [git_bin, "fetch", "--no-tags", "--depth=100", "origin", base_sha, head_sha],
                     cwd=REPO_ROOT,
                     check=False,
                     text=True,
                     capture_output=True,
                 )
                 if fetch_pr_bounds.returncode == 0:
-                    diff_bases.append(f"{base_sha}..{head_sha}")
+                    merge_base = subprocess.run(
+                        [git_bin, "merge-base", base_sha, head_sha],
+                        cwd=REPO_ROOT,
+                        check=False,
+                        text=True,
+                        capture_output=True,
+                    )
+                    merge_base_sha = merge_base.stdout.strip()
+                    if merge_base.returncode == 0 and re.fullmatch(r"[0-9a-f]{40}", merge_base_sha):
+                        diff_bases.append(f"{merge_base_sha}...{head_sha}")
+                    else:
+                        detail = (merge_base.stderr or merge_base.stdout).strip()
+                        errors.append(
+                            f"merge-base {base_sha} {head_sha}: "
+                            f"{detail or 'git merge-base failed'}"
+                        )
                 else:
                     detail = (fetch_pr_bounds.stderr or fetch_pr_bounds.stdout).strip()
                     errors.append(f"fetch {base_sha}..{head_sha}: {detail or 'git fetch failed'}")
