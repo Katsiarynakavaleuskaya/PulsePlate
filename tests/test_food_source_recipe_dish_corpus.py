@@ -373,6 +373,10 @@ def test_recipe_dish_corpus_rejects_source_identity_drift() -> None:
         ("top_level", "API calls are allowed for recipe source use"),
         ("edamam_food_database", "source use is allowed for this candidate"),
         ("spoonacular", "paid source use allowed after contract review"),
+        ("top_level", "API calls approved for recipe review"),
+        ("edamam_food_database", "ingest is approved after review"),
+        ("spoonacular", "runtime use is allowed for product matching"),
+        ("top_level", "paid API use allowed after contract review"),
         ("top_level", "downloads allowed for corpus fixtures"),
         ("edamam_food_database", "DB writes allowed for recipe candidates"),
         ("spoonacular", "product display allowed from cached recipe corpus"),
@@ -394,6 +398,19 @@ def test_recipe_dish_corpus_rejects_notes_that_contradict_no_use_policy(
             coverage=_coverage(),
             pr13_next_recommended_lane="recipe_dish_corpus_governance",
         )
+
+
+def test_recipe_dish_corpus_notes_guard_does_not_reject_substring_false_positive() -> None:
+    payload = _governance_payload()
+    payload["notes"] = "API use remains disallowed for this governance-only review."
+    governance = parse_recipe_dish_corpus_governance(
+        payload,
+        onboarding=_onboarding(),
+        coverage=_coverage(),
+        pr13_next_recommended_lane="recipe_dish_corpus_governance",
+    )
+
+    assert "disallowed" in governance.notes
 
 
 def test_recipe_dish_corpus_rejects_schema_reference_and_next_lane_drift() -> None:

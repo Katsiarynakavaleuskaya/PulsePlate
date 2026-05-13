@@ -80,6 +80,7 @@ _SAFETY_FLAG_TEMPLATE: dict[str, bool] = {
 _FORBIDDEN_NOTE_PHRASES = (
     "approved api",
     "api approved",
+    "api calls approved",
     "approved for api",
     "allowed api",
     "api allowed",
@@ -89,15 +90,20 @@ _FORBIDDEN_NOTE_PHRASES = (
     "allowed api calls",
     "approved for ingest",
     "ingest approved",
+    "ingest is approved",
     "approved ingest",
     "allowed for ingest",
     "ingest allowed",
     "allowed ingest",
     "approved for runtime",
     "runtime approved",
+    "runtime use approved",
+    "runtime use is approved",
     "approved runtime",
     "allowed for runtime",
     "runtime allowed",
+    "runtime use allowed",
+    "runtime use is allowed",
     "allowed runtime",
     "runtime authority allowed",
     "approved for cache",
@@ -118,6 +124,8 @@ _FORBIDDEN_NOTE_PHRASES = (
     "paid source allowed",
     "allowed paid source",
     "paid source use allowed",
+    "paid api use allowed",
+    "paid api use is allowed",
     "source use approved",
     "approved source use",
     "source use allowed",
@@ -345,7 +353,7 @@ def _require_safety_flags(data: dict[str, object], context: str) -> None:
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = " ".join(value.lower().replace("-", " ").replace("_", " ").split())
     for phrase in _FORBIDDEN_NOTE_PHRASES:
-        if phrase in normalized:
+        if re.search(rf"\b{re.escape(phrase)}\b", normalized):
             raise _governance_error(
                 context,
                 "notes must not contradict no-use governance by approving API, ingest, "
