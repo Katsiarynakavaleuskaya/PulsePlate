@@ -107,6 +107,14 @@ def _changed_paths_for_current_worktree() -> list[str]:
             base_parent = parent_parts[1]
             branch = run_diff(f"{base_parent}..HEAD")
     if branch.returncode != 0:
+        branch = subprocess.run(
+            [git_bin, "show", "--name-only", "--pretty=format:", "HEAD"],
+            cwd=REPO_ROOT,
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+    if branch.returncode != 0:
         detail = (branch.stderr or branch.stdout).strip()
         pytest.fail(
             "Unable to inspect branch diff for Kimi docs-only guard: "
