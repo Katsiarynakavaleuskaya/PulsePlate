@@ -39,7 +39,29 @@ REQUIRED_COMPONENT_FIELDS = {
     "status",
 }
 ALLOWED_STATUS = {"covered", "partial", "missing", "unspecified"}
-REFERENCE_ONLY_AUTHORITIES = {"kimi", "figma", "canva", "penpot", "storybook", "code connect"}
+REQUIRED_REFERENCE_ONLY_AUTHORITIES = {
+    "kimi",
+    "figma",
+    "canva",
+    "penpot",
+    "storybook",
+    "code connect",
+}
+DENIED_CANONICAL_AUTHORITIES = {
+    "kimi",
+    "figma",
+    "canva",
+    "penpot",
+    "storybook",
+    "code connect",
+    "google drive",
+    "drive folder",
+    "prototype folder",
+    "screenshots",
+    "generated code",
+    "generated code bundles",
+    "desktop exports",
+}
 
 
 class RegistryError(ValueError):
@@ -138,14 +160,14 @@ def _validate_authority(authority: Any, errors: list[str]) -> None:
 
     canonical_text = " ".join(canonical).lower()
     reference_text = " ".join(reference_only).lower()
-    promoted = sorted(tool for tool in REFERENCE_ONLY_AUTHORITIES if tool in canonical_text)
+    promoted = sorted(tool for tool in DENIED_CANONICAL_AUTHORITIES if tool in canonical_text)
     if promoted:
         errors.append(
             "authority.canonical: external evidence tools must not be canonical: "
             + ", ".join(promoted)
         )
     missing_reference = sorted(
-        tool for tool in REFERENCE_ONLY_AUTHORITIES if tool not in reference_text
+        tool for tool in REQUIRED_REFERENCE_ONLY_AUTHORITIES if tool not in reference_text
     )
     if missing_reference:
         errors.append(
@@ -214,10 +236,37 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
             errors.append(f"{path_prefix}.component_id: unknown vocabulary id {component_id!r}")
 
         canonical_name = component.get("canonical_name")
-        expected_name = vocabulary.get(component_id, {}).get("canonical_name")
+        vocabulary_entry = vocabulary.get(component_id, {})
+        expected_name = vocabulary_entry.get("canonical_name")
         if expected_name is not None and canonical_name != expected_name:
             errors.append(
                 f"{path_prefix}.canonical_name: expected vocabulary name {expected_name!r}"
+            )
+
+        repo_vocabulary_anchor = component.get("repo_vocabulary_anchor")
+        expected_vocabulary_anchor = f"{VOCABULARY_PATH}:{component_id}"
+        if repo_vocabulary_anchor != expected_vocabulary_anchor:
+            errors.append(
+                f"{path_prefix}.repo_vocabulary_anchor: expected " f"{expected_vocabulary_anchor!r}"
+            )
+
+        web_runtime_anchor = component.get("web_runtime_anchor")
+        expected_web_anchor = vocabulary_entry.get("existing_repo_component")
+        if expected_web_anchor is None:
+            if web_runtime_anchor != "unspecified":
+                errors.append(
+                    f"{path_prefix}.web_runtime_anchor: expected 'unspecified' "
+                    "when vocabulary has no existing repo component"
+                )
+        elif web_runtime_anchor != expected_web_anchor:
+            errors.append(
+                f"{path_prefix}.web_runtime_anchor: expected repo-backed anchor "
+                f"{expected_web_anchor!r}"
+            )
+        elif not _repo_path(web_runtime_anchor, repo_root).is_file():
+            errors.append(
+                f"{path_prefix}.web_runtime_anchor: repo-backed anchor does not exist: "
+                f"{web_runtime_anchor!r}"
             )
 
         status = component.get("status")

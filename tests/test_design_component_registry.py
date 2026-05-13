@@ -181,6 +181,115 @@ def test_design_component_registry_rejects_external_authority_promotion(
     assert any("external evidence tools must not be canonical: figma" in error for error in errors)
 
 
+def test_design_component_registry_rejects_kimi_adjacent_authority_promotion(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"].append("Google Drive prototype folder")
+    broken["authority"]["canonical"].append("generated code bundles")
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("google drive" in error for error in errors)
+    assert any("generated code" in error for error in errors)
+
+
+def test_design_component_registry_rejects_wrong_vocabulary_anchor(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0][
+        "repo_vocabulary_anchor"
+    ] = "docs/design/ui_component_vocabulary.json:input"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "repo_vocabulary_anchor: expected 'docs/design/ui_component_vocabulary.json:button'"
+        in error
+        for error in errors
+    )
+
+
+def test_design_component_registry_rejects_wrong_web_runtime_anchor(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["components"][0]["web_runtime_anchor"] = "frontend/src/components/ui/DoesNotExist.tsx"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "web_runtime_anchor: expected repo-backed anchor "
+        "'frontend/src/components/ui/Button.tsx'" in error
+        for error in errors
+    )
+
+
+def test_design_component_registry_rejects_deleted_web_runtime_anchor(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    vocabulary_dir = repo_root / "docs/design"
+    vocabulary_dir.mkdir(parents=True)
+    (vocabulary_dir / "ui_component_vocabulary.json").write_text(
+        json.dumps(
+            [
+                {
+                    "id": "button",
+                    "canonical_name": "Button",
+                    "existing_repo_component": "frontend/src/components/ui/Button.tsx",
+                }
+            ]
+        ),
+        encoding="utf-8",
+    )
+    registry = {
+        "schema_version": "design_component_registry.v1",
+        "source_of_truth": "repo",
+        "authority": {
+            "canonical": ["repo code/docs/tests"],
+            "reference_only": [
+                "Kimi",
+                "Figma",
+                "Canva",
+                "Penpot",
+                "Storybook",
+                "Code Connect",
+            ],
+        },
+        "components": [
+            {
+                "component_id": "button",
+                "canonical_name": "Button",
+                "repo_vocabulary_anchor": "docs/design/ui_component_vocabulary.json:button",
+                "web_runtime_anchor": "frontend/src/components/ui/Button.tsx",
+                "ios_runtime_anchor": "unspecified",
+                "token_dependencies": ["unspecified"],
+                "storybook_review_anchor": "unspecified",
+                "figma_reference_anchor": "unspecified",
+                "penpot_reference_anchor": "unspecified",
+                "code_connect_anchor": "unspecified",
+                "states": ["unspecified"],
+                "variants": ["unspecified"],
+                "accessibility_contract": "unspecified",
+                "visual_regression_contract": "unspecified",
+                "owner": "design-system",
+                "status": "partial",
+            }
+        ],
+    }
+
+    errors = registry_module.validate_registry(
+        _write_registry(tmp_path, registry), repo_root=repo_root
+    )
+
+    assert any("repo-backed anchor does not exist" in error for error in errors)
+
+
 def test_design_component_registry_cli_validate_and_summarize(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
