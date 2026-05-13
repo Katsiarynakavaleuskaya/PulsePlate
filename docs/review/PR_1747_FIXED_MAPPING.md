@@ -327,6 +327,23 @@ Commit: 72bff386f
 Evidence: `core/food_sources/preference_recipe_mapping.py` now applies the PR15 safe-note scanner to PR14 top-level notes during direct handoff validation; `tests/test_food_source_preference_recipe_mapping.py` rejects approving PR14 top-level notes.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235680210
 
+Disposition: FIXED
+Commit: c5305d7bf
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates PR14 `schema_version`, `per_chain_legal_ref`, `pr13_landed_pr`, and exact `blocked_methods` before accepting direct `RecipeDishCorpusGovernance` handoffs; `tests/test_food_source_preference_recipe_mapping.py` rejects PR14 provenance and blocked-method drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917574
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917595
+
+Disposition: FIXED
+Commit: c5305d7bf
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates PR11 `schema_version`, `catalog_ref`, `onboarding_ref`, and `pr10_landed_pr` before accepting direct `SourceGapAudit` handoffs; `tests/test_food_source_preference_recipe_mapping.py` rejects PR11 provenance drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917601
+
+Disposition: FIXED
+Commit: c5305d7bf
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects unsafe ingest/runtime flags on every PR11 coverage-domain row and unsafe ingest/runtime/API/scraping/paid-source flags on every PR11 source-gap row before narrowing to the PR15 recipe-source checks; `tests/test_food_source_preference_recipe_mapping.py` rejects drift in non-PR15 PR11 rows such as `restaurant_chain_menus` and `nutritionix`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917581
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917589
+
 ## Merge Readiness
 
 Current-head merge readiness is pending the final post-fix push/check cycle. Already completed locally before this mapping update: post-open task bootstrap, mandatory QA/bug-hunter pass, CodeRabbit review pass, Codex Security diff-scoped pass, current-head checks inspection, and review-thread disposition loop.
