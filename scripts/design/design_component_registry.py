@@ -84,7 +84,9 @@ DENIED_CANONICAL_AUTHORITIES = {
     "screenshot",
     "screenshots",
     "generated code",
+    "generated code bundle",
     "generated code bundles",
+    "desktop export",
     "desktop exports",
 }
 
@@ -172,7 +174,7 @@ def _is_unspecified(value: Any) -> bool:
 
 
 def _normalize_authority_entries(value: list[str]) -> set[str]:
-    return {" ".join(item.strip().lower().split()) for item in value}
+    return {" ".join(re.sub(r"[^a-z0-9]+", " ", item.lower()).split()) for item in value}
 
 
 def _promoted_authorities(canonical: list[str]) -> list[str]:
@@ -185,8 +187,10 @@ def _promoted_authorities(canonical: list[str]) -> list[str]:
     return sorted(promoted)
 
 
-def _has_bridge_evidence(value: Any) -> bool:
-    return isinstance(value, str) and value not in {"", "unspecified"}
+def _has_bridge_evidence(field: str, value: Any) -> bool:
+    if field == "web_runtime_anchor":
+        return isinstance(value, str) and value not in {"", "unspecified"}
+    return isinstance(value, str) and value.startswith("repo-confirmed:")
 
 
 def _validate_authority(authority: Any, errors: list[str]) -> None:
@@ -322,7 +326,7 @@ def validate_registry(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list[
             missing_coverage = sorted(
                 field
                 for field in BRIDGE_COVERAGE_FIELDS
-                if not _has_bridge_evidence(component.get(field))
+                if not _has_bridge_evidence(field, component.get(field))
             )
             if missing_coverage:
                 errors.append(

@@ -231,6 +231,20 @@ def test_design_component_registry_rejects_kimi_adjacent_authority_promotion(
     assert any("generated code" in error for error in errors)
 
 
+def test_design_component_registry_rejects_punctuated_authority_promotion(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    broken["authority"]["canonical"].append("Code-Connect activation")
+    broken["authority"]["canonical"].append("desktop export")
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any("code connect" in error for error in errors)
+    assert any("desktop export" in error for error in errors)
+
+
 def test_design_component_registry_rejects_singular_screenshot_authority_promotion(
     tmp_path: Path,
 ) -> None:
@@ -335,13 +349,13 @@ def test_design_component_registry_allows_covered_status_with_bridge_evidence(
     covered = copy.deepcopy(registry)
     component = covered["components"][0]
     component["status"] = "covered"
-    component["ios_runtime_anchor"] = "ios/PulsePlate/DesignSystem/Button.swift"
-    component["storybook_review_anchor"] = "storybook/button"
-    component["figma_reference_anchor"] = "repo-confirmed-figma-button"
-    component["penpot_reference_anchor"] = "repo-confirmed-penpot-button"
-    component["code_connect_anchor"] = "repo-confirmed-code-connect-button"
-    component["accessibility_contract"] = "repo-confirmed-a11y-contract"
-    component["visual_regression_contract"] = "repo-confirmed-visual-contract"
+    component["ios_runtime_anchor"] = "repo-confirmed:ios/PulsePlate/DesignSystem/Button.swift"
+    component["storybook_review_anchor"] = "repo-confirmed:storybook/button"
+    component["figma_reference_anchor"] = "repo-confirmed:figma/button"
+    component["penpot_reference_anchor"] = "repo-confirmed:penpot/button"
+    component["code_connect_anchor"] = "repo-confirmed:code-connect/button"
+    component["accessibility_contract"] = "repo-confirmed:a11y/button"
+    component["visual_regression_contract"] = "repo-confirmed:visual/button"
     component["token_dependencies"] = ["repo-confirmed-token"]
     component["states"] = ["default"]
     component["variants"] = ["primary"]
@@ -350,6 +364,31 @@ def test_design_component_registry_allows_covered_status_with_bridge_evidence(
 
     assert not any("unconfirmed seed fields must be 'unspecified'" in error for error in errors)
     assert not any("covered requires bridge evidence" in error for error in errors)
+
+
+def test_design_component_registry_rejects_invented_covered_bridge_anchors(
+    tmp_path: Path,
+) -> None:
+    registry = _load_registry()
+    broken = copy.deepcopy(registry)
+    component = broken["components"][0]
+    component["status"] = "covered"
+    component["ios_runtime_anchor"] = "ios/PulsePlate/NoSuch.swift"
+    component["storybook_review_anchor"] = "storybook/invented"
+    component["figma_reference_anchor"] = "figma://invented"
+    component["penpot_reference_anchor"] = "penpot://invented"
+    component["code_connect_anchor"] = "code-connect/invented"
+    component["accessibility_contract"] = "a11y/invented"
+    component["visual_regression_contract"] = "visual/invented"
+
+    errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
+
+    assert any(
+        "covered requires bridge evidence" in error
+        and "ios_runtime_anchor" in error
+        and "figma_reference_anchor" in error
+        for error in errors
+    )
 
 
 def test_design_component_registry_rejects_malformed_covered_bridge_evidence(
@@ -363,14 +402,15 @@ def test_design_component_registry_rejects_malformed_covered_bridge_evidence(
     component["storybook_review_anchor"] = "storybook/button"
     component["figma_reference_anchor"] = []
     component["penpot_reference_anchor"] = {}
-    component["code_connect_anchor"] = "repo-confirmed-code-connect-button"
-    component["accessibility_contract"] = "repo-confirmed-a11y-contract"
-    component["visual_regression_contract"] = "repo-confirmed-visual-contract"
+    component["code_connect_anchor"] = "repo-confirmed:code-connect/button"
+    component["accessibility_contract"] = "repo-confirmed:a11y/button"
+    component["visual_regression_contract"] = "repo-confirmed:visual/button"
 
     errors = registry_module.validate_registry(_write_registry(tmp_path, broken))
 
     assert any(
         "covered requires bridge evidence" in error
+        and "ios_runtime_anchor" in error
         and "figma_reference_anchor" in error
         and "penpot_reference_anchor" in error
         for error in errors
