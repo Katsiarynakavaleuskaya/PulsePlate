@@ -978,6 +978,17 @@ def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_hand
         "api calls: allowed",
         "source use: approved",
         "downloads now enabled",
+        "allow api calls",
+        "allows source use",
+        "api calls authorized",
+        "source use authorized",
+        "nutrition authority authorized",
+        "recipe text allowed",
+        "user preference text allowed",
+        "llm output enabled",
+        "approved for api calls",
+        "allowed for source use",
+        "approved for recipe text",
     ),
 )
 def test_preference_recipe_mapping_rejects_notes_that_contradict_policy(note: str) -> None:

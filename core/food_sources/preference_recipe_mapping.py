@@ -396,21 +396,34 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
             for phrase in (
                 f"approve {variant}",
                 f"approves {variant}",
+                f"allow {variant}",
+                f"allows {variant}",
+                f"authorize {variant}",
+                f"authorizes {variant}",
                 f"{variant} approved",
                 f"{variant} is approved",
                 f"approved {variant}",
+                f"approved for {variant}",
                 f"{variant} allowed",
                 f"{variant} is allowed",
                 f"allowed {variant}",
+                f"allowed for {variant}",
+                f"{variant} authorized",
+                f"{variant} is authorized",
+                f"authorized {variant}",
+                f"authorized for {variant}",
                 f"{variant} permitted",
                 f"{variant} is permitted",
                 f"permitted {variant}",
+                f"permitted for {variant}",
                 f"{variant} granted",
                 f"{variant} is granted",
                 f"granted {variant}",
+                f"granted for {variant}",
                 f"{variant} enabled",
                 f"{variant} is enabled",
                 f"enabled {variant}",
+                f"enabled for {variant}",
             ):
                 if phrase not in seen:
                     seen.add(phrase)
@@ -420,7 +433,26 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
 _NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
-_NOTE_APPROVAL_TERMS = ("approved", "allowed", "permitted", "granted", "enabled")
+_NOTE_APPROVAL_TERMS = (
+    "approve",
+    "approves",
+    "approved",
+    "allow",
+    "allows",
+    "allowed",
+    "permit",
+    "permits",
+    "permitted",
+    "grant",
+    "grants",
+    "granted",
+    "enable",
+    "enables",
+    "enabled",
+    "authorize",
+    "authorizes",
+    "authorized",
+)
 _NOTE_NEGATION_WORDS = frozenset({"no", "not", "never"})
 _FORBIDDEN_NOTE_SUBJECTS = tuple(
     sorted(
@@ -434,17 +466,21 @@ _FORBIDDEN_NOTE_SUBJECTS = tuple(
             "download",
             "downloads",
             "ingest",
+            "llm output",
             "paid api use",
             "paid source use",
             "product display",
             "public dataset claim",
             "redistribution",
+            "recipe text",
             "runtime",
             "runtime authority",
             "scraping",
             "source download",
             "source downloads",
             "source use",
+            "user preference text",
+            "preference text",
             *(method.replace("_", " ") for method in BLOCKED_METHODS),
         },
         key=len,
@@ -664,9 +700,19 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
         "approves",
         "approved",
         "allow",
+        "allows",
         "allowed",
+        "authorize",
+        "authorizes",
+        "authorized",
+        "permit",
+        "permits",
         "permitted",
+        "grant",
+        "grants",
         "granted",
+        "enable",
+        "enables",
         "enabled",
     )
     if not any(term in phrase for term in guarded_terms):
@@ -687,10 +733,25 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
 def _require_no_bounded_approval_windows(normalized: str, context: str) -> None:
     approval = "|".join(_NOTE_APPROVAL_TERMS)
     for subject in _FORBIDDEN_NOTE_SUBJECTS:
-        pattern = (
+        subject_then_approval = (
             rf"\b{re.escape(subject)}\b(?P<middle>(?:\s+\w+){{0,3}})\s+(?P<approval>{approval})\b"
         )
-        for match in re.finditer(pattern, normalized):
+        for match in re.finditer(subject_then_approval, normalized):
+            middle_words = frozenset(match.group("middle").split())
+            if middle_words & _NOTE_NEGATION_WORDS:
+                continue
+            if _is_negated_approval_phrase(normalized, match.group("approval"), match.start()):
+                continue
+            raise _mapping_error(
+                context,
+                "notes must not approve recipe text, preference text, LLM output, "
+                "source use, ingest, runtime, cache, DB writes, display, or nutrition authority",
+            )
+        approval_then_subject = (
+            rf"\b(?P<approval>{approval})\b(?P<middle>(?:\s+\w+){{0,3}})\s+"
+            rf"\b{re.escape(subject)}\b"
+        )
+        for match in re.finditer(approval_then_subject, normalized):
             middle_words = frozenset(match.group("middle").split())
             if middle_words & _NOTE_NEGATION_WORDS:
                 continue
