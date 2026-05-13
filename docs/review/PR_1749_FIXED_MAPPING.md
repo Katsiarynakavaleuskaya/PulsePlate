@@ -12,6 +12,7 @@
   - `52c84f793caa6ec6be226169370a87e2f8429966` - stale-commit review-thread mapping.
   - `f9fb7ef434b2177827eb06d56602079ed65c85df` - aggregate bot review mapping.
   - `b281fa42b32aec312a237e4cb49daf5297c00aa9` - redaction and symlink-containment follow-up fixes.
+  - `67dea3563288468c70d45895885c8d0b90712c15` - post-fix review-thread mapping.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -19,9 +20,9 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-No review threads have been resolved. CodeRabbit initially skipped review while the PR
-was draft; the PR was marked ready for review on 2026-05-13 and bot review is being
-re-triggered through the normal ready-for-review cycle.
+Post-open bot review threads were classified, fixed, mapped, and resolved on 2026-05-13.
+The PR was marked ready for review after the draft-only CodeRabbit skip, and the latest
+current-head bot/CI cycle is being monitored before any merge-readiness claim.
 
 ## Fixed in Commit Mapping
 
@@ -75,9 +76,12 @@ Plain `make validate-changed` in this isolated worktree failed before test execu
 
 ## Premortem / Role Review Findings
 
+- Coordinator bootstrap: `artifacts/orchestration/task_packets/pr1749_post_open_review_2026-05-13.json` produced task packet `8384fad99c80`; declared executable order was `agent-coordinator -> architecture-specialist -> cursor-specialist-agent -> security-auditor -> qa-engineer-agent -> bug-hunter`.
 - Security-auditor / Codex Security finding: durable artifact paths could be misleading if promotion metadata named an unrelated repo path. Disposition: FIXED in `0d45edbe4df594cd22213107cd9aaf56c5bc87e6` by target-specific durable artifact path validation and negative tests.
 - QA / bug-hunter finding: false-green risk if tests only checked substring output. Disposition: FIXED in `0d45edbe4df594cd22213107cd9aaf56c5bc87e6` by deterministic full-body markdown checks, CLI JSON checks, and negative promotion/path tests.
 - Premortem finding: reviewers may confuse artifact notification with external delivery. Disposition: FIXED in `0d45edbe4df594cd22213107cd9aaf56c5bc87e6` by explicit docs and rendered delivery boundary.
+- Premortem finding: notification artifacts could leak local runner details through path edge cases. Disposition: FIXED in `e3f1232abc326ff805ae66737fddf5f34fd035d0` and `b281fa42b32aec312a237e4cb49daf5297c00aa9` by Windows/backslash, home-credential, control-character, symlinked-directory, symlinked-ancestor, symlinked-child, and broken-symlink output tests.
+- Premortem decision: proceed with changes; required changes have been applied, and readiness remains blocked only on current-head CI/bot review terminal state and the mandatory wait-window.
 
 ## Risks / Rollback
 
