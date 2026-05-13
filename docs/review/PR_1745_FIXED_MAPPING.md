@@ -6,6 +6,7 @@
 - Title: `feat(design): add design component contract registry seed`
 - Branch: `codex/design-component-contract-registry-seed-v1`
 - Current head SHA at initial mapping creation: `7f16e2385e6aabc15ce49ee0b4015fd1220f5329`
+- Latest mapped head SHA: `a3e4e73a5c7f93305a90de84eac3436a7f5316ba`
 
 ## Scope Summary
 
@@ -28,6 +29,9 @@ Initial post-open pass found no actionable human review threads. CodeRabbit had 
 | --- | --- | --- | --- | --- |
 | Pre-open premortem | local diff review | FIXED | `2ecb4a97a613f5e46d35442368d4b73283b6484d` | `tests/test_design_component_registry.py` covers malformed JSON, non-object JSON, missing fields, unknown ids, duplicates, invalid status, empty strings, and external authority promotion. |
 | Post-open initial review | no review thread URL yet | NOT-A-BUG | n/a | Mapping artifact created after PR number assignment; no actionable human/bot review thread had been dispositioned at artifact update time. |
+| `pulseplate-pr-review` dry-run | local report, large-diff note | FIXED | PR body edit after report | PR body includes `## Split Justification`; `make validate-changed` covered 42 changed-file tests and Phase2 body/mapping gate passed locally. |
+| Sourcery | `PRR_kwDOPi-pts7_MLhg` | NOT-A-BUG | n/a | Sourcery reported weekly diff-character rate limit only; no actionable code/doc finding was provided. |
+| CodeRabbit | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#issuecomment-4440807068 | NOT-A-BUG | n/a | Current retrieved CodeRabbit comment is informational/review-in-progress with generated finishing-touch options only; no actionable review finding was provided. |
 
 ## Command Evidence
 
@@ -42,12 +46,17 @@ Initial post-open pass found no actionable human review threads. CodeRabbit had 
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS, 42 changed-file tests after commits
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks - PASS
+- Local Phase2 check after PR body/mapping correction - PASS
+- Second-pass current-head validator plus changed docs tests - PASS, 42 tests
+- Codex Security diff scan - PASS, no forbidden runtime/token/asset/workflow paths and no network/subprocess/secret patterns in changed validator/tests.
 
 ## Unresolved / Deferred
 
 - Post-open bot and human review threads: pending.
-- CodeRabbit/Sourcery/Cubic status: pending.
-- Codex Security plugin post-open diff scan: pending.
+- CodeRabbit: informational review-in-progress comment retrieved; pending completed CodeRabbit review status.
+- Sourcery: rate-limited, no actionable finding retrieved.
+- Cubic status: pending.
+- Codex Security plugin post-open diff scan: completed, no actionable findings.
 - Strict merge-readiness wrapper: pending.
 - Next design lane remains `feat(design): add design bridge coverage inventory`; it is a follow-up lane, not deferred runtime work from this PR.
 
