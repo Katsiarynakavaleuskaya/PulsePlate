@@ -9,6 +9,7 @@
   - `585607b04c0476fbb3f5f7cd8f35a42545c16858` - initial fixed-mapping artifact.
   - `e3f1232abc326ff805ae66737fddf5f34fd035d0` - post-open hardening and role-agent fixes.
   - `77bec5c2c3fef12c906be3c1f4625c44cb758fd8` - review-thread mapping update.
+  - `52c84f793caa6ec6be226169370a87e2f8429966` - stale-commit review-thread mapping.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -27,7 +28,7 @@ re-triggered through the normal ready-for-review cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235757467 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235761786 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235761791 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235761797 -> 77bec5c2c3fef12c906be3c1f4625c44cb758fd8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235761797 -> 52c84f793caa6ec6be226169370a87e2f8429966
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235799044 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235799048 -> e3f1232abc326ff805ae66737fddf5f34fd035d0
 
@@ -36,7 +37,7 @@ Commit: e3f1232abc326ff805ae66737fddf5f34fd035d0
 Evidence: `scripts/orchestration/experiment_notify.py` removes dynamic `sys.path.insert`, rejects symlinked artifact ancestors/components, redacts Windows/backslash local path shapes, and exposes explicit module-entrypoint failure for unsupported direct invocation contexts. `tests/test_experiment_notify.py` adds the regression coverage.
 
 Disposition: FIXED
-Commit: 77bec5c2c3fef12c906be3c1f4625c44cb758fd8
+Commit: 52c84f793caa6ec6be226169370a87e2f8429966
 Evidence: This artifact now lists all implementing commits instead of only the initial sink commit and maps the stale-commit review thread to the review-mapping update.
 
 ## Local Validation Evidence
