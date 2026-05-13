@@ -978,6 +978,7 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
             "Redis imports or clients",
             "GPTCache imports or clients",
             "provider calls",
+            "environment reads",
             "network calls",
             "file writes",
             "connection strings",
@@ -987,6 +988,12 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
             "SC-G2 lineage evidence",
             "SC-G3 false-hit evidence",
             "SC-G4 bounded insight decision evidence",
+            "source fingerprints",
+            "eval event IDs",
+            "admission decision ID",
+            "promotion IDs",
+            "replay entry IDs",
+            "evidence fingerprints",
             "current-head CI governance proof",
             "human approval record",
         ),
@@ -1063,6 +1070,8 @@ def validate_semantic_cache_backend_selection_schema(
         errors.append(f"backend selection contract JSON key missing from schema properties: {key}")
     for key in sorted(required_set - property_keys):
         errors.append(f"backend selection schema required key missing from properties: {key}")
+    for key in sorted(property_keys - payload_keys):
+        errors.append(f"backend selection schema property missing from contract JSON: {key}")
 
     for key, spec in properties.items():
         if not isinstance(spec, dict) or key not in payload:
@@ -1077,6 +1086,10 @@ def validate_semantic_cache_backend_selection_schema(
             enum = items["enum"]
             actual = payload[key]
             if isinstance(enum, list) and isinstance(actual, list):
+                if key in {"candidate_backend_labels", "allowed_backend_labels"} and set(
+                    enum
+                ) != set(actual):
+                    errors.append(f"backend selection schema enum set mismatch for {key}")
                 invalid = [item for item in actual if item not in enum]
                 for item in invalid:
                     errors.append(f"backend selection schema enum mismatch for {key}: {item!r}")

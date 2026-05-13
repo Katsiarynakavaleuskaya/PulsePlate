@@ -192,6 +192,24 @@ def test_checker_rejects_schema_drift_from_machine_state() -> None:
 
     assert any("blocked_payload_fields" in error for error in errors)
 
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    schema["properties"]["candidate_backend_labels"]["items"]["enum"].append("unsafe_backend")
+    schema_text = json.dumps(schema, sort_keys=True)
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+    assert any("enum set mismatch for candidate_backend_labels" in error for error in errors)
+
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    schema["properties"]["runtime_enabled"] = {"type": "boolean"}
+    schema_text = json.dumps(schema, sort_keys=True)
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+    assert any("runtime_enabled" in error for error in errors)
+
 
 def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
     bad_text = _contract_text().replace('"runtime_allowed": false', '"runtime_allowed": true')
@@ -207,10 +225,22 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
         for error in errors
     )
 
-    for required_runtime_block in ('"network calls"', '"file writes"'):
+    for required_runtime_block in ('"environment reads"', '"network calls"', '"file writes"'):
         bad_text = _contract_text().replace(required_runtime_block + ",\n", "")
         errors = validate_semantic_cache_backend_selection_contract(bad_text)
         assert any(required_runtime_block.strip('"') in error for error in errors)
+
+    for required_evidence in (
+        '"source fingerprints"',
+        '"eval event IDs"',
+        '"admission decision ID"',
+        '"promotion IDs"',
+        '"replay entry IDs"',
+        '"evidence fingerprints"',
+    ):
+        bad_text = _contract_text().replace(required_evidence + ",\n", "")
+        errors = validate_semantic_cache_backend_selection_contract(bad_text)
+        assert any(required_evidence.strip('"') in error for error in errors)
 
     bad_text = _contract_text().replace('"human approval record"\n', '"human approval"\n')
     errors = validate_semantic_cache_backend_selection_contract(bad_text)

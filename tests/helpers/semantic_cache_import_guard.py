@@ -33,6 +33,9 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "aiohttp",
     "httpx",
     "subprocess",
+    "io",
+    "shutil",
+    "builtins",
 )
 ALLOWED_SEMANTIC_CACHE_IMPORTS = (
     "core.ai.bounded_insight_semantic_cache",
@@ -51,6 +54,8 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "time.monotonic",
     "time.perf_counter",
     "open",
+    "builtins.open",
+    "io.open",
     "Path.write_text",
     "Path.write_bytes",
     "pathlib.Path.write_text",
@@ -68,6 +73,8 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "pathlib.Path.unlink",
     "pathlib.Path.rmdir",
     "os.open",
+    "os.mkdir",
+    "os.makedirs",
     "os.remove",
     "os.unlink",
     "os.rename",
@@ -108,6 +115,12 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "os.execve",
     "os.execvp",
     "os.execvpe",
+    "shutil.copy",
+    "shutil.copy2",
+    "shutil.copyfile",
+    "shutil.copyfileobj",
+    "shutil.copytree",
+    "shutil.move",
     "os.getenv",
     "os.environ.get",
 )
@@ -195,7 +208,7 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 if alias.name != "*":
                     import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
         elif isinstance(node, ast.Assign):
-            if _is_path_constructor_call(node.value, import_aliases):
+            if _is_path_expr(node.value, import_aliases, path_aliases):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         path_aliases.add(target.id)
@@ -203,7 +216,7 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             if (
                 isinstance(node.target, ast.Name)
                 and node.value is not None
-                and _is_path_constructor_call(node.value, import_aliases)
+                and _is_path_expr(node.value, import_aliases, path_aliases)
             ):
                 path_aliases.add(node.target.id)
         elif isinstance(node, ast.With):
@@ -324,6 +337,8 @@ def _path_open_mode(node: ast.Call) -> str | None:
             return first_arg.value
         return None
     for keyword in node.keywords:
+        if keyword.arg is None:
+            return None
         if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
             value = keyword.value.value
             if isinstance(value, str):
@@ -340,7 +355,11 @@ def _is_path_expr(
     path_aliases: set[str],
 ) -> bool:
     if isinstance(node, ast.Call):
-        return _is_path_constructor_call(node, import_aliases)
+        if _is_path_constructor_call(node, import_aliases):
+            return True
+        if isinstance(node.func, ast.Attribute) and node.func.attr == "joinpath":
+            return _is_path_expr(node.func.value, import_aliases, path_aliases)
+        return False
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
         return _is_path_expr(node.left, import_aliases, path_aliases)
     if isinstance(node, ast.Name):

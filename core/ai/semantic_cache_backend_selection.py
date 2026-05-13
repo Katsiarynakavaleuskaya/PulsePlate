@@ -66,8 +66,11 @@ REASON_HUMAN_APPROVAL_MISSING = "human_approval_missing"
 REASON_NO_ELIGIBLE_CANDIDATE = "no_eligible_candidate"
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
-_PATH_RE = re.compile(r"(?:^|[\s=])(?:file://|/|~[/\\]|[A-Za-z]:[\\/]|\\\\)", re.IGNORECASE)
-_RELATIVE_PATH_RE = re.compile(r"(?:^|[\s=])(?:\./|\.\./|[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
+_PATH_RE = re.compile(
+    r"file://|(?:^|[\s=(:,;])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)",
+    re.IGNORECASE,
+)
+_RELATIVE_PATH_RE = re.compile(r"(?:^|[\s=(:,;])(?:\./|\.\./|[A-Za-z0-9_.-]+[/\\][A-Za-z0-9_.-]+)")
 _UNSAFE_TOKEN_RE = re.compile(
     r"secret"
     r"|token"
@@ -78,6 +81,8 @@ _UNSAFE_TOKEN_RE = re.compile(
     r"|bearer"
     r"|cookie"
     r"|private[_:-]?key"
+    r"|password"
+    r"|pwd"
     r"|(?<![a-z0-9])sk-[a-z0-9][a-z0-9_-]*"
     r"|ghp_[a-z0-9_]+"
     r"|github_pat_[a-z0-9_]+"
@@ -107,6 +112,8 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|cookie"
     r"|session[_ -]?id"
     r"|private[_ -]?key"
+    r"|password"
+    r"|pwd"
     r"|sk-[a-z0-9]"
     r"|ghp_[a-z0-9_]+"
     r"|github_pat_[a-z0-9_]+"
@@ -136,6 +143,8 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
     r"|diagnosis"
     r"|symptom"
     r"|medical"
+    r"|password"
+    r"|pwd"
     r"|account[_:-]?(?:id|truth)?"
     r"|billing"
     r"|entitlement"
@@ -494,6 +503,7 @@ class SemanticCacheBackendSelectionDecision:
         _validate_bool("implementation_allowed", self.implementation_allowed)
         if self.runtime_allowed or self.implementation_allowed:
             raise ValueError("SC-G5 decisions must keep runtime and implementation disabled")
+        _validate_decision_shape(self)
         object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
 
 
@@ -802,6 +812,47 @@ def _candidate_failure_reasons(
     if criteria.require_human_approval and candidate.human_approval_record_id is None:
         reasons.append(REASON_HUMAN_APPROVAL_MISSING)
     return _normalize_unique_tokens("reason_codes", tuple(dict.fromkeys(reasons)))
+
+
+def _validate_decision_shape(decision: SemanticCacheBackendSelectionDecision) -> None:
+    if decision.decision == DECISION_ELIGIBLE:
+        if (
+            decision.selected_candidate_id is not None
+            or decision.selected_backend_label is not None
+            or decision.candidate_id is None
+            or decision.backend_label is None
+            or decision.rejected_candidate_ids
+            or decision.reason_codes != (REASON_ELIGIBLE,)
+        ):
+            raise ValueError("eligible decision shape is inconsistent")
+    elif decision.decision == DECISION_INELIGIBLE:
+        if (
+            decision.selected_candidate_id is not None
+            or decision.selected_backend_label is not None
+            or decision.candidate_id is None
+            or decision.backend_label is None
+            or not decision.rejected_candidate_ids
+            or REASON_ELIGIBLE in decision.reason_codes
+            or REASON_SELECTED in decision.reason_codes
+        ):
+            raise ValueError("ineligible decision shape is inconsistent")
+    elif decision.decision == DECISION_SELECTED:
+        if (
+            decision.selected_candidate_id is None
+            or decision.selected_backend_label is None
+            or decision.candidate_id is not None
+            or decision.backend_label is not None
+            or decision.reason_codes != (REASON_SELECTED,)
+        ):
+            raise ValueError("selected decision shape is inconsistent")
+    elif decision.decision == DECISION_NO_SELECTION and (
+        decision.selected_candidate_id is not None
+        or decision.selected_backend_label is not None
+        or decision.candidate_id is not None
+        or decision.backend_label is not None
+        or decision.reason_codes != (REASON_NO_ELIGIBLE_CANDIDATE,)
+    ):
+        raise ValueError("no-selection decision shape is inconsistent")
 
 
 def _evidence_signature(evidence: SemanticCacheBackendSafetyEvidence) -> Mapping[str, JsonValue]:

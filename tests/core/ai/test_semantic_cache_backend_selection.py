@@ -501,6 +501,8 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"refresh_token": "safe-looking"},
         {"jwt": "safe-looking"},
         {"token_value": "safe-looking"},
+        {"pass" + "word": "blocked-value"},
+        {"p" + "wd": "blocked-value"},
         {"safe_key": "ghp_test_token"},
         {"safe_key": "github_pat_test_token"},
         {"safe_key": "xoxb-test-token"},
@@ -518,6 +520,9 @@ def test_metadata_rejects_relative_local_paths() -> None:
         {"nested": {"path": "../payload.txt"}},
         {"uri": "file:///tmp/cache-evidence.json"},
         {"uri": "FILE:///tmp/cache-evidence.json"},
+        {"uri": "uri:file:///tmp/cache-evidence.json"},
+        {"uri": "see(/tmp/cache-evidence.json)"},
+        {"path": "cache\\payload.json"},
     )
 
     for metadata in unsafe_metadata:
@@ -607,6 +612,35 @@ def test_type_and_value_validation_fail_closed() -> None:
         evaluate_semantic_cache_backend_candidate(candidate=cast(Any, "bad"), criteria=_criteria())
 
 
+def test_direct_decision_objects_reject_inconsistent_shapes() -> None:
+    eligible = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(), criteria=_criteria()
+    )
+    selected = select_semantic_cache_backend(candidates=(_candidate(),), criteria=_criteria())
+
+    with pytest.raises(ValueError, match="selected decision shape"):
+        replace(selected, selected_candidate_id=None)
+    with pytest.raises(ValueError, match="selected decision shape"):
+        replace(selected, candidate_id="candidate:redis")
+    with pytest.raises(ValueError, match="eligible decision shape"):
+        replace(eligible, rejected_candidate_ids=("candidate:redis",))
+    with pytest.raises(ValueError, match="no-selection decision shape"):
+        SemanticCacheBackendSelectionDecision(
+            decision_id="decision:bad-no-selection",
+            decision=DECISION_NO_SELECTION,
+            policy_version="semantic-cache-sc-g5-v1",
+            selected_candidate_id=None,
+            selected_backend_label=None,
+            candidate_id="candidate:redis",
+            backend_label=None,
+            reason_codes=(REASON_NO_ELIGIBLE_CANDIDATE,),
+            rejected_candidate_ids=("candidate:redis",),
+            runtime_allowed=False,
+            implementation_allowed=False,
+            metadata={"scope": "forged"},
+        )
+
+
 def test_matrix_invariants_fail_closed() -> None:
     candidate = _candidate()
     decision = evaluate_semantic_cache_backend_candidate(candidate=candidate, criteria=_criteria())
@@ -651,19 +685,9 @@ def test_matrix_constructor_rejects_forged_selected_decision_for_ineligible_cand
         current_head_ci_passed=False,
         human_approval_record_id=None,
     )
-    forged_candidate_decision = SemanticCacheBackendSelectionDecision(
-        decision_id="decision:forged-candidate",
-        decision=DECISION_ELIGIBLE,
-        policy_version="semantic-cache-sc-g5-v1",
-        selected_candidate_id=None,
-        selected_backend_label=None,
-        candidate_id=candidate.candidate_id,
-        backend_label=candidate.backend_label,
-        reason_codes=(REASON_SELECTED,),
-        rejected_candidate_ids=(),
-        runtime_allowed=False,
-        implementation_allowed=False,
-        metadata={"scope": "forged"},
+    candidate_decision = evaluate_semantic_cache_backend_candidate(
+        candidate=candidate,
+        criteria=_criteria(),
     )
     forged_final = SemanticCacheBackendSelectionDecision(
         decision_id="decision:forged-final",
@@ -680,13 +704,13 @@ def test_matrix_constructor_rejects_forged_selected_decision_for_ineligible_cand
         metadata={"scope": "forged"},
     )
 
-    with pytest.raises(ValueError, match="candidate_decisions"):
+    with pytest.raises(ValueError, match="final_decision"):
         SemanticCacheBackendEvaluationMatrix(
             matrix_id="matrix:forged",
             policy_version="semantic-cache-sc-g5-v1",
             criteria=_criteria(),
             candidates=(candidate,),
-            candidate_decisions=(forged_candidate_decision,),
+            candidate_decisions=(candidate_decision,),
             final_decision=forged_final,
         )
 
@@ -739,6 +763,8 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         "github_pat_test_token",
         "xoxb-test-token",
         "eyJ.test.signature",
+        "pass" + "word:blocked-value",
+        "p" + "wd:blocked-value",
         "proof:healthkit",
         "proof:raw_prompt",
         "proof:account-id-123",
@@ -834,6 +860,21 @@ def test_import_guard_rejects_joined_path_writes(tmp_path: Path) -> None:
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_tracks_joined_path_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_joined_alias.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "target = Path('out') / 'payload.txt'\n"
+        "target.write_text('payload')\n"
+        "joined = Path('out').joinpath('payload.bin')\n"
+        "joined.open('wb')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_env.py"
     source.write_text(
@@ -889,6 +930,19 @@ def test_import_guard_rejects_dynamic_path_open_modes(tmp_path: Path) -> None:
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_unknown_path_open_kwargs(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_open_kwargs.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "kwargs = {'mode': 'w'}\n"
+        "Path('payload.txt').open(**kwargs)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.open.write-mode"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_path_mutations_and_os_file_mutations(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_mutations.py"
     source.write_text(
@@ -899,7 +953,9 @@ def test_import_guard_rejects_path_mutations_and_os_file_mutations(tmp_path: Pat
         "target = Path('old.txt')\n"
         "target.rename('new.txt')\n"
         "target.unlink()\n"
-        "os.open('payload.txt', os.O_WRONLY | os.O_CREAT)\n",
+        "os.open('payload.txt', os.O_WRONLY | os.O_CREAT)\n"
+        "os.mkdir('payload-dir')\n"
+        "os.makedirs('payload-dir/nested')\n",
         encoding="utf-8",
     )
 
@@ -947,6 +1003,28 @@ def test_import_guard_rejects_process_launch_imports_and_calls(tmp_path: Path) -
     with pytest.raises(AssertionError, match="forbidden semantic-cache imports"):
         assert_no_forbidden_semantic_cache_imports(imports)
     with pytest.raises(AssertionError, match="subprocess.run"):
+        assert_no_forbidden_semantic_cache_calls(calls)
+
+
+def test_import_guard_rejects_copy_and_open_alias_escape_hatches(tmp_path: Path) -> None:
+    imports = tmp_path / "unsafe_file_imports.py"
+    imports.write_text(
+        "import io\nimport shutil\nfrom builtins import open as o\n", encoding="utf-8"
+    )
+    calls = tmp_path / "unsafe_file_calls.py"
+    calls.write_text(
+        "import io\n"
+        "import shutil\n"
+        "from builtins import open as o\n"
+        "io.open('payload.txt', 'w')\n"
+        "o('payload2.txt', 'w')\n"
+        "shutil.copyfile('seed.txt', 'payload3.txt')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="forbidden semantic-cache imports"):
+        assert_no_forbidden_semantic_cache_imports(imports)
+    with pytest.raises(AssertionError, match="io.open"):
         assert_no_forbidden_semantic_cache_calls(calls)
 
 
