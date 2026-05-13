@@ -49,7 +49,7 @@ Fix the main `test-main` design-governance failure by aligning the Kimi evidence
 - CodeRabbit review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281537842 -> `32c7fa884`
   - Disposition: FIXED
   - Evidence: `tests/test_design_agent_workflow_docs.py` now asserts all template headings before calling `_section(...)`.
-- CodeRabbit review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> pending commit
+- CodeRabbit review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> `fa4693fbb`
   - Disposition: FIXED
   - Evidence: this artifact now includes `## Discussion Thread Pass` with required checklist lines.
 - Sourcery review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281517715
