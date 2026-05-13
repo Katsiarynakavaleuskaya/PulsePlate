@@ -168,7 +168,7 @@ def _check_empty_strings(value: Any, *, path: str, errors: list[str]) -> None:
 
 
 def _is_unspecified(value: Any) -> bool:
-    return value == "unspecified"
+    return isinstance(value, str) and value == "unspecified"
 
 
 def _normalize_authority_entries(value: list[str]) -> set[str]:
