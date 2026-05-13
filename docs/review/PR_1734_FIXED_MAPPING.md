@@ -70,7 +70,7 @@ Reason: The CodeRabbit docstring/template warning is advisory under repo policy 
 
 - [x] Pre-flight + agent consistency gates: PASS.
 - [x] Canonical artifact: this file.
-- [x] Required current-head checks checked on current head at review time.
+- [ ] Required current-head checks checked on current head at review time.
 - [ ] PR body Phase2 mirror synchronized after this mapping update.
 - [x] Post-open reviewers completed (`qa-engineer-agent` -> `bug-hunter`) and actionables dispositioned.
 - [ ] Mandatory wait-window after latest review activity observed.
