@@ -77,9 +77,9 @@ Disposition: FIXED
 Commit: edc5e7766e28924ff4350d52dc97b85b917ab0c2
 Evidence: `tests/test_design_automation_next_lane_docs.py` now reads the GitHub pull_request event base SHA, fetches that exact base object in depth-1 CI checkouts, and diffs `base_sha..HEAD` without requiring local base refs or merge-parent ancestry; focused local pytest passes (`56 passed`).
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e49b51f9379cf57f32c9af11680e9eacf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
-Commit: 6c22df3e49b51f9379cf57f32c9af11680e9eacf
+Commit: 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Evidence: `.github/workflows/ci.yml` keeps the existing `coverage-xml-${{ matrix.python-version }}` and `junit-${{ matrix.python-version }}` artifact names but sets `overwrite: true` for both test-main uploads, preventing the observed GitHub artifact 409 conflict without changing downstream `coverage-main` artifact consumers. The workflow contract test asserts both overwrite guards.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235882742 -> 6bc2feb88ed1c2bd1b31f10cbbb5edd0d86a2163
@@ -96,6 +96,26 @@ Reason: The comment evaluated an older reviewed head; the live PR branch history
 Disposition: NOT-A-BUG
 Evidence: Current branch head contains `828aee1179d74b2501ab04346fe7762d377f2208`; `git merge-base --is-ancestor 828aee1179d74b2501ab04346fe7762d377f2208 HEAD` returned `0`.
 Reason: The comment evaluated an older reviewed head; the live PR branch history contains the mapped FIXED proof commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295291 -> f8745840153d656d0fb96042d009f03da7f10a95
+Disposition: FIXED
+Commit: f8745840153d656d0fb96042d009f03da7f10a95
+Evidence: This mapping artifact now uses the real finalized review-disposition commit SHA `6bc2feb88ed1c2bd1b31f10cbbb5edd0d86a2163`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295295
+Disposition: NOT-A-BUG
+Evidence: The event-base fallback diffs the current base tree against the synthetic PR merge tree with `base_sha..HEAD`, so base-only changes are not reported as PR changes. Focused local pytest passes (`56 passed`).
+Reason: In the GitHub PR merge checkout, `base_sha..HEAD` is the correct tree comparison when shallow history hides merge-parent ancestry.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295300 -> f8745840153d656d0fb96042d009f03da7f10a95
+Disposition: FIXED
+Commit: f8745840153d656d0fb96042d009f03da7f10a95
+Evidence: This mapping artifact now uses the real artifact-collision fix commit SHA `6c22df3e4a3f818f22471fdafc3c5ff55c8935d3`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236333532 -> 02b001132555b9dbfa232fe53edf7e380cfaf717
+Disposition: FIXED
+Commit: 02b001132555b9dbfa232fe53edf7e380cfaf717
+Evidence: `.github/workflows/ci.yml` now uses distinct diagnostic `test-main` artifact names (`coverage-main-xml-*`, `junit-main-*`) and updates `coverage-main` downloads to those names, leaving PR-scoped `coverage-xml-3.13` for `test-pr` and `diff-coverage`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235533880 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Disposition: FIXED
