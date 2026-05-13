@@ -633,6 +633,7 @@ jobs:
                   tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
                   tests/core/ai/test_exact_fuzzy_cache.py \
+                  tests/core/ai/test_semantic_cache_backend_selection.py \
                   tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
@@ -646,6 +647,7 @@ jobs:
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
+                  tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py
                 ;;
@@ -880,6 +882,7 @@ jobs:
                   tests/core/ai/test_bounded_insight_semantic_cache.py \
                   tests/core/ai/test_cache_observability.py \
                   tests/core/ai/test_exact_fuzzy_cache.py \
+                  tests/core/ai/test_semantic_cache_backend_selection.py \
                   tests/test_app_endpoints_combined.py \
                   tests/test_app_error_handling_combined.py \
                   tests/test_app_extended_coverage.py \
@@ -893,6 +896,7 @@ jobs:
                   tests/test_paywall_exposure_ledger_api.py \
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
+                  tests/test_semantic_cache_backend_selection_contract.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py
                 ;;
