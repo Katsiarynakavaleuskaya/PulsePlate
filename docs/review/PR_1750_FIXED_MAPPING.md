@@ -6,6 +6,7 @@ Branch: `codex/main-pr15-preference-notes-ci-hotfix`
 Title: `fix(food-data): restore PR15 CI coverage`
 Implementing commits:
 - `e7a6bbd13ef1f6865dcc85fd57caec9d466dada7` - restore PR15 CI coverage and close xdist/notes-guard risk.
+- `147f6c9918cf99dc21f6cc88dfe7cd4efa403b29` - fix contrastive negation after bot review.
 
 ## Scope
 
@@ -72,6 +73,17 @@ Evidence:
 - CLI subprocess tests now include timeouts.
 - `pre-commit run --all-files` -> PASS.
 
+### Bot review: preserve direct negation after contrastive clauses
+
+Disposition: FIXED
+Commit: 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
+Evidence:
+- `core/food_sources/preference_recipe_mapping.py` now evaluates negation
+  against the suffix after the last contrastive connector instead of
+  discarding direct negation.
+- `tests/test_food_source_preference_recipe_mapping.py` covers safe
+  `but no ... allowed` phrasing plus unsafe `but source use allowed`.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
@@ -84,7 +96,11 @@ thread dispositions before merge readiness is claimed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
+Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_source_preference_recipe_mapping.py` fix and cover contrastive negation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237633346 -> 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237635615 -> 147f6c9918cf99dc21f6cc88dfe7cd4efa403b29
 
 ## Local Validation Evidence
 
