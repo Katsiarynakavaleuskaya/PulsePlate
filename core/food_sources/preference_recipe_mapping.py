@@ -14,9 +14,11 @@ from pathlib import Path
 import re
 
 from core.food_sources.recipe_dish_corpus import (
+    BLOCKED_METHODS as PR14_BLOCKED_METHODS,
     EVIDENCE_POLICY as PR14_EVIDENCE_POLICY,
     FINAL_GATE_DECISION as PR14_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR14_NEXT_RECOMMENDED_LANE,
+    PER_CHAIN_LEGAL_REF as PR14_PER_CHAIN_LEGAL_REF,
     RecipeDishCorpusGovernance,
     RecipeDishCorpusGovernanceError,
     load_recipe_dish_corpus_governance,
@@ -34,6 +36,8 @@ from core.food_sources.source_onboarding import SourceOnboardingError, load_sour
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _SCHEMA_RE = re.compile(r"^food-data-preference-recipe-mapping-contract\.v\d+$")
+_PR11_SCHEMA_RE = re.compile(r"^food-data-coverage-source-gap-audit\.v\d+$")
+_PR14_SCHEMA_RE = re.compile(r"^food-data-recipe-dish-corpus-governance\.v\d+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 SOURCE = "preference_menu_planning"
@@ -53,6 +57,8 @@ EXPECTED_ALLOWED_ROLES = {
     "high_protein_preference": "macro_preference_contract_only",
 }
 EXPECTED_COVERAGE_REF = "docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json"
+EXPECTED_PR11_CATALOG_REF = "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json"
+EXPECTED_PR11_ONBOARDING_REF = "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json"
 EXPECTED_RECIPE_DISH_CORPUS_REF = (
     "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
 )
@@ -480,10 +486,27 @@ def _require_pr14_handoff(
         )
     if recipe_dish_corpus.source_family != "recipe_corpus":
         raise _mapping_error(context, "PR14 source_family must be recipe_corpus")
+    if not _PR14_SCHEMA_RE.fullmatch(recipe_dish_corpus.schema_version):
+        raise _mapping_error(
+            context,
+            "PR14 schema_version must look like food-data-recipe-dish-corpus-governance.vN",
+        )
+    if recipe_dish_corpus.per_chain_legal_ref != PR14_PER_CHAIN_LEGAL_REF:
+        raise _mapping_error(
+            context,
+            f"PR14 per_chain_legal_ref must be {PR14_PER_CHAIN_LEGAL_REF!r}",
+        )
+    if recipe_dish_corpus.pr13_landed_pr != 1613:
+        raise _mapping_error(context, "PR14 pr13_landed_pr must be 1613")
     if recipe_dish_corpus.next_recommended_lane != PR14_NEXT_RECOMMENDED_LANE:
         raise _mapping_error(context, "PR14 must recommend preference_recipe_mapping_contract")
     if recipe_dish_corpus.evidence_policy != PR14_EVIDENCE_POLICY:
         raise _mapping_error(context, f"PR14 evidence_policy must be {PR14_EVIDENCE_POLICY}")
+    if recipe_dish_corpus.blocked_methods != PR14_BLOCKED_METHODS:
+        raise _mapping_error(
+            context,
+            "PR14 blocked_methods must be exactly: " + ", ".join(PR14_BLOCKED_METHODS),
+        )
     if recipe_dish_corpus.final_gate_decision != PR14_FINAL_GATE_DECISION:
         raise _mapping_error(
             context, f"PR14 final_gate_decision must be {PR14_FINAL_GATE_DECISION}"
@@ -548,6 +571,23 @@ def _require_pr14_handoff(
 
 
 def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> None:
+    if not _PR11_SCHEMA_RE.fullmatch(coverage.schema_version):
+        raise _mapping_error(
+            context,
+            "PR11 schema_version must look like food-data-coverage-source-gap-audit.vN",
+        )
+    if coverage.catalog_ref != EXPECTED_PR11_CATALOG_REF:
+        raise _mapping_error(
+            context,
+            f"PR11 catalog_ref must be {EXPECTED_PR11_CATALOG_REF!r}",
+        )
+    if coverage.onboarding_ref != EXPECTED_PR11_ONBOARDING_REF:
+        raise _mapping_error(
+            context,
+            f"PR11 onboarding_ref must be {EXPECTED_PR11_ONBOARDING_REF!r}",
+        )
+    if coverage.pr10_landed_pr != 1597:
+        raise _mapping_error(context, "PR11 pr10_landed_pr must be 1597")
     if coverage.next_recommended_lane != PR11_NEXT_RECOMMENDED_LANE:
         raise _mapping_error(
             context,
@@ -563,6 +603,12 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
     preference_domain = domains.get(SOURCE)
     if preference_domain is None:
         raise _mapping_error(context, "PR11 must include preference_menu_planning")
+    for domain in coverage.coverage_domains:
+        if domain.approved_ingest or domain.approved_runtime_authority:
+            raise _mapping_error(
+                context,
+                f"PR11 {domain.domain} coverage_domains must not approve ingest/runtime authority",
+            )
     if (
         getattr(preference_domain, "coverage_decision")
         != EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION
@@ -610,6 +656,19 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
             "PR11 source_gap_decisions must be exactly: "
             + ", ".join(EXPECTED_PR11_SOURCE_GAP_ORDER),
         )
+    for source_gap in coverage.source_gap_decisions:
+        if (
+            source_gap.approved_ingest
+            or source_gap.approved_runtime_authority
+            or source_gap.api_calls_allowed
+            or source_gap.scraping_allowed
+            or source_gap.paid_source_use_allowed
+        ):
+            raise _mapping_error(
+                context,
+                f"PR11 {source_gap.source} source_gap_decisions must not approve ingest, "
+                "runtime, API, scraping, or paid source use",
+            )
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
     for source, expected in EXPECTED_PR11_RECIPE_SOURCE_GAP_DECISIONS.items():
         source_gap = source_gap_decisions.get(source)
@@ -621,18 +680,6 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                     context,
                     f"PR11 {source} source_gap_decisions {field_name} must be {expected_value}",
                 )
-        if (
-            source_gap.approved_ingest
-            or source_gap.approved_runtime_authority
-            or source_gap.api_calls_allowed
-            or source_gap.scraping_allowed
-            or source_gap.paid_source_use_allowed
-        ):
-            raise _mapping_error(
-                context,
-                f"PR11 {source} source_gap_decisions must not approve ingest, runtime, API, "
-                "scraping, or paid source use",
-            )
         _require_safe_notes(source_gap.notes, f"{context}.PR11.{source}.notes")
 
 
