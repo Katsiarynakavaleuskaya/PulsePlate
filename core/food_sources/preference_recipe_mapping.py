@@ -88,6 +88,82 @@ EXPECTED_PR11_SOURCE_GAP_ORDER = (
     "regional_catalogs",
     "jptn_food_facts",
 )
+EXPECTED_PR11_DOMAIN_SOURCE_REFS = {
+    "generic_food_composition": {
+        "primary_sources": ("usda_foundation",),
+        "auxiliary_sources": ("usda_fndds",),
+    },
+    "branded_barcode_products": {
+        "primary_sources": ("usda_branded",),
+        "auxiliary_sources": ("open_food_facts",),
+    },
+    "restaurant_chain_menus": {
+        "primary_sources": (),
+        "auxiliary_sources": ("menustat",),
+    },
+    "recipe_dish_corpora": {
+        "primary_sources": (),
+        "auxiliary_sources": ("edamam_food_database", "spoonacular"),
+    },
+    "preference_menu_planning": {
+        "primary_sources": (),
+        "auxiliary_sources": (
+            "chain_public_nutrition_pages",
+            "edamam_food_database",
+            "spoonacular",
+        ),
+    },
+    "regional_local_products": {
+        "primary_sources": (),
+        "auxiliary_sources": ("regional_catalogs",),
+    },
+    "user_manual_evidence": {
+        "primary_sources": (),
+        "auxiliary_sources": ("chain_public_nutrition_pages",),
+    },
+}
+EXPECTED_PR11_SOURCE_GAP_BLOCKING_REASONS = {
+    "usda_foundation": (
+        "Source-specific manifest, checksum, row, schema, and rollback gates still precede ingest.",
+    ),
+    "usda_branded": (
+        "Source-specific manifest, checksum, row, schema, and rollback gates still precede ingest.",
+    ),
+    "usda_fndds": (
+        "FNDDS must remain separated from Foundation and Branded until schema/PK review.",
+    ),
+    "open_food_facts": (
+        "ODbL attribution and derivative-database obligations remain mandatory.",
+        "OFF schema/PostgreSQL review is future work before refreshed snapshot authority.",
+    ),
+    "menustat": (
+        "MenuStat does not provide active freshness coverage and requires validation before use.",
+    ),
+    "chain_public_nutrition_pages": (
+        "Per-chain legal, anti-scraping, cache, attribution, schema, freshness, "
+        "screenshot/evidence, and rollback review is missing.",
+    ),
+    "edamam_food_database": (
+        "Contract, cache, attribution, redistribution, and rollback terms are not approved.",
+    ),
+    "spoonacular": (
+        "Recipe/menu experiments are separate from database authority and need contract/cache review.",
+    ),
+    "nutritionix": (
+        "Commercial contract, cache, attribution, redistribution, and rollback terms remain unapproved.",
+    ),
+    "fatsecret_platform": (
+        "User decision: FatSecret Platform is not used as a PulsePlate project source.",
+    ),
+    "regional_catalogs": (
+        "Locale-specific source identity, license, language, unit, schema, "
+        "and redistribution terms are missing.",
+    ),
+    "jptn_food_facts": (
+        "Provider identity, license, schema, retrieval, attribution, and redistribution "
+        "evidence are unresolved.",
+    ),
+}
 
 BLOCKED_METHODS = (
     "scraping",
@@ -344,6 +420,37 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
 _NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
+_NOTE_APPROVAL_TERMS = ("approved", "allowed", "permitted", "granted", "enabled")
+_NOTE_NEGATION_WORDS = frozenset({"no", "not", "never"})
+_FORBIDDEN_NOTE_SUBJECTS = tuple(
+    sorted(
+        {
+            "api",
+            "api calls",
+            "automation",
+            "cache authority",
+            "database writes",
+            "db writes",
+            "download",
+            "downloads",
+            "ingest",
+            "paid api use",
+            "paid source use",
+            "product display",
+            "public dataset claim",
+            "redistribution",
+            "runtime",
+            "runtime authority",
+            "scraping",
+            "source download",
+            "source downloads",
+            "source use",
+            *(method.replace("_", " ") for method in BLOCKED_METHODS),
+        },
+        key=len,
+        reverse=True,
+    )
+)
 
 _GOVERNANCE_KEYS = frozenset(
     {
@@ -530,7 +637,14 @@ def _require_safety_flags(data: dict[str, object], context: str) -> None:
 
 
 def _require_safe_notes(value: str, context: str) -> str:
-    normalized = " ".join(value.lower().replace("-", " ").replace("_", " ").split())
+    normalized = " ".join(
+        value.lower()
+        .replace("-", " ")
+        .replace("_", " ")
+        .replace(":", " ")
+        .replace(",", " ")
+        .split()
+    )
     for phrase in _FORBIDDEN_NOTE_PHRASES:
         for match in re.finditer(rf"\b{re.escape(phrase)}\b", normalized):
             if _is_negated_approval_phrase(normalized, phrase, match.start()):
@@ -540,6 +654,7 @@ def _require_safe_notes(value: str, context: str) -> str:
                 "notes must not approve recipe text, preference text, LLM output, "
                 "source use, ingest, runtime, cache, DB writes, display, or nutrition authority",
             )
+    _require_no_bounded_approval_windows(normalized, context)
     return value
 
 
@@ -560,7 +675,32 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
     segment_start = max(prefix_tail.rfind(separator) for separator in (".", ";", ":", "?", "!"))
     if segment_start >= 0:
         prefix_tail = prefix_tail[segment_start + 1 :]
-    return any(negation in prefix_tail for negation in _NEGATED_APPROVAL_PREFIXES)
+    stripped_prefix = prefix_tail.strip()
+    return any(
+        stripped_prefix.endswith(negation.strip()) for negation in _NEGATED_APPROVAL_PREFIXES
+    ) or (
+        stripped_prefix.startswith("no ")
+        and (" or " in stripped_prefix or stripped_prefix.endswith(" or"))
+    )
+
+
+def _require_no_bounded_approval_windows(normalized: str, context: str) -> None:
+    approval = "|".join(_NOTE_APPROVAL_TERMS)
+    for subject in _FORBIDDEN_NOTE_SUBJECTS:
+        pattern = (
+            rf"\b{re.escape(subject)}\b(?P<middle>(?:\s+\w+){{0,3}})\s+(?P<approval>{approval})\b"
+        )
+        for match in re.finditer(pattern, normalized):
+            middle_words = frozenset(match.group("middle").split())
+            if middle_words & _NOTE_NEGATION_WORDS:
+                continue
+            if _is_negated_approval_phrase(normalized, match.group("approval"), match.start()):
+                continue
+            raise _mapping_error(
+                context,
+                "notes must not approve recipe text, preference text, LLM output, "
+                "source use, ingest, runtime, cache, DB writes, display, or nutrition authority",
+            )
 
 
 def _coverage_domain_by_name(coverage: SourceGapAudit, context: str) -> dict[str, object]:
@@ -711,6 +851,14 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                     f"PR11 {domain.domain} coverage_domains {field_name} must be "
                     f"{expected_value}",
                 )
+        expected_refs = EXPECTED_PR11_DOMAIN_SOURCE_REFS[domain.domain]
+        for field_name, expected_value in expected_refs.items():
+            if getattr(domain, field_name) != expected_value:
+                raise _mapping_error(
+                    context,
+                    f"PR11 {domain.domain} coverage_domains {field_name} must be "
+                    f"{', '.join(expected_value) if expected_value else 'empty'}",
+                )
         if domain.approved_ingest or domain.approved_runtime_authority:
             raise _mapping_error(
                 context,
@@ -788,6 +936,12 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                     context,
                     f"PR11 {source} source_gap_decisions {field_name} must be {expected_value}",
                 )
+        expected_blocking_reasons = EXPECTED_PR11_SOURCE_GAP_BLOCKING_REASONS[source]
+        if source_gap.blocking_reasons != expected_blocking_reasons:
+            raise _mapping_error(
+                context,
+                f"PR11 {source} source_gap_decisions blocking_reasons must preserve PR11 evidence",
+            )
         _require_safe_notes(source_gap.notes, f"{context}.PR11.{source}.notes")
 
 

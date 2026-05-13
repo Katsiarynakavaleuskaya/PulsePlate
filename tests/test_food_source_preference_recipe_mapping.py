@@ -488,6 +488,24 @@ def test_preference_recipe_mapping_rechecks_all_pr11_coverage_domain_notes() -> 
         )
 
 
+def test_preference_recipe_mapping_rechecks_pr11_coverage_domain_source_refs() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_domain_decision(
+        "preference_menu_planning",
+        primary_sources=("approved_api_source",),
+    )
+
+    with pytest.raises(
+        PreferenceRecipeMappingError,
+        match="PR11 preference_menu_planning coverage_domains primary_sources",
+    ):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
 @pytest.mark.parametrize(
     ("field_name", "bad_value"),
     (
@@ -541,6 +559,24 @@ def test_preference_recipe_mapping_rechecks_all_pr11_source_gap_decision_fields(
     with pytest.raises(
         PreferenceRecipeMappingError,
         match=f"PR11 nutritionix source_gap_decisions {field_name}",
+    ):
+        parse_preference_recipe_mapping_governance(
+            payload,
+            coverage=coverage_payload,
+            recipe_dish_corpus=_recipe_dish_corpus(),
+        )
+
+
+def test_preference_recipe_mapping_rechecks_pr11_source_gap_blocking_reasons() -> None:
+    payload = _governance_payload()
+    coverage_payload = _coverage_with_source_gap_decision(
+        "nutritionix",
+        blocking_reasons=(),
+    )
+
+    with pytest.raises(
+        PreferenceRecipeMappingError,
+        match="PR11 nutritionix source_gap_decisions blocking_reasons",
     ):
         parse_preference_recipe_mapping_governance(
             payload,
@@ -937,6 +973,11 @@ def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_hand
         "ingest granted",
         "runtime authority granted",
         "api calls enabled",
+        "not only are api calls allowed",
+        "not only api calls allowed but downloads enabled",
+        "api calls: allowed",
+        "source use: approved",
+        "downloads now enabled",
     ),
 )
 def test_preference_recipe_mapping_rejects_notes_that_contradict_policy(note: str) -> None:
