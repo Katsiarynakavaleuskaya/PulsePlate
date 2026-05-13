@@ -19,6 +19,7 @@
 - `4be17a1e6` - `fix(ci): refine fallback specialized surfaces`
 - `50064a367` - `fix(ci): attach diagnostic fallback surfaces`
 - `b06d905e6` - `fix(ci): keep soft fallback lanes advisory`
+- `af229508d` - `fix(ci): cover Docker fallback support surfaces`
 
 ## Discussion Thread Pass
 - [x] Discussion-thread pass completed
@@ -159,6 +160,36 @@ Disposition: NOT-A-BUG
 Evidence: PR head is `05ec7c369d53a1cd46f3d227b5a5266db0a5380a`; `git merge-base --is-ancestor` returns `0` for `b4f7fd390`, `4be17a1e6`, `50064a367`, and `b06d905e6` against current local/remote head.
 Reason: The listed implementing commits are ancestors of the live PR head; no remapping to an unrelated synthetic reviewed SHA is needed.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232199882 -> af229508d
+Disposition: FIXED
+Commit: af229508d
+Evidence: scripts/ci/check_current_head_pr_checks.py includes `.trivyignore` and `trivy/` in `DOCKER_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers `.trivyignore` and `trivy/ignore-policy.rego` as Docker fallback blockers.
+Reason: Trivy policy and ignore-file edits now attach the Docker/image-security fallback lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232199887 -> af229508d
+Disposition: FIXED
+Commit: af229508d
+Evidence: scripts/ci/check_current_head_pr_checks.py includes `.dockerignore` in `DOCKER_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers `.dockerignore` as a Docker fallback blocker.
+Reason: Docker build-context control file edits now attach the Docker fallback lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232199890 -> af229508d
+Disposition: FIXED
+Commit: af229508d
+Evidence: scripts/ci/check_current_head_pr_checks.py includes `scripts/ci/check_python_startup_hooks.py` in `DOCKER_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers the startup-hook guard as a Docker fallback blocker.
+Reason: The Docker-copied startup guard now attaches the Docker fallback lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232199894 -> af229508d
+Disposition: FIXED
+Commit: af229508d
+Evidence: scripts/ci/check_current_head_pr_checks.py records both `filename` and `previous_filename` from PR file API items; tests/test_current_head_pr_checks.py covers rename-away changed path collection.
+Reason: Renamed-away surface files now still attach their original fallback surface.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1739#discussion_r3232199896 -> af229508d
+Disposition: FIXED
+Commit: af229508d
+Evidence: scripts/ci/check_current_head_pr_checks.py includes Docker helper scripts in `DOCKER_SURFACE_PREFIXES`; tests/test_current_head_pr_checks.py covers a Docker helper script as a Docker fallback blocker.
+Reason: Docker workflow helper-script edits now attach the Docker fallback lane.
+
 ## Validation
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
@@ -166,6 +197,7 @@ Reason: The listed implementing commits are ancestors of the live PR head; no re
 - `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1739 canonical restart: recover fail-closed current-head CI fallback after main stabilization" --task-class infra --path scripts/ci/check_current_head_pr_checks.py --path tests/test_current_head_pr_checks.py --path docs/review/PR_1739_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent security-auditor --requested-agent dev-operator --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS, packet `1eb2fe0337b1`
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_repo_policy_guards.py` - PASS
+- `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 - `python3 -m pytest -q tests/test_current_head_pr_checks.py` - PASS
 
