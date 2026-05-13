@@ -12,14 +12,12 @@
 
 Fix the main `test-main` design-governance failure by aligning the Kimi evidence/reference contract across the design PR template, PR7/PR8 design-intelligence packets, and deterministic docs guard tests.
 
-## Fixed in Commit Mapping
-
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-### Coordinator / Premortem / Agent Findings
+## Coordinator / Premortem / Agent Findings
 
 - Coordinator scope lock: FIXED by `e264e9e129ed5b7c299a657f64125b4cab276280`
   - Evidence: `tests/test_design_agent_workflow_docs.py` asserts Kimi evidence wording in the workflow and template source-of-truth sections.
@@ -44,29 +42,38 @@ Fix the main `test-main` design-governance failure by aligning the Kimi evidence
   - Evidence: `docs/orchestration/DESIGN_AGENT_WORKFLOW.md` and `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` already prohibit treating Kimi evidence as product/runtime truth.
   - Reason: The scenario is already blocked by current repo contracts and reinforced by this PR.
 
-### Review Threads
+## Fixed in Commit Mapping
 
-- CodeRabbit review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281537842 -> `32c7fa884`
-  - Disposition: FIXED
-  - Evidence: `tests/test_design_agent_workflow_docs.py` now asserts all template headings before calling `_section(...)`.
-- CodeRabbit review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> `fa4693fbb`
-  - Disposition: FIXED
-  - Evidence: this artifact now includes `## Discussion Thread Pass` with required checklist lines.
-- CodeRabbit summary warning https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#issuecomment-4440935378
-  - Disposition: NOT-A-BUG
-  - Evidence: repo gates for this docs/test lane do not require docstrings on test helper functions.
-  - Evidence: `pre-commit run --all-files`, focused pytest, `make validate-changed`, and pre-push hooks passed.
-- Sourcery review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281517715
-  - Disposition: NOT-A-BUG
-  - Evidence: Sourcery reported a weekly rate limit, not a code or governance defect.
-- Cubic review https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281550117
-  - Disposition: NOT-A-BUG
-  - Evidence: Cubic reported "No issues found" across the first four changed files.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281537842 -> 32c7fa884
+Disposition: FIXED
+Commit: 32c7fa884
+Evidence: `tests/test_design_agent_workflow_docs.py` now asserts all template headings before calling `_section(...)`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281596223 -> fa4693fbb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#discussion_r3234214202 -> fa4693fbb
+Disposition: FIXED
+Commit: fa4693fbb
+Evidence: this artifact now includes `## Discussion Thread Pass` with required checklist lines.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#issuecomment-4440935378
+Disposition: NOT-A-BUG
+Evidence: repo gates for this docs/test lane do not require docstrings on test helper functions.
+Reason: focused pytest, `make validate-changed`, `pre-commit run --all-files`, and pre-push hooks passed without requiring test-helper docstrings.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281517715
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a weekly rate limit, not a code or governance defect.
+Reason: rate-limit review output contains no actionable repository change request.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1746#pullrequestreview-4281550117
+Disposition: NOT-A-BUG
+Evidence: Cubic reported "No issues found" across the first four changed files.
+Reason: no repository change was requested by the Cubic review.
 
 ## Local Validation
 
-- `python3 scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
-- `python3 scripts/orchestration/check_agent_consistency.py` - PASS
+- `.venv/bin/python scripts/orchestration/check_preflight.py --path tests/test_design_agent_workflow_docs.py --path docs/orchestration/DESIGN_AGENT_WORKFLOW.md --path .github/PULL_REQUEST_TEMPLATE/design.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md --path docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md` - PASS
+- `.venv/bin/python scripts/orchestration/check_agent_consistency.py` - PASS
 - `.venv/bin/python -m pytest -q tests/test_design_agent_workflow_docs.py` - PASS (`4 passed`)
 - `.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py -k kimi` - PASS (`9 passed`)
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS (`No Python files changed`)
