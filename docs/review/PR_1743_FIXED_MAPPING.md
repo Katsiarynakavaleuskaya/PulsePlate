@@ -45,6 +45,7 @@ Reason: Pre-open coordinator and role-agent findings were fixed before PR open: 
 - Targeted mypy for PR14 files — PASS
 - `pre-commit run --all-files` — PASS
 - `make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` — PASS (`52 passed`)
+- Codex Security scan — PASS, no reportable findings (`/tmp/codex-security-scans/food-data-recipe-dish-corpus-governance-pr14/3551bbf36f29_20260513T103019Z/report.md`)
 - Pre-push hooks — PASS (changed-file mypy, backend tests, full repo Bandit, Docker build test)
 
 ## Merge Readiness
@@ -52,7 +53,7 @@ Reason: Pre-open coordinator and role-agent findings were fixed before PR open: 
 - [ ] Current-head CI green for PR branch head
 - [ ] Required checks complete (no pending jobs)
 - [ ] CodeRabbit inspected; no actionable comments remain unmapped
-- [ ] Codex Security inspected; no actionable comments remain unmapped
+- [x] Codex Security inspected; no actionable comments remain unmapped
 - [ ] Post-open `qa-engineer-agent -> bug-hunter` pass completed
 - [ ] All review threads resolved on GitHub after disposition updates
 - [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
