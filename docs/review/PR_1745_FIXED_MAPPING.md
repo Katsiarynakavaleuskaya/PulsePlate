@@ -173,6 +173,22 @@ Evidence: Covered non-web bridge fields now require `repo-confirmed:` evidence a
 Disposition: FIXED
 Commit: c69dd723dc1b507fd38fa1466d5bffeedb6872e8
 Evidence: Authority normalization now strips punctuation before denied-authority matching and includes singular denied variants; tests reject `Code-Connect activation` and `desktop export`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059581 -> 73df85828b53432257f3cf58130b4238f4dbad67
+Disposition: FIXED
+Commit: 73df85828b53432257f3cf58130b4238f4dbad67
+Evidence: The seed validator now rejects `covered` rows until a dedicated bridge coverage evidence schema exists; tests cover invented `repo-confirmed:`-style bridge claims and keep seed rows partial/missing/unspecified.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059585 -> 73df85828b53432257f3cf58130b4238f4dbad67
+Disposition: FIXED
+Commit: 73df85828b53432257f3cf58130b4238f4dbad67
+Evidence: `authority.canonical` now requires repo canonical authorities, including repo code/docs/tests and `docs/design/ui_component_vocabulary.json`; tests reject empty canonical authority.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059589 -> 73df85828b53432257f3cf58130b4238f4dbad67
+Disposition: FIXED
+Commit: 73df85828b53432257f3cf58130b4238f4dbad67
+Evidence: `covered` is rejected before token/state/variant values can be promoted in the seed lane, preserving unconfirmed values as `unspecified` until bridge coverage owns evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059597 -> 73df85828b53432257f3cf58130b4238f4dbad67
+Disposition: FIXED
+Commit: 73df85828b53432257f3cf58130b4238f4dbad67
+Evidence: Component `owner` values must be strings; `tests/test_design_component_registry.py` rejects non-string owner metadata.
 
 ## Review Thread Disposition Table
 
@@ -203,6 +219,10 @@ Evidence: Authority normalization now strips punctuation before denied-authority
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234369994 | FIXED | `3233f45e78b15b41244324c086d90b4636d7206e` | Array/object status values return deterministic validation errors instead of crashing. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234873378 | FIXED | `c69dd723dc1b507fd38fa1466d5bffeedb6872e8` | Covered status requires repo-confirmed bridge evidence instead of arbitrary invented strings. |
 | Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3234873381 | FIXED | `c69dd723dc1b507fd38fa1466d5bffeedb6872e8` | Punctuated and singular external authority variants are rejected. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059581 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | `covered` rows are blocked in the seed registry until a bridge coverage evidence schema exists. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059585 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | Required repo canonical authorities are validated. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059589 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | Covered status cannot bypass unconfirmed token/state/variant protection in this seed lane. |
+| Codex Review | https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1745#discussion_r3235059597 | FIXED | `73df85828b53432257f3cf58130b4238f4dbad67` | Component owners must remain strings. |
 
 ## Command Evidence
 
