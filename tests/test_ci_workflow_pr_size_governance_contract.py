@@ -335,7 +335,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 60, "3.12": 60, "3.13": 90}
+    assert timeouts == {"3.11": 60, "3.12": 90, "3.13": 90}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
