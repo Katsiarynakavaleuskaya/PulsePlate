@@ -7,6 +7,7 @@ from pathlib import Path
 import scripts.ci.check_docs_phase1_gates as docs_phase1
 from scripts.ci.check_semantic_cache_gate import (
     validate_semantic_cache_backend_selection_contract,
+    validate_semantic_cache_backend_selection_schema,
 )
 from tests.helpers.semantic_cache_import_guard import (
     assert_no_forbidden_semantic_cache_calls,
@@ -113,20 +114,8 @@ def test_schema_required_keys_and_consts_match_contract_state() -> None:
     state = _machine_state()
 
     required = set(schema["required"])
-    for key in (
-        "gate_status",
-        "runtime_allowed",
-        "implementation_allowed",
-        "rollout_phase",
-        "selection_mode",
-        "candidate_backend_labels",
-        "label_only_backends",
-        "blocked_runtime_dependencies",
-        "required_evidence",
-        "required_rollback_proof",
-        "forbidden_claims",
-        "acceptance_criteria",
-    ):
+    assert required == set(state)
+    for key in required:
         assert key in required
         assert key in state
     assert schema["additionalProperties"] is False
@@ -139,6 +128,28 @@ def test_schema_required_keys_and_consts_match_contract_state() -> None:
         "redis_label",
         "gptcache_label",
     ]
+
+
+def test_checker_validates_backend_selection_schema_against_machine_state() -> None:
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=SCHEMA.read_text(encoding="utf-8"),
+        contract_text=_contract_text(),
+    )
+
+    assert errors == []
+
+
+def test_checker_rejects_schema_drift_from_machine_state() -> None:
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    schema["required"].remove("blocked_payload_fields")
+    schema_text = json.dumps(schema, sort_keys=True)
+
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+
+    assert any("blocked_payload_fields" in error for error in errors)
 
 
 def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:

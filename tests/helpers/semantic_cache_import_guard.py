@@ -77,6 +77,8 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
             name = _constant_string_argument(node)
             if name is not None:
                 imports.append(name)
+            else:
+                imports.append("__dynamic_import__")
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -87,11 +89,15 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
             name = _constant_string_argument(node)
             if name is not None:
                 imports.append(name)
+            else:
+                imports.append("__dynamic_import__")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             if import_aliases.get(node.func.id) == "importlib.import_module":
                 name = _constant_string_argument(node)
                 if name is not None:
                     imports.append(name)
+                else:
+                    imports.append("__dynamic_import__")
 
     offenders = [
         name
@@ -104,6 +110,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
             name == prefix or name.startswith(f"{prefix}.")
             for prefix in FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES
         )
+        or name == "__dynamic_import__"
         or _contains_forbidden_cache_segment(name)
     ]
     assert offenders == [], f"forbidden semantic-cache imports found: {offenders}"

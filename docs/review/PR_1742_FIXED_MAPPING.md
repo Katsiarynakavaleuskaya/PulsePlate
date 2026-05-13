@@ -42,11 +42,14 @@ SC-G5 adds a deterministic, offline, label-only backend selection contract and m
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 Initial state after PR open: no human/bot review threads have been dispositioned yet. Review thread mapping must be added only after real fixes or explicit NOT-A-BUG/DEFERRED evidence.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
-No GitHub review comments mapped yet.
+- No actionable review comments
 
 ## Bot Review Tracking
 

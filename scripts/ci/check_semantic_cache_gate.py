@@ -38,6 +38,7 @@ DEFAULT_BACKEND_SELECTION_CONTRACT = (
     / "contracts"
     / "SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
 )
+DEFAULT_BACKEND_SELECTION_SCHEMA = DEFAULT_BACKEND_SELECTION_CONTRACT.with_suffix(".schema.json")
 
 REQUIRED_MARKERS = {
     "SEMANTIC_CACHE_GATE_STATUS": "closed",
@@ -989,6 +990,74 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
     return errors
 
 
+def validate_semantic_cache_backend_selection_schema(
+    *,
+    schema_text: str,
+    contract_text: str,
+) -> list[str]:
+    """Validate the SC-G5 JSON schema against the contract machine state."""
+
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"backend selection schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["backend selection schema must be an object"]
+
+    match = MACHINE_JSON_RE.search(contract_text)
+    if match is None:
+        return ["backend selection contract missing machine-readable JSON state"]
+    try:
+        payload = json.loads(match.group("payload"))
+    except json.JSONDecodeError as exc:
+        return [f"backend selection contract invalid JSON state: {exc.msg}"]
+    if not isinstance(payload, dict):
+        return ["backend selection contract JSON state must be an object"]
+
+    properties = schema.get("properties")
+    required = schema.get("required")
+    if not isinstance(properties, dict):
+        errors.append("backend selection schema properties must be an object")
+        properties = {}
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("backend selection schema required must be a string list")
+        required = []
+    if schema.get("additionalProperties") is not False:
+        errors.append("backend selection schema must set additionalProperties false")
+
+    required_set = set(required)
+    payload_keys = set(payload)
+    property_keys = set(properties)
+    for key in sorted(required_set - payload_keys):
+        errors.append(f"backend selection schema required key missing from contract JSON: {key}")
+    for key in sorted(payload_keys - required_set):
+        errors.append(f"backend selection contract JSON key missing from schema required: {key}")
+    for key in sorted(payload_keys - property_keys):
+        errors.append(f"backend selection contract JSON key missing from schema properties: {key}")
+    for key in sorted(required_set - property_keys):
+        errors.append(f"backend selection schema required key missing from properties: {key}")
+
+    for key, spec in properties.items():
+        if not isinstance(spec, dict) or key not in payload:
+            continue
+        if "const" in spec and payload[key] != spec["const"]:
+            errors.append(
+                f"backend selection schema const mismatch for {key}: "
+                f"expected {spec['const']!r}, got {payload[key]!r}"
+            )
+        items = spec.get("items")
+        if isinstance(items, dict) and "enum" in items:
+            enum = items["enum"]
+            actual = payload[key]
+            if isinstance(enum, list) and isinstance(actual, list):
+                invalid = [item for item in actual if item not in enum]
+                for item in invalid:
+                    errors.append(f"backend selection schema enum mismatch for {key}: {item!r}")
+
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check semantic-cache gate markers.")
     parser.add_argument(
@@ -1026,6 +1095,12 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_BACKEND_SELECTION_CONTRACT,
         help="SC-G5 backend selection markdown document to validate.",
+    )
+    parser.add_argument(
+        "--backend-selection-schema",
+        type=Path,
+        default=DEFAULT_BACKEND_SELECTION_SCHEMA,
+        help="SC-G5 backend selection JSON schema to validate.",
     )
     args = parser.parse_args(argv)
 
@@ -1070,6 +1145,13 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    backend_selection_schema = args.backend_selection_schema
+    if not backend_selection_schema.exists():
+        print(
+            f"ERROR: backend selection schema missing: {backend_selection_schema}",
+            file=sys.stderr,
+        )
+        return 1
 
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
@@ -1089,6 +1171,12 @@ def main(argv: list[str] | None = None) -> int:
     errors.extend(
         validate_semantic_cache_backend_selection_contract(
             backend_selection_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_semantic_cache_backend_selection_schema(
+            schema_text=backend_selection_schema.read_text(encoding="utf-8"),
+            contract_text=backend_selection_contract.read_text(encoding="utf-8"),
         )
     )
     if errors:

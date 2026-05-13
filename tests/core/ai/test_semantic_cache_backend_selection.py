@@ -341,6 +341,26 @@ def test_matrix_and_mapping_are_deterministic() -> None:
     assert to_stable_mapping(first) == to_stable_mapping(second)
 
 
+def test_matrix_identity_and_mapping_include_evidence_and_threshold_changes() -> None:
+    first = evaluate_semantic_cache_backend_matrix(
+        candidates=(_candidate(evidence=_evidence(negative_control_count=25)),),
+        criteria=replace(_criteria(), min_negative_control_count=10),
+    )
+    evidence_changed = evaluate_semantic_cache_backend_matrix(
+        candidates=(_candidate(evidence=_evidence(negative_control_count=26)),),
+        criteria=replace(_criteria(), min_negative_control_count=10),
+    )
+    criteria_changed = evaluate_semantic_cache_backend_matrix(
+        candidates=(_candidate(evidence=_evidence(negative_control_count=25)),),
+        criteria=replace(_criteria(), min_negative_control_count=11),
+    )
+
+    assert first.matrix_id != evidence_changed.matrix_id
+    assert to_stable_mapping(first) != to_stable_mapping(evidence_changed)
+    assert first.matrix_id != criteria_changed.matrix_id
+    assert to_stable_mapping(first) != to_stable_mapping(criteria_changed)
+
+
 def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None:
     unsafe_metadata = (
         {"raw_prompt": "plan"},
@@ -350,6 +370,18 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"credential": "blocked-value"},
         {"health": "HealthKit symptom"},
     )
+    for metadata in unsafe_metadata:
+        with pytest.raises(ValueError):
+            replace(_candidate(), metadata=metadata)
+
+
+def test_metadata_rejects_relative_local_paths() -> None:
+    unsafe_metadata = (
+        {"local_path": "relative/payload.txt"},
+        {"path": "./payload.txt"},
+        {"nested": {"path": "../payload.txt"}},
+    )
+
     for metadata in unsafe_metadata:
         with pytest.raises(ValueError):
             replace(_candidate(), metadata=metadata)
@@ -368,7 +400,10 @@ def test_nested_metadata_is_defensively_frozen_and_json_safe() -> None:
         evaluate_semantic_cache_backend_matrix(candidates=(candidate,), criteria=_criteria())
     )
 
-    assert stable["candidate_ids"] == ["candidate:redis"]
+    candidate_signatures = stable["candidate_signatures"]
+    assert isinstance(candidate_signatures, list)
+    candidate_signature = cast(dict[str, object], candidate_signatures[0])
+    assert candidate_signature["candidate_id"] == "candidate:redis"
 
 
 def test_json_metadata_copy_rejects_non_finite_and_unsupported_values() -> None:
@@ -575,3 +610,17 @@ def test_import_guard_rejects_path_open_context_manager_writes(tmp_path: Path) -
 
     with pytest.raises(AssertionError, match="Path.open.write"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_dynamic_import.py"
+    source.write_text(
+        "name = 'redis'\n"
+        "__import__(name)\n"
+        "import importlib\n"
+        "importlib.import_module(name)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="__dynamic_import__"):
+        assert_no_forbidden_semantic_cache_imports(source)

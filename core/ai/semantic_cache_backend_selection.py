@@ -67,6 +67,7 @@ REASON_NO_ELIGIBLE_CANDIDATE = "no_eligible_candidate"
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _PATH_RE = re.compile(r"(?:^|[\s=])(?:/|~[/\\]|[A-Za-z]:[\\/]|\\\\)")
+_RELATIVE_PATH_RE = re.compile(r"(?:^|[\s=])(?:\./|\.\./|[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+)")
 _UNSAFE_METADATA_RE = re.compile(
     r"raw[_ -]?(?:query|prompt|response|answer)"
     r"|normalized[_ -]?query"
@@ -75,6 +76,7 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|answer"
     r"|provider[_ -]?payload"
     r"|connection[_ -]?string"
+    r"|local[_ -]?path"
     r"|redis://"
     r"|redis[_ -]?url"
     r"|gptcache"
@@ -464,8 +466,8 @@ class SemanticCacheBackendEvaluationMatrix:
             raise ValueError("final_decision must match freshly selected backend decision")
         expected_matrix_id = build_semantic_cache_backend_matrix_id(
             candidates=self.candidates,
+            criteria=self.criteria,
             final_decision=self.final_decision,
-            policy_version=self.policy_version,
         )
         if self.matrix_id != expected_matrix_id:
             raise ValueError("matrix_id must match canonical matrix payload")
@@ -531,8 +533,8 @@ def evaluate_semantic_cache_backend_matrix(
     return SemanticCacheBackendEvaluationMatrix(
         matrix_id=build_semantic_cache_backend_matrix_id(
             candidates=candidates,
+            criteria=criteria,
             final_decision=final_decision,
-            policy_version=criteria.policy_version,
         ),
         policy_version=criteria.policy_version,
         criteria=criteria,
@@ -545,15 +547,20 @@ def evaluate_semantic_cache_backend_matrix(
 def build_semantic_cache_backend_matrix_id(
     *,
     candidates: tuple[SemanticCacheBackendCandidate, ...],
+    criteria: SemanticCacheBackendSelectionCriteria,
     final_decision: SemanticCacheBackendSelectionDecision,
-    policy_version: str,
 ) -> str:
     """Build the canonical deterministic ID for a backend evaluation matrix."""
 
+    if not isinstance(criteria, SemanticCacheBackendSelectionCriteria):
+        raise ValueError("criteria must be SemanticCacheBackendSelectionCriteria")
     payload: JsonValue = {
-        "candidate_ids": [candidate.candidate_id for candidate in _sorted_candidates(candidates)],
+        "candidate_signatures": [
+            _candidate_signature(candidate) for candidate in _sorted_candidates(candidates)
+        ],
+        "criteria": _criteria_signature(criteria),
         "final_decision_id": final_decision.decision_id,
-        "policy_version": _validate_token("policy_version", policy_version),
+        "policy_version": criteria.policy_version,
     }
     return f"semantic-cache-backend-matrix:{_fingerprint_payload(payload)[:24]}"
 
@@ -654,7 +661,10 @@ def to_stable_mapping(value: object) -> Mapping[str, JsonValue]:
                 "candidate_decisions": [
                     to_stable_mapping(decision) for decision in value.candidate_decisions
                 ],
-                "candidate_ids": [candidate.candidate_id for candidate in value.candidates],
+                "candidate_signatures": [
+                    _candidate_signature(candidate) for candidate in value.candidates
+                ],
+                "criteria": _criteria_signature(value.criteria),
                 "final_decision": to_stable_mapping(value.final_decision),
                 "matrix_id": value.matrix_id,
                 "policy_version": value.policy_version,
@@ -702,6 +712,96 @@ def _candidate_failure_reasons(
     if criteria.require_human_approval and candidate.human_approval_record_id is None:
         reasons.append(REASON_HUMAN_APPROVAL_MISSING)
     return _normalize_unique_tokens("reason_codes", reasons)
+
+
+def _evidence_signature(evidence: SemanticCacheBackendSafetyEvidence) -> Mapping[str, JsonValue]:
+    return _stable_json_mapping(
+        {
+            "admission_blocked_hit_count": evidence.admission_blocked_hit_count,
+            "admission_decision_id": evidence.admission_decision_id,
+            "blocked_surface_hit_count": evidence.blocked_surface_hit_count,
+            "context_leakage_count": evidence.context_leakage_count,
+            "eval_event_ids": list(evidence.eval_event_ids),
+            "evidence_fingerprints": list(evidence.evidence_fingerprints),
+            "evidence_id": evidence.evidence_id,
+            "false_hit_rate_bps": evidence.false_hit_rate_bps,
+            "fresh_runtime_comparison_count": evidence.fresh_runtime_comparison_count,
+            "metadata": _json_safe_copy(evidence.metadata),
+            "model_mismatch_count": evidence.model_mismatch_count,
+            "negative_control_count": evidence.negative_control_count,
+            "policy_mismatch_count": evidence.policy_mismatch_count,
+            "promotion_ids": list(evidence.promotion_ids),
+            "replay_entry_ids": list(evidence.replay_entry_ids),
+            "sc_g2_contract_id": evidence.sc_g2_contract_id,
+            "sc_g3_contract_id": evidence.sc_g3_contract_id,
+            "sc_g4_contract_id": evidence.sc_g4_contract_id,
+            "source_fingerprints": list(evidence.source_fingerprints),
+            "stale_answer_rate_bps": evidence.stale_answer_rate_bps,
+        }
+    )
+
+
+def _rollback_signature(proof: SemanticCacheBackendRollbackProof) -> Mapping[str, JsonValue]:
+    return _stable_json_mapping(
+        {
+            "blast_radius_bps": proof.blast_radius_bps,
+            "disabled_state_test_ids": list(proof.disabled_state_test_ids),
+            "kill_switch_proof_id": proof.kill_switch_proof_id,
+            "metadata": _json_safe_copy(proof.metadata),
+            "no_cache_fallback_proof_id": proof.no_cache_fallback_proof_id,
+            "proof_id": proof.proof_id,
+            "purge_invalidation_proof_id": proof.purge_invalidation_proof_id,
+            "request_bypass_proof_id": proof.request_bypass_proof_id,
+            "rollback_runbook_id": proof.rollback_runbook_id,
+            "stop_rule_replay_ids": list(proof.stop_rule_replay_ids),
+            "verified": proof.verified,
+        }
+    )
+
+
+def _candidate_signature(candidate: SemanticCacheBackendCandidate) -> Mapping[str, JsonValue]:
+    return _stable_json_mapping(
+        {
+            "backend_label": candidate.backend_label,
+            "backend_version": candidate.backend_version,
+            "candidate_id": candidate.candidate_id,
+            "capability_flags": list(candidate.capability_flags),
+            "cost_saved_microunits": candidate.cost_saved_microunits,
+            "current_head_ci_passed": candidate.current_head_ci_passed,
+            "human_approval_record_id": candidate.human_approval_record_id,
+            "latency_saved_p50_ms": candidate.latency_saved_p50_ms,
+            "latency_saved_p95_ms": candidate.latency_saved_p95_ms,
+            "metadata": _json_safe_copy(candidate.metadata),
+            "policy_version": candidate.policy_version,
+            "provider_calls_avoided_count": candidate.provider_calls_avoided_count,
+            "rollback_proof": _rollback_signature(candidate.rollback_proof),
+            "safety_evidence": _evidence_signature(candidate.safety_evidence),
+            "supported_surfaces": list(candidate.supported_surfaces),
+        }
+    )
+
+
+def _criteria_signature(criteria: SemanticCacheBackendSelectionCriteria) -> Mapping[str, JsonValue]:
+    return _stable_json_mapping(
+        {
+            "allow_admission_blocked_hits": criteria.allow_admission_blocked_hits,
+            "allow_blocked_surface_hits": criteria.allow_blocked_surface_hits,
+            "allowed_backend_labels": list(criteria.allowed_backend_labels),
+            "implementation_allowed": criteria.implementation_allowed,
+            "max_context_leakage_count": criteria.max_context_leakage_count,
+            "max_false_hit_rate_bps": criteria.max_false_hit_rate_bps,
+            "max_model_mismatch_count": criteria.max_model_mismatch_count,
+            "max_policy_mismatch_count": criteria.max_policy_mismatch_count,
+            "max_stale_answer_rate_bps": criteria.max_stale_answer_rate_bps,
+            "min_fresh_runtime_comparison_count": criteria.min_fresh_runtime_comparison_count,
+            "min_negative_control_count": criteria.min_negative_control_count,
+            "policy_version": criteria.policy_version,
+            "require_current_head_ci": criteria.require_current_head_ci,
+            "require_human_approval": criteria.require_human_approval,
+            "required_surface": criteria.required_surface,
+            "runtime_allowed": criteria.runtime_allowed,
+        }
+    )
 
 
 def _candidate_rank_key(candidate: SemanticCacheBackendCandidate) -> (
@@ -810,7 +910,11 @@ def _validate_metadata_is_safe(value: JsonValue, *, path: str = "metadata") -> N
 
 
 def _validate_safe_metadata_string(name: str, value: str) -> None:
-    if _UNSAFE_METADATA_RE.search(value) or _PATH_RE.search(value):
+    if (
+        _UNSAFE_METADATA_RE.search(value)
+        or _PATH_RE.search(value)
+        or _RELATIVE_PATH_RE.search(value)
+    ):
         raise ValueError(f"{name} contains unsafe metadata")
 
 
