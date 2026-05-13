@@ -82,10 +82,10 @@ Disposition: FIXED
 Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Evidence: This CodeRabbit review aggregates the inline `discussion_r3235533880`; the same fix removed the unsafe last-commit fallback and kept the Kimi docs-only guard fail-closed.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578258 -> 0000000000000000000000000000000000000000
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578258 -> 0d43a3cad5db6e8dd9ff060e2d76fc5c0cd3094c
 Disposition: FIXED
-Commit: 0000000000000000000000000000000000000000
-Evidence: Placeholder pending the mapping-format commit that separates every disposition block with blank lines so `check_review_threads_disposition.py` parses NOT-A-BUG and FIXED entries independently.
+Commit: 0d43a3cad5db6e8dd9ff060e2d76fc5c0cd3094c
+Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` separates every mapping/disposition entry with a blank line so `check_review_threads_disposition.py` parses NOT-A-BUG and FIXED entries independently.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578263
 Disposition: NOT-A-BUG
