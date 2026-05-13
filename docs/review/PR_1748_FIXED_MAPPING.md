@@ -72,6 +72,11 @@ Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
 Evidence: `tests/test_design_automation_next_lane_docs.py` preserves the Kimi docs-only guard and now probes `origin/main...HEAD`, `main...HEAD`, then the first parent of a real PR merge checkout before failing closed; focused local pytest passes (`56 passed` across the Kimi docs guard and original workflow-contract suites).
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25810975089/job/75827452584 -> edc5e7766af87116be0eb05f2cb983c4bf5b3fa9
+Disposition: FIXED
+Commit: edc5e7766af87116be0eb05f2cb983c4bf5b3fa9
+Evidence: `tests/test_design_automation_next_lane_docs.py` now reads the GitHub pull_request event base SHA, fetches that exact base object in depth-1 CI checkouts, and diffs `base_sha..HEAD` without requiring local base refs or merge-parent ancestry; focused local pytest passes (`56 passed`).
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235533880 -> 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
 Disposition: FIXED
 Commit: 4128eb460ac8c1a15030a44d22d8cd5bbbe6da91
@@ -121,6 +126,7 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `git push -u origin codex/fix-ci-paths-filter-node24` - PASS pre-push hooks
 - `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py tests/test_tooling_surface_guards.py tests/test_ci_workflow_pr_size_governance_contract.py` - PASS (`56 passed`)
 - `PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after current-head CI fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after shallow PR checkout fix
 
 ## Current-Head CI
 
