@@ -70,7 +70,7 @@ Evidence:
 - `python3 scripts/orchestration/check_preflight.py` -> PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS
 - `$VENV_PYTHON -m pytest tests/test_food_source_preference_recipe_mapping.py -q`
-  -> 45 passed
+  -> 116 passed
 - Adjacent food-source governance regression pytest for PR11, PR12, PR13,
   PR14, catalog, and onboarding -> PASS
 - `$VENV_PYTHON -m pytest -q tests/test_repo_policy_guards.py`
@@ -166,7 +166,7 @@ Evidence:
 - `git diff --shortstat origin/main...HEAD` reports 8 files changed, with the
   volume concentrated in the new typed validator, deterministic tests, and
   governance artifacts.
-- Focused PR15 pytest covers 45 deterministic cases, including malformed
+- Focused PR15 pytest covers 116 deterministic cases, including malformed
   artifacts, unsafe flags, CLI success/failure, no-network/no-ingest/no-runtime
   authority invariants, and PR11/PR14 handoff drift.
 Reason: The advisory large-diff warning is acknowledged, but splitting would
@@ -182,16 +182,16 @@ Evidence: `docs/roadmap/BACKLOG_LEDGER.md` splits the PR15 status into a readabl
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281710415
 
 Disposition: FIXED
-Commit: `de3fdcf41`
-Evidence: `core/food_sources/preference_recipe_mapping.py` and `tests/test_food_source_preference_recipe_mapping.py` reject approval/allowed note variants for source use, API calls, ingest, runtime, paid API/source use, downloads, scraping, redistribution, public dataset claims, automation, DB writes, cache authority, and product display.
+Commit: `0df4b0788`
+Evidence: `core/food_sources/preference_recipe_mapping.py` derives approval/allowed note variants from `BLOCKED_METHODS`, and `tests/test_food_source_preference_recipe_mapping.py` rejects approval/allowed forms for every blocked method plus common natural-language variants.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234315912
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234605982
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281710541
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282056114
 
 Disposition: FIXED
-Commit: `de3fdcf41`
-Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` uses portable `$VENV_PYTHON` forms for validation evidence instead of machine-specific absolute paths.
+Commit: `48ea20853`
+Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` uses portable `$VENV_PYTHON` forms for validation evidence and maps FIXED proofs to commits present in current PR head history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234407783
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281820759
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281925247
@@ -202,6 +202,26 @@ Commit: `30a3a41fa`
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` distinguishes local CodeRabbit CLI dispositions from GitHub review-thread mappings; this section now records concrete bot review/comment URLs instead of the no-actionable marker.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234420143
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281837137
+
+Disposition: FIXED
+Commit: `0df4b0788`
+Evidence: `core/food_sources/preference_recipe_mapping.py` validates PR14 `evidence_policy` and `final_gate_decision` in addition to `next_recommended_lane`; `tests/test_food_source_preference_recipe_mapping.py` rejects PR14 no-ingest handoff drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854631
+
+Disposition: FIXED
+Commit: `0df4b0788`
+Evidence: `core/food_sources/preference_recipe_mapping.py` validates PR11 preference coverage, gap, and authority decisions before accepting the handoff; `tests/test_food_source_preference_recipe_mapping.py` rejects PR11 authority-decision drift.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854638
+
+Disposition: FIXED
+Commit: `0df4b0788`
+Evidence: `core/food_sources/preference_recipe_mapping.py` derives forbidden note approvals from every `BLOCKED_METHODS` token; `tests/test_food_source_preference_recipe_mapping.py` rejects `approved`, `is approved`, `allowed`, and `is allowed` forms for every blocked method.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854624
+
+Disposition: FIXED
+Commit: `48ea20853`
+Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` remaps the affected FIXED proof entries to current-head ancestor commits and records this mapping fix in the artifact itself.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854627
 
 Disposition: NOT-A-BUG
 Evidence: Sourcery review body reports rate limiting only; it contains no actionable code or governance finding for this PR.
@@ -215,12 +235,4 @@ Reason: No actionable finding to fix.
 
 ## Merge Readiness
 
-Not claimed. Required before merge readiness:
-
-- post-open task bootstrap
-- mandatory `qa-engineer-agent -> bug-hunter` pass
-- CodeRabbit review pass
-- Codex Security diff-scoped pass
-- current-head PR checks inspection
-- review-thread and bot-comment dispositions
-- final strict merge-readiness wrapper
+Current-head merge readiness is pending the final post-fix push/check cycle. Already completed locally before this mapping update: post-open task bootstrap, mandatory QA/bug-hunter pass, CodeRabbit review pass, Codex Security diff-scoped pass, current-head checks inspection, and review-thread disposition loop.
