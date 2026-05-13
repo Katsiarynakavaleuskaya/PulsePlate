@@ -138,7 +138,7 @@ Evidence:
 ### CodeRabbit Finding: Fixed Mapping Section Ambiguous With CLI Findings
 
 Disposition: FIXED
-Commit: `30a3a41fa`
+Commit: `dcda77a8f`
 Evidence:
 - `docs/review/PR_1747_FIXED_MAPPING.md` now explicitly distinguishes
   GitHub review-thread URL mappings from local CodeRabbit CLI dispositions.
