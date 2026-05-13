@@ -118,6 +118,7 @@ def _require_matching_experiment(
         raise ExperimentNotificationError(
             "Experiment packet and result must reference the same experiment_id."
         )
+    _require_result_evidence_matches_packet(packet, result)
     if promotion is not None and packet["experiment_id"] != promotion.get("experiment_id"):
         raise ExperimentNotificationError(
             "Experiment packet and promotion must reference the same experiment_id."
@@ -140,6 +141,14 @@ def _require_matching_experiment(
         raise ExperimentNotificationError(
             "Promotion decision shared_tree_untouched must match experiment result."
         )
+    if (
+        result["status"] == "accepted"
+        and promotion["disposition"] == "promoted"
+        and not result["shared_tree_untouched"]
+    ):
+        raise ExperimentNotificationError(
+            "Accepted result is not promotable when shared_tree_untouched is false."
+        )
     if result["status"] == "accepted" and promotion["disposition"] != "promoted":
         raise ExperimentNotificationError(
             "Accepted experiment results must have promotion disposition promoted."
@@ -153,6 +162,37 @@ def _require_matching_experiment(
             raise ExperimentNotificationError(
                 "Rejected experiment results must have promotion disposition deferred."
             )
+
+
+def _require_result_evidence_matches_packet(
+    packet: dict[str, Any],
+    result: dict[str, Any],
+) -> None:
+    """Fail closed when result evidence is stale or outside the packet contract."""
+
+    mutable_surface = set(packet["mutable_candidate_surface"])
+    outside_surface = sorted(
+        path for path in result["mutated_paths"] if path not in mutable_surface
+    )
+    if outside_surface:
+        joined = ", ".join(outside_surface)
+        raise ExperimentNotificationError(
+            "Experiment result mutated_paths must stay within packet "
+            f"mutable_candidate_surface: {joined}"
+        )
+
+    expected_oracles = [oracle["command"] for oracle in packet["immutable_oracles"]]
+    result_oracles = [oracle_result["command"] for oracle_result in result["oracle_results"]]
+    unexpected_oracles = sorted(set(result_oracles) - set(expected_oracles))
+    if unexpected_oracles:
+        joined = ", ".join(unexpected_oracles)
+        raise ExperimentNotificationError(
+            f"Experiment result oracle_results include commands outside packet: {joined}"
+        )
+    if result["status"] == "accepted" and result_oracles != expected_oracles:
+        raise ExperimentNotificationError(
+            "Accepted experiment result oracle_results must match packet immutable_oracles."
+        )
 
 
 def _validate_promotion_decision(payload: dict[str, Any]) -> dict[str, Any]:

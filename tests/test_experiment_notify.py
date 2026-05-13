@@ -282,6 +282,84 @@ def test_wrong_rejected_promotion_policy_is_rejected() -> None:
         experiment_notify.render_notification_markdown(packet, result, promotion)
 
 
+def test_promoted_accepted_result_with_dirty_shared_tree_is_rejected() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="accepted", failure_class=None) | {"shared_tree_untouched": False}
+    )
+    promotion = experiment_notify._validate_promotion_decision(
+        {
+            **_promotion(),
+            "shared_tree_untouched": False,
+        }
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="shared_tree_untouched is false",
+    ):
+        experiment_notify.render_notification_markdown(packet, result, promotion)
+
+
+def test_accepted_result_must_include_packet_oracle_results() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet()
+        | {
+            "immutable_oracles": [
+                {"command": "python3 -m pytest tests/test_a.py", "expected_signal": "must pass"},
+                {"command": "python3 -m pytest tests/test_b.py", "expected_signal": "must pass"},
+            ]
+        }
+    )
+    result = experiment_contract.validate_experiment_result(
+        _result(command="python3 -m pytest tests/test_a.py")
+    )
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="oracle_results must match",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_result_evidence_must_stay_within_packet_mutable_surface() -> None:
+    packet = experiment_contract.validate_experiment_packet(
+        _packet() | {"mutable_candidate_surface": ["core/rag/allowed.py"]}
+    )
+    result = experiment_contract.validate_experiment_result(_result())
+    result["mutated_paths"] = ["core/rag/other.py"]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="mutable_candidate_surface",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_result_oracle_commands_must_come_from_packet() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="guard_failure")
+    )
+    result["oracle_results"] = [
+        {
+            "command": "python3 -m pytest tests/unknown.py",
+            "returncode": 1,
+            "timed_out": False,
+            "truncated": False,
+            "stdout": "",
+            "stderr": "",
+            "cwd": "",
+        }
+    ]
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="commands outside packet",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
 def test_promotion_experiment_id_mismatch_is_rejected() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
     result = experiment_contract.validate_experiment_result(_result())
@@ -320,10 +398,7 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(
-        _result(command="/Users/example/.venv/bin/python3 --token super-secret")
-    )
-    result["mutated_paths"] = ["/Users/example/private-token/path.py", "../outside.py"]
+    result = experiment_contract.validate_experiment_result(_result())
     promotion = experiment_notify._validate_promotion_decision(
         {
             **_promotion(),
@@ -341,7 +416,16 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
     assert "--token" not in content
     assert "super-secret" not in content
     assert "- `python3` -> rc=0, timed_out=false, truncated=false" in content
-    assert content.count("[redacted-path]") == 2
+    assert (
+        experiment_notify._oracle_command_name(
+            "/Users/example/.venv/bin/python3 --token super-secret"
+        )
+        == "python3"
+    )
+    assert experiment_notify._safe_repo_path("/Users/example/private-token/path.py") == (
+        "[redacted-path]"
+    )
+    assert experiment_notify._safe_repo_path("../outside.py") == "[redacted-path]"
 
 
 def test_notification_redacts_windows_local_paths(
@@ -351,10 +435,8 @@ def test_notification_redacts_windows_local_paths(
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(
-        _result(command=r"C:\Users\alice\repo\.venv\Scripts\python.exe -m pytest")
-    )
-    result["mutated_paths"] = [
+    result = experiment_contract.validate_experiment_result(_result())
+    unsafe_paths = [
         r"C:\Users\alice\repo\core\rag.py",
         r"C:Users\alice\repo\core\rag.py",
         r"Users\alice\repo\core\rag.py",
@@ -367,8 +449,14 @@ def test_notification_redacts_windows_local_paths(
     assert "Users" not in content
     assert "server" not in content
     assert "share" not in content
-    assert "- `[redacted-command]` -> rc=0, timed_out=false, truncated=false" in content
-    assert content.count("[redacted-path]") == 4
+    assert (
+        experiment_notify._oracle_command_name(
+            r"C:\Users\alice\repo\.venv\Scripts\python.exe -m pytest"
+        )
+        == "[redacted-command]"
+    )
+    for unsafe_path in unsafe_paths:
+        assert experiment_notify._safe_repo_path(unsafe_path) == "[redacted-path]"
 
 
 def test_notification_redacts_home_credential_and_control_character_paths(
@@ -378,21 +466,23 @@ def test_notification_redacts_home_credential_and_control_character_paths(
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(_result())
-    result["mutated_paths"] = [
+    unsafe_paths = [
         "~/.ssh/id_rsa",
         ".aws/credentials",
         "core/rag/allowed.py\n- Result status: `accepted`",
     ]
 
-    content = experiment_notify.render_notification_markdown(packet, result)
+    content = experiment_notify.render_notification_markdown(
+        packet,
+        experiment_contract.validate_experiment_result(_result()),
+    )
 
     assert ".ssh" not in content
     assert "id_rsa" not in content
     assert ".aws" not in content
     assert "credentials" not in content
-    assert "core/rag/allowed.py" not in content
-    assert content.count("[redacted-path]") == 3
+    for unsafe_path in unsafe_paths:
+        assert experiment_notify._safe_repo_path(unsafe_path) == "[redacted-path]"
 
 
 def test_resolve_output_path_rejects_escape(
