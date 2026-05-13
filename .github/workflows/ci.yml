@@ -1029,7 +1029,7 @@ jobs:
           - python-version: '3.11'
             timeout-minutes: 60
           - python-version: '3.12'
-            timeout-minutes: 60
+            timeout-minutes: 90
           - python-version: '3.13'
             timeout-minutes: 90
 
