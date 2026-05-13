@@ -296,7 +296,7 @@ def test_promoted_accepted_result_with_dirty_shared_tree_is_rejected() -> None:
 
     with pytest.raises(
         experiment_notify.ExperimentNotificationError,
-        match="shared_tree_untouched is false",
+        match="shared_tree_untouched must be true",
     ):
         experiment_notify.render_notification_markdown(packet, result, promotion)
 
@@ -502,6 +502,18 @@ def test_accepted_result_with_failure_class_is_rejected() -> None:
         experiment_notify.render_notification_markdown(packet, result)
 
 
+def test_accepted_result_with_dirty_shared_tree_is_rejected() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(_result())
+    result["shared_tree_untouched"] = False
+
+    with pytest.raises(
+        experiment_notify.ExperimentNotificationError,
+        match="shared_tree_untouched must be true",
+    ):
+        experiment_notify.render_notification_markdown(packet, result)
+
+
 def test_rejected_result_oracles_must_preserve_packet_prefix() -> None:
     packet = experiment_contract.validate_experiment_packet(
         _packet()
@@ -532,6 +544,19 @@ def test_rejected_result_oracles_must_preserve_packet_prefix() -> None:
         match="immutable_oracles prefix",
     ):
         experiment_notify.render_notification_markdown(packet, result)
+
+
+def test_rejected_infra_flake_allows_passing_oracle_prefix() -> None:
+    packet = experiment_contract.validate_experiment_packet(_packet())
+    result = experiment_contract.validate_experiment_result(
+        _result(status="rejected", failure_class="infra_flake")
+    )
+    result["oracle_results"][0]["returncode"] = 0
+
+    content = experiment_notify.render_notification_markdown(packet, result)
+
+    assert "- Result status: `rejected`" in content
+    assert "- Failure class: `infra_flake`" in content
 
 
 def test_rejected_result_terminal_oracle_must_fail() -> None:
@@ -938,6 +963,27 @@ def test_cli_write_failure_redacts_output_path(
     assert "unable to write experiment notification" in captured.out
     assert "artifacts/orchestration" not in captured.out
     assert str(repo) not in captured.out
+
+
+def test_cli_validation_failure_redacts_validator_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result = _result()
+    result["oracle_results"][0]["returncode"] = "API_TOKEN=super-secret"
+    result_path = _write_json(tmp_path / "result.json", result)
+
+    exit_code = experiment_notify.main(["--packet", str(packet_path), "--result", str(result_path)])
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "invalid experiment notification input" in captured.out
+    assert "API_TOKEN" not in captured.out
+    assert "super-secret" not in captured.out
 
 
 def test_github_step_summary_requires_explicit_flag(

@@ -217,13 +217,17 @@ def _require_result_evidence_matches_packet(
         )
     if result["status"] == "rejected":
         _require_rejected_oracles_are_prefix(expected_oracles, result_oracles)
-        if result["oracle_results"]:
+        if result["failure_class"] != "infra_flake" and result["oracle_results"]:
             terminal_oracle = result["oracle_results"][-1]
             if terminal_oracle["returncode"] == 0 and not terminal_oracle["timed_out"]:
                 raise ExperimentNotificationError(
                     "Rejected experiment result terminal oracle must fail or time out."
                 )
     if result["status"] == "accepted":
+        if not result["shared_tree_untouched"]:
+            raise ExperimentNotificationError(
+                "Accepted experiment result shared_tree_untouched must be true."
+            )
         if result["failure_class"] is not None:
             raise ExperimentNotificationError(
                 "Accepted experiment result failure_class must be null."
@@ -575,7 +579,10 @@ def main(argv: list[str] | None = None) -> int:
             )
         output_path = _resolve_output_path(args.output, packet["experiment_id"])
         markdown = render_notification_markdown(packet, result, promotion)
-    except (ValueError, ExperimentNotificationError) as exc:
+    except ValueError:
+        print("FAIL: invalid experiment notification input.")
+        return 1
+    except ExperimentNotificationError as exc:
         print(f"FAIL: {exc}")
         return 1
 
