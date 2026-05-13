@@ -6,6 +6,7 @@
 - Title: `docs(design): add Kimi prototype intake and modernization bridge protocol`
 - Mapping opened at head SHA: `c05d7c9583d1651b367988f9279681f4a0d1485e`
 - Latest fix commit SHA: `893fbdae8e454530f962f9d41a5d311de5ffdd9c`
+- Agent Run Summary fix SHA: `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e`
 - Scope: docs/governance Kimi prototype intake bridge; no runtime, token, generated mirror, Figma/Canva/Kimi write, screenshot, binary, deploy, backend, OpenAPI, auth, billing, StoreKit, HealthKit, or Cloudflare changes.
 
 ## Coordinator Packet
@@ -20,6 +21,8 @@
 - `c05d7c9583d1651b367988f9279681f4a0d1485e` - `docs(design): add Kimi prototype intake bridge`
 - `9d9e59c51e5e05bfe494d311a1f16ace3d97899c` - `docs(review): add PR 1741 fixed mapping`
 - `893fbdae8e454530f962f9d41a5d311de5ffdd9c` - `test(design): harden Kimi bridge guardrails`
+- `61da1654383beebed3738dfef240a14079ff0b72` - `docs(review): normalize PR 1741 mapping proof`
+- `9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e` - `docs(design): require agent run summary evidence`
 
 ## Discussion Thread Pass
 
@@ -42,6 +45,7 @@ Disposition: FIXED
 Commit: 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 Evidence: `docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md` now explicitly includes `docs/orchestration/AGENTS.md` in the allowed touch list, adds `license_status` / `attribution_required` / `legal_copy_risks`, and makes missing future web/iOS prerequisite gates blockers rather than `DEFERRED` permission to proceed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#pullrequestreview-4279832007 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719429 -> 9cc06a2ce4edeb13c638dcab80f2b2ee67758f4e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719435 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1741#discussion_r3232719439 -> 893fbdae8e454530f962f9d41a5d311de5ffdd9c
 
