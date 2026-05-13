@@ -40,6 +40,13 @@ Reason: CodeRabbit flagged mapping wording/style and a pre-checked merge-readine
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451864 -> 1d19ed6f0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451870 -> 1d19ed6f0
 
+Disposition: FIXED
+Commit: 7ca92f7fe
+Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; focused PR14 tests (`57 passed`); targeted mypy
+Reason: Codex and Cubic found complementary notes-guard issues: approval grammar variants still passed, while raw substring matching could reject safe words such as `disallowed`. Commit `7ca92f7fe` adds word-boundary matching plus unsafe-variant and false-positive tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233482886 -> 7ca92f7fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233484303 -> 7ca92f7fe
+
 ## Pre-Open Role-Agent Review
 
 Disposition: FIXED
@@ -52,12 +59,12 @@ Reason: Pre-open coordinator and role-agent findings were fixed before PR open: 
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR14 recipe dish corpus governance gate" --task-class Orchestration --pr-phase pre_open ...` — PASS (`dad027e3ce94`)
 - `python3 scripts/orchestration/task_bootstrap.py --goal "Food Data PR14 recipe dish corpus governance gate post-open review for PR 1743" --task-class Orchestration --pr-phase post_open_review ...` — PASS (`d2290b3f3c19`)
-- `${VENV_PYTHON:-.venv/bin/python} -m pytest tests/test_food_source_recipe_dish_corpus.py -q` — PASS (`52 passed`)
+- `${VENV_PYTHON:-.venv/bin/python} -m pytest tests/test_food_source_recipe_dish_corpus.py -q` — PASS (`57 passed`)
 - Adjacent food-source regressions plus repo policy guards — PASS (`212 passed`)
 - PR14 CLI JSON gate — PASS (`success: true`)
 - Targeted mypy for PR14 files — PASS
 - `pre-commit run --all-files` — PASS
-- `make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` — PASS (`52 passed`)
+- `make validate-changed VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` — PASS (`57 passed`)
 - Codex Security scan — PASS, no reportable findings (`/tmp/codex-security-scans/food-data-recipe-dish-corpus-governance-pr14/3551bbf36f29_20260513T103019Z/report.md`)
 - Pre-push hooks — PASS (changed-file mypy, backend tests, full repo Bandit, Docker build test)
 
