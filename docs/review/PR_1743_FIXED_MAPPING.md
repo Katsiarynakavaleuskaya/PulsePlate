@@ -27,6 +27,12 @@ Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_rec
 Reason: CodeRabbit's top-level docstring-coverage warning is advisory for this repo and not part of the canonical PulsePlate merge-readiness gate for this narrow governance PR. The module is covered by focused deterministic tests, targeted mypy, and the PR14 CLI gate; no broad docstring-generation churn is taken in this lane.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#issuecomment-4439822665
 
+Disposition: FIXED
+Commit: a7cd60fcd
+Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; targeted mypy
+Reason: Sourcery flagged the combined source-family guard as hard to reason about and noted repeated onboarding/coverage map construction inside per-row parsing. Commit `a7cd60fcd` splits the source-family checks and computes the lookup maps once before row parsing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280551747 -> a7cd60fcd
+
 ## Pre-Open Role-Agent Review
 
 Disposition: FIXED
