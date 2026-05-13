@@ -344,6 +344,23 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects unsafe in
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917581
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3235917589
 
+Disposition: FIXED
+Commit: 4e2f406a3
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates the exact PR11 `coverage_decision`, `gap_status`, `authority_decision`, and `next_action` for every coverage-domain row and scans every PR11 coverage-domain note with the PR15 safe-note guard; `tests/test_food_source_preference_recipe_mapping.py` rejects non-preference domain decision drift and approving notes such as `source use approved`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236074032
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236074041
+
+Disposition: FIXED
+Commit: 4e2f406a3
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates the exact PR11 `decision`, `source_family`, and `allowed_role` for every source-gap row and scans every PR11 source-gap note with the PR15 safe-note guard; `tests/test_food_source_preference_recipe_mapping.py` rejects non-recipe source-gap decision drift and approving notes such as `api calls are allowed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236074036
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236074048
+
+Disposition: FIXED
+Commit: 4e2f406a3
+Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects permitted/granted/enabled authority-note variants while preserving explicitly negated canonical PR11 notes; `tests/test_food_source_preference_recipe_mapping.py` covers `api calls permitted`, `source use is permitted`, `ingest granted`, `runtime authority granted`, and `api calls enabled`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236074051
+
 ## Merge Readiness
 
 Current-head merge readiness is pending the final post-fix push/check cycle. Already completed locally before this mapping update: post-open task bootstrap, mandatory QA/bug-hunter pass, CodeRabbit review pass, Codex Security diff-scoped pass, current-head checks inspection, and review-thread disposition loop.
