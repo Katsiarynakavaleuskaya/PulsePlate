@@ -15,6 +15,7 @@
   - `67dea3563288468c70d45895885c8d0b90712c15` - post-fix review-thread mapping.
   - `155b25f088f1f0fc5d36daf7d33243e7f11d1f50` - role review pass mapping.
   - `6b837c9207ccddb00f2663a8d73762f458b154d9` - result evidence validation fixes.
+  - `389e5c3d5d62ad6721842e8fc686db8a0b91107d` - valid ancestor proof mapping.
 - Scope: artifact-only experiment result notification sink, governance docs, and focused tests.
 
 ## Discussion Thread Pass
@@ -42,6 +43,7 @@ current-head bot/CI cycle is being monitored before any merge-readiness claim.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961729 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3235961734 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236005091 -> b281fa42bf17d9a565f536e7b64acabc21e7202b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168813 -> 389e5c3d5d62ad6721842e8fc686db8a0b91107d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168816 -> 6b837c9207ccddb00f2663a8d73762f458b154d9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1749#discussion_r3236168825 -> 6b837c9207ccddb00f2663a8d73762f458b154d9
 
@@ -60,6 +62,10 @@ Evidence: `scripts/orchestration/experiment_notify.py` now checks `is_symlink()`
 Disposition: FIXED
 Commit: 6b837c9207ccddb00f2663a8d73762f458b154d9
 Evidence: `scripts/orchestration/experiment_notify.py` now rejects promoted accepted results when `shared_tree_untouched` is false and cross-checks result `mutated_paths` / `oracle_results` against the validated packet before rendering notification evidence. `tests/test_experiment_notify.py` covers dirty shared-tree promotion, missing accepted oracle results, out-of-surface mutated paths, and extra oracle commands.
+
+Disposition: FIXED
+Commit: 389e5c3d5d62ad6721842e8fc686db8a0b91107d
+Evidence: This artifact now uses full valid commit SHAs reachable from the current branch head for every mapped FIXED proof.
 
 ## Local Validation Evidence
 
