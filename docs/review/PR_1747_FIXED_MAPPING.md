@@ -190,7 +190,7 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` derives approval/allo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4282056114
 
 Disposition: FIXED
-Commit: `48ea20853`
+Commit: `f7899072d`
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` uses portable `$VENV_PYTHON` forms for validation evidence and maps FIXED proofs to commits present in current PR head history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234407783
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#pullrequestreview-4281820759
@@ -219,7 +219,7 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` derives forbidden not
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854624
 
 Disposition: FIXED
-Commit: `48ea20853`
+Commit: `f7899072d`
 Evidence: `docs/review/PR_1747_FIXED_MAPPING.md` remaps the affected FIXED proof entries to current-head ancestor commits and records this mapping fix in the artifact itself.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3234854627
 
