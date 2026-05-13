@@ -15,12 +15,14 @@ Reason: Post-open QA, bug-hunter, data-scientist, Cubic, CodeRabbit, and Codex r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233329043 -> e40f1a2fe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233334277 -> e40f1a2fe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348556 -> e40f1a2fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280548377 -> e40f1a2fe
 
 Disposition: FIXED
 Commit: e26a32f41
 Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`
 Reason: CodeRabbit flagged unchecked Phase 2 discussion/mapping checkboxes. Commit `e26a32f41` marked the checkboxes complete and replaced the parser-invalid placeholder prose with structured dispositions.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233348571 -> e26a32f41
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280569358 -> e26a32f41
 
 Disposition: NOT-A-BUG
 Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_recipe_dish_corpus.py`; CodeRabbit reported this as a warning, not a required PR check.
@@ -39,6 +41,8 @@ Evidence: `docs/review/PR_1743_FIXED_MAPPING.md`; `python scripts/ci/check_pr_bo
 Reason: CodeRabbit flagged mapping wording/style and a pre-checked merge-readiness checkbox. Commit `1d19ed6f0` changes `Phase2` to `Phase 2` and leaves the Codex Security merge-readiness checkbox unchecked until the final merge cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451864 -> 1d19ed6f0
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233451870 -> 1d19ed6f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280684402 -> 1d19ed6f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280714839 -> 1d19ed6f0
 
 Disposition: FIXED
 Commit: 7ca92f7fe
@@ -46,6 +50,7 @@ Evidence: `core/food_sources/recipe_dish_corpus.py`; `tests/test_food_source_rec
 Reason: Codex and Cubic found complementary notes-guard issues: approval grammar variants still passed, while raw substring matching could reject safe words such as `disallowed`. Commit `7ca92f7fe` adds word-boundary matching plus unsafe-variant and false-positive tests.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233482886 -> 7ca92f7fe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#discussion_r3233484303 -> 7ca92f7fe
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1743#pullrequestreview-4280720962 -> 7ca92f7fe
 
 ## Pre-Open Role-Agent Review
 
