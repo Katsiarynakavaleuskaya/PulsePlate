@@ -361,6 +361,18 @@ Commit: 4e2f406a3
 Evidence: `core/food_sources/preference_recipe_mapping.py` now rejects permitted/granted/enabled authority-note variants while preserving explicitly negated canonical PR11 notes; `tests/test_food_source_preference_recipe_mapping.py` covers `api calls permitted`, `source use is permitted`, `ingest granted`, `runtime authority granted`, and `api calls enabled`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236074051
 
+Disposition: FIXED
+Commit: 8b1e244cd
+Evidence: `core/food_sources/preference_recipe_mapping.py` now scopes negated approval phrases to direct negation or the canonical PR11 `no ... or ... is approved` form and rejects bounded method/authority windows with punctuation, adverbs, or contrastive `not only` wording; `tests/test_food_source_preference_recipe_mapping.py` covers `not only are api calls allowed`, `api calls: allowed`, `source use: approved`, and `downloads now enabled`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236258954
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236258965
+
+Disposition: FIXED
+Commit: 8b1e244cd
+Evidence: `core/food_sources/preference_recipe_mapping.py` now revalidates exact PR11 `primary_sources` and `auxiliary_sources` for every coverage-domain row and preserves exact PR11 source-gap `blocking_reasons`; `tests/test_food_source_preference_recipe_mapping.py` rejects drifted `preference_menu_planning.primary_sources` and empty `nutritionix.blocking_reasons`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236258961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1747#discussion_r3236258972
+
 ## Merge Readiness
 
 Current-head merge readiness is pending the final post-fix push/check cycle. Already completed locally before this mapping update: post-open task bootstrap, mandatory QA/bug-hunter pass, CodeRabbit review pass, Codex Security diff-scoped pass, current-head checks inspection, and review-thread disposition loop.
