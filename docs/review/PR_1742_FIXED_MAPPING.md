@@ -149,6 +149,7 @@ Evidence: Proof gates, network/file/runtime dependency machine-state anchors, pa
 | Security final pass: proof IDs accepted blocked payload/truth-source terms and emitted them in stable mappings. | FIXED | `45155f837` | Evidence/proof ID validation blocks raw-payload, HealthKit, account, billing, legal, compliance, advisory/wiki, and workforce-memory terms before serialization. |
 | Codex Security final scan after substantive fix. | CLEAN | `45155f837` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/45155f837_20260513T110057Z/report.md` reports no surviving findings. |
 | Second bot-wave guard/checker bypass review. | FIXED | `34d824dd7` | Guard/checker/code fixes listed in Fixed in Commit Mapping; final Codex Security scan clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/34d824dd7_20260513T112843Z/report.md`. |
+| Current-head diff-coverage artifact missed SC-G5 tests. | FIXED | `95ecc9412` | `.github/workflows/ci.yml` now includes `tests/core/ai/test_semantic_cache_backend_selection.py` and `tests/test_semantic_cache_backend_selection_contract.py` in both PR and feature `route_contract_safety` coverage suites; local SC-G5 diff-cover reproduction stayed at 99%. |
 
 ## Bot Review Tracking
 
@@ -157,7 +158,7 @@ Evidence: Proof gates, network/file/runtime dependency machine-state anchors, pa
 | CodeRabbit | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Sourcery | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Cubic | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `45155f837` reports no surviving findings. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `95ecc9412` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/95ecc9412_20260513T121007Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -171,7 +172,8 @@ Evidence: Proof gates, network/file/runtime dependency machine-state anchors, pa
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` passed.
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` passed.
 - Diff-cover for SC-G5 changed code passed at 99%.
-- Pre-push hooks passed during branch push.
+- Latest `PATH=.venv/bin:$PATH pre-commit run --all-files` passed after `95ecc9412`.
+- Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test.
 
 ## Merge Readiness
 
