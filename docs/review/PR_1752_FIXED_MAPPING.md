@@ -17,6 +17,7 @@
   - `4f431c553` - additional fail-closed identity policy bypass hardening for repeated separators, token-shaped keys, Slack app/config tokens, and authority drift.
   - `0aec2bf28` - reclassified coordinator task-packet evidence and mapped identity guard bypass findings.
   - `cf1174f86` - sanitized token-shaped key diagnostics, canonical sensitive boolean scope, and separator-normalized authority drift checks.
+  - `2e9a48c6b` - normalized sandbox oracle PATH handling so branch-diff validation with relative repo venv PATH stays deterministic.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -60,6 +61,10 @@ Disposition: FIXED
 Commit: `f53cb69db`
 Evidence: `scripts/orchestration/experiment_runner.py` strips inherited `GIT_*` environment variables from nested git subprocesses so isolated experiment checkouts are not affected by parent commit/pre-commit hook context. `tests/test_experiment_runner.py` covers hook-style `GIT_INDEX_FILE` leakage.
 
+Disposition: FIXED
+Commit: `2e9a48c6b`
+Evidence: `scripts/orchestration/experiment_runner.py` normalizes relative PATH entries to absolute paths before sandboxed oracle execution, preventing branch-diff validation from resolving `../../.venv/bin/python3` relative to temporary checkouts. `tests/test_experiment_runner.py` covers relative PATH normalization.
+
 Disposition: NOT-A-BUG
 Evidence: Coordinator scope was refreshed after review to include actual touched files, including `scripts/orchestration/experiment_runner.py`, `scripts/AGENTS.md`, `tests/test_experiment_runner.py`, and `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.json`.
 
@@ -78,6 +83,7 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `scripts/orchestration/check_experiment_runner_identity.py --json` PASS.
 - `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS.
 - `pytest -q tests/test_experiment_runner_identity_policy.py` PASS after `cf1174f86`.
+- `make validate-changed` PASS after `2e9a48c6b`.
 - `black --check` on changed Python files PASS.
 - `flake8` on identity guard/tests PASS.
 - `mypy --explicit-package-bases` on identity guard/tests PASS.
