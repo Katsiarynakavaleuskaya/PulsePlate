@@ -226,6 +226,19 @@ def test_rejects_authority_drift_outside_main_boundary() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_authority_drift_error_redacts_secret_shaped_ancestor() -> None:
+    policy = _valid_policy()
+    token_value = "github_pat_" + "a" * 24
+    policy[token_value] = {"merge_rights": "admin"}
+
+    with pytest.raises(identity_check.IdentityPolicyError) as exc_info:
+        identity_check.validate_identity_policy(policy)
+
+    error = str(exc_info.value)
+    assert token_value not in error
+    assert "<redacted-key>" in error
+
+
 def test_rejects_authority_drift_with_separator_variants() -> None:
     policy = _valid_policy()
     policy["github_app_authority"] = {
@@ -310,6 +323,19 @@ def test_rejects_duplicate_non_slack_boundary_blocks(
 
     with pytest.raises(identity_check.IdentityPolicyError, match=expected_boundary):
         identity_check.validate_identity_policy(policy)
+
+
+def test_duplicate_boundary_error_redacts_secret_shaped_ancestor() -> None:
+    policy = _valid_policy()
+    token_value = "github_pat_" + "a" * 24
+    policy[token_value] = {"git_attribution_v2": {"email": "runner@example.com"}}
+
+    with pytest.raises(identity_check.IdentityPolicyError) as exc_info:
+        identity_check.validate_identity_policy(policy)
+
+    error = str(exc_info.value)
+    assert token_value not in error
+    assert "<redacted-key>" in error
 
 
 def test_rejects_slack_purpose_as_crypto_identity() -> None:

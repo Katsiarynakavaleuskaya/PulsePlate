@@ -136,6 +136,19 @@ def _diagnostic_path(path: str, key: Any) -> str:
     return f"{path}.{key}"
 
 
+def _redact_diagnostic_path(path: str) -> str:
+    parts = path.split(".")
+    redacted_parts = [
+        (
+            "<redacted-key>"
+            if SENSITIVE_VALUE_RE.search(part) or _is_sensitive_policy_key(part)
+            else part
+        )
+        for part in parts
+    ]
+    return ".".join(redacted_parts)
+
+
 def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
@@ -176,7 +189,8 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
                 and str(key) != normalized_key
             ):
                 raise IdentityPolicyError(
-                    f"{next_path} must not duplicate Experiment Runner authority."
+                    f"{_redact_diagnostic_path(next_path)} must not duplicate "
+                    "Experiment Runner authority."
                 )
             if (
                 path != "$.authority_boundary"
@@ -185,7 +199,8 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
                 and value != "none"
             ):
                 raise IdentityPolicyError(
-                    f"{next_path} must not grant Experiment Runner authority."
+                    f"{_redact_diagnostic_path(next_path)} must not grant Experiment "
+                    "Runner authority."
                 )
             _reject_authority_drift(value, path=next_path)
         return
@@ -209,7 +224,8 @@ def _reject_duplicate_boundary_blocks(payload: Any, *, path: str = "$") -> None:
             )
             if duplicate_boundary is not None and next_path != f"$.{duplicate_boundary}":
                 raise IdentityPolicyError(
-                    f"{next_path} must not duplicate {duplicate_boundary} boundary."
+                    f"{_redact_diagnostic_path(next_path)} must not duplicate "
+                    f"{duplicate_boundary} boundary."
                 )
             _reject_duplicate_boundary_blocks(value, path=next_path)
         return
