@@ -441,6 +441,10 @@ _NEGATION_BOUNDARY_TERMS = (
     " whereas ",
     " while ",
     " despite ",
+    " unless ",
+    " even if ",
+    " except ",
+    " notwithstanding ",
 )
 _NOTE_APPROVAL_TERMS = (
     "approve",

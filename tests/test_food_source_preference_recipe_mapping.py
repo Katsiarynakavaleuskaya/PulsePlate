@@ -1091,6 +1091,10 @@ def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_mat
         "no source use or downloads allowed whereas source use allowed",
         "no source use or downloads allowed while source use allowed",
         "no source use or downloads allowed despite source use allowed",
+        "no source use or downloads allowed unless source use allowed",
+        "no source use or downloads allowed even if source use allowed",
+        "no source use or downloads allowed except source use allowed",
+        "no source use or downloads allowed notwithstanding source use allowed",
     ),
 )
 def test_preference_recipe_mapping_rejects_contrastive_approval_after_negation(
