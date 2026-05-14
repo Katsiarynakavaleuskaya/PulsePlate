@@ -29,6 +29,8 @@ from core.ai.semantic_cache_backend_selection import (
     REASON_NO_ELIGIBLE_CANDIDATE,
     REASON_POLICY_MISMATCH_EXCEEDED,
     REASON_ROLLBACK_PROOF_MISSING,
+    REASON_SC_G2_EVIDENCE_MISSING,
+    REASON_SC_G3_EVIDENCE_MISSING,
     REASON_SC_G4_EVIDENCE_MISSING,
     REASON_SELECTED,
     REASON_STALE_ANSWER_RATE_EXCEEDED,
@@ -96,13 +98,13 @@ def _rollback(
 ) -> SemanticCacheBackendRollbackProof:
     return SemanticCacheBackendRollbackProof(
         proof_id=f"rollback:{backend_token}:1",
-        kill_switch_proof_id="proof:kill-switch",
-        request_bypass_proof_id="proof:bypass",
-        no_cache_fallback_proof_id="proof:no-cache",
-        purge_invalidation_proof_id="proof:purge",
-        disabled_state_test_ids=("test:disabled",),
-        stop_rule_replay_ids=("replay:stop-rule",),
-        rollback_runbook_id="runbook:rollback",
+        kill_switch_proof_id=f"proof:kill-switch:{backend_token}",
+        request_bypass_proof_id=f"proof:bypass:{backend_token}",
+        no_cache_fallback_proof_id=f"proof:no-cache:{backend_token}",
+        purge_invalidation_proof_id=f"proof:purge:{backend_token}",
+        disabled_state_test_ids=(f"test:disabled:{backend_token}",),
+        stop_rule_replay_ids=(f"replay:stop-rule:{backend_token}",),
+        rollback_runbook_id=f"runbook:rollback:{backend_token}",
         blast_radius_bps=blast_radius_bps,
         verified=verified,
         metadata={"scope": "sc-g5"},
@@ -248,10 +250,19 @@ def test_policy_or_surface_mismatch_blocks_sc_g4_compatibility() -> None:
     assert REASON_SC_G4_EVIDENCE_MISSING in policy_mismatch.reason_codes
     assert REASON_SC_G4_EVIDENCE_MISSING in surface_mismatch.reason_codes
 
-    for evidence in (
-        replace(_evidence(), sc_g2_contract_id="contract:sc-g2-other"),
-        replace(_evidence(), sc_g3_contract_id="contract:sc-g3-other"),
-        replace(_evidence(), sc_g4_contract_id="contract:sc-g4-other"),
+    for evidence, expected_reason in (
+        (
+            replace(_evidence(), sc_g2_contract_id="contract:sc-g2-other"),
+            REASON_SC_G2_EVIDENCE_MISSING,
+        ),
+        (
+            replace(_evidence(), sc_g3_contract_id="contract:sc-g3-other"),
+            REASON_SC_G3_EVIDENCE_MISSING,
+        ),
+        (
+            replace(_evidence(), sc_g4_contract_id="contract:sc-g4-other"),
+            REASON_SC_G4_EVIDENCE_MISSING,
+        ),
     ):
         decision = evaluate_semantic_cache_backend_candidate(
             candidate=_candidate(evidence=evidence),
@@ -259,7 +270,7 @@ def test_policy_or_surface_mismatch_blocks_sc_g4_compatibility() -> None:
         )
 
         assert decision.decision == DECISION_INELIGIBLE
-        assert REASON_SC_G4_EVIDENCE_MISSING in decision.reason_codes
+        assert expected_reason in decision.reason_codes
 
 
 def test_policy_and_surface_mismatch_dedupe_sc_g4_reason() -> None:
@@ -305,6 +316,21 @@ def test_rollback_proof_must_match_candidate_backend_label() -> None:
 
     assert decision.decision == DECISION_INELIGIBLE
     assert REASON_ROLLBACK_PROOF_MISSING in decision.reason_codes
+
+
+def test_rollback_proof_requires_structured_machine_ids() -> None:
+    for bad_rollback in (
+        lambda: replace(_rollback(), proof_id="placeholder"),
+        lambda: replace(_rollback(), kill_switch_proof_id="placeholder"),
+        lambda: replace(_rollback(), request_bypass_proof_id="placeholder"),
+        lambda: replace(_rollback(), no_cache_fallback_proof_id="placeholder"),
+        lambda: replace(_rollback(), purge_invalidation_proof_id="placeholder"),
+        lambda: replace(_rollback(), disabled_state_test_ids=("placeholder",)),
+        lambda: replace(_rollback(), stop_rule_replay_ids=("placeholder",)),
+        lambda: replace(_rollback(), rollback_runbook_id="placeholder"),
+    ):
+        with pytest.raises(ValueError, match="structured proof"):
+            bad_rollback()
 
 
 def test_current_head_ci_requires_auditable_proof_id() -> None:
@@ -668,6 +694,13 @@ def test_type_and_value_validation_fail_closed() -> None:
             evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=_criteria()),
             decision="bad",
         )
+    with pytest.raises(ValueError, match="unsupported reason_code"):
+        replace(
+            evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=_criteria()),
+            decision=DECISION_INELIGIBLE,
+            reason_codes=("made_up_reason",),
+            rejected_candidate_ids=("candidate:redis",),
+        )
     with pytest.raises(ValueError, match="runtime and implementation"):
         replace(
             evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=_criteria()),
@@ -1029,7 +1062,12 @@ def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
     source.write_text(
         "import os\n"
         "os.getenv('SEMANTIC_CACHE_ENABLED')\n"
-        "os.environ['SEMANTIC_CACHE_ENABLED']\n",
+        "os.environ['SEMANTIC_CACHE_ENABLED']\n"
+        "env = os.environ\n"
+        "env.get('REDIS_URL')\n"
+        "env['GPTCACHE_URL']\n"
+        "annotated_env: object = os.environ\n"
+        "annotated_env.get('CACHE_URL')\n",
         encoding="utf-8",
     )
 
@@ -1227,4 +1265,12 @@ def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError, match="__dynamic_import__"):
+        assert_no_forbidden_semantic_cache_imports(source)
+
+
+def test_import_guard_rejects_core_ai_runtime_facade_imports(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_core_ai_facade_import.py"
+    source.write_text("from core.ai import prepare_insight_runtime\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="core.ai"):
         assert_no_forbidden_semantic_cache_imports(source)

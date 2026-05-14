@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
@@ -175,3 +176,33 @@ def test_phase1_guard_runs_semantic_cache_checker_for_scaffold_contract(
 
     assert any("exact/fuzzy scaffold contract missing anchor" in error for error in errors)
     assert any("forbidden exact/fuzzy scaffold claim" in error for error in errors)
+
+
+def test_phase1_guard_validates_semantic_cache_backend_selection_schema_only_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_contract = (
+        gates.REPO_ROOT
+        / "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+    )
+    source_schema = source_contract.with_suffix(".schema.json")
+    contract = (
+        tmp_path / "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+    )
+    schema_path = contract.with_suffix(".schema.json")
+    contract.parent.mkdir(parents=True)
+    contract.write_text(source_contract.read_text(encoding="utf-8"), encoding="utf-8")
+    schema = json.loads(source_schema.read_text(encoding="utf-8"))
+    del schema["properties"]["runtime_allowed"]["const"]
+    schema_path.write_text(json.dumps(schema, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[
+            "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.schema.json"
+        ]
+    )
+
+    assert any(
+        "backend selection schema const missing for runtime_allowed" in error for error in errors
+    )

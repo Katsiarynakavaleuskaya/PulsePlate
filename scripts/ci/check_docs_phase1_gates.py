@@ -5,7 +5,7 @@ from collections.abc import Callable
 import importlib.util
 import re
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
 EVIDENCE_ANCHOR_RE = re.compile(
@@ -31,7 +31,14 @@ SEMANTIC_CACHE_BOUNDED_INSIGHT_CONTRACT_DOC = (
 SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
 )
+SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.schema.json"
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
+
+
+class SemanticCacheBackendSelectionSchemaValidator(Protocol):
+    def __call__(self, *, schema_text: str, contract_text: str) -> list[str]: ...
 
 
 def _load_validator(symbol: str) -> SemanticCacheGateValidator:
@@ -68,6 +75,23 @@ def _load_semantic_cache_bounded_insight_validator() -> SemanticCacheGateValidat
 
 def _load_semantic_cache_backend_selection_validator() -> SemanticCacheGateValidator:
     return _load_validator("validate_semantic_cache_backend_selection_contract")
+
+
+def _load_semantic_cache_backend_selection_schema_validator() -> (
+    SemanticCacheBackendSelectionSchemaValidator
+):
+    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    validator = getattr(module, "validate_semantic_cache_backend_selection_schema", None)
+    if not callable(validator):
+        raise RuntimeError(
+            "semantic-cache gate checker missing "
+            "validate_semantic_cache_backend_selection_schema"
+        )
+    return cast(SemanticCacheBackendSelectionSchemaValidator, validator)
 
 
 def _read_text(relpath: str) -> str:
@@ -132,6 +156,19 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             validate_backend_selection_contract = _load_semantic_cache_backend_selection_validator()
             errors.extend(
                 f"{relpath}: {error}" for error in validate_backend_selection_contract(content)
+            )
+
+        if relpath == SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA:
+            validate_backend_selection_schema = (
+                _load_semantic_cache_backend_selection_schema_validator()
+            )
+            contract_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC)
+            errors.extend(
+                f"{relpath}: {error}"
+                for error in validate_backend_selection_schema(
+                    schema_text=content,
+                    contract_text=contract_text,
+                )
             )
 
     return errors

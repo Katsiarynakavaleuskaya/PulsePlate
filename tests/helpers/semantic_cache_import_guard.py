@@ -37,6 +37,19 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "shutil",
     "builtins",
 )
+FORBIDDEN_CORE_AI_FACADE_IMPORTS = (
+    "core.ai",
+    "core.ai.DirectInsightProviderStub",
+    "core.ai.InsightProviderLoadError",
+    "core.ai.KnowledgePolicy",
+    "core.ai.PhilosophyRolloutPolicy",
+    "core.ai.InsightTransparencyNotice",
+    "core.ai.InsightTransparencyUnavailableError",
+    "core.ai.PreparedInsightRuntime",
+    "core.ai.load_insight_provider",
+    "core.ai.prepare_insight_runtime",
+    "core.ai.require_ai_generated_insight_notice",
+)
 ALLOWED_SEMANTIC_CACHE_IMPORTS = (
     "core.ai.bounded_insight_semantic_cache",
     "core.ai.cache_observability",
@@ -190,6 +203,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
         )
         or name == "__dynamic_import__"
         or _contains_forbidden_cache_segment(name)
+        or name in FORBIDDEN_CORE_AI_FACADE_IMPORTS
     ]
     assert offenders == [], f"forbidden semantic-cache imports found: {offenders}"
 
@@ -199,6 +213,7 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
     import_aliases: dict[str, str] = {}
     path_aliases: set[str] = set()
     file_handle_aliases: set[str] = set()
+    environ_aliases: set[str] = set()
     offenders: list[str] = []
 
     for node in ast.walk(tree):
@@ -214,6 +229,10 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append("open.alias")
             if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
                 offenders.append("Path.method-alias")
+            if _qualified_call_name(node.value, import_aliases) == "os.environ":
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        environ_aliases.add(target.id)
             path_constructor_ref = _qualified_call_name(node.value, import_aliases)
             if path_constructor_ref in {"Path", "pathlib.Path"}:
                 for target in node.targets:
@@ -232,6 +251,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 path_aliases,
             ):
                 offenders.append("Path.method-alias")
+            if (
+                isinstance(node.target, ast.Name)
+                and node.value is not None
+                and _qualified_call_name(node.value, import_aliases) == "os.environ"
+            ):
+                environ_aliases.add(node.target.id)
             if isinstance(node.target, ast.Name) and node.value is not None:
                 path_constructor_ref = _qualified_call_name(node.value, import_aliases)
                 if path_constructor_ref in {"Path", "pathlib.Path"}:
@@ -257,6 +282,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append(call_name or "network.call")
             if _is_os_environ_call_name(call_name):
                 offenders.append(call_name or "os.environ.call")
+            if _is_os_environ_alias_call_name(call_name, environ_aliases):
+                offenders.append(call_name or "os.environ.alias.call")
             if _is_path_write_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.write")
             if _is_path_mutation_call(node.func, import_aliases, path_aliases):
@@ -268,7 +295,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             if _is_path_open_write_mode_call(node, import_aliases, path_aliases):
                 offenders.append("Path.open.write-mode")
         elif isinstance(node, ast.Subscript):
-            if _qualified_call_name(node.value, import_aliases) == "os.environ":
+            subscript_name = _qualified_call_name(node.value, import_aliases)
+            if subscript_name == "os.environ" or subscript_name in environ_aliases:
                 offenders.append("os.environ[]")
 
     assert offenders == [], f"forbidden semantic-cache calls found: {offenders}"
@@ -300,6 +328,12 @@ def _is_network_call_name(call_name: str | None) -> bool:
 
 def _is_os_environ_call_name(call_name: str | None) -> bool:
     return call_name is not None and call_name.startswith("os.environ.")
+
+
+def _is_os_environ_alias_call_name(call_name: str | None, environ_aliases: set[str]) -> bool:
+    if call_name is None:
+        return False
+    return any(call_name == alias or call_name.startswith(f"{alias}.") for alias in environ_aliases)
 
 
 def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:

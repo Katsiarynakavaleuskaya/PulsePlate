@@ -64,6 +64,33 @@ REASON_STOP_RULE_REPLAY_MISSING = "stop_rule_replay_missing"
 REASON_CURRENT_HEAD_CI_MISSING = "current_head_ci_missing"
 REASON_HUMAN_APPROVAL_MISSING = "human_approval_missing"
 REASON_NO_ELIGIBLE_CANDIDATE = "no_eligible_candidate"
+ALLOWED_REASON_CODES = (
+    REASON_ADMISSION_BLOCKED_HITS,
+    REASON_BACKEND_LABEL_NOT_ALLOWED,
+    REASON_BLOCKED_SURFACE_HITS,
+    REASON_CONTEXT_LEAKAGE_EXCEEDED,
+    REASON_CURRENT_HEAD_CI_MISSING,
+    REASON_ELIGIBLE,
+    REASON_FALSE_HIT_RATE_EXCEEDED,
+    REASON_FRESH_RUNTIME_COMPARISONS_MISSING,
+    REASON_HUMAN_APPROVAL_MISSING,
+    REASON_IMPLEMENTATION_NOT_ALLOWED,
+    REASON_KILL_SWITCH_PROOF_MISSING,
+    REASON_MODEL_MISMATCH_EXCEEDED,
+    REASON_NEGATIVE_CONTROLS_MISSING,
+    REASON_NO_ELIGIBLE_CANDIDATE,
+    REASON_POLICY_MISMATCH_EXCEEDED,
+    REASON_ROLLBACK_PROOF_MISSING,
+    REASON_RUNTIME_NOT_ALLOWED,
+    REASON_PURGE_INVALIDATION_PROOF_MISSING,
+    REASON_DISABLED_STATE_TEST_MISSING,
+    REASON_SC_G2_EVIDENCE_MISSING,
+    REASON_SC_G3_EVIDENCE_MISSING,
+    REASON_SC_G4_EVIDENCE_MISSING,
+    REASON_SELECTED,
+    REASON_STOP_RULE_REPLAY_MISSING,
+    REASON_STALE_ANSWER_RATE_EXCEEDED,
+)
 
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]*$")
 _PATH_RE = re.compile(
@@ -284,26 +311,45 @@ class SemanticCacheBackendRollbackProof:
     metadata: Mapping[str, JsonValue]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "proof_id", _validate_evidence_id("proof_id", self.proof_id))
-        for name in (
-            "kill_switch_proof_id",
-            "request_bypass_proof_id",
-            "no_cache_fallback_proof_id",
-            "purge_invalidation_proof_id",
-            "rollback_runbook_id",
-        ):
-            object.__setattr__(self, name, _validate_evidence_id(name, getattr(self, name)))
+        object.__setattr__(
+            self,
+            "proof_id",
+            _validate_structured_proof_id(
+                "proof_id",
+                self.proof_id,
+                prefixes=("rollback:", "verification-bundle:rollback:"),
+            ),
+        )
+        structured_ids = {
+            "kill_switch_proof_id": ("proof:kill-switch:", "verification-bundle:kill-switch:"),
+            "request_bypass_proof_id": ("proof:bypass:", "verification-bundle:bypass:"),
+            "no_cache_fallback_proof_id": ("proof:no-cache:", "verification-bundle:no-cache:"),
+            "purge_invalidation_proof_id": ("proof:purge:", "verification-bundle:purge:"),
+            "rollback_runbook_id": ("runbook:rollback:", "verification-bundle:runbook:"),
+        }
+        for name, prefixes in structured_ids.items():
+            object.__setattr__(
+                self,
+                name,
+                _validate_structured_proof_id(name, getattr(self, name), prefixes=prefixes),
+            )
         object.__setattr__(
             self,
             "disabled_state_test_ids",
-            _normalize_required_unique_tokens(
-                "disabled_state_test_ids", self.disabled_state_test_ids
+            _normalize_required_structured_proof_ids(
+                "disabled_state_test_ids",
+                self.disabled_state_test_ids,
+                prefixes=("test:disabled:", "verification-bundle:disabled:"),
             ),
         )
         object.__setattr__(
             self,
             "stop_rule_replay_ids",
-            _normalize_required_unique_tokens("stop_rule_replay_ids", self.stop_rule_replay_ids),
+            _normalize_required_structured_proof_ids(
+                "stop_rule_replay_ids",
+                self.stop_rule_replay_ids,
+                prefixes=("replay:stop-rule:", "verification-bundle:stop-rule:"),
+            ),
         )
         _validate_bps("blast_radius_bps", self.blast_radius_bps)
         _validate_bool("verified", self.verified)
@@ -511,7 +557,7 @@ class SemanticCacheBackendSelectionDecision:
         object.__setattr__(
             self,
             "reason_codes",
-            _normalize_required_unique_tokens("reason_codes", self.reason_codes),
+            _normalize_reason_codes(self.reason_codes),
         )
         object.__setattr__(
             self,
@@ -804,11 +850,11 @@ def _candidate_failure_reasons(
         reasons.append(REASON_SC_G4_EVIDENCE_MISSING)
     if criteria.required_surface not in candidate.supported_surfaces:
         reasons.append(REASON_SC_G4_EVIDENCE_MISSING)
-    if (
-        evidence.sc_g2_contract_id != REQUIRED_SC_G2_CONTRACT_ID
-        or evidence.sc_g3_contract_id != REQUIRED_SC_G3_CONTRACT_ID
-        or evidence.sc_g4_contract_id != REQUIRED_SC_G4_CONTRACT_ID
-    ):
+    if evidence.sc_g2_contract_id != REQUIRED_SC_G2_CONTRACT_ID:
+        reasons.append(REASON_SC_G2_EVIDENCE_MISSING)
+    if evidence.sc_g3_contract_id != REQUIRED_SC_G3_CONTRACT_ID:
+        reasons.append(REASON_SC_G3_EVIDENCE_MISSING)
+    if evidence.sc_g4_contract_id != REQUIRED_SC_G4_CONTRACT_ID:
         reasons.append(REASON_SC_G4_EVIDENCE_MISSING)
     if evidence.false_hit_rate_bps > criteria.max_false_hit_rate_bps:
         reasons.append(REASON_FALSE_HIT_RATE_EXCEEDED)
@@ -1119,6 +1165,33 @@ def _normalize_unique_tokens(name: str, values: tuple[str, ...] | list[str]) -> 
         seen.add(normalized)
         normalized_values.append(normalized)
     return tuple(sorted(normalized_values))
+
+
+def _normalize_required_structured_proof_ids(
+    name: str,
+    values: tuple[str, ...],
+    *,
+    prefixes: tuple[str, ...],
+) -> tuple[str, ...]:
+    normalized_values: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = _validate_structured_proof_id(name, value, prefixes=prefixes)
+        if normalized in seen:
+            raise ValueError(f"{name} contains duplicate entries")
+        seen.add(normalized)
+        normalized_values.append(normalized)
+    if not normalized_values:
+        raise ValueError(f"{name} must be non-empty")
+    return tuple(sorted(normalized_values))
+
+
+def _normalize_reason_codes(values: tuple[str, ...]) -> tuple[str, ...]:
+    reason_codes = _normalize_required_unique_tokens("reason_codes", values)
+    for reason_code in reason_codes:
+        if reason_code not in ALLOWED_REASON_CODES:
+            raise ValueError(f"unsupported reason_code: {reason_code!r}")
+    return reason_codes
 
 
 def _validate_token(name: str, value: str) -> str:
