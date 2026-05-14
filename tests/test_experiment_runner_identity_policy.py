@@ -106,6 +106,48 @@ def test_rejects_token_shaped_json_key() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_token_shaped_json_key_error_is_redacted() -> None:
+    policy = _valid_policy()
+    token_value = "github_pat_" + "a" * 24
+    policy["cryptographic_boundary"]["external_handles"] = {token_value: "external"}
+
+    with pytest.raises(identity_check.IdentityPolicyError) as exc_info:
+        identity_check.validate_identity_policy(policy)
+
+    error = str(exc_info.value)
+    assert token_value not in error
+    assert "<redacted-key>" in error
+
+
+def test_cli_json_failure_redacts_token_shaped_key(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    policy = _valid_policy()
+    token_value = "github_pat_" + "a" * 24
+    policy["cryptographic_boundary"]["external_handles"] = {token_value: "external"}
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+    exit_code = identity_check.main(["--policy", str(policy_path), "--json"])
+
+    output = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert output["status"] == "fail"
+    assert token_value not in output["error"]
+    assert "<redacted-key>" in output["error"]
+
+
+def test_rejects_duplicate_crypto_boundary_boolean_outside_canon() -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary_v2"] = {
+        "private_key_material_allowed_in_repo": True,
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_missing_external_signing_requirement() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"][
@@ -149,6 +191,17 @@ def test_rejects_authority_drift_outside_main_boundary() -> None:
     policy["github_app_authority"] = {
         "merge_rights": "admin",
         "can_resolve_review_threads": True,
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_authority_drift_with_separator_variants() -> None:
+    policy = _valid_policy()
+    policy["github_app_authority"] = {
+        "merge-rights": "admin",
+        "can resolve review threads": True,
     }
 
     with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):

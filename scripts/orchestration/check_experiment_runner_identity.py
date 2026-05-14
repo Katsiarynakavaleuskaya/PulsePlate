@@ -37,6 +37,15 @@ AUTHORITY_FIELD_NAMES = frozenset(
         "can_push_without_human_review",
     }
 )
+CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
+    {
+        "$.cryptographic_boundary.commit_signing_required_for_autonomous_production_commits",
+        "$.cryptographic_boundary.private_key_material_allowed_in_repo",
+        "$.cryptographic_boundary.repo_must_not_generate_private_keys",
+        "$.cryptographic_boundary.repo_must_not_store_signing_secrets",
+        "$.slack_identity.requires_bot_token_secret_boundary",
+    }
+)
 
 
 class IdentityPolicyError(ValueError):
@@ -78,17 +87,32 @@ def _normalized_email(raw_email: Any) -> str:
     return email
 
 
+def _path_for_key(path: str, key: Any) -> str:
+    if not isinstance(key, str):
+        return f"{path}.<non-string-key>"
+    if SENSITIVE_VALUE_RE.search(key):
+        return f"{path}.<redacted-key>"
+    return f"{path}.{key}"
+
+
+def _normalized_policy_key(key: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
+
+
 def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
-            next_path = f"{path}.{key}"
+            next_path = _path_for_key(path, key)
             if isinstance(key, str) and SENSITIVE_VALUE_RE.search(key):
                 raise IdentityPolicyError(
                     f"{next_path} must not store private key material or secrets."
                 )
             if SENSITIVE_FIELD_RE.search(str(key)):
                 allowed_marker = isinstance(value, str) and value in {"none", "external"}
-                if not isinstance(value, bool) and not allowed_marker:
+                allowed_canonical_bool = (
+                    next_path in CANONICAL_SENSITIVE_BOOLEAN_PATHS and isinstance(value, bool)
+                )
+                if not allowed_canonical_bool and not allowed_marker:
                     raise IdentityPolicyError(
                         f"{next_path} must not store private key material or secrets."
                     )
@@ -105,10 +129,10 @@ def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
 def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
-            next_path = f"{path}.{key}"
+            next_path = _path_for_key(path, key)
             if (
                 path != "$.authority_boundary"
-                and key in AUTHORITY_FIELD_NAMES
+                and _normalized_policy_key(key) in AUTHORITY_FIELD_NAMES
                 and value is not False
                 and value != "none"
             ):
