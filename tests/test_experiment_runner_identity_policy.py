@@ -67,6 +67,8 @@ def test_rejects_repo_private_key_material_with_repeated_separators() -> None:
 @pytest.mark.parametrize(
     "field_name",
     [
+        "api_key",
+        "github_app_api_key",
         "private.key",
         "signing/key",
         "pass.phrase",
@@ -92,6 +94,20 @@ def test_rejects_private_key_material_under_neutral_key() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["operator_note"] = (
         "-----BEGIN " "PRIVATE KEY-----\n" "abc123\n" "-----END " "PRIVATE KEY-----"
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_pgp_private_key_material_under_neutral_key() -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"]["operator_note"] = (
+        "-----BEGIN "
+        "PGP PRIVATE KEY BLOCK-----\n"
+        "abc123\n"
+        "-----END "
+        "PGP PRIVATE KEY BLOCK-----"
     )
 
     with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
@@ -239,6 +255,19 @@ def test_authority_drift_error_redacts_secret_shaped_ancestor() -> None:
     assert "<redacted-key>" in error
 
 
+def test_authority_drift_error_redacts_dotted_sensitive_ancestor() -> None:
+    policy = _valid_policy()
+    sensitive_key = "secret.my-real-password"
+    policy[sensitive_key] = {"merge_rights": "admin"}
+
+    with pytest.raises(identity_check.IdentityPolicyError) as exc_info:
+        identity_check.validate_identity_policy(policy)
+
+    error = str(exc_info.value)
+    assert "my-real-password" not in error
+    assert "<redacted-key>" in error
+
+
 def test_rejects_authority_drift_with_separator_variants() -> None:
     policy = _valid_policy()
     policy["github_app_authority"] = {
@@ -310,8 +339,11 @@ def test_rejects_duplicate_slack_identity_camel_case_boundary() -> None:
     ("boundary_name", "expected_boundary"),
     [
         ("git_attribution_v2", "git_attribution"),
+        ("new_git_attribution", "git_attribution"),
         ("notificationBoundaryV2", "notification_boundary"),
+        ("experimental_notification_boundary", "notification_boundary"),
         ("cryptographic-boundary-v2", "cryptographic_boundary"),
+        ("github_app_cryptographic_boundary", "cryptographic_boundary"),
     ],
 )
 def test_rejects_duplicate_non_slack_boundary_blocks(

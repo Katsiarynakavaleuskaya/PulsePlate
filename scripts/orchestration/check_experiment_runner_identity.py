@@ -22,11 +22,12 @@ EXPECTED_EMAIL = "pulseplate@pm.me"
 FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
 ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
 SENSITIVE_FIELD_RE = re.compile(
-    r"(private[\s_-]*key|pass[\s_-]*phrase|secret|token|credential|signing[\s_-]*key)",
+    r"(api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|secret|token|credential|signing[\s_-]*key)",
     re.IGNORECASE,
 )
 SENSITIVE_POLICY_KEY_TOKENS = frozenset(
     {
+        "api_key",
         "credential",
         "pass_phrase",
         "private_key",
@@ -36,7 +37,7 @@ SENSITIVE_POLICY_KEY_TOKENS = frozenset(
     }
 )
 SENSITIVE_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
+    r"(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
     re.IGNORECASE,
 )
 AUTHORITY_FIELD_NAMES = frozenset(
@@ -110,6 +111,8 @@ def _normalized_email(raw_email: Any) -> str:
 def _path_for_key(path: str, key: Any) -> str:
     if not isinstance(key, str):
         return f"{path}.<non-string-key>"
+    if SENSITIVE_VALUE_RE.search(key) or ("." in key and _is_sensitive_policy_key(key)):
+        return f"{path}.<redacted-key>"
     return f"{path}.{key}"
 
 
@@ -218,7 +221,7 @@ def _reject_duplicate_boundary_blocks(payload: Any, *, path: str = "$") -> None:
                 (
                     boundary_key
                     for boundary_key in CANONICAL_BOUNDARY_KEYS
-                    if compact_key.startswith(_compact_policy_key(boundary_key))
+                    if _compact_policy_key(boundary_key) in compact_key
                 ),
                 None,
             )
