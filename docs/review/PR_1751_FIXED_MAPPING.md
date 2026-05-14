@@ -16,6 +16,7 @@
 - `51f0344106f92846e168685ce62f61145358037a` - `fix(orchestration): stabilize email audit path typing`
 - `ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4` - `fix(orchestration): harden smtp email delivery claims`
 - `f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d` - `docs(review): map PR 1751 smtp claim fixes`
+- `d5998b4899df9b07a6c295841f52dab27b08df51` - `docs(orchestration): align experiment notify lifecycle`
 
 ## Coordinator / Agent Passes
 
@@ -67,10 +68,20 @@ Disposition: FIXED
 Commit: da8b2db703c4a9e8840524f7d5987e1da4d79463
 Evidence: `scripts/AGENTS.md` now says `local artifact output is the default`; `VENV_PYTHON=../../.venv/bin/python pre-commit run --all-files` PASS.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4285886523 -> da8b2db703c4a9e8840524f7d5987e1da4d79463
+Disposition: FIXED
+Commit: da8b2db703c4a9e8840524f7d5987e1da4d79463
+Evidence: Sourcery review-level actionable typo is fixed by the same `scripts/AGENTS.md` wording change as `discussion_r3237898304`.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237901619 -> fcef53e4e53eac11ff165084a8efb08c72b0cf73
 Disposition: FIXED
 Commit: fcef53e4e53eac11ff165084a8efb08c72b0cf73
 Evidence: Merge-readiness checklist boxes in this artifact are unchecked until the final merge cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4285890872 -> fcef53e4e53eac11ff165084a8efb08c72b0cf73
+Disposition: FIXED
+Commit: fcef53e4e53eac11ff165084a8efb08c72b0cf73
+Evidence: CodeRabbit review-level actionables are mapped through their inline findings; the checklist/mapping artifact correction is fixed in this commit, and CLI help/command replay concerns are covered by the associated inline mappings.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905243 -> da8b2db703c4a9e8840524f7d5987e1da4d79463
 Disposition: FIXED
@@ -97,10 +108,25 @@ Disposition: FIXED
 Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Evidence: Email send claim now uses exclusive create, duplicate-blocking `send_in_progress`, and stale-claim reclaim; `tests/test_experiment_notify.py::test_stale_email_send_claim_can_be_reclaimed` covers reclaim.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4287802089 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Disposition: FIXED
+Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Evidence: CodeRabbit review-level actionables are fixed by the atomic send claim and implicit TLS changes mapped below.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239524565 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Disposition: FIXED
 Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Evidence: SMTP port `465` uses `SMTP_SSL`; `tests/test_experiment_notify.py::test_smtp_implicit_tls_uses_smtp_ssl` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4287893382 -> d5998b4899df9b07a6c295841f52dab27b08df51
+Disposition: FIXED
+Commit: d5998b4899df9b07a6c295841f52dab27b08df51
+Evidence: Experiment lifecycle flow now appends `-> notify` after `-> promote or discard`, matching `Step 6: Notify`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239603946 -> d5998b4899df9b07a6c295841f52dab27b08df51
+Disposition: FIXED
+Commit: d5998b4899df9b07a6c295841f52dab27b08df51
+Evidence: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` lifecycle flow now includes the notify stage.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239534960 -> f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d
 Disposition: FIXED
