@@ -306,11 +306,18 @@ def test_rollback_ci_and_human_approval_are_required() -> None:
 
 
 def test_rollback_proof_must_match_candidate_backend_label() -> None:
+    rollback = replace(
+        _rollback(backend_token="redis"),
+        kill_switch_proof_id="proof:kill-switch:gptcache",
+        request_bypass_proof_id="proof:bypass:gptcache",
+        no_cache_fallback_proof_id="proof:no-cache:gptcache",
+        purge_invalidation_proof_id="proof:purge:gptcache",
+        disabled_state_test_ids=("test:disabled:gptcache",),
+        stop_rule_replay_ids=("replay:stop-rule:gptcache",),
+        rollback_runbook_id="runbook:rollback:gptcache",
+    )
     decision = evaluate_semantic_cache_backend_candidate(
-        candidate=_candidate(
-            backend_label=BACKEND_LABEL_REDIS,
-            rollback=_rollback(backend_token="gptcache"),
-        ),
+        candidate=_candidate(backend_label=BACKEND_LABEL_REDIS, rollback=rollback),
         criteria=_criteria(),
     )
 
@@ -715,6 +722,10 @@ def test_type_and_value_validation_fail_closed() -> None:
         evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=cast(Any, "bad"))
     with pytest.raises(ValueError, match="candidate"):
         evaluate_semantic_cache_backend_candidate(candidate=cast(Any, "bad"), criteria=_criteria())
+    with pytest.raises(ValueError, match="unsafe runtime scope"):
+        replace(_candidate(), supported_surfaces=("insight", "fastapi"))
+    with pytest.raises(ValueError, match="unsafe runtime scope"):
+        replace(_candidate(), capability_flags=("label-only", "provider-call"))
 
 
 def test_direct_decision_objects_reject_inconsistent_shapes() -> None:

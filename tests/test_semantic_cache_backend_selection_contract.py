@@ -292,8 +292,27 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
         for error in errors
     )
 
-    for required_runtime_block in ('"environment reads"', '"network calls"', '"file writes"'):
+    for required_runtime_block in (
+        '"FastAPI"',
+        '"OpenAPI"',
+        '"DB writes"',
+        '"migrations"',
+        '"provider calls"',
+        '"environment reads"',
+        '"network calls"',
+        '"file writes"',
+        '"Redis imports or clients"',
+        '"GPTCache imports or clients"',
+        '"cache backend adapters"',
+        '"connection strings"',
+        '"availability probes"',
+        '"vector search"',
+        '"embeddings"',
+        '"semantic similarity backends"',
+        '"dependency additions"',
+    ):
         bad_text = _contract_text().replace(required_runtime_block + ",\n", "")
+        bad_text = bad_text.replace(",\n    " + required_runtime_block + "\n", "\n")
         errors = validate_semantic_cache_backend_selection_contract(bad_text)
         assert any(required_runtime_block.strip('"') in error for error in errors)
 
@@ -342,6 +361,22 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
     bad_text = _contract_text().replace('"human approval record"\n', '"human approval"\n')
     errors = validate_semantic_cache_backend_selection_contract(bad_text)
     assert any("human approval record" in error for error in errors)
+
+    for required_forbidden_claim in (
+        '"active semantic-cache claim"',
+        '"enabled semantic-cache claim"',
+        '"open semantic-cache claim"',
+        '"approved Redis rollout claim"',
+        '"approved GPTCache rollout claim"',
+        '"serving backend selection claim"',
+        '"production readiness claim"',
+        '"raw prompt caching claim"',
+        '"raw response caching claim"',
+    ):
+        bad_text = _contract_text().replace(required_forbidden_claim + ",\n", "")
+        bad_text = bad_text.replace(",\n    " + required_forbidden_claim + "\n", "\n")
+        errors = validate_semantic_cache_backend_selection_contract(bad_text)
+        assert any(required_forbidden_claim.strip('"') in error for error in errors)
 
     bad_text = _contract_text().replace(
         '"blocked_payload_fields": [',

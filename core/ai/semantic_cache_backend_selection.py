@@ -196,6 +196,25 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
     r"|knowledge[_:-]?graph",
     re.IGNORECASE,
 )
+_UNSAFE_RUNTIME_SCOPE_RE = re.compile(
+    r"fastapi"
+    r"|openapi"
+    r"|db"
+    r"|database"
+    r"|migrations?"
+    r"|provider"
+    r"|network"
+    r"|file[_:-]?writes?"
+    r"|backend[_:-]?(?:adapter|client)s?"
+    r"|redis[_:-]?clients?"
+    r"|gptcache[_:-]?clients?"
+    r"|availability[_:-]?probes?"
+    r"|vector[_:-]?search"
+    r"|embeddings?"
+    r"|semantic[_:-]?similarity"
+    r"|dependency[_:-]?additions?",
+    re.IGNORECASE,
+)
 SC_G5_MIN_NEGATIVE_CONTROL_COUNT = 10
 SC_G5_MIN_FRESH_RUNTIME_COMPARISON_COUNT = 10
 REQUIRED_SC_G2_CONTRACT_ID = "contract:sc-g2"
@@ -391,12 +410,12 @@ class SemanticCacheBackendCandidate:
         object.__setattr__(
             self,
             "supported_surfaces",
-            _normalize_required_unique_tokens("supported_surfaces", self.supported_surfaces),
+            _normalize_required_runtime_safe_tokens("supported_surfaces", self.supported_surfaces),
         )
         object.__setattr__(
             self,
             "capability_flags",
-            _normalize_required_unique_tokens("capability_flags", self.capability_flags),
+            _normalize_required_runtime_safe_tokens("capability_flags", self.capability_flags),
         )
         if not isinstance(self.safety_evidence, SemanticCacheBackendSafetyEvidence):
             raise ValueError("safety_evidence must be SemanticCacheBackendSafetyEvidence")
@@ -876,7 +895,7 @@ def _candidate_failure_reasons(
         reasons.append(REASON_FRESH_RUNTIME_COMPARISONS_MISSING)
     if not rollback.verified:
         reasons.append(REASON_ROLLBACK_PROOF_MISSING)
-    if _backend_rollback_token(candidate.backend_label) not in rollback.proof_id.split(":"):
+    if not _rollback_proof_matches_backend(rollback, candidate.backend_label):
         reasons.append(REASON_ROLLBACK_PROOF_MISSING)
     if criteria.require_current_head_ci and (
         not candidate.current_head_ci_passed or candidate.current_head_ci_proof_id is None
@@ -1186,6 +1205,20 @@ def _normalize_required_structured_proof_ids(
     return tuple(sorted(normalized_values))
 
 
+def _normalize_required_runtime_safe_tokens(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
+    normalized_values: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = _validate_runtime_safe_token(name, value)
+        if normalized in seen:
+            raise ValueError(f"{name} contains duplicate entries")
+        seen.add(normalized)
+        normalized_values.append(normalized)
+    if not normalized_values:
+        raise ValueError(f"{name} must be non-empty")
+    return tuple(sorted(normalized_values))
+
+
 def _normalize_reason_codes(values: tuple[str, ...]) -> tuple[str, ...]:
     reason_codes = _normalize_required_unique_tokens("reason_codes", values)
     for reason_code in reason_codes:
@@ -1210,6 +1243,13 @@ def _validate_token(name: str, value: str) -> str:
         raise ValueError(f"{name} contains unsafe proof token")
     if not _TOKEN_RE.match(normalized):
         raise ValueError(f"{name} contains unsupported characters")
+    return normalized
+
+
+def _validate_runtime_safe_token(name: str, value: str) -> str:
+    normalized = _validate_token(name, value)
+    if _UNSAFE_RUNTIME_SCOPE_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe runtime scope")
     return normalized
 
 
@@ -1251,6 +1291,24 @@ def _backend_rollback_token(backend_label: str) -> str:
     if backend_label == BACKEND_LABEL_IN_MEMORY:
         return "in-memory"
     raise ValueError(f"unsupported backend_label: {backend_label!r}")
+
+
+def _rollback_proof_matches_backend(
+    rollback: SemanticCacheBackendRollbackProof,
+    backend_label: str,
+) -> bool:
+    backend_token = _backend_rollback_token(backend_label)
+    proof_ids = (
+        rollback.proof_id,
+        rollback.kill_switch_proof_id,
+        rollback.request_bypass_proof_id,
+        rollback.no_cache_fallback_proof_id,
+        rollback.purge_invalidation_proof_id,
+        rollback.rollback_runbook_id,
+        *rollback.disabled_state_test_ids,
+        *rollback.stop_rule_replay_ids,
+    )
+    return all(backend_token in proof_id.split(":") for proof_id in proof_ids)
 
 
 def _validate_bps(name: str, value: int) -> None:
