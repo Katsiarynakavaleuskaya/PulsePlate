@@ -18,6 +18,7 @@
 - `f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d` - `docs(review): map PR 1751 smtp claim fixes`
 - `d5998b4899df9b07a6c295841f52dab27b08df51` - `docs(orchestration): align experiment notify lifecycle`
 - `6acfee69f276900e47c844fceb8ceb048eade324` - `fix(orchestration): fail closed on duplicate experiment email sends`
+- `098975392a15f195ebd92bde7d6ddcfa7a67f878` - `docs(orchestration): add experiment notification completion gate`
 
 ## Coordinator / Agent Passes
 
@@ -163,6 +164,16 @@ Evidence: Cubic review-level duplicate-send finding is fixed by experiment-id fa
 Disposition: FIXED
 Commit: 6acfee69f276900e47c844fceb8ceb048eade324
 Evidence: Duplicate-send guard no longer keys only on notification content; existing `sent`/`send_in_progress` audit for the experiment blocks delivery.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4287936852 -> 098975392a15f195ebd92bde7d6ddcfa7a67f878
+Disposition: FIXED
+Commit: 098975392a15f195ebd92bde7d6ddcfa7a67f878
+Evidence: Cubic review-level notification completion-gate finding is fixed by adding notification evidence to the experiment completion gate.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239642435 -> 098975392a15f195ebd92bde7d6ddcfa7a67f878
+Disposition: FIXED
+Commit: 098975392a15f195ebd92bde7d6ddcfa7a67f878
+Evidence: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` completion gate now requires explicit notification evidence.
 
 ## Merge Readiness
 
