@@ -1099,11 +1099,10 @@ jobs:
           # IMPORTANT: main branch must maintain 97% coverage per project standards
           # See .cursorrules and AGENTS.md
           #
-          # CI stability: Python 3.12 exceeded the 60-minute main window after xdist
-          # containment. Python 3.13 passed inside the 90-minute window with almost
-          # no headroom after xdist was disabled. Run isolated process-level shards
-          # for both versions instead of pytest-xdist workers, preserving each
-          # test-main required-check identity.
+          # CI stability: Python 3.12 exceeded the 90-minute main window with one
+          # shard complete and the other still at ~52%, so keep the wall-clock
+          # budget fixed and split only 3.12 more aggressively. Python 3.13 passed
+          # inside the 90-minute window, so keep its lower concurrency unchanged.
           # Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
@@ -1111,8 +1110,8 @@ jobs:
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           if [[ "$PYVER" == 3.12* ]]; then
-            MAIN_TEST_SHARDS=2
-            MAIN_TEST_MAX_PARALLEL=2
+            MAIN_TEST_SHARDS=4
+            MAIN_TEST_MAX_PARALLEL=4
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=2
             MAIN_TEST_MAX_PARALLEL=2
