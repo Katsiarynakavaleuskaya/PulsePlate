@@ -368,6 +368,8 @@ An experimentation cycle is complete only when all are true:
 - budgets are explicit,
 - result packet records metric outcome and failure class,
 - promotion decision is explicit,
+- notification evidence is explicit (local artifact by default; optional email
+  audit only when email delivery was requested),
 - if deferred, the ledger entry exists,
 - if promoted, the destination artifact is unique and evidence-backed.
 
