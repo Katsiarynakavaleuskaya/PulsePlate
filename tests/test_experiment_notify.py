@@ -190,6 +190,7 @@ class FakeSMTP:
     sent_messages: list[object] = []
     started_tls = False
     login_args: tuple[str, str] | None = None
+    quit_called = False
 
     def __init__(self, host: str, port: int, timeout: int) -> None:
         self.host = host
@@ -212,10 +213,31 @@ class FakeSMTP:
     def send_message(self, message: object) -> None:
         FakeSMTP.sent_messages.append(message)
 
+    def quit(self) -> None:
+        FakeSMTP.quit_called = True
+
 
 class FailingSMTP(FakeSMTP):
     def send_message(self, message: object) -> None:
         raise OSError("/Users/alice/.ssh/id_rsa smtp failure")
+
+
+class FakeSMTPSSL(FakeSMTP):
+    used = False
+
+    def __init__(self, host: str, port: int, timeout: int, context: object) -> None:
+        super().__init__(host, port, timeout)
+        assert context is not None
+        FakeSMTPSSL.used = True
+
+    def starttls(self, context: object | None = None) -> None:
+        raise AssertionError("implicit TLS must not call starttls")
+
+
+class QuitFailingSMTP(FakeSMTP):
+    def quit(self) -> None:
+        FakeSMTP.quit_called = True
+        raise OSError("smtp quit failed after accepted message")
 
 
 def _configure_smtp_env(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -231,6 +253,8 @@ def _reset_fake_smtp() -> None:
     FakeSMTP.sent_messages = []
     FakeSMTP.started_tls = False
     FakeSMTP.login_args = None
+    FakeSMTP.quit_called = False
+    FakeSMTPSSL.used = False
 
 
 def test_main_writes_deterministic_notification(
@@ -753,6 +777,115 @@ def test_email_delivery_blocks_retry_when_sent_audit_write_fails(
         ).read_text(encoding="utf-8")
     )
     assert audit["status"] == "send_in_progress"
+
+
+def test_stale_email_send_claim_can_be_reclaimed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    old_timestamp = "2026-05-13T00:00:00+00:00"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_text(
+        json.dumps(
+            {
+                "experiment_id": "exp-notify",
+                "failure_class": "none",
+                "notification_sha256": experiment_notify._sha256_text(EXPECTED_NOTIFICATION),
+                "output_path": "artifacts/orchestration/experiments/notifications/exp-notify.md",
+                "provider_type": "smtp",
+                "recipient_hash": experiment_notify._recipient_hash("pulseplate@pm.me"),
+                "source_sha256": {"packet": None, "promotion": None, "result": None},
+                "status": "send_in_progress",
+                "timestamp": old_timestamp,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    _write_json(tmp_path / "packet.json", _packet())
+    _write_json(tmp_path / "result.json", _result())
+    experiment_notify._claim_email_send(
+        audit_path=audit_path,
+        experiment_id="exp-notify",
+        recipient="pulseplate@pm.me",
+        markdown=EXPECTED_NOTIFICATION,
+        output_path=notification_dir / "exp-notify.md",
+        source_paths={"packet": None, "promotion": None, "result": None},
+    )
+
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert audit["status"] == "send_in_progress"
+    assert audit["timestamp"] != old_timestamp
+
+
+def test_smtp_implicit_tls_uses_smtp_ssl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _configure_smtp_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PORT", "465")
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP_SSL", FakeSMTPSSL)
+
+    experiment_notify._send_smtp_email(
+        recipient="pulseplate@pm.me",
+        subject="subject",
+        markdown=EXPECTED_NOTIFICATION,
+    )
+
+    assert FakeSMTPSSL.used
+    assert not FakeSMTP.started_tls
+    assert len(FakeSMTP.sent_messages) == 1
+
+
+def test_smtp_quit_failure_after_send_keeps_delivery_successful(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", QuitFailingSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    capsys.readouterr()
+
+    assert exit_code == 0
+    assert FakeSMTP.quit_called
+    assert len(FakeSMTP.sent_messages) == 1
+    audit = json.loads(
+        (
+            repo
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "notifications"
+            / "exp-notify.email-audit.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert audit["status"] == "sent"
 
 
 def test_smtp_provider_failure_is_sanitized(

@@ -55,6 +55,7 @@ SMTP_PORT_ENV = "EXPERIMENT_NOTIFICATION_SMTP_PORT"
 SMTP_USERNAME_ENV = "EXPERIMENT_NOTIFICATION_SMTP_USERNAME"
 SMTP_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SMTP_" + "".join(("P", "ASS", "W", "ORD"))
 SMTP_FROM_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_FROM"
+EMAIL_SEND_CLAIM_TTL_SECONDS = 3600
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
 ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"guard_failure", "timeout", "oom"})
 PRE_ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"policy_violation", "unchanged_result"})
@@ -675,6 +676,7 @@ def _smtp_config() -> dict[str, str | int]:
     return {
         "host": values["host"],
         "port": port,
+        "tls_mode": "implicit" if port == 465 else "explicit",
         "username": values["username"],
         "password": values["password"],
         "sender": _validate_email_address(values["sender"], label="SMTP sender"),
@@ -719,24 +721,45 @@ def _read_existing_email_audit(audit_path: Path) -> dict[str, Any] | None:
     return payload
 
 
-def _require_email_not_already_sent(
-    *,
-    audit_path: Path,
-    recipient: str,
-    notification_sha256: str,
-) -> None:
-    """Prevent duplicate sends for the same recipient and notification body."""
+def _is_stale_send_claim(audit: dict[str, Any]) -> bool:
+    """Return true when an in-progress claim is old enough to reclaim."""
 
-    existing = _read_existing_email_audit(audit_path)
-    if existing is None:
-        return
-    if existing.get("status") not in {"sent", "send_in_progress"}:
-        return
-    if (
-        existing.get("recipient_hash") == _recipient_hash(recipient)
-        and existing.get("notification_sha256") == notification_sha256
-    ):
-        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    raw_timestamp = audit.get("timestamp")
+    if not isinstance(raw_timestamp, str):
+        return False
+    try:
+        timestamp = datetime.fromisoformat(raw_timestamp)
+    except ValueError:
+        return False
+    if timestamp.tzinfo is None:
+        return False
+    age = datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)
+    return age.total_seconds() > EMAIL_SEND_CLAIM_TTL_SECONDS
+
+
+def _email_audit_payload(
+    *,
+    experiment_id: str,
+    recipient: str,
+    status: str,
+    failure_class: str | None,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+) -> dict[str, Any]:
+    """Build a local, secret-free email delivery audit payload."""
+
+    return {
+        "experiment_id": experiment_id,
+        "notification_sha256": _sha256_text(markdown),
+        "output_path": normalize_repo_path(output_path),
+        "provider_type": "smtp",
+        "recipient_hash": _recipient_hash(recipient),
+        "source_sha256": {key: _sha256_file(path) for key, path in sorted(source_paths.items())},
+        "status": status,
+        "failure_class": _safe_inline(failure_class or "none"),
+        "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+    }
 
 
 def _write_email_audit(
@@ -752,19 +775,71 @@ def _write_email_audit(
 ) -> None:
     """Write a local, secret-free email delivery audit artifact."""
 
-    payload = {
-        "experiment_id": experiment_id,
-        "notification_sha256": _sha256_text(markdown),
-        "output_path": normalize_repo_path(output_path),
-        "provider_type": "smtp",
-        "recipient_hash": _recipient_hash(recipient),
-        "source_sha256": {key: _sha256_file(path) for key, path in sorted(source_paths.items())},
-        "status": status,
-        "failure_class": _safe_inline(failure_class or "none"),
-        "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
-    }
+    payload = _email_audit_payload(
+        experiment_id=experiment_id,
+        recipient=recipient,
+        status=status,
+        failure_class=failure_class,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+    )
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     audit_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _claim_email_send(
+    *,
+    audit_path: Path,
+    experiment_id: str,
+    recipient: str,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+) -> None:
+    """Atomically claim an email send before the SMTP side effect."""
+
+    payload = _email_audit_payload(
+        experiment_id=experiment_id,
+        recipient=recipient,
+        status="send_in_progress",
+        failure_class=None,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+    )
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with audit_path.open("x", encoding="utf-8") as audit_file:
+            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        return
+    except FileExistsError:
+        existing = _read_existing_email_audit(audit_path)
+
+    if existing is None:
+        raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
+    same_notification = (
+        existing.get("recipient_hash") == _recipient_hash(recipient)
+        and existing.get("notification_sha256") == payload["notification_sha256"]
+    )
+    if same_notification and existing.get("status") == "sent":
+        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    if (
+        same_notification
+        and existing.get("status") == "send_in_progress"
+        and not _is_stale_send_claim(existing)
+    ):
+        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    _write_email_audit(
+        audit_path=audit_path,
+        experiment_id=experiment_id,
+        recipient=recipient,
+        status="send_in_progress",
+        failure_class=None,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+    )
 
 
 def _send_smtp_email(
@@ -776,18 +851,31 @@ def _send_smtp_email(
     """Send the already-redacted markdown notification through SMTP."""
 
     config = _smtp_config()
+    smtp: Any = None
     try:
         message = EmailMessage()
         message["From"] = str(config["sender"])
         message["To"] = recipient
         message["Subject"] = subject
         message.set_content(markdown)
-        with smtplib.SMTP(str(config["host"]), int(config["port"]), timeout=15) as smtp:
-            smtp.starttls(context=ssl.create_default_context())
-            smtp.login(str(config["username"]), str(config["password"]))
-            smtp.send_message(message)
+        context = ssl.create_default_context()
+        if config["tls_mode"] == "implicit":
+            smtp = smtplib.SMTP_SSL(
+                str(config["host"]), int(config["port"]), timeout=15, context=context
+            )
+        else:
+            smtp = smtplib.SMTP(str(config["host"]), int(config["port"]), timeout=15)
+            smtp.starttls(context=context)
+        smtp.login(str(config["username"]), str(config["password"]))
+        smtp.send_message(message)
     except (OSError, ValueError, smtplib.SMTPException) as exc:
         raise ExperimentEmailDeliveryError("SMTP delivery failed.") from exc
+    finally:
+        if smtp is not None:
+            try:
+                smtp.quit()
+            except (OSError, smtplib.SMTPException):
+                pass
 
 
 def _deliver_email_notification(
@@ -801,18 +889,10 @@ def _deliver_email_notification(
     """Send an explicit email notification and record a local audit artifact."""
 
     audit_path = _resolve_email_audit_path(experiment_id)
-    notification_sha256 = _sha256_text(markdown)
-    _require_email_not_already_sent(
-        audit_path=audit_path,
-        recipient=recipient,
-        notification_sha256=notification_sha256,
-    )
-    _write_email_audit(
+    _claim_email_send(
         audit_path=audit_path,
         experiment_id=experiment_id,
         recipient=recipient,
-        status="send_in_progress",
-        failure_class=None,
         markdown=markdown,
         output_path=output_path,
         source_paths=source_paths,

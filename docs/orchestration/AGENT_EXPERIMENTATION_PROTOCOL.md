@@ -325,6 +325,8 @@ Rules:
 - local markdown artifacts are the default delivery sink,
 - SMTP email delivery requires an explicit CLI flag, an explicit allowlisted
   recipient, and runtime SMTP secret configuration,
+- SMTP port `465` uses implicit TLS (`SMTP_SSL`); other allowed ports use
+  explicit STARTTLS,
 - v1 SMTP delivery is limited to `pulseplate@pm.me` when that address is present
   in `EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST`,
 - Slack messages, GitHub comments, and other external delivery sinks remain out
