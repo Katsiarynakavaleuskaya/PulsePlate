@@ -21,7 +21,7 @@
 - Result artifacts stay local under `artifacts/orchestration/experiments/results/` and are evidence only, not merge-ready or promotion-ready output.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output
-  is default, SMTP email delivery is explicit opt-in only, and no notification
+  is the default, SMTP email delivery is explicit opt-in only, and no notification
   sink may expose raw patches, oracle stdout/stderr, secrets, absolute local
   paths, or user data.
 

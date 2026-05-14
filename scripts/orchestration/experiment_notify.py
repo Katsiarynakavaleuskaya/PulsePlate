@@ -124,10 +124,11 @@ def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
     return candidate
 
 
-def _resolve_email_audit_path(output_path: Path) -> Path:
-    """Resolve the email audit artifact beside the notification markdown."""
+def _resolve_email_audit_path(experiment_id: str) -> Path:
+    """Resolve the canonical email audit artifact for an experiment."""
 
-    audit_path = output_path.with_name(f"{output_path.stem}.email-audit.json")
+    safe_experiment_id = validate_experiment_id(experiment_id, label="Experiment notification")
+    audit_path = NOTIFICATION_ARTIFACT_DIR / f"{safe_experiment_id}.email-audit.json"
     _reject_symlinked_output_components(
         audit_path.absolute(),
         artifact_dir=NOTIFICATION_ARTIFACT_DIR.absolute(),
@@ -202,14 +203,6 @@ def _require_matching_experiment(
     if result["status"] == "accepted" and promotion["disposition"] != "promoted":
         raise ExperimentNotificationError(
             "Accepted experiment results must have promotion disposition promoted."
-        )
-    if (
-        result["status"] == "accepted"
-        and promotion["disposition"] == "promoted"
-        and not result["promotion_ready"]
-    ):
-        raise ExperimentNotificationError(
-            "Accepted promoted experiment results must be promotion_ready."
         )
     if result["status"] == "rejected":
         if packet["promotion_target"] != "backlog_entry":
@@ -736,9 +729,10 @@ def _require_email_not_already_sent(
     existing = _read_existing_email_audit(audit_path)
     if existing is None:
         return
+    if existing.get("status") not in {"sent", "send_in_progress"}:
+        return
     if (
-        existing.get("status") == "sent"
-        and existing.get("recipient_hash") == _recipient_hash(recipient)
+        existing.get("recipient_hash") == _recipient_hash(recipient)
         and existing.get("notification_sha256") == notification_sha256
     ):
         raise ExperimentEmailDeliveryError("Email notification was already sent.")
@@ -805,7 +799,7 @@ def _deliver_email_notification(
 ) -> Path:
     """Send an explicit email notification and record a local audit artifact."""
 
-    audit_path = _resolve_email_audit_path(output_path)
+    audit_path = _resolve_email_audit_path(experiment_id)
     notification_sha256 = _sha256_text(markdown)
     _require_email_not_already_sent(
         audit_path=audit_path,
@@ -816,7 +810,7 @@ def _deliver_email_notification(
         audit_path=audit_path,
         experiment_id=experiment_id,
         recipient=recipient,
-        status="pending",
+        status="send_in_progress",
         failure_class=None,
         markdown=markdown,
         output_path=output_path,
@@ -858,7 +852,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     parser = argparse.ArgumentParser(
         prog="experiment_notify",
-        description="Render artifact-only notifications for governed experiment results.",
+        description=(
+            "Render governed experiment notifications "
+            "(local artifact default; SMTP email explicit opt-in)."
+        ),
     )
     parser.add_argument("--packet", required=True, help="Experiment packet JSON path.")
     parser.add_argument("--result", required=True, help="Experiment result JSON path.")
