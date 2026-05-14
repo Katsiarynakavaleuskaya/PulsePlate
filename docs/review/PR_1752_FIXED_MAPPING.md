@@ -17,9 +17,7 @@
 
 ### Fixed in Commit Mapping
 
-- No GitHub review-thread URLs are unresolved in this artifact as of the local
-  CodeRabbit CLI pass. CLI findings are recorded below under Role-Agent
-  Findings until or unless GitHub-hosted review threads exist.
+- No actionable review comments
 
 ## Role-Agent Findings
 
