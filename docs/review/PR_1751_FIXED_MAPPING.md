@@ -11,6 +11,7 @@
 - `f4c2601df6cb55f409e62b332773b5512354b7bf` - `docs(review): add PR 1751 fixed mapping`
 - `7ef7d0904c0d32337e84fd4400267d0eb0db7ce7` - `docs(review): fix PR 1751 phase2 mapping contract`
 - `da8b2db70bbd11afe765b30da551b5aa629a43fa` - `fix(orchestration): harden experiment email notification sink`
+- `fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd` - `docs(review): map PR 1751 review fixes`
 
 ## Coordinator / Agent Passes
 
@@ -61,6 +62,11 @@ Operator explicitly held main on control and approved opening this PR lane. This
 Disposition: FIXED
 Commit: da8b2db70bbd11afe765b30da551b5aa629a43fa
 Evidence: `scripts/AGENTS.md` now says `local artifact output is the default`; `VENV_PYTHON=../../.venv/bin/python pre-commit run --all-files` PASS.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237901619 -> fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd
+Disposition: FIXED
+Commit: fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd
+Evidence: Merge-readiness checklist boxes in this artifact are unchecked until the final merge cycle.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905243 -> da8b2db70bbd11afe765b30da551b5aa629a43fa
 Disposition: FIXED
