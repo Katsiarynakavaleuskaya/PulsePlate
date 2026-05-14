@@ -7,13 +7,12 @@ import argparse
 import concurrent.futures
 import multiprocessing
 import os
+import re
 import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
-
-from defusedxml import ElementTree
 
 DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
@@ -22,6 +21,7 @@ DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
+JUNIT_ATTRIBUTE_PATTERN = re.compile(r'\b(tests|failures|errors)="([0-9]+)"')
 
 
 @dataclass(frozen=True)
@@ -201,22 +201,17 @@ def shard_artifacts_prove_success(repo_root: Path, shard: TestShard) -> bool:
     if not junit_path.exists() or not coverage_path.exists() or coverage_path.stat().st_size <= 0:
         return False
 
-    try:
-        root = ElementTree.parse(junit_path).getroot()
-    except ElementTree.ParseError:
+    junit_text = junit_path.read_text(encoding="utf-8", errors="replace")
+    attributes = {
+        name: int(value) for name, value in JUNIT_ATTRIBUTE_PATTERN.findall(junit_text[:4096])
+    }
+    if not attributes:
         return False
-
-    suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
-    if not suites:
-        return False
-    total_tests = 0
-    total_failures = 0
-    total_errors = 0
-    for suite in suites:
-        total_tests += int(suite.attrib.get("tests", "0"))
-        total_failures += int(suite.attrib.get("failures", "0"))
-        total_errors += int(suite.attrib.get("errors", "0"))
-    return total_tests > 0 and total_failures == 0 and total_errors == 0
+    return (
+        attributes.get("tests", 0) > 0
+        and attributes.get("failures", 0) == 0
+        and attributes.get("errors", 0) == 0
+    )
 
 
 def run_shard_child(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
