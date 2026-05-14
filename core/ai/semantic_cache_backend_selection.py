@@ -97,21 +97,21 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|responses?"
     r"|answers?"
     r"|provider[_: -]?payloads?"
-    r"|connection[_ -]?string"
-    r"|local[_ -]?path"
+    r"|connection[_: -]?string"
+    r"|local[_: -]?path"
     r"|redis://"
     r"|redis[_ -]?url"
     r"|gptcache"
     r"|secret"
-    r"|(?:^|[_ -])(?:access|refresh|id|session|auth)?[_ -]?token(?:$|[_ -])"
+    r"|(?:^|[_: -])(?:access|refresh|id|session|auth)?[_: -]?token(?:$|[_: -])"
     r"|jwt"
     r"|credential"
     r"|authorization"
-    r"|api[_ -]?key"
+    r"|api[_: -]?key"
     r"|bearer"
     r"|cookie"
-    r"|session[_ -]?id"
-    r"|private[_ -]?key"
+    r"|session[_: -]?id"
+    r"|private[_: -]?key"
     r"|password"
     r"|pwd"
     r"|sk-[a-z0-9]"
@@ -121,25 +121,26 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|eyj[a-z0-9_-]*\.[a-z0-9_-]+(?:\.[a-z0-9_-]+)?"
     r"|[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}"
     r"|\+?\d[\d ()-]{7,}\d"
-    r"|healthkit"
+    r"|health[_: -]?kit"
     r"|diagnosis"
     r"|symptom"
     r"|medical"
-    r"|account[_ -]?(?:id|truth)"
+    r"|account[_: -]?(?:id|truth)"
     r"|billing"
     r"|entitlement"
     r"|legal"
     r"|compliance"
-    r"|advisory[_ -]?wiki"
-    r"|workforce[_ -]?memory"
+    r"|advisory[_: -]?wiki"
+    r"|workforce[_: -]?memory"
     r"|graphrag"
-    r"|knowledge[_ -]?graph",
+    r"|knowledge[_: -]?graph",
     re.IGNORECASE,
 )
 _UNSAFE_EVIDENCE_ID_RE = re.compile(
-    r"raw[_:-]?(?:query|prompt|response|answer)"
-    r"|normalized[_:-]?query"
-    r"|healthkit"
+    r"raw[_:-]?(?:model[_:-]?)?(?:queries|query|prompts?|responses?|answers?)"
+    r"|normalized[_:-]?(?:queries|query)"
+    r"|provider[_:-]?payloads?"
+    r"|health[_:-]?kit"
     r"|diagnosis"
     r"|symptom"
     r"|medical"
@@ -1107,6 +1108,8 @@ def _validate_token(name: str, value: str) -> str:
         raise ValueError(f"{name} must not contain paths")
     if _UNSAFE_TOKEN_RE.search(normalized):
         raise ValueError(f"{name} contains unsafe token")
+    if _UNSAFE_EVIDENCE_ID_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe proof token")
     if not _TOKEN_RE.match(normalized):
         raise ValueError(f"{name} contains unsupported characters")
     return normalized
@@ -1126,8 +1129,12 @@ def _validate_structured_proof_id(
     prefixes: tuple[str, ...],
 ) -> str:
     normalized = _validate_evidence_id(name, value)
-    if not any(normalized.startswith(prefix) for prefix in prefixes):
+    matching_prefix = next((prefix for prefix in prefixes if normalized.startswith(prefix)), None)
+    if matching_prefix is None:
         raise ValueError(f"{name} must use a structured proof identifier")
+    suffix = normalized[len(matching_prefix) :]
+    if not any(char.isalnum() for char in suffix):
+        raise ValueError(f"{name} must include proof evidence after its prefix")
     return normalized
 
 

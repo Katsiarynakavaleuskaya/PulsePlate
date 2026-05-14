@@ -518,6 +518,14 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"provider_payloads": "payload"},
         {"provider:payload": "payload"},
         {"safe_key": "provider:payload"},
+        {"api:key": "safe-looking"},
+        {"private:key": "safe-looking"},
+        {"connection:string": "safe-looking"},
+        {"local:path": "safe-looking"},
+        {"truth": "advisory:wiki"},
+        {"truth": "knowledge:graph"},
+        {"health_kit_payload": "safe-looking"},
+        {"safe_key": "health-kit-derived"},
         {"path": "/tmp/cache"},
         {"truth": "advisory wiki"},
         {"credential": "blocked-value"},
@@ -791,7 +799,14 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         "pass" + "word:blocked-value",
         "p" + "wd:blocked-value",
         "proof:healthkit",
+        "proof:health_kit",
+        "proof:health-kit",
         "proof:raw_prompt",
+        "proof:raw_queries",
+        "proof:normalized_queries",
+        "proof:raw_model_response",
+        "proof:raw-model-response",
+        "proof:raw:model:response",
         "proof:account-id-123",
         "proof:billing",
         "proof:legal",
@@ -805,6 +820,19 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             replace(_candidate(), current_head_ci_proof_id=generic_value)
         with pytest.raises(ValueError, match="structured proof"):
             replace(_candidate(), human_approval_record_id=generic_value)
+    for prefix_only_value in ("ci:current-head:", "verification-bundle:ci:"):
+        with pytest.raises(ValueError, match="proof evidence"):
+            replace(_candidate(), current_head_ci_proof_id=prefix_only_value)
+    for prefix_only_value in ("approval:human:", "verification-bundle:approval:"):
+        with pytest.raises(ValueError, match="proof evidence"):
+            replace(_candidate(), human_approval_record_id=prefix_only_value)
+    for unsafe_proof_token in ("raw_prompt", "provider_payload", "billing", "health_kit"):
+        with pytest.raises(ValueError, match="unsafe proof token"):
+            replace(_evidence(), source_fingerprints=(unsafe_proof_token,))
+        with pytest.raises(ValueError, match="unsafe proof token"):
+            replace(_evidence(), eval_event_ids=(unsafe_proof_token,))
+        with pytest.raises(ValueError, match="unsafe proof token"):
+            replace(_evidence(), evidence_fingerprints=(unsafe_proof_token,))
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
