@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import importlib
+import sys
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
@@ -238,6 +240,19 @@ def test_policy_or_surface_mismatch_blocks_sc_g4_compatibility() -> None:
 
     assert REASON_SC_G4_EVIDENCE_MISSING in policy_mismatch.reason_codes
     assert REASON_SC_G4_EVIDENCE_MISSING in surface_mismatch.reason_codes
+
+    for evidence in (
+        replace(_evidence(), sc_g2_contract_id="contract:sc-g2-other"),
+        replace(_evidence(), sc_g3_contract_id="contract:sc-g3-other"),
+        replace(_evidence(), sc_g4_contract_id="contract:sc-g4-other"),
+    ):
+        decision = evaluate_semantic_cache_backend_candidate(
+            candidate=_candidate(evidence=evidence),
+            criteria=_criteria(),
+        )
+
+        assert decision.decision == DECISION_INELIGIBLE
+        assert REASON_SC_G4_EVIDENCE_MISSING in decision.reason_codes
 
 
 def test_policy_and_surface_mismatch_dedupe_sc_g4_reason() -> None:
@@ -833,6 +848,14 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             replace(_evidence(), eval_event_ids=(unsafe_proof_token,))
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_evidence(), evidence_fingerprints=(unsafe_proof_token,))
+    for unsafe_evidence in (
+        lambda: replace(_evidence(), sc_g2_contract_id="contract:raw_prompt"),
+        lambda: replace(_evidence(), sc_g3_contract_id="contract:provider_payload"),
+        lambda: replace(_evidence(), sc_g4_contract_id="contract:raw_model_response"),
+        lambda: replace(_evidence(), admission_decision_id="admission:raw_prompt"),
+    ):
+        with pytest.raises(ValueError, match="unsafe proof token"):
+            unsafe_evidence()
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
@@ -860,6 +883,22 @@ def test_no_core_ai_export_side_door() -> None:
 
     assert "semantic_cache_backend_selection" not in content
     assert "SemanticCacheBackend" not in content
+
+
+def test_core_ai_facade_does_not_eagerly_import_runtime_for_sc_g5() -> None:
+    sys.modules.pop("core.ai.insight_runtime", None)
+    sys.modules.pop("core.insight.philosophical_runtime", None)
+
+    facade = importlib.reload(importlib.import_module("core.ai"))
+    assert "core.ai.insight_runtime" not in sys.modules
+    assert "core.insight.philosophical_runtime" not in sys.modules
+
+    importlib.import_module("core.ai.semantic_cache_backend_selection")
+    assert "core.ai.insight_runtime" not in sys.modules
+    assert "core.insight.philosophical_runtime" not in sys.modules
+
+    getattr(facade, "prepare_insight_runtime")
+    assert "core.ai.insight_runtime" in sys.modules
 
 
 def test_module_has_no_forbidden_imports_or_nondeterministic_calls() -> None:

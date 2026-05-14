@@ -309,6 +309,22 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
         errors = validate_semantic_cache_backend_selection_contract(bad_text)
         assert any(required_evidence.strip('"') in error for error in errors)
 
+    for required_rollback_proof in (
+        '"kill switch proof"',
+        '"request bypass proof"',
+        '"no-cache fallback proof"',
+        '"purge/invalidation proof"',
+        '"disabled-state test IDs"',
+        '"stop-rule replay IDs"',
+        '"rollback runbook ID"',
+        '"rollback blast radius basis points"',
+    ):
+        bad_text = _contract_text().replace(required_rollback_proof + ",\n", "")
+        bad_text = bad_text.replace(",\n    " + required_rollback_proof + "\n", "\n")
+        bad_text = bad_text.replace(required_rollback_proof + "\n", "")
+        errors = validate_semantic_cache_backend_selection_contract(bad_text)
+        assert any(required_rollback_proof.strip('"') in error for error in errors)
+
     bad_text = _contract_text().replace('"human approval record"\n', '"human approval"\n')
     errors = validate_semantic_cache_backend_selection_contract(bad_text)
     assert any("human approval record" in error for error in errors)

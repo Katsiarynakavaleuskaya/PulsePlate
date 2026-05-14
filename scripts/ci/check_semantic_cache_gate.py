@@ -999,9 +999,13 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
         ),
         "required_rollback_proof": (
             "kill switch proof",
+            "request bypass proof",
+            "no-cache fallback proof",
             "purge/invalidation proof",
             "disabled-state test IDs",
             "stop-rule replay IDs",
+            "rollback runbook ID",
+            "rollback blast radius basis points",
         ),
         "forbidden_claims": (
             "active semantic-cache claim",

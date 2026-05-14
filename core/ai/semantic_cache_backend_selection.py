@@ -159,6 +159,9 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
 )
 SC_G5_MIN_NEGATIVE_CONTROL_COUNT = 10
 SC_G5_MIN_FRESH_RUNTIME_COMPARISON_COUNT = 10
+REQUIRED_SC_G2_CONTRACT_ID = "contract:sc-g2"
+REQUIRED_SC_G3_CONTRACT_ID = "contract:sc-g3"
+REQUIRED_SC_G4_CONTRACT_ID = "contract:sc-g4"
 
 
 @dataclass(frozen=True)
@@ -195,17 +198,17 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "sc_g2_contract_id",
-            _validate_token("sc_g2_contract_id", self.sc_g2_contract_id),
+            _validate_evidence_id("sc_g2_contract_id", self.sc_g2_contract_id),
         )
         object.__setattr__(
             self,
             "sc_g3_contract_id",
-            _validate_token("sc_g3_contract_id", self.sc_g3_contract_id),
+            _validate_evidence_id("sc_g3_contract_id", self.sc_g3_contract_id),
         )
         object.__setattr__(
             self,
             "sc_g4_contract_id",
-            _validate_token("sc_g4_contract_id", self.sc_g4_contract_id),
+            _validate_evidence_id("sc_g4_contract_id", self.sc_g4_contract_id),
         )
         object.__setattr__(
             self,
@@ -220,7 +223,7 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "admission_decision_id",
-            _validate_token("admission_decision_id", self.admission_decision_id),
+            _validate_evidence_id("admission_decision_id", self.admission_decision_id),
         )
         object.__setattr__(
             self,
@@ -786,6 +789,12 @@ def _candidate_failure_reasons(
     if candidate.policy_version != criteria.policy_version:
         reasons.append(REASON_SC_G4_EVIDENCE_MISSING)
     if criteria.required_surface not in candidate.supported_surfaces:
+        reasons.append(REASON_SC_G4_EVIDENCE_MISSING)
+    if (
+        evidence.sc_g2_contract_id != REQUIRED_SC_G2_CONTRACT_ID
+        or evidence.sc_g3_contract_id != REQUIRED_SC_G3_CONTRACT_ID
+        or evidence.sc_g4_contract_id != REQUIRED_SC_G4_CONTRACT_ID
+    ):
         reasons.append(REASON_SC_G4_EVIDENCE_MISSING)
     if evidence.false_hit_rate_bps > criteria.max_false_hit_rate_bps:
         reasons.append(REASON_FALSE_HIT_RATE_EXCEEDED)
