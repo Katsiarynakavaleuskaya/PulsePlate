@@ -340,9 +340,14 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
 
+    py311_block = _extract_shell_conditional_block(
+        test_main_section,
+        'if [[ "$PYVER" == 3.11* ]]; then',
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
+    )
     py312_block = _extract_shell_conditional_block(
         test_main_section,
-        'if [[ "$PYVER" == 3.12* ]]; then',
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
         '          elif [[ "$PYVER" == 3.13* ]]; then',
     )
     py313_block = _extract_shell_conditional_block(
@@ -360,6 +365,12 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
         '          if [[ -n "${MAIN_TEST_SHARDS:-}" ]]; then',
         '          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"',
     )
+
+    assert "MAIN_TEST_SHARDS=4" in py311_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py311_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py311_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block
 
     assert "MAIN_TEST_SHARDS=3" in py312_block
     assert "MAIN_TEST_MAX_PARALLEL=3" in py312_block
@@ -402,6 +413,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
         "name: junit-main-${{ matrix.python-version }}\n"
         "          path: |\n"
         "            tests/results.xml\n"
+        "            tests/results-py311-shard-*.xml\n"
         "            tests/results-py312-shard-*.xml\n"
         "            tests/results-py313-shard-*.xml\n"
         "          if-no-files-found: ignore\n"

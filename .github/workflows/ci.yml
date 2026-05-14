@@ -1091,10 +1091,11 @@ jobs:
           # IMPORTANT: main branch must maintain 97% coverage per project standards
           # See .cursorrules and AGENTS.md
           #
-          # CI stability: Python 3.12 exceeded the 60-minute main window after xdist
-          # containment. Python 3.13 passed inside the 90-minute window with almost
-          # no headroom after xdist was disabled. Run isolated process-level shards
-          # for both versions instead of pytest-xdist workers, preserving each
+          # CI stability: Python 3.11 crashed under xdist+coverage, Python 3.12
+          # exceeded the 60-minute main window after xdist containment, and Python
+          # 3.13 passed inside the 90-minute window with almost no headroom after
+          # xdist was disabled. Run isolated process-level shards for all main
+          # matrix versions instead of pytest-xdist workers, preserving each
           # test-main required-check identity.
           # Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
@@ -1102,7 +1103,10 @@ jobs:
           PYVER="${MATRIX_PYTHON_VERSION}"
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
-          if [[ "$PYVER" == 3.12* ]]; then
+          if [[ "$PYVER" == 3.11* ]]; then
+            MAIN_TEST_SHARDS=4
+            MAIN_TEST_MAX_PARALLEL=4
+          elif [[ "$PYVER" == 3.12* ]]; then
             MAIN_TEST_SHARDS=3
             MAIN_TEST_MAX_PARALLEL=3
           elif [[ "$PYVER" == 3.13* ]]; then
@@ -1159,6 +1163,7 @@ jobs:
           name: junit-main-${{ matrix.python-version }}
           path: |
             tests/results.xml
+            tests/results-py311-shard-*.xml
             tests/results-py312-shard-*.xml
             tests/results-py313-shard-*.xml
           if-no-files-found: ignore
