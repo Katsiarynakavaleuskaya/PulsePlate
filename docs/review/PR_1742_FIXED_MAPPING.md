@@ -235,6 +235,14 @@ Evidence: Latest sensitive-token review gaps were fixed in code/tests: evidence/
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355607 -> b6fd8ca27
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355622 -> b6fd8ca27
 
+Disposition: FIXED
+Commit: 4b4200da4
+Evidence: Latest review gaps were fixed in code/checker/tests: SC-G5 candidate eligibility now requires exact SC-G2/SC-G3/SC-G4 contract evidence IDs, scalar contract/admission evidence IDs reuse unsafe evidence screening before serialization, the package facade no longer eagerly imports runtime modules when SC-G5 is imported, and the machine-state checker validates every rollback proof field. Focused pytest, split mypy, semantic-cache checker, docs Phase1 gate, preflight, agent consistency, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241408441 -> 4b4200da4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241408448 -> 4b4200da4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241408454 -> 4b4200da4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241408459 -> 4b4200da4
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
