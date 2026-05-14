@@ -130,6 +130,19 @@ def test_absolute_path_env_resolves_relative_entries(tmp_path: Path) -> None:
     assert entries == [str(relative_bin.resolve()), "/usr/bin"]
 
 
+def test_absolute_path_env_uses_default_path_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PATH", raising=False)
+
+    with experiment_runner._temporary_sandbox_env(
+        sandbox_root=Path.cwd(),
+        allowed_binaries=("python3",),
+        timeout_seconds=1,
+    ):
+        assert os.environ["PATH"] == experiment_runner._absolute_path_env(os.defpath)
+
+
 def test_validate_packet_rejects_wrong_schema_version() -> None:
     """Runner input must fail closed on incompatible packet schema versions."""
 

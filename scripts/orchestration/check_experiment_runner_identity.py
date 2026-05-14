@@ -25,6 +25,16 @@ SENSITIVE_FIELD_RE = re.compile(
     r"(private[\s_-]*key|pass[\s_-]*phrase|secret|token|credential|signing[\s_-]*key)",
     re.IGNORECASE,
 )
+SENSITIVE_POLICY_KEY_TOKENS = frozenset(
+    {
+        "credential",
+        "pass_phrase",
+        "private_key",
+        "secret",
+        "signing_key",
+        "token",
+    }
+)
 SENSITIVE_VALUE_RE = re.compile(
     r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
     re.IGNORECASE,
@@ -35,6 +45,7 @@ AUTHORITY_FIELD_NAMES = frozenset(
         "can_claim_merge_readiness",
         "can_resolve_review_threads",
         "can_push_without_human_review",
+        "allowed_commit_context",
     }
 )
 CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
@@ -99,6 +110,13 @@ def _normalized_policy_key(key: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
 
 
+def _is_sensitive_policy_key(key: Any) -> bool:
+    normalized = _normalized_policy_key(key)
+    return SENSITIVE_FIELD_RE.search(str(key)) is not None or any(
+        token in normalized for token in SENSITIVE_POLICY_KEY_TOKENS
+    )
+
+
 def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
@@ -107,7 +125,7 @@ def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
                 raise IdentityPolicyError(
                     f"{next_path} must not store private key material or secrets."
                 )
-            if SENSITIVE_FIELD_RE.search(str(key)):
+            if _is_sensitive_policy_key(key):
                 allowed_marker = isinstance(value, str) and value in {"none", "external"}
                 allowed_canonical_bool = (
                     next_path in CANONICAL_SENSITIVE_BOOLEAN_PATHS and isinstance(value, bool)
@@ -146,9 +164,26 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
             _reject_authority_drift(item, path=f"{path}[{index}]")
 
 
+def _reject_duplicate_identity_blocks(payload: Any, *, path: str = "$") -> None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            next_path = _path_for_key(path, key)
+            normalized_key = _normalized_policy_key(key)
+            if normalized_key.startswith("slack_identity") and next_path != "$.slack_identity":
+                raise IdentityPolicyError(
+                    f"{next_path} must not duplicate slack_identity boundary."
+                )
+            _reject_duplicate_identity_blocks(value, path=next_path)
+        return
+    if isinstance(payload, list):
+        for index, item in enumerate(payload):
+            _reject_duplicate_identity_blocks(item, path=f"{path}[{index}]")
+
+
 def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a validated identity policy or raise IdentityPolicyError."""
 
+    _reject_duplicate_identity_blocks(payload)
     _reject_authority_drift(payload)
     if payload.get("schema_version") != EXPECTED_SCHEMA_VERSION:
         raise IdentityPolicyError("schema_version must be 1.0.")

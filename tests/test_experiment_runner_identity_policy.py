@@ -64,6 +64,22 @@ def test_rejects_repo_private_key_material_with_repeated_separators() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+@pytest.mark.parametrize(
+    "field_name",
+    [
+        "private.key",
+        "signing/key",
+        "pass.phrase",
+    ],
+)
+def test_rejects_sensitive_field_names_with_punctuation(field_name: str) -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"][field_name] = "stored"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_sensitive_field_object_without_type_error() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["private_key"] = {"stored": True}
@@ -208,6 +224,16 @@ def test_rejects_authority_drift_with_separator_variants() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_duplicate_commit_context_authority_drift() -> None:
+    policy = _valid_policy()
+    policy["authority_boundary_v2"] = {
+        "allowed_commit_context": "production_autonomous",
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_notification_delivery_drift() -> None:
     policy = _valid_policy()
     policy["notification_boundary"]["experiment_result_delivery"] = "smtp_email"
@@ -221,6 +247,17 @@ def test_rejects_slack_as_active_crypto_identity() -> None:
     policy["slack_identity"]["status"] = "active"
 
     with pytest.raises(identity_check.IdentityPolicyError, match="slack_identity.status"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_duplicate_slack_identity_boundary() -> None:
+    policy = _valid_policy()
+    policy["slack_identity_v2"] = {
+        "status": "active",
+        "not_cryptographic_identity": False,
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="duplicate slack_identity"):
         identity_check.validate_identity_policy(policy)
 
 

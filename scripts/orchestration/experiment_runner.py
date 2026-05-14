@@ -264,7 +264,7 @@ def _temporary_sandbox_env(
         sandbox.SANDBOX_TIMEOUT_ENV: str(timeout_seconds),
         sandbox.SANDBOX_ALLOWED_BINARIES_ENV: ",".join(allowed_binaries),
         cp.EXECUTION_MODE_ENV: cp.EXECUTION_MODE_AUTO_SAFE,
-        "PATH": _absolute_path_env(os.environ.get("PATH")),
+        "PATH": _absolute_path_env(os.environ.get("PATH") or os.defpath),
     }
     previous = {key: os.environ.get(key) for key in overrides}
     try:
