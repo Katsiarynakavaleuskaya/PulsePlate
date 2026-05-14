@@ -253,6 +253,16 @@ Evidence: Latest backend-proof review gaps were fixed in code/checker/tests: met
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477792 -> 1f6cec218
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477800 -> 1f6cec218
 
+Disposition: FIXED
+Commit: 930c1149f
+Evidence: Third backend-proof review wave was fixed in code/checker/tests: upstream evidence mismatches now emit distinct SC-G2/SC-G3/SC-G4 reason codes, direct decision objects reject unknown reason codes, rollback proof fields require structured machine-checkable IDs, the import guard tracks `os.environ` aliases and blocks runtime facade imports through `core.ai`, and docs Phase1 gates validate SC-G5 schema-only edits. Focused pytest, split mypy, semantic-cache checker, docs Phase1 gate, preflight, agent consistency, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547719 -> 930c1149f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547724 -> 930c1149f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547726 -> 930c1149f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547729 -> 930c1149f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547736 -> 930c1149f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547742 -> 930c1149f
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
