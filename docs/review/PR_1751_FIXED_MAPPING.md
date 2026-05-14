@@ -186,6 +186,11 @@ Disposition: FIXED
 Commit: 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
 Evidence: Invalid UTF-8 email audit files now raise sanitized `ExperimentEmailDeliveryError`; `tests/test_experiment_notify.py::test_invalid_utf8_email_audit_fails_closed` covers it.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4287993553 -> 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
+Disposition: FIXED
+Commit: 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
+Evidence: CodeRabbit review-level retry/audit finding is addressed by fail-closed existing-audit handling and invalid-audit sanitization; automatic reclaim remains intentionally unsupported for v1 to avoid ambiguous duplicate delivery.
+
 ## Merge Readiness
 
 - [ ] Coordinator-first preflight/bootstrap completed.
