@@ -7,6 +7,7 @@
 - Implementing commits:
   - `f53cb69db` - governed Experiment Runner identity boundary, offline guard, tests, and nested git environment hardening.
   - `e33e29c2d` - initial PR 1752 fixed-mapping artifact.
+  - `229777a55` - CodeRabbit CLI governance fixes for backlog priority ordering and Phase 2 fixed-mapping formatting.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -37,6 +38,10 @@ Evidence: Coordinator scope was refreshed after review to include actual touched
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-slack-identity-boundary`
 Evidence: Slack identity is explicitly deferred as notification/display identity only. It is not a cryptographic Git identity and requires a separate security-governed PR.
+
+Disposition: FIXED
+Commit: `229777a55`
+Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack follow-up from the Open Items insertion point into the `### P2` section, changing the fixed-mapping heading to `### Fixed in Commit Mapping`, completing the discussion-thread/fixed-mapping checklist for the local review pass, and removing the stale draft-only note.
 
 ## Local Validation
 
