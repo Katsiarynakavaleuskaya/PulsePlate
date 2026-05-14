@@ -453,7 +453,7 @@ class TestPremiumEndpoints:
             # The endpoint actually works correctly and returns 200
             assert response.status_code == 200
 
-    def test_premium_bmr_runtime_patch_returns_stub_response(self):
+    def test_premium_bmr_runtime_patch_returns_stub_response(self) -> None:
         """Cover the conservative BMR/TDEE fallback when runtime exports are patched away."""
         with (
             patch.dict(os.environ, {"API_KEY": "test_key"}),
@@ -475,6 +475,7 @@ class TestPremiumEndpoints:
             response = self.client.post("/api/v1/premium/bmr", json=data, headers=headers)
 
         assert response.status_code == 200
+        assert response.headers.get("content-type", "").startswith("application/json")
         body = response.json()
         assert body["bmr"] == {"stub": 1920.0}
         assert body["tdee"] == {"stub": 2640.0}
