@@ -18,6 +18,7 @@
   - `0aec2bf28` - reclassified coordinator task-packet evidence and mapped identity guard bypass findings.
   - `cf1174f86` - sanitized token-shaped key diagnostics, canonical sensitive boolean scope, and separator-normalized authority drift checks.
   - `2e9a48c6b` - normalized sandbox oracle PATH handling so branch-diff validation with relative repo venv PATH stays deterministic.
+  - `1dbb8b612` - closed final Cubic/Codex edge cases for unset PATH fallback, punctuation-normalized sensitive keys, duplicate Slack blocks, and duplicate commit-context authority drift.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -46,10 +47,14 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243532243 -> cf1174f86
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243532245 -> cf1174f86
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243532247 -> cf1174f86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243710822 -> 1dbb8b612
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243715290 -> 1dbb8b612
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243715295 -> 1dbb8b612
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243715301 -> 1dbb8b612
 
 Disposition: FIXED
-Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`, `cf1174f86`
-Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting repeated separators in sensitive key names, rejecting duplicate sensitive booleans outside canonical paths, rejecting separator-variant authority drift outside `authority_boundary`, and replacing the brittle validation command text with `make validate-changed`.
+Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`, `cf1174f86`, `1dbb8b612`
+Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting repeated and punctuation separators in sensitive key names, rejecting duplicate sensitive booleans outside canonical paths, rejecting separator-variant authority drift and duplicate `allowed_commit_context` drift outside `authority_boundary`, rejecting duplicate Slack identity blocks, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
 
 ## Role-Agent Findings
 
@@ -84,6 +89,8 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS.
 - `pytest -q tests/test_experiment_runner_identity_policy.py` PASS after `cf1174f86`.
 - `make validate-changed` PASS after `2e9a48c6b`.
+- `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS after `1dbb8b612`.
+- `make validate-changed` PASS after `1dbb8b612`.
 - `black --check` on changed Python files PASS.
 - `flake8` on identity guard/tests PASS.
 - `mypy --explicit-package-bases` on identity guard/tests PASS.
