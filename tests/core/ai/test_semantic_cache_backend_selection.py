@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import importlib
+import subprocess
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -958,19 +958,23 @@ def test_no_core_ai_export_side_door() -> None:
 
 
 def test_core_ai_facade_does_not_eagerly_import_runtime_for_sc_g5() -> None:
-    sys.modules.pop("core.ai.insight_runtime", None)
-    sys.modules.pop("core.insight.philosophical_runtime", None)
+    script = """
+import importlib
+import sys
 
-    facade = importlib.reload(importlib.import_module("core.ai"))
-    assert "core.ai.insight_runtime" not in sys.modules
-    assert "core.insight.philosophical_runtime" not in sys.modules
+facade = importlib.import_module("core.ai")
+assert "core.ai.insight_runtime" not in sys.modules
+assert "core.insight.philosophical_runtime" not in sys.modules
 
-    importlib.import_module("core.ai.semantic_cache_backend_selection")
-    assert "core.ai.insight_runtime" not in sys.modules
-    assert "core.insight.philosophical_runtime" not in sys.modules
+importlib.import_module("core.ai.semantic_cache_backend_selection")
+assert "core.ai.insight_runtime" not in sys.modules
+assert "core.insight.philosophical_runtime" not in sys.modules
 
-    getattr(facade, "prepare_insight_runtime")
-    assert "core.ai.insight_runtime" in sys.modules
+getattr(facade, "prepare_insight_runtime")
+assert "core.ai.insight_runtime" in sys.modules
+"""
+
+    subprocess.run([sys.executable, "-c", script], cwd=REPO_ROOT, check=True)
 
 
 def test_module_has_no_forbidden_imports_or_nondeterministic_calls() -> None:
