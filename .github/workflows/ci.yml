@@ -1109,11 +1109,11 @@ jobs:
           elif [[ "$PYVER" == 3.12* ]]; then
             MAIN_TEST_SHARDS=16
             MAIN_TEST_MAX_PARALLEL=4
-            MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=8
             MAIN_TEST_MAX_PARALLEL=4
-            MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
