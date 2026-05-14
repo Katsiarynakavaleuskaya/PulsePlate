@@ -372,7 +372,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block
 
-    assert "MAIN_TEST_SHARDS=8" in py312_block
+    assert "MAIN_TEST_SHARDS=16" in py312_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py312_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
@@ -380,8 +380,8 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "TEST_STEP_STARTED_AT=" in test_main_section
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
-    assert "MAIN_TEST_SHARDS=2" in py313_block
-    assert "MAIN_TEST_MAX_PARALLEL=2" in py313_block
+    assert "MAIN_TEST_SHARDS=8" in py313_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block

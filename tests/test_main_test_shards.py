@@ -202,25 +202,6 @@ def test_shard_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str])
     assert "MAIN_TEST_SHARD_TIMEOUT_TOO_LOW" in capsys.readouterr().err
 
 
-def test_shard_artifacts_prove_success_requires_clean_junit_and_coverage(tmp_path: Path) -> None:
-    shard = runner.TestShard(index=1, artifact_label="py312")
-    junit_path = tmp_path / shard.junit_file
-    junit_path.parent.mkdir(parents=True, exist_ok=True)
-    junit_path.write_text(
-        '<testsuite tests="2" failures="0" errors="0" skipped="0"></testsuite>',
-        encoding="utf-8",
-    )
-    (tmp_path / shard.coverage_file).write_text("coverage", encoding="utf-8")
-
-    assert runner.shard_artifacts_prove_success(tmp_path, shard) is True
-
-    junit_path.write_text(
-        '<testsuite tests="2" failures="1" errors="0" skipped="0"></testsuite>',
-        encoding="utf-8",
-    )
-    assert runner.shard_artifacts_prove_success(tmp_path, shard) is False
-
-
 def test_run_shard_invokes_explicit_child_interpreter(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -272,7 +253,7 @@ def test_run_shard_invokes_explicit_child_interpreter(
     assert env["COVERAGE_FILE"] == str(tmp_path / ".coverage.py313-main-shard-3")
 
 
-def test_run_shard_accepts_timeout_after_clean_artifacts(
+def test_run_shard_fails_timeout_even_with_clean_artifacts(
     capsys: pytest.CaptureFixture[str],
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -296,8 +277,10 @@ def test_run_shard_accepts_timeout_after_clean_artifacts(
 
     monkeypatch.setattr(subprocess, "run", fake_run)
 
-    assert runner.run_shard(tmp_path, shard, {}) == 0
-    assert "MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS" in capsys.readouterr().err
+    assert runner.run_shard(tmp_path, shard, {}) == 124
+    stderr = capsys.readouterr().err
+    assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in stderr
+    assert "MAIN_TEST_SHARD_TIMEOUT_FILE label=py312 index=4 path=tests/test_alpha.py" in stderr
 
 
 def test_run_shard_fails_timeout_without_clean_artifacts(

@@ -7,7 +7,6 @@ import argparse
 import concurrent.futures
 import multiprocessing
 import os
-import re
 import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
 import sys
 from dataclasses import dataclass, field
@@ -21,7 +20,6 @@ DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
-JUNIT_ATTRIBUTE_PATTERN = re.compile(r'\b(tests|failures|errors)="([0-9]+)"')
 
 
 @dataclass(frozen=True)
@@ -193,27 +191,6 @@ def shard_timeout_seconds(base_env: Mapping[str, str]) -> int:
     return timeout
 
 
-def shard_artifacts_prove_success(repo_root: Path, shard: TestShard) -> bool:
-    """Return whether a timed-out shard wrote complete passing artifacts."""
-
-    junit_path = repo_root / shard.junit_file
-    coverage_path = repo_root / shard.coverage_file
-    if not junit_path.exists() or not coverage_path.exists() or coverage_path.stat().st_size <= 0:
-        return False
-
-    junit_text = junit_path.read_text(encoding="utf-8", errors="replace")
-    attributes = {
-        name: int(value) for name, value in JUNIT_ATTRIBUTE_PATTERN.findall(junit_text[:4096])
-    }
-    if not attributes:
-        return False
-    return (
-        attributes.get("tests", 0) > 0
-        and attributes.get("failures", 0) == 0
-        and attributes.get("errors", 0) == 0
-    )
-
-
 def run_shard_child(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
     """Run one pytest shard inside a disposable interpreter process."""
 
@@ -270,20 +247,19 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
             timeout=timeout,
         )
     except subprocess.TimeoutExpired:
-        if shard_artifacts_prove_success(repo_root, shard):
-            print(
-                f"MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS label={shard.artifact_label} "
-                f"index={shard.index} timeout_seconds={timeout}",
-                file=sys.stderr,
-                flush=True,
-            )
-            return 0
         print(
             f"MAIN_TEST_SHARD_TIMEOUT_FAILED label={shard.artifact_label} "
             f"index={shard.index} timeout_seconds={timeout}",
             file=sys.stderr,
             flush=True,
         )
+        for test_file in shard.files:
+            print(
+                f"MAIN_TEST_SHARD_TIMEOUT_FILE label={shard.artifact_label} "
+                f"index={shard.index} path={test_file.path}",
+                file=sys.stderr,
+                flush=True,
+            )
         return 124
     return int(completed.returncode)
 
