@@ -187,6 +187,10 @@ Disposition: NOT-A-BUG
 Evidence: current branch head contains the listed proof commits and the latest mapping follow-up commit; `git merge-base --is-ancestor e7a6bbd13ef1f6865dcc85fd57caec9d466dada7 HEAD`, `git merge-base --is-ancestor 62f8b3041026fc8e5729a1776d34d03ff3d6ff06 HEAD`, and `git merge-base --is-ancestor 5a5b36b76974f94fc4cc7e9b206d98442a4d70c5 HEAD` all exit 0 locally.
 Reason: The bot reviewed a virtual squashed head; the canonical PR branch history contains the mapped proof commits and current-head CI merge-readiness gates pass on the branch history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3239620006
+Disposition: NOT-A-BUG
+Evidence: current branch head contains the listed proof commits; `git merge-base --is-ancestor e7a6bbd13ef1f6865dcc85fd57caec9d466dada7 HEAD`, `git merge-base --is-ancestor 147f6c9918e5a713f7499968937866f15d920544 HEAD`, `git merge-base --is-ancestor 77f0583a35e3c871e2348d8b70a5a39420168b7c HEAD`, `git merge-base --is-ancestor ee0b63e28ccfd14f9585a08821e260fd0b957bae HEAD`, `git merge-base --is-ancestor c5088d47ae5cd4de7fa30776dabded924e6b22f1 HEAD`, `git merge-base --is-ancestor 62f8b3041026fc8e5729a1776d34d03ff3d6ff06 HEAD`, and `git merge-base --is-ancestor 5a5b36b76974f94fc4cc7e9b206d98442a4d70c5 HEAD` all exit 0 locally.
+Reason: The bot reviewed non-branch virtual commit `be55ffec16ca99581f7c7d653f152fdae516c745`, which is not a local branch commit object. The canonical PR branch history and current-head checks use branch head `dadbdaa7321fe588efc32d3f5e407259878714de`, where the mapped proof commits are reachable.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3239715557
 
 ## Local Validation Evidence
 
