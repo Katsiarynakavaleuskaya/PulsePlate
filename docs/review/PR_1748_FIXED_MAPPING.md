@@ -128,6 +128,13 @@ This PR exceeds the default size threshold because the original Node24 path-filt
   - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 16 --list-shards` produced sixteen balanced shard weights around `592k`; `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 8 --list-shards` produced eight balanced shard weights around `1184k`.
   - Evidence: local focused workflow/runner/security guard pytest, `make validate-changed`, full `pre-commit run --all-files`, and commit hooks pass.
   - Agent-coordinator/QA/bug-hunter/security disposition: FIXED. Coordinator classified the issue as shard watchdog/plan sizing, QA recommended rebalance over timeout loosening, bug-hunter identified the 1800s watchdog as the active failure, and security-auditor required removing timeout-as-success.
+- Current-head CI finding: FIXED by `f46e2a49acb2cc385b15fa141c3ec6e56e6065db`
+  - Finding: current-head run `25881278346` proved the fail-closed diagnostics and finer shard topology worked, but two live shards still exceeded the default 1800s subprocess watchdog.
+  - Evidence: `test-main (3.11, 60)` passed. `test-main (3.12, 90)` failed on shard 13 after all other py312 shards finished, with `MAIN_TEST_SHARD_TIMEOUT_FAILED label=py312 index=13 timeout_seconds=1800`; `test-main (3.13, 90)` failed on shard 4, while shard 8 later completed and the job reached cleanup.
+  - Evidence: cleanup ran and JUnit artifacts uploaded for the failed jobs, proving the original post-test cleanup hang is no longer the active failure. The timeout diagnostics listed the exact timed-out shard file membership for follow-up triage.
+  - Fix: `.github/workflows/ci.yml` now sets an explicit bounded `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800` for Python 3.12 and 3.13 only, while keeping all timeout paths fail-closed and preserving the 90-minute job cap.
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` locks the explicit 4800-second py312/py313 watchdog and log echo contract.
+  - Evidence: local focused workflow/runner tests, subprocess/nosec guard tests, `make validate-changed`, full `pre-commit run --all-files`, and commit hooks pass.
 
 ## Fixed in Commit Mapping
 
@@ -400,8 +407,13 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after fail-closed watchdog plan fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after fail-closed watchdog plan fix
 - `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "fix(ci): right-size main shard watchdog plan"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_main_test_shards.py` - PASS after bounded py312/py313 watchdog override (`43 passed`)
+- `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after bounded py312/py313 watchdog override (`5 passed`)
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after bounded py312/py313 watchdog override
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after bounded py312/py313 watchdog override
+- `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "fix(ci): bound slow main shard watchdog"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after the fail-closed watchdog plan fix.
+- Current-head PR checks are pending after the bounded py312/py313 watchdog override.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
