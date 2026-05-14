@@ -55,6 +55,7 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `pre-commit run --all-files` PASS.
 - `make VENV_PYTHON=../../.venv/bin/python validate-changed` PASS.
 - Pre-push hooks PASS: mypy, pip-audit, backend tests, full bandit, docker-build-test hook.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(gh pr view 1752 --json body -q .body)" --pr-number 1752` PASS after live PR body mirror update.
 
 ## Merge Readiness
 
