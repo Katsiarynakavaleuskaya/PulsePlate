@@ -208,6 +208,15 @@ Evidence: Final bot-wave P2 findings were fixed in code/tests/CI: Path effect-me
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3236379418 -> b05f5fb28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3236379421 -> b05f5fb28
 
+Disposition: FIXED
+Commit: 74219fd13
+Evidence: Latest bot-wave P2 guard/checker gaps were fixed in code/tests: built-in `open` aliases are rejected, broader `os.environ.*` calls are rejected, SC-G5 schema validation requires root `type: object` and closed-state consts, and metadata blocks colon-delimited `provider:payload`. Focused pytest, split mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521135 -> 74219fd13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521137 -> 74219fd13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521142 -> 74219fd13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521144 -> 74219fd13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521149 -> 74219fd13
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
