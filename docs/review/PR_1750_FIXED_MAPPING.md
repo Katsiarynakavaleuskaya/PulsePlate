@@ -12,6 +12,7 @@ Implementing commits:
 - `07728343bc053d858608a5c4eb77f289fc90ba18` - cover additional contrastive note boundaries.
 - `c51a52165e48575f601d20af9ae060783b4eb690` - correct bot mapping SHAs and add contrastive-boundary evidence.
 - `c5088d47ae5cd4de7fa30776dabded924e6b22f1` - cover `whereas` contrastive note boundary.
+- `62f8b3041026fc8e5729a1776d34d03ff3d6ff06` - cover `while` and `despite` contrastive note boundaries.
 
 ## Scope
 
@@ -161,6 +162,10 @@ Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive n
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747300 -> c5088d47ae5cd4de7fa30776dabded924e6b22f1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237907082 -> c5088d47ae5cd4de7fa30776dabded924e6b22f1
 Disposition: FIXED
+Commit: 62f8b3041026fc8e5729a1776d34d03ff3d6ff06
+Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive note boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `while` and `despite` source-use approvals after a negated allow-list phrase.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3239533528 -> 62f8b3041026fc8e5729a1776d34d03ff3d6ff06
+Disposition: FIXED
 Commit: c51a52165e48575f601d20af9ae060783b4eb690
 Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` now uses the reachable full SHA `77f0583a35e3c871e2348d8b70a5a39420168b7c` and records current-branch mapping evidence after the stale bot review cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747291 -> c51a52165e48575f601d20af9ae060783b4eb690
@@ -179,6 +184,8 @@ Reason: The bot reviewed a virtual squashed head; the canonical PR branch histor
 - `python3 scripts/orchestration/check_preflight.py` -> PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` -> PASS.
 - `$VENV_PYTHON -m pytest -q tests/test_food_source_preference_recipe_mapping.py`
+  -> PASS.
+- `$VENV_PYTHON -m pytest -q tests/test_food_source_preference_recipe_mapping.py::test_preference_recipe_mapping_rejects_contrastive_approval_after_negation`
   -> PASS.
 - `$VENV_PYTHON -m pytest -q -n 4 --dist=loadscope tests/test_food_source_preference_recipe_mapping.py`
   -> PASS.
