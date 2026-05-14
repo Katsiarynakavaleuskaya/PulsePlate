@@ -438,6 +438,7 @@ _NEGATION_BOUNDARY_TERMS = (
     " although ",
     " though ",
     " even though ",
+    " whereas ",
 )
 _NOTE_APPROVAL_TERMS = (
     "approve",
