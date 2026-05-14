@@ -158,6 +158,11 @@ Disposition: FIXED
 Commit: bb20cab788961df809fad8fa5e058528283f5fb3
 Evidence: `tests/test_app_extended_coverage.py` now asserts the response content type starts with `application/json` before calling `response.json()`. Focused local pytest and full pre-commit pass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#pullrequestreview-4290015131 -> bb20cab788961df809fad8fa5e058528283f5fb3
+Disposition: FIXED
+Commit: bb20cab788961df809fad8fa5e058528283f5fb3
+Evidence: CodeRabbit review-level actionable aggregated the inline findings `discussion_r3241411361` and `discussion_r3241411369`, both fixed by the same premium test assertion hardening commit.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
