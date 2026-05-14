@@ -21,6 +21,7 @@
 - `098975392a15f195ebd92bde7d6ddcfa7a67f878` - `docs(orchestration): add experiment notification completion gate`
 - `5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85` - `fix(orchestration): block ambiguous email audit retries`
 - `f791e99393864bf65e8fb9b1fd95a14d67defcec` - `docs(review): map PR 1751 coderabbit retry review`
+- `86f3871fc5b9a193917960765cafe7b31fcae0cf` - `fix(orchestration): bind email audit source hashes`
 
 ## Coordinator / Agent Passes
 
@@ -191,6 +192,16 @@ Evidence: Invalid UTF-8 email audit files now raise sanitized `ExperimentEmailDe
 Disposition: FIXED
 Commit: 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
 Evidence: CodeRabbit review-level retry/audit finding is addressed by fail-closed existing-audit handling and invalid-audit sanitization; automatic reclaim remains intentionally unsupported for v1 to avoid ambiguous duplicate delivery.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3241276490 -> 86f3871fc5b9a193917960765cafe7b31fcae0cf
+Disposition: FIXED
+Commit: 86f3871fc5b9a193917960765cafe7b31fcae0cf
+Evidence: Email audit source hashes are computed once before delivery and reused for claim/failure/sent records; `tests/test_experiment_notify.py::test_email_audit_source_hashes_match_rendered_sources` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3241276501 -> 86f3871fc5b9a193917960765cafe7b31fcae0cf
+Disposition: FIXED
+Commit: 86f3871fc5b9a193917960765cafe7b31fcae0cf
+Evidence: Unknown existing email audit statuses now fail closed as invalid; `tests/test_experiment_notify.py::test_unknown_email_audit_status_fails_closed` covers it.
 
 ## Merge Readiness
 
