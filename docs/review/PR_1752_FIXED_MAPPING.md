@@ -15,6 +15,7 @@
   - `19d2c92ee` - fail-closed malformed policy validation and token-prefix guard hardening.
   - `2853fca3e` - repo-standard `make validate-changed` validation command wording.
   - `4f431c553` - additional fail-closed identity policy bypass hardening for repeated separators, token-shaped keys, Slack app/config tokens, and authority drift.
+  - `0aec2bf28` - reclassified coordinator task-packet evidence and mapped identity guard bypass findings.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -24,6 +25,7 @@
 
 ### Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806268 -> 0aec2bf28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806276 -> 4f431c553
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806284 -> 4f431c553
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806290 -> 4f431c553
