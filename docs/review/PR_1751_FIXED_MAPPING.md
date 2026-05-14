@@ -22,6 +22,7 @@
 - `5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85` - `fix(orchestration): block ambiguous email audit retries`
 - `f791e99393864bf65e8fb9b1fd95a14d67defcec` - `docs(review): map PR 1751 coderabbit retry review`
 - `86f3871fc5b9a193917960765cafe7b31fcae0cf` - `fix(orchestration): bind email audit source hashes`
+- `614e9389ae96098f2f0aaf38530a906a331caa90` - `fix(orchestration): precheck email audit before artifact writes`
 
 ## Coordinator / Agent Passes
 
@@ -202,6 +203,16 @@ Evidence: Email audit source hashes are computed once before delivery and reused
 Disposition: FIXED
 Commit: 86f3871fc5b9a193917960765cafe7b31fcae0cf
 Evidence: Unknown existing email audit statuses now fail closed as invalid; `tests/test_experiment_notify.py::test_unknown_email_audit_status_fails_closed` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3241441065 -> 614e9389ae96098f2f0aaf38530a906a331caa90
+Disposition: FIXED
+Commit: 614e9389ae96098f2f0aaf38530a906a331caa90
+Evidence: JSON source hashes are now computed from the same bytes loaded for validation/rendering before markdown render and reused for email audit records.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3241441071 -> 614e9389ae96098f2f0aaf38530a906a331caa90
+Disposition: FIXED
+Commit: 614e9389ae96098f2f0aaf38530a906a331caa90
+Evidence: Email runs now check blocking existing audit artifacts before rewriting the markdown notification artifact; `tests/test_experiment_notify.py::test_email_delivery_is_idempotent_for_experiment_id_when_markdown_changes` covers artifact preservation.
 
 ## Merge Readiness
 
