@@ -189,6 +189,38 @@ def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
     assert env["PYTEST_FAULTHANDLER_TIMEOUT_S"] == "300"
 
 
+def test_shard_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str]) -> None:
+    assert runner.shard_timeout_seconds({}) == runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "120"}) == 120
+    assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "bad"}) == (
+        runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    )
+    assert "MAIN_TEST_SHARD_TIMEOUT_INVALID" in capsys.readouterr().err
+    assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "10"}) == (
+        runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    )
+    assert "MAIN_TEST_SHARD_TIMEOUT_TOO_LOW" in capsys.readouterr().err
+
+
+def test_shard_artifacts_prove_success_requires_clean_junit_and_coverage(tmp_path: Path) -> None:
+    shard = runner.TestShard(index=1, artifact_label="py312")
+    junit_path = tmp_path / shard.junit_file
+    junit_path.parent.mkdir(parents=True, exist_ok=True)
+    junit_path.write_text(
+        '<testsuite tests="2" failures="0" errors="0" skipped="0"></testsuite>',
+        encoding="utf-8",
+    )
+    (tmp_path / shard.coverage_file).write_text("coverage", encoding="utf-8")
+
+    assert runner.shard_artifacts_prove_success(tmp_path, shard) is True
+
+    junit_path.write_text(
+        '<testsuite tests="2" failures="1" errors="0" skipped="0"></testsuite>',
+        encoding="utf-8",
+    )
+    assert runner.shard_artifacts_prove_success(tmp_path, shard) is False
+
+
 def test_run_shard_invokes_explicit_child_interpreter(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -210,11 +242,13 @@ def test_run_shard_invokes_explicit_child_interpreter(
         cwd: Path,
         env: dict[str, str],
         check: bool,
+        timeout: int,
     ) -> Completed:
         captured["command"] = command
         captured["cwd"] = cwd
         captured["env"] = env
         captured["check"] = check
+        captured["timeout"] = timeout
         return Completed()
 
     monkeypatch.setattr(subprocess, "run", fake_run)
@@ -230,11 +264,61 @@ def test_run_shard_invokes_explicit_child_interpreter(
     assert command[command.index("--shard-file") + 1] == "tests/test_alpha.py"
     assert captured["cwd"] == tmp_path
     assert captured["check"] is False
+    assert captured["timeout"] == runner.DEFAULT_SHARD_TIMEOUT_SECONDS
     env = captured["env"]
     assert isinstance(env, dict)
     assert "PYTEST_XDIST_WORKER" not in env
     assert env["MAIN_TEST_SHARD"] == "3"
     assert env["COVERAGE_FILE"] == str(tmp_path / ".coverage.py313-main-shard-3")
+
+
+def test_run_shard_accepts_timeout_after_clean_artifacts(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=4,
+        artifact_label="py312",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    junit_path = tmp_path / shard.junit_file
+    junit_path.parent.mkdir(parents=True, exist_ok=True)
+    junit_path.write_text(
+        '<testsuite tests="2" failures="0" errors="0" skipped="0"></testsuite>',
+        encoding="utf-8",
+    )
+    (tmp_path / shard.coverage_file).write_text("coverage", encoding="utf-8")
+
+    def fake_run(*args: object, **kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=1800)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert runner.run_shard(tmp_path, shard, {}) == 0
+    assert "MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS" in capsys.readouterr().err
+
+
+def test_run_shard_fails_timeout_without_clean_artifacts(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=4,
+        artifact_label="py312",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+
+    def fake_run(*args: object, **kwargs: object) -> object:
+        raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=1800)
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert runner.run_shard(tmp_path, shard, {}) == 124
+    assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in capsys.readouterr().err
 
 
 def test_run_shard_child_forces_exit_after_pytest_returns(

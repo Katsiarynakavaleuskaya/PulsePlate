@@ -13,9 +13,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
 
+from defusedxml import ElementTree
+
 DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
 DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS = 300
+DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
@@ -163,6 +166,59 @@ def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path)
     return env
 
 
+def shard_timeout_seconds(base_env: Mapping[str, str]) -> int:
+    """Return the watchdog timeout for one pytest shard subprocess."""
+
+    raw_value = base_env.get("MAIN_TEST_SHARD_TIMEOUT_SECONDS", "").strip()
+    if not raw_value:
+        return DEFAULT_SHARD_TIMEOUT_SECONDS
+    try:
+        timeout = int(raw_value)
+    except ValueError:
+        print(
+            f"MAIN_TEST_SHARD_TIMEOUT_INVALID value={raw_value!r} "
+            f"default={DEFAULT_SHARD_TIMEOUT_SECONDS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return DEFAULT_SHARD_TIMEOUT_SECONDS
+    if timeout < 60:
+        print(
+            f"MAIN_TEST_SHARD_TIMEOUT_TOO_LOW value={timeout} "
+            f"default={DEFAULT_SHARD_TIMEOUT_SECONDS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return DEFAULT_SHARD_TIMEOUT_SECONDS
+    return timeout
+
+
+def shard_artifacts_prove_success(repo_root: Path, shard: TestShard) -> bool:
+    """Return whether a timed-out shard wrote complete passing artifacts."""
+
+    junit_path = repo_root / shard.junit_file
+    coverage_path = repo_root / shard.coverage_file
+    if not junit_path.exists() or not coverage_path.exists() or coverage_path.stat().st_size <= 0:
+        return False
+
+    try:
+        root = ElementTree.parse(junit_path).getroot()
+    except ElementTree.ParseError:
+        return False
+
+    suites = [root] if root.tag == "testsuite" else list(root.findall("testsuite"))
+    if not suites:
+        return False
+    total_tests = 0
+    total_failures = 0
+    total_errors = 0
+    for suite in suites:
+        total_tests += int(suite.attrib.get("tests", "0"))
+        total_failures += int(suite.attrib.get("failures", "0"))
+        total_errors += int(suite.attrib.get("errors", "0"))
+    return total_tests > 0 and total_failures == 0 and total_errors == 0
+
+
 def run_shard_child(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
     """Run one pytest shard inside a disposable interpreter process."""
 
@@ -209,12 +265,31 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
     for test_file in shard.files:
         command.extend(["--shard-file", str(test_file.path)])
 
-    completed = subprocess.run(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
-        command,
-        cwd=repo_root,
-        env=env,
-        check=False,
-    )
+    timeout = shard_timeout_seconds(base_env)
+    try:
+        completed = subprocess.run(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
+            command,
+            cwd=repo_root,
+            env=env,
+            check=False,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        if shard_artifacts_prove_success(repo_root, shard):
+            print(
+                f"MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS label={shard.artifact_label} "
+                f"index={shard.index} timeout_seconds={timeout}",
+                file=sys.stderr,
+                flush=True,
+            )
+            return 0
+        print(
+            f"MAIN_TEST_SHARD_TIMEOUT_FAILED label={shard.artifact_label} "
+            f"index={shard.index} timeout_seconds={timeout}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return 124
     return int(completed.returncode)
 
 
@@ -315,17 +390,29 @@ def run_all_shards(
 
     process_context = multiprocessing.get_context("spawn")
     results: dict[int, int] = {}
-    for batch_start in range(0, len(shards), max_parallel):
-        batch = shards[batch_start : batch_start + max_parallel]
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=len(batch),
-            mp_context=process_context,
-        ) as executor:
-            futures = {
-                executor.submit(run_shard, repo_root, shard, base_env): shard.index
-                for shard in batch
-            }
-            results.update(collect_shard_results(futures))
+    pending_shards = iter(shards)
+    with concurrent.futures.ProcessPoolExecutor(
+        max_workers=min(max_parallel, len(shards)),
+        mp_context=process_context,
+    ) as executor:
+        futures: dict[concurrent.futures.Future[int], int] = {}
+        for shard in pending_shards:
+            futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
+            if len(futures) >= max_parallel:
+                break
+
+        while futures:
+            done, _ = concurrent.futures.wait(
+                futures,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            results.update(collect_shard_results({future: futures[future] for future in done}))
+            for future in done:
+                del futures[future]
+            for shard in pending_shards:
+                futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
+                if len(futures) >= max_parallel:
+                    break
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
