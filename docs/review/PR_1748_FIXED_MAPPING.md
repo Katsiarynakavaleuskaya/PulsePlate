@@ -138,6 +138,26 @@ Disposition: FIXED
 Commit: c2abf5dab25da49f4220aa5170e652dfc65b62bc
 Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now uses the real full Python 3.11 shard-fix commit SHA `a59c5c7e9bdd3cccfc05f066b765d39797cb783c`, which resolves in this repository.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3241365081
+Disposition: NOT-A-BUG
+Evidence: Current PR head `c445782e3629533a2c34172609918b2995b5498d` contains the mapped FIXED proof commits in branch history, and the mapping artifact/PR body explicitly define FIXED commit SHAs as PR branch-history proofs for the live PR checkout and current-head CI.
+Reason: The bot evaluated squash-preview reviewed commit `c24ab3d5064cd1a48fb68c2aee1affd4b2eb314b`, not the canonical live PR branch checkout used by repo-native merge-readiness verification.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3241365086 -> bb20cab788961df809fad8fa5e058528283f5fb3
+Disposition: FIXED
+Commit: bb20cab788961df809fad8fa5e058528283f5fb3
+Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches PR endpoint commits with progressively deeper history (`100`, `500`, `2000`) before accepting merge-base failure and fallback diff bases. Focused local pytest and full pre-commit pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3241411361 -> bb20cab788961df809fad8fa5e058528283f5fb3
+Disposition: FIXED
+Commit: bb20cab788961df809fad8fa5e058528283f5fb3
+Evidence: `tests/test_app_extended_coverage.py` now annotates `test_premium_bmr_runtime_patch_returns_stub_response` with `-> None`. Focused local pytest and full pre-commit pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3241411369 -> bb20cab788961df809fad8fa5e058528283f5fb3
+Disposition: FIXED
+Commit: bb20cab788961df809fad8fa5e058528283f5fb3
+Evidence: `tests/test_app_extended_coverage.py` now asserts the response content type starts with `application/json` before calling `response.json()`. Focused local pytest and full pre-commit pass.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
@@ -298,8 +318,11 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 4 --max-parallel 4 --list-shards` - PASS with balanced shard weights `2367885`, `2367530`, `2367530`, `2367817`
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.12 four-shard fix
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): rebalance python 3.12 into four shards"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after latest review fixes (`13 passed`)
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after latest review fixes
+- `PATH=../../.venv/bin:$PATH git commit -m "test(ci): harden Kimi diff and premium assertions"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after 3.12 four-shard fix.
+- Current-head PR checks are pending after latest review fixes.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
