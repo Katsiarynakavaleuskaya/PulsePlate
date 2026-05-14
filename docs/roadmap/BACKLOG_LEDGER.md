@@ -24,6 +24,17 @@ If it is not recorded here — it does not exist.
 
 <!-- EXPERIMENT_BACKLOG_ENTRIES:INSERT BELOW -->
 
+<a id="ledger-p2-experiment-runner-slack-identity-boundary"></a>
+- [ ] P2: Experiment Runner Slack identity boundary
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: future security-governed notification identity PR
+  - Status: Open
+  - Area: orchestration / security / notifications
+  - Reason (EN): The Experiment Runner may later need a Slack display or bot identity for operator-facing notifications, but Slack is not a cryptographic Git identity and must not be introduced as part of Git attribution governance. A Slack identity requires a separate security-reviewed secret, channel, audit, and rate-limit boundary.
+  - Links: `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`, `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`
+  - DoD: A separate PR defines Slack App or bot lifecycle, bot token secret storage outside the repo, channel allowlist, redacted message body contract, local audit artifact, rate/timeout behavior, and deterministic tests proving no secrets, raw patch text, oracle stdout/stderr, or user data are posted.
+
 <a id="ledger-p1-private-pypi-proxy-mirror-parity"></a>
 - [ ] P1: Private PyPI proxy mirror parity and origin stability (packages host only — marketing 521 stays intentional)
   - Owner: @katsiaryna_kavaleuskaya (SRE/DevOps)

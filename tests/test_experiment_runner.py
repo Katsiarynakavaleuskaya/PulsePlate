@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -19,9 +20,13 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     git_binary = shutil.which("git")
     if not git_binary:
         raise AssertionError("git binary is required for experiment runner tests.")
+    if git_binary.endswith("/usr/libexec/git-core/git"):
+        git_binary = "/usr/bin/git"
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     return subprocess.run(
         [git_binary, *args],
         cwd=str(repo),
+        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -42,8 +47,8 @@ def _init_repo(tmp_path: Path) -> Path:
     )
 
     _git(tmp_path, "init", "--quiet", str(repo))
-    _git(repo, "config", "user.email", "runner@example.com")
-    _git(repo, "config", "user.name", "Experiment Runner")
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Experiment Runner")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "init")
     return repo
@@ -185,6 +190,7 @@ def test_evaluate_candidate_accepts_allowlisted_patch(
             ),
         )
     )
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "parent-hook-index"))
 
     result = experiment_runner.evaluate_candidate(packet, patch_path)
 

@@ -211,9 +211,11 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-07-31, ref: PR-1082)
         [_resolve_git_binary(), *args],
         cwd=str(cwd),
+        env=git_env,
         capture_output=True,
         text=True,
         check=False,
