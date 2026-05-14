@@ -112,6 +112,8 @@ The bridge from Kimi evidence to implementation is:
 
 Screenshots, Kimi output, Storybook stories, Figma nodes, prompt review, or desktop previews are not substitutes for repo-reviewed visual or accessibility regression decisions.
 
+The first machine-readable registry gate is `docs/orchestration/contracts/design_component_registry.v1.json`, validated by `scripts/design/design_component_registry.py`. Kimi-derived candidates must map through this registry before any bridge coverage inventory, visual regression lane, accessibility regression lane, token/runtime parity boundary, or web/iOS implementation slice. Missing registry or bridge coverage is a blocker, not permission to copy from Kimi.
+
 ## Security And External Tool Boundaries
 
 This protocol forbids:
