@@ -11,6 +11,7 @@ Implementing commits:
 - `ee0b63e28ccfd14f9585a08821e260fd0b957bae` - preserve controlled PR11 handoff errors and deduplicate CLI timeouts.
 - `07728343bc053d858608a5c4eb77f289fc90ba18` - cover additional contrastive note boundaries.
 - `c51a52165e48575f601d20af9ae060783b4eb690` - correct bot mapping SHAs and add contrastive-boundary evidence.
+- `c5088d47ae5cd4de7fa30776dabded924e6b22f1` - cover `whereas` contrastive note boundary.
 
 ## Scope
 
@@ -115,14 +116,14 @@ Evidence:
 ### Bot review: include common contrastive note boundaries
 
 Disposition: FIXED
-Commit: 07728343bc053d858608a5c4eb77f289fc90ba18
+Commit: c5088d47ae5cd4de7fa30776dabded924e6b22f1
 Evidence:
 - `core/food_sources/preference_recipe_mapping.py` treats `although`,
-  `though`, and `even though` as contrastive boundaries when evaluating
-  whether a prior negation still protects a later approval phrase.
+  `though`, `even though`, and `whereas` as contrastive boundaries when
+  evaluating whether a prior negation still protects a later approval phrase.
 - `tests/test_food_source_preference_recipe_mapping.py` rejects
-  `although`/`though`/`even though` source-use approval after an earlier
-  negated allow-list phrase.
+  `although`/`though`/`even though`/`whereas` source-use approval after an
+  earlier negated allow-list phrase.
 
 ## Discussion Thread Pass
 
@@ -155,9 +156,10 @@ Commit: ee0b63e28ccfd14f9585a08821e260fd0b957bae
 Evidence: `core/food_sources/preference_recipe_mapping.py` preserves controlled PR11 handoff errors; `tests/test_food_source_preference_recipe_mapping.py` covers the helper path and centralizes CLI timeout configuration.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#pullrequestreview-4285580137 -> ee0b63e28ccfd14f9585a08821e260fd0b957bae
 Disposition: FIXED
-Commit: 07728343bc053d858608a5c4eb77f289fc90ba18
-Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive note boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `although`, `though`, and `even though` source-use approvals after a negated allow-list phrase.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747300 -> 07728343bc053d858608a5c4eb77f289fc90ba18
+Commit: c5088d47ae5cd4de7fa30776dabded924e6b22f1
+Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive note boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `although`, `though`, `even though`, and `whereas` source-use approvals after a negated allow-list phrase.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747300 -> c5088d47ae5cd4de7fa30776dabded924e6b22f1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237907082 -> c5088d47ae5cd4de7fa30776dabded924e6b22f1
 Disposition: FIXED
 Commit: c51a52165e48575f601d20af9ae060783b4eb690
 Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` now uses the reachable full SHA `77f0583a35e3c871e2348d8b70a5a39420168b7c` and records current-branch mapping evidence after the stale bot review cycle.
@@ -167,6 +169,10 @@ Disposition: NOT-A-BUG
 Evidence: current head `7e79821135e61c38312b61403b063151fe66f908` contains `ee0b63e28ccfd14f9585a08821e260fd0b957bae`; `git merge-base --is-ancestor ee0b63e28ccfd14f9585a08821e260fd0b957bae HEAD` -> exit 0.
 Reason: The bot reviewed stale submitted head `2cf640be2136a49e4d4b9f266e9951ebbdd5cafa`; the current PR head contains the mapped PR11 handoff fix commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237830683
+Disposition: NOT-A-BUG
+Evidence: current branch head contains the listed proof commits; `git merge-base --is-ancestor e7a6bbd13ef1f6865dcc85fd57caec9d466dada7 HEAD`, `git merge-base --is-ancestor 147f6c9918e5a713f7499968937866f15d920544 HEAD`, and `git merge-base --is-ancestor ee0b63e28ccfd14f9585a08821e260fd0b957bae HEAD` all exit 0 locally.
+Reason: The bot reviewed a virtual squashed head; the canonical PR branch history contains the mapped proof commits and the merge-readiness gate passes on current head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237907086
 
 ## Local Validation Evidence
 
