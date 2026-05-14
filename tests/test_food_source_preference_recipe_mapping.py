@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from dataclasses import replace
+import functools
 import json
 import subprocess
 import sys
@@ -23,6 +24,7 @@ from core.food_sources.preference_recipe_mapping import (
     _require_bool,
     _require_int,
     _require_mapping,
+    _require_safe_notes,
     _require_string,
     _require_string_tuple,
 )
@@ -57,10 +59,12 @@ _CLI_MODULE = "scripts.food_source_preference_recipe_mapping"
 _CLI_TIMEOUT_SECONDS = 30
 
 
+@functools.cache
 def _catalog() -> SourceCatalog:
     return load_source_catalog(_CATALOG_PATH)
 
 
+@functools.cache
 def _onboarding() -> SourceOnboarding:
     return load_source_onboarding(
         _ONBOARDING_PATH,
@@ -69,6 +73,7 @@ def _onboarding() -> SourceOnboarding:
     )
 
 
+@functools.cache
 def _coverage() -> SourceGapAudit:
     catalog = _catalog()
     onboarding = load_source_onboarding(
@@ -85,6 +90,7 @@ def _coverage() -> SourceGapAudit:
     )
 
 
+@functools.cache
 def _recipe_dish_corpus() -> RecipeDishCorpusGovernance:
     return load_recipe_dish_corpus_governance(
         _RECIPE_DISH_CORPUS_PATH,
@@ -93,10 +99,15 @@ def _recipe_dish_corpus() -> RecipeDishCorpusGovernance:
     )
 
 
-def _governance_payload() -> dict[str, object]:
+@functools.cache
+def _governance_payload_template() -> dict[str, object]:
     payload = json.loads(_GOVERNANCE_PATH.read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return payload
+
+
+def _governance_payload() -> dict[str, object]:
+    return copy.deepcopy(_governance_payload_template())
 
 
 def _write_payload(path: Path, payload: dict[str, object]) -> Path:
@@ -1020,15 +1031,8 @@ def test_preference_recipe_mapping_rechecks_pr14_top_level_notes_for_direct_hand
     ),
 )
 def test_preference_recipe_mapping_rejects_notes_that_contradict_policy(note: str) -> None:
-    payload = _governance_payload()
-    payload["notes"] = note
-
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
-        parse_preference_recipe_mapping_governance(
-            payload,
-            coverage=_coverage(),
-            recipe_dish_corpus=_recipe_dish_corpus(),
-        )
+        _require_safe_notes(note, "test")
 
 
 @pytest.mark.parametrize("method", BLOCKED_METHODS)
@@ -1037,15 +1041,8 @@ def test_preference_recipe_mapping_rejects_blocked_method_note_approvals(
     method: str,
     approval: str,
 ) -> None:
-    payload = _governance_payload()
-    payload["notes"] = f"{method} {approval}"
-
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
-        parse_preference_recipe_mapping_governance(
-            payload,
-            coverage=_coverage(),
-            recipe_dish_corpus=_recipe_dish_corpus(),
-        )
+        _require_safe_notes(f"{method} {approval}", "test")
 
 
 @pytest.mark.parametrize(
@@ -1058,27 +1055,13 @@ def test_preference_recipe_mapping_rejects_blocked_method_note_approvals(
     ),
 )
 def test_preference_recipe_mapping_rejects_present_tense_note_approvals(note: str) -> None:
-    payload = _governance_payload()
-    payload["notes"] = note
-
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
-        parse_preference_recipe_mapping_governance(
-            payload,
-            coverage=_coverage(),
-            recipe_dish_corpus=_recipe_dish_corpus(),
-        )
+        _require_safe_notes(note, "test")
 
 
 def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_match() -> None:
-    payload = _governance_payload()
-    payload["notes"] = "this does not approve API calls; api approved"
-
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
-        parse_preference_recipe_mapping_governance(
-            payload,
-            coverage=_coverage(),
-            recipe_dish_corpus=_recipe_dish_corpus(),
-        )
+        _require_safe_notes("this does not approve API calls; api approved", "test")
 
 
 @pytest.mark.parametrize(
@@ -1100,15 +1083,8 @@ def test_preference_recipe_mapping_rejects_later_positive_note_after_negated_mat
 def test_preference_recipe_mapping_rejects_contrastive_approval_after_negation(
     note: str,
 ) -> None:
-    payload = _governance_payload()
-    payload["notes"] = note
-
     with pytest.raises(PreferenceRecipeMappingError, match="notes must not approve"):
-        parse_preference_recipe_mapping_governance(
-            payload,
-            coverage=_coverage(),
-            recipe_dish_corpus=_recipe_dish_corpus(),
-        )
+        _require_safe_notes(note, "test")
 
 
 @pytest.mark.parametrize(
@@ -1120,16 +1096,7 @@ def test_preference_recipe_mapping_rejects_contrastive_approval_after_negation(
     ),
 )
 def test_preference_recipe_mapping_allows_negated_present_tense_notes(note: str) -> None:
-    payload = _governance_payload()
-    payload["notes"] = note
-
-    governance = parse_preference_recipe_mapping_governance(
-        payload,
-        coverage=_coverage(),
-        recipe_dish_corpus=_recipe_dish_corpus(),
-    )
-
-    assert governance.notes == note
+    assert _require_safe_notes(note, "test") == note
 
 
 @pytest.mark.parametrize(
@@ -1145,29 +1112,13 @@ def test_preference_recipe_mapping_allows_negated_present_tense_notes(note: str)
 def test_preference_recipe_mapping_allows_explicitly_negated_note_approvals(
     note: str,
 ) -> None:
-    payload = _governance_payload()
-    payload["notes"] = note
-
-    governance = parse_preference_recipe_mapping_governance(
-        payload,
-        coverage=_coverage(),
-        recipe_dish_corpus=_recipe_dish_corpus(),
-    )
-
-    assert governance.notes == note
+    assert _require_safe_notes(note, "test") == note
 
 
 def test_preference_recipe_mapping_notes_guard_does_not_reject_substrings() -> None:
-    payload = _governance_payload()
-    payload["notes"] = "PR15 keeps non-authoritative recipe text paths blocked."
+    notes = "PR15 keeps non-authoritative recipe text paths blocked."
 
-    governance = parse_preference_recipe_mapping_governance(
-        payload,
-        coverage=_coverage(),
-        recipe_dish_corpus=_recipe_dish_corpus(),
-    )
-
-    assert "non-authoritative recipe text" in governance.notes
+    assert "non-authoritative recipe text" in _require_safe_notes(notes, "test")
 
 
 def test_preference_recipe_mapping_rejects_schema_reference_and_next_lane_drift() -> None:
