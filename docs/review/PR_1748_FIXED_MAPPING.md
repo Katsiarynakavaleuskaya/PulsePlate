@@ -114,6 +114,11 @@ This PR exceeds the default size threshold because the original Node24 path-filt
   - Fix: each child shard subprocess has a bounded watchdog. If pytest writes a clean JUnit XML and coverage data but hangs during post-summary cleanup, the parent records `MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS` and continues; incomplete or failing artifacts still return `124`.
   - Security validation: JUnit XML is parsed with `defusedxml.ElementTree`; Bandit, `nosec`, and subprocess guard tests pass.
   - Evidence: local focused workflow/runner/security tests, `make validate-changed`, full pre-commit, and commit hooks pass.
+- Current-head CI finding: FIXED by `bcfee31164158da560c1850fc0954ef57972ff3e`
+  - Finding: current-head Python 3.12 job on stale head `5b6f73e851574e7c2c3236e2bec5b4f23919ae44` failed immediately because the CI `ci-test` profile does not install `defusedxml`.
+  - Evidence: job `76050358649` failed at import time with `ModuleNotFoundError: No module named 'defusedxml'` before shard execution.
+  - Fix: `scripts/ci/run_main_test_shards.py` no longer imports an external XML parser. The watchdog proof reads the locally generated JUnit file as bounded text and extracts only numeric `tests`, `failures`, and `errors` attributes.
+  - Security validation: this removes the XML parser dependency and Bandit XML finding instead of suppressing it; focused runner/workflow/security guard tests and full pre-commit pass.
 
 ## Fixed in Commit Mapping
 
@@ -377,8 +382,11 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after dynamic shard scheduling/watchdog
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after dynamic shard scheduling/watchdog
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): advance main shards past cleanup hangs"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after removing external XML parser dependency (`49 passed`)
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after removing external XML parser dependency
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): remove shard watchdog xml dependency"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after dynamic shard scheduling/watchdog.
+- Current-head PR checks are pending after removing the shard watchdog XML dependency.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
