@@ -14,6 +14,7 @@
   - `5790abc7f` - PR body Phase 2 mirror validation evidence.
   - `19d2c92ee` - fail-closed malformed policy validation and token-prefix guard hardening.
   - `2853fca3e` - repo-standard `make validate-changed` validation command wording.
+  - `4f431c553` - additional fail-closed identity policy bypass hardening for repeated separators, token-shaped keys, Slack app/config tokens, and authority drift.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -23,6 +24,11 @@
 
 ### Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806276 -> 4f431c553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806284 -> 4f431c553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806290 -> 4f431c553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806297 -> 4f431c553
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806302 -> 4f431c553
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242812229 -> 229777a55
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242812243 -> 19d2c92ee
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291639395 -> 19d2c92ee
@@ -35,8 +41,8 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291735416 -> 2853fca3e
 
 Disposition: FIXED
-Commit: `229777a55`, `19d2c92ee`, `2853fca3e`
-Evidence: CodeRabbit/Cubic bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_` and `xapp-`, and replacing the brittle validation command text with `make validate-changed`.
+Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`
+Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys, rejecting repeated separators in sensitive key names, rejecting authority drift outside `authority_boundary`, and replacing the brittle validation command text with `make validate-changed`.
 
 ## Role-Agent Findings
 
@@ -48,8 +54,7 @@ Disposition: FIXED
 Commit: `f53cb69db`
 Evidence: `scripts/orchestration/experiment_runner.py` strips inherited `GIT_*` environment variables from nested git subprocesses so isolated experiment checkouts are not affected by parent commit/pre-commit hook context. `tests/test_experiment_runner.py` covers hook-style `GIT_INDEX_FILE` leakage.
 
-Disposition: FIXED
-Commit: local task packet `artifacts/orchestration/task_packets/3a4d2bf33a6b.json`
+Disposition: NOT-A-BUG
 Evidence: Coordinator scope was refreshed after review to include actual touched files, including `scripts/orchestration/experiment_runner.py`, `scripts/AGENTS.md`, `tests/test_experiment_runner.py`, and `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.json`.
 
 Disposition: DEFERRED
