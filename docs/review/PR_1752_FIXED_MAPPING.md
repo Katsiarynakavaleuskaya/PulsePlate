@@ -8,7 +8,12 @@
   - `f53cb69db` - governed Experiment Runner identity boundary, offline guard, tests, and nested git environment hardening.
   - `e33e29c2d` - initial PR 1752 fixed-mapping artifact.
   - `229777a55` - CodeRabbit CLI governance fixes for backlog priority ordering and Phase 2 fixed-mapping formatting.
+  - `916b51d57` - mapping entry for CodeRabbit CLI governance fixes.
   - `6f1e29fb8` - canonical no-actionable review-thread mapping format for Phase 2 parser compatibility.
+  - `7b8c78a35` - mapping entry for canonical Phase 2 parser format fix.
+  - `5790abc7f` - PR body Phase 2 mirror validation evidence.
+  - `19d2c92ee` - fail-closed malformed policy validation and token-prefix guard hardening.
+  - `2853fca3e` - repo-standard `make validate-changed` validation command wording.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -18,7 +23,20 @@
 
 ### Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242812229 -> 229777a55
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242812243 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291639395 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242847407 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242847414 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242847423 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242847432 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291682243 -> 19d2c92ee
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242894051 -> 2853fca3e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291735416 -> 2853fca3e
+
+Disposition: FIXED
+Commit: `229777a55`, `19d2c92ee`, `2853fca3e`
+Evidence: CodeRabbit/Cubic bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_` and `xapp-`, and replacing the brittle validation command text with `make validate-changed`.
 
 ## Role-Agent Findings
 
