@@ -55,7 +55,6 @@ SMTP_PORT_ENV = "EXPERIMENT_NOTIFICATION_SMTP_PORT"
 SMTP_USERNAME_ENV = "EXPERIMENT_NOTIFICATION_SMTP_USERNAME"
 SMTP_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SMTP_" + "".join(("P", "ASS", "W", "ORD"))
 SMTP_FROM_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_FROM"
-EMAIL_SEND_CLAIM_TTL_SECONDS = 3600
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
 ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"guard_failure", "timeout", "oom"})
 PRE_ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"policy_violation", "unchanged_result"})
@@ -721,22 +720,6 @@ def _read_existing_email_audit(audit_path: Path) -> dict[str, Any] | None:
     return payload
 
 
-def _is_stale_send_claim(audit: dict[str, Any]) -> bool:
-    """Return true when an in-progress claim is old enough to reclaim."""
-
-    raw_timestamp = audit.get("timestamp")
-    if not isinstance(raw_timestamp, str):
-        return False
-    try:
-        timestamp = datetime.fromisoformat(raw_timestamp)
-    except ValueError:
-        return False
-    if timestamp.tzinfo is None:
-        return False
-    age = datetime.now(timezone.utc) - timestamp.astimezone(timezone.utc)
-    return age.total_seconds() > EMAIL_SEND_CLAIM_TTL_SECONDS
-
-
 def _email_audit_payload(
     *,
     experiment_id: str,
@@ -818,17 +801,10 @@ def _claim_email_send(
 
     if existing is None:
         raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
-    same_notification = (
-        existing.get("recipient_hash") == _recipient_hash(recipient)
-        and existing.get("notification_sha256") == payload["notification_sha256"]
-    )
-    if same_notification and existing.get("status") == "sent":
+    existing_status = existing.get("status")
+    if existing_status == "sent":
         raise ExperimentEmailDeliveryError("Email notification was already sent.")
-    if (
-        same_notification
-        and existing.get("status") == "send_in_progress"
-        and not _is_stale_send_claim(existing)
-    ):
+    if existing_status == "send_in_progress":
         raise ExperimentEmailDeliveryError("Email notification was already sent.")
     _write_email_audit(
         audit_path=audit_path,

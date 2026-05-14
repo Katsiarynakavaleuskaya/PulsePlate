@@ -724,6 +724,43 @@ def test_email_delivery_is_idempotent_across_output_paths(
     ).is_file()
 
 
+def test_email_delivery_is_idempotent_for_experiment_id_when_markdown_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    argv = [
+        "--packet",
+        str(packet_path),
+        "--result",
+        str(result_path),
+        "--email",
+        "--email-to",
+        "pulseplate@pm.me",
+    ]
+
+    first_exit = experiment_notify.main(argv)
+    capsys.readouterr()
+    _write_json(
+        result_path,
+        _result(status="rejected", failure_class="guard_failure"),
+    )
+    second_exit = experiment_notify.main(argv)
+    stdout = capsys.readouterr().out
+
+    assert first_exit == 0
+    assert second_exit == 1
+    assert "already sent" in stdout
+    assert len(FakeSMTP.sent_messages) == 1
+
+
 def test_email_delivery_blocks_retry_when_sent_audit_write_fails(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -779,7 +816,7 @@ def test_email_delivery_blocks_retry_when_sent_audit_write_fails(
     assert audit["status"] == "send_in_progress"
 
 
-def test_stale_email_send_claim_can_be_reclaimed(
+def test_stale_email_send_claim_blocks_retry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -810,18 +847,19 @@ def test_stale_email_send_claim_can_be_reclaimed(
 
     _write_json(tmp_path / "packet.json", _packet())
     _write_json(tmp_path / "result.json", _result())
-    experiment_notify._claim_email_send(
-        audit_path=audit_path,
-        experiment_id="exp-notify",
-        recipient="pulseplate@pm.me",
-        markdown=EXPECTED_NOTIFICATION,
-        output_path=notification_dir / "exp-notify.md",
-        source_paths={"packet": None, "promotion": None, "result": None},
-    )
+    with pytest.raises(experiment_notify.ExperimentEmailDeliveryError, match="already sent"):
+        experiment_notify._claim_email_send(
+            audit_path=audit_path,
+            experiment_id="exp-notify",
+            recipient="pulseplate@pm.me",
+            markdown=EXPECTED_NOTIFICATION,
+            output_path=notification_dir / "exp-notify.md",
+            source_paths={"packet": None, "promotion": None, "result": None},
+        )
 
     audit = json.loads(audit_path.read_text(encoding="utf-8"))
     assert audit["status"] == "send_in_progress"
-    assert audit["timestamp"] != old_timestamp
+    assert audit["timestamp"] == old_timestamp
 
 
 def test_smtp_implicit_tls_uses_smtp_ssl(
