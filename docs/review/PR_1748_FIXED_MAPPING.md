@@ -67,7 +67,7 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: `.github/workflows/ci.yml` now gives Python 3.12 the same 90-minute `test-main` budget as Python 3.13 while preserving the required check identity and matrix shape.
   - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` asserts `{"3.11": 60, "3.12": 90, "3.13": 90}`.
   - Evidence: focused local pytest passes (`13 passed`) and full pre-commit passes.
-- Current-head CI finding: FIXED by `1a91cdfd6d5300a0d683a222559d590d338557e8`
+- Current-head CI finding: FIXED by `1a91cdfd655c11fe737beabdda9685ed4f02c170`
   - Finding: `test-main (3.12, 90)` still hit the job timeout after setup overhead; the job ran from `2026-05-13T22:54:07Z` to `2026-05-14T00:24:38Z`, and the `Run tests with coverage` step was cancelled.
   - Evidence: JUnit artifact `junit-main-3.12` contained only `results-py312-shard-1.xml`; shard 1 completed successfully with `6703` tests, `0` failures, `0` errors, `19` skips, and `time="1872.519"`.
   - Evidence: `.github/workflows/ci.yml` now rebalances only Python 3.12 from two process shards to three process shards; Python 3.13 remains at two shards and existing required check names are preserved.
@@ -142,9 +142,9 @@ Disposition: FIXED
 Commit: ae387ff9e6078215603d1932a8d27815c6a96ea3
 Evidence: `.github/workflows/ci.yml` extends only the Python 3.12 `test-main` timeout from 60 to 90 minutes after repeated timeout cancellation, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks the matrix timeout contract. Focused pytest and full pre-commit pass.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25831057536/job/75895982026 -> 1a91cdfd6d5300a0d683a222559d590d338557e8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25831057536/job/75895982026 -> 1a91cdfd655c11fe737beabdda9685ed4f02c170
 Disposition: FIXED
-Commit: 1a91cdfd6d5300a0d683a222559d590d338557e8
+Commit: 1a91cdfd655c11fe737beabdda9685ed4f02c170
 Evidence: `test-main (3.12, 90)` reached the job timeout after only shard 1 completed; `.github/workflows/ci.yml` now rebalances only Python 3.12 from two to three process shards, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25845462494/job/75939635310 -> a59c5c7e9efd19b1a8b10c2da7a1d3971bc22df2
@@ -182,10 +182,10 @@ Disposition: FIXED
 Commit: f8745840153d656d0fb96042d009f03da7f10a95
 Evidence: This mapping artifact now uses the real finalized review-disposition commit SHA `6bc2feb88ed1c2bd1b31f10cbbb5edd0d86a2163`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295295
-Disposition: NOT-A-BUG
-Evidence: The event-base fallback diffs the current base tree against the synthetic PR merge tree with `base_sha..HEAD`, so base-only changes are not reported as PR changes. Focused local pytest passes (`56 passed`).
-Reason: In the GitHub PR merge checkout, `base_sha..HEAD` is the correct tree comparison when shallow history hides merge-parent ancestry.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295295 -> ba51206144f52319f4ae1fdbdef07aeeac5961a6
+Disposition: FIXED
+Commit: ba51206144f52319f4ae1fdbdef07aeeac5961a6
+Evidence: `tests/test_design_automation_next_lane_docs.py` now fetches PR event bounds with enough history, computes `git merge-base base_sha head_sha`, and uses a three-dot merge-base comparison instead of the earlier `base_sha..HEAD` event-base fallback. Focused local pytest passes (`13 passed`) and full pre-commit passes.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3236295300 -> f8745840153d656d0fb96042d009f03da7f10a95
 Disposition: FIXED
