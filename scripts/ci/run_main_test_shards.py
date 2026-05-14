@@ -7,6 +7,7 @@ import argparse
 import concurrent.futures
 import multiprocessing
 import os
+import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -162,8 +163,8 @@ def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path)
     return env
 
 
-def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
-    """Run one pytest shard and return its process exit code."""
+def run_shard_child(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
+    """Run one pytest shard inside a disposable interpreter process."""
 
     import pytest
 
@@ -184,7 +185,55 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
         f"index={shard.index} exit_code={exit_code}",
         flush=True,
     )
-    return int(exit_code)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(int(exit_code))
+
+
+def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
+    """Run one pytest shard in a child interpreter and return its exit code."""
+
+    env = build_shard_env(base_env, shard, repo_root)
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--repo-root",
+        str(repo_root),
+        "--artifact-label",
+        shard.artifact_label,
+        "--run-shard-index",
+        str(shard.index),
+        "--shard-weight",
+        str(shard.weight),
+    ]
+    for test_file in shard.files:
+        command.extend(["--shard-file", str(test_file.path)])
+
+    completed = subprocess.run(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
+        command,
+        cwd=repo_root,
+        env=env,
+        check=False,
+    )
+    return int(completed.returncode)
+
+
+def _build_explicit_shard(args: argparse.Namespace, artifact_label: str) -> TestShard:
+    """Build the shard requested by a parent runner invocation."""
+
+    if args.run_shard_index is None:
+        raise ValueError("run_shard_index is required for explicit shard mode")
+    if not args.shard_file:
+        raise ValueError("at least one --shard-file is required for explicit shard mode")
+
+    shard = TestShard(
+        index=args.run_shard_index,
+        artifact_label=artifact_label,
+        weight=args.shard_weight,
+    )
+    for test_file in args.shard_file:
+        shard.files.append(TestFile(path=Path(test_file), weight=1))
+    return shard
 
 
 def run_coverage_command(repo_root: Path, args: Sequence[str]) -> int:
@@ -319,6 +368,23 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="Print deterministic shard assignment without running pytest.",
     )
+    parser.add_argument(
+        "--run-shard-index",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--shard-file",
+        action="append",
+        default=[],
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--shard-weight",
+        type=int,
+        default=0,
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args(argv)
 
 
@@ -332,6 +398,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.python_version or f"{sys.version_info.major}.{sys.version_info.minor}"
         )
     )
+    if args.run_shard_index is not None:
+        shard = _build_explicit_shard(args, artifact_label)
+        return run_shard_child(repo_root, shard, os.environ.copy())
+
     test_files = discover_test_files(repo_root)
     shards = partition_test_files(test_files, args.shard_count, artifact_label)
 

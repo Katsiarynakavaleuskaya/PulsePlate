@@ -189,6 +189,93 @@ def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
     assert env["PYTEST_FAULTHANDLER_TIMEOUT_S"] == "300"
 
 
+def test_run_shard_invokes_explicit_child_interpreter(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=3,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    captured: dict[str, object] = {}
+
+    class Completed:
+        returncode = 5
+
+    def fake_run(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        check: bool,
+    ) -> Completed:
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["env"] = env
+        captured["check"] = check
+        return Completed()
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert runner.run_shard(tmp_path, shard, {"PYTEST_XDIST_WORKER": "gw0"}) == 5
+
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert command[:2] == [sys.executable, str(Path(runner.__file__).resolve())]
+    assert "--run-shard-index" in command
+    assert command[command.index("--run-shard-index") + 1] == "3"
+    assert "--shard-file" in command
+    assert command[command.index("--shard-file") + 1] == "tests/test_alpha.py"
+    assert captured["cwd"] == tmp_path
+    assert captured["check"] is False
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert "PYTEST_XDIST_WORKER" not in env
+    assert env["MAIN_TEST_SHARD"] == "3"
+    assert env["COVERAGE_FILE"] == str(tmp_path / ".coverage.py313-main-shard-3")
+
+
+def test_run_shard_child_forces_exit_after_pytest_returns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py312",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    original_cwd = Path.cwd()
+    captured: dict[str, object] = {}
+
+    def fake_pytest_main(pytest_args: list[str]) -> int:
+        captured["pytest_args"] = pytest_args
+        captured["cwd"] = Path.cwd()
+        captured["argv"] = list(sys.argv)
+        return 7
+
+    def fake_exit(exit_code: int) -> None:
+        raise SystemExit(exit_code)
+
+    monkeypatch.setattr(pytest, "main", fake_pytest_main)
+    monkeypatch.setattr(runner.os, "_exit", fake_exit)
+
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            runner.run_shard_child(tmp_path, shard, {})
+    finally:
+        os.chdir(original_cwd)
+
+    assert exc_info.value.code == 7
+    assert captured["cwd"] == tmp_path
+    assert captured["argv"] == ["pytest"]
+    pytest_args = captured["pytest_args"]
+    assert isinstance(pytest_args, list)
+    assert "tests/test_alpha.py" in pytest_args
+
+
 def test_remove_previous_outputs_deletes_stale_shard_files(tmp_path: Path) -> None:
     shard = runner.TestShard(index=1, artifact_label="py312")
     coverage_file = tmp_path / shard.coverage_file
