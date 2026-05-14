@@ -271,6 +271,14 @@ Evidence: Fourth backend-proof review wave was fixed in code/checker/tests: roll
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241598070 -> f1c64248a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241598076 -> f1c64248a
 
+Disposition: FIXED
+Commit: 82ae60197
+Evidence: Latest runtime-label review wave was fixed in code/tests: backend versions, criteria surfaces, and structured proof IDs reject runtime-scope labels before serialization, and the import guard rejects `os.getenv` aliases. Focused pytest, mypy, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241707071 -> 82ae60197
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241707078 -> 82ae60197
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241707084 -> 82ae60197
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241707091 -> 82ae60197
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
