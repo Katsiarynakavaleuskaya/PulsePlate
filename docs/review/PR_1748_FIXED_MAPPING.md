@@ -135,6 +135,12 @@ This PR exceeds the default size threshold because the original Node24 path-filt
   - Fix: `.github/workflows/ci.yml` now sets an explicit bounded `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800` for Python 3.12 and 3.13 only, while keeping all timeout paths fail-closed and preserving the 90-minute job cap.
   - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` locks the explicit 4800-second py312/py313 watchdog and log echo contract.
   - Evidence: local focused workflow/runner tests, subprocess/nosec guard tests, `make validate-changed`, full `pre-commit run --all-files`, and commit hooks pass.
+- Current-head CI finding: FIXED by `a83114330f7afb979093ca3b726c666f0050dcd2a`
+  - Finding: current-head run `25884379741` proved the bounded watchdog override was only a shell-local assignment, not an exported environment variable read by `scripts/ci/run_main_test_shards.py`.
+  - Evidence: the py312 and py313 logs echoed `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800`, but the runner still emitted `MAIN_TEST_SHARD_TIMEOUT_FAILED ... timeout_seconds=1800` for py312 shard 13 and py313 shard 4.
+  - Fix: `.github/workflows/ci.yml` now exports `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800` in the Python 3.12 and 3.13 branches before invoking the Python shard runner.
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts the exported watchdog contract rather than a shell-local assignment.
+  - Evidence: focused workflow/runner tests, subprocess/nosec guard tests, `make validate-changed`, full `pre-commit run --all-files`, and commit hooks pass.
 
 ## Fixed in Commit Mapping
 
@@ -257,6 +263,16 @@ Evidence: `test-main (3.11, 60)` failed from a pytest-xdist worker crash and par
 Disposition: FIXED
 Commit: bd1331c44769f046ec440d13db09126d5138a0a9
 Evidence: `test-main (3.12, 90)` still timed out with three process shards after shards 1 and 3 completed successfully and shard 2 produced no JUnit XML; `.github/workflows/ci.yml` now uses four process shards for Python 3.12, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25884379741/job/76072673622 -> a83114330f7afb979093ca3b726c666f0050dcd2a
+Disposition: FIXED
+Commit: a83114330f7afb979093ca3b726c666f0050dcd2a
+Evidence: py312 current-head logs echoed `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800`, but runner diagnostics still reported `MAIN_TEST_SHARD_TIMEOUT_FAILED ... timeout_seconds=1800`; `.github/workflows/ci.yml` now exports the env var before invoking `scripts/ci/run_main_test_shards.py`, and workflow contract tests require the exported form.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25884379741/job/76072673637 -> a83114330f7afb979093ca3b726c666f0050dcd2a
+Disposition: FIXED
+Commit: a83114330f7afb979093ca3b726c666f0050dcd2a
+Evidence: py313 current-head logs echoed `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800`, but runner diagnostics still reported `MAIN_TEST_SHARD_TIMEOUT_FAILED ... timeout_seconds=1800`; `.github/workflows/ci.yml` now exports the env var before invoking `scripts/ci/run_main_test_shards.py`, and workflow contract tests require the exported form.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
@@ -412,8 +428,13 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after bounded py312/py313 watchdog override
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after bounded py312/py313 watchdog override
 - `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "fix(ci): bound slow main shard watchdog"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_main_test_shards.py` - PASS after exporting the bounded py312/py313 watchdog override (`43 passed`)
+- `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after exporting the bounded py312/py313 watchdog override (`5 passed`)
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after exporting the bounded py312/py313 watchdog override
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after exporting the bounded py312/py313 watchdog override
+- `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "fix(ci): export main shard watchdog timeout"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after the bounded py312/py313 watchdog override.
+- Current-head PR checks are pending after exporting the bounded py312/py313 watchdog override.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
