@@ -17,6 +17,7 @@
 - `ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4` - `fix(orchestration): harden smtp email delivery claims`
 - `f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d` - `docs(review): map PR 1751 smtp claim fixes`
 - `d5998b4899df9b07a6c295841f52dab27b08df51` - `docs(orchestration): align experiment notify lifecycle`
+- `6acfee69f276900e47c844fceb8ceb048eade324` - `fix(orchestration): fail closed on duplicate experiment email sends`
 
 ## Coordinator / Agent Passes
 
@@ -137,6 +138,31 @@ Evidence: Fixed-mapping artifact now uses reachable full branch commit SHAs; `py
 Disposition: FIXED
 Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Evidence: SMTP `quit()` failures after accepted `send_message()` are ignored so the final `sent` audit remains durable; `tests/test_experiment_notify.py::test_smtp_quit_failure_after_send_keeps_delivery_successful` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239605792 -> 6acfee69f276900e47c844fceb8ceb048eade324
+Disposition: FIXED
+Commit: 6acfee69f276900e47c844fceb8ceb048eade324
+Evidence: Existing `send_in_progress` audit records now fail closed without stale reclaim, preventing ambiguous post-SMTP retries; `tests/test_experiment_notify.py::test_stale_email_send_claim_blocks_retry` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239605794 -> 6acfee69f276900e47c844fceb8ceb048eade324
+Disposition: FIXED
+Commit: 6acfee69f276900e47c844fceb8ceb048eade324
+Evidence: Existing `sent` audit records now block by canonical experiment id regardless of changed markdown; `tests/test_experiment_notify.py::test_email_delivery_is_idempotent_for_experiment_id_when_markdown_changes` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239605801 -> 6acfee69f276900e47c844fceb8ceb048eade324
+Disposition: FIXED
+Commit: 6acfee69f276900e47c844fceb8ceb048eade324
+Evidence: Stale `send_in_progress` reclaim was removed in favor of fail-closed duplicate protection, eliminating the non-atomic stale-reclaim path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#pullrequestreview-4287900129 -> 6acfee69f276900e47c844fceb8ceb048eade324
+Disposition: FIXED
+Commit: 6acfee69f276900e47c844fceb8ceb048eade324
+Evidence: Cubic review-level duplicate-send finding is fixed by experiment-id fail-closed duplicate protection.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239609603 -> 6acfee69f276900e47c844fceb8ceb048eade324
+Disposition: FIXED
+Commit: 6acfee69f276900e47c844fceb8ceb048eade324
+Evidence: Duplicate-send guard no longer keys only on notification content; existing `sent`/`send_in_progress` audit for the experiment blocks delivery.
 
 ## Merge Readiness
 
