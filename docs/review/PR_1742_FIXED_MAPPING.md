@@ -279,6 +279,15 @@ Evidence: Latest runtime-label review wave was fixed in code/tests: backend vers
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241707084 -> 82ae60197
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241707091 -> 82ae60197
 
+Disposition: FIXED
+Commit: eccaa2310
+Evidence: Latest metadata/schema review wave was fixed in code/checker/tests: the SC-G5 schema checker now requires enum lists for allowed and candidate backend labels, metadata rejects runtime-scope labels and non-string keys before stable serialization, unsafe truth-source labels cover local support plane, plugin control-plane, and second source of truth, and safety evidence tuple IDs reject runtime-scope labels. Focused pytest, mypy, semantic-cache checker, docs Phase1 gate, preflight, agent consistency, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885721 -> eccaa2310
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885723 -> eccaa2310
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885730 -> eccaa2310
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885733 -> eccaa2310
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885743 -> eccaa2310
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
