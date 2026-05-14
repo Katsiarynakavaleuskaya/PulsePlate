@@ -12,6 +12,7 @@ import tempfile
 import pytest
 
 from app.security.execution_sandbox import SandboxResult
+import scripts.orchestration.context_pack as context_pack
 import scripts.orchestration.experiment_contract as experiment_contract
 import scripts.orchestration.experiment_runner as experiment_runner
 
@@ -98,9 +99,11 @@ def _configure_runner_repo(
     monkeypatch: pytest.MonkeyPatch,
     repo: Path,
 ) -> Path:
-    result_dir = repo / "artifacts" / "orchestration" / "experiments" / "results"
-    monkeypatch.setattr(experiment_contract, "REPO_ROOT", repo)
-    monkeypatch.setattr(experiment_runner, "REPO_ROOT", repo)
+    resolved_repo = repo.resolve()
+    result_dir = resolved_repo / "artifacts" / "orchestration" / "experiments" / "results"
+    monkeypatch.setattr(context_pack, "REPO_ROOT", resolved_repo)
+    monkeypatch.setattr(experiment_contract, "REPO_ROOT", resolved_repo)
+    monkeypatch.setattr(experiment_runner, "REPO_ROOT", resolved_repo)
     monkeypatch.setattr(experiment_runner, "RESULT_ARTIFACT_DIR", result_dir)
     return result_dir
 
@@ -109,6 +112,22 @@ def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
     validated = experiment_contract.validate_experiment_packet(packet)
     assert validated["experiment_id"]
     return validated
+
+
+def test_absolute_path_env_resolves_relative_entries(tmp_path: Path) -> None:
+    relative_bin = tmp_path / "relative-bin"
+    relative_bin.mkdir()
+    raw_path = f"{relative_bin.relative_to(tmp_path)}{os.pathsep}/usr/bin"
+
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        normalized = experiment_runner._absolute_path_env(raw_path)
+    finally:
+        os.chdir(original_cwd)
+
+    entries = normalized.split(os.pathsep)
+    assert entries == [str(relative_bin.resolve()), "/usr/bin"]
 
 
 def test_validate_packet_rejects_wrong_schema_version() -> None:

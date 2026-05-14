@@ -227,6 +227,22 @@ def _run_git(
     return process
 
 
+def _absolute_path_env(raw_path: str | None) -> str:
+    """Return PATH entries as absolute paths for subprocess cwd isolation."""
+
+    if not raw_path:
+        return ""
+    absolute_entries: list[str] = []
+    for entry in raw_path.split(os.pathsep):
+        if not entry:
+            continue
+        candidate = Path(entry).expanduser()
+        if not candidate.is_absolute():
+            candidate = candidate.resolve()
+        absolute_entries.append(str(candidate))
+    return os.pathsep.join(absolute_entries)
+
+
 def _shared_tree_status(root: Path) -> str:
     """Capture tracked/untracked status to prove the shared tree stayed untouched."""
 
@@ -248,6 +264,7 @@ def _temporary_sandbox_env(
         sandbox.SANDBOX_TIMEOUT_ENV: str(timeout_seconds),
         sandbox.SANDBOX_ALLOWED_BINARIES_ENV: ",".join(allowed_binaries),
         cp.EXECUTION_MODE_ENV: cp.EXECUTION_MODE_AUTO_SAFE,
+        "PATH": _absolute_path_env(os.environ.get("PATH")),
     }
     previous = {key: os.environ.get(key) for key in overrides}
     try:
