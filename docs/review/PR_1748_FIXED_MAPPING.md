@@ -143,6 +143,11 @@ Disposition: NOT-A-BUG
 Evidence: Current PR head `c445782e3629533a2c34172609918b2995b5498d` contains the mapped FIXED proof commits in branch history, and the mapping artifact/PR body explicitly define FIXED commit SHAs as PR branch-history proofs for the live PR checkout and current-head CI.
 Reason: The bot evaluated squash-preview reviewed commit `c24ab3d5064cd1a48fb68c2aee1affd4b2eb314b`, not the canonical live PR branch checkout used by repo-native merge-readiness verification.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3241495641
+Disposition: NOT-A-BUG
+Evidence: CI merge-readiness job `75991358535` on final-head run `25861221326` reached the review-governance parser and failed only on unmapped CodeRabbit review-level URL `pullrequestreview-4290015131`; it did not reject the existing branch-history proof SHAs. That review-level URL is now mapped in this artifact.
+Reason: The bot evaluated squash-preview reviewed commit `0c10ada6e61b5c95e4f5493b33b81aae07c3a476`, while the repo-native merge-readiness check validates the live PR branch/merge checkout and currently accepts branch-history proof SHAs.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3241365086 -> bb20cab788961df809fad8fa5e058528283f5fb3
 Disposition: FIXED
 Commit: bb20cab788961df809fad8fa5e058528283f5fb3
