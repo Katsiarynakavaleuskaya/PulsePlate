@@ -56,6 +56,14 @@ def test_rejects_repo_private_key_material_with_spaced_key_name() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_repo_private_key_material_with_repeated_separators() -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"]["private   key"] = "stored"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_sensitive_field_object_without_type_error() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["private_key"] = {"stored": True}
@@ -79,11 +87,20 @@ def test_rejects_private_key_material_under_neutral_key() -> None:
     [
         "github_pat_" + "a" * 24,
         "xapp-" + "b" * 24,
+        "xoxc-" + "c" * 24,
     ],
 )
 def test_rejects_current_token_prefixes_under_neutral_key(secret_value: str) -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["operator_note"] = secret_value
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_token_shaped_json_key() -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"]["external_handles"] = {"github_pat_" + "a" * 24: "external"}
 
     with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
         identity_check.validate_identity_policy(policy)
@@ -124,6 +141,17 @@ def test_rejects_autonomous_commit_context_drift() -> None:
     policy["authority_boundary"]["allowed_commit_context"] = "production_autonomous"
 
     with pytest.raises(identity_check.IdentityPolicyError, match="allowed_commit_context"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_authority_drift_outside_main_boundary() -> None:
+    policy = _valid_policy()
+    policy["github_app_authority"] = {
+        "merge_rights": "admin",
+        "can_resolve_review_threads": True,
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):
         identity_check.validate_identity_policy(policy)
 
 

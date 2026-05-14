@@ -22,12 +22,20 @@ EXPECTED_EMAIL = "pulseplate@pm.me"
 FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
 ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
 SENSITIVE_FIELD_RE = re.compile(
-    r"(private[\s_-]?key|pass[\s_-]?phrase|secret|token|credential|signing[\s_-]?key)",
+    r"(private[\s_-]*key|pass[\s_-]*phrase|secret|token|credential|signing[\s_-]*key)",
     re.IGNORECASE,
 )
 SENSITIVE_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
+    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
     re.IGNORECASE,
+)
+AUTHORITY_FIELD_NAMES = frozenset(
+    {
+        "merge_rights",
+        "can_claim_merge_readiness",
+        "can_resolve_review_threads",
+        "can_push_without_human_review",
+    }
 )
 
 
@@ -74,6 +82,10 @@ def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
             next_path = f"{path}.{key}"
+            if isinstance(key, str) and SENSITIVE_VALUE_RE.search(key):
+                raise IdentityPolicyError(
+                    f"{next_path} must not store private key material or secrets."
+                )
             if SENSITIVE_FIELD_RE.search(str(key)):
                 allowed_marker = isinstance(value, str) and value in {"none", "external"}
                 if not isinstance(value, bool) and not allowed_marker:
@@ -90,9 +102,30 @@ def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
         raise IdentityPolicyError(f"{path} must not store private key material or secrets.")
 
 
+def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            next_path = f"{path}.{key}"
+            if (
+                path != "$.authority_boundary"
+                and key in AUTHORITY_FIELD_NAMES
+                and value is not False
+                and value != "none"
+            ):
+                raise IdentityPolicyError(
+                    f"{next_path} must not grant Experiment Runner authority."
+                )
+            _reject_authority_drift(value, path=next_path)
+        return
+    if isinstance(payload, list):
+        for index, item in enumerate(payload):
+            _reject_authority_drift(item, path=f"{path}[{index}]")
+
+
 def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a validated identity policy or raise IdentityPolicyError."""
 
+    _reject_authority_drift(payload)
     if payload.get("schema_version") != EXPECTED_SCHEMA_VERSION:
         raise IdentityPolicyError("schema_version must be 1.0.")
     if payload.get("identity_slug") != EXPECTED_IDENTITY_SLUG:
