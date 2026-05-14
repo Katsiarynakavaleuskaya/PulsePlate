@@ -67,6 +67,12 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: `.github/workflows/ci.yml` now gives Python 3.12 the same 90-minute `test-main` budget as Python 3.13 while preserving the required check identity and matrix shape.
   - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` asserts `{"3.11": 60, "3.12": 90, "3.13": 90}`.
   - Evidence: focused local pytest passes (`13 passed`) and full pre-commit passes.
+- Current-head CI finding: FIXED by `1a91cdfd6d5300a0d683a222559d590d338557e8`
+  - Finding: `test-main (3.12, 90)` still hit the job timeout after setup overhead; the job ran from `2026-05-13T22:54:07Z` to `2026-05-14T00:24:38Z`, and the `Run tests with coverage` step was cancelled.
+  - Evidence: JUnit artifact `junit-main-3.12` contained only `results-py312-shard-1.xml`; shard 1 completed successfully with `6703` tests, `0` failures, `0` errors, `19` skips, and `time="1872.519"`.
+  - Evidence: `.github/workflows/ci.yml` now rebalances only Python 3.12 from two process shards to three process shards; Python 3.13 remains at two shards and existing required check names are preserved.
+  - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 3 --max-parallel 3 --list-shards` produced balanced shard weights `3156708`, `3156742`, and `3156746`.
+  - Evidence: `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passes and full pre-commit passes.
 
 ## Fixed in Commit Mapping
 
@@ -124,6 +130,11 @@ Evidence: `tests/test_app_extended_coverage.py` adds deterministic API coverage 
 Disposition: FIXED
 Commit: ae387ff9e6078215603d1932a8d27815c6a96ea3
 Evidence: `.github/workflows/ci.yml` extends only the Python 3.12 `test-main` timeout from 60 to 90 minutes after repeated timeout cancellation, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks the matrix timeout contract. Focused pytest and full pre-commit pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25831057536/job/75895982026 -> 1a91cdfd6d5300a0d683a222559d590d338557e8
+Disposition: FIXED
+Commit: 1a91cdfd6d5300a0d683a222559d590d338557e8
+Evidence: `test-main (3.12, 90)` reached the job timeout after only shard 1 completed; `.github/workflows/ci.yml` now rebalances only Python 3.12 from two to three process shards, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
@@ -235,8 +246,12 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response` - PASS after 3.12 timeout fix (`13 passed`)
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.12 timeout fix
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): extend python 3.12 main timeout"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after 3.12 shard rebalance
+- `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 3 --max-parallel 3 --list-shards` - PASS with balanced shard weights `3156708`, `3156742`, `3156746`
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.12 shard rebalance
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): rebalance python 3.12 main shards"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after 3.12 timeout fix.
+- Current-head PR checks are pending after 3.12 shard rebalance fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
