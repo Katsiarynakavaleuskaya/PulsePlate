@@ -263,6 +263,14 @@ Evidence: Third backend-proof review wave was fixed in code/checker/tests: upstr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547736 -> 930c1149f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241547742 -> 930c1149f
 
+Disposition: FIXED
+Commit: f1c64248a
+Evidence: Fourth backend-proof review wave was fixed in code/checker/tests: rollback eligibility now verifies the backend token across the full rollback proof bundle, public candidate tuple fields reject runtime-scope labels before serialization, and the SC-G5 machine-state checker requires every blocked runtime dependency and forbidden claim already declared by the contract JSON. Focused pytest, split mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241598060 -> f1c64248a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241598066 -> f1c64248a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241598070 -> f1c64248a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241598076 -> f1c64248a
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
