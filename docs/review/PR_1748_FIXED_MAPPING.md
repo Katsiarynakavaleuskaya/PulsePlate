@@ -111,14 +111,23 @@ This PR exceeds the default size threshold because the original Node24 path-filt
   - Finding: live job `76028705577` showed the first Python 3.12 batch did not advance to shard indexes 5-8 after shard indexes 1, 2, and 3 finished; shard index 4 printed a pytest success summary but did not print `MAIN_TEST_SHARD_FINISHED`.
   - Evidence: the open job log showed `MAIN_TEST_SHARD_FINISHED` for indexes 1, 2, and 3, while index 4 had already printed `1575 passed, 18 deselected in 867.94s (0:14:27)` without returning control to the parent scheduler.
   - Fix: `scripts/ci/run_main_test_shards.py` now uses slot-based scheduling with `FIRST_COMPLETED`, so the next shard starts as soon as any active shard returns instead of waiting for an entire batch.
-  - Fix: each child shard subprocess has a bounded watchdog. If pytest writes a clean JUnit XML and coverage data but hangs during post-summary cleanup, the parent records `MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS` and continues; incomplete or failing artifacts still return `124`.
-  - Security validation: JUnit XML is parsed with `defusedxml.ElementTree`; Bandit, `nosec`, and subprocess guard tests pass.
+  - Fix: each child shard subprocess has a bounded watchdog and the parent schedules by freed slots. The later security-auditor pass superseded the initial timeout-after-artifacts path in `efc598e6eebf2d5084318e9d80d5f728f4a06c7f`; all subprocess timeouts now fail closed.
+  - Security validation: Bandit, `nosec`, and subprocess guard tests pass; the XML parser dependency and timeout-as-success branch were removed in later commits.
   - Evidence: local focused workflow/runner/security tests, `make validate-changed`, full pre-commit, and commit hooks pass.
 - Current-head CI finding: FIXED by `bcfee31164158da560c1850fc0954ef57972ff3e`
   - Finding: current-head Python 3.12 job on stale head `5b6f73e851574e7c2c3236e2bec5b4f23919ae44` failed immediately because the CI `ci-test` profile does not install `defusedxml`.
   - Evidence: job `76050358649` failed at import time with `ModuleNotFoundError: No module named 'defusedxml'` before shard execution.
-  - Fix: `scripts/ci/run_main_test_shards.py` no longer imports an external XML parser. The watchdog proof reads the locally generated JUnit file as bounded text and extracts only numeric `tests`, `failures`, and `errors` attributes.
+  - Fix: `scripts/ci/run_main_test_shards.py` no longer imports an external XML parser. The later security pass removed the artifact-proof timeout-success path entirely, so no XML/JUnit parsing is needed on timeout.
   - Security validation: this removes the XML parser dependency and Bandit XML finding instead of suppressing it; focused runner/workflow/security guard tests and full pre-commit pass.
+- Current-head CI finding: FIXED by `efc598e6eebf2d5084318e9d80d5f728f4a06c7f`
+  - Finding: current-head run `25878540629` proved cleanup now runs, but the new per-shard watchdog exposed a different issue: live shards were being killed at the 1800s subprocess timeout before completion.
+  - Evidence: job `76052252136` (`test-main (3.12, 90)`) started shards 5-8 and reached cleanup, but logged `MAIN_TEST_SHARD_TIMEOUT_FAILED label=py312 index=4 timeout_seconds=1800`; job `76052252031` (`test-main (3.13, 90)`) logged `MAIN_TEST_SHARD_TIMEOUT_FAILED` for shard indexes 1 and 2.
+  - Evidence: the logs showed active pytest progress before timeout (`py312` shard 4 around 39%, `py313` shards around 57%/64%), so this was workload sizing under the watchdog rather than the old post-summary cleanup leak or the removed `defusedxml` import failure.
+  - Fix: `.github/workflows/ci.yml` now right-sizes main-suite shards to Python 3.12 `MAIN_TEST_SHARDS=16` / `MAIN_TEST_MAX_PARALLEL=4` and Python 3.13 `MAIN_TEST_SHARDS=8` / `MAIN_TEST_MAX_PARALLEL=4`, while Python 3.11 remains at the already-passing `4/4`.
+  - Fix: `scripts/ci/run_main_test_shards.py` now treats every subprocess timeout as fail-closed, even if partial JUnit/coverage artifacts exist, and prints each timed-out shard file path with `MAIN_TEST_SHARD_TIMEOUT_FILE` diagnostics.
+  - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 16 --list-shards` produced sixteen balanced shard weights around `592k`; `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 8 --list-shards` produced eight balanced shard weights around `1184k`.
+  - Evidence: local focused workflow/runner/security guard pytest, `make validate-changed`, full `pre-commit run --all-files`, and commit hooks pass.
+  - Agent-coordinator/QA/bug-hunter/security disposition: FIXED. Coordinator classified the issue as shard watchdog/plan sizing, QA recommended rebalance over timeout loosening, bug-hunter identified the 1800s watchdog as the active failure, and security-auditor required removing timeout-as-success.
 
 ## Fixed in Commit Mapping
 
@@ -385,8 +394,14 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after removing external XML parser dependency (`49 passed`)
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after removing external XML parser dependency
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): remove shard watchdog xml dependency"` - PASS hooks
+- `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 16 --list-shards` - PASS with balanced shard weights around `592k`
+- `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.13 --shard-count 8 --list-shards` - PASS with balanced shard weights around `1184k`
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after fail-closed watchdog plan fix (`48 passed`)
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after fail-closed watchdog plan fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after fail-closed watchdog plan fix
+- `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "fix(ci): right-size main shard watchdog plan"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after removing the shard watchdog XML dependency.
+- Current-head PR checks are pending after the fail-closed watchdog plan fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
