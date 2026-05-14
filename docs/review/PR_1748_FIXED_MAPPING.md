@@ -106,6 +106,11 @@ Disposition: NOT-A-BUG
 Evidence: Current PR head `0a7cd1747cdac51a1e6f2ec8168377aa874fb033` contains the mapped FIXED proof commits in branch history; local strict disposition guard passed after the prior reviewed-head thread was mapped and resolved.
 Reason: The bot evaluated reviewed squash-preview commit `f1080963dcfdd2bdeb9b0fd9927b0ffdfd6a437d`, while the repo canonical merge-readiness contract validates the live PR branch checkout and current-head CI, not stale synthetic reviewed heads.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3237913079
+Disposition: NOT-A-BUG
+Evidence: Current PR head `77ddfb754a7ca601f787d6b29ed05d1d8fbdfde0` contains the mapped FIXED proof commits in branch history; the mapping artifact and PR body explicitly define FIXED commit SHAs as PR branch-history proofs for the live PR checkout and current-head CI.
+Reason: The bot evaluated stale reviewed head `26bf29d43e63c2484acd8cf489490e3d2f147db1`, not the canonical live PR branch checkout used by repo-native merge-readiness verification.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
