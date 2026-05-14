@@ -15,6 +15,7 @@
 - `716e94e09e5386ffeb4abb90ece0b8c1456456f9` - `fix(orchestration): type email audit path resolution`
 - `51f0344106f92846e168685ce62f61145358037a` - `fix(orchestration): stabilize email audit path typing`
 - `ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4` - `fix(orchestration): harden smtp email delivery claims`
+- `f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d` - `docs(review): map PR 1751 smtp claim fixes`
 
 ## Coordinator / Agent Passes
 
@@ -100,6 +101,11 @@ Evidence: Email send claim now uses exclusive create, duplicate-blocking `send_i
 Disposition: FIXED
 Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Evidence: SMTP port `465` uses `SMTP_SSL`; `tests/test_experiment_notify.py::test_smtp_implicit_tls_uses_smtp_ssl` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239534960 -> f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d
+Disposition: FIXED
+Commit: f0d39d65e5554fa8b2798dc2d4494c04cbab0b4d
+Evidence: Fixed-mapping artifact now uses reachable full branch commit SHAs; `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$BODY" --pr-number 1751` passed before this mapping follow-up.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239534963 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Disposition: FIXED
