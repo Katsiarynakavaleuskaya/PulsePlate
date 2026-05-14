@@ -103,6 +103,13 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 8 --max-parallel 4 --list-shards` produced eight balanced shard weights between `1183920` and `1184358`.
   - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now locks the Python 3.12 `MAIN_TEST_SHARDS=8` / `MAIN_TEST_MAX_PARALLEL=4` contract.
   - Evidence: local focused workflow/runner pytest, `make validate-changed`, full pre-commit, and commit hooks pass.
+- Current-head CI finding: FIXED by `a1fb059e10f9c975626ec50162be5952ba79fd49`
+  - Finding: live job `76028705577` showed the first Python 3.12 batch did not advance to shard indexes 5-8 after shard indexes 1, 2, and 3 finished; shard index 4 printed a pytest success summary but did not print `MAIN_TEST_SHARD_FINISHED`.
+  - Evidence: the open job log showed `MAIN_TEST_SHARD_FINISHED` for indexes 1, 2, and 3, while index 4 had already printed `1575 passed, 18 deselected in 867.94s (0:14:27)` without returning control to the parent scheduler.
+  - Fix: `scripts/ci/run_main_test_shards.py` now uses slot-based scheduling with `FIRST_COMPLETED`, so the next shard starts as soon as any active shard returns instead of waiting for an entire batch.
+  - Fix: each child shard subprocess has a bounded watchdog. If pytest writes a clean JUnit XML and coverage data but hangs during post-summary cleanup, the parent records `MAIN_TEST_SHARD_TIMEOUT_AFTER_ARTIFACTS` and continues; incomplete or failing artifacts still return `124`.
+  - Security validation: JUnit XML is parsed with `defusedxml.ElementTree`; Bandit, `nosec`, and subprocess guard tests pass.
+  - Evidence: local focused workflow/runner/security tests, `make validate-changed`, full pre-commit, and commit hooks pass.
 
 ## Fixed in Commit Mapping
 
@@ -362,8 +369,12 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after Python 3.12 batch split
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after Python 3.12 batch split
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): split python 3.12 main shard batches"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after dynamic shard scheduling/watchdog (`49 passed`)
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after dynamic shard scheduling/watchdog
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after dynamic shard scheduling/watchdog
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): advance main shards past cleanup hangs"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after Python 3.12 batch split.
+- Current-head PR checks are pending after dynamic shard scheduling/watchdog.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
