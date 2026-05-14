@@ -79,6 +79,12 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: `.github/workflows/ci.yml` now runs Python 3.11 `test-main` through the existing process-level shard runner instead of pytest-xdist while preserving the required check name and 97% coverage gate.
   - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.11 --shard-count 4 --max-parallel 4 --list-shards` produced balanced shard weights `2367885`, `2367530`, `2367530`, and `2367817`.
   - Evidence: `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passes and full pre-commit passes.
+- Current-head CI finding: FIXED by `bd1331c44769f046ec440d13db09126d5138a0a9`
+  - Finding: `test-main (3.12, 90)` still hit the job timeout after the three-shard rebalance; the job ran from `2026-05-14T07:02:01Z` to `2026-05-14T08:32:39Z`.
+  - Evidence: JUnit artifact `junit-main-3.12` contained completed shard 1 (`4376` tests, `0` failures/errors, `time="1569.179"`) and shard 3 (`4559` tests, `0` failures/errors, `time="2096.330"`), but no shard 2 XML.
+  - Evidence: `.github/workflows/ci.yml` now uses the same four process-shard plan for Python 3.12 that passed current-head Python 3.11, while preserving the `test-main (3.12, 90)` required-check identity.
+  - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 4 --max-parallel 4 --list-shards` produced balanced shard weights `2367885`, `2367530`, `2367530`, and `2367817`.
+  - Evidence: `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passes and full pre-commit passes.
 
 ## Fixed in Commit Mapping
 
@@ -161,6 +167,11 @@ Evidence: `test-main (3.12, 90)` reached the job timeout after only shard 1 comp
 Disposition: FIXED
 Commit: a59c5c7e9efd19b1a8b10c2da7a1d3971bc22df2
 Evidence: `test-main (3.11, 60)` failed from a pytest-xdist worker crash and partial coverage data, not a deterministic assertion failure; `.github/workflows/ci.yml` now runs Python 3.11 through process-level shards with `tests/results-py311-shard-*.xml` artifacts, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25846637782/job/75943642347 -> bd1331c44769f046ec440d13db09126d5138a0a9
+Disposition: FIXED
+Commit: bd1331c44769f046ec440d13db09126d5138a0a9
+Evidence: `test-main (3.12, 90)` still timed out with three process shards after shards 1 and 3 completed successfully and shard 2 produced no JUnit XML; `.github/workflows/ci.yml` now uses four process shards for Python 3.12, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25811960072/job/75830472009 -> 6c22df3e4a3f818f22471fdafc3c5ff55c8935d3
 Disposition: FIXED
@@ -279,8 +290,11 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.11 --shard-count 4 --max-parallel 4 --list-shards` - PASS with balanced shard weights `2367885`, `2367530`, `2367530`, `2367817`
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.11 process-shard fix
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): run python 3.11 main tests in process shards"` - PASS hooks
+- `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 4 --max-parallel 4 --list-shards` - PASS with balanced shard weights `2367885`, `2367530`, `2367530`, `2367817`
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after 3.12 four-shard fix
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): rebalance python 3.12 into four shards"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after 3.11 process-shard fix.
+- Current-head PR checks are pending after 3.12 four-shard fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
