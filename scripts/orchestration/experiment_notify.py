@@ -729,16 +729,22 @@ def _email_audit_payload(
     markdown: str,
     output_path: Path,
     source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
 ) -> dict[str, Any]:
     """Build a local, secret-free email delivery audit payload."""
 
+    resolved_source_sha256 = (
+        source_sha256
+        if source_sha256 is not None
+        else {key: _sha256_file(path) for key, path in sorted(source_paths.items())}
+    )
     return {
         "experiment_id": experiment_id,
         "notification_sha256": _sha256_text(markdown),
         "output_path": normalize_repo_path(output_path),
         "provider_type": "smtp",
         "recipient_hash": _recipient_hash(recipient),
-        "source_sha256": {key: _sha256_file(path) for key, path in sorted(source_paths.items())},
+        "source_sha256": resolved_source_sha256,
         "status": status,
         "failure_class": _safe_inline(failure_class or "none"),
         "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
@@ -755,6 +761,7 @@ def _write_email_audit(
     markdown: str,
     output_path: Path,
     source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
 ) -> None:
     """Write a local, secret-free email delivery audit artifact."""
 
@@ -766,6 +773,7 @@ def _write_email_audit(
         markdown=markdown,
         output_path=output_path,
         source_paths=source_paths,
+        source_sha256=source_sha256,
     )
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     audit_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -779,6 +787,7 @@ def _claim_email_send(
     markdown: str,
     output_path: Path,
     source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
 ) -> None:
     """Atomically claim an email send before the SMTP side effect."""
 
@@ -790,6 +799,7 @@ def _claim_email_send(
         markdown=markdown,
         output_path=output_path,
         source_paths=source_paths,
+        source_sha256=source_sha256,
     )
     audit_path.parent.mkdir(parents=True, exist_ok=True)
     try:
@@ -808,16 +818,7 @@ def _claim_email_send(
         raise ExperimentEmailDeliveryError("Email notification was already sent.")
     if existing_status == "failed":
         raise ExperimentEmailDeliveryError("Existing email delivery audit blocks retry.")
-    _write_email_audit(
-        audit_path=audit_path,
-        experiment_id=experiment_id,
-        recipient=recipient,
-        status="send_in_progress",
-        failure_class=None,
-        markdown=markdown,
-        output_path=output_path,
-        source_paths=source_paths,
-    )
+    raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
 
 
 def _send_smtp_email(
@@ -867,6 +868,7 @@ def _deliver_email_notification(
     """Send an explicit email notification and record a local audit artifact."""
 
     audit_path = _resolve_email_audit_path(experiment_id)
+    source_sha256 = {key: _sha256_file(path) for key, path in sorted(source_paths.items())}
     _claim_email_send(
         audit_path=audit_path,
         experiment_id=experiment_id,
@@ -874,6 +876,7 @@ def _deliver_email_notification(
         markdown=markdown,
         output_path=output_path,
         source_paths=source_paths,
+        source_sha256=source_sha256,
     )
     try:
         _send_smtp_email(
@@ -891,6 +894,7 @@ def _deliver_email_notification(
             markdown=markdown,
             output_path=output_path,
             source_paths=source_paths,
+            source_sha256=source_sha256,
         )
         raise
     _write_email_audit(
@@ -902,6 +906,7 @@ def _deliver_email_notification(
         markdown=markdown,
         output_path=output_path,
         source_paths=source_paths,
+        source_sha256=source_sha256,
     )
     return audit_path
 

@@ -939,6 +939,93 @@ def test_invalid_utf8_email_audit_fails_closed(
     assert FakeSMTP.sent_messages == []
 
 
+def test_unknown_email_audit_status_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_text(
+        json.dumps(
+            {
+                "experiment_id": "exp-notify",
+                "failure_class": "none",
+                "notification_sha256": experiment_notify._sha256_text(EXPECTED_NOTIFICATION),
+                "output_path": "artifacts/orchestration/experiments/notifications/exp-notify.md",
+                "provider_type": "smtp",
+                "recipient_hash": experiment_notify._recipient_hash("pulseplate@pm.me"),
+                "source_sha256": {"packet": None, "promotion": None, "result": None},
+                "status": "delivered",
+                "timestamp": "2026-05-13T00:00:00+00:00",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Existing email audit artifact is invalid" in stdout
+    assert FakeSMTP.sent_messages == []
+
+
+def test_email_audit_source_hashes_match_rendered_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    original_result_hash = experiment_notify._sha256_file(result_path)
+
+    def mutate_result_after_claim(**_: Any) -> None:
+        _write_json(result_path, _result(status="rejected", failure_class="guard_failure"))
+
+    monkeypatch.setattr(experiment_notify, "_send_smtp_email", mutate_result_after_claim)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+
+    audit = json.loads((notification_dir / "exp-notify.email-audit.json").read_text())
+    assert exit_code == 0
+    assert audit["status"] == "sent"
+    assert audit["source_sha256"]["result"] == original_result_hash
+    assert audit["source_sha256"]["result"] != experiment_notify._sha256_file(result_path)
+
+
 def test_smtp_implicit_tls_uses_smtp_ssl(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
