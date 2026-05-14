@@ -117,6 +117,16 @@ Disposition: NOT-A-BUG
 Evidence: Current PR head `77ddfb754a7ca601f787d6b29ed05d1d8fbdfde0` contains the mapped FIXED proof commits in branch history; the mapping artifact and PR body explicitly define FIXED commit SHAs as PR branch-history proofs for the live PR checkout and current-head CI.
 Reason: The bot evaluated stale reviewed head `26bf29d43e63c2484acd8cf489490e3d2f147db1`, not the canonical live PR branch checkout used by repo-native merge-readiness verification.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3239524475 -> 19b188dc4228c74c1a53fa7331ffdf9426471f06
+Disposition: FIXED
+Commit: 19b188dc4228c74c1a53fa7331ffdf9426471f06
+Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now uses the real full shard-rebalance commit SHA `1a91cdfd655c11fe737beabdda9685ed4f02c170`, which resolves in this repository.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3239524477 -> 19b188dc4228c74c1a53fa7331ffdf9426471f06
+Disposition: FIXED
+Commit: 19b188dc4228c74c1a53fa7331ffdf9426471f06
+Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now classifies `discussion_r3236295295` as FIXED by `ba51206144f52319f4ae1fdbdef07aeeac5961a6`, matching the final merge-base diff implementation.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25808282069/job/75817373389 -> ddaff0637691788eee07e02be746f97ddc26fe82
 Disposition: FIXED
 Commit: ddaff0637691788eee07e02be746f97ddc26fe82
