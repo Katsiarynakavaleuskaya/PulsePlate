@@ -713,7 +713,7 @@ def _read_existing_email_audit(audit_path: Path) -> dict[str, Any] | None:
         return None
     try:
         payload = json.loads(audit_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.") from exc
     if not isinstance(payload, dict):
         raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
@@ -806,6 +806,8 @@ def _claim_email_send(
         raise ExperimentEmailDeliveryError("Email notification was already sent.")
     if existing_status == "send_in_progress":
         raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    if existing_status == "failed":
+        raise ExperimentEmailDeliveryError("Existing email delivery audit blocks retry.")
     _write_email_audit(
         audit_path=audit_path,
         experiment_id=experiment_id,

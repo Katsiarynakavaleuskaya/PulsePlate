@@ -862,6 +862,83 @@ def test_stale_email_send_claim_blocks_retry(
     assert audit["timestamp"] == old_timestamp
 
 
+def test_failed_email_audit_blocks_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    _write_json(tmp_path / "packet.json", _packet())
+    _write_json(tmp_path / "result.json", _result())
+    experiment_notify._write_email_audit(
+        audit_path=audit_path,
+        experiment_id="exp-notify",
+        recipient="pulseplate@pm.me",
+        status="failed",
+        failure_class="smtp_error",
+        markdown=EXPECTED_NOTIFICATION,
+        output_path=notification_dir / "exp-notify.md",
+        source_paths={"packet": None, "promotion": None, "result": None},
+    )
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(tmp_path / "packet.json"),
+            "--result",
+            str(tmp_path / "result.json"),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "delivery audit blocks retry" in stdout
+    assert FakeSMTP.sent_messages == []
+    assert json.loads(audit_path.read_text(encoding="utf-8"))["status"] == "failed"
+
+
+def test_invalid_utf8_email_audit_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_bytes(b"\xff\xfe\x00")
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Existing email audit artifact is invalid" in stdout
+    assert FakeSMTP.sent_messages == []
+
+
 def test_smtp_implicit_tls_uses_smtp_ssl(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
