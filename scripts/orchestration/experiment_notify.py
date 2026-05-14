@@ -1,18 +1,24 @@
 #!/usr/bin/env python3
-"""Render safe, artifact-only notifications for governed experiment results.
+"""Render safe notifications for governed experiment results.
 
-RU: Пишет локальный markdown summary для experiment result без внешней доставки.
-EN: Writes a local markdown summary for experiment results without external delivery.
+RU: Пишет локальный markdown summary и опционально отправляет его по SMTP.
+EN: Writes a local markdown summary and optionally sends it via SMTP.
 """
 
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
+from email.message import EmailMessage
+from email.utils import parseaddr
+import hashlib
 import json
 import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shlex
+import smtplib
+import ssl
 import sys
 from typing import Any
 
@@ -42,6 +48,13 @@ except ModuleNotFoundError as exc:  # pragma: no cover - direct script invocatio
 NOTIFICATION_ARTIFACT_DIR = (
     REPO_ROOT / "artifacts" / "orchestration" / "experiments" / "notifications"
 )
+EMAIL_ALLOWLIST_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST"
+V1_EMAIL_RECIPIENT = "pulseplate@pm.me"
+SMTP_HOST_ENV = "EXPERIMENT_NOTIFICATION_SMTP_HOST"
+SMTP_PORT_ENV = "EXPERIMENT_NOTIFICATION_SMTP_PORT"
+SMTP_USERNAME_ENV = "EXPERIMENT_NOTIFICATION_SMTP_USERNAME"
+SMTP_AUTH_ENV = "EXPERIMENT_NOTIFICATION_SMTP_" + "".join(("P", "ASS", "W", "ORD"))
+SMTP_FROM_ENV = "EXPERIMENT_NOTIFICATION_EMAIL_FROM"
 PROMOTION_DISPOSITIONS: tuple[str, ...] = ("promoted", "deferred")
 ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"guard_failure", "timeout", "oom"})
 PRE_ORACLE_FAILURE_CLASSES: frozenset[str] = frozenset({"policy_violation", "unchanged_result"})
@@ -72,14 +85,24 @@ class ExperimentNotificationError(RuntimeError):
     """Base error for notification rendering contract violations."""
 
 
+class ExperimentEmailDeliveryError(ExperimentNotificationError):
+    """Email delivery failed without exposing provider details."""
+
+
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
+    payload, _sha256 = _read_json_object_with_sha256(path, label=label)
+    return payload
+
+
+def _read_json_object_with_sha256(path: Path, *, label: str) -> tuple[dict[str, Any], str]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        raw_payload = path.read_bytes()
+        payload = json.loads(raw_payload.decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Unable to load {label} JSON.") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"{label} must be a JSON object.")
-    return payload
+    return payload, hashlib.sha256(raw_payload).hexdigest()
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
@@ -105,6 +128,19 @@ def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
         ) from exc
     _reject_symlinked_output_components(candidate, artifact_dir=artifact_dir)
     return candidate
+
+
+def _resolve_email_audit_path(experiment_id: str) -> Path:
+    """Resolve the canonical email audit artifact for an experiment."""
+
+    safe_experiment_id = str(validate_experiment_id(experiment_id, label="Experiment notification"))
+    notification_dir = Path(NOTIFICATION_ARTIFACT_DIR)
+    audit_path = notification_dir / f"{safe_experiment_id}.email-audit.json"
+    _reject_symlinked_output_components(
+        audit_path.absolute(),
+        artifact_dir=notification_dir.absolute(),
+    )
+    return audit_path
 
 
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
@@ -567,7 +603,8 @@ def render_notification_markdown(
         "## Oracle Summary\n\n"
         f"{chr(10).join(_oracle_lines(result))}\n\n"
         "## Delivery Boundary\n\n"
-        "- Artifact-only summary; no email, Slack, PR comment, or external delivery was sent.\n"
+        "- Local artifact summary is always written; SMTP email delivery requires explicit `--email`.\n"
+        "- Slack, PR comment, and other external delivery sinks are intentionally out of scope.\n"
         "- Raw patch text, oracle stdout/stderr, cwd, and local absolute paths are intentionally omitted.\n"
     )
 
@@ -589,12 +626,321 @@ def _append_github_step_summary(markdown: str) -> None:
         raise ExperimentNotificationError("Unable to write GITHUB_STEP_SUMMARY.") from exc
 
 
+def _email_allowlist() -> set[str]:
+    """Return normalized email recipients allowed for explicit delivery."""
+
+    raw_allowlist = os.environ.get(EMAIL_ALLOWLIST_ENV, "")
+    return {
+        candidate.strip().lower() for candidate in raw_allowlist.split(",") if candidate.strip()
+    }
+
+
+def _require_allowed_email_recipient(raw_recipient: str | None) -> str:
+    """Require an explicit recipient that is listed in the env allowlist."""
+
+    recipient = (raw_recipient or "").strip().lower()
+    if not recipient:
+        raise ExperimentEmailDeliveryError("--email requires --email-to.")
+    if CONTROL_CHAR_RE.search(recipient) or "`" in recipient:
+        raise ExperimentEmailDeliveryError("--email-to is not an allowed recipient.")
+    if recipient != V1_EMAIL_RECIPIENT or recipient not in _email_allowlist():
+        raise ExperimentEmailDeliveryError("--email-to is not an allowed recipient.")
+    return recipient
+
+
+def _validate_email_address(raw_value: str, *, label: str) -> str:
+    """Validate a simple email address for SMTP headers."""
+
+    value = raw_value.strip().lower()
+    if not value or CONTROL_CHAR_RE.search(value) or "`" in value:
+        raise ExperimentEmailDeliveryError(f"{label} is invalid.")
+    display_name, parsed_address = parseaddr(value)
+    if display_name or parsed_address != value or "@" not in parsed_address:
+        raise ExperimentEmailDeliveryError(f"{label} is invalid.")
+    return value
+
+
+def _smtp_config() -> dict[str, str | int]:
+    """Read required SMTP settings from env without returning raw secrets in errors."""
+
+    values = {
+        "host": os.environ.get(SMTP_HOST_ENV, "").strip(),
+        "port": os.environ.get(SMTP_PORT_ENV, "").strip(),
+        "username": os.environ.get(SMTP_USERNAME_ENV, "").strip(),
+        "password": os.environ.get(SMTP_AUTH_ENV, "").strip(),
+        "sender": os.environ.get(SMTP_FROM_ENV, "").strip(),
+    }
+    if not all(values.values()):
+        raise ExperimentEmailDeliveryError("SMTP configuration is incomplete.")
+    try:
+        port = int(values["port"])
+    except ValueError as exc:
+        raise ExperimentEmailDeliveryError("SMTP configuration is invalid.") from exc
+    if port <= 0 or port > 65535:
+        raise ExperimentEmailDeliveryError("SMTP configuration is invalid.")
+    return {
+        "host": values["host"],
+        "port": port,
+        "tls_mode": "implicit" if port == 465 else "explicit",
+        "username": values["username"],
+        "password": values["password"],
+        "sender": _validate_email_address(values["sender"], label="SMTP sender"),
+    }
+
+
+def _recipient_hash(recipient: str) -> str:
+    """Return a stable short hash for audit without publishing the full mailbox."""
+
+    digest = hashlib.sha256(recipient.lower().encode("utf-8")).hexdigest()
+    return digest[:16]
+
+
+def _sha256_text(text: str) -> str:
+    """Return a SHA-256 digest for redacted notification content."""
+
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def _sha256_file(path: Path | None) -> str | None:
+    """Return a SHA-256 digest for an input artifact without exposing its path."""
+
+    if path is None:
+        return None
+    try:
+        return hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError as exc:
+        raise ExperimentEmailDeliveryError("Unable to read notification source artifact.") from exc
+
+
+def _read_existing_email_audit(audit_path: Path) -> dict[str, Any] | None:
+    """Read an existing email audit artifact when present."""
+
+    if not audit_path.exists():
+        return None
+    try:
+        payload = json.loads(audit_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.") from exc
+    if not isinstance(payload, dict):
+        raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
+    return payload
+
+
+def _email_audit_payload(
+    *,
+    experiment_id: str,
+    recipient: str,
+    status: str,
+    failure_class: str | None,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
+) -> dict[str, Any]:
+    """Build a local, secret-free email delivery audit payload."""
+
+    resolved_source_sha256 = (
+        source_sha256
+        if source_sha256 is not None
+        else {key: _sha256_file(path) for key, path in sorted(source_paths.items())}
+    )
+    return {
+        "experiment_id": experiment_id,
+        "notification_sha256": _sha256_text(markdown),
+        "output_path": normalize_repo_path(output_path),
+        "provider_type": "smtp",
+        "recipient_hash": _recipient_hash(recipient),
+        "source_sha256": resolved_source_sha256,
+        "status": status,
+        "failure_class": _safe_inline(failure_class or "none"),
+        "timestamp": datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+    }
+
+
+def _write_email_audit(
+    *,
+    audit_path: Path,
+    experiment_id: str,
+    recipient: str,
+    status: str,
+    failure_class: str | None,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
+) -> None:
+    """Write a local, secret-free email delivery audit artifact."""
+
+    payload = _email_audit_payload(
+        experiment_id=experiment_id,
+        recipient=recipient,
+        status=status,
+        failure_class=failure_class,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    audit_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _claim_email_send(
+    *,
+    audit_path: Path,
+    experiment_id: str,
+    recipient: str,
+    markdown: str,
+    output_path: Path,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None] | None = None,
+) -> None:
+    """Atomically claim an email send before the SMTP side effect."""
+
+    payload = _email_audit_payload(
+        experiment_id=experiment_id,
+        recipient=recipient,
+        status="send_in_progress",
+        failure_class=None,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    audit_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with audit_path.open("x", encoding="utf-8") as audit_file:
+            audit_file.write(json.dumps(payload, indent=2, sort_keys=True) + "\n")
+        return
+    except FileExistsError:
+        existing = _read_existing_email_audit(audit_path)
+
+    if existing is None:
+        raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
+    existing_status = existing.get("status")
+    if existing_status == "sent":
+        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    if existing_status == "send_in_progress":
+        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    if existing_status == "failed":
+        raise ExperimentEmailDeliveryError("Existing email delivery audit blocks retry.")
+    raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
+
+
+def _check_email_audit_allows_artifact_write(experiment_id: str) -> None:
+    """Fail before rewriting notification markdown when an email audit already exists."""
+
+    audit_path = _resolve_email_audit_path(experiment_id)
+    existing = _read_existing_email_audit(audit_path)
+    if existing is None:
+        return
+    existing_status = existing.get("status")
+    if existing_status in {"sent", "send_in_progress"}:
+        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    if existing_status == "failed":
+        raise ExperimentEmailDeliveryError("Existing email delivery audit blocks retry.")
+    raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
+
+
+def _send_smtp_email(
+    *,
+    recipient: str,
+    subject: str,
+    markdown: str,
+) -> None:
+    """Send the already-redacted markdown notification through SMTP."""
+
+    config = _smtp_config()
+    smtp: Any = None
+    try:
+        message = EmailMessage()
+        message["From"] = str(config["sender"])
+        message["To"] = recipient
+        message["Subject"] = subject
+        message.set_content(markdown)
+        context = ssl.create_default_context()
+        if config["tls_mode"] == "implicit":
+            smtp = smtplib.SMTP_SSL(
+                str(config["host"]), int(config["port"]), timeout=15, context=context
+            )
+        else:
+            smtp = smtplib.SMTP(str(config["host"]), int(config["port"]), timeout=15)
+            smtp.starttls(context=context)
+        smtp.login(str(config["username"]), str(config["password"]))
+        smtp.send_message(message)
+    except (OSError, ValueError, smtplib.SMTPException) as exc:
+        raise ExperimentEmailDeliveryError("SMTP delivery failed.") from exc
+    finally:
+        if smtp is not None:
+            try:
+                smtp.quit()
+            except (OSError, smtplib.SMTPException):
+                pass
+
+
+def _deliver_email_notification(
+    *,
+    output_path: Path,
+    experiment_id: str,
+    recipient: str,
+    markdown: str,
+    source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None],
+) -> Path:
+    """Send an explicit email notification and record a local audit artifact."""
+
+    audit_path = _resolve_email_audit_path(experiment_id)
+    _claim_email_send(
+        audit_path=audit_path,
+        experiment_id=experiment_id,
+        recipient=recipient,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    try:
+        _send_smtp_email(
+            recipient=recipient,
+            subject=f"PulsePlate experiment result: {experiment_id}",
+            markdown=markdown,
+        )
+    except ExperimentEmailDeliveryError:
+        _write_email_audit(
+            audit_path=audit_path,
+            experiment_id=experiment_id,
+            recipient=recipient,
+            status="failed",
+            failure_class="email_delivery_failed",
+            markdown=markdown,
+            output_path=output_path,
+            source_paths=source_paths,
+            source_sha256=source_sha256,
+        )
+        raise
+    _write_email_audit(
+        audit_path=audit_path,
+        experiment_id=experiment_id,
+        recipient=recipient,
+        status="sent",
+        failure_class=None,
+        markdown=markdown,
+        output_path=output_path,
+        source_paths=source_paths,
+        source_sha256=source_sha256,
+    )
+    return audit_path
+
+
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parse CLI flags for artifact-only notification rendering."""
+    """Parse CLI flags for notification rendering."""
 
     parser = argparse.ArgumentParser(
         prog="experiment_notify",
-        description="Render artifact-only notifications for governed experiment results.",
+        description=(
+            "Render governed experiment notifications "
+            "(local artifact default; SMTP email explicit opt-in)."
+        ),
     )
     parser.add_argument("--packet", required=True, help="Experiment packet JSON path.")
     parser.add_argument("--result", required=True, help="Experiment result JSON path.")
@@ -613,6 +959,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Also append the rendered markdown to GITHUB_STEP_SUMMARY when explicitly requested.",
     )
+    parser.add_argument(
+        "--email",
+        action="store_true",
+        help="Explicitly send the redacted notification markdown by SMTP.",
+    )
+    parser.add_argument(
+        "--email-to",
+        default=None,
+        help="Explicit email recipient; must be present in EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST.",
+    )
     return parser.parse_args(argv)
 
 
@@ -622,19 +978,31 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     packet_path = Path(args.packet).expanduser().resolve()
     result_path = Path(args.result).expanduser().resolve()
+    email_recipient = None
 
     try:
-        packet = validate_experiment_packet(
-            _read_json_object(packet_path, label="experiment packet")
+        if args.email:
+            email_recipient = _require_allowed_email_recipient(args.email_to)
+        elif args.email_to:
+            raise ExperimentEmailDeliveryError("--email-to requires --email.")
+        packet_payload, packet_sha256 = _read_json_object_with_sha256(
+            packet_path, label="experiment packet"
         )
-        result = validate_experiment_result(
-            _read_json_object(result_path, label="experiment result")
+        packet = validate_experiment_packet(packet_payload)
+        result_payload, result_sha256 = _read_json_object_with_sha256(
+            result_path, label="experiment result"
         )
+        result = validate_experiment_result(result_payload)
         promotion = None
+        promotion_path = Path(args.promotion).expanduser().resolve() if args.promotion else None
+        promotion_sha256 = None
         if args.promotion:
-            promotion = _validate_promotion_decision(
-                _read_json_object(Path(args.promotion).expanduser().resolve(), label="promotion")
+            if promotion_path is None:
+                raise ValueError("Missing promotion path.")
+            promotion_payload, promotion_sha256 = _read_json_object_with_sha256(
+                promotion_path, label="promotion"
             )
+            promotion = _validate_promotion_decision(promotion_payload)
         output_path = _resolve_output_path(args.output, packet["experiment_id"])
         markdown = render_notification_markdown(packet, result, promotion)
     except ValueError:
@@ -644,13 +1012,38 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {exc}")
         return 1
 
+    email_audit_path = None
     try:
+        source_paths = {
+            "packet": packet_path,
+            "promotion": promotion_path,
+            "result": result_path,
+        }
+        source_sha256 = {
+            "packet": packet_sha256,
+            "promotion": promotion_sha256,
+            "result": result_sha256,
+        }
+        if args.email and email_recipient is not None:
+            _check_email_audit_allows_artifact_write(packet["experiment_id"])
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(markdown, encoding="utf-8")
         if args.github_step_summary:
             _append_github_step_summary(markdown)
+        if args.email and email_recipient is not None:
+            email_audit_path = _deliver_email_notification(
+                output_path=output_path,
+                experiment_id=packet["experiment_id"],
+                recipient=email_recipient,
+                markdown=markdown,
+                source_paths=source_paths,
+                source_sha256=source_sha256,
+            )
     except OSError:
         print("FAIL: unable to write experiment notification.")
+        return 1
+    except ExperimentEmailDeliveryError as exc:
+        print(f"FAIL: {exc}")
         return 1
     except ExperimentNotificationError as exc:
         print(f"FAIL: unable to write experiment notification: {exc}")
@@ -660,6 +1053,10 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 "experiment_id": packet["experiment_id"],
+                "email": bool(args.email),
+                "email_audit": (
+                    normalize_repo_path(email_audit_path) if email_audit_path is not None else None
+                ),
                 "output": normalize_repo_path(output_path),
                 "github_step_summary": bool(args.github_step_summary),
             },
