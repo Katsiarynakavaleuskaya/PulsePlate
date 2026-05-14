@@ -20,6 +20,7 @@
 - `6acfee69f276900e47c844fceb8ceb048eade324` - `fix(orchestration): fail closed on duplicate experiment email sends`
 - `098975392a15f195ebd92bde7d6ddcfa7a67f878` - `docs(orchestration): add experiment notification completion gate`
 - `5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85` - `fix(orchestration): block ambiguous email audit retries`
+- `f791e99393864bf65e8fb9b1fd95a14d67defcec` - `docs(review): map PR 1751 coderabbit retry review`
 
 ## Coordinator / Agent Passes
 
