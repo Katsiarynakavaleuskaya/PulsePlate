@@ -13,6 +13,10 @@
 
 Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 pin to the Node 24-compatible v4.0.1 SHA pin while preserving the iOS/workflow path-gating contract.
 
+## Split Justification
+
+This PR exceeds the default size threshold because the original Node24 path-filter migration exposed the same `test-main` Python 3.12 timeout/leakage class already visible on `main` and Nightly Full. Keeping the runner stabilization in this PR is intentional: the failing surface is the same canonical CI lane needed to validate the Node24 fix, and splitting would leave PR #1748 unable to produce current-head evidence for its own required checks. Scope remains limited to CI workflow/runner contracts, tests, and review governance; no runtime/product behavior, OpenAPI, package proxy, backend, frontend, or iOS app behavior is changed.
+
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
