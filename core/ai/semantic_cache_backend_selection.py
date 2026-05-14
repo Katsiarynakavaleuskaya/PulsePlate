@@ -103,6 +103,8 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|redis[_ -]?url"
     r"|gptcache"
     r"|secret"
+    r"|config"
+    r"|environment"
     r"|(?:^|[_: -])(?:access|refresh|id|session|auth)?[_: -]?token(?:$|[_: -])"
     r"|jwt"
     r"|credential"
@@ -125,7 +127,10 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|diagnosis"
     r"|symptom"
     r"|medical"
+    r"|personalized[_: -]?coaching[_: -]?state"
+    r"|coaching[_: -]?state"
     r"|account[_: -]?(?:id|truth)"
+    r"|auth(?:entication)?[_: -]?truth"
     r"|billing"
     r"|entitlement"
     r"|legal"
@@ -140,13 +145,20 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
     r"raw[_:-]?(?:model[_:-]?)?(?:queries|query|prompts?|responses?|answers?)"
     r"|normalized[_:-]?(?:queries|query)"
     r"|provider[_:-]?payloads?"
+    r"|connection[_:-]?strings?"
+    r"|redis[_:-]?(?:url|uri|dsn)"
+    r"|config"
+    r"|environment"
     r"|health[_:-]?kit"
     r"|diagnosis"
     r"|symptom"
     r"|medical"
+    r"|personalized[_:-]?coaching[_:-]?state"
+    r"|coaching[_:-]?state"
     r"|password"
     r"|pwd"
     r"|account[_:-]?(?:id|truth)?"
+    r"|auth(?:entication)?[_:-]?truth"
     r"|billing"
     r"|entitlement"
     r"|legal"
@@ -323,7 +335,9 @@ class SemanticCacheBackendCandidate:
         object.__setattr__(self, "candidate_id", _validate_token("candidate_id", self.candidate_id))
         object.__setattr__(self, "backend_label", _validate_backend_label(self.backend_label))
         object.__setattr__(
-            self, "backend_version", _validate_token("backend_version", self.backend_version)
+            self,
+            "backend_version",
+            _validate_evidence_id("backend_version", self.backend_version),
         )
         object.__setattr__(
             self, "policy_version", _validate_token("policy_version", self.policy_version)
@@ -816,6 +830,8 @@ def _candidate_failure_reasons(
         reasons.append(REASON_FRESH_RUNTIME_COMPARISONS_MISSING)
     if not rollback.verified:
         reasons.append(REASON_ROLLBACK_PROOF_MISSING)
+    if _backend_rollback_token(candidate.backend_label) not in rollback.proof_id.split(":"):
+        reasons.append(REASON_ROLLBACK_PROOF_MISSING)
     if criteria.require_current_head_ci and (
         not candidate.current_head_ci_passed or candidate.current_head_ci_proof_id is None
     ):
@@ -1152,6 +1168,16 @@ def _validate_backend_label(value: str) -> str:
     if normalized not in ALLOWED_BACKEND_LABELS:
         raise ValueError(f"unsupported backend_label: {normalized!r}")
     return normalized
+
+
+def _backend_rollback_token(backend_label: str) -> str:
+    if backend_label == BACKEND_LABEL_REDIS:
+        return "redis"
+    if backend_label == BACKEND_LABEL_GPTCACHE:
+        return "gptcache"
+    if backend_label == BACKEND_LABEL_IN_MEMORY:
+        return "in-memory"
+    raise ValueError(f"unsupported backend_label: {backend_label!r}")
 
 
 def _validate_bps(name: str, value: int) -> None:

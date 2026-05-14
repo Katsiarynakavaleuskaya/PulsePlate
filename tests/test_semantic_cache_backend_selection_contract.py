@@ -297,6 +297,20 @@ def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:
         errors = validate_semantic_cache_backend_selection_contract(bad_text)
         assert any(required_runtime_block.strip('"') in error for error in errors)
 
+    for required_truth_source in (
+        '"advisory wiki"',
+        '"workforce memory"',
+        '"local support plane"',
+        '"GraphRAG"',
+        '"knowledge graph runtime output"',
+        '"plugin/control-plane output"',
+        '"second source of truth"',
+    ):
+        bad_text = _contract_text().replace(required_truth_source + ",\n", "")
+        bad_text = bad_text.replace(",\n    " + required_truth_source + "\n", "\n")
+        errors = validate_semantic_cache_backend_selection_contract(bad_text)
+        assert any(required_truth_source.strip('"') in error for error in errors)
+
     for required_evidence in (
         '"source fingerprints"',
         '"eval event IDs"',

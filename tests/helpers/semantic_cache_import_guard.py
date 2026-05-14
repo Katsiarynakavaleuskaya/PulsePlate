@@ -214,6 +214,11 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append("open.alias")
             if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
                 offenders.append("Path.method-alias")
+            path_constructor_ref = _qualified_call_name(node.value, import_aliases)
+            if path_constructor_ref in {"Path", "pathlib.Path"}:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        import_aliases[target.id] = path_constructor_ref
             if _is_path_expr(node.value, import_aliases, path_aliases):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
@@ -227,6 +232,10 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 path_aliases,
             ):
                 offenders.append("Path.method-alias")
+            if isinstance(node.target, ast.Name) and node.value is not None:
+                path_constructor_ref = _qualified_call_name(node.value, import_aliases)
+                if path_constructor_ref in {"Path", "pathlib.Path"}:
+                    import_aliases[node.target.id] = path_constructor_ref
             if (
                 isinstance(node.target, ast.Name)
                 and node.value is not None

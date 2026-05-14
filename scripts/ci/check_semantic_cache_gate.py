@@ -983,7 +983,15 @@ def _validate_backend_selection_machine_state(text: str) -> list[str]:
             "file writes",
             "connection strings",
         ),
-        "blocked_truth_sources": ("advisory wiki", "workforce memory", "GraphRAG"),
+        "blocked_truth_sources": (
+            "advisory wiki",
+            "workforce memory",
+            "local support plane",
+            "GraphRAG",
+            "knowledge graph runtime output",
+            "plugin/control-plane output",
+            "second source of truth",
+        ),
         "required_evidence": (
             "SC-G2 lineage evidence",
             "SC-G3 false-hit evidence",

@@ -89,10 +89,13 @@ def _evidence(
 
 
 def _rollback(
-    *, verified: bool = True, blast_radius_bps: int = 10
+    *,
+    backend_token: str = "redis",
+    verified: bool = True,
+    blast_radius_bps: int = 10,
 ) -> SemanticCacheBackendRollbackProof:
     return SemanticCacheBackendRollbackProof(
-        proof_id="rollback:backend:1",
+        proof_id=f"rollback:{backend_token}:1",
         kill_switch_proof_id="proof:kill-switch",
         request_bypass_proof_id="proof:bypass",
         no_cache_fallback_proof_id="proof:no-cache",
@@ -126,7 +129,11 @@ def _candidate(
         supported_surfaces=("insight",),
         capability_flags=("label-only", "offline-contract"),
         safety_evidence=_evidence() if evidence is None else evidence,
-        rollback_proof=_rollback() if rollback is None else rollback,
+        rollback_proof=(
+            _rollback(backend_token=backend_label.removesuffix("_label").replace("_", "-"))
+            if rollback is None
+            else rollback
+        ),
         latency_saved_p50_ms=50,
         latency_saved_p95_ms=latency_saved_p95_ms,
         provider_calls_avoided_count=5,
@@ -285,6 +292,19 @@ def test_rollback_ci_and_human_approval_are_required() -> None:
     assert REASON_ROLLBACK_PROOF_MISSING in decision.reason_codes
     assert REASON_CURRENT_HEAD_CI_MISSING in decision.reason_codes
     assert REASON_HUMAN_APPROVAL_MISSING in decision.reason_codes
+
+
+def test_rollback_proof_must_match_candidate_backend_label() -> None:
+    decision = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            backend_label=BACKEND_LABEL_REDIS,
+            rollback=_rollback(backend_token="gptcache"),
+        ),
+        criteria=_criteria(),
+    )
+
+    assert decision.decision == DECISION_INELIGIBLE
+    assert REASON_ROLLBACK_PROOF_MISSING in decision.reason_codes
 
 
 def test_current_head_ci_requires_auditable_proof_id() -> None:
@@ -541,6 +561,10 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"truth": "knowledge:graph"},
         {"health_kit_payload": "safe-looking"},
         {"safe_key": "health-kit-derived"},
+        {"personalized_coaching_state": "safe-looking"},
+        {"safe_key": "coaching_state"},
+        {"auth_truth": "safe-looking"},
+        {"safe_key": "authentication-truth"},
         {"path": "/tmp/cache"},
         {"truth": "advisory wiki"},
         {"credential": "blocked-value"},
@@ -853,9 +877,13 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         lambda: replace(_evidence(), sc_g3_contract_id="contract:provider_payload"),
         lambda: replace(_evidence(), sc_g4_contract_id="contract:raw_model_response"),
         lambda: replace(_evidence(), admission_decision_id="admission:raw_prompt"),
+        lambda: replace(_evidence(), evidence_id="evidence:auth:truth"),
     ):
         with pytest.raises(ValueError, match="unsafe proof token"):
             unsafe_evidence()
+    for unsafe_backend_version in ("redis_url", "connection:string", "runtime_config"):
+        with pytest.raises(ValueError, match="unsafe proof token"):
+            replace(_candidate(), backend_version=unsafe_backend_version)
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
@@ -918,6 +946,21 @@ def test_import_guard_rejects_path_constructor_writes(tmp_path: Path) -> None:
         "Path('opened.txt').open('w').write('payload')\n"
         "alias = Path('alias-opened.txt')\n"
         "alias.open('wb').write(b'payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_tracks_path_constructor_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_path_constructor_alias.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "P = Path\n"
+        "P('payload.txt').write_text('payload')\n"
+        "AnnotatedPath: object = Path\n"
+        "AnnotatedPath('payload2.txt').write_text('payload')\n",
         encoding="utf-8",
     )
 
