@@ -141,6 +141,14 @@ This PR exceeds the default size threshold because the original Node24 path-filt
   - Fix: `.github/workflows/ci.yml` now exports `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800` in the Python 3.12 and 3.13 branches before invoking the Python shard runner.
   - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now asserts the exported watchdog contract rather than a shell-local assignment.
   - Evidence: focused workflow/runner tests, subprocess/nosec guard tests, `make validate-changed`, full `pre-commit run --all-files`, and commit hooks pass.
+- Main regression investigation finding: FIXED by `9e9d842d4c99f6071eaf22d2b5b38623e2f5fe50`
+  - Finding: the main-suite slowdown began after PR #1745/#1747; direct timing cleared #1745 (`tests/test_design_component_registry.py` completed in `3.7s`) and identified PR #1747's `tests/test_food_source_preference_recipe_mapping.py` as the dominant new test cost (`237` tests, about `103s` locally before the fix).
+  - Evidence: the expensive PR #1747 note-policy parameter matrix called `parse_preference_recipe_mapping_governance(...)` for each phrase, forcing full PR11/PR14 handoff validation hundreds of times even though the behavior under test was the note guard.
+  - Fix: note-policy cases now call the unit seam `_require_safe_notes(...)`; full governance parse coverage remains in the existing integration tests for top-level notes, PR11 notes, PR14 notes, schema, safety flags, CLI, and report generation.
+  - Regression guard: the broad note phrase matrix remains in place, but is now tied to the bounded unit-level validator rather than full governance parsing; immutable fixture helpers are cached and mutable JSON payloads are returned as deep copies.
+  - Evidence: `../../.venv/bin/python -m pytest -q --durations=50 --durations-min=0.2 tests/test_food_source_preference_recipe_mapping.py` passes with the file reduced to about `41s`.
+  - Evidence: `../../.venv/bin/python -m pytest -q tests/test_food_source_preference_recipe_mapping.py tests/test_design_component_registry.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_main_test_shards.py` passes.
+  - Evidence: `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` and `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` pass.
 
 ## Fixed in Commit Mapping
 
@@ -423,8 +431,13 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after exporting the bounded py312/py313 watchdog override
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after exporting the bounded py312/py313 watchdog override
 - `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "fix(ci): export main shard watchdog timeout"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q --durations=50 --durations-min=0.2 tests/test_food_source_preference_recipe_mapping.py` - PASS after PR #1747 test-cost fix; local file runtime dropped from about `103s` to about `41s`
+- `../../.venv/bin/python -m pytest -q tests/test_food_source_preference_recipe_mapping.py tests/test_design_component_registry.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_main_test_shards.py` - PASS after PR #1747 test-cost fix
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after PR #1747 test-cost fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after PR #1747 test-cost fix
+- `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "test(food-data): trim preference mapping note guard cost"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after exporting the bounded py312/py313 watchdog override.
+- Current-head PR checks are pending after syncing with `origin/main` and trimming the PR #1747 preference-mapping note guard test cost.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
