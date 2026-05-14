@@ -44,7 +44,7 @@ def test_rejects_repo_private_key_material() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["private" + "_key"] = "stored"
 
-    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+    with pytest.raises(identity_check.IdentityPolicyError, match="cryptographic_boundary"):
         identity_check.validate_identity_policy(policy)
 
 
@@ -52,7 +52,7 @@ def test_rejects_repo_private_key_material_with_spaced_key_name() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["private key"] = "stored"
 
-    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+    with pytest.raises(identity_check.IdentityPolicyError, match="cryptographic_boundary"):
         identity_check.validate_identity_policy(policy)
 
 
@@ -135,6 +135,19 @@ def test_token_shaped_json_key_error_is_redacted() -> None:
     assert "<redacted-key>" in error
 
 
+def test_sensitive_field_name_error_is_redacted() -> None:
+    policy = _valid_policy()
+    sensitive_field = "secret my-real-password"
+    policy["cryptographic_boundary"][sensitive_field] = "stored"
+
+    with pytest.raises(identity_check.IdentityPolicyError) as exc_info:
+        identity_check.validate_identity_policy(policy)
+
+    error = str(exc_info.value)
+    assert sensitive_field not in error
+    assert "<redacted-key>" in error
+
+
 def test_cli_json_failure_redacts_token_shaped_key(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -160,7 +173,7 @@ def test_rejects_duplicate_crypto_boundary_boolean_outside_canon() -> None:
         "private_key_material_allowed_in_repo": True,
     }
 
-    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+    with pytest.raises(identity_check.IdentityPolicyError, match="cryptographic_boundary"):
         identity_check.validate_identity_policy(policy)
 
 
@@ -224,13 +237,21 @@ def test_rejects_authority_drift_with_separator_variants() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_authority_drift_variants_inside_canonical_boundary() -> None:
+    policy = _valid_policy()
+    policy["authority_boundary"]["merge-rights"] = "admin"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="must not duplicate"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_duplicate_commit_context_authority_drift() -> None:
     policy = _valid_policy()
     policy["authority_boundary_v2"] = {
         "allowed_commit_context": "production_autonomous",
     }
 
-    with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):
+    with pytest.raises(identity_check.IdentityPolicyError, match="authority_boundary"):
         identity_check.validate_identity_policy(policy)
 
 
@@ -258,6 +279,36 @@ def test_rejects_duplicate_slack_identity_boundary() -> None:
     }
 
     with pytest.raises(identity_check.IdentityPolicyError, match="duplicate slack_identity"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_duplicate_slack_identity_camel_case_boundary() -> None:
+    policy = _valid_policy()
+    policy["slackIdentity"] = {
+        "status": "active",
+        "not_cryptographic_identity": False,
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="duplicate slack_identity"):
+        identity_check.validate_identity_policy(policy)
+
+
+@pytest.mark.parametrize(
+    ("boundary_name", "expected_boundary"),
+    [
+        ("git_attribution_v2", "git_attribution"),
+        ("notificationBoundaryV2", "notification_boundary"),
+        ("cryptographic-boundary-v2", "cryptographic_boundary"),
+    ],
+)
+def test_rejects_duplicate_non_slack_boundary_blocks(
+    boundary_name: str,
+    expected_boundary: str,
+) -> None:
+    policy = _valid_policy()
+    policy[boundary_name] = {"status": "active"}
+
+    with pytest.raises(identity_check.IdentityPolicyError, match=expected_boundary):
         identity_check.validate_identity_policy(policy)
 
 

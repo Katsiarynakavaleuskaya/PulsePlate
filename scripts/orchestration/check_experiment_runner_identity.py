@@ -57,6 +57,15 @@ CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
         "$.slack_identity.requires_bot_token_secret_boundary",
     }
 )
+CANONICAL_BOUNDARY_KEYS = frozenset(
+    {
+        "authority_boundary",
+        "cryptographic_boundary",
+        "git_attribution",
+        "notification_boundary",
+        "slack_identity",
+    }
+)
 
 
 class IdentityPolicyError(ValueError):
@@ -101,13 +110,15 @@ def _normalized_email(raw_email: Any) -> str:
 def _path_for_key(path: str, key: Any) -> str:
     if not isinstance(key, str):
         return f"{path}.<non-string-key>"
-    if SENSITIVE_VALUE_RE.search(key):
-        return f"{path}.<redacted-key>"
     return f"{path}.{key}"
 
 
 def _normalized_policy_key(key: Any) -> str:
     return re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
+
+
+def _compact_policy_key(key: Any) -> str:
+    return _normalized_policy_key(key).replace("_", "")
 
 
 def _is_sensitive_policy_key(key: Any) -> bool:
@@ -117,13 +128,22 @@ def _is_sensitive_policy_key(key: Any) -> bool:
     )
 
 
+def _diagnostic_path(path: str, key: Any) -> str:
+    if not isinstance(key, str):
+        return f"{path}.<non-string-key>"
+    if SENSITIVE_VALUE_RE.search(key) or _is_sensitive_policy_key(key):
+        return f"{path}.<redacted-key>"
+    return f"{path}.{key}"
+
+
 def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
             next_path = _path_for_key(path, key)
             if isinstance(key, str) and SENSITIVE_VALUE_RE.search(key):
                 raise IdentityPolicyError(
-                    f"{next_path} must not store private key material or secrets."
+                    f"{_diagnostic_path(path, key)} must not store private key material "
+                    "or secrets."
                 )
             if _is_sensitive_policy_key(key):
                 allowed_marker = isinstance(value, str) and value in {"none", "external"}
@@ -132,7 +152,8 @@ def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
                 )
                 if not allowed_canonical_bool and not allowed_marker:
                     raise IdentityPolicyError(
-                        f"{next_path} must not store private key material or secrets."
+                        f"{_diagnostic_path(path, key)} must not store private key "
+                        "material or secrets."
                     )
             _reject_private_key_material(value, path=next_path)
         return
@@ -148,9 +169,18 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
             next_path = _path_for_key(path, key)
+            normalized_key = _normalized_policy_key(key)
+            if (
+                path == "$.authority_boundary"
+                and normalized_key in AUTHORITY_FIELD_NAMES
+                and str(key) != normalized_key
+            ):
+                raise IdentityPolicyError(
+                    f"{next_path} must not duplicate Experiment Runner authority."
+                )
             if (
                 path != "$.authority_boundary"
-                and _normalized_policy_key(key) in AUTHORITY_FIELD_NAMES
+                and normalized_key in AUTHORITY_FIELD_NAMES
                 and value is not False
                 and value != "none"
             ):
@@ -164,26 +194,34 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
             _reject_authority_drift(item, path=f"{path}[{index}]")
 
 
-def _reject_duplicate_identity_blocks(payload: Any, *, path: str = "$") -> None:
+def _reject_duplicate_boundary_blocks(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
             next_path = _path_for_key(path, key)
-            normalized_key = _normalized_policy_key(key)
-            if normalized_key.startswith("slack_identity") and next_path != "$.slack_identity":
+            compact_key = _compact_policy_key(key)
+            duplicate_boundary = next(
+                (
+                    boundary_key
+                    for boundary_key in CANONICAL_BOUNDARY_KEYS
+                    if compact_key.startswith(_compact_policy_key(boundary_key))
+                ),
+                None,
+            )
+            if duplicate_boundary is not None and next_path != f"$.{duplicate_boundary}":
                 raise IdentityPolicyError(
-                    f"{next_path} must not duplicate slack_identity boundary."
+                    f"{next_path} must not duplicate {duplicate_boundary} boundary."
                 )
-            _reject_duplicate_identity_blocks(value, path=next_path)
+            _reject_duplicate_boundary_blocks(value, path=next_path)
         return
     if isinstance(payload, list):
         for index, item in enumerate(payload):
-            _reject_duplicate_identity_blocks(item, path=f"{path}[{index}]")
+            _reject_duplicate_boundary_blocks(item, path=f"{path}[{index}]")
 
 
 def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     """Return a validated identity policy or raise IdentityPolicyError."""
 
-    _reject_duplicate_identity_blocks(payload)
+    _reject_duplicate_boundary_blocks(payload)
     _reject_authority_drift(payload)
     if payload.get("schema_version") != EXPECTED_SCHEMA_VERSION:
         raise IdentityPolicyError("schema_version must be 1.0.")
