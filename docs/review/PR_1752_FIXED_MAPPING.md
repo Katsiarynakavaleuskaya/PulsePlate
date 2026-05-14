@@ -6,19 +6,19 @@
 - Title: `feat(orchestration): govern experiment runner identity`
 - Implementing commits:
   - `f53cb69db` - governed Experiment Runner identity boundary, offline guard, tests, and nested git environment hardening.
+  - `e33e29c2d` - initial PR 1752 fixed-mapping artifact.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-Draft PR opened with no actionable review comments yet. Keep these unchecked until
-post-open bot/human review comments are classified and mapped.
+### Fixed in Commit Mapping
 
-## Fixed in Commit Mapping
-
-- No actionable review comments as of draft PR open.
+- No GitHub review-thread URLs are unresolved in this artifact as of the local
+  CodeRabbit CLI pass. CLI findings are recorded below under Role-Agent
+  Findings until or unless GitHub-hosted review threads exist.
 
 ## Role-Agent Findings
 
