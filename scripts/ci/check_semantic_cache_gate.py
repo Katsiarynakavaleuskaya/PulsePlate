@@ -1053,6 +1053,8 @@ def validate_semantic_cache_backend_selection_schema(
         return [f"backend selection schema invalid JSON: {exc.msg}"]
     if not isinstance(schema, dict):
         return ["backend selection schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("backend selection schema root type must be object")
 
     payload_text, state_errors = _backend_selection_machine_state_json(contract_text)
     if state_errors:
@@ -1089,9 +1091,21 @@ def validate_semantic_cache_backend_selection_schema(
     for key in sorted(property_keys - payload_keys):
         errors.append(f"backend selection schema property missing from contract JSON: {key}")
 
+    closed_state_const_keys = {
+        "default_activation",
+        "gate_status",
+        "implementation_allowed",
+        "label_only_backends",
+        "rollout_phase",
+        "runtime_allowed",
+        "selection_mode",
+    }
+
     for key, spec in properties.items():
         if not isinstance(spec, dict) or key not in payload:
             continue
+        if key in closed_state_const_keys and "const" not in spec:
+            errors.append(f"backend selection schema const missing for {key}")
         if "const" in spec and payload[key] != spec["const"]:
             errors.append(
                 f"backend selection schema const mismatch for {key}: "

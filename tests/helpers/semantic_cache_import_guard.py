@@ -208,6 +208,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 if alias.name != "*":
                     import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
         elif isinstance(node, ast.Assign):
+            if _is_open_effect_ref(node.value, import_aliases):
+                offenders.append("open.alias")
             if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
                 offenders.append("Path.method-alias")
             if _is_path_expr(node.value, import_aliases, path_aliases):
@@ -215,6 +217,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                     if isinstance(target, ast.Name):
                         path_aliases.add(target.id)
         elif isinstance(node, ast.AnnAssign):
+            if node.value is not None and _is_open_effect_ref(node.value, import_aliases):
+                offenders.append("open.alias")
             if node.value is not None and _is_path_effect_method_ref(
                 node.value,
                 import_aliases,
@@ -240,6 +244,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append(call_name)
             if _is_network_call_name(call_name):
                 offenders.append(call_name or "network.call")
+            if _is_os_environ_call_name(call_name):
+                offenders.append(call_name or "os.environ.call")
             if _is_path_write_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.write")
             if _is_path_mutation_call(node.func, import_aliases, path_aliases):
@@ -279,6 +285,10 @@ def _is_network_call_name(call_name: str | None) -> bool:
         or call_name.endswith(".HTTPSConnection")
         or call_name.endswith(".create_connection")
     )
+
+
+def _is_os_environ_call_name(call_name: str | None) -> bool:
+    return call_name is not None and call_name.startswith("os.environ.")
 
 
 def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
@@ -337,6 +347,10 @@ def _is_path_effect_method_ref(
     if node.attr in {"touch", "mkdir", "rename", "replace", "unlink", "rmdir"}:
         return _is_path_expr(node.value, import_aliases, path_aliases)
     return False
+
+
+def _is_open_effect_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    return _qualified_call_name(node, import_aliases) in {"open", "builtins.open", "io.open"}
 
 
 def _is_path_open_write_mode_call(

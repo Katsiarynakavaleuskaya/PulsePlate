@@ -39,6 +39,12 @@ def _machine_state() -> dict[str, object]:
     return state
 
 
+def _string_list(value: object) -> list[str]:
+    assert isinstance(value, list)
+    assert all(isinstance(item, str) for item in value)
+    return value
+
+
 def test_contract_exists_and_keeps_gate_closed() -> None:
     text = _contract_text().lower()
 
@@ -165,7 +171,7 @@ def test_schema_required_keys_and_consts_match_contract_state() -> None:
 def test_machine_state_blocks_every_payload_class_from_contract_prose() -> None:
     state = _machine_state()
 
-    assert set(state["blocked_payload_fields"]) >= {
+    assert set(_string_list(state["blocked_payload_fields"])) >= {
         "raw prompts",
         "raw queries",
         "normalized queries",
@@ -214,6 +220,15 @@ def test_checker_validates_backend_selection_schema_against_machine_state() -> N
 
 def test_checker_rejects_schema_drift_from_machine_state() -> None:
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    schema["type"] = "string"
+    schema_text = json.dumps(schema, sort_keys=True)
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+    assert any("root type must be object" in error for error in errors)
+
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     schema["required"].remove("blocked_payload_fields")
     schema_text = json.dumps(schema, sort_keys=True)
 
@@ -241,6 +256,15 @@ def test_checker_rejects_schema_drift_from_machine_state() -> None:
         contract_text=_contract_text(),
     )
     assert any("runtime_enabled" in error for error in errors)
+
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    del schema["properties"]["runtime_allowed"]["const"]
+    schema_text = json.dumps(schema, sort_keys=True)
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+    assert any("const missing for runtime_allowed" in error for error in errors)
 
 
 def test_checker_rejects_machine_state_drift_even_when_prose_is_safe() -> None:

@@ -96,7 +96,7 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|prompt"
     r"|response"
     r"|answer"
-    r"|provider[_ -]?payload"
+    r"|provider[_: -]?payload"
     r"|connection[_ -]?string"
     r"|local[_ -]?path"
     r"|redis://"

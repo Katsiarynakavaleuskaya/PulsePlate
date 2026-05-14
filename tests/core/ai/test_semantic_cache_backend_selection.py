@@ -512,6 +512,8 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
     unsafe_metadata = (
         {"raw_prompt": "plan"},
         {"provider_payload": "payload"},
+        {"provider:payload": "payload"},
+        {"safe_key": "provider:payload"},
         {"path": "/tmp/cache"},
         {"truth": "advisory wiki"},
         {"credential": "blocked-value"},
@@ -1059,6 +1061,31 @@ def test_import_guard_rejects_copy_and_open_alias_escape_hatches(tmp_path: Path)
         assert_no_forbidden_semantic_cache_imports(imports)
     with pytest.raises(AssertionError, match="io.open"):
         assert_no_forbidden_semantic_cache_calls(calls)
+
+
+def test_import_guard_rejects_builtin_open_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_builtin_open_alias.py"
+    source.write_text(
+        "writer = open\n" "writer('payload.txt', 'w')\n" "annotated: object = open\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="open.alias"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_os_environ_mutation_methods(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_environ_mutations.py"
+    source.write_text(
+        "import os\n"
+        "os.environ.setdefault('CACHE_BACKEND', 'redis')\n"
+        "os.environ.update({'CACHE_BACKEND': 'gptcache'})\n"
+        "os.environ.pop('CACHE_BACKEND', None)\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="os.environ.setdefault"):
+        assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
