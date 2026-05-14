@@ -243,6 +243,16 @@ Evidence: Latest review gaps were fixed in code/checker/tests: SC-G5 candidate e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241408454 -> 4b4200da4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241408459 -> 4b4200da4
 
+Disposition: FIXED
+Commit: 1f6cec218
+Evidence: Latest backend-proof review gaps were fixed in code/checker/tests: metadata/evidence screening now blocks personalized coaching-state and auth-truth labels, backend-version tokens reject runtime config/connection labels before serialization, rollback proof eligibility is bound to the candidate backend label, the machine-state checker requires every blocked truth source declared by the contract JSON, and the semantic-cache import guard tracks aliases to the `Path` constructor. Focused pytest, split mypy, semantic-cache checker, docs Phase1 gate, preflight, agent consistency, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477769 -> 1f6cec218
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477774 -> 1f6cec218
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477781 -> 1f6cec218
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477786 -> 1f6cec218
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477792 -> 1f6cec218
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241477800 -> 1f6cec218
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
