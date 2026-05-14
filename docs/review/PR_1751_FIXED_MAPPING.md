@@ -12,6 +12,7 @@
 - `7ef7d0904c0d32337e84fd4400267d0eb0db7ce7` - `docs(review): fix PR 1751 phase2 mapping contract`
 - `da8b2db70bbd11afe765b30da551b5aa629a43fa` - `fix(orchestration): harden experiment email notification sink`
 - `fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd` - `docs(review): map PR 1751 review fixes`
+- `716e94e0932f1e708fd1e7333fe3f2ba03116d26` - `fix(orchestration): type email audit path resolution`
 
 ## Coordinator / Agent Passes
 
