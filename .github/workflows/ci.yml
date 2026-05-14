@@ -1103,8 +1103,8 @@ jobs:
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
           if [[ "$PYVER" == 3.12* ]]; then
-            MAIN_TEST_SHARDS=2
-            MAIN_TEST_MAX_PARALLEL=2
+            MAIN_TEST_SHARDS=3
+            MAIN_TEST_MAX_PARALLEL=3
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=2
             MAIN_TEST_MAX_PARALLEL=2
