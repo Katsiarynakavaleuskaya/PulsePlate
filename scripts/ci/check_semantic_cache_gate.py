@@ -1157,6 +1157,8 @@ def validate_semantic_cache_backend_selection_schema(
                 invalid = [item for item in actual if item not in enum]
                 for item in invalid:
                     errors.append(f"backend selection schema enum mismatch for {key}: {item!r}")
+        elif key in {"candidate_backend_labels", "allowed_backend_labels"}:
+            errors.append(f"backend selection schema enum missing for {key}")
 
     return errors
 

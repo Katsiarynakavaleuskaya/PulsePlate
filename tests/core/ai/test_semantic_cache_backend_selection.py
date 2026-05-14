@@ -592,6 +592,13 @@ def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None
         {"local:path": "safe-looking"},
         {"truth": "advisory:wiki"},
         {"truth": "knowledge:graph"},
+        {"truth": "local_support_plane"},
+        {"truth": "plugin:control-plane"},
+        {"truth": "second_source_of_truth"},
+        {"safe_key": "fastapi"},
+        {"safe_key": "openapi"},
+        {"safe_key": "network"},
+        {"safe_key": "file-write"},
         {"health_kit_payload": "safe-looking"},
         {"safe_key": "health-kit-derived"},
         {"personalized_coaching_state": "safe-looking"},
@@ -658,6 +665,8 @@ def test_json_metadata_copy_rejects_non_finite_and_unsupported_values() -> None:
     for metadata in ({"value": float("nan")}, {"value": object()}):
         with pytest.raises(ValueError):
             replace(_candidate(), metadata=cast(Any, metadata))
+    with pytest.raises(ValueError, match="metadata keys must be strings"):
+        replace(_candidate(), metadata=cast(Any, {object(): "value"}))
     with pytest.raises(ValueError, match="metadata must be a mapping"):
         replace(_candidate(), metadata=cast(Any, ["not-a-mapping"]))
 
@@ -909,19 +918,41 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for prefix_only_value in ("approval:human:", "verification-bundle:approval:"):
         with pytest.raises(ValueError, match="proof evidence"):
             replace(_candidate(), human_approval_record_id=prefix_only_value)
-    for unsafe_proof_token in ("raw_prompt", "provider_payload", "billing", "health_kit"):
+    for unsafe_proof_token in (
+        "raw_prompt",
+        "provider_payload",
+        "billing",
+        "health_kit",
+        "local_support_plane",
+        "plugin:control-plane",
+        "second_source_of_truth",
+    ):
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_evidence(), source_fingerprints=(unsafe_proof_token,))
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_evidence(), eval_event_ids=(unsafe_proof_token,))
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_evidence(), evidence_fingerprints=(unsafe_proof_token,))
+    for unsafe_runtime_token in ("fastapi", "openapi", "network", "file-write"):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_evidence(), source_fingerprints=(unsafe_runtime_token,))
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_evidence(), eval_event_ids=(unsafe_runtime_token,))
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_evidence(), promotion_ids=(unsafe_runtime_token,))
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_evidence(), replay_entry_ids=(unsafe_runtime_token,))
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_evidence(), evidence_fingerprints=(unsafe_runtime_token,))
     for unsafe_evidence in (
         lambda: replace(_evidence(), sc_g2_contract_id="contract:raw_prompt"),
         lambda: replace(_evidence(), sc_g3_contract_id="contract:provider_payload"),
         lambda: replace(_evidence(), sc_g4_contract_id="contract:raw_model_response"),
         lambda: replace(_evidence(), admission_decision_id="admission:raw_prompt"),
         lambda: replace(_evidence(), evidence_id="evidence:auth:truth"),
+        lambda: replace(_evidence(), evidence_id="evidence:local_support_plane"),
+        lambda: replace(_evidence(), evidence_id="evidence:plugin:control-plane"),
+        lambda: replace(_evidence(), evidence_id="evidence:second_source_of_truth"),
     ):
         with pytest.raises(ValueError, match="unsafe proof token"):
             unsafe_evidence()

@@ -164,6 +164,9 @@ _UNSAFE_METADATA_RE = re.compile(
     r"|compliance"
     r"|advisory[_: -]?wiki"
     r"|workforce[_: -]?memory"
+    r"|local[_: -]?support[_: -]?plane"
+    r"|plugin[_: -]?control[_: -]?plane"
+    r"|second[_: -]?source[_: -]?of[_: -]?truth"
     r"|graphrag"
     r"|knowledge[_: -]?graph",
     re.IGNORECASE,
@@ -192,6 +195,9 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
     r"|compliance"
     r"|advisory[_:-]?wiki"
     r"|workforce[_:-]?memory"
+    r"|local[_:-]?support[_:-]?plane"
+    r"|plugin[_:-]?control[_:-]?plane"
+    r"|second[_:-]?source[_:-]?of[_:-]?truth"
     r"|graphrag"
     r"|knowledge[_:-]?graph",
     re.IGNORECASE,
@@ -271,12 +277,14 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "source_fingerprints",
-            _normalize_required_unique_tokens("source_fingerprints", self.source_fingerprints),
+            _normalize_required_runtime_safe_evidence_ids(
+                "source_fingerprints", self.source_fingerprints
+            ),
         )
         object.__setattr__(
             self,
             "eval_event_ids",
-            _normalize_required_unique_tokens("eval_event_ids", self.eval_event_ids),
+            _normalize_required_runtime_safe_evidence_ids("eval_event_ids", self.eval_event_ids),
         )
         object.__setattr__(
             self,
@@ -286,12 +294,14 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "promotion_ids",
-            _normalize_required_unique_tokens("promotion_ids", self.promotion_ids),
+            _normalize_required_runtime_safe_evidence_ids("promotion_ids", self.promotion_ids),
         )
         object.__setattr__(
             self,
             "replay_entry_ids",
-            _normalize_required_unique_tokens("replay_entry_ids", self.replay_entry_ids),
+            _normalize_required_runtime_safe_evidence_ids(
+                "replay_entry_ids", self.replay_entry_ids
+            ),
         )
         _validate_bps("false_hit_rate_bps", self.false_hit_rate_bps)
         _validate_bps("stale_answer_rate_bps", self.stale_answer_rate_bps)
@@ -308,7 +318,9 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "evidence_fingerprints",
-            _normalize_required_unique_tokens("evidence_fingerprints", self.evidence_fingerprints),
+            _normalize_required_runtime_safe_evidence_ids(
+                "evidence_fingerprints", self.evidence_fingerprints
+            ),
         )
         object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
 
@@ -1132,7 +1144,12 @@ def _stable_json_mapping(value: Mapping[str, JsonValue]) -> Mapping[str, JsonVal
 
 def _json_safe_copy(value: JsonValue | Mapping[str, JsonValue]) -> JsonValue:
     if isinstance(value, Mapping):
-        return {str(key): _json_safe_copy(item) for key, item in sorted(value.items())}
+        copied: dict[str, JsonValue] = {}
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise ValueError("metadata keys must be strings")
+            copied[key] = _json_safe_copy(item)
+        return {key: copied[key] for key in sorted(copied)}
     if isinstance(value, list):
         return [_json_safe_copy(item) for item in value]
     if isinstance(value, tuple):
@@ -1163,6 +1180,7 @@ def _validate_metadata_is_safe(value: JsonValue, *, path: str = "metadata") -> N
 def _validate_safe_metadata_string(name: str, value: str) -> None:
     if (
         _UNSAFE_METADATA_RE.search(value)
+        or _UNSAFE_RUNTIME_SCOPE_RE.search(value)
         or _PATH_RE.search(value)
         or _RELATIVE_PATH_RE.search(value)
     ):
@@ -1212,6 +1230,22 @@ def _normalize_required_runtime_safe_tokens(name: str, values: tuple[str, ...]) 
     seen: set[str] = set()
     for value in values:
         normalized = _validate_runtime_safe_token(name, value)
+        if normalized in seen:
+            raise ValueError(f"{name} contains duplicate entries")
+        seen.add(normalized)
+        normalized_values.append(normalized)
+    if not normalized_values:
+        raise ValueError(f"{name} must be non-empty")
+    return tuple(sorted(normalized_values))
+
+
+def _normalize_required_runtime_safe_evidence_ids(
+    name: str, values: tuple[str, ...]
+) -> tuple[str, ...]:
+    normalized_values: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = _validate_runtime_safe_evidence_id(name, value)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
         seen.add(normalized)

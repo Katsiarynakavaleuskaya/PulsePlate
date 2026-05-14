@@ -249,6 +249,24 @@ def test_checker_rejects_schema_drift_from_machine_state() -> None:
     assert any("enum set mismatch for candidate_backend_labels" in error for error in errors)
 
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    del schema["properties"]["candidate_backend_labels"]["items"]["enum"]
+    schema_text = json.dumps(schema, sort_keys=True)
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+    assert any("enum missing for candidate_backend_labels" in error for error in errors)
+
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    del schema["properties"]["allowed_backend_labels"]["items"]["enum"]
+    schema_text = json.dumps(schema, sort_keys=True)
+    errors = validate_semantic_cache_backend_selection_schema(
+        schema_text=schema_text,
+        contract_text=_contract_text(),
+    )
+    assert any("enum missing for allowed_backend_labels" in error for error in errors)
+
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
     schema["properties"]["blocked_payload_fields"] = {"type": "string"}
     schema_text = json.dumps(schema, sort_keys=True)
     errors = validate_semantic_cache_backend_selection_schema(
