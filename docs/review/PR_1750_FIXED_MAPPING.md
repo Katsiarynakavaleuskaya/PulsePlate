@@ -13,6 +13,7 @@ Implementing commits:
 - `c51a52165e48575f601d20af9ae060783b4eb690` - correct bot mapping SHAs and add contrastive-boundary evidence.
 - `c5088d47ae5cd4de7fa30776dabded924e6b22f1` - cover `whereas` contrastive note boundary.
 - `62f8b3041026fc8e5729a1776d34d03ff3d6ff06` - cover `while` and `despite` contrastive note boundaries.
+- `5a5b36b76974f94fc4cc7e9b206d98442a4d70c5` - cover conditional and exception note boundaries.
 
 ## Scope
 
@@ -166,6 +167,10 @@ Commit: 62f8b3041026fc8e5729a1776d34d03ff3d6ff06
 Evidence: `core/food_sources/preference_recipe_mapping.py` extends contrastive note boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `while` and `despite` source-use approvals after a negated allow-list phrase.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3239533528 -> 62f8b3041026fc8e5729a1776d34d03ff3d6ff06
 Disposition: FIXED
+Commit: 5a5b36b76974f94fc4cc7e9b206d98442a4d70c5
+Evidence: `core/food_sources/preference_recipe_mapping.py` extends note clause boundaries; `tests/test_food_source_preference_recipe_mapping.py` covers `unless`, `even if`, `except`, and `notwithstanding` source-use approvals after a negated allow-list phrase.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3239620011 -> 5a5b36b76974f94fc4cc7e9b206d98442a4d70c5
+Disposition: FIXED
 Commit: c51a52165e48575f601d20af9ae060783b4eb690
 Evidence: `docs/review/PR_1750_FIXED_MAPPING.md` now uses the reachable full SHA `77f0583a35e3c871e2348d8b70a5a39420168b7c` and records current-branch mapping evidence after the stale bot review cycle.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237747291 -> c51a52165e48575f601d20af9ae060783b4eb690
@@ -178,6 +183,10 @@ Disposition: NOT-A-BUG
 Evidence: current branch head contains the listed proof commits; `git merge-base --is-ancestor e7a6bbd13ef1f6865dcc85fd57caec9d466dada7 HEAD`, `git merge-base --is-ancestor 147f6c9918e5a713f7499968937866f15d920544 HEAD`, and `git merge-base --is-ancestor ee0b63e28ccfd14f9585a08821e260fd0b957bae HEAD` all exit 0 locally.
 Reason: The bot reviewed a virtual squashed head; the canonical PR branch history contains the mapped proof commits and the merge-readiness gate passes on current head.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3237907086
+Disposition: NOT-A-BUG
+Evidence: current branch head contains the listed proof commits and the latest mapping follow-up commit; `git merge-base --is-ancestor e7a6bbd13ef1f6865dcc85fd57caec9d466dada7 HEAD`, `git merge-base --is-ancestor 62f8b3041026fc8e5729a1776d34d03ff3d6ff06 HEAD`, and `git merge-base --is-ancestor 5a5b36b76974f94fc4cc7e9b206d98442a4d70c5 HEAD` all exit 0 locally.
+Reason: The bot reviewed a virtual squashed head; the canonical PR branch history contains the mapped proof commits and current-head CI merge-readiness gates pass on the branch history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1750#discussion_r3239620006
 
 ## Local Validation Evidence
 
