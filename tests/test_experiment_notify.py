@@ -748,6 +748,10 @@ def test_email_delivery_is_idempotent_for_experiment_id_when_markdown_changes(
 
     first_exit = experiment_notify.main(argv)
     capsys.readouterr()
+    notification_path = (
+        repo / "artifacts" / "orchestration" / "experiments" / "notifications" / "exp-notify.md"
+    )
+    original_notification = notification_path.read_text(encoding="utf-8")
     _write_json(
         result_path,
         _result(status="rejected", failure_class="guard_failure"),
@@ -759,6 +763,7 @@ def test_email_delivery_is_idempotent_for_experiment_id_when_markdown_changes(
     assert second_exit == 1
     assert "already sent" in stdout
     assert len(FakeSMTP.sent_messages) == 1
+    assert notification_path.read_text(encoding="utf-8") == original_notification
 
 
 def test_email_delivery_blocks_retry_when_sent_audit_write_fails(

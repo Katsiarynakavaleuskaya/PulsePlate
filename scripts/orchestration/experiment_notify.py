@@ -90,13 +90,19 @@ class ExperimentEmailDeliveryError(ExperimentNotificationError):
 
 
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
+    payload, _sha256 = _read_json_object_with_sha256(path, label=label)
+    return payload
+
+
+def _read_json_object_with_sha256(path: Path, *, label: str) -> tuple[dict[str, Any], str]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        raw_payload = path.read_bytes()
+        payload = json.loads(raw_payload.decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Unable to load {label} JSON.") from exc
     if not isinstance(payload, dict):
         raise ValueError(f"{label} must be a JSON object.")
-    return payload
+    return payload, hashlib.sha256(raw_payload).hexdigest()
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
@@ -821,6 +827,21 @@ def _claim_email_send(
     raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
 
 
+def _check_email_audit_allows_artifact_write(experiment_id: str) -> None:
+    """Fail before rewriting notification markdown when an email audit already exists."""
+
+    audit_path = _resolve_email_audit_path(experiment_id)
+    existing = _read_existing_email_audit(audit_path)
+    if existing is None:
+        return
+    existing_status = existing.get("status")
+    if existing_status in {"sent", "send_in_progress"}:
+        raise ExperimentEmailDeliveryError("Email notification was already sent.")
+    if existing_status == "failed":
+        raise ExperimentEmailDeliveryError("Existing email delivery audit blocks retry.")
+    raise ExperimentEmailDeliveryError("Existing email audit artifact is invalid.")
+
+
 def _send_smtp_email(
     *,
     recipient: str,
@@ -864,11 +885,11 @@ def _deliver_email_notification(
     recipient: str,
     markdown: str,
     source_paths: dict[str, Path | None],
+    source_sha256: dict[str, str | None],
 ) -> Path:
     """Send an explicit email notification and record a local audit artifact."""
 
     audit_path = _resolve_email_audit_path(experiment_id)
-    source_sha256 = {key: _sha256_file(path) for key, path in sorted(source_paths.items())}
     _claim_email_send(
         audit_path=audit_path,
         experiment_id=experiment_id,
@@ -964,17 +985,24 @@ def main(argv: list[str] | None = None) -> int:
             email_recipient = _require_allowed_email_recipient(args.email_to)
         elif args.email_to:
             raise ExperimentEmailDeliveryError("--email-to requires --email.")
-        packet = validate_experiment_packet(
-            _read_json_object(packet_path, label="experiment packet")
+        packet_payload, packet_sha256 = _read_json_object_with_sha256(
+            packet_path, label="experiment packet"
         )
-        result = validate_experiment_result(
-            _read_json_object(result_path, label="experiment result")
+        packet = validate_experiment_packet(packet_payload)
+        result_payload, result_sha256 = _read_json_object_with_sha256(
+            result_path, label="experiment result"
         )
+        result = validate_experiment_result(result_payload)
         promotion = None
+        promotion_path = Path(args.promotion).expanduser().resolve() if args.promotion else None
+        promotion_sha256 = None
         if args.promotion:
-            promotion = _validate_promotion_decision(
-                _read_json_object(Path(args.promotion).expanduser().resolve(), label="promotion")
+            if promotion_path is None:
+                raise ValueError("Missing promotion path.")
+            promotion_payload, promotion_sha256 = _read_json_object_with_sha256(
+                promotion_path, label="promotion"
             )
+            promotion = _validate_promotion_decision(promotion_payload)
         output_path = _resolve_output_path(args.output, packet["experiment_id"])
         markdown = render_notification_markdown(packet, result, promotion)
     except ValueError:
@@ -986,6 +1014,18 @@ def main(argv: list[str] | None = None) -> int:
 
     email_audit_path = None
     try:
+        source_paths = {
+            "packet": packet_path,
+            "promotion": promotion_path,
+            "result": result_path,
+        }
+        source_sha256 = {
+            "packet": packet_sha256,
+            "promotion": promotion_sha256,
+            "result": result_sha256,
+        }
+        if args.email and email_recipient is not None:
+            _check_email_audit_allows_artifact_write(packet["experiment_id"])
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(markdown, encoding="utf-8")
         if args.github_step_summary:
@@ -996,13 +1036,8 @@ def main(argv: list[str] | None = None) -> int:
                 experiment_id=packet["experiment_id"],
                 recipient=email_recipient,
                 markdown=markdown,
-                source_paths={
-                    "packet": packet_path,
-                    "promotion": (
-                        Path(args.promotion).expanduser().resolve() if args.promotion else None
-                    ),
-                    "result": result_path,
-                },
+                source_paths=source_paths,
+                source_sha256=source_sha256,
             )
     except OSError:
         print("FAIL: unable to write experiment notification.")
