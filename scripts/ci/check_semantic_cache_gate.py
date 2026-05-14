@@ -1112,6 +1112,15 @@ def validate_semantic_cache_backend_selection_schema(
                 f"expected {spec['const']!r}, got {payload[key]!r}"
             )
         items = spec.get("items")
+        if isinstance(payload[key], list):
+            if spec.get("type") != "array":
+                errors.append(f"backend selection schema array type missing for {key}")
+            if not isinstance(spec.get("minItems"), int) or spec["minItems"] < 1:
+                errors.append(f"backend selection schema minItems missing for {key}")
+            if spec.get("uniqueItems") is not True:
+                errors.append(f"backend selection schema uniqueItems missing for {key}")
+            if not isinstance(items, dict) or items.get("type") != "string":
+                errors.append(f"backend selection schema string items missing for {key}")
         if isinstance(items, dict) and "enum" in items:
             enum = items["enum"]
             actual = payload[key]

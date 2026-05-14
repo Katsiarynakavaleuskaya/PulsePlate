@@ -91,12 +91,12 @@ _UNSAFE_TOKEN_RE = re.compile(
     re.IGNORECASE,
 )
 _UNSAFE_METADATA_RE = re.compile(
-    r"raw[_ -]?(?:query|prompt|response|answer)"
-    r"|normalized[_ -]?query"
-    r"|prompt"
-    r"|response"
-    r"|answer"
-    r"|provider[_: -]?payload"
+    r"raw[_ -]?(?:queries|query|prompts?|responses?|answers?)"
+    r"|normalized[_ -]?(?:queries|query)"
+    r"|prompts?"
+    r"|responses?"
+    r"|answers?"
+    r"|provider[_: -]?payloads?"
     r"|connection[_ -]?string"
     r"|local[_ -]?path"
     r"|redis://"

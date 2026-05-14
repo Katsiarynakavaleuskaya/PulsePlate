@@ -511,7 +511,11 @@ def test_matrix_identity_and_mapping_include_evidence_and_threshold_changes() ->
 def test_metadata_rejects_raw_payloads_paths_and_product_truth_sources() -> None:
     unsafe_metadata = (
         {"raw_prompt": "plan"},
+        {"raw_queries": "plan"},
+        {"safe_key": "raw queries"},
+        {"normalized_queries": "plan"},
         {"provider_payload": "payload"},
+        {"provider_payloads": "payload"},
         {"provider:payload": "payload"},
         {"safe_key": "provider:payload"},
         {"path": "/tmp/cache"},
@@ -864,6 +868,20 @@ def test_import_guard_rejects_fully_qualified_path_writes(tmp_path: Path) -> Non
     )
 
     with pytest.raises(AssertionError, match="pathlib.Path.write_text"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_path_class_method_open_write_modes(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_path_class_open.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "import pathlib\n"
+        "Path.open(Path('payload.txt'), 'w')\n"
+        "pathlib.Path.open(pathlib.Path('payload.bin'), mode='wb')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.open"):
         assert_no_forbidden_semantic_cache_calls(source)
 
 

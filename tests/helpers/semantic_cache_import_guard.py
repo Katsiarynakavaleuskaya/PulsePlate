@@ -58,8 +58,10 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "io.open",
     "Path.write_text",
     "Path.write_bytes",
+    "Path.open",
     "pathlib.Path.write_text",
     "pathlib.Path.write_bytes",
+    "pathlib.Path.open",
     "Path.touch",
     "Path.mkdir",
     "Path.rename",
@@ -358,9 +360,12 @@ def _is_path_open_write_mode_call(
     import_aliases: dict[str, str],
     path_aliases: set[str],
 ) -> bool:
-    if not _is_path_open_call(node, import_aliases, path_aliases):
+    if _is_path_open_call(node, import_aliases, path_aliases):
+        mode = _path_open_mode(node)
+    elif _is_path_open_class_call(node, import_aliases, path_aliases):
+        mode = _path_open_class_mode(node)
+    else:
         return False
-    mode = _path_open_mode(node)
     if mode is None:
         return True
     return any(flag in mode for flag in ("w", "a", "x", "+"))
@@ -371,6 +376,25 @@ def _path_open_mode(node: ast.Call) -> str | None:
         first_arg = node.args[0]
         if isinstance(first_arg, ast.Constant) and isinstance(first_arg.value, str):
             return first_arg.value
+        return None
+    for keyword in node.keywords:
+        if keyword.arg is None:
+            return None
+        if keyword.arg == "mode" and isinstance(keyword.value, ast.Constant):
+            value = keyword.value.value
+            if isinstance(value, str):
+                return value
+            return None
+        if keyword.arg == "mode":
+            return None
+    return "r"
+
+
+def _path_open_class_mode(node: ast.Call) -> str | None:
+    if len(node.args) > 1:
+        mode_arg = node.args[1]
+        if isinstance(mode_arg, ast.Constant) and isinstance(mode_arg.value, str):
+            return mode_arg.value
         return None
     for keyword in node.keywords:
         if keyword.arg is None:
@@ -413,6 +437,22 @@ def _is_path_open_call(
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "open":
         return False
     return _is_path_expr(node.func.value, import_aliases, path_aliases)
+
+
+def _is_path_open_class_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if not isinstance(node.func, ast.Attribute) or node.func.attr != "open":
+        return False
+    if _qualified_call_name(node.func, import_aliases) not in {"Path.open", "pathlib.Path.open"}:
+        return False
+    if not node.args:
+        return True
+    return _is_path_expr(node.args[0], import_aliases, path_aliases)
 
 
 def _collect_path_open_context_aliases(
