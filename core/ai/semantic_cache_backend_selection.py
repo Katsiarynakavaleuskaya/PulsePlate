@@ -402,7 +402,7 @@ class SemanticCacheBackendCandidate:
         object.__setattr__(
             self,
             "backend_version",
-            _validate_evidence_id("backend_version", self.backend_version),
+            _validate_runtime_safe_evidence_id("backend_version", self.backend_version),
         )
         object.__setattr__(
             self, "policy_version", _validate_token("policy_version", self.policy_version)
@@ -484,7 +484,9 @@ class SemanticCacheBackendSelectionCriteria:
             _normalize_required_unique_tokens("allowed_backend_labels", allowed),
         )
         object.__setattr__(
-            self, "required_surface", _validate_token("required_surface", self.required_surface)
+            self,
+            "required_surface",
+            _validate_runtime_safe_token("required_surface", self.required_surface),
         )
         _validate_bps("max_false_hit_rate_bps", self.max_false_hit_rate_bps)
         _validate_bps("max_stale_answer_rate_bps", self.max_stale_answer_rate_bps)
@@ -1253,6 +1255,13 @@ def _validate_runtime_safe_token(name: str, value: str) -> str:
     return normalized
 
 
+def _validate_runtime_safe_evidence_id(name: str, value: str) -> str:
+    normalized = _validate_evidence_id(name, value)
+    if _UNSAFE_RUNTIME_SCOPE_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe runtime scope")
+    return normalized
+
+
 def _validate_evidence_id(name: str, value: str) -> str:
     normalized = _validate_token(name, value)
     if _UNSAFE_EVIDENCE_ID_RE.search(normalized):
@@ -1267,6 +1276,8 @@ def _validate_structured_proof_id(
     prefixes: tuple[str, ...],
 ) -> str:
     normalized = _validate_evidence_id(name, value)
+    if _UNSAFE_RUNTIME_SCOPE_RE.search(normalized):
+        raise ValueError(f"{name} contains unsafe runtime scope")
     matching_prefix = next((prefix for prefix in prefixes if normalized.startswith(prefix)), None)
     if matching_prefix is None:
         raise ValueError(f"{name} must use a structured proof identifier")

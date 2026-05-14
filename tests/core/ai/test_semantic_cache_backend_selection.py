@@ -928,6 +928,19 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_backend_version in ("redis_url", "connection:string", "runtime_config"):
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_candidate(), backend_version=unsafe_backend_version)
+    for unsafe_backend_version in ("fastapi", "openapi", "network", "file-write"):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_candidate(), backend_version=unsafe_backend_version)
+    for unsafe_required_surface in ("fastapi", "openapi", "network"):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_criteria(), required_surface=unsafe_required_surface)
+    for unsafe_rollback in (
+        lambda: replace(_rollback(), proof_id="rollback:redis:fastapi"),
+        lambda: replace(_rollback(), kill_switch_proof_id="proof:kill-switch:redis:network"),
+        lambda: replace(_rollback(), stop_rule_replay_ids=("replay:stop-rule:redis:embeddings",)),
+    ):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            unsafe_rollback()
     with pytest.raises(ValueError, match="duplicate"):
         replace(_candidate(), supported_surfaces=("insight", "insight"))
     with pytest.raises(ValueError, match="non-empty"):
@@ -1078,6 +1091,9 @@ def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
         "import os\n"
         "os.getenv('SEMANTIC_CACHE_ENABLED')\n"
         "os.environ['SEMANTIC_CACHE_ENABLED']\n"
+        "getenv = os.getenv\n"
+        "getenv('REDIS_URL')\n"
+        "annotated_getenv: object = os.getenv\n"
         "env = os.environ\n"
         "env.get('REDIS_URL')\n"
         "env['GPTCACHE_URL']\n"
