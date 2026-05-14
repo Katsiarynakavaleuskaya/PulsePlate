@@ -156,6 +156,7 @@ charter
  -> candidate run
  -> oracle evaluation
  -> promote or discard
+ -> notify
 ```
 
 ### Step 1: Charter
