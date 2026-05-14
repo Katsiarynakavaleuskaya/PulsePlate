@@ -217,6 +217,13 @@ Evidence: Latest bot-wave P2 guard/checker gaps were fixed in code/tests: built-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521144 -> 74219fd13
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3239521149 -> 74219fd13
 
+Disposition: FIXED
+Commit: b5881b10f
+Evidence: Latest follow-up bot-wave guard gaps were fixed in code/tests: SC-G5 schema validation now requires list-valued contract fields to remain arrays with `minItems`, `uniqueItems`, and string items; metadata blocks plural raw/normalized query labels and provider payload plurals; import guard rejects class-method `Path.open(..., write-mode)` calls. Focused pytest, split mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241290733 -> b5881b10f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241290736 -> b5881b10f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241290741 -> b5881b10f
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
