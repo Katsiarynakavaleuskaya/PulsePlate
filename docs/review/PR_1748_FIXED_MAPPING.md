@@ -95,6 +95,14 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: local gates passed: `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py`; `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response`; guard tests for `nosec` and subprocess policy; `make validate-changed`; `pre-commit run --all-files`.
   - Premortem disposition: FIXED. The most likely failure was treating the timeout as only a shard-sizing problem; the fix changes runner isolation while preserving coverage/JUnit output and current required-check names.
   - Codex Security disposition: NOT-A-BUG after validation. The new subprocess use is bounded to the current Python interpreter and the repo-local runner path, uses `shell=False`, carries policy-compliant `nosec` TTL/ref comments for B404/B603, and is covered by guard tests.
+- Current-head CI finding: FIXED by `af9ca1a9da807b4a24b3d11452ab77459533a2e0`
+  - Finding: current-head CI run `25865119409` proved the child-exit fix worked for completed Python 3.12 shards 1, 2, and 3, but shard 4 itself did not complete before the 90-minute job timeout.
+  - Evidence: job `76005934903` logged `MAIN_TEST_SHARD_FINISHED` for shard indexes 1, 2, and 3, but not index 4; uploaded JUnit contained only `results-py312-shard-1.xml`, `results-py312-shard-2.xml`, and `results-py312-shard-3.xml`.
+  - Evidence: shard 4 started at `2026-05-14T14:24:35Z`, reached only about `54%` by `2026-05-14T15:34:09Z`, and the `Run tests with coverage` step was cancelled at `2026-05-14T15:52:07Z`.
+  - Fix: `.github/workflows/ci.yml` now splits Python 3.12 into eight deterministic shards with `MAIN_TEST_MAX_PARALLEL=4`, creating two bounded batches instead of one overloaded four-shard wave.
+  - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 8 --max-parallel 4 --list-shards` produced eight balanced shard weights between `1183920` and `1184358`.
+  - Evidence: `tests/test_ci_workflow_pr_size_governance_contract.py` now locks the Python 3.12 `MAIN_TEST_SHARDS=8` / `MAIN_TEST_MAX_PARALLEL=4` contract.
+  - Evidence: local focused workflow/runner pytest, `make validate-changed`, full pre-commit, and commit hooks pass.
 
 ## Fixed in Commit Mapping
 
@@ -349,8 +357,13 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after shard-exit isolation fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after shard-exit isolation fix
 - `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): isolate main test shard exits"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_main_test_shards.py` - PASS after Python 3.12 batch split (`40 passed`)
+- `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 8 --max-parallel 4 --list-shards` - PASS with balanced shard weights `1183920`, `1184286`, `1184275`, `1184352`, `1184306`, `1184283`, `1184358`, and `1184218`
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after Python 3.12 batch split
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after Python 3.12 batch split
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): split python 3.12 main shard batches"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after shard-exit isolation fix.
+- Current-head PR checks are pending after Python 3.12 batch split.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
