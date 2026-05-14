@@ -73,7 +73,7 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: `.github/workflows/ci.yml` now rebalances only Python 3.12 from two process shards to three process shards; Python 3.13 remains at two shards and existing required check names are preserved.
   - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 3 --max-parallel 3 --list-shards` produced balanced shard weights `3156708`, `3156742`, and `3156746`.
   - Evidence: `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passes and full pre-commit passes.
-- Current-head CI finding: FIXED by `a59c5c7e9efd19b1a8b10c2da7a1d3971bc22df2`
+- Current-head CI finding: FIXED by `a59c5c7e9bdd3cccfc05f066b765d39797cb783c`
   - Finding: `test-main (3.11, 60)` failed because pytest-xdist worker `gw0` crashed while running `tests/test_food_source_preference_recipe_mapping.py::test_preference_recipe_mapping_rejects_notes_that_contradict_policy[recipe text allowed]`; failed workers returned no coverage data, dropping total coverage to `29.88%`.
   - Evidence: CI job `75939635310` reported `1 failed, 13172 passed, 26 skipped` and `The following workers failed to return coverage data`, with `coverage.xml` still uploaded from partial data.
   - Evidence: `.github/workflows/ci.yml` now runs Python 3.11 `test-main` through the existing process-level shard runner instead of pytest-xdist while preserving the required check name and 97% coverage gate.
@@ -163,9 +163,9 @@ Disposition: FIXED
 Commit: 1a91cdfd655c11fe737beabdda9685ed4f02c170
 Evidence: `test-main (3.12, 90)` reached the job timeout after only shard 1 completed; `.github/workflows/ci.yml` now rebalances only Python 3.12 from two to three process shards, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25845462494/job/75939635310 -> a59c5c7e9efd19b1a8b10c2da7a1d3971bc22df2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25845462494/job/75939635310 -> a59c5c7e9bdd3cccfc05f066b765d39797cb783c
 Disposition: FIXED
-Commit: a59c5c7e9efd19b1a8b10c2da7a1d3971bc22df2
+Commit: a59c5c7e9bdd3cccfc05f066b765d39797cb783c
 Evidence: `test-main (3.11, 60)` failed from a pytest-xdist worker crash and partial coverage data, not a deterministic assertion failure; `.github/workflows/ci.yml` now runs Python 3.11 through process-level shards with `tests/results-py311-shard-*.xml` artifacts, and `tests/test_ci_workflow_pr_size_governance_contract.py` locks that contract. Focused workflow contract pytest, balanced shard-plan proof, and full pre-commit pass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25846637782/job/75943642347 -> bd1331c44769f046ec440d13db09126d5138a0a9
