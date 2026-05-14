@@ -19,6 +19,7 @@
 - `d5998b4899df9b07a6c295841f52dab27b08df51` - `docs(orchestration): align experiment notify lifecycle`
 - `6acfee69f276900e47c844fceb8ceb048eade324` - `fix(orchestration): fail closed on duplicate experiment email sends`
 - `098975392a15f195ebd92bde7d6ddcfa7a67f878` - `docs(orchestration): add experiment notification completion gate`
+- `5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85` - `fix(orchestration): block ambiguous email audit retries`
 
 ## Coordinator / Agent Passes
 
@@ -174,6 +175,16 @@ Evidence: Cubic review-level notification completion-gate finding is fixed by ad
 Disposition: FIXED
 Commit: 098975392a15f195ebd92bde7d6ddcfa7a67f878
 Evidence: `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md` completion gate now requires explicit notification evidence.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239678344 -> 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
+Disposition: FIXED
+Commit: 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
+Evidence: Existing `failed` audit artifacts now block automatic retry before SMTP side effects; `tests/test_experiment_notify.py::test_failed_email_audit_blocks_retry` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239684532 -> 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
+Disposition: FIXED
+Commit: 5eaadf55b1c1b46a87f0b6f7201e32b163cd1e85
+Evidence: Invalid UTF-8 email audit files now raise sanitized `ExperimentEmailDeliveryError`; `tests/test_experiment_notify.py::test_invalid_utf8_email_audit_fails_closed` covers it.
 
 ## Merge Readiness
 
