@@ -10,10 +10,11 @@
 - `584b5d00f93ebc5f799c4631509b4800f869c10a` - `feat(orchestration): add experiment email notification sink`
 - `f4c2601df6cb55f409e62b332773b5512354b7bf` - `docs(review): add PR 1751 fixed mapping`
 - `7ef7d0904c0d32337e84fd4400267d0eb0db7ce7` - `docs(review): fix PR 1751 phase2 mapping contract`
-- `da8b2db70bbd11afe765b30da551b5aa629a43fa` - `fix(orchestration): harden experiment email notification sink`
-- `fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd` - `docs(review): map PR 1751 review fixes`
-- `716e94e0932f1e708fd1e7333fe3f2ba03116d26` - `fix(orchestration): type email audit path resolution`
-- `51f034410348aa55fa15d3b8e15ffb18b70fc61e` - `fix(orchestration): stabilize email audit path typing`
+- `da8b2db703c4a9e8840524f7d5987e1da4d79463` - `fix(orchestration): harden experiment email notification sink`
+- `fcef53e4e53eac11ff165084a8efb08c72b0cf73` - `docs(review): map PR 1751 review fixes`
+- `716e94e09e5386ffeb4abb90ece0b8c1456456f9` - `fix(orchestration): type email audit path resolution`
+- `51f0344106f92846e168685ce62f61145358037a` - `fix(orchestration): stabilize email audit path typing`
+- `ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4` - `fix(orchestration): harden smtp email delivery claims`
 
 ## Coordinator / Agent Passes
 
@@ -33,7 +34,7 @@
   - duplicate send risk -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`
   - SMTP send before durable audit evidence -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`
   - malformed SMTP sender bypassing sanitized failure path -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`
-  - promotion overclaim risk -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`; real `experiment_promote` result compatibility fixed in `da8b2db70bbd11afe765b30da551b5aa629a43fa`
+  - promotion overclaim risk -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`; real `experiment_promote` result compatibility fixed in `da8b2db703c4a9e8840524f7d5987e1da4d79463`
   - email audit not bound to exact evidence body/source artifacts -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`
   - missing SMTP validation negative tests -> FIXED in `584b5d00f93ebc5f799c4631509b4800f869c10a`
 - Codex Security scan:
@@ -60,35 +61,50 @@ Operator explicitly held main on control and approved opening this PR lane. This
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237898304 -> da8b2db70bbd11afe765b30da551b5aa629a43fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237898304 -> da8b2db703c4a9e8840524f7d5987e1da4d79463
 Disposition: FIXED
-Commit: da8b2db70bbd11afe765b30da551b5aa629a43fa
+Commit: da8b2db703c4a9e8840524f7d5987e1da4d79463
 Evidence: `scripts/AGENTS.md` now says `local artifact output is the default`; `VENV_PYTHON=../../.venv/bin/python pre-commit run --all-files` PASS.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237901619 -> fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237901619 -> fcef53e4e53eac11ff165084a8efb08c72b0cf73
 Disposition: FIXED
-Commit: fcef53e4ec82b14c6be9f3bd31ecb2d22a1d0fcd
+Commit: fcef53e4e53eac11ff165084a8efb08c72b0cf73
 Evidence: Merge-readiness checklist boxes in this artifact are unchecked until the final merge cycle.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905243 -> da8b2db70bbd11afe765b30da551b5aa629a43fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905243 -> da8b2db703c4a9e8840524f7d5987e1da4d79463
 Disposition: FIXED
-Commit: da8b2db70bbd11afe765b30da551b5aa629a43fa
-Evidence: Implementing commit list now includes current branch fix commits through `da8b2db70bbd11afe765b30da551b5aa629a43fa`.
+Commit: da8b2db703c4a9e8840524f7d5987e1da4d79463
+Evidence: Implementing commit list now uses reachable commits from this branch.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905249 -> da8b2db70bbd11afe765b30da551b5aa629a43fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905249 -> da8b2db703c4a9e8840524f7d5987e1da4d79463
 Disposition: FIXED
-Commit: da8b2db70bbd11afe765b30da551b5aa629a43fa
+Commit: da8b2db703c4a9e8840524f7d5987e1da4d79463
 Evidence: `scripts/orchestration/experiment_notify.py` accepts promoted results from the real runner/promote flow without requiring runner-only `promotion_ready=true`; `tests/test_experiment_notify.py::test_notification_includes_promotion_decision_from_promote_output` covers it.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905251 -> da8b2db70bbd11afe765b30da551b5aa629a43fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905251 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
 Disposition: FIXED
-Commit: da8b2db70bbd11afe765b30da551b5aa629a43fa
-Evidence: Email audit writes `send_in_progress` before SMTP send and duplicate retry blocks on matching `send_in_progress`; `tests/test_experiment_notify.py::test_email_delivery_blocks_retry_when_sent_audit_write_fails` covers it.
+Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Evidence: Email audit is claimed before SMTP send and retry blocks on matching non-stale `send_in_progress`; `tests/test_experiment_notify.py::test_email_delivery_blocks_retry_when_sent_audit_write_fails` covers it.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905252 -> da8b2db70bbd11afe765b30da551b5aa629a43fa
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3237905252 -> da8b2db703c4a9e8840524f7d5987e1da4d79463
 Disposition: FIXED
-Commit: da8b2db70bbd11afe765b30da551b5aa629a43fa
+Commit: da8b2db703c4a9e8840524f7d5987e1da4d79463
 Evidence: Email audit path is canonical by experiment id, not caller-controlled `--output`; `tests/test_experiment_notify.py::test_email_delivery_is_idempotent_across_output_paths` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239524561 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Disposition: FIXED
+Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Evidence: Email send claim now uses exclusive create, duplicate-blocking `send_in_progress`, and stale-claim reclaim; `tests/test_experiment_notify.py::test_stale_email_send_claim_can_be_reclaimed` covers reclaim.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239524565 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Disposition: FIXED
+Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Evidence: SMTP port `465` uses `SMTP_SSL`; `tests/test_experiment_notify.py::test_smtp_implicit_tls_uses_smtp_ssl` covers it.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1751#discussion_r3239534963 -> ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Disposition: FIXED
+Commit: ebe44d4e5ead92dd7e2b0a0ba6cbe087d6a2e9c4
+Evidence: SMTP `quit()` failures after accepted `send_message()` are ignored so the final `sent` audit remains durable; `tests/test_experiment_notify.py::test_smtp_quit_failure_after_send_keeps_delivery_successful` covers it.
 
 ## Merge Readiness
 
