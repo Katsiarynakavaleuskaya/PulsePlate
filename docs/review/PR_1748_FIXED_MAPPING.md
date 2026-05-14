@@ -85,6 +85,16 @@ Migrate the canonical CI `changes` job from the Node 20 `dorny/paths-filter` v3 
   - Evidence: `.github/workflows/ci.yml` now uses the same four process-shard plan for Python 3.12 that passed current-head Python 3.11, while preserving the `test-main (3.12, 90)` required-check identity.
   - Evidence: `../../.venv/bin/python scripts/ci/run_main_test_shards.py --python-version 3.12 --shard-count 4 --max-parallel 4 --list-shards` produced balanced shard weights `2367885`, `2367530`, `2367530`, and `2367817`.
   - Evidence: `../../.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py` passes and full pre-commit passes.
+- Current-head/main/Nightly CI finding: FIXED by `d7f31a62362f411fc4fd7f8c51ca194ececd1888`
+  - Finding: further sharding did not close the failure mode; the evidence points to post-pytest process leakage where a shard writes JUnit after tests complete but the Python process/job remains alive until timeout.
+  - Evidence: PR current-head run `25861580104` still had `test-main (3.12, 90)` in progress at branch head `3bacf84344989f78fe7495cb07da2a25982b99c1` while other required checks had completed.
+  - Evidence: `main` CI run `25860402769` at `e91e00daad5d21e6b0690fbb2dbbd48b8fd44474` showed the same pattern: `test-main (3.12, 60)` stayed in progress while 3.11 and 3.13 completed successfully; earlier job `75988571210` uploaded `junit-3.12/results-py312-shard-2.xml` with `6334` tests, `0` failures, `0` errors, and `time="1942.042"` before cancellation.
+  - Evidence: Nightly Full run `25844026393` at `17db1118d215d0ffecd5e09a8d254db03db336e4` failed after coverage output with repeated faulthandler dumps in `execnet/gateway_base.py` receiver threads, independently matching a test-runner cleanup/leakage class rather than a Node24 paths-filter behavior change.
+  - Fix: `scripts/ci/run_main_test_shards.py` now runs each shard through an explicit child interpreter invocation and the child calls `os._exit(exit_code)` immediately after `pytest.main(...)` returns and stdout/stderr are flushed, so leaked non-daemon threads or pytest/coverage cleanup hooks cannot keep the CI job alive after shard artifacts are written.
+  - Evidence: `tests/test_main_test_shards.py` now asserts both parent-to-child invocation and forced child exit after `pytest.main(...)` returns.
+  - Evidence: local gates passed: `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py`; `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response`; guard tests for `nosec` and subprocess policy; `make validate-changed`; `pre-commit run --all-files`.
+  - Premortem disposition: FIXED. The most likely failure was treating the timeout as only a shard-sizing problem; the fix changes runner isolation while preserving coverage/JUnit output and current required-check names.
+  - Codex Security disposition: NOT-A-BUG after validation. The new subprocess use is bounded to the current Python interpreter and the repo-local runner path, uses `shell=False`, carries policy-compliant `nosec` TTL/ref comments for B404/B603, and is covered by guard tests.
 
 ## Fixed in Commit Mapping
 
@@ -331,8 +341,16 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `../../.venv/bin/python -m pytest -q tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after latest review fixes (`13 passed`)
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after latest review fixes
 - `PATH=../../.venv/bin:$PATH git commit -m "test(ci): harden Kimi diff and premium assertions"` - PASS hooks
+- `../../.venv/bin/python scripts/orchestration/task_bootstrap.py --goal "Fix main-suite test shard post-pytest process leakage after Node24 paths-filter PR exposed CI timeout" --task-class ci_fix --path scripts/ci/run_main_test_shards.py --path tests/test_main_test_shards.py --requested-agent agent-coordinator --requested-agent security-auditor --requested-agent qa-engineer-agent --requested-agent bug-hunter --pr-phase post_open_review` - PASS (`task_packet_id: c4a01b307e33`)
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py` - PASS after shard-exit isolation fix (`29 passed`)
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_app_extended_coverage.py::TestPremiumEndpoints::test_premium_bmr_runtime_patch_returns_stub_response` - PASS after shard-exit isolation fix (`42 passed`)
+- `../../.venv/bin/python -m flake8 scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py` - PASS after shard-exit isolation fix
+- `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_main_test_shards.py` - PASS after shard-exit isolation fix (`34 passed`)
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after shard-exit isolation fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after shard-exit isolation fix
+- `PATH=../../.venv/bin:$PATH git commit -m "fix(ci): isolate main test shard exits"` - PASS hooks
 
 ## Current-Head CI
 
-- Current-head PR checks are pending after latest review fixes.
+- Current-head PR checks are pending after shard-exit isolation fix.
 - Merge readiness is not claimed while PR CI, review-bot disposition, and strict merge wrapper remain pending.
