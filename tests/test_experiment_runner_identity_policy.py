@@ -56,11 +56,34 @@ def test_rejects_repo_private_key_material_with_spaced_key_name() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_sensitive_field_object_without_type_error() -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"]["private_key"] = {"stored": True}
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_private_key_material_under_neutral_key() -> None:
     policy = _valid_policy()
     policy["cryptographic_boundary"]["operator_note"] = (
         "-----BEGIN " "PRIVATE KEY-----\n" "abc123\n" "-----END " "PRIVATE KEY-----"
     )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
+        identity_check.validate_identity_policy(policy)
+
+
+@pytest.mark.parametrize(
+    "secret_value",
+    [
+        "github_pat_" + "a" * 24,
+        "xapp-" + "b" * 24,
+    ],
+)
+def test_rejects_current_token_prefixes_under_neutral_key(secret_value: str) -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"]["operator_note"] = secret_value
 
     with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
         identity_check.validate_identity_policy(policy)
@@ -73,6 +96,26 @@ def test_rejects_missing_external_signing_requirement() -> None:
     ] = False
 
     with pytest.raises(identity_check.IdentityPolicyError, match="commit_signing"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_malformed_forbidden_placeholder_email_entries() -> None:
+    policy = _valid_policy()
+    policy["git_attribution"]["forbidden_placeholder_emails"] = ["runner@example.com", {}]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="email strings"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_malformed_allowed_signing_method_entries() -> None:
+    policy = _valid_policy()
+    policy["cryptographic_boundary"]["allowed_signing_methods"] = [
+        "ssh",
+        "gpg",
+        {"provider": "github_app_verified_signature"},
+    ]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="signing method strings"):
         identity_check.validate_identity_policy(policy)
 
 

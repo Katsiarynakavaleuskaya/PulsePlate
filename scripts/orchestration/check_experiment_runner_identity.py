@@ -26,7 +26,7 @@ SENSITIVE_FIELD_RE = re.compile(
     re.IGNORECASE,
 )
 SENSITIVE_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})",
+    r"(-----BEGIN [A-Z ]*PRIVATE KEY-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[baprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
     re.IGNORECASE,
 )
 
@@ -74,14 +74,12 @@ def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
     if isinstance(payload, dict):
         for key, value in payload.items():
             next_path = f"{path}.{key}"
-            if (
-                SENSITIVE_FIELD_RE.search(str(key))
-                and not isinstance(value, bool)
-                and value not in {"none", "external"}
-            ):
-                raise IdentityPolicyError(
-                    f"{next_path} must not store private key material or secrets."
-                )
+            if SENSITIVE_FIELD_RE.search(str(key)):
+                allowed_marker = isinstance(value, str) and value in {"none", "external"}
+                if not isinstance(value, bool) and not allowed_marker:
+                    raise IdentityPolicyError(
+                        f"{next_path} must not store private key material or secrets."
+                    )
             _reject_private_key_material(value, path=next_path)
         return
     if isinstance(payload, list):
@@ -110,7 +108,9 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     if git_attribution.get("purpose") != "public_attribution_only":
         raise IdentityPolicyError("git_attribution.purpose must be public_attribution_only.")
     forbidden = git_attribution.get("forbidden_placeholder_emails")
-    if not isinstance(forbidden, list) or not FORBIDDEN_EMAILS.issubset(set(forbidden)):
+    if not isinstance(forbidden, list) or not all(isinstance(entry, str) for entry in forbidden):
+        raise IdentityPolicyError("forbidden_placeholder_emails must be a list of email strings.")
+    if not FORBIDDEN_EMAILS.issubset(set(forbidden)):
         raise IdentityPolicyError("forbidden_placeholder_emails must include runner@example.com.")
 
     authority_boundary = _require_mapping(payload, "authority_boundary")
@@ -139,7 +139,11 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     _require_bool(cryptographic_boundary, "repo_must_not_generate_private_keys", True)
     _require_bool(cryptographic_boundary, "repo_must_not_store_signing_secrets", True)
     methods = cryptographic_boundary.get("allowed_signing_methods")
-    if not isinstance(methods, list) or set(methods) != ALLOWED_SIGNING_METHODS:
+    if not isinstance(methods, list) or not all(isinstance(method, str) for method in methods):
+        raise IdentityPolicyError(
+            "allowed_signing_methods must be a list of signing method strings."
+        )
+    if set(methods) != ALLOWED_SIGNING_METHODS:
         raise IdentityPolicyError("allowed_signing_methods must be ssh, gpg, and GitHub App.")
 
     notification_boundary = _require_mapping(payload, "notification_boundary")
