@@ -374,6 +374,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     assert "MAIN_TEST_SHARDS=16" in py312_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py312_block
+    assert "MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py312_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
@@ -382,6 +383,7 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
 
     assert "MAIN_TEST_SHARDS=8" in py313_block
     assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
+    assert "MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
@@ -392,6 +394,10 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert '--max-parallel "${MAIN_TEST_MAX_PARALLEL}"' in shared_shard_runner_block
     assert 'echo "MAIN_TEST_SHARDS=${MAIN_TEST_SHARDS}"' in shared_shard_runner_block
     assert 'echo "MAIN_TEST_MAX_PARALLEL=${MAIN_TEST_MAX_PARALLEL}"' in shared_shard_runner_block
+    assert (
+        'echo "MAIN_TEST_SHARD_TIMEOUT_SECONDS=${MAIN_TEST_SHARD_TIMEOUT_SECONDS:-default}"'
+        in shared_shard_runner_block
+    )
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in shared_shard_runner_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in shared_shard_runner_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in shared_shard_runner_block
