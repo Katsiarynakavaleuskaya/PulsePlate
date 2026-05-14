@@ -224,6 +224,17 @@ Evidence: Latest follow-up bot-wave guard gaps were fixed in code/tests: SC-G5 s
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241290736 -> b5881b10f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241290741 -> b5881b10f
 
+Disposition: FIXED
+Commit: b6fd8ca27
+Evidence: Latest sensitive-token review gaps were fixed in code/tests: evidence/proof IDs block plural raw/normalized query labels, raw model response labels, separated HealthKit labels, and provider payload labels; metadata blocks colon-delimited sensitive/truth-source labels and separated HealthKit forms; tuple proof-token fields reuse unsafe proof-token screening; structured proof IDs now require suffix evidence after their allowed prefixes. Focused pytest, split mypy, semantic-cache checker, preflight, agent consistency, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241290744 -> b6fd8ca27
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355585 -> b6fd8ca27
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355592 -> b6fd8ca27
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355595 -> b6fd8ca27
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355600 -> b6fd8ca27
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355607 -> b6fd8ca27
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241355622 -> b6fd8ca27
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
