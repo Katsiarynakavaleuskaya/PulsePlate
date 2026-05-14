@@ -1107,8 +1107,8 @@ jobs:
             MAIN_TEST_SHARDS=4
             MAIN_TEST_MAX_PARALLEL=4
           elif [[ "$PYVER" == 3.12* ]]; then
-            MAIN_TEST_SHARDS=3
-            MAIN_TEST_MAX_PARALLEL=3
+            MAIN_TEST_SHARDS=4
+            MAIN_TEST_MAX_PARALLEL=4
           elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=2
             MAIN_TEST_MAX_PARALLEL=2
