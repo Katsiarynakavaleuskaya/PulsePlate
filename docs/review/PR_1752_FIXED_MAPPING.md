@@ -21,6 +21,7 @@
   - `1dbb8b612` - closed final Cubic/Codex edge cases for unset PATH fallback, punctuation-normalized sensitive keys, duplicate Slack blocks, and duplicate commit-context authority drift.
   - `432f5e51b` - rejected duplicate boundary blocks across naming styles, redacted sensitive field diagnostics, and blocked separator-variant authority fields inside the canonical boundary.
   - `647f49e12` - redacted secret-shaped ancestor path components in authority and duplicate-boundary diagnostics.
+  - `c2fb89aaf` - expanded secret guards for API-key fields, PGP private key blocks, prefix duplicate boundaries, and dotted sensitive ancestor redaction.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -59,10 +60,14 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243867166 -> 432f5e51b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243929617 -> 647f49e12
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243929637 -> 647f49e12
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243988614 -> c2fb89aaf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243988617 -> c2fb89aaf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243988622 -> c2fb89aaf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243988629 -> c2fb89aaf
 
 Disposition: FIXED
-Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`, `cf1174f86`, `1dbb8b612`, `432f5e51b`, `647f49e12`
-Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting repeated and punctuation separators in sensitive key names, redacting sensitive field names and secret-shaped ancestor paths in diagnostics, rejecting duplicate sensitive booleans outside canonical paths, rejecting separator-variant authority drift and duplicate `allowed_commit_context` drift inside and outside `authority_boundary`, rejecting duplicate Git attribution, cryptographic, notification, and Slack identity boundary blocks across naming styles, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
+Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`, `cf1174f86`, `1dbb8b612`, `432f5e51b`, `647f49e12`, `c2fb89aaf`
+Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting API-key fields, PGP private key blocks, repeated and punctuation separators in sensitive key names, redacting sensitive field names and secret-shaped ancestor paths in diagnostics, rejecting duplicate sensitive booleans outside canonical paths, rejecting separator-variant authority drift and duplicate `allowed_commit_context` drift inside and outside `authority_boundary`, rejecting duplicate Git attribution, cryptographic, notification, and Slack identity boundary blocks across naming styles and prefix/suffix variants, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
 
 ## Role-Agent Findings
 
@@ -103,6 +108,8 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `make validate-changed` PASS after `432f5e51b`.
 - `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS after `647f49e12`.
 - `make validate-changed` PASS after `647f49e12`.
+- `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS after `c2fb89aaf`.
+- `make validate-changed` PASS after `c2fb89aaf`.
 - `black --check` on changed Python files PASS.
 - `flake8` on identity guard/tests PASS.
 - `mypy --explicit-package-bases` on identity guard/tests PASS.
