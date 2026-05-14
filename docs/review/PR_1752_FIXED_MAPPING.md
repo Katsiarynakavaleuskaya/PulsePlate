@@ -16,6 +16,7 @@
   - `2853fca3e` - repo-standard `make validate-changed` validation command wording.
   - `4f431c553` - additional fail-closed identity policy bypass hardening for repeated separators, token-shaped keys, Slack app/config tokens, and authority drift.
   - `0aec2bf28` - reclassified coordinator task-packet evidence and mapped identity guard bypass findings.
+  - `cf1174f86` - sanitized token-shaped key diagnostics, canonical sensitive boolean scope, and separator-normalized authority drift checks.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -41,10 +42,13 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291682243 -> 19d2c92ee
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242894051 -> 2853fca3e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4291735416 -> 2853fca3e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243532243 -> cf1174f86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243532245 -> cf1174f86
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3243532247 -> cf1174f86
 
 Disposition: FIXED
-Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`
-Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys, rejecting repeated separators in sensitive key names, rejecting authority drift outside `authority_boundary`, and replacing the brittle validation command text with `make validate-changed`.
+Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`, `cf1174f86`
+Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting repeated separators in sensitive key names, rejecting duplicate sensitive booleans outside canonical paths, rejecting separator-variant authority drift outside `authority_boundary`, and replacing the brittle validation command text with `make validate-changed`.
 
 ## Role-Agent Findings
 
@@ -73,6 +77,7 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `python3 scripts/orchestration/check_agent_consistency.py` PASS.
 - `scripts/orchestration/check_experiment_runner_identity.py --json` PASS.
 - `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS.
+- `pytest -q tests/test_experiment_runner_identity_policy.py` PASS after `cf1174f86`.
 - `black --check` on changed Python files PASS.
 - `flake8` on identity guard/tests PASS.
 - `mypy --explicit-package-bases` on identity guard/tests PASS.
