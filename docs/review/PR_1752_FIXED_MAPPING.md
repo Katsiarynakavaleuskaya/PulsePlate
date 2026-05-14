@@ -8,6 +8,7 @@
   - `f53cb69db` - governed Experiment Runner identity boundary, offline guard, tests, and nested git environment hardening.
   - `e33e29c2d` - initial PR 1752 fixed-mapping artifact.
   - `229777a55` - CodeRabbit CLI governance fixes for backlog priority ordering and Phase 2 fixed-mapping formatting.
+  - `6f1e29fb8` - canonical no-actionable review-thread mapping format for Phase 2 parser compatibility.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
