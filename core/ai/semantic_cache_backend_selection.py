@@ -817,12 +817,20 @@ def build_semantic_cache_backend_matrix_id(
         raise ValueError("criteria must be SemanticCacheBackendSelectionCriteria")
     if not isinstance(final_decision, SemanticCacheBackendSelectionDecision):
         raise ValueError("final_decision must be SemanticCacheBackendSelectionDecision")
+
+    expected_final_decision = select_semantic_cache_backend(
+        candidates=_sorted_candidates(candidates),
+        criteria=criteria,
+    )
+    if final_decision != expected_final_decision:
+        raise ValueError("final_decision must match deterministic selector result")
+
     payload: JsonValue = {
         "candidate_signatures": [
             _candidate_signature(candidate) for candidate in _sorted_candidates(candidates)
         ],
         "criteria": _criteria_signature(criteria),
-        "final_decision_id": final_decision.decision_id,
+        "final_decision_id": expected_final_decision.decision_id,
         "policy_version": criteria.policy_version,
     }
     return f"semantic-cache-backend-matrix:{_fingerprint_payload(payload)[:24]}"

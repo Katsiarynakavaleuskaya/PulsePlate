@@ -169,27 +169,41 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             validate_backend_selection_schema = (
                 _load_semantic_cache_backend_selection_schema_validator()
             )
-            schema_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA)
-            errors.extend(
-                f"{relpath}: {error}"
-                for error in validate_backend_selection_schema(
-                    schema_text=schema_text,
-                    contract_text=content,
+            try:
+                schema_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA}"
                 )
-            )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_backend_selection_schema(
+                        schema_text=schema_text,
+                        contract_text=content,
+                    )
+                )
 
         if relpath == SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA:
             validate_backend_selection_schema = (
                 _load_semantic_cache_backend_selection_schema_validator()
             )
-            contract_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC)
-            errors.extend(
-                f"{relpath}: {error}"
-                for error in validate_backend_selection_schema(
-                    schema_text=content,
-                    contract_text=contract_text,
+            try:
+                contract_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC}"
                 )
-            )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_backend_selection_schema(
+                        schema_text=content,
+                        contract_text=contract_text,
+                    )
+                )
 
     return errors
 
