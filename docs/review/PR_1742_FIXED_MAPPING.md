@@ -307,6 +307,13 @@ Evidence: Latest current-head Codex review wave was fixed in code/tests: direct 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247788127 -> 6663ddb67
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247788135 -> 6663ddb67
 
+Disposition: FIXED
+Commit: 0e04e1717
+Evidence: Latest current-head review wave was fixed in code/tests: current-head CI proof matching now accepts the allowed natural `ci:current-head:<sha>:` proof shape, split FastAPI/OpenAPI spellings are blocked by token-sequence runtime-scope screening across surfaces/proof IDs/metadata, and the semantic-cache import guard rejects direct `os.environ` value reads such as `dict(os.environ)`, loops, comprehensions, and aliases. Focused pytest, mypy, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247884748 -> 0e04e1717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247884758 -> 0e04e1717
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247884761 -> 0e04e1717
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -325,9 +332,9 @@ Evidence: Latest current-head Codex review wave was fixed in code/tests: direct 
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after `6663ddb67` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after `6663ddb67` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after `6663ddb67` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| CodeRabbit | Pending current-head re-review after `0e04e1717` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Sourcery | Pending current-head re-review after `0e04e1717` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Cubic | Pending current-head re-review after `0e04e1717` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Codex Security | Clean after final substantive fix | Final scan for commit `95ecc9412` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/95ecc9412_20260513T121007Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
@@ -344,6 +351,7 @@ Evidence: Latest current-head Codex review wave was fixed in code/tests: direct 
 - Diff-cover for SC-G5 changed code passed at 99%.
 - Latest focused post-update pytest, mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `d145aa473`.
 - Latest current-head decision/guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6663ddb67`.
+- Latest current-head proof/runtime-label/environment guard focused pytest, mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0e04e1717`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
