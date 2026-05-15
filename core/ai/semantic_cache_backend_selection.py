@@ -1479,9 +1479,23 @@ def _validate_runtime_safe_token(name: str, value: str) -> str:
 
 def _validate_runtime_safe_evidence_id(name: str, value: str) -> str:
     normalized = _validate_evidence_id(name, value)
+    if name in {"source_fingerprints", "evidence_fingerprints"} and _is_digest_fingerprint(
+        normalized
+    ):
+        return normalized
     if _contains_unsafe_runtime_scope(normalized):
         raise ValueError(f"{name} contains unsafe runtime scope")
     return normalized
+
+
+def _is_digest_fingerprint(value: str) -> bool:
+    prefix, separator, suffix = value.partition(":")
+    return (
+        separator == ":"
+        and prefix in {"sha1", "sha224", "sha256", "sha384", "sha512", "blake2b", "blake2s"}
+        and len(suffix) >= 7
+        and all(char in "0123456789abcdef" for char in suffix)
+    )
 
 
 def _validate_evidence_id(name: str, value: str) -> str:

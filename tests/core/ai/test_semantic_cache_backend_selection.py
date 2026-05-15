@@ -1189,6 +1189,15 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             unsafe_scalar_evidence_id()
     safe_digest = replace(_evidence(), source_fingerprints=("sha256:abdb0000",))
     assert safe_digest.source_fingerprints == ("sha256:abdb0000",)
+    safe_db_digest = replace(
+        _evidence(),
+        source_fingerprints=("sha256:db12345",),
+        evidence_fingerprints=("sha256:db12345",),
+    )
+    assert safe_db_digest.source_fingerprints == ("sha256:db12345",)
+    assert safe_db_digest.evidence_fingerprints == ("sha256:db12345",)
+    with pytest.raises(ValueError, match="unsafe runtime scope"):
+        replace(_evidence(), source_fingerprints=("sha256:dbv1",))
     for unsafe_candidate_id in ("candidate:fastapi", "candidate:openapi", "candidate:network"):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_candidate(), candidate_id=unsafe_candidate_id)
