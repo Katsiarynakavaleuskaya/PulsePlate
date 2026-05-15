@@ -4,7 +4,6 @@ import argparse
 from collections.abc import Callable
 import re
 from pathlib import Path
-import sys
 from typing import Any, Protocol, cast
 
 PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
@@ -18,33 +17,27 @@ EVIDENCE_ANCHOR_RE = re.compile(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CHECKER_DIR = Path(__file__).resolve().parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-if str(CHECKER_DIR) not in sys.path:
-    sys.path.insert(0, str(CHECKER_DIR))
 
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
-)
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
-)
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
-)
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
-)
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_semantic_cache_gate as _validate_semantic_cache_gate,
-)
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_semantic_cache_observability_contract as _validate_observability_contract,
-)
-from check_semantic_cache_gate import (  # noqa: E402
-    validate_semantic_cache_rollout_contract as _validate_rollout_contract,
-)
+try:
+    from scripts.ci.check_semantic_cache_gate import (
+        validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
+        validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
+        validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
+        validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
+        validate_semantic_cache_gate as _validate_semantic_cache_gate,
+        validate_semantic_cache_observability_contract as _validate_observability_contract,
+        validate_semantic_cache_rollout_contract as _validate_rollout_contract,
+    )
+except ModuleNotFoundError:
+    from check_semantic_cache_gate import (  # noqa: E402
+        validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
+        validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
+        validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
+        validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
+        validate_semantic_cache_gate as _validate_semantic_cache_gate,
+        validate_semantic_cache_observability_contract as _validate_observability_contract,
+        validate_semantic_cache_rollout_contract as _validate_rollout_contract,
+    )
 
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
 SEMANTIC_CACHE_ROLLOUT_CONTRACT_DOC = "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md"
