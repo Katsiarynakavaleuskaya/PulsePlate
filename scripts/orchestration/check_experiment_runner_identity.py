@@ -22,11 +22,13 @@ EXPECTED_EMAIL = "pulseplate@pm.me"
 FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
 ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
 SENSITIVE_FIELD_RE = re.compile(
-    r"(api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|password|secret|token|credential|signing[\s_-]*key)",
+    r"(access[\s_-]*key|api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|password|secret|token|credential|signing[\s_-]*key)",
     re.IGNORECASE,
 )
 SENSITIVE_POLICY_KEY_TOKENS = frozenset(
     {
+        "access_key",
+        "access_key_id",
         "api_key",
         "credential",
         "pass_phrase",
@@ -133,7 +135,8 @@ def _path_for_key(path: str, key: Any) -> str:
 
 
 def _normalized_policy_key(key: Any) -> str:
-    return re.sub(r"[^a-z0-9]+", "_", str(key).lower()).strip("_")
+    camel_split = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(key))
+    return re.sub(r"[^a-z0-9]+", "_", camel_split.lower()).strip("_")
 
 
 def _compact_policy_key(key: Any) -> str:
