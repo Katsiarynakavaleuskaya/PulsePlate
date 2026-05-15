@@ -288,6 +288,15 @@ Evidence: Latest metadata/schema review wave was fixed in code/checker/tests: th
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885733 -> eccaa2310
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3241885743 -> eccaa2310
 
+Disposition: FIXED
+Commit: d145aa473
+Evidence: Post-update review wave was fixed in code/checker/docs/tests: runtime-scope matching is token-bound so normal SHA digest segments like `sha256:abdb...` remain valid; candidate IDs, selected/rejected IDs, policy versions, and criteria policy versions reject runtime-scope labels before serialization; rollback proof matching rejects ambiguous multi-backend proof IDs; current-head CI proof IDs must bind the evaluated head SHA; SC-G5 schema enum validation fails closed on malformed enum types; docs Phase1 workflow includes SC-G5 schema-only edits; and the semantic-cache import guard catches destructured `Path` aliases plus dynamic `getattr(Path(...), "write_text")` writes. Focused pytest, mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3242063229 -> d145aa473
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3242063236 -> d145aa473
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3242063242 -> d145aa473
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3242063244 -> d145aa473
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3242063248 -> d145aa473
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -298,14 +307,17 @@ Evidence: Latest metadata/schema review wave was fixed in code/checker/tests: th
 | Codex Security final scan after substantive fix. | CLEAN | `45155f837` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/45155f837_20260513T110057Z/report.md` reports no surviving findings. |
 | Second bot-wave guard/checker bypass review. | FIXED | `34d824dd7` | Guard/checker/code fixes listed in Fixed in Commit Mapping; final Codex Security scan clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/34d824dd7_20260513T112843Z/report.md`. |
 | Current-head diff-coverage artifact missed SC-G5 tests. | FIXED | `95ecc9412` | `.github/workflows/ci.yml` now includes `tests/core/ai/test_semantic_cache_backend_selection.py` and `tests/test_semantic_cache_backend_selection_contract.py` in both PR and feature `route_contract_safety` coverage suites; local SC-G5 diff-cover reproduction stayed at 99%. |
+| Post-update QA review: current-head CI proof accepted stale head IDs. | FIXED | `d145aa473` | Criteria now carries `current_head_sha` and candidate CI proof IDs must contain `head-<sha>` for the evaluated head; stale-proof regression test covers the previous false-green. |
+| Post-update bug-hunter review: malformed schema enums, dynamic `Path` getattr writes, and schema-only docs Phase1 workflow gap. | FIXED | `d145aa473` | Schema checker requires enum string lists, import guard blocks dynamic Path getattr writes and destructured aliases, and CI docs Phase1 gate targets SC-G5 schema JSON edits. |
+| Post-update security review. | CLEAN | `d145aa473` | Security-auditor pass reported no actionable security findings for the post-update diff; subsequent code changes were fail-closed guard/checker/test hardening only. |
 
 ## Bot Review Tracking
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after fix push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| CodeRabbit | Pending current-head re-review after `d145aa473` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Sourcery | Pending current-head re-review after `d145aa473` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Cubic | Pending current-head re-review after `d145aa473` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Codex Security | Clean after final substantive fix | Final scan for commit `95ecc9412` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/95ecc9412_20260513T121007Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
@@ -320,8 +332,8 @@ Evidence: Latest metadata/schema review wave was fixed in code/checker/tests: th
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` passed.
 - `PATH=.venv/bin:$PATH pre-commit run --all-files` passed.
 - Diff-cover for SC-G5 changed code passed at 99%.
-- Latest `PATH=.venv/bin:$PATH pre-commit run --all-files` passed after `95ecc9412`.
-- Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test.
+- Latest focused post-update pytest, mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `d145aa473`.
+- Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
 
