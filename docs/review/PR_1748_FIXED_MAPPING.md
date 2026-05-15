@@ -387,14 +387,14 @@ Disposition: FIXED
 Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
 Evidence: This CodeRabbit review-level duplicate repeated the first-parent fallback issue on current head `83cfcbd5e302387421f39f7b5658310d46ca3737`. The guard now relies on PR event merge-base, `origin/main...HEAD`, or `main...HEAD` only, and fails closed when none is available.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3245995064 -> 8274fc72bbd2c585213be201806b350e319de903
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3245995064 -> 8274fc72b4199dfee198956cf969be645ccf7f8e
 Disposition: FIXED
-Commit: 8274fc72bbd2c585213be201806b350e319de903
+Commit: 8274fc72b4199dfee198956cf969be645ccf7f8e
 Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now uses the resolvable PR #1747 test-cost proof SHA `9e9d842d4c375d21fe3e660be0f7e3001e3b3b91`; `git cat-file -t 9e9d842d4c375d21fe3e660be0f7e3001e3b3b91` returns `commit`.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3245995069 -> 8274fc72bbd2c585213be201806b350e319de903
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3245995069 -> 8274fc72b4199dfee198956cf969be645ccf7f8e
 Disposition: FIXED
-Commit: 8274fc72bbd2c585213be201806b350e319de903
+Commit: 8274fc72b4199dfee198956cf969be645ccf7f8e
 Evidence: `scripts/ci/run_main_test_shards.py` now cancels submitted in-flight shard futures, terminates process-pool workers, and shuts the executor down with `cancel_futures=True` after the first nonzero shard result. `tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure` verifies the `MAIN_TEST_SHARD_CANCELLED ... reason=fail_fast` path, and `run_shard(...)` now starts shard subprocesses in a process group so worker termination can stop child pytest processes instead of waiting for the shard watchdog.
 
 ## Local Validation
