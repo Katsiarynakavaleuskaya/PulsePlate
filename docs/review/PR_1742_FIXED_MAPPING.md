@@ -314,6 +314,22 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247884758 -> 0e04e1717
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247884761 -> 0e04e1717
 
+Disposition: FIXED
+Commit: 6bdc47c50
+Evidence: Current-head CodeRabbit findings were fixed in code/tests/baseline: public SC-G5 entrypoints now validate `criteria`/`final_decision` before dereference, contract tests bind machine-state JSON extraction to `## Machine-Readable State`, docs Phase1 reuses the shared validator loader, import guards reject tuple-unpacked effect aliases and chained dynamic `__import__("importlib").import_module(...)` effects, and `.secrets.baseline` excludes local pytest/ruff caches. Focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248073373 -> 6bdc47c50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248073389 -> 6bdc47c50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4297986540 -> 6bdc47c50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248119256 -> 6bdc47c50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4298038341 -> 6bdc47c50
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248159125 -> 6bdc47c50
+
+Disposition: FIXED
+Commit: 620ad2939
+Evidence: CodeRabbit's coverage-evidence artifact concern was fixed in the canonical review artifact: the prior local 99% SC-G5 diff-cover reproduction is now explicitly marked diagnostic-only, while merge readiness remains bound to current-head CI/diff-coverage at the repo threshold.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248159122 -> 620ad2939
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4298081003 -> 620ad2939
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -337,14 +353,15 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 | Codex Security final scan after final guard escape fix. | CLEAN | `33ee042a4` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/33ee042a4_20260515T121728Z/report.md` reports no surviving findings. |
 | Final bug-hunter pass: alias `getattr` / `__import__` and unseparated GPTCache client/backend labels still bypassed guards. | FIXED | `9fa9419ba` | Import guard now tracks `getattr`, `__import__`, and `importlib.import_module` aliases; runtime-scope screening blocks `gptcacheclient*` and `gptcachebackend*`; regression tests cover the reported bypasses. |
 | Codex Security final scan after alias guard fix. | CLEAN | `9fa9419ba` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md` reports no surviving findings. |
+| Current-head CodeRabbit wave: public type guards, anchored machine-state extraction, shared schema loader, tuple-unpacked effect aliases, chained dynamic import effects, cache-baseline churn, and coverage-evidence wording. | FIXED | `6bdc47c50`, `620ad2939` | Fix commits and URL mapping are listed in Fixed in Commit Mapping; targeted pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and `pre-commit run --all-files` passed before mapping. |
 
 ## Bot Review Tracking
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after `9fa9419ba` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after `9fa9419ba` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after `9fa9419ba` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| CodeRabbit | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Sourcery | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Cubic | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Codex Security | Clean after final substantive fix | Final scan for commit `9fa9419ba` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
@@ -365,6 +382,7 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 - Latest agent-finding guard hardening focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6816648df`.
 - Latest final guard escape focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `33ee042a4`.
 - Latest alias/GPTCache guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `9fa9419ba`.
+- Current-head CodeRabbit fix wave focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6bdc47c50`; coverage-evidence artifact correction passed pre-commit before `620ad2939`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
