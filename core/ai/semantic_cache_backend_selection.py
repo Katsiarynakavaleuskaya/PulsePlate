@@ -227,6 +227,10 @@ _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS = frozenset(
         "vectorsearch",
     }
 )
+_UNSAFE_RUNTIME_SCOPE_VERSION_PREFIXES = frozenset(
+    token for token in _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS if token != "db"
+)
+_RUNTIME_SCOPE_VERSION_SUFFIX_RE = re.compile(r"(?:v|version)?[0-9][a-z0-9]*")
 _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES = (
     ("availability", "probe"),
     ("availability", "probes"),
@@ -1260,11 +1264,23 @@ def _contains_unsafe_runtime_scope(value: str) -> bool:
     tokens = tuple(token for token in re.split(r"[^a-z0-9]+", value.casefold()) if token)
     if any(token in _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS for token in tokens):
         return True
+    if any(_has_unsafe_runtime_scope_version_suffix(token) for token in tokens):
+        return True
     for sequence in _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES:
         sequence_length = len(sequence)
         for index in range(0, len(tokens) - sequence_length + 1):
             if tokens[index : index + sequence_length] == sequence:
                 return True
+    return False
+
+
+def _has_unsafe_runtime_scope_version_suffix(token: str) -> bool:
+    for prefix in _UNSAFE_RUNTIME_SCOPE_VERSION_PREFIXES:
+        if not token.startswith(prefix) or token == prefix:
+            continue
+        suffix = token[len(prefix) :]
+        if _RUNTIME_SCOPE_VERSION_SUFFIX_RE.fullmatch(suffix):
+            return True
     return False
 
 
@@ -1454,9 +1470,26 @@ def _backend_tokens_in_proof_id(proof_id: str) -> frozenset[str]:
 
 
 def _ci_proof_matches_current_head(proof_id: str, current_head_sha: str) -> bool:
-    return (
-        f":head-{current_head_sha}:" in proof_id or f":current-head:{current_head_sha}:" in proof_id
-    )
+    parts = tuple(proof_id.split(":"))
+    if _ci_proof_parts_match_current_head(parts, current_head_sha):
+        return True
+    if parts[:2] == ("verification-bundle", "ci"):
+        return _ci_proof_parts_match_current_head(("ci", *parts[2:]), current_head_sha)
+    return False
+
+
+def _ci_proof_parts_match_current_head(parts: tuple[str, ...], current_head_sha: str) -> bool:
+    if len(parts) < 4 or parts[0] != "ci":
+        return False
+    if parts[1] == "current-head":
+        return parts[2] == current_head_sha and _has_structured_proof_suffix(parts[3:])
+    if parts[1].startswith("pr-"):
+        return parts[2] == f"head-{current_head_sha}" and _has_structured_proof_suffix(parts[3:])
+    return False
+
+
+def _has_structured_proof_suffix(parts: tuple[str, ...]) -> bool:
+    return any(any(char.isalnum() for char in part) for part in parts)
 
 
 def _rollback_proof_matches_backend(

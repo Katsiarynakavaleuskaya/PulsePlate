@@ -394,11 +394,30 @@ def test_current_head_ci_proof_must_match_criteria_head_sha() -> None:
         ),
         criteria=_criteria(),
     )
+    bundled_current_proof = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            current_head_ci_passed=True,
+            current_head_ci_proof_id=(
+                "verification-bundle:ci:pr-1742:head-d91b58100:run-25914493764"
+            ),
+        ),
+        criteria=_criteria(),
+    )
+    spoofed_bundled_proof = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            current_head_ci_passed=True,
+            current_head_ci_proof_id=("verification-bundle:ci:note:current-head:d91b58100:manual"),
+        ),
+        criteria=_criteria(),
+    )
 
     assert stale_proof.decision == DECISION_INELIGIBLE
     assert REASON_CURRENT_HEAD_CI_MISSING in stale_proof.reason_codes
     assert current_proof.decision == DECISION_ELIGIBLE
     assert natural_current_head_proof.decision == DECISION_ELIGIBLE
+    assert bundled_current_proof.decision == DECISION_ELIGIBLE
+    assert spoofed_bundled_proof.decision == DECISION_INELIGIBLE
+    assert REASON_CURRENT_HEAD_CI_MISSING in spoofed_bundled_proof.reason_codes
 
 
 def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
@@ -1066,7 +1085,15 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_backend_version in ("redis_url", "connection:string", "runtime_config"):
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_candidate(), backend_version=unsafe_backend_version)
-    for unsafe_backend_version in ("fastapi", "openapi", "network", "file-write"):
+    for unsafe_backend_version in (
+        "fastapi",
+        "fastapiv1",
+        "openapi",
+        "network",
+        "networkv1",
+        "file-write",
+        "filewritev2",
+    ):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_candidate(), backend_version=unsafe_backend_version)
     for unsafe_split_runtime_token in ("fast_api", "open-api"):
@@ -1079,13 +1106,19 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             )
         with pytest.raises(ValueError, match="unsafe metadata"):
             replace(_candidate(), metadata={"scope": unsafe_split_runtime_token})
+    with pytest.raises(ValueError, match="unsafe metadata"):
+        replace(_candidate(), metadata={"scope": "openapiv3"})
     for unsafe_scalar_evidence_id in (
         lambda: replace(_evidence(), evidence_id="evidence:fastapi"),
         lambda: replace(_evidence(), evidence_id="evidence:fast_api"),
+        lambda: replace(_evidence(), evidence_id="evidence:fastapiv1"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:openapi"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:open-api"),
+        lambda: replace(_evidence(), sc_g2_contract_id="contract:openapiv3"),
         lambda: replace(_evidence(), sc_g3_contract_id="contract:network"),
+        lambda: replace(_evidence(), sc_g3_contract_id="contract:networkv1"),
         lambda: replace(_evidence(), sc_g4_contract_id="contract:file-write"),
+        lambda: replace(_evidence(), sc_g4_contract_id="contract:filewritev2"),
         lambda: replace(_evidence(), admission_decision_id="admission:provider"),
     ):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
@@ -1309,9 +1342,18 @@ def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
 def test_import_guard_rejects_direct_os_environ_value_reads(tmp_path: Path) -> None:
     for filename, source_text in {
         "unsafe_env_dict.py": "import os\nsettings = dict(os.environ)\n",
+        "unsafe_env_nested_dict.py": "import os\nsettings = {'env': os.environ}\n",
+        "unsafe_env_unpack.py": "import os\nsettings = {**os.environ}\n",
         "unsafe_env_loop.py": "import os\nfor key in os.environ:\n    pass\n",
+        "unsafe_env_if.py": "import os\nif os.environ:\n    pass\n",
         "unsafe_env_comprehension.py": "import os\nkeys = [key for key in os.environ]\n",
         "unsafe_env_alias_value.py": "import os\nenv = os.environ\nsettings = dict(env)\n",
+        "unsafe_env_tuple_alias.py": "import os\nenv, other = os.environ, {}\nsettings = dict(env)\n",
+        "unsafe_env_copy_alias.py": "import os\nreader = os.environ.copy\nsettings = reader()\n",
+        "unsafe_env_list_literal.py": "import os\nsettings = [os.environ]\n",
+        "unsafe_env_tuple_literal.py": "import os\nsettings = (os.environ,)\n",
+        "unsafe_env_return.py": "import os\ndef leak():\n    return os.environ\n",
+        "unsafe_env_yield.py": "import os\ndef leak():\n    yield os.environ\n",
     }.items():
         source = tmp_path / filename
         source.write_text(source_text, encoding="utf-8")

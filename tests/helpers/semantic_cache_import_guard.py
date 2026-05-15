@@ -337,6 +337,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
         elif isinstance(node, ast.comprehension):
             if _is_os_environ_value_ref(node.iter, import_aliases, environ_aliases):
                 offenders.append("os.environ.value")
+        elif isinstance(node, ast.expr) and _is_os_environ_value_ref(
+            node,
+            import_aliases,
+            environ_aliases,
+        ):
+            offenders.append("os.environ.value")
 
     assert offenders == [], f"forbidden semantic-cache calls found: {offenders}"
 
