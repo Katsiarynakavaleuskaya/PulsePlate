@@ -387,6 +387,16 @@ Disposition: FIXED
 Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
 Evidence: This CodeRabbit review-level duplicate repeated the first-parent fallback issue on current head `83cfcbd5e302387421f39f7b5658310d46ca3737`. The guard now relies on PR event merge-base, `origin/main...HEAD`, or `main...HEAD` only, and fails closed when none is available.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3245995064 -> 8274fc72bbd2c585213be201806b350e319de903
+Disposition: FIXED
+Commit: 8274fc72bbd2c585213be201806b350e319de903
+Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now uses the resolvable PR #1747 test-cost proof SHA `9e9d842d4c375d21fe3e660be0f7e3001e3b3b91`; `git cat-file -t 9e9d842d4c375d21fe3e660be0f7e3001e3b3b91` returns `commit`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3245995069 -> 8274fc72bbd2c585213be201806b350e319de903
+Disposition: FIXED
+Commit: 8274fc72bbd2c585213be201806b350e319de903
+Evidence: `scripts/ci/run_main_test_shards.py` now cancels submitted in-flight shard futures, terminates process-pool workers, and shuts the executor down with `cancel_futures=True` after the first nonzero shard result. `tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure` verifies the `MAIN_TEST_SHARD_CANCELLED ... reason=fail_fast` path, and `run_shard(...)` now starts shard subprocesses in a process group so worker termination can stop child pytest processes instead of waiting for the shard watchdog.
+
 ## Local Validation
 
 - `../../.venv/bin/python scripts/orchestration/check_preflight.py` - PASS
@@ -477,6 +487,12 @@ Evidence: This CodeRabbit review-level duplicate repeated the first-parent fallb
 - `../../.venv/bin/python -m flake8 scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py tests/test_design_automation_next_lane_docs.py` - PASS after latest review fixes
 - `git diff --check` - PASS after latest review fixes
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "fix(ci): fail fast shard and Kimi diff guards"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py::test_run_shard_invokes_explicit_child_interpreter tests/test_main_test_shards.py::test_run_shard_fails_timeout_even_with_clean_artifacts tests/test_main_test_shards.py::test_run_shard_fails_timeout_without_clean_artifacts tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure` - PASS after fail-fast cancellation fix
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_ci_workflow_pr_size_governance_contract.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/guards/test_nosec_policy_guard.py` - PASS after fail-fast cancellation fix (`49 passed`)
+- `../../.venv/bin/python -m flake8 scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py` - PASS after fail-fast cancellation fix
+- `../../.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/run_main_test_shards.py` - PASS after fail-fast cancellation fix
+- `git diff --check` - PASS after fail-fast cancellation fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "fix(ci): cancel main shards after first failure"` - PASS hooks
 
 ## Current-Head CI
 
