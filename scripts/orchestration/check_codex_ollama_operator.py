@@ -16,14 +16,23 @@ import subprocess  # nosec B404: required for bounded local CLI version checks (
 import sys
 from dataclasses import asdict, dataclass
 from typing import Sequence
-from urllib.error import URLError
-from urllib.parse import urlparse
-from urllib.request import urlopen
+from urllib.error import HTTPError, URLError
+from urllib.parse import urlparse, urlunparse
+from urllib.request import HTTPRedirectHandler, build_opener
 
-MIN_OLLAMA_LAUNCH_VERSION = (0, 15, 0)
+MIN_OLLAMA_CODEX_CLI_VERSION = (0, 15, 0)
+MIN_OLLAMA_CODEX_APP_VERSION = (0, 24, 0)
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 LOCAL_OLLAMA_HOSTS = {"localhost", "127.0.0.1", "::1"}
 VERSION_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
+CLIENT_VERSION_RE = re.compile(
+    r"\bclient\s+version(?:\s+is)?\s+(\d+\.\d+(?:\.\d+)?)",
+    flags=re.IGNORECASE,
+)
+OLLAMA_VERSION_RE = re.compile(
+    r"\bollama\s+version\s+is\s+(\d+\.\d+(?:\.\d+)?)",
+    flags=re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -40,6 +49,14 @@ def _parse_version(text: str) -> tuple[int, int, int] | None:
         return None
     major, minor, patch = match.groups()
     return (int(major), int(minor), int(patch or "0"))
+
+
+def _parse_ollama_binary_version(text: str) -> tuple[int, int, int] | None:
+    for pattern in (CLIENT_VERSION_RE, OLLAMA_VERSION_RE):
+        match = pattern.search(text)
+        if match is not None:
+            return _parse_version(match.group(1))
+    return _parse_version(text)
 
 
 def _format_version(version: tuple[int, int, int]) -> str:
@@ -87,55 +104,121 @@ def _check_ollama_binary() -> tuple[CheckResult, str | None, str]:
     )
 
 
-def _check_ollama_version(binary: str | None) -> CheckResult:
+def _check_ollama_version(binary: str | None) -> tuple[CheckResult, CheckResult]:
     if binary is None:
-        return CheckResult(
-            name="ollama-launch-version",
+        missing = CheckResult(
+            name="ollama-codex-cli-version",
             ok=False,
             detail="skipped because ollama executable is missing.",
-            fix="Install Ollama v0.15+ before using `ollama launch codex`.",
+            fix="Install Ollama v0.15+ before using `ollama launch codex` for Codex CLI.",
+        )
+        return (
+            missing,
+            CheckResult(
+                name="ollama-codex-app-version",
+                ok=False,
+                detail="skipped because ollama executable is missing.",
+                fix="Install Ollama v0.24+ before using `ollama launch codex-app` for Codex App.",
+            ),
         )
     returncode, output = _run_version(binary, ["--version"])
-    version = _parse_version(output)
+    version = _parse_ollama_binary_version(output)
     if returncode != 0 and version is None:
-        return CheckResult(
-            name="ollama-launch-version",
+        failed = CheckResult(
+            name="ollama-codex-cli-version",
             ok=False,
             detail=f"`ollama --version` failed: {output or 'no output'}",
             fix="Update Ollama and confirm `ollama --version` works.",
         )
+        return (
+            failed,
+            CheckResult(
+                name="ollama-codex-app-version",
+                ok=False,
+                detail=failed.detail,
+                fix=failed.fix,
+            ),
+        )
     if version is None:
-        return CheckResult(
-            name="ollama-launch-version",
+        failed = CheckResult(
+            name="ollama-codex-cli-version",
             ok=False,
             detail=f"could not parse Ollama version from: {output or 'no output'}",
-            fix="Update Ollama to v0.15+ and rerun this doctor.",
+            fix="Update Ollama to v0.24+ and rerun this doctor.",
         )
-    if version < MIN_OLLAMA_LAUNCH_VERSION:
-        return CheckResult(
-            name="ollama-launch-version",
+        return (
+            failed,
+            CheckResult(
+                name="ollama-codex-app-version",
+                ok=False,
+                detail=failed.detail,
+                fix=failed.fix,
+            ),
+        )
+    if version < MIN_OLLAMA_CODEX_CLI_VERSION:
+        cli_check = CheckResult(
+            name="ollama-codex-cli-version",
             ok=False,
             detail=(
-                f"found Ollama {_format_version(version)}; `ollama launch` "
-                f"requires {_format_version(MIN_OLLAMA_LAUNCH_VERSION)}+."
+                f"found Ollama {_format_version(version)}; `ollama launch codex` "
+                f"requires {_format_version(MIN_OLLAMA_CODEX_CLI_VERSION)}+."
             ),
-            fix="Upgrade Ollama, then use `ollama launch codex`, not `ollama launch codex-app`.",
+            fix="Upgrade Ollama, then use `ollama launch codex` for Codex CLI.",
         )
-    return CheckResult(
-        name="ollama-launch-version",
-        ok=True,
-        detail=f"found Ollama {_format_version(version)} with launch support.",
-        fix="",
-    )
+    else:
+        cli_check = CheckResult(
+            name="ollama-codex-cli-version",
+            ok=True,
+            detail=(f"found Ollama {_format_version(version)} with Codex CLI launch support."),
+            fix="",
+        )
+    if version < MIN_OLLAMA_CODEX_APP_VERSION:
+        app_check = CheckResult(
+            name="ollama-codex-app-version",
+            ok=False,
+            detail=(
+                f"found Ollama {_format_version(version)}; `ollama launch codex-app` "
+                f"requires {_format_version(MIN_OLLAMA_CODEX_APP_VERSION)}+."
+            ),
+            fix="Upgrade Ollama, then use `ollama launch codex-app` for Codex App.",
+        )
+    else:
+        app_check = CheckResult(
+            name="ollama-codex-app-version",
+            ok=True,
+            detail=(f"found Ollama {_format_version(version)} with Codex App launch support."),
+            fix="",
+        )
+    return cli_check, app_check
 
 
-def _validate_local_url(raw_url: str) -> tuple[bool, str]:
+def _normalize_ollama_root_url(raw_url: str) -> tuple[bool, str, str]:
     parsed = urlparse(raw_url)
     if parsed.scheme not in {"http", "https"}:
-        return False, "Ollama URL must use http or https."
+        return False, "", "Ollama URL must use http or https."
     if parsed.hostname not in LOCAL_OLLAMA_HOSTS:
-        return False, "Ollama URL must be localhost, 127.0.0.1, or ::1 for this doctor."
-    return True, ""
+        return False, "", "Ollama URL must be localhost, 127.0.0.1, or ::1 for this doctor."
+    if parsed.query or parsed.fragment:
+        return False, "", "Ollama URL must not include query strings or fragments."
+    normalized_path = parsed.path.rstrip("/")
+    if normalized_path not in {"", "/v1"}:
+        return (
+            False,
+            "",
+            "Ollama URL must be the server root or OpenAI-compatible /v1 path.",
+        )
+    root_url = urlunparse((parsed.scheme, parsed.netloc, "", "", "", ""))
+    return True, root_url, ""
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, *args: object, **kwargs: object) -> None:
+        return None
+
+
+def _open_no_redirect(url: str, timeout_s: float) -> object:
+    opener = build_opener(_NoRedirectHandler)
+    return opener.open(url, timeout=timeout_s)
 
 
 def _positive_timeout(raw_value: str) -> float:
@@ -149,7 +232,7 @@ def _positive_timeout(raw_value: str) -> float:
 
 
 def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
-    valid, reason = _validate_local_url(base_url)
+    valid, root_url, reason = _normalize_ollama_root_url(base_url)
     if not valid:
         return CheckResult(
             name="ollama-local-server",
@@ -157,12 +240,26 @@ def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
             detail=reason,
             fix="Use the default local URL or pass a localhost Ollama URL.",
         )
-    version_url = base_url.rstrip("/") + "/api/version"
+    version_url = root_url.rstrip("/") + "/api/version"
     try:
-        with urlopen(
-            version_url, timeout=timeout_s
+        with _open_no_redirect(
+            version_url, timeout_s
         ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
             status = getattr(response, "status", 200)
+    except HTTPError as exc:
+        if 300 <= exc.code < 400:
+            return CheckResult(
+                name="ollama-local-server",
+                ok=False,
+                detail=f"{version_url} returned redirect HTTP {exc.code}; redirects are blocked.",
+                fix="Use the direct localhost Ollama server URL without redirects.",
+            )
+        return CheckResult(
+            name="ollama-local-server",
+            ok=False,
+            detail=f"{version_url} returned HTTP {exc.code}.",
+            fix="Confirm a healthy Ollama server is listening on the configured localhost URL.",
+        )
     except (OSError, URLError) as exc:
         return CheckResult(
             name="ollama-local-server",
@@ -213,9 +310,11 @@ def _check_codex_binary() -> CheckResult:
 
 def run_checks(ollama_url: str, timeout_s: float) -> list[CheckResult]:
     ollama_binary_check, ollama_binary, _ = _check_ollama_binary()
+    cli_version_check, app_version_check = _check_ollama_version(ollama_binary)
     return [
         ollama_binary_check,
-        _check_ollama_version(ollama_binary),
+        cli_version_check,
+        app_version_check,
         _check_ollama_server(ollama_url, timeout_s),
         _check_codex_binary(),
         CheckResult(
@@ -238,7 +337,11 @@ def _print_text(results: list[CheckResult]) -> None:
             print(f"  fix: {result.fix}")
     print()
     if all(result.ok for result in results):
-        print("Next: run `ollama launch codex` or `codex --profile ollama-launch`.")
+        print(
+            "Next: run `ollama launch codex-app` for Codex App, "
+            "`ollama launch codex` for Codex CLI, or "
+            "`codex --profile ollama-launch` for the host profile."
+        )
     else:
         print("Next: fix failed checks, then rerun this doctor.")
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from subprocess import TimeoutExpired
 from typing import Any
+from urllib.error import HTTPError
 
 import pytest
 
@@ -15,6 +16,17 @@ def test_parse_version_accepts_major_minor_patch() -> None:
     assert doctor._parse_version("ollama version is 0.15.1") == (0, 15, 1)
     assert doctor._parse_version("client version is 0.12.0") == (0, 12, 0)
     assert doctor._parse_version("version 1.2") == (1, 2, 0)
+
+
+def test_ollama_version_prefers_client_version_from_mixed_output() -> None:
+    output = "\n".join(
+        [
+            "ollama version is 0.24.0",
+            "Warning: client version is 0.12.0",
+        ]
+    )
+
+    assert doctor._parse_ollama_binary_version(output) == (0, 12, 0)
 
 
 def test_run_version_reports_cli_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -38,12 +50,31 @@ def test_stale_ollama_version_reports_launch_fix(monkeypatch: pytest.MonkeyPatch
         lambda binary, args: (0, "Warning: client version is 0.12.0"),
     )
 
-    result = doctor._check_ollama_version("/usr/bin/ollama")
+    cli_result, app_result = doctor._check_ollama_version("/usr/bin/ollama")
 
-    assert result.ok is False
-    assert "requires 0.15.0+" in result.detail
-    assert "ollama launch codex" in result.fix
-    assert "codex-app" in result.fix
+    assert cli_result.ok is False
+    assert "requires 0.15.0+" in cli_result.detail
+    assert "ollama launch codex" in cli_result.fix
+    assert app_result.ok is False
+    assert "requires 0.24.0+" in app_result.detail
+    assert "ollama launch codex-app" in app_result.fix
+
+
+def test_cli_ready_version_can_still_require_codex_app_upgrade(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(doctor.shutil, "which", lambda name: f"/usr/bin/{name}")
+    monkeypatch.setattr(
+        doctor,
+        "_run_version",
+        lambda binary, args: (0, "ollama version is 0.15.0"),
+    )
+
+    cli_result, app_result = doctor._check_ollama_version("/usr/bin/ollama")
+
+    assert cli_result.ok is True
+    assert app_result.ok is False
+    assert "0.24.0+" in app_result.detail
 
 
 def test_missing_binaries_are_actionable(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -68,13 +99,20 @@ def test_rejects_non_local_ollama_url() -> None:
     assert "local" in result.fix
 
 
+def test_rejects_unexpected_ollama_url_path() -> None:
+    result = doctor._check_ollama_server("http://localhost:11434/admin", timeout_s=0.01)
+
+    assert result.ok is False
+    assert "server root" in result.detail
+
+
 def test_unavailable_local_ollama_server_reports_serve_fix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def _raise(*args: Any, **kwargs: Any) -> Any:
         raise OSError("connection refused")
 
-    monkeypatch.setattr(doctor, "urlopen", _raise)
+    monkeypatch.setattr(doctor, "_open_no_redirect", _raise)
 
     result = doctor._check_ollama_server("http://localhost:11434", timeout_s=0.01)
 
@@ -97,17 +135,57 @@ def test_successful_server_check_uses_local_version_endpoint(
         def __exit__(self, *args: object) -> None:
             return None
 
-    def _fake_urlopen(url: str, *, timeout: float) -> _Response:
+    def _fake_open(url: str, timeout_s: float) -> _Response:
         observed["url"] = url
-        observed["timeout"] = timeout
+        observed["timeout"] = timeout_s
         return _Response()
 
-    monkeypatch.setattr(doctor, "urlopen", _fake_urlopen)
+    monkeypatch.setattr(doctor, "_open_no_redirect", _fake_open)
 
-    result = doctor._check_ollama_server("http://127.0.0.1:11434", timeout_s=0.5)
+    result = doctor._check_ollama_server("http://127.0.0.1:11434/v1", timeout_s=0.5)
 
     assert result.ok is True
     assert observed == {"url": "http://127.0.0.1:11434/api/version", "timeout": 0.5}
+
+
+def test_http_error_reports_status_instead_of_unreachable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def _raise_http_error(*args: Any, **kwargs: Any) -> Any:
+        raise HTTPError(
+            url="http://localhost:11434/api/version",
+            code=500,
+            msg="Server Error",
+            hdrs={},
+            fp=None,
+        )
+
+    monkeypatch.setattr(doctor, "_open_no_redirect", _raise_http_error)
+
+    result = doctor._check_ollama_server("http://localhost:11434", timeout_s=0.5)
+
+    assert result.ok is False
+    assert "HTTP 500" in result.detail
+    assert "could not reach" not in result.detail
+
+
+def test_redirects_are_blocked(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise_redirect(*args: Any, **kwargs: Any) -> Any:
+        raise HTTPError(
+            url="http://localhost:11434/api/version",
+            code=302,
+            msg="Found",
+            hdrs={"Location": "https://example.com"},
+            fp=None,
+        )
+
+    monkeypatch.setattr(doctor, "_open_no_redirect", _raise_redirect)
+
+    result = doctor._check_ollama_server("http://localhost:11434", timeout_s=0.5)
+
+    assert result.ok is False
+    assert "redirect" in result.detail
+    assert "blocked" in result.detail
 
 
 def test_timeout_must_be_positive() -> None:
@@ -139,9 +217,58 @@ def test_main_json_reports_host_write_guard(monkeypatch: pytest.MonkeyPatch, cap
     assert "read-only diagnostic" in out
 
 
-def test_template_does_not_contain_secrets_or_personal_paths() -> None:
+def test_main_text_output_exercises_real_aggregate_path(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: Any,
+) -> None:
+    monkeypatch.setattr(
+        doctor,
+        "_check_ollama_binary",
+        lambda: (
+            doctor.CheckResult("ollama-binary", True, "found /usr/bin/ollama", ""),
+            "/usr/bin/ollama",
+            "",
+        ),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "_check_ollama_version",
+        lambda binary: (
+            doctor.CheckResult("ollama-codex-cli-version", True, "CLI ready", ""),
+            doctor.CheckResult("ollama-codex-app-version", True, "App ready", ""),
+        ),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "_check_ollama_server",
+        lambda ollama_url, timeout_s: doctor.CheckResult(
+            "ollama-local-server", True, "server ready", ""
+        ),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "_check_codex_binary",
+        lambda: doctor.CheckResult("codex-binary", True, "Codex ready", ""),
+    )
+
+    exit_code = doctor.main([])
+
+    assert exit_code == 0
+    out = capsys.readouterr().out
+    assert "ollama launch codex-app" in out
+    assert "ollama launch codex" in out
+    assert "host-config-write-guard" in out
+
+
+def test_template_contains_expected_ollama_profile_contract() -> None:
     template = Path("docs/templates/codex.config.example.toml").read_text(encoding="utf-8")
 
     assert "sk-" not in template
     assert "/Users/" not in template
     assert "api_key" not in template.lower()
+    assert "[model_providers.ollama-launch]" in template
+    assert 'base_url = "http://localhost:11434/v1"' in template
+    assert "[profiles.ollama-launch]" in template
+    assert 'model = "gpt-oss:120b"' in template
+    assert "[profiles.ollama-cloud]" in template
+    assert 'model = "gpt-oss:120b-cloud"' in template

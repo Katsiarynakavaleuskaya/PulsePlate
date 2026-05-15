@@ -14,11 +14,11 @@ model = "gpt-5-codex"
 
 # Optional Ollama-backed Codex profiles.
 # Host-only setup choices:
-# - quick one-shot: `ollama launch codex`
+# - desktop app: `ollama launch codex-app` (requires Ollama v0.24+)
+# - CLI one-shot: `ollama launch codex` (requires Ollama v0.15+)
 # - manual local mode: `codex --oss`
 # - persistent profile: copy/adapt the provider/profile blocks below
 #
-# Requires Ollama v0.15+ for `ollama launch`.
 # This template does not make Ollama the repo or team source of truth.
 #
 # [model_providers.ollama-launch]

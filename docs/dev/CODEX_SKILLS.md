@@ -113,16 +113,19 @@ runtime files.
 
 Current operator paths:
 
+- `ollama launch codex-app` for the desktop Codex App. This requires Ollama
+  v0.24+.
 - `ollama launch codex` for Ollama-managed setup and launch.
 - `ollama launch codex --config` for Ollama-managed configuration without
-  launching immediately.
+  launching immediately. These Codex CLI launch paths require Ollama v0.15+.
 - `codex --oss` for manual local mode.
 - `codex --profile ollama-launch` after copying/adapting the host-only profile
   from [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
 
-`ollama launch codex-app` is not the expected integration command for this
-workflow. If it fails, first check your Ollama version: `ollama launch` requires
-Ollama v0.15+.
+If `ollama launch codex-app` fails on this machine, first check the Ollama
+version. Older Ollama builds may support the Codex CLI integration while still
+not supporting the desktop Codex App integration. The repo doctor reports these
+two version gates separately.
 
 Do not confuse this with PulsePlate backend runtime configuration. Product
 runtime Ollama validation uses environment such as `LLM_PROVIDER=ollama` and
