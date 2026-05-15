@@ -89,11 +89,14 @@ Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4298103971 -> 764da91f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3248260314 -> 3e7c37439
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3248260321 -> 3e7c37439
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3248310452 -> 4ecf1da79
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#pullrequestreview-4298258702 -> 4ecf1da79
 
 Disposition: NOT-A-BUG
-Evidence: Current branch head contains the mapped fix commits. `git merge-base --is-ancestor` reports `reachable` for mapped SHAs including `0aec2bf28`, `4f431c553`, `229777a55`, `19d2c92ee`, `2853fca3e`, `cf1174f86`, `1dbb8b612`, `432f5e51b`, `647f49e12`, `c2fb89aaf`, `eeabbca59`, `fb03b0caf`, `c1826f6da`, `fbd542f77`, `764da91f3`, and `8e58d133`; the cited `943a4cdd` was not the current PR head after the later pushes.
+Evidence: Current branch head contains the mapped fix commits. `git merge-base --is-ancestor` reports `reachable` for mapped SHAs including `0aec2bf28`, `4f431c553`, `229777a55`, `19d2c92ee`, `2853fca3e`, `cf1174f86`, `1dbb8b612`, `432f5e51b`, `647f49e12`, `c2fb89aaf`, `eeabbca59`, `fb03b0caf`, `c1826f6da`, `fbd542f77`, `764da91f3`, `8e58d133`, `3e7c37439`, `6bb69c320`, and `4ecf1da79`; the cited `943a4cdd` and `07726a15` were not the current PR head after the later pushes and shallow synthetic review checkouts are not the canonical branch-history proof.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3248260326
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3248305747
 
 ## Role-Agent Findings
 
