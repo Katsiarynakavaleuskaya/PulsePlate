@@ -116,7 +116,7 @@ Draft PR opened with no review threads at mapping creation time. Any future
 CodeRabbit, Sourcery, Cubic, Codex, or human comments are blocking when
 actionable and must be dispositioned here before resolution.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
 
 - Premortem/security finding: wrong `actions/github-script` tag-object SHA ->
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
