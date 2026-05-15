@@ -12,6 +12,27 @@ model = "gpt-5-codex"
 # personality = "pragmatic"
 # model_reasoning_effort = "medium"
 
+# Optional Ollama-backed Codex profiles.
+# Host-only setup choices:
+# - quick one-shot: `ollama launch codex`
+# - manual local mode: `codex --oss`
+# - persistent profile: copy/adapt the provider/profile blocks below
+#
+# Requires Ollama v0.15+ for `ollama launch`.
+# This template does not make Ollama the repo or team source of truth.
+#
+# [model_providers.ollama-launch]
+# name = "Ollama"
+# base_url = "http://localhost:11434/v1"
+#
+# [profiles.ollama-launch]
+# model = "gpt-oss:120b"
+# model_provider = "ollama-launch"
+#
+# [profiles.ollama-cloud]
+# model = "gpt-oss:120b-cloud"
+# model_provider = "ollama-launch"
+
 # Optional per-clone trust (use your real absolute path after copy)
 # [projects."/absolute/path/to/PulsePlate"]
 # trust_level = "trusted"
