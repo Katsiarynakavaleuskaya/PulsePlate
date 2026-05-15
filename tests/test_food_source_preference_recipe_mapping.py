@@ -6,6 +6,7 @@ import copy
 from dataclasses import replace
 import functools
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -1119,6 +1120,30 @@ def test_preference_recipe_mapping_notes_guard_does_not_reject_substrings() -> N
     notes = "PR15 keeps non-authoritative recipe text paths blocked."
 
     assert "non-authoritative recipe text" in _require_safe_notes(notes, "test")
+
+
+def test_preference_recipe_mapping_notes_guard_reuses_compiled_patterns(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import core.food_sources.preference_recipe_mapping as mapping
+
+    compile_calls: list[tuple[str | re.Pattern[str], int | re.RegexFlag]] = []
+    original_compile = mapping.re.compile
+
+    def record_compile(
+        pattern: str | re.Pattern[str],
+        flags: int | re.RegexFlag = 0,
+    ) -> re.Pattern[str]:
+        compile_calls.append((pattern, flags))
+        return original_compile(pattern, flags)
+
+    monkeypatch.setattr(mapping.re, "compile", record_compile)
+
+    with pytest.raises(PreferenceRecipeMappingError):
+        mapping._require_safe_notes("api calls approved", "test")
+    assert mapping._require_safe_notes("api calls not allowed", "test") == "api calls not allowed"
+    assert compile_calls == []
+    monkeypatch.undo()
 
 
 def test_preference_recipe_mapping_rejects_schema_reference_and_next_lane_drift() -> None:

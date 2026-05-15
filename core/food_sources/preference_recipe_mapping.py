@@ -430,6 +430,9 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
+_FORBIDDEN_NOTE_PATTERNS = tuple(
+    (phrase, re.compile(rf"\b{re.escape(phrase)}\b")) for phrase in _FORBIDDEN_NOTE_PHRASES
+)
 _NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
 _NEGATION_BOUNDARY_TERMS = (
     " but ",
@@ -506,6 +509,27 @@ _FORBIDDEN_NOTE_SUBJECTS = tuple(
         key=len,
         reverse=True,
     )
+)
+_NOTE_APPROVAL_PATTERN = "|".join(re.escape(term) for term in _NOTE_APPROVAL_TERMS)
+_SUBJECT_THEN_APPROVAL_PATTERNS = tuple(
+    (
+        subject,
+        re.compile(
+            rf"\b{re.escape(subject)}\b(?P<middle>(?:\s+\w+){{0,3}})"
+            rf"\s+(?P<approval>{_NOTE_APPROVAL_PATTERN})\b"
+        ),
+    )
+    for subject in _FORBIDDEN_NOTE_SUBJECTS
+)
+_APPROVAL_THEN_SUBJECT_PATTERNS = tuple(
+    (
+        subject,
+        re.compile(
+            rf"\b(?P<approval>{_NOTE_APPROVAL_PATTERN})\b"
+            rf"(?P<middle>(?:\s+\w+){{0,3}})\s+\b{re.escape(subject)}\b"
+        ),
+    )
+    for subject in _FORBIDDEN_NOTE_SUBJECTS
 )
 
 _GOVERNANCE_KEYS = frozenset(
@@ -710,8 +734,8 @@ def _require_safe_notes(value: str, context: str) -> str:
         .replace("}", " ")
         .split()
     )
-    for phrase in _FORBIDDEN_NOTE_PHRASES:
-        for match in re.finditer(rf"\b{re.escape(phrase)}\b", normalized):
+    for phrase, pattern in _FORBIDDEN_NOTE_PATTERNS:
+        for match in pattern.finditer(normalized):
             if _is_negated_approval_phrase(normalized, phrase, match.start()):
                 continue
             raise _mapping_error(
@@ -780,12 +804,8 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
 
 
 def _require_no_bounded_approval_windows(normalized: str, context: str) -> None:
-    approval = "|".join(_NOTE_APPROVAL_TERMS)
-    for subject in _FORBIDDEN_NOTE_SUBJECTS:
-        subject_then_approval = (
-            rf"\b{re.escape(subject)}\b(?P<middle>(?:\s+\w+){{0,3}})\s+(?P<approval>{approval})\b"
-        )
-        for match in re.finditer(subject_then_approval, normalized):
+    for _subject, pattern in _SUBJECT_THEN_APPROVAL_PATTERNS:
+        for match in pattern.finditer(normalized):
             middle_words = frozenset(match.group("middle").split())
             if middle_words & _NOTE_NEGATION_WORDS:
                 continue
@@ -796,11 +816,8 @@ def _require_no_bounded_approval_windows(normalized: str, context: str) -> None:
                 "notes must not approve recipe text, preference text, LLM output, "
                 "source use, ingest, runtime, cache, DB writes, display, or nutrition authority",
             )
-        approval_then_subject = (
-            rf"\b(?P<approval>{approval})\b(?P<middle>(?:\s+\w+){{0,3}})\s+"
-            rf"\b{re.escape(subject)}\b"
-        )
-        for match in re.finditer(approval_then_subject, normalized):
+    for _subject, pattern in _APPROVAL_THEN_SUBJECT_PATTERNS:
+        for match in pattern.finditer(normalized):
             middle_words = frozenset(match.group("middle").split())
             if middle_words & _NOTE_NEGATION_WORDS:
                 continue
