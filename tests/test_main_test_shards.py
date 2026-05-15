@@ -214,25 +214,30 @@ def test_run_shard_invokes_explicit_child_interpreter(
     )
     captured: dict[str, object] = {}
 
-    class Completed:
-        returncode = 5
+    class FakeProcess:
+        pid = 999_999
 
-    def fake_run(
+        def poll(self) -> int:
+            return 5
+
+        def wait(self, *, timeout: int) -> int:
+            captured["timeout"] = timeout
+            return 5
+
+    def fake_popen(
         command: list[str],
         *,
         cwd: Path,
         env: dict[str, str],
-        check: bool,
-        timeout: int,
-    ) -> Completed:
+        start_new_session: bool,
+    ) -> FakeProcess:
         captured["command"] = command
         captured["cwd"] = cwd
         captured["env"] = env
-        captured["check"] = check
-        captured["timeout"] = timeout
-        return Completed()
+        captured["start_new_session"] = start_new_session
+        return FakeProcess()
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
 
     assert runner.run_shard(tmp_path, shard, {"PYTEST_XDIST_WORKER": "gw0"}) == 5
 
@@ -244,8 +249,8 @@ def test_run_shard_invokes_explicit_child_interpreter(
     assert "--shard-file" in command
     assert command[command.index("--shard-file") + 1] == "tests/test_alpha.py"
     assert captured["cwd"] == tmp_path
-    assert captured["check"] is False
     assert captured["timeout"] == runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    assert captured["start_new_session"] == (os.name == "posix")
     env = captured["env"]
     assert isinstance(env, dict)
     assert "PYTEST_XDIST_WORKER" not in env
@@ -272,10 +277,20 @@ def test_run_shard_fails_timeout_even_with_clean_artifacts(
     )
     (tmp_path / shard.coverage_file).write_text("coverage", encoding="utf-8")
 
-    def fake_run(*args: object, **kwargs: object) -> object:
-        raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=1800)
+    class FakeTimeoutProcess:
+        pid = 999_999
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+        def poll(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=timeout)
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeTimeoutProcess:
+        return FakeTimeoutProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(runner, "_terminate_process_group", lambda process: None)
 
     assert runner.run_shard(tmp_path, shard, {}) == 124
     stderr = capsys.readouterr().err
@@ -295,10 +310,20 @@ def test_run_shard_fails_timeout_without_clean_artifacts(
         weight=10,
     )
 
-    def fake_run(*args: object, **kwargs: object) -> object:
-        raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=1800)
+    class FakeTimeoutProcess:
+        pid = 999_999
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
+        def poll(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=timeout)
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeTimeoutProcess:
+        return FakeTimeoutProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(runner, "_terminate_process_group", lambda process: None)
 
     assert runner.run_shard(tmp_path, shard, {}) == 124
     assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in capsys.readouterr().err
@@ -381,16 +406,16 @@ def test_run_all_shards_stops_refilling_after_first_failure(
         runner.TestShard(index=4, files=[runner.TestFile(Path("tests/test_4.py"), 1)]),
     ]
     submitted: list[int] = []
+    shutdown_calls: list[tuple[bool, bool]] = []
 
     class FakeExecutor:
+        _processes: dict[int, object] = {}
+
         def __init__(self, **kwargs: object) -> None:
             del kwargs
 
-        def __enter__(self) -> "FakeExecutor":
-            return self
-
-        def __exit__(self, *exc_info: object) -> None:
-            del exc_info
+        def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
+            shutdown_calls.append((wait, cancel_futures))
 
         def submit(
             self,
@@ -402,7 +427,8 @@ def test_run_all_shards_stops_refilling_after_first_failure(
             del func, repo_root, base_env
             submitted.append(shard.index)
             future: Future[int] = Future()
-            future.set_result(124 if shard.index == 1 else 0)
+            if shard.index == 1:
+                future.set_result(124)
             return future
 
     def fake_wait(
@@ -425,7 +451,10 @@ def test_run_all_shards_stops_refilling_after_first_failure(
 
     assert runner.run_all_shards(tmp_path, shards, 2, {}) == 1
     assert submitted == [1, 2]
-    assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in capsys.readouterr().err
+    assert shutdown_calls == [(False, True)]
+    stderr = capsys.readouterr().err
+    assert "MAIN_TEST_SHARD_CANCELLED index=2 reason=fail_fast" in stderr
+    assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in stderr
 
 
 def test_run_all_shards_max_parallel_one_uses_child_process_isolation(

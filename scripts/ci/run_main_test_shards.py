@@ -7,11 +7,12 @@ import argparse
 import concurrent.futures
 import multiprocessing
 import os
+import signal
 import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
@@ -238,15 +239,29 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
         command.extend(["--shard-file", str(test_file.path)])
 
     timeout = shard_timeout_seconds(base_env)
+    process: subprocess.Popen[bytes] | None = None
+    previous_handlers: dict[signal.Signals, Any] = {}
+
+    def terminate_child_for_signal(signum: int, _frame: Any) -> None:
+        if process is not None:
+            _terminate_process_group(process)
+        raise SystemExit(128 + signum)
+
+    if os.name == "posix":
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, terminate_child_for_signal)
     try:
-        completed = subprocess.run(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
+        process = subprocess.Popen(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
             command,
             cwd=repo_root,
             env=env,
-            check=False,
-            timeout=timeout,
+            start_new_session=(os.name == "posix"),
         )
+        return int(process.wait(timeout=timeout))
     except subprocess.TimeoutExpired:
+        if process is not None:
+            _terminate_process_group(process)
         print(
             f"MAIN_TEST_SHARD_TIMEOUT_FAILED label={shard.artifact_label} "
             f"index={shard.index} timeout_seconds={timeout}",
@@ -261,7 +276,30 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
                 flush=True,
             )
         return 124
-    return int(completed.returncode)
+    finally:
+        for signum, previous_handler in previous_handlers.items():
+            signal.signal(signum, previous_handler)
+
+
+def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Terminate a shard subprocess and its descendants without waiting for timeout."""
+
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+        process.wait(timeout=10)
+    except ProcessLookupError:
+        return
+    except subprocess.TimeoutExpired:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+        process.wait(timeout=10)
 
 
 def _build_explicit_shard(args: argparse.Namespace, artifact_label: str) -> TestShard:
@@ -346,6 +384,39 @@ def _log_coverage_failure(phase: str, returncode: int) -> None:
     )
 
 
+def _terminate_executor_workers(
+    executor: concurrent.futures.ProcessPoolExecutor,
+) -> None:
+    """Terminate process-pool workers after a fail-fast shard result."""
+
+    worker_processes = list((getattr(executor, "_processes", None) or {}).values())
+    for worker_process in worker_processes:
+        if worker_process.is_alive():
+            worker_process.terminate()
+    for worker_process in worker_processes:
+        worker_process.join(timeout=10)
+        if worker_process.is_alive():
+            worker_process.kill()
+            worker_process.join(timeout=10)
+
+
+def _cancel_inflight_shards(
+    executor: concurrent.futures.ProcessPoolExecutor,
+    futures: Mapping[concurrent.futures.Future[int], int],
+) -> None:
+    """Cancel submitted shards once one shard has already failed."""
+
+    for future, shard_index in sorted(futures.items(), key=lambda item: item[1]):
+        future.cancel()
+        print(
+            f"MAIN_TEST_SHARD_CANCELLED index={shard_index} reason=fail_fast",
+            file=sys.stderr,
+            flush=True,
+        )
+    _terminate_executor_workers(executor)
+    executor.shutdown(wait=False, cancel_futures=True)
+
+
 def run_all_shards(
     repo_root: Path,
     shards: Sequence[TestShard],
@@ -363,10 +434,12 @@ def run_all_shards(
     results: dict[int, int] = {}
     pending_shards = iter(shards)
     failure_seen = False
-    with concurrent.futures.ProcessPoolExecutor(
+    executor = concurrent.futures.ProcessPoolExecutor(
         max_workers=min(max_parallel, len(shards)),
         mp_context=process_context,
-    ) as executor:
+    )
+    executor_shutdown = False
+    try:
         futures: dict[concurrent.futures.Future[int], int] = {}
         for shard in pending_shards:
             futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
@@ -385,11 +458,17 @@ def run_all_shards(
             for future in done:
                 del futures[future]
             if failure_seen:
-                continue
+                _cancel_inflight_shards(executor, futures)
+                executor_shutdown = True
+                futures.clear()
+                break
             for shard in pending_shards:
                 futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
                 if len(futures) >= max_parallel:
                     break
+    finally:
+        if not executor_shutdown:
+            executor.shutdown(wait=True)
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
