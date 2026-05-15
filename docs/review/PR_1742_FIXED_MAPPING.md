@@ -331,6 +331,30 @@ Evidence: CodeRabbit's coverage-evidence artifact concern was fixed in the canon
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4298081003 -> 620ad2939
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4298137025 -> 620ad2939
 
+Disposition: FIXED
+Commit: 33ee042a4
+Evidence: Connector guard findings were fixed in code/tests: `getattr(os, ...)` effect calls, direct `core.ai.insight_runtime` imports, `importlib.import_module("os").system(...)`, getattr-based environment reads, terminal current-head CI proof IDs, network-client labels, route-wiring labels, and bare-string tuple fields now fail closed with focused regressions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247932073 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247932077 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247932080 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247932092 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247996470 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247996474 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247996477 -> 33ee042a4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247996482 -> 33ee042a4
+
+Disposition: FIXED
+Commit: 9fa9419ba
+Evidence: Connector import-alias finding was fixed in code/tests: aliases to `importlib.import_module` are tracked by the semantic-cache guard, and dynamic backend imports / OS effects through those aliases are blocked.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3247932088 -> 9fa9419ba
+
+Disposition: FIXED
+Commit: b18fd9eed
+Evidence: Fresh connector findings were fixed in code/tests: valid current-head SHAs with `db...` prefixes no longer trip runtime-scope screening, destructured dynamic-import aliases fail closed in both import and call guards, and Path objects retrieved from containers are detected by the file-write guard. Focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248217160 -> b18fd9eed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248217168 -> b18fd9eed
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248217174 -> b18fd9eed
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -355,6 +379,7 @@ Evidence: CodeRabbit's coverage-evidence artifact concern was fixed in the canon
 | Final bug-hunter pass: alias `getattr` / `__import__` and unseparated GPTCache client/backend labels still bypassed guards. | FIXED | `9fa9419ba` | Import guard now tracks `getattr`, `__import__`, and `importlib.import_module` aliases; runtime-scope screening blocks `gptcacheclient*` and `gptcachebackend*`; regression tests cover the reported bypasses. |
 | Codex Security final scan after alias guard fix. | CLEAN | `9fa9419ba` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md` reports no surviving findings. |
 | Current-head CodeRabbit wave: public type guards, anchored machine-state extraction, shared schema loader, tuple-unpacked effect aliases, chained dynamic import effects, cache-baseline churn, and coverage-evidence wording. | FIXED | `6bdc47c50`, `620ad2939` | Fix commits and URL mapping are listed in Fixed in Commit Mapping; targeted pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and `pre-commit run --all-files` passed before mapping. |
+| Current-head connector wave: db-prefixed SHA false positive, destructured dynamic-import aliases, and Path container writes. | FIXED | `b18fd9eed` | Runtime-safe SHA validation and import/path guards now cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
 
 ## Bot Review Tracking
 
@@ -384,6 +409,7 @@ Evidence: CodeRabbit's coverage-evidence artifact concern was fixed in the canon
 - Latest final guard escape focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `33ee042a4`.
 - Latest alias/GPTCache guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `9fa9419ba`.
 - Current-head CodeRabbit fix wave focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6bdc47c50`; coverage-evidence artifact correction passed pre-commit before `620ad2939`.
+- Current-head connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `b18fd9eed`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
