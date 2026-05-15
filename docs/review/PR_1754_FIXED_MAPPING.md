@@ -4,7 +4,8 @@
 
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1754
 - Branch: `codex/fix-gha-node24-artifact-script-cleanup`
-- Implementation commit: `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
+- Implementation commits: `459038d99bb4a0ed4a3a9d255859e8ea215d367e`,
+  `3b79f7669c857f42cd53853121f966409ed0bc1e`
 - Governance artifact commits: `f1e652604`, `0cf7965e6`, `e7ae5b552`
 - Backlog anchor: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-gha-node24-cache-warning-cleanup`
 
@@ -26,9 +27,13 @@ warning cleanup, runtime code, or CI topology rewrites.
   `3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c`.
 - Update `actions/github-script` to `v9.0.0` peeled commit SHA
   `3a2844b7e9c422d3c10d287c895573f7108da1b3`.
+- Update `codecov/codecov-action` to `v6.0.0` full commit SHA
+  `57e3a136b779b570ffcdbf80b3bdc90e7fab3de2` because `v5.5.1`
+  transitively pulled old `actions/github-script@60a0...` and kept the
+  Node 20 annotation alive.
 - Add workflow contract tests for Node 24-compatible pins, comments, preserved
   artifact names/paths/merge behavior, preserved PR automation permissions, and
-  preserved `dorny/paths-filter` pin.
+  preserved `dorny/paths-filter` and Codecov upload pins.
 
 ## Out of Scope
 
@@ -40,7 +45,7 @@ warning cleanup, runtime code, or CI topology rewrites.
 ## Tests
 
 - `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py tests/test_tooling_surface_guards.py`
-  - Result: `30 passed`.
+  - Result after Codecov v6 follow-up: `31 passed`.
 - `.venv/bin/python scripts/orchestration/check_preflight.py`
   - Result: PASS.
 - `.venv/bin/python scripts/orchestration/check_agent_consistency.py`
@@ -48,10 +53,10 @@ warning cleanup, runtime code, or CI topology rewrites.
 - `.venv/bin/python scripts/ci/guard_actions_pin.py --root .`
   - Result: PASS.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
-  - Result: PASS, changed workflow contract test `14 passed`.
+  - Result after Codecov v6 follow-up: PASS, changed workflow contract test
+    `15 passed`.
 - `PATH=.venv/bin:$PATH pre-commit run --all-files`
-  - Result: PASS after `black` formatted
-    `tests/test_ci_workflow_pr_size_governance_contract.py`.
+  - Result after Codecov v6 follow-up: PASS.
 - Push hooks
   - Result: PASS, including backend tests, `pip-audit`, and full-repo `bandit`.
 
@@ -60,6 +65,10 @@ warning cleanup, runtime code, or CI topology rewrites.
 - Full SHA pins are preserved.
 - `actions/github-script` uses the peeled commit SHA for `v9.0.0`, not the
   annotated tag object SHA.
+- `codecov/codecov-action` now uses `v6.0.0` full commit SHA
+  `57e3a136b779b570ffcdbf80b3bdc90e7fab3de2`, whose composite action uses
+  `actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd`
+  (`v8.0.0`, `runs.using: node24`) for OIDC token retrieval.
 - `pr-automation.yml` remains limited to `pull-requests: read` and keeps
   `github-token: ${{ secrets.GITHUB_TOKEN }}`.
 - Artifact names, paths, `merge-multiple`, and `continue-on-error` behavior are
@@ -73,8 +82,8 @@ warning cleanup, runtime code, or CI topology rewrites.
 - Risk: action runtime bump changes behavior despite stable workflow inputs.
 - Mitigation: regression tests assert exact pins, comments, artifact contracts,
   and PR automation permissions; current-head PR CI remains required.
-- Rollback: restore previous action SHAs/comments for `download-artifact` and
-  `github-script`.
+- Rollback: restore previous action SHAs/comments for `download-artifact`,
+  direct `github-script`, and `codecov/codecov-action`.
 
 ## Premortem
 
@@ -85,7 +94,7 @@ Frame: 48 hours from now this CI/tooling PR made merge confidence worse.
 | Wrong runtime SHA | FIXED | `actions/github-script` plan SHA `d746ffe35508b1917358783b479e04febd2b8f71` was an annotated tag object. Commit `459038d99bb4a0ed4a3a9d255859e8ea215d367e` pins the peeled commit `3a2844b7e9c422d3c10d287c895573f7108da1b3` and rejects the tag-object SHA in tests. |
 | Artifact names/paths drift | FIXED | Commit `459038d99bb4a0ed4a3a9d255859e8ea215d367e` adds exact artifact contract assertions for `name`, `pattern`, `path`, `merge-multiple`, and `continue-on-error`. |
 | `github-script` permissions drift | FIXED | Commit `459038d99bb4a0ed4a3a9d255859e8ea215d367e` asserts `pull-requests: read`, `github-token`, and the PR read script contract. |
-| Node 20 annotation remains | FIXED pending current-head runtime proof | Code replaces all scoped `download-artifact` and `github-script` old pins; current-head PR CI must still confirm no Node 20 annotation before readiness. |
+| Node 20 annotation remains | FIXED pending current-head runtime proof | Current-head run `25917162392` showed the warning survived through `codecov/codecov-action@v5.5.1`, which transitively downloaded `actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea`. Commit `3b79f7669c857f42cd53853121f966409ed0bc1e` updates Codecov uploads to `v6.0.0` SHA `57e3a136b779b570ffcdbf80b3bdc90e7fab3de2`, whose transitive `actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd` uses Node 24. Current-head PR CI must still confirm no Node 20 annotation before readiness. |
 | Scope expands into cache topology | NOT-A-BUG | Diff has no cache topology changes; cache cleanup remains tracked by `ledger-p2-gha-node24-cache-warning-cleanup`. |
 | Readiness before current-head proof | FIXED by governance | PR opened as draft and this mapping keeps merge readiness blocked until current-head CI, review disposition, and strict merge wrapper pass. |
 
@@ -108,6 +117,11 @@ confirmed:
 - `actions/github-script` uses the peeled commit
   `3a2844b7e9c422d3c10d287c895573f7108da1b3`;
 - no stale old SHA or annotated tag-object SHA remains in scoped repo surfaces.
+
+Follow-up investigation found the remaining Node 20 annotation came from
+`codecov/codecov-action@v5.5.1` pulling `actions/github-script@60a0...`;
+commit `3b79f7669c857f42cd53853121f966409ed0bc1e` moves those upload steps to
+Codecov `v6.0.0`.
 
 Post-open `qa-engineer-agent -> bug-hunter` pass is required before readiness.
 
@@ -136,6 +150,8 @@ actionable and must be dispositioned here before resolution.
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
 - `actions/github-script` Node 24 pin:
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
+- `codecov/codecov-action` Node 24 transitive `github-script` pin:
+  `3b79f7669c857f42cd53853121f966409ed0bc1e`
 
 ## Merge Readiness
 
