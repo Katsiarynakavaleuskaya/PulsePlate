@@ -308,7 +308,18 @@ def test_rejects_authority_drift_with_camel_case_variants() -> None:
 
 def test_rejects_authority_drift_variants_inside_canonical_boundary() -> None:
     policy = _valid_policy()
-    policy["authority_boundary"]["merge-rights"] = "admin"
+    policy["authority_boundary"]["mergerights"] = "admin"
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="must not duplicate"):
+        identity_check.validate_identity_policy(policy)
+
+
+@pytest.mark.parametrize("authority_alias", ["merge-rights", "mergeRights"])
+def test_rejects_separated_authority_drift_inside_canonical_boundary(
+    authority_alias: str,
+) -> None:
+    policy = _valid_policy()
+    policy["authority_boundary"][authority_alias] = "admin"
 
     with pytest.raises(identity_check.IdentityPolicyError, match="must not duplicate"):
         identity_check.validate_identity_policy(policy)

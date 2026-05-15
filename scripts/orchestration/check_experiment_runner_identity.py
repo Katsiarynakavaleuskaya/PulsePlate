@@ -211,7 +211,11 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
                 normalized_key in AUTHORITY_FIELD_NAMES
                 or compact_key in AUTHORITY_FIELD_COMPACT_NAMES
             )
-            if path == "$.authority_boundary" and is_authority_field and str(key) != normalized_key:
+            if (
+                path == "$.authority_boundary"
+                and is_authority_field
+                and str(key) not in AUTHORITY_FIELD_NAMES
+            ):
                 raise IdentityPolicyError(
                     f"{_redact_diagnostic_path(next_path)} must not duplicate "
                     "Experiment Runner authority."
