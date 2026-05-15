@@ -5,7 +5,7 @@
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755
 - Branch: `codex/walk3-ollama-codex-operator-workflow`
 - Base: `main`
-- Evidence head at latest mapping update: `b22efdab36355f5f068e63a8598d7a37f76d5673`
+- Evidence head at latest mapping update: `8a4d1af0f75425b6647201b9907b5dbfd7b59d15`
 - Note: later mapping-only or review-fix commits may advance the branch head; use GitHub PR current-head checks for live merge-readiness truth.
 
 ## Scope
@@ -97,6 +97,7 @@ Evidence: the localhost probe now uses a no-redirect opener and reports redirect
 - `../../.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` PASS.
 - `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_codex_ollama_operator_doctor.py` PASS, 21 tests.
 - `../../.venv/bin/python -m flake8 scripts/orchestration/check_codex_ollama_operator.py tests/test_codex_ollama_operator_doctor.py` PASS.
+- `../../.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/check_codex_ollama_operator.py` PASS after typing the no-redirect opener.
 - `../../.venv/bin/python -m ruff check scripts/orchestration/check_codex_ollama_operator.py tests/test_codex_ollama_operator_doctor.py` PASS.
 - `../../.venv/bin/python -m black --check scripts/orchestration/check_codex_ollama_operator.py tests/test_codex_ollama_operator_doctor.py` PASS.
 - `../../.venv/bin/python -m bandit -q -r scripts/orchestration/check_codex_ollama_operator.py` PASS.
