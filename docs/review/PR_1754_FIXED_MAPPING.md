@@ -6,7 +6,8 @@
 - Branch: `codex/fix-gha-node24-artifact-script-cleanup`
 - Implementation commits: `459038d99bb4a0ed4a3a9d255859e8ea215d367e`,
   `3b79f7669c857f42cd53853121f966409ed0bc1e`
-- Governance artifact commits: `f1e652604`, `0cf7965e6`, `e7ae5b552`
+- Governance artifact commits include: `f1e652604`, `0cf7965e6`,
+  `e7ae5b552`, `c5fff3903`
 - Backlog anchor: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-gha-node24-cache-warning-cleanup`
 
 ## Goal
