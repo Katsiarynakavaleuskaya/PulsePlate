@@ -40,6 +40,7 @@ from core.ai.semantic_cache_backend_selection import (
     SemanticCacheBackendSafetyEvidence,
     SemanticCacheBackendSelectionCriteria,
     SemanticCacheBackendSelectionDecision,
+    build_semantic_cache_backend_matrix_id,
     evaluate_semantic_cache_backend_candidate,
     evaluate_semantic_cache_backend_matrix,
     select_semantic_cache_backend,
@@ -801,6 +802,16 @@ def test_type_and_value_validation_fail_closed() -> None:
         )
     with pytest.raises(ValueError, match="criteria"):
         evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=cast(Any, "bad"))
+    with pytest.raises(ValueError, match="criteria"):
+        evaluate_semantic_cache_backend_matrix(candidates=(), criteria=cast(Any, "bad"))
+    with pytest.raises(ValueError, match="criteria"):
+        select_semantic_cache_backend(candidates=(), criteria=cast(Any, "bad"))
+    with pytest.raises(ValueError, match="final_decision"):
+        build_semantic_cache_backend_matrix_id(
+            candidates=(_candidate(),),
+            criteria=_criteria(),
+            final_decision=cast(Any, "bad"),
+        )
     with pytest.raises(ValueError, match="candidate"):
         evaluate_semantic_cache_backend_candidate(candidate=cast(Any, "bad"), criteria=_criteria())
     with pytest.raises(ValueError, match="unsafe runtime scope"):
@@ -1584,6 +1595,19 @@ def test_import_guard_rejects_importlib_dynamic_os_effects(tmp_path: Path) -> No
             assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_chained_dynamic_import_module_effects(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_chained_dynamic_import_module.py"
+    source.write_text(
+        "__import__('importlib').import_module('subprocess').run(['echo', 'bad'])\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="__dynamic_import__"):
+        assert_no_forbidden_semantic_cache_imports(source)
+    with pytest.raises(AssertionError, match="__dynamic_import__"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_os_effect_aliases(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_os_alias.py"
     source.write_text(
@@ -1593,6 +1617,31 @@ def test_import_guard_rejects_os_effect_aliases(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="os.system.alias"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_tuple_unpacked_effect_aliases(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_tuple_open_alias.py",
+            "writer, _ = open, None\nwriter('payload.txt', 'w')\n",
+            "open.alias",
+        ),
+        (
+            "unsafe_tuple_os_alias.py",
+            "import os\nlauncher, _ = os.system, None\nlauncher('/usr/bin/curl https://example.invalid')\n",
+            "os.system.alias",
+        ),
+        (
+            "unsafe_tuple_path_write_alias.py",
+            "from pathlib import Path\nwriter, _ = Path('payload.txt').write_text, None\nwriter('bad')\n",
+            "Path.method-alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_getattr_os_effect_aliases(tmp_path: Path) -> None:

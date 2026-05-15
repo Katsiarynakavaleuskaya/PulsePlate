@@ -80,17 +80,7 @@ def _load_semantic_cache_backend_selection_validator() -> SemanticCacheGateValid
 def _load_semantic_cache_backend_selection_schema_validator() -> (
     SemanticCacheBackendSelectionSchemaValidator
 ):
-    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    validator = getattr(module, "validate_semantic_cache_backend_selection_schema", None)
-    if not callable(validator):
-        raise RuntimeError(
-            "semantic-cache gate checker missing "
-            "validate_semantic_cache_backend_selection_schema"
-        )
+    validator = _load_validator("validate_semantic_cache_backend_selection_schema")
     return cast(SemanticCacheBackendSelectionSchemaValidator, validator)
 
 

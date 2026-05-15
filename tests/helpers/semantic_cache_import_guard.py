@@ -164,11 +164,11 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
         elif isinstance(node, ast.ImportFrom):
             imports.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.Assign):
-            alias_ref = _qualified_call_name(node.value, import_aliases)
-            if alias_ref in {"__import__", "importlib.import_module"}:
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        import_aliases[target.id] = alias_ref
+            for target in node.targets:
+                for target_name, target_value in _target_names_for_value(target, node.value):
+                    alias_ref = _qualified_call_name(target_value, import_aliases)
+                    if alias_ref in {"__import__", "importlib.import_module"}:
+                        import_aliases[target_name] = alias_ref
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
@@ -179,6 +179,11 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
                 imports.append(name)
             else:
                 imports.append("__dynamic_import__")
+        elif isinstance(node, ast.Call) and _is_import_module_call_from_dynamic_receiver(
+            node,
+            import_aliases,
+        ):
+            imports.append("__dynamic_import__")
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -240,44 +245,38 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 if alias.name != "*":
                     import_aliases[alias.asname or alias.name] = f"{node.module}.{alias.name}"
         elif isinstance(node, ast.Assign):
-            if _is_open_effect_ref(node.value, import_aliases):
-                offenders.append("open.alias")
-            if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
-                offenders.append("Path.method-alias")
-            effect_ref = _qualified_call_name(node.value, import_aliases)
-            if effect_ref in {"getattr", "__import__", "importlib.import_module"}:
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        import_aliases[target.id] = effect_ref
-            if _is_os_effect_ref(effect_ref):
-                offenders.append(f"{effect_ref}.alias")
-            os_getattr_ref = _os_getattr_effect_name(node.value, import_aliases)
-            if os_getattr_ref is not None:
-                offenders.append(f"{os_getattr_ref}.alias")
-            if _qualified_call_name(node.value, import_aliases) == "os.getenv":
-                offenders.append("os.getenv.alias")
-            if _qualified_call_name(
-                node.value, import_aliases
-            ) == "os.environ" or _is_os_environ_value_ref(
-                node.value, import_aliases, environ_aliases
-            ):
-                offenders.append("os.environ.value")
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        environ_aliases.add(target.id)
-            dynamic_import = _dynamic_import_name(node.value, import_aliases)
-            if dynamic_import is not None:
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        import_aliases[target.id] = dynamic_import
-            if effect_ref is not None:
-                for target in node.targets:
-                    if isinstance(target, ast.Name) and (
+            for target in node.targets:
+                for target_name, target_value in _target_names_for_value(target, node.value):
+                    if _is_open_effect_ref(target_value, import_aliases):
+                        offenders.append("open.alias")
+                    if _is_path_effect_method_ref(target_value, import_aliases, path_aliases):
+                        offenders.append("Path.method-alias")
+                    effect_ref = _qualified_call_name(target_value, import_aliases)
+                    if effect_ref in {"getattr", "__import__", "importlib.import_module"}:
+                        import_aliases[target_name] = effect_ref
+                    if _is_os_effect_ref(effect_ref):
+                        offenders.append(f"{effect_ref}.alias")
+                    os_getattr_ref = _os_getattr_effect_name(target_value, import_aliases)
+                    if os_getattr_ref is not None:
+                        offenders.append(f"{os_getattr_ref}.alias")
+                    if _qualified_call_name(target_value, import_aliases) == "os.getenv":
+                        offenders.append("os.getenv.alias")
+                    if _qualified_call_name(
+                        target_value, import_aliases
+                    ) == "os.environ" or _is_os_environ_value_ref(
+                        target_value, import_aliases, environ_aliases
+                    ):
+                        offenders.append("os.environ.value")
+                        environ_aliases.add(target_name)
+                    dynamic_import = _dynamic_import_name(target_value, import_aliases)
+                    if dynamic_import is not None:
+                        import_aliases[target_name] = dynamic_import
+                    if effect_ref is not None and (
                         _is_os_environ_call_name(effect_ref)
                         or _is_os_effect_ref(effect_ref)
                         or effect_ref == "os.getenv"
                     ):
-                        import_aliases[target.id] = effect_ref
+                        import_aliases[target_name] = effect_ref
             _collect_path_constructor_aliases(
                 node.targets,
                 node.value,
@@ -357,6 +356,10 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             )
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
+            if call_name == "__dynamic_import__" or (
+                call_name is not None and call_name.startswith("__dynamic_import__.")
+            ):
+                offenders.append("__dynamic_import__")
             if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:
                 offenders.append(call_name)
             if _is_network_call_name(call_name):
@@ -476,11 +479,26 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
 def _dynamic_import_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
     if not isinstance(node, ast.Call):
         return None
+    if _is_import_module_call_from_dynamic_receiver(node, import_aliases):
+        return "__dynamic_import__"
     if _qualified_call_name(node.func, import_aliases) == "__import__":
-        return _constant_string_argument(node)
+        return _constant_string_argument(node) or "__dynamic_import__"
     if _qualified_call_name(node.func, import_aliases) == "importlib.import_module":
-        return _constant_string_argument(node)
+        return _constant_string_argument(node) or "__dynamic_import__"
     return None
+
+
+def _is_import_module_call_from_dynamic_receiver(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "import_module"
+        and isinstance(node.func.value, ast.Call)
+        and _qualified_call_name(node.func.value.func, import_aliases) == "__import__"
+    )
 
 
 def _os_getattr_effect_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:

@@ -32,7 +32,11 @@ def _contract_text() -> str:
 
 
 def _machine_state() -> dict[str, object]:
-    match = re.search(r"```json\n(.*?)\n```", _contract_text(), re.DOTALL)
+    text = _contract_text()
+    anchor = "## Machine-Readable State"
+    assert anchor in text
+    section = text.split(anchor, maxsplit=1)[1]
+    match = re.search(r"```json\n(.*?)\n```", section, re.DOTALL)
     assert match is not None
     state = json.loads(match.group(1))
     assert isinstance(state, dict)

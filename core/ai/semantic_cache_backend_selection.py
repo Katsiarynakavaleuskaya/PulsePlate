@@ -782,6 +782,8 @@ def evaluate_semantic_cache_backend_matrix(
 ) -> SemanticCacheBackendEvaluationMatrix:
     """Build a deterministic matrix over backend labels."""
 
+    if not isinstance(criteria, SemanticCacheBackendSelectionCriteria):
+        raise ValueError("criteria must be SemanticCacheBackendSelectionCriteria")
     candidate_decisions = tuple(
         evaluate_semantic_cache_backend_candidate(candidate=candidate, criteria=criteria)
         for candidate in _sorted_candidates(candidates)
@@ -814,6 +816,8 @@ def build_semantic_cache_backend_matrix_id(
 
     if not isinstance(criteria, SemanticCacheBackendSelectionCriteria):
         raise ValueError("criteria must be SemanticCacheBackendSelectionCriteria")
+    if not isinstance(final_decision, SemanticCacheBackendSelectionDecision):
+        raise ValueError("final_decision must be SemanticCacheBackendSelectionDecision")
     payload: JsonValue = {
         "candidate_signatures": [
             _candidate_signature(candidate) for candidate in _sorted_candidates(candidates)
@@ -832,6 +836,8 @@ def select_semantic_cache_backend(
 ) -> SemanticCacheBackendSelectionDecision:
     """Select an inert backend label recommendation, or fail closed."""
 
+    if not isinstance(criteria, SemanticCacheBackendSelectionCriteria):
+        raise ValueError("criteria must be SemanticCacheBackendSelectionCriteria")
     ordered_candidates = _sorted_candidates(candidates)
     _validate_unique_candidate_ids(ordered_candidates)
     decisions = tuple(
