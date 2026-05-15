@@ -327,15 +327,19 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 | Post-update QA review: current-head CI proof accepted stale head IDs. | FIXED | `d145aa473` | Criteria now carries `current_head_sha` and candidate CI proof IDs must contain `head-<sha>` for the evaluated head; stale-proof regression test covers the previous false-green. |
 | Post-update bug-hunter review: malformed schema enums, dynamic `Path` getattr writes, and schema-only docs Phase1 workflow gap. | FIXED | `d145aa473` | Schema checker requires enum string lists, import guard blocks dynamic Path getattr writes and destructured aliases, and CI docs Phase1 gate targets SC-G5 schema JSON edits. |
 | Post-update security review. | CLEAN | `d145aa473` | Security-auditor pass reported no actionable security findings for the post-update diff; subsequent code changes were fail-closed guard/checker/test hardening only. |
+| Final QA pass: `os.environ` value-read guard still missed returns, yields, literals, dict unpacking, and aliases. | FIXED | `6816648df` | Import guard now flags `os.environ.value` expression refs, and regression snippets cover direct, nested, unpacked, loop, comprehension, alias, return, and yield reads. |
+| Final bug-hunter pass: version-suffixed runtime labels and nested environment reads could still bypass guard checks. | FIXED | `6816648df` | Runtime-scope matching now rejects version-suffixed unsafe labels such as `fastapiv1`, `openapiv3`, `networkv1`, and `filewritev2`; focused tests cover backend versions, metadata, scalar evidence IDs, and env alias forms. |
+| Final security pass: current-head CI proof matching was substring-based for broad verification-bundle proof IDs. | FIXED | `6816648df` | CI proof matching now parses explicit segment schemas for `ci:pr-...:head-<sha>:...`, `ci:current-head:<sha>:...`, and wrapped `verification-bundle:ci:` forms; spoofed note/manual bundle proof is rejected in tests. |
+| Codex Security final scan after latest substantive fix. | CLEAN | `6816648df` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/6816648df_20260515T115940Z/report.md` reports no surviving findings. |
 
 ## Bot Review Tracking
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after `0e04e1717` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after `0e04e1717` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after `0e04e1717` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `95ecc9412` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/95ecc9412_20260513T121007Z/report.md`. |
+| CodeRabbit | Pending current-head re-review after `6816648df` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Sourcery | Pending current-head re-review after `6816648df` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Cubic | Pending current-head re-review after `6816648df` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `6816648df` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/6816648df_20260515T115940Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -352,6 +356,7 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 - Latest focused post-update pytest, mypy, semantic-cache checker, docs Phase1 gate, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `d145aa473`.
 - Latest current-head decision/guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6663ddb67`.
 - Latest current-head proof/runtime-label/environment guard focused pytest, mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0e04e1717`.
+- Latest agent-finding guard hardening focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6816648df`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
