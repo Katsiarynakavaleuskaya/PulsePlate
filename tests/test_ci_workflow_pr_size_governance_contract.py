@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from pathlib import Path
 import re
 
@@ -9,6 +10,10 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CI_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ci.yml"
+CODECOV_UPLOAD_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "codecov-upload.yml"
+IOS_APPSTORE_ASSETS_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "ios-appstore-assets.yml"
+NIGHTLY_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "nightly.yml"
+PR_AUTOMATION_WORKFLOW_PATH = REPO_ROOT / ".github" / "workflows" / "pr-automation.yml"
 AGENTS_PATH = REPO_ROOT / "AGENTS.md"
 RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
@@ -26,6 +31,76 @@ PATHS_FILTER_NODE24_SHA = "".join(
         "3fc2",
         "5e6d",
         "187d",
+    )
+)
+DOWNLOAD_ARTIFACT_NODE24_SHA = "".join(
+    (
+        "3e5f",
+        "45b2",
+        "cfb9",
+        "1720",
+        "54b4",
+        "087a",
+        "40e8",
+        "e0b5",
+        "a546",
+        "1e7c",
+    )
+)
+GITHUB_SCRIPT_NODE24_SHA = "".join(
+    (
+        "3a28",
+        "44b7",
+        "e9c4",
+        "22d3",
+        "c10d",
+        "287c",
+        "8955",
+        "73f7",
+        "108d",
+        "a1b3",
+    )
+)
+OLD_DOWNLOAD_ARTIFACT_SHA = "".join(
+    (
+        "fa0a",
+        "91b8",
+        "5d4f",
+        "404e",
+        "444e",
+        "00e0",
+        "0597",
+        "1372",
+        "dc80",
+        "1d16",
+    )
+)
+OLD_GITHUB_SCRIPT_SHA = "".join(
+    (
+        "f28e",
+        "40c7",
+        "f34b",
+        "de8b",
+        "3046",
+        "d885",
+        "e986",
+        "cb62",
+        "90c5",
+        "673b",
+    )
+)
+GITHUB_SCRIPT_V9_TAG_OBJECT_SHA = "".join(
+    (
+        "d746",
+        "ffe3",
+        "5508",
+        "b191",
+        "7358",
+        "783b",
+        "479e",
+        "04fe",
+        "bd2b",
+        "8f71",
     )
 )
 
@@ -55,9 +130,27 @@ def _extract_job_section(workflow_text: str, job_anchor: str) -> str:
 
 
 def _load_ci_workflow() -> dict[str, object]:
-    workflow = yaml.safe_load(CI_WORKFLOW_PATH.read_text(encoding="utf-8"))
+    return _load_workflow(CI_WORKFLOW_PATH)
+
+
+def _load_workflow(path: Path) -> dict[str, object]:
+    workflow = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert isinstance(workflow, dict)
     return workflow
+
+
+def _iter_job_steps(path: Path) -> Iterator[tuple[str, dict[str, object]]]:
+    workflow = _load_workflow(path)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    for job_id, job in jobs.items():
+        assert isinstance(job_id, str)
+        assert isinstance(job, dict)
+        steps = job.get("steps", [])
+        assert isinstance(steps, list)
+        for step in steps:
+            assert isinstance(step, dict)
+            yield job_id, step
 
 
 def _assert_contains_all_tokens(expression: str, expected_tokens: tuple[str, ...]) -> None:
@@ -140,6 +233,164 @@ def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> Non
     assert "- 'ios/**'" in filters
     assert "- '.github/workflows/**'" in filters
     assert "- '.github/actions/**'" in filters
+
+
+def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> None:
+    """Guard remaining Node 20 action migrations against tag-object drift."""
+
+    download_workflows = {
+        CI_WORKFLOW_PATH: 6,
+        CODECOV_UPLOAD_WORKFLOW_PATH: 1,
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH: 1,
+        NIGHTLY_WORKFLOW_PATH: 1,
+    }
+    expected_download_line = (
+        f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA} # v8.0.1 / Node 24"
+    )
+
+    observed_download_steps = 0
+    for workflow_path, expected_count in download_workflows.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        assert workflow_text.count(expected_download_line) == expected_count
+        assert f"actions/download-artifact@{OLD_DOWNLOAD_ARTIFACT_SHA}" not in workflow_text
+
+        for _job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if isinstance(uses, str) and uses.startswith("actions/download-artifact@"):
+                observed_download_steps += 1
+                assert uses == f"actions/download-artifact@{DOWNLOAD_ARTIFACT_NODE24_SHA}"
+
+    assert observed_download_steps == sum(download_workflows.values())
+
+    pr_automation_text = PR_AUTOMATION_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert (
+        f"actions/github-script@{GITHUB_SCRIPT_NODE24_SHA} # v9.0.0 / Node 24" in pr_automation_text
+    )
+    assert f"actions/github-script@{OLD_GITHUB_SCRIPT_SHA}" not in pr_automation_text
+    assert GITHUB_SCRIPT_V9_TAG_OBJECT_SHA not in pr_automation_text
+
+
+def test_node24_artifact_migration_preserves_download_contracts() -> None:
+    """Guard artifact names, paths, and merge behavior during action runtime bumps."""
+
+    expected_download_contracts = [
+        (
+            ".github/workflows/ci.yml",
+            "coverage-pr",
+            "Download coverage artifact (Python ${{ env.COVERAGE_PY }})",
+            {"name": "coverage-xml-${{ env.COVERAGE_PY }}", "path": "./coverage-artifacts"},
+            True,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "diff-coverage",
+            "Download coverage artifact (Python ${{ env.COVERAGE_PY }})",
+            {"name": "coverage-xml-${{ env.COVERAGE_PY }}", "path": "./coverage-artifacts"},
+            None,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "coverage-feature",
+            "Download coverage artifact (Python ${{ env.COVERAGE_PY }})",
+            {"name": "coverage-xml-${{ env.COVERAGE_PY }}", "path": "./coverage-artifacts"},
+            True,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "coverage-main",
+            "Download coverage artifact (Python 3.11)",
+            {"name": "coverage-main-xml-3.11", "path": "./coverage-artifacts/3.11"},
+            True,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "coverage-main",
+            "Download coverage artifact (Python 3.12)",
+            {"name": "coverage-main-xml-3.12", "path": "./coverage-artifacts/3.12"},
+            True,
+        ),
+        (
+            ".github/workflows/ci.yml",
+            "coverage-main",
+            "Download coverage artifact (Python 3.13)",
+            {"name": "coverage-main-xml-3.13", "path": "./coverage-artifacts/3.13"},
+            True,
+        ),
+        (
+            ".github/workflows/codecov-upload.yml",
+            "upload",
+            "Download coverage artifact",
+            {"name": "${{ inputs['coverage-artifact'] }}", "path": "./coverage-artifact"},
+            None,
+        ),
+        (
+            ".github/workflows/nightly.yml",
+            "coverage-merge",
+            "Download coverage artifacts",
+            {
+                "pattern": "coverage-reports-shard-*",
+                "merge-multiple": True,
+                "path": "coverage-artifacts",
+            },
+            None,
+        ),
+        (
+            ".github/workflows/ios-appstore-assets.yml",
+            "upload-assets",
+            "Download screenshot artifacts",
+            {"name": "ios-appstore-screenshots", "path": "ios/fastlane/screenshots"},
+            None,
+        ),
+    ]
+
+    observed_download_contracts = []
+    for workflow_path in (
+        CI_WORKFLOW_PATH,
+        CODECOV_UPLOAD_WORKFLOW_PATH,
+        NIGHTLY_WORKFLOW_PATH,
+        IOS_APPSTORE_ASSETS_WORKFLOW_PATH,
+    ):
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if isinstance(uses, str) and uses.startswith("actions/download-artifact@"):
+                observed_download_contracts.append(
+                    (
+                        str(workflow_path.relative_to(REPO_ROOT)),
+                        job_id,
+                        step.get("name"),
+                        step.get("with"),
+                        step.get("continue-on-error"),
+                    )
+                )
+
+    assert observed_download_contracts == expected_download_contracts
+
+
+def test_node24_github_script_migration_preserves_pr_read_permissions() -> None:
+    """Guard the PR automation script runtime bump against permission drift."""
+
+    workflow = _load_workflow(PR_AUTOMATION_WORKFLOW_PATH)
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    validate_pr_job = jobs["validate-pr"]
+    assert isinstance(validate_pr_job, dict)
+
+    assert validate_pr_job["permissions"] == {"pull-requests": "read"}
+
+    github_script_steps = []
+    for _job_id, step in _iter_job_steps(PR_AUTOMATION_WORKFLOW_PATH):
+        uses = step.get("uses")
+        if isinstance(uses, str) and uses.startswith("actions/github-script@"):
+            github_script_steps.append(step)
+
+    assert len(github_script_steps) == 1
+    script_step = github_script_steps[0]
+    assert script_step["uses"] == f"actions/github-script@{GITHUB_SCRIPT_NODE24_SHA}"
+    with_section = script_step["with"]
+    assert isinstance(with_section, dict)
+    assert sorted(with_section) == ["github-token", "script"]
+    assert with_section["github-token"] == "${{ secrets.GITHUB_TOKEN }}"
+    assert "github.rest.pulls.get" in str(with_section["script"])
 
 
 def test_feature_push_risk_profile_uses_origin_main_merge_base() -> None:
