@@ -398,6 +398,7 @@ Evidence: Latest connector meta-guard findings were fixed in code/tests: walrus-
 | Current-head connector wave: db-prefixed SHA false positive, destructured dynamic-import aliases, and Path container writes. | FIXED | `b18fd9eed` | Runtime-safe SHA validation and import/path guards now cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
 | Final connector wave: extra decision-id segments, dunder builtins open, concrete pathlib constructors, and pathlib link/chmod mutations. | FIXED | `41f37fc73` | Decision-ID shape and semantic-cache import guard regressions cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
 | Meta connector wave: walrus-bound effect calls, callable-default aliases, attribute-bound aliases, and dunder-builtins dynamic imports. | FIXED | `a5ae48252` | Semantic-cache import guard regressions cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
+| Final QA/security/bug-hunter pass: aliased pathlib class effects, dynamic builtins import/open, Path-returning write expressions, weak `run-fake` CI proofs, and placeholder human approval IDs still had bypasses. | FIXED | `0d0dc5647` | Semantic-cache import guard and SC-G5 proof validation now reject the reported bypasses; focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and pre-commit passed before mapping. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/0d0dc5647_20260515T133237Z/report.md`. |
 
 ## Bot Review Tracking
 
@@ -406,7 +407,7 @@ Evidence: Latest connector meta-guard findings were fixed in code/tests: walrus-
 | CodeRabbit | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Sourcery | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Cubic | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `9fa9419ba` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md`. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `0d0dc5647` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/0d0dc5647_20260515T133237Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -430,6 +431,7 @@ Evidence: Latest connector meta-guard findings were fixed in code/tests: walrus-
 - Current-head connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `b18fd9eed`.
 - Final connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `41f37fc73`.
 - Meta connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `a5ae48252`.
+- Final QA/security/bug-hunter guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0d0dc5647`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
