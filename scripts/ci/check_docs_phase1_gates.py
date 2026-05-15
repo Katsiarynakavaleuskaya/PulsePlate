@@ -147,6 +147,17 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             errors.extend(
                 f"{relpath}: {error}" for error in validate_backend_selection_contract(content)
             )
+            validate_backend_selection_schema = (
+                _load_semantic_cache_backend_selection_schema_validator()
+            )
+            schema_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA)
+            errors.extend(
+                f"{relpath}: {error}"
+                for error in validate_backend_selection_schema(
+                    schema_text=schema_text,
+                    contract_text=content,
+                )
+            )
 
         if relpath == SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA:
             validate_backend_selection_schema = (

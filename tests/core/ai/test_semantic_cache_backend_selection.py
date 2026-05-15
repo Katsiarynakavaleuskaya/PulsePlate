@@ -1616,7 +1616,7 @@ def test_import_guard_rejects_importlib_dynamic_os_effects(tmp_path: Path) -> No
         source = tmp_path / filename
         source.write_text(source_text, encoding="utf-8")
 
-        with pytest.raises(AssertionError, match="os.system"):
+        with pytest.raises(AssertionError, match="os.system|__dynamic_import__"):
             assert_no_forbidden_semantic_cache_calls(source)
 
 
@@ -1902,6 +1902,21 @@ def test_import_guard_rejects_path_returning_expr_writes(tmp_path: Path) -> None
             "from pathlib import Path\nPath.cwd().joinpath('payload.txt').write_text('payload')\n",
             "Path.write",
         ),
+        (
+            "unsafe_resolve_write.py",
+            "from pathlib import Path\nPath('payload.txt').resolve().write_text('payload')\n",
+            "Path.write",
+        ),
+        (
+            "unsafe_absolute_write.py",
+            "from pathlib import Path\nPath('payload.txt').absolute().write_text('payload')\n",
+            "Path.write",
+        ),
+        (
+            "unsafe_with_name_write.py",
+            "from pathlib import Path\nPath('payload.txt').with_name('other.txt').write_text('payload')\n",
+            "Path.write",
+        ),
     ):
         source = tmp_path / filename
         source.write_text(source_text, encoding="utf-8")
@@ -2016,6 +2031,28 @@ def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="redis"):
         assert_no_forbidden_semantic_cache_imports(alias_source)
+
+
+def test_import_guard_rejects_dynamic_import_alias_refs(tmp_path: Path) -> None:
+    for filename, source_text in (
+        (
+            "unsafe_builtins_subscript_import_alias.py",
+            "loader = __builtins__['__import__']\nloader('redis')\n",
+        ),
+        (
+            "unsafe_builtins_getattr_import_alias.py",
+            "loader = getattr(__builtins__, '__import__')\nloader('redis')\n",
+        ),
+        (
+            "unsafe_dynamic_import_default.py",
+            "def load(loader=__import__):\n    loader('redis')\n",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="__dynamic_import__"):
+            assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_core_ai_runtime_facade_imports(tmp_path: Path) -> None:

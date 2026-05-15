@@ -179,6 +179,18 @@ PATH_MUTATION_METHODS = frozenset(
     }
 )
 PATH_EFFECT_METHODS = PATH_MUTATION_METHODS | {"open", "write_bytes", "write_text"}
+PATH_RETURNING_METHODS = frozenset(
+    {
+        "absolute",
+        "expanduser",
+        "joinpath",
+        "relative_to",
+        "resolve",
+        "with_name",
+        "with_stem",
+        "with_suffix",
+    }
+)
 
 
 def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
@@ -287,6 +299,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                     effect_ref = _qualified_call_name(target_value, import_aliases)
                     if effect_ref in {"getattr", "__import__", "importlib.import_module"}:
                         import_aliases[target_name] = effect_ref
+                    if _is_dynamic_import_ref(target_value, import_aliases):
+                        import_aliases[target_name] = "__dynamic_import__"
                     if _is_os_effect_ref(effect_ref):
                         offenders.append(f"{effect_ref}.alias")
                     os_getattr_ref = _os_getattr_effect_name(target_value, import_aliases)
@@ -350,6 +364,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 "importlib.import_module",
             }:
                 import_aliases[node.target.id] = effect_ref
+            if (
+                isinstance(node.target, ast.Name)
+                and node.value is not None
+                and _is_dynamic_import_ref(node.value, import_aliases)
+            ):
+                import_aliases[node.target.id] = "__dynamic_import__"
             if _is_os_effect_ref(effect_ref):
                 offenders.append(f"{effect_ref}.alias")
             if node.value is not None:
@@ -406,6 +426,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 dynamic_import = _dynamic_import_name(default, import_aliases)
                 if dynamic_import is not None:
                     offenders.append("__dynamic_import__")
+                if _is_dynamic_import_ref(default, import_aliases):
+                    offenders.append("__dynamic_import__.alias")
         elif isinstance(node, ast.With):
             _collect_path_open_context_aliases(
                 node,
@@ -569,6 +591,14 @@ def _dynamic_import_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
 
 def _is_builtin_import_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
     return _is_builtin_ref(node, import_aliases, "__import__")
+
+
+def _is_dynamic_import_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    return _qualified_call_name(node, import_aliases) in {
+        "__import__",
+        "importlib.import_module",
+        "__dynamic_import__",
+    } or _is_builtin_import_ref(node, import_aliases)
 
 
 def _is_builtin_ref(
@@ -887,7 +917,7 @@ def _is_path_expr(
             and _qualified_call_name(node.func.value, import_aliases) in PATH_CONSTRUCTOR_NAMES
         ):
             return True
-        if isinstance(node.func, ast.Attribute) and node.func.attr == "joinpath":
+        if isinstance(node.func, ast.Attribute) and node.func.attr in PATH_RETURNING_METHODS:
             return _is_path_expr(node.func.value, import_aliases, path_aliases)
         return False
     if isinstance(node, ast.Attribute):
