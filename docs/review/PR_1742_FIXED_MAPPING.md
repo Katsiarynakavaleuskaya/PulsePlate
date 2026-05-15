@@ -392,7 +392,6 @@ Evidence: Current-head CI import-guard failure was fixed in code: `scripts/ci/ch
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013255 -> c31bef254
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013351 -> c31bef254
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013391 -> c31bef254
-- Local pre-push mypy changed-files hook failure in `scripts/ci/check_docs_phase1_gates.py` -> 0569f5e93
 
 ## Post-Open Agent Review Fixes
 
