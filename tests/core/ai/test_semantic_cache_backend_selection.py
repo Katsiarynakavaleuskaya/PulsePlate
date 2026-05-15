@@ -422,6 +422,7 @@ def test_current_head_ci_proof_must_match_criteria_head_sha() -> None:
         "ci:current-head:d91b58100",
         "ci:current-head:d91b58100:manual",
         "ci:current-head:d91b58100:x",
+        "ci:current-head:d91b58100:run-fake",
         "ci:pr-abc:head-d91b58100:run-25914493764",
         "ci:pr-1742:head-d91b58100:manual",
         "verification-bundle:ci:current-head:d91b58100:manual",
@@ -1063,6 +1064,8 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for prefix_only_value in ("approval:human:", "verification-bundle:approval:"):
         with pytest.raises(ValueError, match="proof evidence"):
             replace(_candidate(), human_approval_record_id=prefix_only_value)
+    with pytest.raises(ValueError, match="human approval proof shape"):
+        replace(_candidate(), human_approval_record_id="approval:human:placeholder")
     for unsafe_proof_token in (
         "raw_prompt",
         "provider_payload",
@@ -1153,7 +1156,7 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             replace(
                 _candidate(),
                 current_head_ci_proof_id=(
-                    f"ci:current-head:d91b58100:run-{unsafe_split_runtime_token}"
+                    f"ci:current-head:d91b58100:run-25914493764:{unsafe_split_runtime_token}"
                 ),
             )
         with pytest.raises(ValueError, match="unsafe metadata"):
@@ -1706,6 +1709,36 @@ def test_import_guard_rejects_concrete_pathlib_constructors(tmp_path: Path) -> N
             assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_concrete_pathlib_class_methods(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_posix_class_write.py",
+            "from pathlib import PosixPath\nPosixPath.write_text(PosixPath('payload.txt'), 'payload')\n",
+            "Path.write",
+        ),
+        (
+            "unsafe_posix_class_open.py",
+            "from pathlib import PosixPath\nPosixPath.open(PosixPath('payload.txt'), 'w')\n",
+            "Path.open.write-mode",
+        ),
+        (
+            "unsafe_qualified_posix_class_chmod.py",
+            "import pathlib\npathlib.PosixPath.chmod(pathlib.PosixPath('payload.txt'), 0o777)\n",
+            "Path.mutate",
+        ),
+        (
+            "unsafe_windows_class_alias.py",
+            "from pathlib import WindowsPath\nwriter = WindowsPath.write_text\nwriter(WindowsPath('payload.txt'), 'payload')\n",
+            "Path.method-alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_pathlib_link_and_chmod_mutations(tmp_path: Path) -> None:
     for filename, source_text, expected in (
         (
@@ -1816,6 +1849,10 @@ def test_import_guard_rejects_dunder_builtins_dynamic_imports(tmp_path: Path) ->
             "unsafe_builtins_subscript_import.py",
             "__builtins__['__import__']('redis')\n",
         ),
+        (
+            "unsafe_builtins_getattr_import.py",
+            "getattr(__builtins__, '__import__')('redis')\n",
+        ),
     ):
         source = tmp_path / filename
         source.write_text(source_text, encoding="utf-8")
@@ -1823,6 +1860,44 @@ def test_import_guard_rejects_dunder_builtins_dynamic_imports(tmp_path: Path) ->
         with pytest.raises(AssertionError, match="redis"):
             assert_no_forbidden_semantic_cache_imports(source)
         with pytest.raises(AssertionError, match="__dynamic_import__"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_dynamic_builtin_open_calls(tmp_path: Path) -> None:
+    for filename, source_text in (
+        (
+            "unsafe_builtins_subscript_open.py",
+            "__builtins__['open']('payload.txt', 'w')\n",
+        ),
+        (
+            "unsafe_builtins_getattr_open.py",
+            "getattr(__builtins__, 'open')('payload.txt', 'w')\n",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="open"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_path_returning_expr_writes(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_parent_mkdir.py",
+            "from pathlib import Path\nPath('out/payload.txt').parent.mkdir()\n",
+            "Path.mutate",
+        ),
+        (
+            "unsafe_cwd_joinpath_write.py",
+            "from pathlib import Path\nPath.cwd().joinpath('payload.txt').write_text('payload')\n",
+            "Path.write",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
             assert_no_forbidden_semantic_cache_calls(source)
 
 

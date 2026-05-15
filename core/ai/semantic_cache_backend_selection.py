@@ -512,10 +512,9 @@ class SemanticCacheBackendCandidate:
             object.__setattr__(
                 self,
                 "human_approval_record_id",
-                _validate_structured_proof_id(
+                _validate_human_approval_record_id(
                     "human_approval_record_id",
                     self.human_approval_record_id,
-                    prefixes=("approval:human:", "review:human:", "verification-bundle:approval:"),
                 ),
             )
         object.__setattr__(self, "metadata", _freeze_metadata(self.metadata))
@@ -1521,6 +1520,18 @@ def _validate_current_head_ci_proof_id(name: str, value: str) -> str:
     raise ValueError(f"{name} must use a current-head CI proof shape")
 
 
+def _validate_human_approval_record_id(name: str, value: str) -> str:
+    normalized = _validate_structured_proof_id(
+        name,
+        value,
+        prefixes=("approval:human:", "review:human:", "verification-bundle:approval:"),
+    )
+    parts = tuple(normalized.split(":"))
+    if not any(_is_pr_proof_segment(part) or _is_review_proof_segment(part) for part in parts):
+        raise ValueError(f"{name} must use a human approval proof shape")
+    return normalized
+
+
 def _ci_proof_parts_have_valid_shape(parts: tuple[str, ...]) -> bool:
     if len(parts) < 4 or parts[0] != "ci":
         return False
@@ -1589,10 +1600,12 @@ def _is_pr_proof_segment(value: str) -> bool:
     return value.startswith("pr-") and value.removeprefix("pr-").isdigit()
 
 
+def _is_review_proof_segment(value: str) -> bool:
+    return value.startswith("review-") and value.removeprefix("review-").isdigit()
+
+
 def _has_structured_proof_suffix(parts: tuple[str, ...]) -> bool:
-    return any(
-        part.startswith("run-") and any(char.isalnum() for char in part[4:]) for part in parts
-    )
+    return any(part.startswith("run-") and part.removeprefix("run-").isdigit() for part in parts)
 
 
 def _ci_proof_suffix_has_unsafe_runtime_scope(parts: tuple[str, ...]) -> bool:

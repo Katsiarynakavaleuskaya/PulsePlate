@@ -178,6 +178,7 @@ PATH_MUTATION_METHODS = frozenset(
         "unlink",
     }
 )
+PATH_EFFECT_METHODS = PATH_MUTATION_METHODS | {"open", "write_bytes", "write_text"}
 
 
 def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
@@ -414,6 +415,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             )
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
+            if _is_open_effect_ref(node.func, import_aliases):
+                offenders.append(call_name or "open")
             if isinstance(node.func, ast.NamedExpr):
                 if _is_open_effect_ref(node.func.value, import_aliases):
                     offenders.append("open.alias")
@@ -565,14 +568,32 @@ def _dynamic_import_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
 
 
 def _is_builtin_import_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    return _is_builtin_ref(node, import_aliases, "__import__")
+
+
+def _is_builtin_ref(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    attr_name: str,
+) -> bool:
     name = _qualified_call_name(node, import_aliases)
-    if name in {"__import__", "builtins.__import__", "__builtins__.__import__"}:
+    if name in {attr_name, f"builtins.{attr_name}", f"__builtins__.{attr_name}"}:
         return True
-    return (
+    if (
         isinstance(node, ast.Subscript)
-        and _qualified_call_name(node.value, import_aliases) == "__builtins__"
-        and _constant_subscript_key(node) == "__import__"
-    )
+        and _qualified_call_name(node.value, import_aliases) in {"__builtins__", "builtins"}
+        and _constant_subscript_key(node) == attr_name
+    ):
+        return True
+    if (
+        isinstance(node, ast.Call)
+        and _qualified_call_name(node.func, import_aliases) == "getattr"
+        and len(node.args) >= 2
+        and _qualified_call_name(node.args[0], import_aliases) in {"__builtins__", "builtins"}
+        and _constant_string_argument_at(node, 1) == attr_name
+    ):
+        return True
+    return False
 
 
 def _is_import_module_call_from_dynamic_receiver(
@@ -718,7 +739,11 @@ def _is_path_write_call(
     if not isinstance(node, ast.Attribute):
         return False
     if node.attr in {"write_text", "write_bytes"}:
-        return _is_path_expr(node.value, import_aliases, path_aliases)
+        return _is_path_expr(node.value, import_aliases, path_aliases) or _is_path_class_method_ref(
+            node,
+            import_aliases,
+            {"write_text", "write_bytes"},
+        )
     if node.attr == "write" and _is_path_open_call(node.value, import_aliases, path_aliases):
         return True
     return False
@@ -733,7 +758,11 @@ def _is_path_mutation_call(
         return False
     if node.attr not in PATH_MUTATION_METHODS:
         return False
-    return _is_path_expr(node.value, import_aliases, path_aliases)
+    return _is_path_expr(node.value, import_aliases, path_aliases) or _is_path_class_method_ref(
+        node,
+        import_aliases,
+        PATH_MUTATION_METHODS,
+    )
 
 
 def _is_path_effect_method_ref(
@@ -743,6 +772,8 @@ def _is_path_effect_method_ref(
 ) -> bool:
     if not isinstance(node, ast.Attribute):
         return False
+    if _is_path_class_method_ref(node, import_aliases, PATH_EFFECT_METHODS):
+        return True
     if node.attr in {"write_text", "write_bytes", "open"}:
         return _is_path_expr(node.value, import_aliases, path_aliases)
     if node.attr in PATH_MUTATION_METHODS:
@@ -750,13 +781,23 @@ def _is_path_effect_method_ref(
     return False
 
 
+def _is_path_class_method_ref(
+    node: ast.Attribute,
+    import_aliases: dict[str, str],
+    method_names: frozenset[str] | set[str],
+) -> bool:
+    return (
+        node.attr in method_names
+        and _qualified_call_name(node.value, import_aliases) in PATH_CONSTRUCTOR_NAMES
+    )
+
+
 def _is_open_effect_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
-    return _qualified_call_name(node, import_aliases) in {
+    return _qualified_call_name(node, import_aliases) == "io.open" or _is_builtin_ref(
+        node,
+        import_aliases,
         "open",
-        "builtins.open",
-        "__builtins__.open",
-        "io.open",
-    }
+    )
 
 
 def _is_path_getattr_effect_call(
@@ -840,9 +881,20 @@ def _is_path_expr(
     if isinstance(node, ast.Call):
         if _is_path_constructor_call(node, import_aliases):
             return True
+        if (
+            isinstance(node.func, ast.Attribute)
+            and node.func.attr in {"cwd", "home"}
+            and _qualified_call_name(node.func.value, import_aliases) in PATH_CONSTRUCTOR_NAMES
+        ):
+            return True
         if isinstance(node.func, ast.Attribute) and node.func.attr == "joinpath":
             return _is_path_expr(node.func.value, import_aliases, path_aliases)
         return False
+    if isinstance(node, ast.Attribute):
+        if node.attr == "parent":
+            return _is_path_expr(node.value, import_aliases, path_aliases)
+        if node.attr == "parents":
+            return _is_path_expr(node.value, import_aliases, path_aliases)
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
         return _is_path_expr(node.left, import_aliases, path_aliases)
     if isinstance(node, ast.Subscript):
@@ -885,7 +937,7 @@ def _is_path_open_class_call(
         return False
     if not isinstance(node.func, ast.Attribute) or node.func.attr != "open":
         return False
-    if _qualified_call_name(node.func, import_aliases) not in {"Path.open", "pathlib.Path.open"}:
+    if not _is_path_class_method_ref(node.func, import_aliases, {"open"}):
         return False
     if not node.args:
         return True
