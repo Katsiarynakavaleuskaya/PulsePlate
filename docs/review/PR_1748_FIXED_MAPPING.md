@@ -493,6 +493,9 @@ Evidence: `scripts/ci/run_main_test_shards.py` now cancels submitted in-flight s
 - `../../.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/run_main_test_shards.py` - PASS after fail-fast cancellation fix
 - `git diff --check` - PASS after fail-fast cancellation fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "fix(ci): cancel main shards after first failure"` - PASS hooks
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after fail-fast cancellation fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after fail-fast cancellation fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "docs(review): map fail-fast shard reviews"` - PASS hooks
 
 ## Current-Head CI
 
