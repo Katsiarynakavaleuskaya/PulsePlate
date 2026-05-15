@@ -5,7 +5,7 @@ from collections.abc import Callable
 import re
 from pathlib import Path
 import sys
-from typing import Protocol
+from typing import Any, Protocol, cast
 
 PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
 EVIDENCE_ANCHOR_RE = re.compile(
@@ -68,34 +68,46 @@ class SemanticCacheBackendSelectionSchemaValidator(Protocol):
     def __call__(self, *, schema_text: str, contract_text: str) -> list[str]: ...
 
 
+def _as_semantic_cache_gate_validator(validator: Any) -> SemanticCacheGateValidator:
+    return cast(SemanticCacheGateValidator, validator)
+
+
+def _as_semantic_cache_backend_selection_schema_validator(
+    validator: Any,
+) -> SemanticCacheBackendSelectionSchemaValidator:
+    return cast(SemanticCacheBackendSelectionSchemaValidator, validator)
+
+
 def _load_semantic_cache_gate_validator() -> SemanticCacheGateValidator:
-    return _validate_semantic_cache_gate
+    return _as_semantic_cache_gate_validator(_validate_semantic_cache_gate)
 
 
 def _load_semantic_cache_rollout_contract_validator() -> SemanticCacheGateValidator:
-    return _validate_rollout_contract
+    return _as_semantic_cache_gate_validator(_validate_rollout_contract)
 
 
 def _load_exact_fuzzy_scaffold_validator() -> SemanticCacheGateValidator:
-    return _validate_exact_fuzzy_scaffold_contract
+    return _as_semantic_cache_gate_validator(_validate_exact_fuzzy_scaffold_contract)
 
 
 def _load_semantic_cache_observability_validator() -> SemanticCacheGateValidator:
-    return _validate_observability_contract
+    return _as_semantic_cache_gate_validator(_validate_observability_contract)
 
 
 def _load_semantic_cache_bounded_insight_validator() -> SemanticCacheGateValidator:
-    return _validate_bounded_insight_contract
+    return _as_semantic_cache_gate_validator(_validate_bounded_insight_contract)
 
 
 def _load_semantic_cache_backend_selection_validator() -> SemanticCacheGateValidator:
-    return _validate_backend_selection_contract
+    return _as_semantic_cache_gate_validator(_validate_backend_selection_contract)
 
 
 def _load_semantic_cache_backend_selection_schema_validator() -> (
     SemanticCacheBackendSelectionSchemaValidator
 ):
-    return _validate_backend_selection_schema
+    return _as_semantic_cache_backend_selection_schema_validator(
+        _validate_backend_selection_schema,
+    )
 
 
 def _read_text(relpath: str) -> str:
