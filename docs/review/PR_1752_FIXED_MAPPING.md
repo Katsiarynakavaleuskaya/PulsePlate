@@ -37,7 +37,7 @@
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting API-key fields, password fields, Slack webhook URLs, PGP private key blocks, repeated and punctuation separators in sensitive key names, redacting sensitive field names and secret-shaped ancestor paths in diagnostics, rejecting duplicate sensitive booleans outside canonical paths, rejecting duplicate JSON keys before policy validation, rejecting separator/camelCase authority drift and duplicate `allowed_commit_context` drift inside and outside `authority_boundary`, rejecting private signing-key aliases with descriptor tokens, rejecting duplicate Git attribution, cryptographic, notification, and Slack identity boundary blocks across naming styles and prefix/suffix variants, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
+Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting API-key fields, password fields, Slack webhook URLs, PGP private key blocks, repeated and punctuation separators in sensitive key names, redacting sensitive field names and secret-shaped ancestor paths in diagnostics, rejecting duplicate sensitive booleans outside canonical paths, rejecting duplicate JSON keys before policy validation, rejecting separator/camelCase authority drift and duplicate `allowed_commit_context` drift inside and outside `authority_boundary`, rejecting compact authority aliases inside `authority_boundary`, rejecting private signing-key aliases with descriptor tokens, rejecting duplicate Git attribution, cryptographic, notification, and Slack identity boundary blocks across naming styles and prefix/suffix variants, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806268 -> 0aec2bf28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806276 -> 4f431c553
@@ -81,6 +81,7 @@ Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247909972 -> c1826f6da
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247909978 -> c1826f6da
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247909983 -> fbd542f77
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3248180081 -> 764da91f3
 
 ## Role-Agent Findings
 
@@ -142,6 +143,14 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `bandit -q scripts/orchestration/check_experiment_runner_identity.py` PASS.
 - `pre-commit run --all-files` PASS.
 - `make validate-changed` PASS.
+- `pytest -q tests/test_experiment_runner_identity_policy.py` PASS after `764da91f3`.
+- `scripts/orchestration/check_experiment_runner_identity.py --json` PASS after `764da91f3`.
+- `black --check` on changed Python files PASS after `764da91f3`.
+- `flake8` on identity guard/tests PASS after `764da91f3`.
+- `mypy --explicit-package-bases` on identity guard/tests PASS after `764da91f3`.
+- `bandit -q scripts/orchestration/check_experiment_runner_identity.py` PASS after `764da91f3`.
+- `make validate-changed` PASS after `764da91f3`.
+- `pre-commit run --all-files` PASS after `764da91f3`.
 - Pre-push hooks PASS: mypy, pip-audit, backend tests, full bandit, docker-build-test hook.
 - `python3 scripts/ci/check_pr_body_phase2_gates.py --body "$(gh pr view 1752 --json body -q .body)" --pr-number 1752` PASS after live PR body mirror update.
 
