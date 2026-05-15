@@ -372,9 +372,13 @@ Evidence: Latest connector meta-guard findings were fixed in code/tests: walrus-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248379347 -> a5ae48252
 
 Disposition: FIXED
-Commit: f58c75f4e, 0d0dc5647
+Commit: f58c75f4e
 Evidence: Current-head Codex connector threads were fixed in code/tests: digest-like fingerprint fields now allow safe hex digests such as `sha256:db12345` while rejecting `sha256:dbv1`; dynamic builtins `open` calls and concrete pathlib class-method writes were already blocked by the final security guard fix. Focused pytest, mypy, and `pre-commit run --all-files` passed before mapping; final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/f58c75f4e_20260515T134615Z/report.md`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248467545 -> f58c75f4e
+
+Disposition: FIXED
+Commit: 0d0dc5647
+Evidence: Follow-up hardening for current-head Codex findings around digest-like aliases and safe fingerprint filtering was applied in 0d0dc5647; previous mapping remains valid for the same finding set.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248467557 -> 0d0dc5647
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248467563 -> 0d0dc5647
 
@@ -387,8 +391,8 @@ Evidence: Current-head Codex guard/checker threads were fixed in code/tests: Pat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672388 -> 37c0d29a5
 
 Disposition: FIXED
-Commit: c31bef254, 0569f5e93
-Evidence: Current-head CI import-guard failure was fixed in code: `scripts/ci/check_docs_phase1_gates.py` no longer uses `importlib.util` dynamic loading and instead imports the repo-local semantic-cache validators directly. The follow-up pre-push mypy hook failure was fixed by typing those direct validator loaders without restoring dynamic imports. Focused scaffold guard pytest, docs Phase1 gate, semantic-cache gate, focused regression bundle, narrow mypy, `make validate-changed`, pre-push mypy reproduction, and `pre-commit run --all-files` passed before this mapping update; latest Codex Security scan after the current-head `origin/main` sync is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/b5a67395a_20260515T151739Z/report.md`.
+Commit: c31bef254
+Evidence: Current-head CI import-guard failure was fixed in code: `scripts/ci/check_docs_phase1_gates.py` no longer uses `importlib.util` dynamic loading and instead imports the repo-local semantic-cache validators directly. The follow-up pre-push mypy hook failure was fixed by typing those direct validator loaders without restoring dynamic imports. Focused scaffold guard pytest, docs Phase1 gate, semantic-cache gate, focused regression bundle, narrow mypy, `make validate-changed`, pre-push mypy reproduction, and `pre-commit run --all-files` passed before this mapping update; latest Codex Security scan after the current-head `origin/main` sync is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/b5a67395a_20260515T151739Z/report.md`. The follow-up typing fix is in `0569f5e93`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013255 -> c31bef254
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013351 -> c31bef254
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013391 -> c31bef254
@@ -409,6 +413,13 @@ Evidence: Dual-base path mutation was removed from `scripts/ci/check_docs_phase1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4301057040 -> fbc294814
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4301099373 -> fbc294814
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3250709560 -> fbc294814
+
+Disposition: FIXED
+Commit: e85a368f3
+Evidence: Canonical matrix hashing now recomputes the final decision via the deterministic selector, and docs Phase1 validation now reports missing companion contract/schema files as validation errors instead of aborting with `FileNotFoundError`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3251108986 -> e85a368f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3251108990 -> e85a368f3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4301518129 -> e85a368f3
 
 ## Post-Open Agent Review Fixes
 
