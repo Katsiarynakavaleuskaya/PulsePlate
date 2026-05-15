@@ -25,6 +25,7 @@
   - `eeabbca59` - detected camelCase authority drift fields.
   - `fb03b0caf` - rejected password fields, Slack webhook URLs, and duplicate JSON keys before identity policy validation.
   - `fbd542f77` - detected private signing-key aliases with descriptors between private and key tokens.
+  - `c1826f6da` - normalized the fixed-mapping disposition block for strict parser compatibility.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -77,6 +78,9 @@ Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247757095 -> fb03b0caf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247757106 -> fb03b0caf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247757115 -> fb03b0caf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247909972 -> c1826f6da
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247909978 -> c1826f6da
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247909983 -> fbd542f77
 
 ## Role-Agent Findings
 
@@ -130,6 +134,8 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `make validate-changed` PASS after `fbd542f77`.
 - `mypy --explicit-package-bases scripts/orchestration/check_experiment_runner_identity.py tests/test_experiment_runner_identity_policy.py` PASS after `fbd542f77`.
 - `bandit -q scripts/orchestration/check_experiment_runner_identity.py` PASS after `fbd542f77`.
+- `python3 scripts/orchestration/review_mapping_artifact.py docs/review/PR_1752_FIXED_MAPPING.md` PASS after `c1826f6da`.
+- `pre-commit run --all-files` PASS after `c1826f6da`.
 - `black --check` on changed Python files PASS.
 - `flake8` on identity guard/tests PASS.
 - `mypy --explicit-package-bases` on identity guard/tests PASS.
