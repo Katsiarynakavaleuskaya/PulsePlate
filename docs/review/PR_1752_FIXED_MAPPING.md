@@ -26,6 +26,10 @@
   - `fb03b0caf` - rejected password fields, Slack webhook URLs, and duplicate JSON keys before identity policy validation.
   - `fbd542f77` - detected private signing-key aliases with descriptors between private and key tokens.
   - `c1826f6da` - normalized the fixed-mapping disposition block for strict parser compatibility.
+  - `764da91f3` - rejected compact authority aliases inside the canonical authority boundary.
+  - `8e58d133` - mapped compact authority alias fixes after Cubic review.
+  - `3e7c37439` - rejected camelCase private-key descriptor fields and access-key credential fields.
+  - `6bb69c320` - mapped credential alias findings and documented current-head reachability evidence.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
