@@ -211,9 +211,11 @@ def _run_git(
 ) -> subprocess.CompletedProcess[str]:
     """Run git with an absolute binary and stable text capture."""
 
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     process = subprocess.run(  # nosec B603: absolute git binary with bounded argv is required for isolated checkouts (remove-by: 2026-07-31, ref: PR-1082)
         [_resolve_git_binary(), *args],
         cwd=str(cwd),
+        env=git_env,
         capture_output=True,
         text=True,
         check=False,
@@ -223,6 +225,22 @@ def _run_git(
         stderr = process.stderr.strip() or process.stdout.strip() or "unknown git failure"
         raise InfraFlakeError(f"git {' '.join(args)} failed: {stderr}")
     return process
+
+
+def _absolute_path_env(raw_path: str | None) -> str:
+    """Return PATH entries as absolute paths for subprocess cwd isolation."""
+
+    if not raw_path:
+        return ""
+    absolute_entries: list[str] = []
+    for entry in raw_path.split(os.pathsep):
+        if not entry:
+            continue
+        candidate = Path(entry).expanduser()
+        if not candidate.is_absolute():
+            candidate = candidate.resolve()
+        absolute_entries.append(str(candidate))
+    return os.pathsep.join(absolute_entries)
 
 
 def _shared_tree_status(root: Path) -> str:
@@ -246,6 +264,7 @@ def _temporary_sandbox_env(
         sandbox.SANDBOX_TIMEOUT_ENV: str(timeout_seconds),
         sandbox.SANDBOX_ALLOWED_BINARIES_ENV: ",".join(allowed_binaries),
         cp.EXECUTION_MODE_ENV: cp.EXECUTION_MODE_AUTO_SAFE,
+        "PATH": _absolute_path_env(os.environ.get("PATH") or os.defpath),
     }
     previous = {key: os.environ.get(key) for key in overrides}
     try:

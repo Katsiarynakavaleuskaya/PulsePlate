@@ -1,0 +1,392 @@
+#!/usr/bin/env python3
+"""Validate the governed Experiment Runner non-human identity policy."""
+
+from __future__ import annotations
+
+import argparse
+from email.utils import parseaddr
+import json
+from pathlib import Path
+import re
+import sys
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_POLICY_PATH = (
+    REPO_ROOT / "docs" / "orchestration" / "GOVERNED_NON_HUMAN_IDENTITY_POLICY.json"
+)
+EXPECTED_SCHEMA_VERSION = "1.0"
+EXPECTED_IDENTITY_SLUG = "experiment-runner"
+EXPECTED_DISPLAY_NAME = "PulsePlate Experiment Runner"
+EXPECTED_EMAIL = "pulseplate@pm.me"
+FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
+ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
+SENSITIVE_FIELD_RE = re.compile(
+    r"(access[\s_-]*key|api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|password|secret|token|credential|signing[\s_-]*key)",
+    re.IGNORECASE,
+)
+SENSITIVE_POLICY_KEY_TOKENS = frozenset(
+    {
+        "access_key",
+        "access_key_id",
+        "api_key",
+        "credential",
+        "pass_phrase",
+        "password",
+        "private_key",
+        "secret",
+        "signing_key",
+        "token",
+    }
+)
+SENSITIVE_VALUE_RE = re.compile(
+    r"(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,}|https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,})",
+    re.IGNORECASE,
+)
+AUTHORITY_FIELD_NAMES = frozenset(
+    {
+        "merge_rights",
+        "can_claim_merge_readiness",
+        "can_resolve_review_threads",
+        "can_push_without_human_review",
+        "allowed_commit_context",
+    }
+)
+AUTHORITY_FIELD_COMPACT_NAMES = frozenset(name.replace("_", "") for name in AUTHORITY_FIELD_NAMES)
+CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
+    {
+        "$.cryptographic_boundary.commit_signing_required_for_autonomous_production_commits",
+        "$.cryptographic_boundary.private_key_material_allowed_in_repo",
+        "$.cryptographic_boundary.repo_must_not_generate_private_keys",
+        "$.cryptographic_boundary.repo_must_not_store_signing_secrets",
+        "$.slack_identity.requires_bot_token_secret_boundary",
+    }
+)
+CANONICAL_BOUNDARY_KEYS = frozenset(
+    {
+        "authority_boundary",
+        "cryptographic_boundary",
+        "git_attribution",
+        "notification_boundary",
+        "slack_identity",
+    }
+)
+
+
+class IdentityPolicyError(ValueError):
+    """Raised when the Experiment Runner identity policy is unsafe."""
+
+
+def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: set[str] = set()
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise IdentityPolicyError("Experiment Runner identity policy has duplicate JSON keys.")
+        seen.add(key)
+        payload[key] = value
+    return payload
+
+
+def _read_policy(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise IdentityPolicyError("Unable to read Experiment Runner identity policy.") from exc
+    if not isinstance(payload, dict):
+        raise IdentityPolicyError("Experiment Runner identity policy must be a JSON object.")
+    return payload
+
+
+def _require_mapping(payload: dict[str, Any], key: str) -> dict[str, Any]:
+    value = payload.get(key)
+    if not isinstance(value, dict):
+        raise IdentityPolicyError(f"{key} must be a JSON object.")
+    return value
+
+
+def _require_bool(mapping: dict[str, Any], key: str, expected: bool) -> None:
+    if mapping.get(key) is not expected:
+        raise IdentityPolicyError(f"{key} must be {str(expected).lower()}.")
+
+
+def _normalized_email(raw_email: Any) -> str:
+    if not isinstance(raw_email, str):
+        raise IdentityPolicyError("git_attribution.email must be a string.")
+    display_name, email = parseaddr(raw_email)
+    if display_name or email != raw_email or not email:
+        raise IdentityPolicyError("git_attribution.email must be a bare email address.")
+    if email.lower() != email:
+        raise IdentityPolicyError("git_attribution.email must be lowercase.")
+    if email in FORBIDDEN_EMAILS or email.endswith("@example.com"):
+        raise IdentityPolicyError("Experiment Runner attribution must not use placeholder email.")
+    return email
+
+
+def _path_for_key(path: str, key: Any) -> str:
+    if not isinstance(key, str):
+        return f"{path}.<non-string-key>"
+    if SENSITIVE_VALUE_RE.search(key) or ("." in key and _is_sensitive_policy_key(key)):
+        return f"{path}.<redacted-key>"
+    return f"{path}.{key}"
+
+
+def _normalized_policy_key(key: Any) -> str:
+    camel_split = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(key))
+    return re.sub(r"[^a-z0-9]+", "_", camel_split.lower()).strip("_")
+
+
+def _compact_policy_key(key: Any) -> str:
+    return _normalized_policy_key(key).replace("_", "")
+
+
+def _is_sensitive_policy_key(key: Any) -> bool:
+    normalized = _normalized_policy_key(key)
+    normalized_tokens = frozenset(token for token in normalized.split("_") if token)
+    has_pk_tokens = "private" in normalized_tokens and "key" in normalized_tokens
+    return (
+        SENSITIVE_FIELD_RE.search(str(key)) is not None
+        or any(token in normalized for token in SENSITIVE_POLICY_KEY_TOKENS)
+        or has_pk_tokens
+    )
+
+
+def _diagnostic_path(path: str, key: Any) -> str:
+    if not isinstance(key, str):
+        return f"{path}.<non-string-key>"
+    if SENSITIVE_VALUE_RE.search(key) or _is_sensitive_policy_key(key):
+        return f"{path}.<redacted-key>"
+    return f"{path}.{key}"
+
+
+def _redact_diagnostic_path(path: str) -> str:
+    parts = path.split(".")
+    redacted_parts = [
+        (
+            "<redacted-key>"
+            if SENSITIVE_VALUE_RE.search(part) or _is_sensitive_policy_key(part)
+            else part
+        )
+        for part in parts
+    ]
+    return ".".join(redacted_parts)
+
+
+def _reject_private_key_material(payload: Any, *, path: str = "$") -> None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            next_path = _path_for_key(path, key)
+            if isinstance(key, str) and SENSITIVE_VALUE_RE.search(key):
+                raise IdentityPolicyError(
+                    f"{_diagnostic_path(path, key)} must not store private key material "
+                    "or secrets."
+                )
+            if _is_sensitive_policy_key(key):
+                allowed_marker = isinstance(value, str) and value in {"none", "external"}
+                allowed_canonical_bool = (
+                    next_path in CANONICAL_SENSITIVE_BOOLEAN_PATHS and isinstance(value, bool)
+                )
+                if not allowed_canonical_bool and not allowed_marker:
+                    raise IdentityPolicyError(
+                        f"{_diagnostic_path(path, key)} must not store private key "
+                        "material or secrets."
+                    )
+            _reject_private_key_material(value, path=next_path)
+        return
+    if isinstance(payload, list):
+        for index, item in enumerate(payload):
+            _reject_private_key_material(item, path=f"{path}[{index}]")
+        return
+    if isinstance(payload, str) and SENSITIVE_VALUE_RE.search(payload):
+        raise IdentityPolicyError(f"{path} must not store private key material or secrets.")
+
+
+def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            next_path = _path_for_key(path, key)
+            normalized_key = _normalized_policy_key(key)
+            compact_key = _compact_policy_key(key)
+            is_authority_field = (
+                normalized_key in AUTHORITY_FIELD_NAMES
+                or compact_key in AUTHORITY_FIELD_COMPACT_NAMES
+            )
+            if (
+                path == "$.authority_boundary"
+                and is_authority_field
+                and str(key) not in AUTHORITY_FIELD_NAMES
+            ):
+                raise IdentityPolicyError(
+                    f"{_redact_diagnostic_path(next_path)} must not duplicate "
+                    "Experiment Runner authority."
+                )
+            if (
+                path != "$.authority_boundary"
+                and is_authority_field
+                and value is not False
+                and value != "none"
+            ):
+                raise IdentityPolicyError(
+                    f"{_redact_diagnostic_path(next_path)} must not grant Experiment "
+                    "Runner authority."
+                )
+            _reject_authority_drift(value, path=next_path)
+        return
+    if isinstance(payload, list):
+        for index, item in enumerate(payload):
+            _reject_authority_drift(item, path=f"{path}[{index}]")
+
+
+def _reject_duplicate_boundary_blocks(payload: Any, *, path: str = "$") -> None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            next_path = _path_for_key(path, key)
+            compact_key = _compact_policy_key(key)
+            duplicate_boundary = next(
+                (
+                    boundary_key
+                    for boundary_key in CANONICAL_BOUNDARY_KEYS
+                    if _compact_policy_key(boundary_key) in compact_key
+                ),
+                None,
+            )
+            if duplicate_boundary is not None and next_path != f"$.{duplicate_boundary}":
+                raise IdentityPolicyError(
+                    f"{_redact_diagnostic_path(next_path)} must not duplicate "
+                    f"{duplicate_boundary} boundary."
+                )
+            _reject_duplicate_boundary_blocks(value, path=next_path)
+        return
+    if isinstance(payload, list):
+        for index, item in enumerate(payload):
+            _reject_duplicate_boundary_blocks(item, path=f"{path}[{index}]")
+
+
+def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
+    """Return a validated identity policy or raise IdentityPolicyError."""
+
+    _reject_duplicate_boundary_blocks(payload)
+    _reject_authority_drift(payload)
+    if payload.get("schema_version") != EXPECTED_SCHEMA_VERSION:
+        raise IdentityPolicyError("schema_version must be 1.0.")
+    if payload.get("identity_slug") != EXPECTED_IDENTITY_SLUG:
+        raise IdentityPolicyError("identity_slug must be experiment-runner.")
+    if payload.get("display_name") != EXPECTED_DISPLAY_NAME:
+        raise IdentityPolicyError("display_name must be PulsePlate Experiment Runner.")
+
+    git_attribution = _require_mapping(payload, "git_attribution")
+    if git_attribution.get("name") != EXPECTED_DISPLAY_NAME:
+        raise IdentityPolicyError("git_attribution.name must match display_name.")
+    if _normalized_email(git_attribution.get("email")) != EXPECTED_EMAIL:
+        raise IdentityPolicyError("git_attribution.email must be pulseplate@pm.me.")
+    if git_attribution.get("purpose") != "public_attribution_only":
+        raise IdentityPolicyError("git_attribution.purpose must be public_attribution_only.")
+    forbidden = git_attribution.get("forbidden_placeholder_emails")
+    if not isinstance(forbidden, list) or not all(isinstance(entry, str) for entry in forbidden):
+        raise IdentityPolicyError("forbidden_placeholder_emails must be a list of email strings.")
+    if not FORBIDDEN_EMAILS.issubset(set(forbidden)):
+        raise IdentityPolicyError("forbidden_placeholder_emails must include runner@example.com.")
+
+    authority_boundary = _require_mapping(payload, "authority_boundary")
+    if authority_boundary.get("merge_rights") != "none":
+        raise IdentityPolicyError("authority_boundary.merge_rights must be none.")
+    _require_bool(authority_boundary, "can_claim_merge_readiness", False)
+    _require_bool(authority_boundary, "can_resolve_review_threads", False)
+    _require_bool(authority_boundary, "can_push_without_human_review", False)
+    if authority_boundary.get("allowed_commit_context") != "repo_local_pr_lane_only":
+        raise IdentityPolicyError(
+            "authority_boundary.allowed_commit_context must be repo_local_pr_lane_only."
+        )
+
+    cryptographic_boundary = _require_mapping(payload, "cryptographic_boundary")
+    if cryptographic_boundary.get("status") != "operator_managed_external":
+        raise IdentityPolicyError(
+            "cryptographic_boundary.status must be operator_managed_external."
+        )
+    _require_bool(cryptographic_boundary, "verified_account_required", True)
+    _require_bool(
+        cryptographic_boundary,
+        "commit_signing_required_for_autonomous_production_commits",
+        True,
+    )
+    _require_bool(cryptographic_boundary, "private_key_material_allowed_in_repo", False)
+    _require_bool(cryptographic_boundary, "repo_must_not_generate_private_keys", True)
+    _require_bool(cryptographic_boundary, "repo_must_not_store_signing_secrets", True)
+    methods = cryptographic_boundary.get("allowed_signing_methods")
+    if not isinstance(methods, list) or not all(isinstance(method, str) for method in methods):
+        raise IdentityPolicyError(
+            "allowed_signing_methods must be a list of signing method strings."
+        )
+    if set(methods) != ALLOWED_SIGNING_METHODS:
+        raise IdentityPolicyError("allowed_signing_methods must be ssh, gpg, and GitHub App.")
+
+    notification_boundary = _require_mapping(payload, "notification_boundary")
+    _require_bool(notification_boundary, "git_email_is_delivery_channel", False)
+    if (
+        notification_boundary.get("experiment_result_delivery")
+        != "experiment_notify_explicit_sink_only"
+    ):
+        raise IdentityPolicyError(
+            "notification_boundary.experiment_result_delivery must be "
+            "experiment_notify_explicit_sink_only."
+        )
+    if notification_boundary.get("default_sink") != "local_artifact":
+        raise IdentityPolicyError("notification_boundary.default_sink must be local_artifact.")
+    if notification_boundary.get("v1_email_recipient") != EXPECTED_EMAIL:
+        raise IdentityPolicyError(
+            "notification_boundary.v1_email_recipient must be pulseplate@pm.me."
+        )
+
+    slack_identity = _require_mapping(payload, "slack_identity")
+    if slack_identity.get("status") != "deferred":
+        raise IdentityPolicyError("slack_identity.status must remain deferred in this policy PR.")
+    if slack_identity.get("purpose") != "ops_notification_display_identity_only":
+        raise IdentityPolicyError(
+            "slack_identity.purpose must be ops_notification_display_identity_only."
+        )
+    _require_bool(slack_identity, "not_cryptographic_identity", True)
+    _require_bool(slack_identity, "requires_separate_security_pr", True)
+    _require_bool(slack_identity, "requires_bot_token_secret_boundary", True)
+    _require_bool(slack_identity, "requires_channel_allowlist", True)
+    _require_bool(slack_identity, "requires_audit_artifact", True)
+
+    _reject_private_key_material(payload)
+    return payload
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--policy", default=str(DEFAULT_POLICY_PATH), help="Policy JSON path.")
+    parser.add_argument("--json", action="store_true", help="Emit machine-readable status.")
+    args = parser.parse_args(argv)
+
+    try:
+        policy = validate_identity_policy(_read_policy(Path(args.policy)))
+    except IdentityPolicyError as exc:
+        if args.json:
+            print(json.dumps({"status": "fail", "error": str(exc)}, sort_keys=True))
+        else:
+            print(f"FAIL: {exc}", file=sys.stderr)
+        return 1
+
+    result = {
+        "status": "pass",
+        "identity_slug": policy["identity_slug"],
+        "git_email": policy["git_attribution"]["email"],
+        "slack_identity": policy["slack_identity"]["status"],
+    }
+    if args.json:
+        print(json.dumps(result, sort_keys=True))
+    else:
+        print(
+            "PASS: Experiment Runner identity policy is governed, "
+            "attribution-only, and externally signed."
+        )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
