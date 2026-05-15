@@ -355,6 +355,14 @@ Evidence: Fresh connector findings were fixed in code/tests: valid current-head 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248217168 -> b18fd9eed
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248217174 -> b18fd9eed
 
+Disposition: FIXED
+Commit: 41f37fc73
+Evidence: Latest connector findings were fixed in code/tests: decision IDs must exactly match the SC-G5 prefix plus 24-hex suffix, `__builtins__.open` is blocked, concrete `pathlib.PosixPath`/`WindowsPath` constructors are treated as path constructors, and pathlib link/chmod mutation methods are blocked including method aliases. Focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248339585 -> 41f37fc73
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248339592 -> 41f37fc73
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248339598 -> 41f37fc73
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248339602 -> 41f37fc73
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -380,6 +388,7 @@ Evidence: Fresh connector findings were fixed in code/tests: valid current-head 
 | Codex Security final scan after alias guard fix. | CLEAN | `9fa9419ba` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md` reports no surviving findings. |
 | Current-head CodeRabbit wave: public type guards, anchored machine-state extraction, shared schema loader, tuple-unpacked effect aliases, chained dynamic import effects, cache-baseline churn, and coverage-evidence wording. | FIXED | `6bdc47c50`, `620ad2939` | Fix commits and URL mapping are listed in Fixed in Commit Mapping; targeted pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and `pre-commit run --all-files` passed before mapping. |
 | Current-head connector wave: db-prefixed SHA false positive, destructured dynamic-import aliases, and Path container writes. | FIXED | `b18fd9eed` | Runtime-safe SHA validation and import/path guards now cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
+| Final connector wave: extra decision-id segments, dunder builtins open, concrete pathlib constructors, and pathlib link/chmod mutations. | FIXED | `41f37fc73` | Decision-ID shape and semantic-cache import guard regressions cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
 
 ## Bot Review Tracking
 
@@ -410,6 +419,7 @@ Evidence: Fresh connector findings were fixed in code/tests: valid current-head 
 - Latest alias/GPTCache guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `9fa9419ba`.
 - Current-head CodeRabbit fix wave focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6bdc47c50`; coverage-evidence artifact correction passed pre-commit before `620ad2939`.
 - Current-head connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `b18fd9eed`.
+- Final connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `41f37fc73`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
