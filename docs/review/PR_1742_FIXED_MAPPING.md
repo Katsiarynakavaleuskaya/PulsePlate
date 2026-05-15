@@ -378,6 +378,14 @@ Evidence: Current-head Codex connector threads were fixed in code/tests: digest-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248467557 -> 0d0dc5647
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248467563 -> 0d0dc5647
 
+Disposition: FIXED
+Commit: 37c0d29a5
+Evidence: Current-head Codex guard/checker threads were fixed in code/tests: Path-returning method chains are treated as Path expressions before write detection, builtins dynamic import aliases and callable defaults fail closed, and SC-G5 contract-only docs Phase1 edits also run schema validation. Focused pytest, docs Phase1, narrow mypy, `make validate-changed`, and `pre-commit run --all-files` passed before mapping; final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/37c0d29a5_20260515T140812Z/report.md`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672369 -> 37c0d29a5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672374 -> 37c0d29a5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672385 -> 37c0d29a5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672388 -> 37c0d29a5
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -407,6 +415,7 @@ Evidence: Current-head Codex connector threads were fixed in code/tests: digest-
 | Meta connector wave: walrus-bound effect calls, callable-default aliases, attribute-bound aliases, and dunder-builtins dynamic imports. | FIXED | `a5ae48252` | Semantic-cache import guard regressions cover the reported cases; focused pytest, semantic-cache/docs gates, mypy, `make validate-changed`, and pre-commit passed before mapping. |
 | Final QA/security/bug-hunter pass: aliased pathlib class effects, dynamic builtins import/open, Path-returning write expressions, weak `run-fake` CI proofs, and placeholder human approval IDs still had bypasses. | FIXED | `0d0dc5647` | Semantic-cache import guard and SC-G5 proof validation now reject the reported bypasses; focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and pre-commit passed before mapping. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/0d0dc5647_20260515T133237Z/report.md`. |
 | Current-head Codex connector threads: `db`-prefixed digest fingerprints, dynamic builtins open, and concrete pathlib class-method writes. | FIXED | `f58c75f4e`, `0d0dc5647` | URL mapping is listed in Fixed in Commit Mapping; safe digest fingerprints are scoped to fingerprint fields, and the import guard regressions cover builtins/pathlib bypasses. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/f58c75f4e_20260515T134615Z/report.md`. |
+| Current-head Codex guard/checker threads: Path-returning method chains, builtins dynamic import aliases/defaults, and contract-only schema drift. | FIXED | `37c0d29a5` | URL mapping is listed in Fixed in Commit Mapping; guard/checker regressions cover the reported cases. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/37c0d29a5_20260515T140812Z/report.md`. |
 
 ## Bot Review Tracking
 
@@ -415,7 +424,7 @@ Evidence: Current-head Codex connector threads were fixed in code/tests: digest-
 | CodeRabbit | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Sourcery | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Cubic | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `f58c75f4e` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/f58c75f4e_20260515T134615Z/report.md`. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `37c0d29a5` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/37c0d29a5_20260515T140812Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -441,6 +450,7 @@ Evidence: Current-head Codex connector threads were fixed in code/tests: digest-
 - Meta connector guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `a5ae48252`.
 - Final QA/security/bug-hunter guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0d0dc5647`.
 - Current-head digest fingerprint fix focused pytest, narrow mypy, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `f58c75f4e`.
+- Current-head guard/checker fix focused pytest, docs Phase1 gate, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `37c0d29a5`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
