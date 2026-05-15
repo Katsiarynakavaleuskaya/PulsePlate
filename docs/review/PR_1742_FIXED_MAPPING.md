@@ -393,6 +393,16 @@ Evidence: Current-head CI import-guard failure was fixed in code: `scripts/ci/ch
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013351 -> c31bef254
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013391 -> c31bef254
 
+Disposition: FIXED
+Commit: 6726eaed5
+Evidence: The final unresolved current-head guard bypass threads were fixed in code/tests: annotated concrete pathlib aliases, annotated Path containers, attribute-bound dynamic import refs, annotated attribute import aliases, class-level pathlib `getattr` effects, and `os.__dict__` / `vars(os)` effect lookups now fail closed. Focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248799457 -> 6726eaed5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248799464 -> 6726eaed5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248799473 -> 6726eaed5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248799484 -> 6726eaed5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248799491 -> 6726eaed5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3249212426 -> 6726eaed5
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
