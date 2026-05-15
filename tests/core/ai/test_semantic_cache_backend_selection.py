@@ -1308,6 +1308,7 @@ def test_import_guard_tracks_path_constructor_aliases(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_path_constructor_alias.py"
     source.write_text(
         "from pathlib import Path\n"
+        "from pathlib import PosixPath\n"
         "P = Path\n"
         "P('payload.txt').write_text('payload')\n"
         "AnnotatedPath: object = Path\n"
@@ -1317,6 +1318,17 @@ def test_import_guard_tracks_path_constructor_aliases(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="Path.write"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+    concrete_source = tmp_path / "unsafe_annotated_concrete_path_alias.py"
+    concrete_source.write_text(
+        "from pathlib import PosixPath\n"
+        "P: object = PosixPath\n"
+        "P('payload.txt').write_text('payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(concrete_source)
 
 
 def test_import_guard_tracks_destructured_path_constructor_aliases(tmp_path: Path) -> None:
@@ -1696,6 +1708,19 @@ def test_import_guard_rejects_path_objects_from_containers(tmp_path: Path) -> No
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_annotated_path_containers(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_annotated_path_container.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "paths: object = [Path('payload.txt')]\n"
+        "paths[0].write_text('payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_concrete_pathlib_constructors(tmp_path: Path) -> None:
     for filename, source_text in (
         (
@@ -1848,6 +1873,35 @@ def test_import_guard_rejects_attribute_bound_effect_aliases(tmp_path: Path) -> 
             assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_attribute_bound_dynamic_import_refs(tmp_path: Path) -> None:
+    for filename, source_text in (
+        (
+            "unsafe_attr_import.py",
+            "class C: pass\nC.loader = __import__\nC.loader('redis')\n",
+        ),
+        (
+            "unsafe_attr_builtins_import.py",
+            "class C: pass\nC.loader = __builtins__['__import__']\nC.loader('redis')\n",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="__dynamic_import__"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_annotated_attribute_dynamic_import_refs(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_annotated_attr_import.py"
+    source.write_text(
+        "class C: pass\n" "C.loader: object = __import__\n" "C.loader('redis')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="__dynamic_import__"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_dunder_builtins_dynamic_imports(tmp_path: Path) -> None:
     for filename, source_text in (
         (
@@ -1916,6 +1970,44 @@ def test_import_guard_rejects_path_returning_expr_writes(tmp_path: Path) -> None
             "unsafe_with_name_write.py",
             "from pathlib import Path\nPath('payload.txt').with_name('other.txt').write_text('payload')\n",
             "Path.write",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_class_level_pathlib_getattr_effects(tmp_path: Path) -> None:
+    for filename, source_text in (
+        (
+            "unsafe_path_class_getattr.py",
+            "from pathlib import Path\ngetattr(Path, 'write_text')(Path('payload.txt'), 'payload')\n",
+        ),
+        (
+            "unsafe_posix_class_getattr.py",
+            "from pathlib import PosixPath\ngetattr(PosixPath, 'chmod')(PosixPath('payload.txt'), 0o777)\n",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="Path.getattr"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_os_dict_effect_lookups(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_os_dunder_dict_system.py",
+            "import os\nos.__dict__['system']('/usr/bin/curl https://example.invalid')\n",
+            "os.system",
+        ),
+        (
+            "unsafe_vars_os_getenv.py",
+            "import os\nvars(os)['getenv']('REDIS_URL')\n",
+            "os.getenv",
         ),
     ):
         source = tmp_path / filename
