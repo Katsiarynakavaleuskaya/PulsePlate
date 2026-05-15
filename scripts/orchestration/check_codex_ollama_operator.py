@@ -22,6 +22,7 @@ from urllib.request import HTTPRedirectHandler, build_opener
 
 MIN_OLLAMA_CODEX_CLI_VERSION = (0, 15, 0)
 MIN_OLLAMA_CODEX_APP_VERSION = (0, 24, 0)
+MIN_OLLAMA_OPENAI_RESPONSES_VERSION = (0, 13, 3)
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 LOCAL_OLLAMA_HOSTS = {"localhost", "127.0.0.1", "::1"}
 VERSION_RE = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
@@ -123,11 +124,12 @@ def _check_ollama_version(binary: str | None) -> tuple[CheckResult, CheckResult]
         )
     returncode, output = _run_version(binary, ["--version"])
     version = _parse_ollama_binary_version(output)
-    if returncode != 0 and version is None:
+    if returncode != 0:
+        version_detail = f" Parsed version: {_format_version(version)}." if version else ""
         failed = CheckResult(
             name="ollama-codex-cli-version",
             ok=False,
-            detail=f"`ollama --version` failed: {output or 'no output'}",
+            detail=f"`ollama --version` failed: {output or 'no output'}.{version_detail}",
             fix="Update Ollama and confirm `ollama --version` works.",
         )
         return (
@@ -193,10 +195,14 @@ def _check_ollama_version(binary: str | None) -> tuple[CheckResult, CheckResult]
 
 
 def _normalize_ollama_root_url(raw_url: str) -> tuple[bool, str, str]:
-    parsed = urlparse(raw_url)
+    try:
+        parsed = urlparse(raw_url)
+        hostname = parsed.hostname
+    except ValueError as exc:
+        return False, "", f"Malformed Ollama URL: {exc}"
     if parsed.scheme not in {"http", "https"}:
         return False, "", "Ollama URL must use http or https."
-    if parsed.hostname not in LOCAL_OLLAMA_HOSTS:
+    if hostname not in LOCAL_OLLAMA_HOSTS:
         return False, "", "Ollama URL must be localhost, 127.0.0.1, or ::1 for this doctor."
     if parsed.query or parsed.fragment:
         return False, "", "Ollama URL must not include query strings or fragments."
@@ -219,6 +225,22 @@ class _NoRedirectHandler(HTTPRedirectHandler):
 def _open_no_redirect(url: str, timeout_s: float) -> ContextManager[Any]:
     opener = build_opener(_NoRedirectHandler)
     return cast(ContextManager[Any], opener.open(url, timeout=timeout_s))
+
+
+def _read_ollama_server_version(response: Any) -> tuple[int, int, int] | None:
+    raw_body = response.read()
+    if isinstance(raw_body, bytes):
+        raw_text = raw_body.decode("utf-8", errors="replace")
+    else:
+        raw_text = str(raw_body)
+    try:
+        payload = json.loads(raw_text)
+    except json.JSONDecodeError:
+        return None
+    version = payload.get("version")
+    if not isinstance(version, str):
+        return None
+    return _parse_version(version)
 
 
 def _positive_timeout(raw_value: str) -> float:
@@ -246,6 +268,7 @@ def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
             version_url, timeout_s
         ) as response:  # nosec B310: URL is validated as localhost http(s) immediately before use (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
             status = getattr(response, "status", 200)
+            server_version = _read_ollama_server_version(response)
     except HTTPError as exc:
         if 300 <= exc.code < 400:
             return CheckResult(
@@ -274,10 +297,28 @@ def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
             detail=f"{version_url} returned HTTP {status}.",
             fix="Confirm Ollama is healthy on localhost:11434.",
         )
+    if server_version is None:
+        return CheckResult(
+            name="ollama-local-server",
+            ok=False,
+            detail=f"{version_url} returned HTTP 200 but no parseable server version.",
+            fix="Confirm this is an Ollama server and rerun the doctor.",
+        )
+    if server_version < MIN_OLLAMA_OPENAI_RESPONSES_VERSION:
+        return CheckResult(
+            name="ollama-local-server",
+            ok=False,
+            detail=(
+                f"{version_url} returned Ollama server {_format_version(server_version)}; "
+                "Codex profiles need OpenAI Responses API support "
+                f"({_format_version(MIN_OLLAMA_OPENAI_RESPONSES_VERSION)}+)."
+            ),
+            fix="Upgrade or restart Ollama so the running server is v0.13.3+ before using Codex profiles.",
+        )
     return CheckResult(
         name="ollama-local-server",
         ok=True,
-        detail=f"{version_url} returned HTTP 200.",
+        detail=f"{version_url} returned Ollama server {_format_version(server_version)}.",
         fix="",
     )
 

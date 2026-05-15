@@ -110,6 +110,8 @@ The doctor is read-only: it checks local `ollama`, local `codex`, and the
 localhost Ollama server, then prints next steps. It never writes
 `~/.codex/config.toml`, shell profiles, Cursor config, MCP config, or repo
 runtime files.
+For profile-based Codex use, the running Ollama server also needs OpenAI
+Responses API support; the doctor gates that at Ollama server v0.13.3+.
 
 Current operator paths:
 

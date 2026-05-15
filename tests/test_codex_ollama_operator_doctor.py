@@ -77,6 +77,23 @@ def test_cli_ready_version_can_still_require_codex_app_upgrade(
     assert "0.24.0+" in app_result.detail
 
 
+def test_nonzero_ollama_version_fails_even_with_parseable_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        doctor,
+        "_run_version",
+        lambda binary, args: (1, "ollama version is 0.24.0"),
+    )
+
+    cli_result, app_result = doctor._check_ollama_version("/usr/bin/ollama")
+
+    assert cli_result.ok is False
+    assert app_result.ok is False
+    assert "`ollama --version` failed" in cli_result.detail
+    assert "Parsed version: 0.24.0" in cli_result.detail
+
+
 def test_missing_binaries_are_actionable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(doctor.shutil, "which", lambda name: None)
 
@@ -106,6 +123,13 @@ def test_rejects_unexpected_ollama_url_path() -> None:
     assert "server root" in result.detail
 
 
+def test_malformed_ollama_url_returns_check_failure() -> None:
+    result = doctor._check_ollama_server("http://[::1", timeout_s=0.01)
+
+    assert result.ok is False
+    assert "Malformed Ollama URL" in result.detail
+
+
 def test_unavailable_local_ollama_server_reports_serve_fix(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -129,6 +153,9 @@ def test_successful_server_check_uses_local_version_endpoint(
     class _Response:
         status = 200
 
+        def read(self) -> bytes:
+            return b'{"version":"0.13.3"}'
+
         def __enter__(self) -> "_Response":
             return self
 
@@ -146,6 +173,54 @@ def test_successful_server_check_uses_local_version_endpoint(
 
     assert result.ok is True
     assert observed == {"url": "http://127.0.0.1:11434/api/version", "timeout": 0.5}
+    assert "0.13.3" in result.detail
+
+
+def test_stale_running_ollama_server_fails_profile_gate(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Response:
+        status = 200
+
+        def read(self) -> bytes:
+            return b'{"version":"0.12.0"}'
+
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(doctor, "_open_no_redirect", lambda url, timeout_s: _Response())
+
+    result = doctor._check_ollama_server("http://localhost:11434", timeout_s=0.5)
+
+    assert result.ok is False
+    assert "0.12.0" in result.detail
+    assert "0.13.3+" in result.detail
+
+
+def test_unparseable_ollama_server_version_fails_closed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Response:
+        status = 200
+
+        def read(self) -> bytes:
+            return b"not json"
+
+        def __enter__(self) -> "_Response":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+    monkeypatch.setattr(doctor, "_open_no_redirect", lambda url, timeout_s: _Response())
+
+    result = doctor._check_ollama_server("http://localhost:11434", timeout_s=0.5)
+
+    assert result.ok is False
+    assert "no parseable server version" in result.detail
 
 
 def test_http_error_reports_status_instead_of_unreachable(
