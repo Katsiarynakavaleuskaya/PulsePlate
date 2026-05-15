@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -11,6 +12,7 @@ import tempfile
 import pytest
 
 from app.security.execution_sandbox import SandboxResult
+import scripts.orchestration.context_pack as context_pack
 import scripts.orchestration.experiment_contract as experiment_contract
 import scripts.orchestration.experiment_runner as experiment_runner
 
@@ -19,9 +21,13 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
     git_binary = shutil.which("git")
     if not git_binary:
         raise AssertionError("git binary is required for experiment runner tests.")
+    if git_binary.endswith("/usr/libexec/git-core/git"):
+        git_binary = "/usr/bin/git"
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
     return subprocess.run(
         [git_binary, *args],
         cwd=str(repo),
+        env=env,
         capture_output=True,
         text=True,
         check=True,
@@ -42,8 +48,8 @@ def _init_repo(tmp_path: Path) -> Path:
     )
 
     _git(tmp_path, "init", "--quiet", str(repo))
-    _git(repo, "config", "user.email", "runner@example.com")
-    _git(repo, "config", "user.name", "Experiment Runner")
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Experiment Runner")
     _git(repo, "add", ".")
     _git(repo, "commit", "--quiet", "-m", "init")
     return repo
@@ -93,9 +99,11 @@ def _configure_runner_repo(
     monkeypatch: pytest.MonkeyPatch,
     repo: Path,
 ) -> Path:
-    result_dir = repo / "artifacts" / "orchestration" / "experiments" / "results"
-    monkeypatch.setattr(experiment_contract, "REPO_ROOT", repo)
-    monkeypatch.setattr(experiment_runner, "REPO_ROOT", repo)
+    resolved_repo = repo.resolve()
+    result_dir = resolved_repo / "artifacts" / "orchestration" / "experiments" / "results"
+    monkeypatch.setattr(context_pack, "REPO_ROOT", resolved_repo)
+    monkeypatch.setattr(experiment_contract, "REPO_ROOT", resolved_repo)
+    monkeypatch.setattr(experiment_runner, "REPO_ROOT", resolved_repo)
     monkeypatch.setattr(experiment_runner, "RESULT_ARTIFACT_DIR", result_dir)
     return result_dir
 
@@ -104,6 +112,35 @@ def _validate_packet(packet: dict[str, object]) -> dict[str, object]:
     validated = experiment_contract.validate_experiment_packet(packet)
     assert validated["experiment_id"]
     return validated
+
+
+def test_absolute_path_env_resolves_relative_entries(tmp_path: Path) -> None:
+    relative_bin = tmp_path / "relative-bin"
+    relative_bin.mkdir()
+    raw_path = f"{relative_bin.relative_to(tmp_path)}{os.pathsep}/usr/bin"
+
+    original_cwd = Path.cwd()
+    try:
+        os.chdir(tmp_path)
+        normalized = experiment_runner._absolute_path_env(raw_path)
+    finally:
+        os.chdir(original_cwd)
+
+    entries = normalized.split(os.pathsep)
+    assert entries == [str(relative_bin.resolve()), "/usr/bin"]
+
+
+def test_absolute_path_env_uses_default_path_when_unset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("PATH", raising=False)
+
+    with experiment_runner._temporary_sandbox_env(
+        sandbox_root=Path.cwd(),
+        allowed_binaries=("python3",),
+        timeout_seconds=1,
+    ):
+        assert os.environ["PATH"] == experiment_runner._absolute_path_env(os.defpath)
 
 
 def test_validate_packet_rejects_wrong_schema_version() -> None:
@@ -185,6 +222,7 @@ def test_evaluate_candidate_accepts_allowlisted_patch(
             ),
         )
     )
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "parent-hook-index"))
 
     result = experiment_runner.evaluate_candidate(packet, patch_path)
 
