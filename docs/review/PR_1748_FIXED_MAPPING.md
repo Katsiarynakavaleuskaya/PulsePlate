@@ -149,6 +149,13 @@ This PR exceeds the default size threshold because the original Node24 path-filt
   - Evidence: `../../.venv/bin/python -m pytest -q --durations=50 --durations-min=0.2 tests/test_food_source_preference_recipe_mapping.py` passes with the file reduced to about `41s`.
   - Evidence: `../../.venv/bin/python -m pytest -q tests/test_food_source_preference_recipe_mapping.py tests/test_design_component_registry.py tests/test_ci_workflow_pr_size_governance_contract.py tests/test_main_test_shards.py` passes.
   - Evidence: `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` and `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` pass.
+- Current-head CI finding: FIXED by `7c2f694603ed47fe722f3f61164d10e6b27e233b`
+  - Finding: current-head run `25903699198` proved the remaining py312 failure is inside shard 13, not post-test cleanup. Shard 13 timed out after the pytest faulthandler 300-second threshold while compiling regexes in `re._compiler._compile`; cleanup and JUnit upload still ran.
+  - Evidence: job `76132793992` uploaded 15 py312 shard JUnit files, logged `MAIN_TEST_SHARDS_FAILED shards=[13]`, and the shard-13 plan includes `tests/test_food_source_preference_recipe_mapping.py`.
+  - Fix: `core/food_sources/preference_recipe_mapping.py` now precompiles forbidden-note and bounded approval regexes at module load instead of recompiling them for every note guard call.
+  - Regression guard: `tests/test_food_source_preference_recipe_mapping.py::test_preference_recipe_mapping_notes_guard_reuses_compiled_patterns` fails if `_require_safe_notes(...)` returns to per-note regex compilation.
+  - Evidence: `PYENV_VERSION=3.12.7 PYTEST_FAULTHANDLER_TIMEOUT_S=60 python -m pytest -q --durations=50 --durations-min=0.2 tests/test_food_source_preference_recipe_mapping.py` passes with slowest call below `0.3s`.
+  - Evidence: the full local py312 shard-13 file set passes with `PYENV_VERSION=3.12.7 PYTEST_FAULTHANDLER_TIMEOUT_S=120 python -m pytest -q --durations=25 --durations-min=1 ...`.
 
 ## Fixed in Commit Mapping
 
@@ -397,6 +404,11 @@ Disposition: FIXED
 Commit: 8274fc72b4199dfee198956cf969be645ccf7f8e
 Evidence: `scripts/ci/run_main_test_shards.py` now cancels submitted in-flight shard futures, terminates process-pool workers, and shuts the executor down with `cancel_futures=True` after the first nonzero shard result. `tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure` verifies the `MAIN_TEST_SHARD_CANCELLED ... reason=fail_fast` path, and `run_shard(...)` now starts shard subprocesses in a process group so worker termination can stop child pytest processes instead of waiting for the shard watchdog.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25903699198/job/76132793992 -> 7c2f694603ed47fe722f3f61164d10e6b27e233b
+Disposition: FIXED
+Commit: 7c2f694603ed47fe722f3f61164d10e6b27e233b
+Evidence: py312 shard 13 failed on the 300-second faulthandler threshold while compiling regexes in the preference note guard. The fix precompiles those regexes at module load and adds a no-dynamic-compile regression guard; local Python 3.12 food mapping file and full shard-13 file set both pass.
+
 ## Local Validation
 
 - `../../.venv/bin/python scripts/orchestration/check_preflight.py` - PASS
@@ -496,6 +508,13 @@ Evidence: `scripts/ci/run_main_test_shards.py` now cancels submitted in-flight s
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after fail-fast cancellation fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after fail-fast cancellation fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "docs(review): map fail-fast shard reviews"` - PASS hooks
+- `PYENV_VERSION=3.12.7 PYTEST_FAULTHANDLER_TIMEOUT_S=60 python -m pytest -q --durations=50 --durations-min=0.2 tests/test_food_source_preference_recipe_mapping.py` - PASS after precompiled note guard fix
+- `PYENV_VERSION=3.12.7 PYTEST_FAULTHANDLER_TIMEOUT_S=120 python -m pytest -q --durations=25 --durations-min=1 <py312 shard 13 file set>` - PASS after precompiled note guard fix
+- `../../.venv/bin/python -m pytest -q tests/test_food_source_preference_recipe_mapping.py tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure tests/test_main_test_shards.py::test_run_shard_invokes_explicit_child_interpreter` - PASS after precompiled note guard fix
+- `../../.venv/bin/python -m flake8 core/food_sources/preference_recipe_mapping.py tests/test_food_source_preference_recipe_mapping.py` - PASS after precompiled note guard fix
+- `../../.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/preference_recipe_mapping.py` - PASS after precompiled note guard fix
+- `git diff --check` - PASS after precompiled note guard fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "fix(food-data): precompile preference note guards"` - PASS hooks
 
 ## Current-Head CI
 
