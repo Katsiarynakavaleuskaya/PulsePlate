@@ -118,7 +118,7 @@ def _candidate(
     evidence: SemanticCacheBackendSafetyEvidence | None = None,
     rollback: SemanticCacheBackendRollbackProof | None = None,
     current_head_ci_passed: bool = True,
-    current_head_ci_proof_id: str | None = "ci:pr-1742:head-7035cff:run-25518898784",
+    current_head_ci_proof_id: str | None = "ci:pr-1742:head-d91b58100:run-25914493764",
     human_approval_record_id: str | None = "approval:human:pr-1742",
     latency_saved_p95_ms: int = 100,
     cost_saved_microunits: int = 10,
@@ -166,6 +166,7 @@ def _criteria() -> SemanticCacheBackendSelectionCriteria:
         min_negative_control_count=10,
         min_fresh_runtime_comparison_count=10,
         require_current_head_ci=True,
+        current_head_sha="d91b58100",
         require_human_approval=True,
         runtime_allowed=False,
         implementation_allowed=False,
@@ -325,6 +326,27 @@ def test_rollback_proof_must_match_candidate_backend_label() -> None:
     assert REASON_ROLLBACK_PROOF_MISSING in decision.reason_codes
 
 
+def test_rollback_proof_rejects_ambiguous_multi_backend_ids() -> None:
+    rollback = replace(
+        _rollback(backend_token="redis"),
+        proof_id="rollback:redis:gptcache:1",
+        kill_switch_proof_id="proof:kill-switch:redis:gptcache",
+        request_bypass_proof_id="proof:bypass:redis:gptcache",
+        no_cache_fallback_proof_id="proof:no-cache:redis:gptcache",
+        purge_invalidation_proof_id="proof:purge:redis:gptcache",
+        disabled_state_test_ids=("test:disabled:redis:gptcache",),
+        stop_rule_replay_ids=("replay:stop-rule:redis:gptcache",),
+        rollback_runbook_id="runbook:rollback:redis:gptcache",
+    )
+    decision = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(backend_label=BACKEND_LABEL_REDIS, rollback=rollback),
+        criteria=_criteria(),
+    )
+
+    assert decision.decision == DECISION_INELIGIBLE
+    assert REASON_ROLLBACK_PROOF_MISSING in decision.reason_codes
+
+
 def test_rollback_proof_requires_structured_machine_ids() -> None:
     for bad_rollback in (
         lambda: replace(_rollback(), proof_id="placeholder"),
@@ -348,6 +370,27 @@ def test_current_head_ci_requires_auditable_proof_id() -> None:
 
     assert decision.decision == DECISION_INELIGIBLE
     assert REASON_CURRENT_HEAD_CI_MISSING in decision.reason_codes
+
+
+def test_current_head_ci_proof_must_match_criteria_head_sha() -> None:
+    stale_proof = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            current_head_ci_passed=True,
+            current_head_ci_proof_id="ci:pr-1742:head-7035cff:run-25518898784",
+        ),
+        criteria=_criteria(),
+    )
+    current_proof = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            current_head_ci_passed=True,
+            current_head_ci_proof_id="ci:pr-1742:head-d91b58100:run-25914493764",
+        ),
+        criteria=_criteria(),
+    )
+
+    assert stale_proof.decision == DECISION_INELIGIBLE
+    assert REASON_CURRENT_HEAD_CI_MISSING in stale_proof.reason_codes
+    assert current_proof.decision == DECISION_ELIGIBLE
 
 
 def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
@@ -962,6 +1005,20 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_backend_version in ("fastapi", "openapi", "network", "file-write"):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_candidate(), backend_version=unsafe_backend_version)
+    safe_digest = replace(_evidence(), source_fingerprints=("sha256:abdb0000",))
+    assert safe_digest.source_fingerprints == ("sha256:abdb0000",)
+    for unsafe_candidate_id in ("candidate:fastapi", "candidate:openapi", "candidate:network"):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_candidate(), candidate_id=unsafe_candidate_id)
+    for unsafe_policy_version in (
+        "semantic-cache-fastapi-v1",
+        "semantic-cache-openapi-v1",
+        "semantic-cache-network-v1",
+    ):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_candidate(), policy_version=unsafe_policy_version)
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(_criteria(), policy_version=unsafe_policy_version)
     for unsafe_required_surface in ("fastapi", "openapi", "network"):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_criteria(), required_surface=unsafe_required_surface)
@@ -1057,6 +1114,33 @@ def test_import_guard_tracks_path_constructor_aliases(tmp_path: Path) -> None:
     )
 
     with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_tracks_destructured_path_constructor_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_destructured_path_alias.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "P, _ = Path, None\n"
+        "P('payload.txt').write_text('payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_dynamic_path_getattr_writes(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_path_getattr.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "getattr(Path('payload.txt'), 'write_text')('payload')\n"
+        "target = Path('payload.bin')\n"
+        "writer = getattr(target, 'write_bytes')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.getattr"):
         assert_no_forbidden_semantic_cache_calls(source)
 
 

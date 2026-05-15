@@ -60,14 +60,14 @@ Every backend label evaluation requires:
 - promotion IDs;
 - replay entry IDs;
 - evidence fingerprints;
-- current-head CI governance proof;
+- current-head CI governance proof bound to the evaluated head SHA;
 - human approval record before a future gate-open PR may act on the selection.
 
 Safety is a hard gate before ranking. Any false-hit, stale-answer,
 policy-mismatch, model-mismatch, context-leakage, admission-blocked, blocked
 surface, missing negative-control, missing fresh-runtime comparison, missing
-rollback, missing kill-switch, or missing current-head CI proof makes the
-candidate ineligible.
+rollback, missing kill-switch, missing current-head CI proof, or CI proof that
+does not bind the evaluated head SHA makes the candidate ineligible.
 
 ## Deterministic Ranking
 

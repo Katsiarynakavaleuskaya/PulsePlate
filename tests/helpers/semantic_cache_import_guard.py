@@ -235,15 +235,17 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         environ_aliases.add(target.id)
-            path_constructor_ref = _qualified_call_name(node.value, import_aliases)
-            if path_constructor_ref in {"Path", "pathlib.Path"}:
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        import_aliases[target.id] = path_constructor_ref
-            if _is_path_expr(node.value, import_aliases, path_aliases):
-                for target in node.targets:
-                    if isinstance(target, ast.Name):
-                        path_aliases.add(target.id)
+            _collect_path_constructor_aliases(
+                node.targets,
+                node.value,
+                import_aliases=import_aliases,
+            )
+            _collect_path_expr_aliases(
+                node.targets,
+                node.value,
+                import_aliases=import_aliases,
+                path_aliases=path_aliases,
+            )
         elif isinstance(node, ast.AnnAssign):
             if node.value is not None and _is_open_effect_ref(node.value, import_aliases):
                 offenders.append("open.alias")
@@ -293,6 +295,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append(call_name or "os.environ.alias.call")
             if _is_path_write_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.write")
+            if _is_path_getattr_effect_call(node.func, import_aliases, path_aliases):
+                offenders.append("Path.getattr")
             if _is_path_mutation_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.mutate")
             if _is_file_handle_write_call(node.func, file_handle_aliases):
@@ -301,6 +305,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append(call_name)
             if _is_path_open_write_mode_call(node, import_aliases, path_aliases):
                 offenders.append("Path.open.write-mode")
+            if _is_path_getattr_effect_call(node, import_aliases, path_aliases):
+                offenders.append("Path.getattr")
         elif isinstance(node, ast.Subscript):
             subscript_name = _qualified_call_name(node.value, import_aliases)
             if subscript_name == "os.environ" or subscript_name in environ_aliases:
@@ -354,6 +360,47 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
     return None
 
 
+def _target_names_for_value(target: ast.expr, value: ast.expr) -> tuple[tuple[str, ast.expr], ...]:
+    if isinstance(target, ast.Name):
+        return ((target.id, value),)
+    if (
+        isinstance(target, (ast.Tuple, ast.List))
+        and isinstance(value, (ast.Tuple, ast.List))
+        and len(target.elts) == len(value.elts)
+    ):
+        names: list[tuple[str, ast.expr]] = []
+        for target_item, value_item in zip(target.elts, value.elts, strict=True):
+            names.extend(_target_names_for_value(target_item, value_item))
+        return tuple(names)
+    return ()
+
+
+def _collect_path_constructor_aliases(
+    targets: list[ast.expr],
+    value: ast.expr,
+    *,
+    import_aliases: dict[str, str],
+) -> None:
+    for target in targets:
+        for target_name, target_value in _target_names_for_value(target, value):
+            path_constructor_ref = _qualified_call_name(target_value, import_aliases)
+            if path_constructor_ref in {"Path", "pathlib.Path"}:
+                import_aliases[target_name] = path_constructor_ref
+
+
+def _collect_path_expr_aliases(
+    targets: list[ast.expr],
+    value: ast.expr,
+    *,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> None:
+    for target in targets:
+        for target_name, target_value in _target_names_for_value(target, value):
+            if _is_path_expr(target_value, import_aliases, path_aliases):
+                path_aliases.add(target_name)
+
+
 def _is_path_constructor_call(node: ast.expr, import_aliases: dict[str, str]) -> bool:
     if not isinstance(node, ast.Call):
         return False
@@ -403,6 +450,35 @@ def _is_path_effect_method_ref(
 
 def _is_open_effect_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
     return _qualified_call_name(node, import_aliases) in {"open", "builtins.open", "io.open"}
+
+
+def _is_path_getattr_effect_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if not isinstance(node, ast.Call):
+        return False
+    if _qualified_call_name(node.func, import_aliases) != "getattr":
+        return False
+    if len(node.args) < 2:
+        return False
+    method_name = node.args[1]
+    if not isinstance(method_name, ast.Constant) or not isinstance(method_name.value, str):
+        return False
+    if method_name.value not in {
+        "mkdir",
+        "open",
+        "rename",
+        "replace",
+        "rmdir",
+        "touch",
+        "unlink",
+        "write_bytes",
+        "write_text",
+    }:
+        return False
+    return _is_path_expr(node.args[0], import_aliases, path_aliases)
 
 
 def _is_path_open_write_mode_call(

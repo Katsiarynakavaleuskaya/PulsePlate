@@ -202,24 +202,48 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
     r"|knowledge[_:-]?graph",
     re.IGNORECASE,
 )
-_UNSAFE_RUNTIME_SCOPE_RE = re.compile(
-    r"fastapi"
-    r"|openapi"
-    r"|db"
-    r"|database"
-    r"|migrations?"
-    r"|provider"
-    r"|network"
-    r"|file[_:-]?writes?"
-    r"|backend[_:-]?(?:adapter|client)s?"
-    r"|redis[_:-]?clients?"
-    r"|gptcache[_:-]?clients?"
-    r"|availability[_:-]?probes?"
-    r"|vector[_:-]?search"
-    r"|embeddings?"
-    r"|semantic[_:-]?similarity"
-    r"|dependency[_:-]?additions?",
-    re.IGNORECASE,
+_UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS = frozenset(
+    {
+        "backendadapter",
+        "backendclient",
+        "backendclients",
+        "database",
+        "db",
+        "dependencyaddition",
+        "dependencyadditions",
+        "embedding",
+        "embeddings",
+        "fastapi",
+        "filewrite",
+        "filewrites",
+        "migration",
+        "migrations",
+        "network",
+        "openapi",
+        "provider",
+        "redisclient",
+        "redisclients",
+        "semanticsimilarity",
+        "vectorsearch",
+    }
+)
+_UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES = (
+    ("availability", "probe"),
+    ("availability", "probes"),
+    ("backend", "adapter"),
+    ("backend", "adapters"),
+    ("backend", "client"),
+    ("backend", "clients"),
+    ("dependency", "addition"),
+    ("dependency", "additions"),
+    ("file", "write"),
+    ("file", "writes"),
+    ("gptcache", "client"),
+    ("gptcache", "clients"),
+    ("redis", "client"),
+    ("redis", "clients"),
+    ("semantic", "similarity"),
+    ("vector", "search"),
 )
 SC_G5_MIN_NEGATIVE_CONTROL_COUNT = 10
 SC_G5_MIN_FRESH_RUNTIME_COMPARISON_COUNT = 10
@@ -409,7 +433,11 @@ class SemanticCacheBackendCandidate:
     metadata: Mapping[str, JsonValue]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "candidate_id", _validate_token("candidate_id", self.candidate_id))
+        object.__setattr__(
+            self,
+            "candidate_id",
+            _validate_runtime_safe_token("candidate_id", self.candidate_id),
+        )
         object.__setattr__(self, "backend_label", _validate_backend_label(self.backend_label))
         object.__setattr__(
             self,
@@ -417,7 +445,9 @@ class SemanticCacheBackendCandidate:
             _validate_runtime_safe_evidence_id("backend_version", self.backend_version),
         )
         object.__setattr__(
-            self, "policy_version", _validate_token("policy_version", self.policy_version)
+            self,
+            "policy_version",
+            _validate_runtime_safe_token("policy_version", self.policy_version),
         )
         object.__setattr__(
             self,
@@ -481,13 +511,16 @@ class SemanticCacheBackendSelectionCriteria:
     min_negative_control_count: int
     min_fresh_runtime_comparison_count: int
     require_current_head_ci: bool
+    current_head_sha: str
     require_human_approval: bool
     runtime_allowed: bool
     implementation_allowed: bool
 
     def __post_init__(self) -> None:
         object.__setattr__(
-            self, "policy_version", _validate_token("policy_version", self.policy_version)
+            self,
+            "policy_version",
+            _validate_runtime_safe_token("policy_version", self.policy_version),
         )
         allowed = tuple(_validate_backend_label(label) for label in self.allowed_backend_labels)
         object.__setattr__(
@@ -519,6 +552,11 @@ class SemanticCacheBackendSelectionCriteria:
             "implementation_allowed",
         ):
             _validate_bool(name, getattr(self, name))
+        object.__setattr__(
+            self,
+            "current_head_sha",
+            _validate_git_sha("current_head_sha", self.current_head_sha),
+        )
         if self.runtime_allowed or self.implementation_allowed:
             raise ValueError("SC-G5 criteria must keep runtime and implementation disabled")
         if not self.require_current_head_ci or not self.require_human_approval:
@@ -567,13 +605,15 @@ class SemanticCacheBackendSelectionDecision:
         }:
             raise ValueError(f"unsupported decision: {self.decision!r}")
         object.__setattr__(
-            self, "policy_version", _validate_token("policy_version", self.policy_version)
+            self,
+            "policy_version",
+            _validate_runtime_safe_token("policy_version", self.policy_version),
         )
         if self.selected_candidate_id is not None:
             object.__setattr__(
                 self,
                 "selected_candidate_id",
-                _validate_token("selected_candidate_id", self.selected_candidate_id),
+                _validate_runtime_safe_token("selected_candidate_id", self.selected_candidate_id),
             )
         if self.selected_backend_label is not None:
             object.__setattr__(
@@ -583,7 +623,9 @@ class SemanticCacheBackendSelectionDecision:
             )
         if self.candidate_id is not None:
             object.__setattr__(
-                self, "candidate_id", _validate_token("candidate_id", self.candidate_id)
+                self,
+                "candidate_id",
+                _validate_runtime_safe_token("candidate_id", self.candidate_id),
             )
         if self.backend_label is not None:
             object.__setattr__(self, "backend_label", _validate_backend_label(self.backend_label))
@@ -595,7 +637,10 @@ class SemanticCacheBackendSelectionDecision:
         object.__setattr__(
             self,
             "rejected_candidate_ids",
-            _normalize_unique_tokens("rejected_candidate_ids", self.rejected_candidate_ids),
+            _normalize_unique_runtime_safe_tokens(
+                "rejected_candidate_ids",
+                self.rejected_candidate_ids,
+            ),
         )
         _validate_bool("runtime_allowed", self.runtime_allowed)
         _validate_bool("implementation_allowed", self.implementation_allowed)
@@ -619,7 +664,9 @@ class SemanticCacheBackendEvaluationMatrix:
     def __post_init__(self) -> None:
         object.__setattr__(self, "matrix_id", _validate_token("matrix_id", self.matrix_id))
         object.__setattr__(
-            self, "policy_version", _validate_token("policy_version", self.policy_version)
+            self,
+            "policy_version",
+            _validate_runtime_safe_token("policy_version", self.policy_version),
         )
         if not isinstance(self.criteria, SemanticCacheBackendSelectionCriteria):
             raise ValueError("criteria must be SemanticCacheBackendSelectionCriteria")
@@ -911,10 +958,16 @@ def _candidate_failure_reasons(
         reasons.append(REASON_ROLLBACK_PROOF_MISSING)
     if not _rollback_proof_matches_backend(rollback, candidate.backend_label):
         reasons.append(REASON_ROLLBACK_PROOF_MISSING)
-    if criteria.require_current_head_ci and (
-        not candidate.current_head_ci_passed or candidate.current_head_ci_proof_id is None
-    ):
-        reasons.append(REASON_CURRENT_HEAD_CI_MISSING)
+    if criteria.require_current_head_ci:
+        if (
+            not candidate.current_head_ci_passed
+            or candidate.current_head_ci_proof_id is None
+            or not _ci_proof_matches_current_head(
+                candidate.current_head_ci_proof_id,
+                criteria.current_head_sha,
+            )
+        ):
+            reasons.append(REASON_CURRENT_HEAD_CI_MISSING)
     if criteria.require_human_approval and candidate.human_approval_record_id is None:
         reasons.append(REASON_HUMAN_APPROVAL_MISSING)
     return _normalize_unique_tokens("reason_codes", tuple(dict.fromkeys(reasons)))
@@ -1053,6 +1106,7 @@ def _criteria_signature(criteria: SemanticCacheBackendSelectionCriteria) -> Mapp
             "min_fresh_runtime_comparison_count": criteria.min_fresh_runtime_comparison_count,
             "min_negative_control_count": criteria.min_negative_control_count,
             "policy_version": criteria.policy_version,
+            "current_head_sha": criteria.current_head_sha,
             "require_current_head_ci": criteria.require_current_head_ci,
             "require_human_approval": criteria.require_human_approval,
             "required_surface": criteria.required_surface,
@@ -1180,11 +1234,23 @@ def _validate_metadata_is_safe(value: JsonValue, *, path: str = "metadata") -> N
 def _validate_safe_metadata_string(name: str, value: str) -> None:
     if (
         _UNSAFE_METADATA_RE.search(value)
-        or _UNSAFE_RUNTIME_SCOPE_RE.search(value)
+        or _contains_unsafe_runtime_scope(value)
         or _PATH_RE.search(value)
         or _RELATIVE_PATH_RE.search(value)
     ):
         raise ValueError(f"{name} contains unsafe metadata")
+
+
+def _contains_unsafe_runtime_scope(value: str) -> bool:
+    tokens = tuple(token for token in re.split(r"[^a-z0-9]+", value.casefold()) if token)
+    if any(token in _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS for token in tokens):
+        return True
+    for sequence in _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES:
+        sequence_length = len(sequence)
+        for index in range(0, len(tokens) - sequence_length + 1):
+            if tokens[index : index + sequence_length] == sequence:
+                return True
+    return False
 
 
 def _normalize_required_unique_tokens(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
@@ -1199,6 +1265,21 @@ def _normalize_unique_tokens(name: str, values: tuple[str, ...] | list[str]) -> 
     seen: set[str] = set()
     for value in values:
         normalized = _validate_token(name, value)
+        if normalized in seen:
+            raise ValueError(f"{name} contains duplicate entries")
+        seen.add(normalized)
+        normalized_values.append(normalized)
+    return tuple(sorted(normalized_values))
+
+
+def _normalize_unique_runtime_safe_tokens(
+    name: str,
+    values: tuple[str, ...] | list[str],
+) -> tuple[str, ...]:
+    normalized_values: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = _validate_runtime_safe_token(name, value)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
         seen.add(normalized)
@@ -1282,16 +1363,25 @@ def _validate_token(name: str, value: str) -> str:
     return normalized
 
 
+def _validate_git_sha(name: str, value: str) -> str:
+    normalized = _validate_runtime_safe_token(name, value)
+    if len(normalized) < 7 or len(normalized) > 40:
+        raise ValueError(f"{name} must be a 7- to 40-character git SHA")
+    if any(char not in "0123456789abcdef" for char in normalized):
+        raise ValueError(f"{name} must be lowercase hex")
+    return normalized
+
+
 def _validate_runtime_safe_token(name: str, value: str) -> str:
     normalized = _validate_token(name, value)
-    if _UNSAFE_RUNTIME_SCOPE_RE.search(normalized):
+    if _contains_unsafe_runtime_scope(normalized):
         raise ValueError(f"{name} contains unsafe runtime scope")
     return normalized
 
 
 def _validate_runtime_safe_evidence_id(name: str, value: str) -> str:
     normalized = _validate_evidence_id(name, value)
-    if _UNSAFE_RUNTIME_SCOPE_RE.search(normalized):
+    if _contains_unsafe_runtime_scope(normalized):
         raise ValueError(f"{name} contains unsafe runtime scope")
     return normalized
 
@@ -1310,7 +1400,7 @@ def _validate_structured_proof_id(
     prefixes: tuple[str, ...],
 ) -> str:
     normalized = _validate_evidence_id(name, value)
-    if _UNSAFE_RUNTIME_SCOPE_RE.search(normalized):
+    if _contains_unsafe_runtime_scope(normalized):
         raise ValueError(f"{name} contains unsafe runtime scope")
     matching_prefix = next((prefix for prefix in prefixes if normalized.startswith(prefix)), None)
     if matching_prefix is None:
@@ -1338,6 +1428,20 @@ def _backend_rollback_token(backend_label: str) -> str:
     raise ValueError(f"unsupported backend_label: {backend_label!r}")
 
 
+def _backend_tokens_in_proof_id(proof_id: str) -> frozenset[str]:
+    proof_tokens = frozenset(proof_id.split(":"))
+    backend_tokens = {
+        _backend_rollback_token(label)
+        for label in ALLOWED_BACKEND_LABELS
+        if _backend_rollback_token(label) in proof_tokens
+    }
+    return frozenset(backend_tokens)
+
+
+def _ci_proof_matches_current_head(proof_id: str, current_head_sha: str) -> bool:
+    return f":head-{current_head_sha}:" in proof_id
+
+
 def _rollback_proof_matches_backend(
     rollback: SemanticCacheBackendRollbackProof,
     backend_label: str,
@@ -1353,7 +1457,7 @@ def _rollback_proof_matches_backend(
         *rollback.disabled_state_test_ids,
         *rollback.stop_rule_replay_ids,
     )
-    return all(backend_token in proof_id.split(":") for proof_id in proof_ids)
+    return all(_backend_tokens_in_proof_id(proof_id) == {backend_token} for proof_id in proof_ids)
 
 
 def _validate_bps(name: str, value: int) -> None:

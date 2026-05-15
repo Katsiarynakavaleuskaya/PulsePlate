@@ -223,11 +223,13 @@ jobs:
           echo "Using docs Phase1 base ref: ${BASE_REF}"
           CHANGED_MD=()
           CHANGED_DOCS=()
+          PHASE1_CHANGED_FILES=()
           LINT_MD=()
           while IFS= read -r -d '' path; do
             CHANGED_MD+=("$path")
             if [[ "$path" == docs/* ]]; then
               CHANGED_DOCS+=("$path")
+              PHASE1_CHANGED_FILES+=("$path")
             fi
             # Exclude AGENTS.md, review mapping artifacts, BACKLOG_LEDGER,
             # and external/generated files from markdownlint.
@@ -239,8 +241,13 @@ jobs:
             fi
           done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- '*.md')
 
-          if [ "${#CHANGED_MD[@]}" -eq 0 ]; then
-            echo "No changed markdown files; skipping docs Phase1 gates."
+          while IFS= read -r -d '' path; do
+            PHASE1_CHANGED_FILES+=("$path")
+          done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- \
+            'docs/orchestration/contracts/*.schema.json')
+
+          if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ]; then
+            echo "No changed markdown or Phase1 schema files; skipping docs Phase1 gates."
             exit 0
           fi
 
@@ -248,12 +255,15 @@ jobs:
           printf '%s\n' "${CHANGED_MD[@]}"
 
           if [ "${#CHANGED_DOCS[@]}" -eq 0 ]; then
-            echo "No changed docs markdown files under docs/; skipping docs Phase1 gates."
+            echo "No changed docs markdown files under docs/."
           else
             printf "Changed markdown files under docs/ (Phase1 scope):\n"
             printf '%s\n' "${CHANGED_DOCS[@]}"
-            python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"
           fi
+
+          printf "Docs Phase1 gate targets:\n"
+          printf '%s\n' "${PHASE1_CHANGED_FILES[@]}"
+          python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"
 
           if [ "${#LINT_MD[@]}" -eq 0 ]; then
             echo "No markdown files eligible for markdownlint after AGENTS.md exclusion."
