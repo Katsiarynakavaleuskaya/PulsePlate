@@ -1731,6 +1731,101 @@ def test_import_guard_rejects_pathlib_link_and_chmod_mutations(tmp_path: Path) -
             assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_walrus_bound_effect_calls(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_walrus_open.py",
+            "(writer := open)('payload.txt', 'w')\n",
+            "open.alias",
+        ),
+        (
+            "unsafe_walrus_os.py",
+            "import os\n(launcher := os.system)('/usr/bin/curl https://example.invalid')\n",
+            "os.system",
+        ),
+        (
+            "unsafe_walrus_path.py",
+            "from pathlib import Path\n(writer := Path('payload.txt').write_text)('payload')\n",
+            "Path.method-alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_effect_aliases_in_callable_defaults(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_default_open.py",
+            "def write(writer=open):\n    writer('payload.txt', 'w')\n",
+            "open.alias",
+        ),
+        (
+            "unsafe_default_path.py",
+            "from pathlib import Path\ndef write(writer=Path('payload.txt').write_text):\n    writer('payload')\n",
+            "Path.method-alias",
+        ),
+        (
+            "unsafe_default_os.py",
+            "import os\ndef launch(launcher=os.system):\n    launcher('/usr/bin/curl https://example.invalid')\n",
+            "os.system.alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_attribute_bound_effect_aliases(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_attr_open.py",
+            "class C: pass\nC.writer = open\nC.writer('payload.txt', 'w')\n",
+            "open.alias",
+        ),
+        (
+            "unsafe_attr_os.py",
+            "import os\nclass C: pass\nC.launcher = os.system\nC.launcher('/usr/bin/curl https://example.invalid')\n",
+            "os.system.alias",
+        ),
+        (
+            "unsafe_attr_path.py",
+            "from pathlib import Path\nclass C: pass\nC.writer = Path('payload.txt').write_text\nC.writer('payload')\n",
+            "Path.method-alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_dunder_builtins_dynamic_imports(tmp_path: Path) -> None:
+    for filename, source_text in (
+        (
+            "unsafe_builtins_attr_import.py",
+            "__builtins__.__import__('redis')\n",
+        ),
+        (
+            "unsafe_builtins_subscript_import.py",
+            "__builtins__['__import__']('redis')\n",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="redis"):
+            assert_no_forbidden_semantic_cache_imports(source)
+        with pytest.raises(AssertionError, match="__dynamic_import__"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_getattr_os_effect_aliases(tmp_path: Path) -> None:
     for filename, source_text, expected in (
         (

@@ -205,11 +205,7 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
                     alias_ref = _qualified_call_name(target_value, import_aliases)
                     if alias_ref in {"__import__", "importlib.import_module"}:
                         import_aliases[target_name] = alias_ref
-        elif (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Name)
-            and node.func.id == "__import__"
-        ):
+        elif isinstance(node, ast.Call) and _is_builtin_import_ref(node.func, import_aliases):
             name = _constant_string_argument(node)
             if name is not None:
                 imports.append(name)
@@ -313,6 +309,17 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                         or effect_ref == "os.getenv"
                     ):
                         import_aliases[target_name] = effect_ref
+                if isinstance(target, ast.Attribute):
+                    if _is_open_effect_ref(node.value, import_aliases):
+                        offenders.append("open.alias")
+                    if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
+                        offenders.append("Path.method-alias")
+                    effect_ref = _qualified_call_name(node.value, import_aliases)
+                    if _is_os_effect_ref(effect_ref):
+                        offenders.append(f"{effect_ref}.alias")
+                    dynamic_import = _dynamic_import_name(node.value, import_aliases)
+                    if dynamic_import is not None:
+                        offenders.append("__dynamic_import__")
             _collect_path_constructor_aliases(
                 node.targets,
                 node.value,
@@ -383,6 +390,21 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 and _is_path_expr(node.value, import_aliases, path_aliases)
             ):
                 path_aliases.add(node.target.id)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            for default in _callable_defaults(node):
+                if _is_open_effect_ref(default, import_aliases):
+                    offenders.append("open.alias")
+                if _is_path_effect_method_ref(default, import_aliases, path_aliases):
+                    offenders.append("Path.method-alias")
+                effect_ref = _qualified_call_name(default, import_aliases)
+                if _is_os_effect_ref(effect_ref):
+                    offenders.append(f"{effect_ref}.alias")
+                os_getattr_ref = _os_getattr_effect_name(default, import_aliases)
+                if os_getattr_ref is not None:
+                    offenders.append(f"{os_getattr_ref}.alias")
+                dynamic_import = _dynamic_import_name(default, import_aliases)
+                if dynamic_import is not None:
+                    offenders.append("__dynamic_import__")
         elif isinstance(node, ast.With):
             _collect_path_open_context_aliases(
                 node,
@@ -392,7 +414,18 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             )
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
-            if call_name in {"__import__", "importlib.import_module"}:
+            if isinstance(node.func, ast.NamedExpr):
+                if _is_open_effect_ref(node.func.value, import_aliases):
+                    offenders.append("open.alias")
+                if _is_path_effect_method_ref(node.func.value, import_aliases, path_aliases):
+                    offenders.append("Path.method-alias")
+                effect_ref = _qualified_call_name(node.func.value, import_aliases)
+                if effect_ref is not None and _is_os_effect_ref(effect_ref):
+                    offenders.append(effect_ref)
+            if call_name in {"__import__", "importlib.import_module"} or _is_builtin_import_ref(
+                node.func,
+                import_aliases,
+            ):
                 offenders.append("__dynamic_import__")
             if call_name == "__dynamic_import__" or (
                 call_name is not None and call_name.startswith("__dynamic_import__.")
@@ -504,26 +537,42 @@ def _is_os_environ_value_ref(
 def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
     if isinstance(node, ast.Name):
         return import_aliases.get(node.id, node.id)
+    if isinstance(node, ast.NamedExpr):
+        return _qualified_call_name(node.value, import_aliases)
     if isinstance(node, ast.Attribute):
         owner = _qualified_call_name(node.value, import_aliases)
         if owner is None and isinstance(node.value, ast.Call):
             owner = _dynamic_import_name(node.value, import_aliases)
         if owner is None:
             return None
-        return f"{owner}.{node.attr}"
+        qualified = f"{owner}.{node.attr}"
+        if qualified in {"builtins.__import__", "__builtins__.__import__"}:
+            return "__import__"
+        return qualified
     return None
 
 
 def _dynamic_import_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
     if not isinstance(node, ast.Call):
         return None
+    if _is_builtin_import_ref(node.func, import_aliases):
+        return _constant_string_argument(node) or "__dynamic_import__"
     if _is_import_module_call_from_dynamic_receiver(node, import_aliases):
         return "__dynamic_import__"
-    if _qualified_call_name(node.func, import_aliases) == "__import__":
-        return _constant_string_argument(node) or "__dynamic_import__"
     if _qualified_call_name(node.func, import_aliases) == "importlib.import_module":
         return _constant_string_argument(node) or "__dynamic_import__"
     return None
+
+
+def _is_builtin_import_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    name = _qualified_call_name(node, import_aliases)
+    if name in {"__import__", "builtins.__import__", "__builtins__.__import__"}:
+        return True
+    return (
+        isinstance(node, ast.Subscript)
+        and _qualified_call_name(node.value, import_aliases) == "__builtins__"
+        and _constant_subscript_key(node) == "__import__"
+    )
 
 
 def _is_import_module_call_from_dynamic_receiver(
@@ -584,6 +633,14 @@ def _constant_subscript_key(node: ast.Subscript) -> str | None:
     if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
         return node.slice.value
     return None
+
+
+def _callable_defaults(
+    node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+) -> tuple[ast.expr, ...]:
+    defaults: list[ast.expr] = list(node.args.defaults)
+    defaults.extend(default for default in node.args.kw_defaults if default is not None)
+    return tuple(defaults)
 
 
 def _is_vars_os_call(node: ast.expr, import_aliases: dict[str, str]) -> bool:
