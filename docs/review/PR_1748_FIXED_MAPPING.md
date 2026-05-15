@@ -515,6 +515,9 @@ Evidence: py312 shard 13 failed on the 300-second faulthandler threshold while c
 - `../../.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/preference_recipe_mapping.py` - PASS after precompiled note guard fix
 - `git diff --check` - PASS after precompiled note guard fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "fix(food-data): precompile preference note guards"` - PASS hooks
+- `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after precompiled note guard fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after precompiled note guard fix
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "docs(review): map py312 shard regex fix"` - PASS hooks
 
 ## Current-Head CI
 
