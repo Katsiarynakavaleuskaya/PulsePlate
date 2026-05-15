@@ -11,7 +11,7 @@ because the diagnostic script created new local security/tooling risk.
 | Finding | Disposition | Closure |
 | --- | --- | --- |
 | Doctor mutates host config or shell state. | FIXED | `scripts/orchestration/check_codex_ollama_operator.py` is read-only, uses `shutil.which()` for local binaries, and has no file write path. |
-| Stale Ollama versions produce confusing `ollama launch codex-app` failures. | FIXED | The doctor checks for Ollama v0.15+ and docs name `ollama launch codex`, `codex --oss`, and profile-based setup. |
+| Stale Ollama versions produce confusing `ollama launch codex-app` failures. | FIXED | The doctor now separates Codex CLI (`ollama launch codex`, v0.15+) from desktop Codex App (`ollama launch codex-app`, v0.24+) and docs name both paths. |
 | Operator docs blur host Codex setup with PulsePlate backend LLM runtime. | FIXED | `docs/dev/CODEX_SKILLS.md` separates host-only Codex/Ollama workflow from `LLM_PROVIDER=ollama` runtime validation. |
 | Doctor tests accidentally depend on real network or installed tools. | FIXED | `tests/test_codex_ollama_operator_doctor.py` monkeypatches binary/version/server behavior and covers missing/stale/unavailable paths. |
 | MCP or backend provider integration expands V1 scope. | NOT-A-BUG | This PR explicitly leaves `llm.py`, `providers/ollama.py`, and `mcp_pulseplate_server.py` out of scope; MCP/provider work needs a separate coordinator packet. |
