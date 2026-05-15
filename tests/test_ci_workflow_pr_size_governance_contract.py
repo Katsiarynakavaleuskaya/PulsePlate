@@ -14,6 +14,20 @@ RUNBOOK_PATH = REPO_ROOT / "RUNBOOK_AGENT.md"
 ORCHESTRATION_CONTRACT_PATH = (
     REPO_ROOT / "docs" / "orchestration" / "PR_ORCHESTRATION_CONTRACT_MATRIX.md"
 )
+PATHS_FILTER_NODE24_SHA = "".join(
+    (
+        "fbd0",
+        "ab8f",
+        "3e69",
+        "293a",
+        "f611",
+        "ebae",
+        "e636",
+        "3fc2",
+        "5e6d",
+        "187d",
+    )
+)
 
 
 def _extract_section(workflow_text: str, start_anchor: str, end_anchor: str) -> str:
@@ -101,6 +115,31 @@ def test_pr_risk_profile_uses_pull_request_head_sha() -> None:
     assert 'HEAD_SHA="${{ github.event.pull_request.head.sha }}"' in risk_profile_section
     assert '--base-sha "${BASE_SHA}" \\' in risk_profile_section
     assert '--head-sha "${HEAD_SHA}" \\' in risk_profile_section
+
+
+def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> None:
+    """Guard the Node 24 paths-filter migration and iOS path-gating contract."""
+
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+    changes = jobs["changes"]
+    assert isinstance(changes, dict)
+    steps = changes["steps"]
+    assert isinstance(steps, list)
+
+    filter_step = next(step for step in steps if step.get("id") == "filter")
+    assert filter_step["uses"] == f"dorny/paths-filter@{PATHS_FILTER_NODE24_SHA}"
+
+    with_section = filter_step["with"]
+    assert isinstance(with_section, dict)
+    assert with_section["token"] == "${{ secrets.GITHUB_TOKEN }}"
+    filters = with_section["filters"]
+    assert isinstance(filters, str)
+    assert "ios:" in filters
+    assert "- 'ios/**'" in filters
+    assert "- '.github/workflows/**'" in filters
+    assert "- '.github/actions/**'" in filters
 
 
 def test_feature_push_risk_profile_uses_origin_main_merge_base() -> None:
@@ -296,14 +335,19 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert isinstance(matrix, list)
 
     timeouts = {entry["python-version"]: entry["timeout-minutes"] for entry in matrix}
-    assert timeouts == {"3.11": 60, "3.12": 60, "3.13": 90}
+    assert timeouts == {"3.11": 60, "3.12": 90, "3.13": 90}
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
     test_main_section = _extract_job_section(workflow_text, "  test-main:")
 
+    py311_block = _extract_shell_conditional_block(
+        test_main_section,
+        'if [[ "$PYVER" == 3.11* ]]; then',
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
+    )
     py312_block = _extract_shell_conditional_block(
         test_main_section,
-        'if [[ "$PYVER" == 3.12* ]]; then',
+        '          elif [[ "$PYVER" == 3.12* ]]; then',
         '          elif [[ "$PYVER" == 3.13* ]]; then',
     )
     py313_block = _extract_shell_conditional_block(
@@ -322,16 +366,24 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
         '          echo "PYTEST_XDIST_ARGS=${PYTEST_XDIST_ARGS[*]}"',
     )
 
-    assert "MAIN_TEST_SHARDS=2" in py312_block
-    assert "MAIN_TEST_MAX_PARALLEL=2" in py312_block
+    assert "MAIN_TEST_SHARDS=4" in py311_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py311_block
+    assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py311_block
+    assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py311_block
+    assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py311_block
+
+    assert "MAIN_TEST_SHARDS=16" in py312_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py312_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py312_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py312_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py312_block
     assert "TEST_STEP_STARTED_AT=" in test_main_section
     assert "TEST_STEP_FINISHED_AT=" in shared_shard_runner_block
 
-    assert "MAIN_TEST_SHARDS=2" in py313_block
-    assert "MAIN_TEST_MAX_PARALLEL=2" in py313_block
+    assert "MAIN_TEST_SHARDS=8" in py313_block
+    assert "MAIN_TEST_MAX_PARALLEL=4" in py313_block
+    assert "export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800" in py313_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in py313_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in py313_block
@@ -342,6 +394,10 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert '--max-parallel "${MAIN_TEST_MAX_PARALLEL}"' in shared_shard_runner_block
     assert 'echo "MAIN_TEST_SHARDS=${MAIN_TEST_SHARDS}"' in shared_shard_runner_block
     assert 'echo "MAIN_TEST_MAX_PARALLEL=${MAIN_TEST_MAX_PARALLEL}"' in shared_shard_runner_block
+    assert (
+        'echo "MAIN_TEST_SHARD_TIMEOUT_SECONDS=${MAIN_TEST_SHARD_TIMEOUT_SECONDS:-default}"'
+        in shared_shard_runner_block
+    )
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in shared_shard_runner_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in shared_shard_runner_block
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" not in shared_shard_runner_block
@@ -353,6 +409,26 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "tests/results-serial.xml" not in test_main_section
     assert "tests/results-py312-shard-*.xml" in test_main_section
     assert "tests/results-py313-shard-*.xml" in test_main_section
+    assert (
+        "name: coverage-main-xml-${{ matrix.python-version }}\n"
+        "          path: coverage.xml\n"
+        "          if-no-files-found: ignore\n"
+        "          overwrite: true"
+    ) in test_main_section
+    assert (
+        "name: junit-main-${{ matrix.python-version }}\n"
+        "          path: |\n"
+        "            tests/results.xml\n"
+        "            tests/results-py311-shard-*.xml\n"
+        "            tests/results-py312-shard-*.xml\n"
+        "            tests/results-py313-shard-*.xml\n"
+        "          if-no-files-found: ignore\n"
+        "          overwrite: true"
+    ) in test_main_section
+    coverage_main_section = _extract_job_section(workflow_text, "  coverage-main:")
+    assert "name: coverage-main-xml-3.11" in coverage_main_section
+    assert "name: coverage-main-xml-3.12" in coverage_main_section
+    assert "name: coverage-main-xml-3.13" in coverage_main_section
 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
