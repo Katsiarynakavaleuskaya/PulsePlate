@@ -335,15 +335,17 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 | Final bug-hunter pass: dynamic `os.environ` reads, split-token version suffixes, and weak CI proof suffixes still bypassed tests. | FIXED | `33ee042a4` | Regression tests cover `getattr(os, \"environ\")`, `os.__dict__`, `vars(os)`, split-token suffixes such as `fast_apiv1` and `redis_clientv1`, and invalid manual/short proof suffixes. |
 | Final security pass: `dbv1` still bypassed runtime-scope suffix screening. | FIXED | `33ee042a4` | Runtime-scope version-prefix matching now includes `db`; regression tests reject `dbv1` in backend version, metadata, and evidence IDs while preserving the safe digest negative control `sha256:abdb0000`. |
 | Codex Security final scan after final guard escape fix. | CLEAN | `33ee042a4` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/33ee042a4_20260515T121728Z/report.md` reports no surviving findings. |
+| Final bug-hunter pass: alias `getattr` / `__import__` and unseparated GPTCache client/backend labels still bypassed guards. | FIXED | `9fa9419ba` | Import guard now tracks `getattr`, `__import__`, and `importlib.import_module` aliases; runtime-scope screening blocks `gptcacheclient*` and `gptcachebackend*`; regression tests cover the reported bypasses. |
+| Codex Security final scan after alias guard fix. | CLEAN | `9fa9419ba` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md` reports no surviving findings. |
 
 ## Bot Review Tracking
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after `33ee042a4` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after `33ee042a4` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after `33ee042a4` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `33ee042a4` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/33ee042a4_20260515T121728Z/report.md`. |
+| CodeRabbit | Pending current-head re-review after `9fa9419ba` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Sourcery | Pending current-head re-review after `9fa9419ba` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Cubic | Pending current-head re-review after `9fa9419ba` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `9fa9419ba` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/9fa9419ba_20260515T122854Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -362,6 +364,7 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 - Latest current-head proof/runtime-label/environment guard focused pytest, mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0e04e1717`.
 - Latest agent-finding guard hardening focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6816648df`.
 - Latest final guard escape focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `33ee042a4`.
+- Latest alias/GPTCache guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `9fa9419ba`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
