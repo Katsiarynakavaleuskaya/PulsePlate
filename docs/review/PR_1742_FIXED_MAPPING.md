@@ -403,6 +403,13 @@ Evidence: The final unresolved current-head guard bypass threads were fixed in c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248799491 -> 6726eaed5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3249212426 -> 6726eaed5
 
+Disposition: FIXED
+Commit: fbc294814
+Evidence: Dual-base path mutation was removed from `scripts/ci/check_docs_phase1_gates.py`; the script now uses deterministic package-first import fallback from `scripts.ci.check_semantic_cache_gate` with local fallback without mutating `sys.path`, matching the `Dual Base` governance constraint in the bot reviews. `python scripts/ci/check_docs_phase1_gates.py --files scripts/ci/check_docs_phase1_gates.py` passed after this fix.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4301057040 -> fbc294814
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4301099373 -> fbc294814
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3250709560 -> fbc294814
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
