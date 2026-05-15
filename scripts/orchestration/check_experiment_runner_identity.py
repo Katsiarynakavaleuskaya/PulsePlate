@@ -49,6 +49,7 @@ AUTHORITY_FIELD_NAMES = frozenset(
         "allowed_commit_context",
     }
 )
+AUTHORITY_FIELD_COMPACT_NAMES = frozenset(name.replace("_", "") for name in AUTHORITY_FIELD_NAMES)
 CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
     {
         "$.cryptographic_boundary.commit_signing_required_for_autonomous_production_commits",
@@ -186,18 +187,19 @@ def _reject_authority_drift(payload: Any, *, path: str = "$") -> None:
         for key, value in payload.items():
             next_path = _path_for_key(path, key)
             normalized_key = _normalized_policy_key(key)
-            if (
-                path == "$.authority_boundary"
-                and normalized_key in AUTHORITY_FIELD_NAMES
-                and str(key) != normalized_key
-            ):
+            compact_key = _compact_policy_key(key)
+            is_authority_field = (
+                normalized_key in AUTHORITY_FIELD_NAMES
+                or compact_key in AUTHORITY_FIELD_COMPACT_NAMES
+            )
+            if path == "$.authority_boundary" and is_authority_field and str(key) != normalized_key:
                 raise IdentityPolicyError(
                     f"{_redact_diagnostic_path(next_path)} must not duplicate "
                     "Experiment Runner authority."
                 )
             if (
                 path != "$.authority_boundary"
-                and normalized_key in AUTHORITY_FIELD_NAMES
+                and is_authority_field
                 and value is not False
                 and value != "none"
             ):

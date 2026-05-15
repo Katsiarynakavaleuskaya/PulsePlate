@@ -279,6 +279,18 @@ def test_rejects_authority_drift_with_separator_variants() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_authority_drift_with_camel_case_variants() -> None:
+    policy = _valid_policy()
+    policy["github_app_authority"] = {
+        "mergeRights": "admin",
+        "canResolveReviewThreads": True,
+        "allowedCommitContext": "production_autonomous",
+    }
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_authority_drift_variants_inside_canonical_boundary() -> None:
     policy = _valid_policy()
     policy["authority_boundary"]["merge-rights"] = "admin"
