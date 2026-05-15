@@ -1050,20 +1050,33 @@ def _validate_decision_shape(decision: SemanticCacheBackendSelectionDecision) ->
 
 
 def _validate_decision_id_format(decision_id: str, decision: str) -> None:
-    prefixes = ("semantic-cache-backend:", "semantic-cache-backend-select:")
-    if not decision_id.startswith(prefixes):
+    if decision in {DECISION_ELIGIBLE, DECISION_INELIGIBLE}:
+        expected_prefix = "semantic-cache-backend:"
+    elif decision in {DECISION_SELECTED, DECISION_NO_SELECTION}:
+        expected_prefix = "semantic-cache-backend-select:"
+    else:
+        raise ValueError("unsupported decision for decision_id validation")
+    if not decision_id.startswith(("semantic-cache-backend:", "semantic-cache-backend-select:")):
         raise ValueError("decision_id must use an SC-G5 semantic-cache backend prefix")
-    if decision in {DECISION_ELIGIBLE, DECISION_INELIGIBLE} and not decision_id.startswith(
-        "semantic-cache-backend:"
-    ):
-        raise ValueError("decision_id prefix must match candidate-evaluation decision kind")
-    if decision in {DECISION_SELECTED, DECISION_NO_SELECTION} and not decision_id.startswith(
-        "semantic-cache-backend-select:"
-    ):
+    if not decision_id.startswith(expected_prefix):
+        if expected_prefix == "semantic-cache-backend:":
+            raise ValueError("decision_id prefix must match candidate-evaluation decision kind")
         raise ValueError("decision_id prefix must match selection decision kind")
-    suffix = decision_id.rsplit(":", 1)[1]
+    suffix = decision_id.removeprefix(expected_prefix)
+    if ":" in suffix:
+        raise ValueError("decision_id must include exactly one SC-G5 prefix and hex suffix")
     if len(suffix) != 24 or any(char not in "0123456789abcdef" for char in suffix):
         raise ValueError("decision_id must include a 24-character lowercase hex suffix")
+    if expected_prefix == "semantic-cache-backend:" and decision not in {
+        DECISION_ELIGIBLE,
+        DECISION_INELIGIBLE,
+    }:
+        raise ValueError("decision_id prefix must match candidate-evaluation decision kind")
+    if expected_prefix == "semantic-cache-backend-select:" and decision not in {
+        DECISION_SELECTED,
+        DECISION_NO_SELECTION,
+    }:
+        raise ValueError("decision_id prefix must match selection decision kind")
 
 
 def _evidence_signature(evidence: SemanticCacheBackendSafetyEvidence) -> Mapping[str, JsonValue]:

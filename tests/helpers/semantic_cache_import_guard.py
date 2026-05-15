@@ -71,13 +71,24 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "time.perf_counter",
     "open",
     "builtins.open",
+    "__builtins__.open",
     "io.open",
     "Path.write_text",
     "Path.write_bytes",
     "Path.open",
+    "Path.chmod",
+    "Path.hardlink_to",
+    "Path.lchmod",
+    "Path.link_to",
+    "Path.symlink_to",
     "pathlib.Path.write_text",
     "pathlib.Path.write_bytes",
     "pathlib.Path.open",
+    "pathlib.Path.chmod",
+    "pathlib.Path.hardlink_to",
+    "pathlib.Path.lchmod",
+    "pathlib.Path.link_to",
+    "pathlib.Path.symlink_to",
     "Path.touch",
     "Path.mkdir",
     "Path.rename",
@@ -141,6 +152,31 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "shutil.move",
     "os.getenv",
     "os.environ.get",
+)
+PATH_CONSTRUCTOR_NAMES = frozenset(
+    {
+        "Path",
+        "pathlib.Path",
+        "PosixPath",
+        "pathlib.PosixPath",
+        "WindowsPath",
+        "pathlib.WindowsPath",
+    }
+)
+PATH_MUTATION_METHODS = frozenset(
+    {
+        "chmod",
+        "hardlink_to",
+        "lchmod",
+        "link_to",
+        "mkdir",
+        "rename",
+        "replace",
+        "rmdir",
+        "symlink_to",
+        "touch",
+        "unlink",
+    }
 )
 
 
@@ -589,7 +625,7 @@ def _collect_path_constructor_aliases(
     for target in targets:
         for target_name, target_value in _target_names_for_value(target, value):
             path_constructor_ref = _qualified_call_name(target_value, import_aliases)
-            if path_constructor_ref in {"Path", "pathlib.Path"}:
+            if path_constructor_ref in PATH_CONSTRUCTOR_NAMES:
                 import_aliases[target_name] = path_constructor_ref
 
 
@@ -614,7 +650,7 @@ def _is_path_constructor_call(node: ast.expr, import_aliases: dict[str, str]) ->
     if not isinstance(node, ast.Call):
         return False
     name = _qualified_call_name(node.func, import_aliases)
-    return name in {"Path", "pathlib.Path"}
+    return name in PATH_CONSTRUCTOR_NAMES
 
 
 def _is_path_write_call(
@@ -638,7 +674,7 @@ def _is_path_mutation_call(
 ) -> bool:
     if not isinstance(node, ast.Attribute):
         return False
-    if node.attr not in {"touch", "mkdir", "rename", "replace", "unlink", "rmdir"}:
+    if node.attr not in PATH_MUTATION_METHODS:
         return False
     return _is_path_expr(node.value, import_aliases, path_aliases)
 
@@ -652,13 +688,18 @@ def _is_path_effect_method_ref(
         return False
     if node.attr in {"write_text", "write_bytes", "open"}:
         return _is_path_expr(node.value, import_aliases, path_aliases)
-    if node.attr in {"touch", "mkdir", "rename", "replace", "unlink", "rmdir"}:
+    if node.attr in PATH_MUTATION_METHODS:
         return _is_path_expr(node.value, import_aliases, path_aliases)
     return False
 
 
 def _is_open_effect_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
-    return _qualified_call_name(node, import_aliases) in {"open", "builtins.open", "io.open"}
+    return _qualified_call_name(node, import_aliases) in {
+        "open",
+        "builtins.open",
+        "__builtins__.open",
+        "io.open",
+    }
 
 
 def _is_path_getattr_effect_call(
@@ -675,17 +716,7 @@ def _is_path_getattr_effect_call(
     method_name = node.args[1]
     if not isinstance(method_name, ast.Constant) or not isinstance(method_name.value, str):
         return False
-    if method_name.value not in {
-        "mkdir",
-        "open",
-        "rename",
-        "replace",
-        "rmdir",
-        "touch",
-        "unlink",
-        "write_bytes",
-        "write_text",
-    }:
+    if method_name.value not in PATH_MUTATION_METHODS | {"open", "write_bytes", "write_text"}:
         return False
     return _is_path_expr(node.args[0], import_aliases, path_aliases)
 

@@ -599,6 +599,11 @@ def test_decision_rejects_non_sc_g5_decision_id() -> None:
             implementation_allowed=False,
             metadata={"scope": "forged"},
         )
+    with pytest.raises(ValueError, match="exactly one SC-G5 prefix"):
+        replace(
+            evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=_criteria()),
+            decision_id="semantic-cache-backend:forged:000000000000000000000000",
+        )
 
 
 def test_matrix_and_mapping_are_deterministic() -> None:
@@ -1679,6 +1684,53 @@ def test_import_guard_rejects_path_objects_from_containers(tmp_path: Path) -> No
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_concrete_pathlib_constructors(tmp_path: Path) -> None:
+    for filename, source_text in (
+        (
+            "unsafe_posix_path.py",
+            "from pathlib import PosixPath\nPosixPath('payload.txt').write_text('payload')\n",
+        ),
+        (
+            "unsafe_qualified_posix_path.py",
+            "import pathlib\npathlib.PosixPath('payload.txt').write_text('payload')\n",
+        ),
+        (
+            "unsafe_windows_path.py",
+            "from pathlib import WindowsPath\nWindowsPath('payload.txt').write_text('payload')\n",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="Path.write"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_pathlib_link_and_chmod_mutations(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_symlink.py",
+            "from pathlib import Path\nPath('payload.txt').symlink_to('target.txt')\n",
+            "Path.mutate",
+        ),
+        (
+            "unsafe_hardlink.py",
+            "from pathlib import Path\nPath('payload.txt').hardlink_to('target.txt')\n",
+            "Path.mutate",
+        ),
+        (
+            "unsafe_chmod_alias.py",
+            "from pathlib import Path\nmutate = Path('payload.txt').chmod\nmutate(0o777)\n",
+            "Path.method-alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_getattr_os_effect_aliases(tmp_path: Path) -> None:
     for filename, source_text, expected in (
         (
@@ -1729,6 +1781,17 @@ def test_import_guard_rejects_copy_and_open_alias_escape_hatches(tmp_path: Path)
         assert_no_forbidden_semantic_cache_imports(imports)
     with pytest.raises(AssertionError, match="io.open"):
         assert_no_forbidden_semantic_cache_calls(calls)
+
+
+def test_import_guard_rejects_dunder_builtins_open(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_dunder_builtins_open.py"
+    source.write_text(
+        "__builtins__.open('payload.txt', 'w')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="__builtins__.open"):
+        assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_builtin_open_aliases(tmp_path: Path) -> None:
