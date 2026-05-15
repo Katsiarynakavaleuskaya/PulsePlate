@@ -72,6 +72,7 @@ def test_rejects_repo_private_key_material_with_repeated_separators() -> None:
         "github_app_password",
         "bot_password",
         "private.key",
+        "private ssh key",
         "signing/key",
         "pass.phrase",
     ],

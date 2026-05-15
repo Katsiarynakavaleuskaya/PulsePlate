@@ -142,8 +142,12 @@ def _compact_policy_key(key: Any) -> str:
 
 def _is_sensitive_policy_key(key: Any) -> bool:
     normalized = _normalized_policy_key(key)
-    return SENSITIVE_FIELD_RE.search(str(key)) is not None or any(
-        token in normalized for token in SENSITIVE_POLICY_KEY_TOKENS
+    normalized_tokens = frozenset(token for token in normalized.split("_") if token)
+    has_pk_tokens = "private" in normalized_tokens and "key" in normalized_tokens
+    return (
+        SENSITIVE_FIELD_RE.search(str(key)) is not None
+        or any(token in normalized for token in SENSITIVE_POLICY_KEY_TOKENS)
+        or has_pk_tokens
     )
 
 
