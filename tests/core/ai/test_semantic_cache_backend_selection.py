@@ -790,8 +790,25 @@ def test_direct_decision_objects_reject_inconsistent_shapes() -> None:
         replace(selected, selected_candidate_id=None)
     with pytest.raises(ValueError, match="selected decision shape"):
         replace(selected, candidate_id="candidate:redis")
+    with pytest.raises(ValueError, match="selected decision shape"):
+        replace(selected, rejected_candidate_ids=("candidate:redis",))
     with pytest.raises(ValueError, match="eligible decision shape"):
         replace(eligible, rejected_candidate_ids=("candidate:redis",))
+    with pytest.raises(ValueError, match="ineligible decision shape"):
+        SemanticCacheBackendSelectionDecision(
+            decision_id="semantic-cache-backend:000000000000000000000004",
+            decision=DECISION_INELIGIBLE,
+            policy_version="semantic-cache-sc-g5-v1",
+            selected_candidate_id=None,
+            selected_backend_label=None,
+            candidate_id="candidate:redis",
+            backend_label=BACKEND_LABEL_REDIS,
+            reason_codes=(REASON_FALSE_HIT_RATE_EXCEEDED,),
+            rejected_candidate_ids=("candidate:gptcache",),
+            runtime_allowed=False,
+            implementation_allowed=False,
+            metadata={"scope": "forged"},
+        )
     with pytest.raises(ValueError, match="no-selection decision shape"):
         SemanticCacheBackendSelectionDecision(
             decision_id="semantic-cache-backend-select:000000000000000000000001",
@@ -800,6 +817,34 @@ def test_direct_decision_objects_reject_inconsistent_shapes() -> None:
             selected_candidate_id=None,
             selected_backend_label=None,
             candidate_id="candidate:redis",
+            backend_label=None,
+            reason_codes=(REASON_NO_ELIGIBLE_CANDIDATE,),
+            rejected_candidate_ids=("candidate:redis",),
+            runtime_allowed=False,
+            implementation_allowed=False,
+            metadata={"scope": "forged"},
+        )
+
+
+def test_decision_id_prefix_must_match_decision_kind() -> None:
+    with pytest.raises(ValueError, match="candidate-evaluation decision kind"):
+        replace(
+            evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=_criteria()),
+            decision_id="semantic-cache-backend-select:000000000000000000000005",
+        )
+    with pytest.raises(ValueError, match="selection decision kind"):
+        replace(
+            select_semantic_cache_backend(candidates=(_candidate(),), criteria=_criteria()),
+            decision_id="semantic-cache-backend:000000000000000000000006",
+        )
+    with pytest.raises(ValueError, match="selection decision kind"):
+        SemanticCacheBackendSelectionDecision(
+            decision_id="semantic-cache-backend:000000000000000000000007",
+            decision=DECISION_NO_SELECTION,
+            policy_version="semantic-cache-sc-g5-v1",
+            selected_candidate_id=None,
+            selected_backend_label=None,
+            candidate_id=None,
             backend_label=None,
             reason_codes=(REASON_NO_ELIGIBLE_CANDIDATE,),
             rejected_candidate_ids=("candidate:redis",),
@@ -1005,6 +1050,15 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_backend_version in ("fastapi", "openapi", "network", "file-write"):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_candidate(), backend_version=unsafe_backend_version)
+    for unsafe_scalar_evidence_id in (
+        lambda: replace(_evidence(), evidence_id="evidence:fastapi"),
+        lambda: replace(_evidence(), sc_g2_contract_id="contract:openapi"),
+        lambda: replace(_evidence(), sc_g3_contract_id="contract:network"),
+        lambda: replace(_evidence(), sc_g4_contract_id="contract:file-write"),
+        lambda: replace(_evidence(), admission_decision_id="admission:provider"),
+    ):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            unsafe_scalar_evidence_id()
     safe_digest = replace(_evidence(), source_fingerprints=("sha256:abdb0000",))
     assert safe_digest.source_fingerprints == ("sha256:abdb0000",)
     for unsafe_candidate_id in ("candidate:fastapi", "candidate:openapi", "candidate:network"):
@@ -1351,6 +1405,28 @@ def test_import_guard_rejects_process_launch_imports_and_calls(tmp_path: Path) -
         assert_no_forbidden_semantic_cache_imports(imports)
     with pytest.raises(AssertionError, match="subprocess.run"):
         assert_no_forbidden_semantic_cache_calls(calls)
+
+
+def test_import_guard_rejects_dynamic_os_process_calls(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_dynamic_os.py"
+    source.write_text(
+        "__import__('os').system('/usr/bin/curl https://example.invalid')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="os.system"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_os_effect_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_os_alias.py"
+    source.write_text(
+        "import os\n" "launcher = os.system\n" "opener = os.open\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="os.system.alias"):
+        assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_copy_and_open_alias_escape_hatches(tmp_path: Path) -> None:

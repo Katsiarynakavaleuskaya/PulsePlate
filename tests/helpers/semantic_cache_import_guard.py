@@ -229,6 +229,9 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append("open.alias")
             if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
                 offenders.append("Path.method-alias")
+            effect_ref = _qualified_call_name(node.value, import_aliases)
+            if _is_os_effect_ref(effect_ref):
+                offenders.append(f"{effect_ref}.alias")
             if _qualified_call_name(node.value, import_aliases) == "os.getenv":
                 offenders.append("os.getenv.alias")
             if _qualified_call_name(node.value, import_aliases) == "os.environ":
@@ -255,6 +258,11 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 path_aliases,
             ):
                 offenders.append("Path.method-alias")
+            effect_ref = (
+                _qualified_call_name(node.value, import_aliases) if node.value is not None else None
+            )
+            if _is_os_effect_ref(effect_ref):
+                offenders.append(f"{effect_ref}.alias")
             if (
                 node.value is not None
                 and _qualified_call_name(node.value, import_aliases) == "os.getenv"
@@ -354,10 +362,24 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
         return import_aliases.get(node.id, node.id)
     if isinstance(node, ast.Attribute):
         owner = _qualified_call_name(node.value, import_aliases)
+        if owner is None and isinstance(node.value, ast.Call):
+            owner = _dynamic_import_name(node.value)
         if owner is None:
             return None
         return f"{owner}.{node.attr}"
     return None
+
+
+def _dynamic_import_name(node: ast.Call) -> str | None:
+    if not isinstance(node.func, ast.Name) or node.func.id != "__import__":
+        return None
+    return _constant_string_argument(node)
+
+
+def _is_os_effect_ref(call_name: str | None) -> bool:
+    if call_name is None:
+        return False
+    return call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS and call_name.startswith("os.")
 
 
 def _target_names_for_value(target: ast.expr, value: ast.expr) -> tuple[tuple[str, ast.expr], ...]:

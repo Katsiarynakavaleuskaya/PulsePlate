@@ -281,22 +281,22 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "evidence_id",
-            _validate_evidence_id("evidence_id", self.evidence_id),
+            _validate_runtime_safe_evidence_id("evidence_id", self.evidence_id),
         )
         object.__setattr__(
             self,
             "sc_g2_contract_id",
-            _validate_evidence_id("sc_g2_contract_id", self.sc_g2_contract_id),
+            _validate_runtime_safe_evidence_id("sc_g2_contract_id", self.sc_g2_contract_id),
         )
         object.__setattr__(
             self,
             "sc_g3_contract_id",
-            _validate_evidence_id("sc_g3_contract_id", self.sc_g3_contract_id),
+            _validate_runtime_safe_evidence_id("sc_g3_contract_id", self.sc_g3_contract_id),
         )
         object.__setattr__(
             self,
             "sc_g4_contract_id",
-            _validate_evidence_id("sc_g4_contract_id", self.sc_g4_contract_id),
+            _validate_runtime_safe_evidence_id("sc_g4_contract_id", self.sc_g4_contract_id),
         )
         object.__setattr__(
             self,
@@ -313,7 +313,10 @@ class SemanticCacheBackendSafetyEvidence:
         object.__setattr__(
             self,
             "admission_decision_id",
-            _validate_evidence_id("admission_decision_id", self.admission_decision_id),
+            _validate_runtime_safe_evidence_id(
+                "admission_decision_id",
+                self.admission_decision_id,
+            ),
         )
         object.__setattr__(
             self,
@@ -596,7 +599,6 @@ class SemanticCacheBackendSelectionDecision:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "decision_id", _validate_token("decision_id", self.decision_id))
-        _validate_decision_id_format(self.decision_id)
         if self.decision not in {
             DECISION_ELIGIBLE,
             DECISION_INELIGIBLE,
@@ -604,6 +606,7 @@ class SemanticCacheBackendSelectionDecision:
             DECISION_NO_SELECTION,
         }:
             raise ValueError(f"unsupported decision: {self.decision!r}")
+        _validate_decision_id_format(self.decision_id, self.decision)
         object.__setattr__(
             self,
             "policy_version",
@@ -991,6 +994,7 @@ def _validate_decision_shape(decision: SemanticCacheBackendSelectionDecision) ->
             or decision.candidate_id is None
             or decision.backend_label is None
             or not decision.rejected_candidate_ids
+            or decision.candidate_id not in decision.rejected_candidate_ids
             or REASON_ELIGIBLE in decision.reason_codes
             or REASON_SELECTED in decision.reason_codes
         ):
@@ -1001,6 +1005,7 @@ def _validate_decision_shape(decision: SemanticCacheBackendSelectionDecision) ->
             or decision.selected_backend_label is None
             or decision.candidate_id is not None
             or decision.backend_label is not None
+            or decision.selected_candidate_id in decision.rejected_candidate_ids
             or decision.reason_codes != (REASON_SELECTED,)
         ):
             raise ValueError("selected decision shape is inconsistent")
@@ -1014,10 +1019,18 @@ def _validate_decision_shape(decision: SemanticCacheBackendSelectionDecision) ->
         raise ValueError("no-selection decision shape is inconsistent")
 
 
-def _validate_decision_id_format(decision_id: str) -> None:
+def _validate_decision_id_format(decision_id: str, decision: str) -> None:
     prefixes = ("semantic-cache-backend:", "semantic-cache-backend-select:")
     if not decision_id.startswith(prefixes):
         raise ValueError("decision_id must use an SC-G5 semantic-cache backend prefix")
+    if decision in {DECISION_ELIGIBLE, DECISION_INELIGIBLE} and not decision_id.startswith(
+        "semantic-cache-backend:"
+    ):
+        raise ValueError("decision_id prefix must match candidate-evaluation decision kind")
+    if decision in {DECISION_SELECTED, DECISION_NO_SELECTION} and not decision_id.startswith(
+        "semantic-cache-backend-select:"
+    ):
+        raise ValueError("decision_id prefix must match selection decision kind")
     suffix = decision_id.rsplit(":", 1)[1]
     if len(suffix) != 24 or any(char not in "0123456789abcdef" for char in suffix):
         raise ValueError("decision_id must include a 24-character lowercase hex suffix")
