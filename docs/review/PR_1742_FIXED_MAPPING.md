@@ -386,6 +386,13 @@ Evidence: Current-head Codex guard/checker threads were fixed in code/tests: Pat
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672385 -> 37c0d29a5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3248672388 -> 37c0d29a5
 
+Disposition: FIXED
+Commit: c31bef254
+Evidence: Current-head CI import-guard failure was fixed in code: `scripts/ci/check_docs_phase1_gates.py` no longer uses `importlib.util` dynamic loading and instead imports the repo-local semantic-cache validators directly. Focused scaffold guard pytest, docs Phase1 gate, semantic-cache gate, focused regression bundle, narrow mypy, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update; latest Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/260de788c_20260515T143131Z/report.md`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013255 -> c31bef254
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013351 -> c31bef254
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/actions/runs/25922480370/job/76195013391 -> c31bef254
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
@@ -416,6 +423,7 @@ Evidence: Current-head Codex guard/checker threads were fixed in code/tests: Pat
 | Final QA/security/bug-hunter pass: aliased pathlib class effects, dynamic builtins import/open, Path-returning write expressions, weak `run-fake` CI proofs, and placeholder human approval IDs still had bypasses. | FIXED | `0d0dc5647` | Semantic-cache import guard and SC-G5 proof validation now reject the reported bypasses; focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and pre-commit passed before mapping. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/0d0dc5647_20260515T133237Z/report.md`. |
 | Current-head Codex connector threads: `db`-prefixed digest fingerprints, dynamic builtins open, and concrete pathlib class-method writes. | FIXED | `f58c75f4e`, `0d0dc5647` | URL mapping is listed in Fixed in Commit Mapping; safe digest fingerprints are scoped to fingerprint fields, and the import guard regressions cover builtins/pathlib bypasses. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/f58c75f4e_20260515T134615Z/report.md`. |
 | Current-head Codex guard/checker threads: Path-returning method chains, builtins dynamic import aliases/defaults, and contract-only schema drift. | FIXED | `37c0d29a5` | URL mapping is listed in Fixed in Commit Mapping; guard/checker regressions cover the reported cases. Final Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/37c0d29a5_20260515T140812Z/report.md`. |
+| Current-head CI import-guard failure after docs Phase1 checker change. | FIXED | `c31bef254` | URL mapping is listed in Fixed in Commit Mapping; `importlib.util` dynamic loading was removed from the docs Phase1 checker. Focused pytest, docs Phase1 gate, semantic-cache gate, narrow mypy, `make validate-changed`, and pre-commit passed; latest Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/260de788c_20260515T143131Z/report.md`. |
 
 ## Bot Review Tracking
 
@@ -424,7 +432,7 @@ Evidence: Current-head Codex guard/checker threads were fixed in code/tests: Pat
 | CodeRabbit | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Sourcery | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
 | Cubic | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `37c0d29a5` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/37c0d29a5_20260515T140812Z/report.md`. |
+| Codex Security | Clean after latest substantive fix | Final scan for current head `260de788c` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/260de788c_20260515T143131Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -451,6 +459,7 @@ Evidence: Current-head Codex guard/checker threads were fixed in code/tests: Pat
 - Final QA/security/bug-hunter guard fix focused pytest, semantic-cache/docs gates, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0d0dc5647`.
 - Current-head digest fingerprint fix focused pytest, narrow mypy, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `f58c75f4e`.
 - Current-head guard/checker fix focused pytest, docs Phase1 gate, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `37c0d29a5`.
+- Current-head CI import-guard fix focused scaffold guard pytest, docs Phase1 gate, semantic-cache gate, focused regression bundle, narrow mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before this mapping update; latest Codex Security scan is clean at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/260de788c_20260515T143131Z/report.md`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
