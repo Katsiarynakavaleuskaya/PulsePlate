@@ -7,6 +7,7 @@
 - Implementing commits:
   - `0d100ebc8` - wrapped experiment notification input path resolution for `--packet`, `--result`, and `--promotion` in a sanitized fail-closed helper and added symlink-loop regression coverage.
   - `5b7843a40` - converted email audit artifact symlink validation failures into sanitized email delivery failures and added no-SMTP-send regression coverage.
+  - `58580a4d6` - fixed post-push bot findings in this mapping artifact: raw `Commit:` SHA formatting, required NOT-A-BUG reason text, and path-agnostic validation evidence.
 - Scope: Experiment notification CLI path-resolution hardening only. No new provider, Slack delivery, GitHub comment delivery, secret handling, promotion authority, or merge-readiness authority.
 
 ## Discussion Thread Pass
@@ -27,6 +28,16 @@ Reason: The referenced bot reviews reported no actionable code changes for this 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#issuecomment-4455481009
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#pullrequestreview-4294126880
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#pullrequestreview-4294115920
+
+Disposition: FIXED
+Commit: 58580a4d6
+Evidence: Post-push CodeRabbit and Cubic findings were documentation/governance-only and are fixed in `docs/review/PR_1753_FIXED_MAPPING.md`: validation evidence no longer contains the machine-specific `/Users/...` path, FIXED `Commit:` fields use raw SHAs, and the NOT-A-BUG bot-review block includes an explicit `Reason:`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#discussion_r3248586884 -> 58580a4d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#pullrequestreview-4298579415 -> 58580a4d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#discussion_r3248599047 -> 58580a4d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#discussion_r3248599064 -> 58580a4d6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#pullrequestreview-4298594078 -> 58580a4d6
 
 ## Role-Agent Findings
 
