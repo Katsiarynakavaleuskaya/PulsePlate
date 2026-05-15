@@ -349,8 +349,43 @@ Reason: The referenced CI proof commit is reachable from current PR history; the
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3235578268
 Disposition: NOT-A-BUG
-Evidence: `tests/test_design_automation_next_lane_docs.py:79` first probes `origin/main...HEAD` and `main...HEAD`; `tests/test_design_automation_next_lane_docs.py:88` appends a parent fallback only for merge commits with at least two parents; `tests/test_design_automation_next_lane_docs.py:105` fails closed when no stable base exists.
-Reason: Current code no longer has a single-parent last-commit fallback, so the finding is stale for the live PR head.
+Evidence: `tests/test_design_automation_next_lane_docs.py` probes the PR event merge-base, `origin/main...HEAD`, and `main...HEAD`, then fails closed when no stable base exists. `test_kimi_diff_fails_closed_without_first_parent_fallback` prevents reintroducing a first-parent fallback.
+Reason: Current code no longer has a single-parent or first-parent fallback, so the finding is stale for the live PR head.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3242779268 -> 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Disposition: FIXED
+Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Evidence: `docs/review/PR_1748_FIXED_MAPPING.md` now uses the resolvable Python 3.12 batch-split proof SHA `af9ca1a9d2d9937acc75ed95108311af7a86aa65`; `git cat-file -t af9ca1a9d2d9937acc75ed95108311af7a86aa65` returns `commit`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3243477611 -> bcfee31164158da560c1850fc0954ef57972ff3e
+Disposition: FIXED
+Commit: bcfee31164158da560c1850fc0954ef57972ff3e
+Evidence: `scripts/ci/run_main_test_shards.py` no longer imports `defusedxml` or any external XML parser. Current-head `test-main (3.12, 90)` and `test-main (3.13, 90)` passed on run `25891747917`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3243844705 -> 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Disposition: FIXED
+Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Evidence: `scripts/ci/run_main_test_shards.py` stops refilling pending shards after any completed shard returns nonzero, and `tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure` locks that fail-fast behavior.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3244159778 -> a8311433022510dda70347a276373402af280f78
+Disposition: FIXED
+Commit: a8311433022510dda70347a276373402af280f78
+Evidence: `.github/workflows/ci.yml` exports `MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800` before invoking the shard runner for Python 3.12 and 3.13; current-head `test-main (3.12, 90)` and `test-main (3.13, 90)` passed on run `25891747917`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#discussion_r3244505277 -> 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Disposition: FIXED
+Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Evidence: `tests/test_design_automation_next_lane_docs.py` now bounds PR endpoint `git fetch` probes with `GIT_FETCH_TIMEOUT_SECONDS`, and `test_kimi_diff_fetch_has_timeout_before_local_fallback` verifies timeout handling before local fallback.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#pullrequestreview-4293727717 -> 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Disposition: FIXED
+Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Evidence: This CodeRabbit review-level duplicate asked to remove the first-parent fallback from the Kimi docs-only guard. `tests/test_design_automation_next_lane_docs.py` no longer constructs a `parent...HEAD` diff base, and `test_kimi_diff_fails_closed_without_first_parent_fallback` covers the regression.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1748#pullrequestreview-4294204794 -> 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Disposition: FIXED
+Commit: 77e35170a1fdbb5191113b7ce449d4fa2ef70968
+Evidence: This CodeRabbit review-level duplicate repeated the first-parent fallback issue on current head `83cfcbd5e302387421f39f7b5658310d46ca3737`. The guard now relies on PR event merge-base, `origin/main...HEAD`, or `main...HEAD` only, and fails closed when none is available.
 
 ## Local Validation
 
@@ -436,6 +471,12 @@ Reason: Current code no longer has a single-parent last-commit fallback, so the 
 - `DEV_PYTHON=../../.venv/bin/python VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH make validate-changed` - PASS after PR #1747 test-cost fix
 - `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH pre-commit run --all-files` - PASS after PR #1747 test-cost fix
 - `PATH=../../.venv/bin:$PATH VENV_PYTHON=../../.venv/bin/python git commit -m "test(food-data): trim preference mapping note guard cost"` - PASS hooks
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py::test_run_all_shards_stops_refilling_after_first_failure tests/test_design_automation_next_lane_docs.py::test_kimi_diff_fetch_has_timeout_before_local_fallback tests/test_design_automation_next_lane_docs.py::test_kimi_diff_fails_closed_without_first_parent_fallback` - PASS after latest review fixes
+- `../../.venv/bin/python -m pytest -q tests/test_main_test_shards.py tests/test_design_automation_next_lane_docs.py::test_kimi_protocol_current_diff_stays_docs_only tests/test_design_automation_next_lane_docs.py::test_kimi_diff_fetch_has_timeout_before_local_fallback tests/test_design_automation_next_lane_docs.py::test_kimi_diff_fails_closed_without_first_parent_fallback tests/test_ci_workflow_pr_size_governance_contract.py` - PASS after latest review fixes
+- `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` - PASS after latest review fixes
+- `../../.venv/bin/python -m flake8 scripts/ci/run_main_test_shards.py tests/test_main_test_shards.py tests/test_design_automation_next_lane_docs.py` - PASS after latest review fixes
+- `git diff --check` - PASS after latest review fixes
+- `VENV_PYTHON=../../.venv/bin/python PATH=../../.venv/bin:$PATH git commit -m "fix(ci): fail fast shard and Kimi diff guards"` - PASS hooks
 
 ## Current-Head CI
 
