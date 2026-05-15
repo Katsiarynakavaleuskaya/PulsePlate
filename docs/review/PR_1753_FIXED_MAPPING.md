@@ -17,11 +17,12 @@
 ### Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: `5b7843a40`
+Commit: 5b7843a40
 Evidence: Local security-auditor reported that email audit symlink errors could escape sanitized CLI handling. `scripts/orchestration/experiment_notify.py` converts invalid email audit artifact paths into `ExperimentEmailDeliveryError("Email audit artifact path is invalid.")`; `tests/test_experiment_notify.py` covers `--email` with a self-referential `.email-audit.json` symlink, asserts exit code `1`, no SMTP send, no symlink/path leak, and no notification markdown write.
 
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit generated no actionable comments for remote head `0d100ebc8`; Cubic reported "No issues found" across the two changed files; Sourcery reported only weekly rate-limit exhaustion and no code finding.
+Reason: The referenced bot reviews reported no actionable code changes for this PR scope.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#issuecomment-4455481009
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1753#pullrequestreview-4294126880
@@ -30,7 +31,7 @@ Evidence: CodeRabbit generated no actionable comments for remote head `0d100ebc8
 ## Role-Agent Findings
 
 Disposition: FIXED
-Commit: `5b7843a40`
+Commit: 5b7843a40
 Evidence: `security-auditor` found the email audit symlink failure path; fixed in code and covered by `test_email_delivery_rejects_symlink_loop_audit_path_without_smtp_send`.
 
 Disposition: NOT-A-BUG
@@ -46,7 +47,7 @@ Disposition: NOT-A-BUG
 Evidence: `bug-hunter` found no bugs in the committed symlink-loop input path-resolution change and confirmed broken symlinks remain handled by the sanitized JSON-load failure path.
 
 Disposition: FIXED
-Commit: `5b7843a40`
+Commit: 5b7843a40
 Evidence: `pulseplate-premortem-risk-review` failure frame identified the adjacent email audit symlink path as the most likely missed fail-closed edge; this was fixed before readiness.
 
 Disposition: NOT-A-BUG
@@ -60,7 +61,7 @@ Evidence: Codex Security diff-focused pass after `5b7843a40` found no surviving 
 - `pytest -q tests/test_experiment_notify.py tests/test_experiment_runner.py tests/test_experiment_promote.py tests/test_experiment_runner_identity_policy.py` PASS.
 - `python3 -m scripts.orchestration.experiment_notify --help` PASS.
 - `python3 -m py_compile scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` PASS.
-- `PATH="/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH" make validate-changed` PASS.
+- `PATH="<repo-root>/.venv/bin:$PATH" make validate-changed` PASS.
 - `pre-commit run --all-files` PASS.
 - `black --check scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` PASS.
 - `flake8 scripts/orchestration/experiment_notify.py tests/test_experiment_notify.py` PASS.
