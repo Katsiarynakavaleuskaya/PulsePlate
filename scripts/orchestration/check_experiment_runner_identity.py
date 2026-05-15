@@ -22,7 +22,7 @@ EXPECTED_EMAIL = "pulseplate@pm.me"
 FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
 ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
 SENSITIVE_FIELD_RE = re.compile(
-    r"(api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|secret|token|credential|signing[\s_-]*key)",
+    r"(api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|password|secret|token|credential|signing[\s_-]*key)",
     re.IGNORECASE,
 )
 SENSITIVE_POLICY_KEY_TOKENS = frozenset(
@@ -30,6 +30,7 @@ SENSITIVE_POLICY_KEY_TOKENS = frozenset(
         "api_key",
         "credential",
         "pass_phrase",
+        "password",
         "private_key",
         "secret",
         "signing_key",
@@ -37,7 +38,7 @@ SENSITIVE_POLICY_KEY_TOKENS = frozenset(
     }
 )
 SENSITIVE_VALUE_RE = re.compile(
-    r"(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,})",
+    r"(-----BEGIN [A-Z ]*PRIVATE KEY(?: BLOCK)?-----|sk-[A-Za-z0-9_-]{12,}|gh[pousr]_[A-Za-z0-9_]{20,}|github_pat_[A-Za-z0-9_]{20,}|xox[abcprs]-[A-Za-z0-9-]{10,}|xapp-[A-Za-z0-9-]{10,}|https://hooks\.slack\.com/services/[A-Za-z0-9/_-]{10,})",
     re.IGNORECASE,
 )
 AUTHORITY_FIELD_NAMES = frozenset(
@@ -74,9 +75,23 @@ class IdentityPolicyError(ValueError):
     """Raised when the Experiment Runner identity policy is unsafe."""
 
 
+def _reject_duplicate_json_object_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    seen: set[str] = set()
+    payload: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in seen:
+            raise IdentityPolicyError("Experiment Runner identity policy has duplicate JSON keys.")
+        seen.add(key)
+        payload[key] = value
+    return payload
+
+
 def _read_policy(path: Path) -> dict[str, Any]:
     try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(
+            path.read_text(encoding="utf-8"),
+            object_pairs_hook=_reject_duplicate_json_object_keys,
+        )
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise IdentityPolicyError("Unable to read Experiment Runner identity policy.") from exc
     if not isinstance(payload, dict):

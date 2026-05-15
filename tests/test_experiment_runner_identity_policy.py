@@ -69,6 +69,8 @@ def test_rejects_repo_private_key_material_with_repeated_separators() -> None:
     [
         "api_key",
         "github_app_api_key",
+        "github_app_password",
+        "bot_password",
         "private.key",
         "signing/key",
         "pass.phrase",
@@ -118,6 +120,7 @@ def test_rejects_pgp_private_key_material_under_neutral_key() -> None:
     "secret_value",
     [
         "github_pat_" + "a" * 24,
+        "https://hooks.slack.com/services/" + "A" * 12 + "/" + "B" * 12 + "/" + "C" * 24,
         "xapp-" + "b" * 24,
         "xoxc-" + "c" * 24,
     ],
@@ -136,6 +139,17 @@ def test_rejects_token_shaped_json_key() -> None:
 
     with pytest.raises(identity_check.IdentityPolicyError, match="private key material"):
         identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_duplicate_json_keys_before_validation(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policy.json"
+    policy_path.write_text(
+        '{"schema_version": "admin", "schema_version": "1.0"}',
+        encoding="utf-8",
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="duplicate JSON keys"):
+        identity_check._read_policy(policy_path)
 
 
 def test_token_shaped_json_key_error_is_redacted() -> None:
