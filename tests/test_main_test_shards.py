@@ -367,6 +367,67 @@ def test_run_all_shards_rejects_invalid_parallelism(tmp_path: Path) -> None:
         runner.run_all_shards(tmp_path, [], 1, {})
 
 
+def test_run_all_shards_stops_refilling_after_first_failure(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Fail-closed shards should surface promptly instead of scheduling all pending work."""
+
+    shards = [
+        runner.TestShard(index=1, files=[runner.TestFile(Path("tests/test_1.py"), 1)]),
+        runner.TestShard(index=2, files=[runner.TestFile(Path("tests/test_2.py"), 1)]),
+        runner.TestShard(index=3, files=[runner.TestFile(Path("tests/test_3.py"), 1)]),
+        runner.TestShard(index=4, files=[runner.TestFile(Path("tests/test_4.py"), 1)]),
+    ]
+    submitted: list[int] = []
+
+    class FakeExecutor:
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def __enter__(self) -> "FakeExecutor":
+            return self
+
+        def __exit__(self, *exc_info: object) -> None:
+            del exc_info
+
+        def submit(
+            self,
+            func: object,
+            repo_root: Path,
+            shard: runner.TestShard,
+            base_env: dict[str, str],
+        ) -> Future[int]:
+            del func, repo_root, base_env
+            submitted.append(shard.index)
+            future: Future[int] = Future()
+            future.set_result(124 if shard.index == 1 else 0)
+            return future
+
+    def fake_wait(
+        futures: set[Future[int]] | dict[Future[int], int],
+        *,
+        return_when: object,
+    ) -> tuple[set[Future[int]], set[Future[int]]]:
+        assert return_when is runner.concurrent.futures.FIRST_COMPLETED
+        first = next(iter(futures))
+        remaining = set(futures) - {first}
+        return {first}, remaining
+
+    monkeypatch.setattr(runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(runner.concurrent.futures, "wait", fake_wait)
+    monkeypatch.setattr(
+        runner,
+        "run_coverage_command",
+        lambda *args, **kwargs: pytest.fail("coverage must not run after shard failure"),
+    )
+
+    assert runner.run_all_shards(tmp_path, shards, 2, {}) == 1
+    assert submitted == [1, 2]
+    assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in capsys.readouterr().err
+
+
 def test_run_all_shards_max_parallel_one_uses_child_process_isolation(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

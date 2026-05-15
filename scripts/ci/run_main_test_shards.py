@@ -362,6 +362,7 @@ def run_all_shards(
     process_context = multiprocessing.get_context("spawn")
     results: dict[int, int] = {}
     pending_shards = iter(shards)
+    failure_seen = False
     with concurrent.futures.ProcessPoolExecutor(
         max_workers=min(max_parallel, len(shards)),
         mp_context=process_context,
@@ -377,9 +378,14 @@ def run_all_shards(
                 futures,
                 return_when=concurrent.futures.FIRST_COMPLETED,
             )
-            results.update(collect_shard_results({future: futures[future] for future in done}))
+            completed_results = collect_shard_results({future: futures[future] for future in done})
+            results.update(completed_results)
+            if any(exit_code != 0 for exit_code in completed_results.values()):
+                failure_seen = True
             for future in done:
                 del futures[future]
+            if failure_seen:
+                continue
             for shard in pending_shards:
                 futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
                 if len(futures) >= max_parallel:

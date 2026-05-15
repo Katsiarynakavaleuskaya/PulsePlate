@@ -37,6 +37,7 @@ WORKFLOW = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_WORKFLOW.md"
 TEMPLATE = REPO_ROOT / "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md"
 ORCHESTRATION_AGENTS = REPO_ROOT / "docs/orchestration/AGENTS.md"
 LEDGER = REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
+GIT_FETCH_TIMEOUT_SECONDS = 15
 
 
 def _read(path: Path) -> str:
@@ -99,21 +100,29 @@ def _changed_paths_for_current_worktree() -> list[str]:
                 and re.fullmatch(r"[0-9a-f]{40}", head_sha)
             ):
                 for depth in (100, 500, 2000):
-                    fetch_pr_bounds = subprocess.run(
-                        [
-                            git_bin,
-                            "fetch",
-                            "--no-tags",
-                            f"--depth={depth}",
-                            "origin",
-                            base_sha,
-                            head_sha,
-                        ],
-                        cwd=REPO_ROOT,
-                        check=False,
-                        text=True,
-                        capture_output=True,
-                    )
+                    try:
+                        fetch_pr_bounds = subprocess.run(
+                            [
+                                git_bin,
+                                "fetch",
+                                "--no-tags",
+                                f"--depth={depth}",
+                                "origin",
+                                base_sha,
+                                head_sha,
+                            ],
+                            cwd=REPO_ROOT,
+                            check=False,
+                            text=True,
+                            capture_output=True,
+                            timeout=GIT_FETCH_TIMEOUT_SECONDS,
+                        )
+                    except subprocess.TimeoutExpired:
+                        errors.append(
+                            f"fetch depth={depth} {base_sha}..{head_sha}: "
+                            f"timed out after {GIT_FETCH_TIMEOUT_SECONDS}s"
+                        )
+                        continue
                     if fetch_pr_bounds.returncode != 0:
                         detail = (fetch_pr_bounds.stderr or fetch_pr_bounds.stdout).strip()
                         errors.append(
@@ -143,17 +152,6 @@ def _changed_paths_for_current_worktree() -> list[str]:
 
     diff_bases.extend(["origin/main...HEAD", "main...HEAD"])
 
-    parents = subprocess.run(
-        [git_bin, "rev-list", "--parents", "-n", "1", "HEAD"],
-        cwd=REPO_ROOT,
-        check=False,
-        text=True,
-        capture_output=True,
-    )
-    parent_parts = parents.stdout.split()
-    if parents.returncode == 0 and len(parent_parts) >= 3:
-        diff_bases.append(f"{parent_parts[1]}...HEAD")
-
     for diff_base in diff_bases:
         branch = subprocess.run(
             [git_bin, "diff", "--name-only", diff_base],
@@ -168,6 +166,82 @@ def _changed_paths_for_current_worktree() -> list[str]:
         errors.append(f"{diff_base}: {detail or 'git diff failed'}")
 
     pytest.fail("Unable to inspect branch diff for Kimi docs-only guard: " + "; ".join(errors))
+
+
+def test_kimi_diff_fetch_has_timeout_before_local_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Network fetch diagnostics must not be able to hang the docs-only guard."""
+
+    base_sha = "a" * 40
+    head_sha = "b" * 40
+    event_path = tmp_path / "event.json"
+    event_path.write_text(
+        json.dumps({"pull_request": {"base": {"sha": base_sha}, "head": {"sha": head_sha}}}),
+        encoding="utf-8",
+    )
+    fetch_depths: list[str] = []
+
+    class Completed:
+        def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        if command[1:] == ["diff", "--cached", "--name-only"]:
+            return Completed(stdout="")
+        if command[1] == "fetch":
+            assert kwargs["timeout"] == GIT_FETCH_TIMEOUT_SECONDS
+            fetch_depths.append(command[3])
+            raise subprocess.TimeoutExpired(cmd=command, timeout=GIT_FETCH_TIMEOUT_SECONDS)
+        if command[1:] == ["diff", "--name-only", "origin/main...HEAD"]:
+            return Completed(stdout="docs/orchestration/KIMI_PROTOCOL.md\n")
+        if command[1] == "diff":
+            return Completed(returncode=1, stderr="missing local base")
+        return Completed(returncode=1, stderr=f"unexpected command: {' '.join(command)}")
+
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setenv("GITHUB_EVENT_PATH", str(event_path))
+
+    assert _changed_paths_for_current_worktree() == ["docs/orchestration/KIMI_PROTOCOL.md"]
+    assert fetch_depths == ["--depth=100", "--depth=500", "--depth=2000"]
+
+
+def test_kimi_diff_fails_closed_without_first_parent_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A missing stable base must not degrade to a first-parent branch diff."""
+
+    commands: list[list[str]] = []
+
+    class Completed:
+        def __init__(self, returncode: int = 0, stdout: str = "", stderr: str = "") -> None:
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    def fake_run(command: list[str], **kwargs: object) -> Completed:
+        del kwargs
+        commands.append(command)
+        if command[1] == "rev-list":
+            raise AssertionError("first-parent fallback must not run")
+        if command[1:] == ["diff", "--cached", "--name-only"]:
+            return Completed(stdout="")
+        if command[1] == "diff":
+            return Completed(returncode=1, stderr="missing stable base")
+        return Completed(returncode=1, stderr=f"unexpected command: {' '.join(command)}")
+
+    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/git" if name == "git" else None)
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.delenv("GITHUB_EVENT_PATH", raising=False)
+
+    with pytest.raises(pytest.fail.Exception, match="Unable to inspect branch diff"):
+        _changed_paths_for_current_worktree()
+
+    assert all(command[1] != "rev-list" for command in commands)
 
 
 def test_next_design_automation_decision_required_sections() -> None:
