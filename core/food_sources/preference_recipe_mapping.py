@@ -12,6 +12,7 @@ from datetime import date
 import json
 from pathlib import Path
 import re
+from typing import Mapping, TypeVar
 
 from core.food_sources.recipe_dish_corpus import (
     BLOCKED_METHODS as PR14_BLOCKED_METHODS,
@@ -41,6 +42,7 @@ _SCHEMA_RE = re.compile(r"^food-data-preference-recipe-mapping-contract\.v\d+$")
 _PR11_SCHEMA_RE = re.compile(r"^food-data-coverage-source-gap-audit\.v\d+$")
 _PR14_SCHEMA_RE = re.compile(r"^food-data-recipe-dish-corpus-governance\.v\d+$")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+_EntryT = TypeVar("_EntryT")
 
 SOURCE = "preference_menu_planning"
 SOURCE_CLASSIFICATION = "planning_contract_governance_only"
@@ -64,10 +66,6 @@ EXPECTED_PR11_ONBOARDING_REF = "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR
 EXPECTED_RECIPE_DISH_CORPUS_REF = (
     "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
 )
-EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION = "requires_dish_mapping"
-EXPECTED_PR11_PREFERENCE_GAP_STATUS = "planner_gap_not_source_authority"
-EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION = "not_approved"
-EXPECTED_PR11_PREFERENCE_NEXT_ACTION = "preference_recipe_mapping_contract"
 EXPECTED_PR14_RECIPE_ALLOWED_ROLES = {
     "edamam_food_database": "adjacent_recipe_food_db_review_only",
     "spoonacular": "deferred_recipe_experiment_candidate_only",
@@ -432,7 +430,25 @@ def _blocked_method_note_phrases() -> tuple[str, ...]:
 
 
 _FORBIDDEN_NOTE_PHRASES = _EXTRA_FORBIDDEN_NOTE_PHRASES + _blocked_method_note_phrases()
+_FORBIDDEN_NOTE_PATTERNS = tuple(
+    (phrase, re.compile(rf"\b{re.escape(phrase)}\b")) for phrase in _FORBIDDEN_NOTE_PHRASES
+)
 _NEGATED_APPROVAL_PREFIXES = ("not ", "never ", "no ", "do not ", "does not ")
+_NEGATION_BOUNDARY_TERMS = (
+    " but ",
+    " however ",
+    " yet ",
+    " although ",
+    " though ",
+    " even though ",
+    " whereas ",
+    " while ",
+    " despite ",
+    " unless ",
+    " even if ",
+    " except ",
+    " notwithstanding ",
+)
 _NOTE_APPROVAL_TERMS = (
     "approve",
     "approves",
@@ -493,6 +509,27 @@ _FORBIDDEN_NOTE_SUBJECTS = tuple(
         key=len,
         reverse=True,
     )
+)
+_NOTE_APPROVAL_PATTERN = "|".join(re.escape(term) for term in _NOTE_APPROVAL_TERMS)
+_SUBJECT_THEN_APPROVAL_PATTERNS = tuple(
+    (
+        subject,
+        re.compile(
+            rf"\b{re.escape(subject)}\b(?P<middle>(?:\s+\w+){{0,3}})"
+            rf"\s+(?P<approval>{_NOTE_APPROVAL_PATTERN})\b"
+        ),
+    )
+    for subject in _FORBIDDEN_NOTE_SUBJECTS
+)
+_APPROVAL_THEN_SUBJECT_PATTERNS = tuple(
+    (
+        subject,
+        re.compile(
+            rf"\b(?P<approval>{_NOTE_APPROVAL_PATTERN})\b"
+            rf"(?P<middle>(?:\s+\w+){{0,3}})\s+\b{re.escape(subject)}\b"
+        ),
+    )
+    for subject in _FORBIDDEN_NOTE_SUBJECTS
 )
 
 _GOVERNANCE_KEYS = frozenset(
@@ -697,8 +734,8 @@ def _require_safe_notes(value: str, context: str) -> str:
         .replace("}", " ")
         .split()
     )
-    for phrase in _FORBIDDEN_NOTE_PHRASES:
-        for match in re.finditer(rf"\b{re.escape(phrase)}\b", normalized):
+    for phrase, pattern in _FORBIDDEN_NOTE_PATTERNS:
+        for match in pattern.finditer(normalized):
             if _is_negated_approval_phrase(normalized, phrase, match.start()):
                 continue
             raise _mapping_error(
@@ -738,29 +775,37 @@ def _is_negated_approval_phrase(normalized: str, phrase: str, start: int) -> boo
     if segment_start >= 0:
         prefix_tail = prefix_tail[segment_start + 1 :]
     stripped_prefix = prefix_tail.strip()
-    no_index = stripped_prefix.rfind(" no ")
-    if stripped_prefix.startswith("no "):
+    bounded_prefix = stripped_prefix
+    padded_prefix = f" {stripped_prefix} "
+    boundary_end = max(
+        (
+            padded_prefix.rfind(boundary) + len(boundary)
+            for boundary in _NEGATION_BOUNDARY_TERMS
+            if boundary in padded_prefix
+        ),
+        default=0,
+    )
+    if boundary_end:
+        bounded_prefix = padded_prefix[boundary_end:-1].strip()
+    no_index = bounded_prefix.rfind(" no ")
+    if bounded_prefix.startswith("no "):
         no_index = 0
     if no_index >= 0:
-        negated_span = stripped_prefix[no_index:].strip()
+        negated_span = bounded_prefix[no_index:].strip()
         words = negated_span.split()
         if len(words) <= 8 and len(words) > 1 and words[1] != "only" and "or" in words:
             return True
     return any(
-        stripped_prefix.endswith(negation.strip()) for negation in _NEGATED_APPROVAL_PREFIXES
+        bounded_prefix.endswith(negation.strip()) for negation in _NEGATED_APPROVAL_PREFIXES
     ) or (
-        stripped_prefix.startswith("no ")
-        and (" or " in stripped_prefix or stripped_prefix.endswith(" or"))
+        bounded_prefix.startswith("no ")
+        and (" or " in bounded_prefix or bounded_prefix.endswith(" or"))
     )
 
 
 def _require_no_bounded_approval_windows(normalized: str, context: str) -> None:
-    approval = "|".join(_NOTE_APPROVAL_TERMS)
-    for subject in _FORBIDDEN_NOTE_SUBJECTS:
-        subject_then_approval = (
-            rf"\b{re.escape(subject)}\b(?P<middle>(?:\s+\w+){{0,3}})\s+(?P<approval>{approval})\b"
-        )
-        for match in re.finditer(subject_then_approval, normalized):
+    for _subject, pattern in _SUBJECT_THEN_APPROVAL_PATTERNS:
+        for match in pattern.finditer(normalized):
             middle_words = frozenset(match.group("middle").split())
             if middle_words & _NOTE_NEGATION_WORDS:
                 continue
@@ -771,11 +816,8 @@ def _require_no_bounded_approval_windows(normalized: str, context: str) -> None:
                 "notes must not approve recipe text, preference text, LLM output, "
                 "source use, ingest, runtime, cache, DB writes, display, or nutrition authority",
             )
-        approval_then_subject = (
-            rf"\b(?P<approval>{approval})\b(?P<middle>(?:\s+\w+){{0,3}})\s+"
-            rf"\b{re.escape(subject)}\b"
-        )
-        for match in re.finditer(approval_then_subject, normalized):
+    for _subject, pattern in _APPROVAL_THEN_SUBJECT_PATTERNS:
+        for match in pattern.finditer(normalized):
             middle_words = frozenset(match.group("middle").split())
             if middle_words & _NOTE_NEGATION_WORDS:
                 continue
@@ -796,6 +838,18 @@ def _coverage_domain_by_name(coverage: SourceGapAudit, context: str) -> dict[str
             "PR11 coverage_domains must be exactly: " + ", ".join(PR11_REQUIRED_COVERAGE_DOMAINS),
         )
     return {entry.domain: entry for entry in coverage.coverage_domains}
+
+
+def _require_existing_entry(
+    entries: Mapping[str, _EntryT],
+    key: str,
+    context: str,
+    label: str,
+) -> _EntryT:
+    try:
+        return entries[key]
+    except KeyError as exc:
+        raise _mapping_error(context, f"PR11 {label} is missing {key}") from exc
 
 
 def _require_pr14_handoff(
@@ -924,9 +978,7 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
         )
     _require_safe_notes(coverage.notes, f"{context}.PR11.notes")
     domains = _coverage_domain_by_name(coverage, context)
-    preference_domain = domains.get(SOURCE)
-    if preference_domain is None:
-        raise _mapping_error(context, "PR11 must include preference_menu_planning")
+    preference_domain = _require_existing_entry(domains, SOURCE, context, "coverage_domains")
     for domain in coverage.coverage_domains:
         expected = PR11_EXPECTED_DOMAIN_DECISIONS[domain.domain]
         for field_name, expected_value in expected.items():
@@ -950,40 +1002,6 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
                 f"PR11 {domain.domain} coverage_domains must not approve ingest/runtime authority",
             )
         _require_safe_notes(domain.notes, f"{context}.PR11.{domain.domain}.notes")
-    if (
-        getattr(preference_domain, "coverage_decision")
-        != EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION
-    ):
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning coverage_decision must be "
-            f"{EXPECTED_PR11_PREFERENCE_COVERAGE_DECISION}",
-        )
-    if getattr(preference_domain, "gap_status") != EXPECTED_PR11_PREFERENCE_GAP_STATUS:
-        raise _mapping_error(
-            context,
-            f"PR11 preference_menu_planning gap_status must be {EXPECTED_PR11_PREFERENCE_GAP_STATUS}",
-        )
-    if (
-        getattr(preference_domain, "authority_decision")
-        != EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION
-    ):
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning authority_decision must be "
-            f"{EXPECTED_PR11_PREFERENCE_AUTHORITY_DECISION}",
-        )
-    if getattr(preference_domain, "next_action") != EXPECTED_PR11_PREFERENCE_NEXT_ACTION:
-        raise _mapping_error(
-            context,
-            "PR11 preference_menu_planning must recommend preference_recipe_mapping_contract",
-        )
-    if getattr(preference_domain, "approved_ingest") or getattr(
-        preference_domain, "approved_runtime_authority"
-    ):
-        raise _mapping_error(
-            context, "PR11 preference_menu_planning must not approve ingest/runtime authority"
-        )
     _require_safe_notes(
         getattr(preference_domain, "notes"),
         f"{context}.PR11.preference_menu_planning.notes",
@@ -1012,9 +1030,12 @@ def _require_pr11_preference_handoff(coverage: SourceGapAudit, context: str) -> 
             )
     source_gap_decisions = {entry.source: entry for entry in coverage.source_gap_decisions}
     for source, expected in PR11_EXPECTED_SOURCE_GAP_DECISIONS.items():
-        source_gap = source_gap_decisions.get(source)
-        if source_gap is None:
-            raise _mapping_error(context, f"PR11 source_gap_decisions must include {source}")
+        source_gap = _require_existing_entry(
+            source_gap_decisions,
+            source,
+            context,
+            "source_gap_decisions",
+        )
         for field_name, expected_value in expected.items():
             if getattr(source_gap, field_name) != expected_value:
                 raise _mapping_error(

@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from typing import Any
 
 import pytest
 
@@ -103,6 +104,12 @@ def _result(
     }
 
 
+def _promotion_ready_result(**overrides: object) -> dict[str, object]:
+    result = _result(**overrides)
+    result["promotion_ready"] = True
+    return result
+
+
 def _promotion(*, experiment_id: str = "exp-notify") -> dict[str, object]:
     return {
         "schema_version": "1.0",
@@ -173,9 +180,81 @@ EXPECTED_NOTIFICATION = """# Experiment Result Notification: exp-notify
 
 ## Delivery Boundary
 
-- Artifact-only summary; no email, Slack, PR comment, or external delivery was sent.
+- Local artifact summary is always written; SMTP email delivery requires explicit `--email`.
+- Slack, PR comment, and other external delivery sinks are intentionally out of scope.
 - Raw patch text, oracle stdout/stderr, cwd, and local absolute paths are intentionally omitted.
 """
+
+
+class FakeSMTP:
+    sent_messages: list[object] = []
+    started_tls = False
+    login_args: tuple[str, str] | None = None
+    quit_called = False
+
+    def __init__(self, host: str, port: int, timeout: int) -> None:
+        self.host = host
+        self.port = port
+        self.timeout = timeout
+
+    def __enter__(self) -> "FakeSMTP":
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        return None
+
+    def starttls(self, context: object | None = None) -> None:
+        assert context is not None
+        FakeSMTP.started_tls = True
+
+    def login(self, username: str, password: str) -> None:
+        FakeSMTP.login_args = (username, password)
+
+    def send_message(self, message: object) -> None:
+        FakeSMTP.sent_messages.append(message)
+
+    def quit(self) -> None:
+        FakeSMTP.quit_called = True
+
+
+class FailingSMTP(FakeSMTP):
+    def send_message(self, message: object) -> None:
+        raise OSError("/Users/alice/.ssh/id_rsa smtp failure")
+
+
+class FakeSMTPSSL(FakeSMTP):
+    used = False
+
+    def __init__(self, host: str, port: int, timeout: int, context: object) -> None:
+        super().__init__(host, port, timeout)
+        assert context is not None
+        FakeSMTPSSL.used = True
+
+    def starttls(self, context: object | None = None) -> None:
+        raise AssertionError("implicit TLS must not call starttls")
+
+
+class QuitFailingSMTP(FakeSMTP):
+    def quit(self) -> None:
+        FakeSMTP.quit_called = True
+        raise OSError("smtp quit failed after accepted message")
+
+
+def _configure_smtp_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST", "pulseplate@pm.me")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_HOST", "smtp.example.test")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PORT", "587")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_USERNAME", "smtp-user")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PASSWORD", "smtp-secret")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_FROM", "runner@example.test")
+
+
+def _reset_fake_smtp() -> None:
+    FakeSMTP.sent_messages = []
+    FakeSMTP.started_tls = False
+    FakeSMTP.login_args = None
+    FakeSMTP.quit_called = False
+    FakeSMTPSSL.used = False
 
 
 def test_main_writes_deterministic_notification(
@@ -186,7 +265,7 @@ def test_main_writes_deterministic_notification(
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
     packet_path = _write_json(tmp_path / "packet.json", _packet())
-    result_path = _write_json(tmp_path / "result.json", _result())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
 
     exit_code = experiment_notify.main(["--packet", str(packet_path), "--result", str(result_path)])
     stdout = capsys.readouterr().out
@@ -198,6 +277,8 @@ def test_main_writes_deterministic_notification(
     content = output.read_text(encoding="utf-8")
     assert content == EXPECTED_NOTIFICATION
     assert json.loads(stdout) == {
+        "email": False,
+        "email_audit": None,
         "experiment_id": "exp-notify",
         "github_step_summary": False,
         "output": "artifacts/orchestration/experiments/notifications/exp-notify.md",
@@ -212,7 +293,841 @@ def test_main_writes_deterministic_notification(
     assert output.read_text(encoding="utf-8") == EXPECTED_NOTIFICATION
 
 
-def test_notification_includes_promotion_decision(
+def test_default_notification_does_not_send_email(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    monkeypatch.setenv(
+        "EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST",
+        "pulseplate@pm.me,other@example.test",
+    )
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(["--packet", str(packet_path), "--result", str(result_path)])
+
+    assert exit_code == 0
+    assert FakeSMTP.sent_messages == []
+    assert not (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.email-audit.json"
+    ).exists()
+
+
+def test_email_requires_explicit_recipient_allowlist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    missing_recipient = experiment_notify.main(
+        ["--packet", str(packet_path), "--result", str(result_path), "--email"]
+    )
+    missing_output = capsys.readouterr().out
+    unlisted_recipient = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "other@example.test",
+        ]
+    )
+    unlisted_output = capsys.readouterr().out
+    email_to_without_flag = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    email_to_output = capsys.readouterr().out
+
+    assert missing_recipient == 1
+    assert "--email requires --email-to" in missing_output
+    assert unlisted_recipient == 1
+    assert "not an allowed recipient" in unlisted_output
+    assert "other@example.test" not in unlisted_output
+    assert email_to_without_flag == 1
+    assert "--email-to requires --email" in email_to_output
+
+
+def test_email_delivery_accepts_pulseplate_recipient_and_writes_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert FakeSMTP.started_tls
+    assert FakeSMTP.login_args == ("smtp-user", "smtp-secret")
+    assert len(FakeSMTP.sent_messages) == 1
+    message = FakeSMTP.sent_messages[0]
+    assert message["To"] == "pulseplate@pm.me"
+    assert message["From"] == "runner@example.test"
+    body = message.get_content()
+    assert body == EXPECTED_NOTIFICATION
+    assert "secret stdout" not in body
+    assert "secret stderr" not in body
+    assert "/Users/example" not in body
+
+    audit_path = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.email-audit.json"
+    )
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert audit["experiment_id"] == "exp-notify"
+    assert audit["notification_sha256"] == experiment_notify._sha256_text(EXPECTED_NOTIFICATION)
+    assert audit["output_path"] == (
+        "artifacts/orchestration/experiments/notifications/exp-notify.md"
+    )
+    assert audit["provider_type"] == "smtp"
+    assert audit["status"] == "sent"
+    assert audit["failure_class"] == "none"
+    assert audit["recipient_hash"] == experiment_notify._recipient_hash("pulseplate@pm.me")
+    assert set(audit["source_sha256"]) == {"packet", "promotion", "result"}
+    assert audit["source_sha256"]["packet"] is not None
+    assert audit["source_sha256"]["result"] is not None
+    assert audit["source_sha256"]["promotion"] is None
+    assert "pulseplate@pm.me" not in audit_path.read_text(encoding="utf-8")
+    assert "smtp-secret" not in audit_path.read_text(encoding="utf-8")
+
+    payload = json.loads(stdout)
+    assert payload["email"] is True
+    assert payload["email_audit"] == (
+        "artifacts/orchestration/experiments/notifications/exp-notify.email-audit.json"
+    )
+
+
+def test_missing_smtp_config_fails_closed_without_leaking_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_ALLOWLIST", "pulseplate@pm.me")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_HOST", "/Users/alice/.ssh/id_rsa")
+    monkeypatch.delenv("EXPERIMENT_NOTIFICATION_SMTP_PORT", raising=False)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_USERNAME", "smtp-user")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PASSWORD", "smtp-secret")
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_FROM", "runner@example.test")
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "SMTP configuration is incomplete" in stdout
+    assert "/Users/alice" not in stdout
+    assert "id_rsa" not in stdout
+    assert "smtp-secret" not in stdout
+    audit = json.loads(
+        (
+            repo
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "notifications"
+            / "exp-notify.email-audit.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert audit["status"] == "failed"
+    assert audit["failure_class"] == "email_delivery_failed"
+
+
+def test_invalid_smtp_config_fails_closed_without_leaking_values(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PORT", "not-a-port")
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "SMTP configuration is invalid" in stdout
+    assert "not-a-port" not in stdout
+    assert "smtp-secret" not in stdout
+
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PORT", "70000")
+    with pytest.raises(
+        experiment_notify.ExperimentEmailDeliveryError,
+        match="SMTP configuration is invalid",
+    ):
+        experiment_notify._smtp_config()
+
+
+def test_invalid_email_sender_is_sanitized_and_audited(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_EMAIL_FROM", "bad\nfrom@example.test")
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "SMTP sender is invalid" in stdout
+    assert "bad" not in stdout
+    assert "from@example" not in stdout
+    audit = json.loads(
+        (
+            repo
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "notifications"
+            / "exp-notify.email-audit.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert audit["status"] == "failed"
+    assert audit["failure_class"] == "email_delivery_failed"
+
+
+def test_email_recipient_control_characters_are_rejected(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me\nbcc@example.test",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "not an allowed recipient" in stdout
+    assert "bcc@example" not in stdout
+
+
+def test_email_audit_must_be_writable_before_send(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_dir = (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.email-audit.json"
+    )
+    audit_dir.mkdir(parents=True)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+
+    assert exit_code == 1
+    assert FakeSMTP.sent_messages == []
+
+
+def test_email_delivery_is_idempotent_for_sent_audit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    argv = [
+        "--packet",
+        str(packet_path),
+        "--result",
+        str(result_path),
+        "--email",
+        "--email-to",
+        "pulseplate@pm.me",
+    ]
+
+    assert experiment_notify.main(argv) == 0
+    capsys.readouterr()
+    assert experiment_notify.main(argv) == 1
+    stdout = capsys.readouterr().out
+
+    assert "already sent" in stdout
+    assert len(FakeSMTP.sent_messages) == 1
+
+
+def test_email_delivery_is_idempotent_across_output_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    first_exit = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--output",
+            "first.md",
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    capsys.readouterr()
+    second_exit = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--output",
+            "nested/second.md",
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert first_exit == 0
+    assert second_exit == 1
+    assert "already sent" in stdout
+    assert len(FakeSMTP.sent_messages) == 1
+    assert (
+        repo
+        / "artifacts"
+        / "orchestration"
+        / "experiments"
+        / "notifications"
+        / "exp-notify.email-audit.json"
+    ).is_file()
+
+
+def test_email_delivery_is_idempotent_for_experiment_id_when_markdown_changes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    argv = [
+        "--packet",
+        str(packet_path),
+        "--result",
+        str(result_path),
+        "--email",
+        "--email-to",
+        "pulseplate@pm.me",
+    ]
+
+    first_exit = experiment_notify.main(argv)
+    capsys.readouterr()
+    notification_path = (
+        repo / "artifacts" / "orchestration" / "experiments" / "notifications" / "exp-notify.md"
+    )
+    original_notification = notification_path.read_text(encoding="utf-8")
+    _write_json(
+        result_path,
+        _result(status="rejected", failure_class="guard_failure"),
+    )
+    second_exit = experiment_notify.main(argv)
+    stdout = capsys.readouterr().out
+
+    assert first_exit == 0
+    assert second_exit == 1
+    assert "already sent" in stdout
+    assert len(FakeSMTP.sent_messages) == 1
+    assert notification_path.read_text(encoding="utf-8") == original_notification
+
+
+def test_email_delivery_blocks_retry_when_sent_audit_write_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    original_write_audit = experiment_notify._write_email_audit
+
+    def fail_final_sent_audit(**kwargs: Any) -> None:
+        if kwargs["status"] == "sent":
+            raise OSError("/Users/alice/full-disk")
+        original_write_audit(**kwargs)
+
+    argv = [
+        "--packet",
+        str(packet_path),
+        "--result",
+        str(result_path),
+        "--email",
+        "--email-to",
+        "pulseplate@pm.me",
+    ]
+    monkeypatch.setattr(experiment_notify, "_write_email_audit", fail_final_sent_audit)
+
+    first_exit = experiment_notify.main(argv)
+    first_stdout = capsys.readouterr().out
+    monkeypatch.setattr(experiment_notify, "_write_email_audit", original_write_audit)
+    second_exit = experiment_notify.main(argv)
+    second_stdout = capsys.readouterr().out
+
+    assert first_exit == 1
+    assert "unable to write experiment notification" in first_stdout
+    assert "/Users/alice" not in first_stdout
+    assert second_exit == 1
+    assert "already sent" in second_stdout
+    assert len(FakeSMTP.sent_messages) == 1
+    audit = json.loads(
+        (
+            repo
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "notifications"
+            / "exp-notify.email-audit.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert audit["status"] == "send_in_progress"
+
+
+def test_stale_email_send_claim_blocks_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    old_timestamp = "2026-05-13T00:00:00+00:00"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_text(
+        json.dumps(
+            {
+                "experiment_id": "exp-notify",
+                "failure_class": "none",
+                "notification_sha256": experiment_notify._sha256_text(EXPECTED_NOTIFICATION),
+                "output_path": "artifacts/orchestration/experiments/notifications/exp-notify.md",
+                "provider_type": "smtp",
+                "recipient_hash": experiment_notify._recipient_hash("pulseplate@pm.me"),
+                "source_sha256": {"packet": None, "promotion": None, "result": None},
+                "status": "send_in_progress",
+                "timestamp": old_timestamp,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    _write_json(tmp_path / "packet.json", _packet())
+    _write_json(tmp_path / "result.json", _result())
+    with pytest.raises(experiment_notify.ExperimentEmailDeliveryError, match="already sent"):
+        experiment_notify._claim_email_send(
+            audit_path=audit_path,
+            experiment_id="exp-notify",
+            recipient="pulseplate@pm.me",
+            markdown=EXPECTED_NOTIFICATION,
+            output_path=notification_dir / "exp-notify.md",
+            source_paths={"packet": None, "promotion": None, "result": None},
+        )
+
+    audit = json.loads(audit_path.read_text(encoding="utf-8"))
+    assert audit["status"] == "send_in_progress"
+    assert audit["timestamp"] == old_timestamp
+
+
+def test_failed_email_audit_blocks_retry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    _write_json(tmp_path / "packet.json", _packet())
+    _write_json(tmp_path / "result.json", _result())
+    experiment_notify._write_email_audit(
+        audit_path=audit_path,
+        experiment_id="exp-notify",
+        recipient="pulseplate@pm.me",
+        status="failed",
+        failure_class="smtp_error",
+        markdown=EXPECTED_NOTIFICATION,
+        output_path=notification_dir / "exp-notify.md",
+        source_paths={"packet": None, "promotion": None, "result": None},
+    )
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(tmp_path / "packet.json"),
+            "--result",
+            str(tmp_path / "result.json"),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "delivery audit blocks retry" in stdout
+    assert FakeSMTP.sent_messages == []
+    assert json.loads(audit_path.read_text(encoding="utf-8"))["status"] == "failed"
+
+
+def test_invalid_utf8_email_audit_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_bytes(b"\xff\xfe\x00")
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Existing email audit artifact is invalid" in stdout
+    assert FakeSMTP.sent_messages == []
+
+
+def test_unknown_email_audit_status_fails_closed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    audit_path.parent.mkdir(parents=True)
+    audit_path.write_text(
+        json.dumps(
+            {
+                "experiment_id": "exp-notify",
+                "failure_class": "none",
+                "notification_sha256": experiment_notify._sha256_text(EXPECTED_NOTIFICATION),
+                "output_path": "artifacts/orchestration/experiments/notifications/exp-notify.md",
+                "provider_type": "smtp",
+                "recipient_hash": experiment_notify._recipient_hash("pulseplate@pm.me"),
+                "source_sha256": {"packet": None, "promotion": None, "result": None},
+                "status": "delivered",
+                "timestamp": "2026-05-13T00:00:00+00:00",
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "Existing email audit artifact is invalid" in stdout
+    assert FakeSMTP.sent_messages == []
+
+
+def test_email_audit_source_hashes_match_rendered_sources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+    original_result_hash = experiment_notify._sha256_file(result_path)
+
+    def mutate_result_after_claim(**_: Any) -> None:
+        _write_json(result_path, _result(status="rejected", failure_class="guard_failure"))
+
+    monkeypatch.setattr(experiment_notify, "_send_smtp_email", mutate_result_after_claim)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+
+    audit = json.loads((notification_dir / "exp-notify.email-audit.json").read_text())
+    assert exit_code == 0
+    assert audit["status"] == "sent"
+    assert audit["source_sha256"]["result"] == original_result_hash
+    assert audit["source_sha256"]["result"] != experiment_notify._sha256_file(result_path)
+
+
+def test_smtp_implicit_tls_uses_smtp_ssl(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _init_repo(tmp_path)
+    _configure_smtp_env(monkeypatch)
+    monkeypatch.setenv("EXPERIMENT_NOTIFICATION_SMTP_PORT", "465")
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP_SSL", FakeSMTPSSL)
+
+    experiment_notify._send_smtp_email(
+        recipient="pulseplate@pm.me",
+        subject="subject",
+        markdown=EXPECTED_NOTIFICATION,
+    )
+
+    assert FakeSMTPSSL.used
+    assert not FakeSMTP.started_tls
+    assert len(FakeSMTP.sent_messages) == 1
+
+
+def test_smtp_quit_failure_after_send_keeps_delivery_successful(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", QuitFailingSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    capsys.readouterr()
+
+    assert exit_code == 0
+    assert FakeSMTP.quit_called
+    assert len(FakeSMTP.sent_messages) == 1
+    audit = json.loads(
+        (
+            repo
+            / "artifacts"
+            / "orchestration"
+            / "experiments"
+            / "notifications"
+            / "exp-notify.email-audit.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert audit["status"] == "sent"
+
+
+def test_smtp_provider_failure_is_sanitized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FailingSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 1
+    assert "SMTP delivery failed" in stdout
+    assert "/Users/alice" not in stdout
+    assert "id_rsa" not in stdout
+    assert "smtp-secret" not in stdout
+
+
+def test_notification_includes_promotion_decision_from_promote_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -271,7 +1186,7 @@ def test_invalid_promotion_decision_is_rejected(
     match: str,
 ) -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
 
     with pytest.raises((ValueError, experiment_notify.ExperimentNotificationError), match=match):
         promotion = experiment_notify._validate_promotion_decision({**_promotion(), **override})
@@ -347,7 +1262,7 @@ def test_result_evidence_must_stay_within_packet_mutable_surface() -> None:
     packet = experiment_contract.validate_experiment_packet(
         _packet() | {"mutable_candidate_surface": ["core/rag/allowed.py"]}
     )
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["mutated_paths"] = ["core/rag/other.py"]
 
     with pytest.raises(
@@ -413,7 +1328,7 @@ def test_result_evidence_rejects_nested_paths_under_file_surface() -> None:
     packet = experiment_contract.validate_experiment_packet(
         _packet() | {"mutable_candidate_surface": ["core/rag/allowed.py"]}
     )
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["mutated_paths"] = ["core/rag/allowed.py/child.py"]
 
     with pytest.raises(
@@ -433,7 +1348,7 @@ def test_result_evidence_rejects_nested_paths_under_extensionless_file_surface(
     packet = experiment_contract.validate_experiment_packet(
         _packet() | {"mutable_candidate_surface": ["core/rag/runner"]}
     )
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["mutated_paths"] = ["core/rag/runner/child.py"]
 
     with pytest.raises(
@@ -447,7 +1362,7 @@ def test_result_evidence_allows_new_extensionless_directory_surface() -> None:
     packet = experiment_contract.validate_experiment_packet(
         _packet() | {"mutable_candidate_surface": ["core/rag/new_feature"]}
     )
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["mutated_paths"] = ["core/rag/new_feature/impl.py"]
 
     content = experiment_notify.render_notification_markdown(packet, result)
@@ -459,7 +1374,7 @@ def test_result_evidence_rejects_traversal_under_directory_surface() -> None:
     packet = experiment_contract.validate_experiment_packet(
         _packet() | {"mutable_candidate_surface": ["core/rag/new_feature"]}
     )
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["mutated_paths"] = ["core/rag/new_feature/../../docs/orchestration/workflow.md"]
 
     with pytest.raises(
@@ -499,7 +1414,7 @@ def test_result_oracle_commands_must_come_from_packet() -> None:
 
 def test_outside_surface_diagnostic_redacts_mutated_paths() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["mutated_paths"] = ["/Users/alice/.ssh/id_rsa"]
 
     with pytest.raises(
@@ -515,7 +1430,7 @@ def test_outside_surface_diagnostic_redacts_mutated_paths() -> None:
 
 def test_accepted_result_with_failed_oracle_is_rejected() -> None:
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     result["oracle_results"][0]["returncode"] = 1
 
     with pytest.raises(
@@ -748,7 +1663,7 @@ def test_promoted_durable_artifact_must_exist(
     repo = _init_repo(tmp_path)
     _configure_repo(monkeypatch, repo)
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     promotion = experiment_notify._validate_promotion_decision(_promotion())
 
     with pytest.raises(
@@ -881,7 +1796,7 @@ def test_notification_redacts_raw_outputs_patch_and_local_paths(
     _configure_repo(monkeypatch, repo)
     _write_audit_artifact(repo)
     packet = experiment_contract.validate_experiment_packet(_packet())
-    result = experiment_contract.validate_experiment_result(_result())
+    result = experiment_contract.validate_experiment_result(_promotion_ready_result())
     promotion = experiment_notify._validate_promotion_decision(
         {
             **_promotion(),
@@ -1083,7 +1998,9 @@ def test_module_cli_shows_help() -> None:
     )
 
     assert completed.returncode == 0
-    assert "Render artifact-only notifications" in completed.stdout
+    assert "Render governed experiment notifications" in completed.stdout
+    assert "SMTP email" in completed.stdout
+    assert "explicit opt-in" in completed.stdout
 
 
 def test_direct_script_invocation_fails_without_repo_pythonpath() -> None:

@@ -63,8 +63,8 @@ jobs:
 
       - name: Determine changes
         id: filter
-        # SHA pin for security (v3.0.2)
-        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36
+        # SHA pin for security (v4.0.1 / Node 24)
+        uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           filters: |
@@ -1099,29 +1099,36 @@ jobs:
           # IMPORTANT: main branch must maintain 97% coverage per project standards
           # See .cursorrules and AGENTS.md
           #
-          # CI stability: Python 3.12 exceeded the 90-minute main window because
-          # one four-way shard grouped multiple heavy contract suites. Keep the
-          # wall-clock budget fixed and split only 3.12 into smaller shards while
-          # capping process concurrency. Python 3.13 passed inside the 90-minute
-          # window, so keep its lower concurrency unchanged.
+          # CI stability: Python 3.11 crashed under xdist+coverage, Python 3.12
+          # exceeded the 60-minute main window after xdist containment, and Python
+          # 3.13 passed inside the 90-minute window with almost no headroom after
+          # xdist was disabled. Run isolated process-level shards for all main
+          # matrix versions instead of pytest-xdist workers, preserving each
+          # test-main required-check identity.
           # Python 3.13 has seen intermittent segfaults under xdist+coverage.
           # Intentionally removed `--cov-context=test` due to flaky coverage DB corruption under xdist
           # on Python 3.13 ("no such table: context"). Revisit after pytest/hypothesis upgrades.
           PYVER="${MATRIX_PYTHON_VERSION}"
           echo "TEST_STEP_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           python -c "import sys; print('PY', sys.version)"
-          if [[ "$PYVER" == 3.12* ]]; then
+          if [[ "$PYVER" == 3.11* ]]; then
+            MAIN_TEST_SHARDS=4
+            MAIN_TEST_MAX_PARALLEL=4
+          elif [[ "$PYVER" == 3.12* ]]; then
+            MAIN_TEST_SHARDS=16
+            MAIN_TEST_MAX_PARALLEL=4
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
+          elif [[ "$PYVER" == 3.13* ]]; then
             MAIN_TEST_SHARDS=8
             MAIN_TEST_MAX_PARALLEL=4
-          elif [[ "$PYVER" == 3.13* ]]; then
-            MAIN_TEST_SHARDS=2
-            MAIN_TEST_MAX_PARALLEL=2
+            export MAIN_TEST_SHARD_TIMEOUT_SECONDS=4800
           else
             PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)
           fi
           if [[ -n "${MAIN_TEST_SHARDS:-}" ]]; then
             echo "MAIN_TEST_SHARDS=${MAIN_TEST_SHARDS}"
             echo "MAIN_TEST_MAX_PARALLEL=${MAIN_TEST_MAX_PARALLEL}"
+            echo "MAIN_TEST_SHARD_TIMEOUT_SECONDS=${MAIN_TEST_SHARD_TIMEOUT_SECONDS:-default}"
             set +e
             time python scripts/ci/run_main_test_shards.py \
               --python-version "${PYVER}" \
@@ -1154,9 +1161,10 @@ jobs:
         if: always()
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
-          name: coverage-xml-main-${{ matrix.python-version }}
+          name: coverage-main-xml-${{ matrix.python-version }}
           path: coverage.xml
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 7
 
       - name: Upload JUnit test report
@@ -1166,9 +1174,11 @@ jobs:
           name: junit-main-${{ matrix.python-version }}
           path: |
             tests/results.xml
+            tests/results-py311-shard-*.xml
             tests/results-py312-shard-*.xml
             tests/results-py313-shard-*.xml
           if-no-files-found: ignore
+          overwrite: true
           retention-days: 7
 
   # Coverage reporting for PRs
@@ -1306,21 +1316,21 @@ jobs:
       - name: Download coverage artifact (Python 3.11)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-main-3.11
+          name: coverage-main-xml-3.11
           path: ./coverage-artifacts/3.11
         continue-on-error: true
 
       - name: Download coverage artifact (Python 3.12)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-main-3.12
+          name: coverage-main-xml-3.12
           path: ./coverage-artifacts/3.12
         continue-on-error: true
 
       - name: Download coverage artifact (Python 3.13)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.6.2
         with:
-          name: coverage-xml-main-3.13
+          name: coverage-main-xml-3.13
           path: ./coverage-artifacts/3.13
         continue-on-error: true
 
