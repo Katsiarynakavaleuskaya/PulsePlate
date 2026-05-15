@@ -163,6 +163,12 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
                 import_aliases[alias.asname or alias.name] = qualified_name
         elif isinstance(node, ast.ImportFrom):
             imports.extend(alias.name for alias in node.names)
+        elif isinstance(node, ast.Assign):
+            alias_ref = _qualified_call_name(node.value, import_aliases)
+            if alias_ref in {"__import__", "importlib.import_module"}:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        import_aliases[target.id] = alias_ref
         elif (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Name)
@@ -187,6 +193,12 @@ def assert_no_forbidden_semantic_cache_imports(path: Path) -> None:
                 imports.append("__dynamic_import__")
         elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
             if import_aliases.get(node.func.id) == "importlib.import_module":
+                name = _constant_string_argument(node)
+                if name is not None:
+                    imports.append(name)
+                else:
+                    imports.append("__dynamic_import__")
+            elif import_aliases.get(node.func.id) == "__import__":
                 name = _constant_string_argument(node)
                 if name is not None:
                     imports.append(name)
@@ -233,6 +245,10 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
                 offenders.append("Path.method-alias")
             effect_ref = _qualified_call_name(node.value, import_aliases)
+            if effect_ref in {"getattr", "__import__", "importlib.import_module"}:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        import_aliases[target.id] = effect_ref
             if _is_os_effect_ref(effect_ref):
                 offenders.append(f"{effect_ref}.alias")
             os_getattr_ref = _os_getattr_effect_name(node.value, import_aliases)
@@ -285,6 +301,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             effect_ref = (
                 _qualified_call_name(node.value, import_aliases) if node.value is not None else None
             )
+            if isinstance(node.target, ast.Name) and effect_ref in {
+                "getattr",
+                "__import__",
+                "importlib.import_module",
+            }:
+                import_aliases[node.target.id] = effect_ref
             if _is_os_effect_ref(effect_ref):
                 offenders.append(f"{effect_ref}.alias")
             if node.value is not None:
@@ -454,7 +476,7 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
 def _dynamic_import_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
     if not isinstance(node, ast.Call):
         return None
-    if isinstance(node.func, ast.Name) and node.func.id == "__import__":
+    if _qualified_call_name(node.func, import_aliases) == "__import__":
         return _constant_string_argument(node)
     if _qualified_call_name(node.func, import_aliases) == "importlib.import_module":
         return _constant_string_argument(node)

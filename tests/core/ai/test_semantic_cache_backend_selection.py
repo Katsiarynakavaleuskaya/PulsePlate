@@ -1111,6 +1111,10 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         "file-write",
         "filewritev2",
         "file_writev2",
+        "gptcacheclient",
+        "gptcacheclientv2",
+        "gptcacheclientsv2",
+        "gptcachebackendv1",
         "vector_searchv1",
         "semantic_similarityv2",
         "backend_clientv2",
@@ -1139,6 +1143,12 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         lambda: replace(_evidence(), evidence_id="evidence:fast_api"),
         lambda: replace(_evidence(), evidence_id="evidence:fastapiv1"),
         lambda: replace(_evidence(), evidence_id="evidence:dbv1"),
+        lambda: replace(_evidence(), evidence_id="evidence:gptcacheclient"),
+        lambda: replace(_evidence(), evidence_id="evidence:gptcacheclientv2"),
+        lambda: replace(_evidence(), evidence_id="evidence:gptcachebackendv1"),
+        lambda: replace(_evidence(), source_fingerprints=("gptcacheclient",)),
+        lambda: replace(_evidence(), source_fingerprints=("gptcacheclientv2",)),
+        lambda: replace(_evidence(), source_fingerprints=("gptcachebackendv1",)),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:openapi"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:open-api"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:openapiv3"),
@@ -1381,6 +1391,7 @@ def test_import_guard_rejects_direct_os_environ_value_reads(tmp_path: Path) -> N
     for filename, source_text in {
         "unsafe_env_dict.py": "import os\nsettings = dict(os.environ)\n",
         "unsafe_env_getattr.py": "import os\nsettings = getattr(os, 'environ')\n",
+        "unsafe_env_getattr_alias.py": "import os\ng = getattr\nsettings = g(os, 'environ')\n",
         "unsafe_env_getattr_dict.py": "import os\nsettings = dict(getattr(os, 'environ'))\n",
         "unsafe_env_dunder_dict.py": "import os\nsettings = os.__dict__['environ']\n",
         "unsafe_env_vars.py": "import os\nsettings = vars(os)['environ']\n",
@@ -1562,6 +1573,9 @@ def test_import_guard_rejects_importlib_dynamic_os_effects(tmp_path: Path) -> No
             "module = importlib.import_module('os')\n"
             "module.system('/usr/bin/curl https://example.invalid')\n"
         ),
+        "unsafe_builtin_import_alias_os_effect.py": (
+            "imp = __import__\n" "imp('os').system('/usr/bin/curl https://example.invalid')\n"
+        ),
     }.items():
         source = tmp_path / filename
         source.write_text(source_text, encoding="utf-8")
@@ -1587,6 +1601,11 @@ def test_import_guard_rejects_getattr_os_effect_aliases(tmp_path: Path) -> None:
             "unsafe_getattr_os_system.py",
             "import os\nlauncher = getattr(os, 'system')\nlauncher('/usr/bin/curl https://example.invalid')\n",
             "os.system.alias",
+        ),
+        (
+            "unsafe_getattr_alias_os_system_call.py",
+            "import os\ng = getattr\ng(os, 'system')('/usr/bin/curl https://example.invalid')\n",
+            "os.system",
         ),
         (
             "unsafe_getattr_os_getenv.py",
@@ -1665,6 +1684,12 @@ def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="__dynamic_import__"):
         assert_no_forbidden_semantic_cache_imports(source)
+
+    alias_source = tmp_path / "unsafe_dynamic_import_alias.py"
+    alias_source.write_text("imp = __import__\nimp('redis')\n", encoding="utf-8")
+
+    with pytest.raises(AssertionError, match="redis"):
+        assert_no_forbidden_semantic_cache_imports(alias_source)
 
 
 def test_import_guard_rejects_core_ai_runtime_facade_imports(tmp_path: Path) -> None:
