@@ -5,7 +5,7 @@
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755
 - Branch: `codex/walk3-ollama-codex-operator-workflow`
 - Base: `main`
-- Evidence head at latest mapping update: `8a4d1af0f75425b6647201b9907b5dbfd7b59d15`
+- Evidence head at latest mapping update: `706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f`
 - Note: later mapping-only or review-fix commits may advance the branch head; use GitHub PR current-head checks for live merge-readiness truth.
 
 ## Scope
@@ -72,6 +72,16 @@ Disposition: FIXED
 Commit: 5c296d7562676b5494c512c25b943886b9d5488d
 Evidence: `--timeout` validation fails fast before the network probe and focused tests pass.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#pullrequestreview-4298048488 -> 5c296d7562676b5494c512c25b943886b9d5488d
+Disposition: FIXED
+Commit: 5c296d7562676b5494c512c25b943886b9d5488d
+Evidence: cubic review-level finding listed the timeout and positive-timeout issues; both inline threads are mapped above and fixed by the same commit.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#pullrequestreview-4298052588 -> b22efdab36355f5f068e63a8598d7a37f76d5673
+Disposition: FIXED
+Commit: b22efdab36355f5f068e63a8598d7a37f76d5673
+Evidence: CodeRabbit review-level finding listed positive-timeout and redirect issues; positive timeout is fixed by `5c296d7562676b5494c512c25b943886b9d5488d`, and redirect blocking is fixed by this commit.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#discussion_r3248130616 -> b22efdab36355f5f068e63a8598d7a37f76d5673
 Disposition: FIXED
 Commit: b22efdab36355f5f068e63a8598d7a37f76d5673
@@ -87,15 +97,35 @@ Disposition: FIXED
 Commit: b22efdab36355f5f068e63a8598d7a37f76d5673
 Evidence: the localhost probe now uses a no-redirect opener and reports redirect HTTP responses as blocked; `tests/test_codex_ollama_operator_doctor.py` covers redirect blocking.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#discussion_r3248229932 -> 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Disposition: FIXED
+Commit: 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Evidence: `_check_ollama_server(...)` now parses `/api/version` JSON and fails closed when the running server is below v0.13.3, the minimum documented here for Codex profile Responses API support; focused tests cover stale and unparseable server versions.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#discussion_r3248229934 -> 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Disposition: FIXED
+Commit: 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Evidence: `_normalize_ollama_root_url(...)` catches malformed URL parse errors and returns a structured `ollama-local-server` failure; focused tests cover malformed bracketed IPv6 input.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#discussion_r3248229941 -> 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Disposition: FIXED
+Commit: 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Evidence: `_check_ollama_version(...)` now treats any non-zero `ollama --version` exit as a failed check even when the output includes a parseable version; focused tests cover this path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1755#pullrequestreview-4298161871 -> 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Disposition: FIXED
+Commit: 706cea66f8c4ac96fb03a737f8aa4a1b18a54c8f
+Evidence: the second Codex review-level finding surfaced malformed URL handling, non-zero version exits, and stale server version gating; all three inline threads are mapped above and fixed by this commit.
+
 ## Local Validation
 
 - `python3 scripts/orchestration/check_preflight.py --path docs/dev/CODEX_SKILLS.md --path docs/templates/codex.config.example.toml --path scripts/orchestration/check_codex_ollama_operator.py --path tests/test_codex_ollama_operator_doctor.py --path docs/review/PR_1755_FIXED_MAPPING.md` PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` OK.
-- `../../.venv/bin/python -m pytest -q tests/test_codex_ollama_operator_doctor.py` PASS, 16 tests.
+- `../../.venv/bin/python -m pytest -q tests/test_codex_ollama_operator_doctor.py` PASS, 20 tests.
 - `../../.venv/bin/python -m py_compile scripts/orchestration/check_codex_ollama_operator.py` PASS.
 - `git diff --check` PASS.
 - `../../.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py` PASS.
-- `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_codex_ollama_operator_doctor.py` PASS, 21 tests.
+- `../../.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_codex_ollama_operator_doctor.py` PASS, 25 tests.
 - `../../.venv/bin/python -m flake8 scripts/orchestration/check_codex_ollama_operator.py tests/test_codex_ollama_operator_doctor.py` PASS.
 - `../../.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/orchestration/check_codex_ollama_operator.py` PASS after typing the no-redirect opener.
 - `../../.venv/bin/python -m ruff check scripts/orchestration/check_codex_ollama_operator.py tests/test_codex_ollama_operator_doctor.py` PASS.
