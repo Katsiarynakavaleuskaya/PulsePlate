@@ -95,6 +95,47 @@ For a **minimal copy-paste starter only**, see
 [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
 Customize on your machine; do not treat that template as a production or team contract.
 
+### Optional Codex + Ollama operator workflow
+
+This section is host-only operator guidance. It does not change PulsePlate
+runtime LLM provider selection, MCP behavior, or repo source-of-truth rules.
+
+Use the repo doctor before debugging Codex/Ollama wiring:
+
+```bash
+python3 scripts/orchestration/check_codex_ollama_operator.py
+```
+
+The doctor is read-only: it checks local `ollama`, local `codex`, and the
+localhost Ollama server, then prints next steps. It never writes
+`~/.codex/config.toml`, shell profiles, Cursor config, MCP config, or repo
+runtime files.
+For profile-based Codex use, the running Ollama server also needs OpenAI
+Responses API support; the doctor gates that at Ollama server v0.13.3+.
+
+Current operator paths:
+
+- `ollama launch codex-app` for the desktop Codex App. This requires Ollama
+  v0.24+.
+- `ollama launch codex` for Ollama-managed setup and launch.
+- `ollama launch codex --config` for Ollama-managed configuration without
+  launching immediately. These Codex CLI launch paths require Ollama v0.15+.
+- `codex --oss` for manual local mode.
+- `codex --profile ollama-launch` after copying/adapting the host-only profile
+  from [`docs/templates/codex.config.example.toml`](../templates/codex.config.example.toml).
+
+If `ollama launch codex-app` fails on this machine, first check the Ollama
+version. Older Ollama builds may support the Codex CLI integration while still
+not supporting the desktop Codex App integration. The repo doctor reports these
+two version gates separately.
+
+Do not confuse this with PulsePlate backend runtime configuration. Product
+runtime Ollama validation uses environment such as `LLM_PROVIDER=ollama` and
+`OLLAMA_ENDPOINT=http://localhost:11434`; see
+[`docs/runbooks/LOCAL_OLLAMA_NEMOTRON_RUNTIME.md`](../runbooks/LOCAL_OLLAMA_NEMOTRON_RUNTIME.md).
+V1 of this operator workflow intentionally does not modify `llm.py`,
+`providers/ollama.py`, or `mcp_pulseplate_server.py`.
+
 ## Repo compatibility bridge
 
 Use the repo bridge documents together:

@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "identity_slug": "experiment-runner",
+  "display_name": "PulsePlate Experiment Runner",
+  "git_attribution": {
+    "name": "PulsePlate Experiment Runner",
+    "email": "pulseplate@pm.me",
+    "purpose": "public_attribution_only",
+    "forbidden_placeholder_emails": [
+      "runner@example.com"
+    ]
+  },
+  "authority_boundary": {
+    "merge_rights": "none",
+    "can_claim_merge_readiness": false,
+    "can_resolve_review_threads": false,
+    "can_push_without_human_review": false,
+    "allowed_commit_context": "repo_local_pr_lane_only"
+  },
+  "cryptographic_boundary": {
+    "status": "operator_managed_external",
+    "verified_account_required": true,
+    "commit_signing_required_for_autonomous_production_commits": true,
+    "allowed_signing_methods": [
+      "ssh",
+      "gpg",
+      "github_app_verified_signature"
+    ],
+    "private_key_material_allowed_in_repo": false,
+    "repo_must_not_generate_private_keys": true,
+    "repo_must_not_store_signing_secrets": true
+  },
+  "notification_boundary": {
+    "git_email_is_delivery_channel": false,
+    "experiment_result_delivery": "experiment_notify_explicit_sink_only",
+    "default_sink": "local_artifact",
+    "v1_email_recipient": "pulseplate@pm.me"
+  },
+  "slack_identity": {
+    "status": "deferred",
+    "purpose": "ops_notification_display_identity_only",
+    "not_cryptographic_identity": true,
+    "requires_separate_security_pr": true,
+    "requires_bot_token_secret_boundary": true,
+    "requires_channel_allowlist": true,
+    "requires_audit_artifact": true
+  }
+}

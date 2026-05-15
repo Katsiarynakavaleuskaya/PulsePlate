@@ -189,6 +189,185 @@ def test_build_shard_env_isolates_database_and_coverage(tmp_path: Path) -> None:
     assert env["PYTEST_FAULTHANDLER_TIMEOUT_S"] == "300"
 
 
+def test_shard_timeout_seconds_validates_env(capsys: pytest.CaptureFixture[str]) -> None:
+    assert runner.shard_timeout_seconds({}) == runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "120"}) == 120
+    assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "bad"}) == (
+        runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    )
+    assert "MAIN_TEST_SHARD_TIMEOUT_INVALID" in capsys.readouterr().err
+    assert runner.shard_timeout_seconds({"MAIN_TEST_SHARD_TIMEOUT_SECONDS": "10"}) == (
+        runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    )
+    assert "MAIN_TEST_SHARD_TIMEOUT_TOO_LOW" in capsys.readouterr().err
+
+
+def test_run_shard_invokes_explicit_child_interpreter(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=3,
+        artifact_label="py313",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    captured: dict[str, object] = {}
+
+    class FakeProcess:
+        pid = 999_999
+
+        def poll(self) -> int:
+            return 5
+
+        def wait(self, *, timeout: int) -> int:
+            captured["timeout"] = timeout
+            return 5
+
+    def fake_popen(
+        command: list[str],
+        *,
+        cwd: Path,
+        env: dict[str, str],
+        start_new_session: bool,
+    ) -> FakeProcess:
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["env"] = env
+        captured["start_new_session"] = start_new_session
+        return FakeProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+    assert runner.run_shard(tmp_path, shard, {"PYTEST_XDIST_WORKER": "gw0"}) == 5
+
+    command = captured["command"]
+    assert isinstance(command, list)
+    assert command[:2] == [sys.executable, str(Path(runner.__file__).resolve())]
+    assert "--run-shard-index" in command
+    assert command[command.index("--run-shard-index") + 1] == "3"
+    assert "--shard-file" in command
+    assert command[command.index("--shard-file") + 1] == "tests/test_alpha.py"
+    assert captured["cwd"] == tmp_path
+    assert captured["timeout"] == runner.DEFAULT_SHARD_TIMEOUT_SECONDS
+    assert captured["start_new_session"] == (os.name == "posix")
+    env = captured["env"]
+    assert isinstance(env, dict)
+    assert "PYTEST_XDIST_WORKER" not in env
+    assert env["MAIN_TEST_SHARD"] == "3"
+    assert env["COVERAGE_FILE"] == str(tmp_path / ".coverage.py313-main-shard-3")
+
+
+def test_run_shard_fails_timeout_even_with_clean_artifacts(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=4,
+        artifact_label="py312",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    junit_path = tmp_path / shard.junit_file
+    junit_path.parent.mkdir(parents=True, exist_ok=True)
+    junit_path.write_text(
+        '<testsuite tests="2" failures="0" errors="0" skipped="0"></testsuite>',
+        encoding="utf-8",
+    )
+    (tmp_path / shard.coverage_file).write_text("coverage", encoding="utf-8")
+
+    class FakeTimeoutProcess:
+        pid = 999_999
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=timeout)
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeTimeoutProcess:
+        return FakeTimeoutProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(runner, "_terminate_process_group", lambda process: None)
+
+    assert runner.run_shard(tmp_path, shard, {}) == 124
+    stderr = capsys.readouterr().err
+    assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in stderr
+    assert "MAIN_TEST_SHARD_TIMEOUT_FILE label=py312 index=4 path=tests/test_alpha.py" in stderr
+
+
+def test_run_shard_fails_timeout_without_clean_artifacts(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=4,
+        artifact_label="py312",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+
+    class FakeTimeoutProcess:
+        pid = 999_999
+
+        def poll(self) -> None:
+            return None
+
+        def wait(self, *, timeout: int) -> int:
+            raise subprocess.TimeoutExpired(cmd=["pytest"], timeout=timeout)
+
+    def fake_popen(*args: object, **kwargs: object) -> FakeTimeoutProcess:
+        return FakeTimeoutProcess()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(runner, "_terminate_process_group", lambda process: None)
+
+    assert runner.run_shard(tmp_path, shard, {}) == 124
+    assert "MAIN_TEST_SHARD_TIMEOUT_FAILED" in capsys.readouterr().err
+
+
+def test_run_shard_child_forces_exit_after_pytest_returns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    shard = runner.TestShard(
+        index=1,
+        artifact_label="py312",
+        files=[runner.TestFile(Path("tests/test_alpha.py"), 10)],
+        weight=10,
+    )
+    original_cwd = Path.cwd()
+    captured: dict[str, object] = {}
+
+    def fake_pytest_main(pytest_args: list[str]) -> int:
+        captured["pytest_args"] = pytest_args
+        captured["cwd"] = Path.cwd()
+        captured["argv"] = list(sys.argv)
+        return 7
+
+    def fake_exit(exit_code: int) -> None:
+        raise SystemExit(exit_code)
+
+    monkeypatch.setattr(pytest, "main", fake_pytest_main)
+    monkeypatch.setattr(runner.os, "_exit", fake_exit)
+
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            runner.run_shard_child(tmp_path, shard, {})
+    finally:
+        os.chdir(original_cwd)
+
+    assert exc_info.value.code == 7
+    assert captured["cwd"] == tmp_path
+    assert captured["argv"] == ["pytest"]
+    pytest_args = captured["pytest_args"]
+    assert isinstance(pytest_args, list)
+    assert "tests/test_alpha.py" in pytest_args
+
+
 def test_remove_previous_outputs_deletes_stale_shard_files(tmp_path: Path) -> None:
     shard = runner.TestShard(index=1, artifact_label="py312")
     coverage_file = tmp_path / shard.coverage_file
@@ -211,6 +390,71 @@ def test_run_all_shards_rejects_invalid_parallelism(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="at least one shard"):
         runner.run_all_shards(tmp_path, [], 1, {})
+
+
+def test_run_all_shards_stops_refilling_after_first_failure(
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Fail-closed shards should surface promptly instead of scheduling all pending work."""
+
+    shards = [
+        runner.TestShard(index=1, files=[runner.TestFile(Path("tests/test_1.py"), 1)]),
+        runner.TestShard(index=2, files=[runner.TestFile(Path("tests/test_2.py"), 1)]),
+        runner.TestShard(index=3, files=[runner.TestFile(Path("tests/test_3.py"), 1)]),
+        runner.TestShard(index=4, files=[runner.TestFile(Path("tests/test_4.py"), 1)]),
+    ]
+    submitted: list[int] = []
+    shutdown_calls: list[tuple[bool, bool]] = []
+
+    class FakeExecutor:
+        _processes: dict[int, object] = {}
+
+        def __init__(self, **kwargs: object) -> None:
+            del kwargs
+
+        def shutdown(self, *, wait: bool, cancel_futures: bool = False) -> None:
+            shutdown_calls.append((wait, cancel_futures))
+
+        def submit(
+            self,
+            func: object,
+            repo_root: Path,
+            shard: runner.TestShard,
+            base_env: dict[str, str],
+        ) -> Future[int]:
+            del func, repo_root, base_env
+            submitted.append(shard.index)
+            future: Future[int] = Future()
+            if shard.index == 1:
+                future.set_result(124)
+            return future
+
+    def fake_wait(
+        futures: set[Future[int]] | dict[Future[int], int],
+        *,
+        return_when: object,
+    ) -> tuple[set[Future[int]], set[Future[int]]]:
+        assert return_when is runner.concurrent.futures.FIRST_COMPLETED
+        first = next(iter(futures))
+        remaining = set(futures) - {first}
+        return {first}, remaining
+
+    monkeypatch.setattr(runner.concurrent.futures, "ProcessPoolExecutor", FakeExecutor)
+    monkeypatch.setattr(runner.concurrent.futures, "wait", fake_wait)
+    monkeypatch.setattr(
+        runner,
+        "run_coverage_command",
+        lambda *args, **kwargs: pytest.fail("coverage must not run after shard failure"),
+    )
+
+    assert runner.run_all_shards(tmp_path, shards, 2, {}) == 1
+    assert submitted == [1, 2]
+    assert shutdown_calls == [(False, True)]
+    stderr = capsys.readouterr().err
+    assert "MAIN_TEST_SHARD_CANCELLED index=2 reason=fail_fast" in stderr
+    assert "MAIN_TEST_SHARDS_FAILED shards=[1]" in stderr
 
 
 def test_run_all_shards_max_parallel_one_uses_child_process_isolation(

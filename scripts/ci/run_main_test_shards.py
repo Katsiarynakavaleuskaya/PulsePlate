@@ -7,14 +7,17 @@ import argparse
 import concurrent.futures
 import multiprocessing
 import os
+import signal
+import subprocess  # nosec B404: subprocess is required for bounded local shard isolation without shell (remove-by: 2026-07-31, ref: PR-1748)
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Any, Mapping, Sequence
 
 DEFAULT_SHARD_COUNT = 2
 DEFAULT_MAX_PARALLEL = 2
 DEFAULT_FAULTHANDLER_TIMEOUT_SECONDS = 300
+DEFAULT_SHARD_TIMEOUT_SECONDS = 1800
 DEFAULT_ARTIFACT_LABEL = "pymain"
 JUNIT_FAMILY = "legacy"
 SLOW_MARK_EXPRESSION = "not slow"
@@ -162,8 +165,35 @@ def build_shard_env(base_env: dict[str, str], shard: TestShard, repo_root: Path)
     return env
 
 
-def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
-    """Run one pytest shard and return its process exit code."""
+def shard_timeout_seconds(base_env: Mapping[str, str]) -> int:
+    """Return the watchdog timeout for one pytest shard subprocess."""
+
+    raw_value = base_env.get("MAIN_TEST_SHARD_TIMEOUT_SECONDS", "").strip()
+    if not raw_value:
+        return DEFAULT_SHARD_TIMEOUT_SECONDS
+    try:
+        timeout = int(raw_value)
+    except ValueError:
+        print(
+            f"MAIN_TEST_SHARD_TIMEOUT_INVALID value={raw_value!r} "
+            f"default={DEFAULT_SHARD_TIMEOUT_SECONDS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return DEFAULT_SHARD_TIMEOUT_SECONDS
+    if timeout < 60:
+        print(
+            f"MAIN_TEST_SHARD_TIMEOUT_TOO_LOW value={timeout} "
+            f"default={DEFAULT_SHARD_TIMEOUT_SECONDS}",
+            file=sys.stderr,
+            flush=True,
+        )
+        return DEFAULT_SHARD_TIMEOUT_SECONDS
+    return timeout
+
+
+def run_shard_child(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
+    """Run one pytest shard inside a disposable interpreter process."""
 
     import pytest
 
@@ -184,7 +214,110 @@ def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> in
         f"index={shard.index} exit_code={exit_code}",
         flush=True,
     )
-    return int(exit_code)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(int(exit_code))
+
+
+def run_shard(repo_root: Path, shard: TestShard, base_env: dict[str, str]) -> int:
+    """Run one pytest shard in a child interpreter and return its exit code."""
+
+    env = build_shard_env(base_env, shard, repo_root)
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--repo-root",
+        str(repo_root),
+        "--artifact-label",
+        shard.artifact_label,
+        "--run-shard-index",
+        str(shard.index),
+        "--shard-weight",
+        str(shard.weight),
+    ]
+    for test_file in shard.files:
+        command.extend(["--shard-file", str(test_file.path)])
+
+    timeout = shard_timeout_seconds(base_env)
+    process: subprocess.Popen[bytes] | None = None
+    previous_handlers: dict[signal.Signals, Any] = {}
+
+    def terminate_child_for_signal(signum: int, _frame: Any) -> None:
+        if process is not None:
+            _terminate_process_group(process)
+        raise SystemExit(128 + signum)
+
+    if os.name == "posix":
+        for signum in (signal.SIGTERM, signal.SIGINT):
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, terminate_child_for_signal)
+    try:
+        process = subprocess.Popen(  # nosec B603: argv uses the current Python interpreter and explicit repo-local shard runner without shell (remove-by: 2026-07-31, ref: PR-1748)
+            command,
+            cwd=repo_root,
+            env=env,
+            start_new_session=(os.name == "posix"),
+        )
+        return int(process.wait(timeout=timeout))
+    except subprocess.TimeoutExpired:
+        if process is not None:
+            _terminate_process_group(process)
+        print(
+            f"MAIN_TEST_SHARD_TIMEOUT_FAILED label={shard.artifact_label} "
+            f"index={shard.index} timeout_seconds={timeout}",
+            file=sys.stderr,
+            flush=True,
+        )
+        for test_file in shard.files:
+            print(
+                f"MAIN_TEST_SHARD_TIMEOUT_FILE label={shard.artifact_label} "
+                f"index={shard.index} path={test_file.path}",
+                file=sys.stderr,
+                flush=True,
+            )
+        return 124
+    finally:
+        for signum, previous_handler in previous_handlers.items():
+            signal.signal(signum, previous_handler)
+
+
+def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
+    """Terminate a shard subprocess and its descendants without waiting for timeout."""
+
+    if process.poll() is not None:
+        return
+    try:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGTERM)
+        else:
+            process.terminate()
+        process.wait(timeout=10)
+    except ProcessLookupError:
+        return
+    except subprocess.TimeoutExpired:
+        if os.name == "posix":
+            os.killpg(process.pid, signal.SIGKILL)
+        else:
+            process.kill()
+        process.wait(timeout=10)
+
+
+def _build_explicit_shard(args: argparse.Namespace, artifact_label: str) -> TestShard:
+    """Build the shard requested by a parent runner invocation."""
+
+    if args.run_shard_index is None:
+        raise ValueError("run_shard_index is required for explicit shard mode")
+    if not args.shard_file:
+        raise ValueError("at least one --shard-file is required for explicit shard mode")
+
+    shard = TestShard(
+        index=args.run_shard_index,
+        artifact_label=artifact_label,
+        weight=args.shard_weight,
+    )
+    for test_file in args.shard_file:
+        shard.files.append(TestFile(path=Path(test_file), weight=1))
+    return shard
 
 
 def run_coverage_command(repo_root: Path, args: Sequence[str]) -> int:
@@ -251,6 +384,39 @@ def _log_coverage_failure(phase: str, returncode: int) -> None:
     )
 
 
+def _terminate_executor_workers(
+    executor: concurrent.futures.ProcessPoolExecutor,
+) -> None:
+    """Terminate process-pool workers after a fail-fast shard result."""
+
+    worker_processes = list((getattr(executor, "_processes", None) or {}).values())
+    for worker_process in worker_processes:
+        if worker_process.is_alive():
+            worker_process.terminate()
+    for worker_process in worker_processes:
+        worker_process.join(timeout=10)
+        if worker_process.is_alive():
+            worker_process.kill()
+            worker_process.join(timeout=10)
+
+
+def _cancel_inflight_shards(
+    executor: concurrent.futures.ProcessPoolExecutor,
+    futures: Mapping[concurrent.futures.Future[int], int],
+) -> None:
+    """Cancel submitted shards once one shard has already failed."""
+
+    for future, shard_index in sorted(futures.items(), key=lambda item: item[1]):
+        future.cancel()
+        print(
+            f"MAIN_TEST_SHARD_CANCELLED index={shard_index} reason=fail_fast",
+            file=sys.stderr,
+            flush=True,
+        )
+    _terminate_executor_workers(executor)
+    executor.shutdown(wait=False, cancel_futures=True)
+
+
 def run_all_shards(
     repo_root: Path,
     shards: Sequence[TestShard],
@@ -266,17 +432,43 @@ def run_all_shards(
 
     process_context = multiprocessing.get_context("spawn")
     results: dict[int, int] = {}
-    for batch_start in range(0, len(shards), max_parallel):
-        batch = shards[batch_start : batch_start + max_parallel]
-        with concurrent.futures.ProcessPoolExecutor(
-            max_workers=len(batch),
-            mp_context=process_context,
-        ) as executor:
-            futures = {
-                executor.submit(run_shard, repo_root, shard, base_env): shard.index
-                for shard in batch
-            }
-            results.update(collect_shard_results(futures))
+    pending_shards = iter(shards)
+    failure_seen = False
+    executor = concurrent.futures.ProcessPoolExecutor(
+        max_workers=min(max_parallel, len(shards)),
+        mp_context=process_context,
+    )
+    executor_shutdown = False
+    try:
+        futures: dict[concurrent.futures.Future[int], int] = {}
+        for shard in pending_shards:
+            futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
+            if len(futures) >= max_parallel:
+                break
+
+        while futures:
+            done, _ = concurrent.futures.wait(
+                futures,
+                return_when=concurrent.futures.FIRST_COMPLETED,
+            )
+            completed_results = collect_shard_results({future: futures[future] for future in done})
+            results.update(completed_results)
+            if any(exit_code != 0 for exit_code in completed_results.values()):
+                failure_seen = True
+            for future in done:
+                del futures[future]
+            if failure_seen:
+                _cancel_inflight_shards(executor, futures)
+                executor_shutdown = True
+                futures.clear()
+                break
+            for shard in pending_shards:
+                futures[executor.submit(run_shard, repo_root, shard, base_env)] = shard.index
+                if len(futures) >= max_parallel:
+                    break
+    finally:
+        if not executor_shutdown:
+            executor.shutdown(wait=True)
 
     failing_shards = [
         shard_index for shard_index, exit_code in sorted(results.items()) if exit_code != 0
@@ -319,6 +511,23 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
         action="store_true",
         help="Print deterministic shard assignment without running pytest.",
     )
+    parser.add_argument(
+        "--run-shard-index",
+        type=int,
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--shard-file",
+        action="append",
+        default=[],
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument(
+        "--shard-weight",
+        type=int,
+        default=0,
+        help=argparse.SUPPRESS,
+    )
     return parser.parse_args(argv)
 
 
@@ -332,6 +541,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.python_version or f"{sys.version_info.major}.{sys.version_info.minor}"
         )
     )
+    if args.run_shard_index is not None:
+        shard = _build_explicit_shard(args, artifact_label)
+        return run_shard_child(repo_root, shard, os.environ.copy())
+
     test_files = discover_test_files(repo_root)
     shards = partition_test_files(test_files, args.shard_count, artifact_label)
 

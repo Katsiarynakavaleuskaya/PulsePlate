@@ -24,6 +24,12 @@
   is the default, SMTP email delivery is explicit opt-in only, and no notification
   sink may expose raw patches, oracle stdout/stderr, secrets, absolute local
   paths, or user data.
+- Experiment Runner Git attribution must follow
+  `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`; placeholder
+  identities such as `runner@example.com` are not allowed for new attribution.
+- `scripts/orchestration/check_experiment_runner_identity.py` validates the
+  machine-readable identity policy. It must remain offline, deterministic, and
+  must not generate, read, or persist signing key material.
 
 ## Pre-push backend tests (smart diff runner)
 
