@@ -24,6 +24,7 @@
   - `c2fb89aaf` - expanded secret guards for API-key fields, PGP private key blocks, prefix duplicate boundaries, and dotted sensitive ancestor redaction.
   - `eeabbca59` - detected camelCase authority drift fields.
   - `fb03b0caf` - rejected password fields, Slack webhook URLs, and duplicate JSON keys before identity policy validation.
+  - `fbd542f77` - detected private signing-key aliases with descriptors between private and key tokens.
 - Scope: Experiment Runner cryptographic attribution boundary, policy validation, Slack identity deferral, and focused runner test hardening.
 
 ## Discussion Thread Pass
@@ -32,6 +33,10 @@
 - [x] Fixed in commit mapping completed
 
 ### Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting API-key fields, password fields, Slack webhook URLs, PGP private key blocks, repeated and punctuation separators in sensitive key names, redacting sensitive field names and secret-shaped ancestor paths in diagnostics, rejecting duplicate sensitive booleans outside canonical paths, rejecting duplicate JSON keys before policy validation, rejecting separator/camelCase authority drift and duplicate `allowed_commit_context` drift inside and outside `authority_boundary`, rejecting private signing-key aliases with descriptor tokens, rejecting duplicate Git attribution, cryptographic, notification, and Slack identity boundary blocks across naming styles and prefix/suffix variants, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806268 -> 0aec2bf28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3242806276 -> 4f431c553
@@ -72,10 +77,6 @@
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247757095 -> fb03b0caf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247757106 -> fb03b0caf
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1752#discussion_r3247757115 -> fb03b0caf
-
-Disposition: FIXED
-Commit: `229777a55`, `19d2c92ee`, `2853fca3e`, `4f431c553`, `cf1174f86`, `1dbb8b612`, `432f5e51b`, `647f49e12`, `c2fb89aaf`, `eeabbca59`, `fb03b0caf`
-Evidence: CodeRabbit/Cubic/Codex bot findings were fixed by checking the fixed-mapping artifact checkboxes, hardening malformed policy validation to fail closed without raw `TypeError`, expanding current token-prefix detection for `github_pat_`, `xapp-`, and `xoxc-`, detecting token-shaped JSON keys without leaking them in diagnostics, rejecting API-key fields, password fields, Slack webhook URLs, PGP private key blocks, repeated and punctuation separators in sensitive key names, redacting sensitive field names and secret-shaped ancestor paths in diagnostics, rejecting duplicate sensitive booleans outside canonical paths, rejecting duplicate JSON keys before policy validation, rejecting separator/camelCase authority drift and duplicate `allowed_commit_context` drift inside and outside `authority_boundary`, rejecting duplicate Git attribution, cryptographic, notification, and Slack identity boundary blocks across naming styles and prefix/suffix variants, adding safe unset-PATH fallback, and replacing the brittle validation command text with `make validate-changed`.
 
 ## Role-Agent Findings
 
@@ -125,6 +126,10 @@ Evidence: CodeRabbit CLI governance findings were addressed by moving the Slack 
 - `make validate-changed` PASS after `fb03b0caf`.
 - `mypy --explicit-package-bases scripts/orchestration/check_experiment_runner_identity.py tests/test_experiment_runner_identity_policy.py` PASS after `fb03b0caf`.
 - `bandit -q scripts/orchestration/check_experiment_runner_identity.py` PASS after `fb03b0caf`.
+- `pytest -q tests/test_experiment_runner_identity_policy.py tests/test_experiment_runner.py tests/test_experiment_notify.py` PASS after `fbd542f77`.
+- `make validate-changed` PASS after `fbd542f77`.
+- `mypy --explicit-package-bases scripts/orchestration/check_experiment_runner_identity.py tests/test_experiment_runner_identity_policy.py` PASS after `fbd542f77`.
+- `bandit -q scripts/orchestration/check_experiment_runner_identity.py` PASS after `fbd542f77`.
 - `black --check` on changed Python files PASS.
 - `flake8` on identity guard/tests PASS.
 - `mypy --explicit-package-bases` on identity guard/tests PASS.
