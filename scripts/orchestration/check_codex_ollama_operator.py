@@ -15,7 +15,7 @@ import shutil
 import subprocess  # nosec B404: required for bounded local CLI version checks (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
 import sys
 from dataclasses import asdict, dataclass
-from typing import Sequence
+from typing import Any, ContextManager, Sequence, cast
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse, urlunparse
 from urllib.request import HTTPRedirectHandler, build_opener
@@ -216,9 +216,9 @@ class _NoRedirectHandler(HTTPRedirectHandler):
         return None
 
 
-def _open_no_redirect(url: str, timeout_s: float) -> object:
+def _open_no_redirect(url: str, timeout_s: float) -> ContextManager[Any]:
     opener = build_opener(_NoRedirectHandler)
-    return opener.open(url, timeout=timeout_s)
+    return cast(ContextManager[Any], opener.open(url, timeout=timeout_s))
 
 
 def _positive_timeout(raw_value: str) -> float:
