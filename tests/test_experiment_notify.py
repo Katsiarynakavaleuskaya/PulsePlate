@@ -2153,6 +2153,43 @@ def test_cli_rejects_symlink_loop_input_paths(
     assert not (repo / "artifacts" / "orchestration" / "experiments" / "notifications").exists()
 
 
+def test_email_delivery_rejects_symlink_loop_audit_path_without_smtp_send(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    notification_dir = _configure_repo(monkeypatch, repo)
+    _configure_smtp_env(monkeypatch)
+    _reset_fake_smtp()
+    monkeypatch.setattr(experiment_notify.smtplib, "SMTP", FakeSMTP)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    result_path = _write_json(tmp_path / "result.json", _promotion_ready_result())
+    audit_path = notification_dir / "exp-notify.email-audit.json"
+    notification_dir.mkdir(parents=True)
+    _self_referential_symlink(audit_path)
+
+    exit_code = experiment_notify.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--result",
+            str(result_path),
+            "--email",
+            "--email-to",
+            "pulseplate@pm.me",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert "Email audit artifact path is invalid" in captured.out
+    assert "Symlink loop" not in captured.out
+    assert str(audit_path) not in captured.out
+    assert len(FakeSMTP.sent_messages) == 0
+    assert not (notification_dir / "exp-notify.md").exists()
+
+
 def test_github_step_summary_requires_explicit_flag(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

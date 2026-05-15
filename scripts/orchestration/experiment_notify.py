@@ -142,14 +142,19 @@ def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
 def _resolve_email_audit_path(experiment_id: str) -> Path:
     """Resolve the canonical email audit artifact for an experiment."""
 
-    safe_experiment_id = str(validate_experiment_id(experiment_id, label="Experiment notification"))
-    notification_dir = Path(NOTIFICATION_ARTIFACT_DIR)
-    audit_path = notification_dir / f"{safe_experiment_id}.email-audit.json"
-    _reject_symlinked_output_components(
-        audit_path.absolute(),
-        artifact_dir=notification_dir.absolute(),
-    )
-    return audit_path
+    try:
+        safe_experiment_id = str(
+            validate_experiment_id(experiment_id, label="Experiment notification")
+        )
+        notification_dir = Path(NOTIFICATION_ARTIFACT_DIR)
+        audit_path = notification_dir / f"{safe_experiment_id}.email-audit.json"
+        _reject_symlinked_output_components(
+            audit_path.absolute(),
+            artifact_dir=notification_dir.absolute(),
+        )
+        return audit_path
+    except ValueError as exc:
+        raise ExperimentEmailDeliveryError("Email audit artifact path is invalid.") from exc
 
 
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
