@@ -15,6 +15,7 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "llm",
     "cache",
     "semantic_cache",
+    "core.ai",
     "core.rag",
     "evals",
     "scripts.evals",
@@ -34,6 +35,8 @@ FORBIDDEN_SEMANTIC_CACHE_IMPORT_PREFIXES = (
     "httpx",
     "subprocess",
     "io",
+    "importlib",
+    "os",
     "shutil",
     "builtins",
 )
@@ -232,13 +235,33 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             effect_ref = _qualified_call_name(node.value, import_aliases)
             if _is_os_effect_ref(effect_ref):
                 offenders.append(f"{effect_ref}.alias")
+            os_getattr_ref = _os_getattr_effect_name(node.value, import_aliases)
+            if os_getattr_ref is not None:
+                offenders.append(f"{os_getattr_ref}.alias")
             if _qualified_call_name(node.value, import_aliases) == "os.getenv":
                 offenders.append("os.getenv.alias")
-            if _qualified_call_name(node.value, import_aliases) == "os.environ":
+            if _qualified_call_name(
+                node.value, import_aliases
+            ) == "os.environ" or _is_os_environ_value_ref(
+                node.value, import_aliases, environ_aliases
+            ):
                 offenders.append("os.environ.value")
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         environ_aliases.add(target.id)
+            dynamic_import = _dynamic_import_name(node.value, import_aliases)
+            if dynamic_import is not None:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        import_aliases[target.id] = dynamic_import
+            if effect_ref is not None:
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and (
+                        _is_os_environ_call_name(effect_ref)
+                        or _is_os_effect_ref(effect_ref)
+                        or effect_ref == "os.getenv"
+                    ):
+                        import_aliases[target.id] = effect_ref
             _collect_path_constructor_aliases(
                 node.targets,
                 node.value,
@@ -264,6 +287,10 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             )
             if _is_os_effect_ref(effect_ref):
                 offenders.append(f"{effect_ref}.alias")
+            if node.value is not None:
+                os_getattr_ref = _os_getattr_effect_name(node.value, import_aliases)
+                if os_getattr_ref is not None:
+                    offenders.append(f"{os_getattr_ref}.alias")
             if (
                 node.value is not None
                 and _qualified_call_name(node.value, import_aliases) == "os.getenv"
@@ -272,10 +299,23 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             if (
                 isinstance(node.target, ast.Name)
                 and node.value is not None
-                and _qualified_call_name(node.value, import_aliases) == "os.environ"
+                and (
+                    _qualified_call_name(node.value, import_aliases) == "os.environ"
+                    or _is_os_environ_value_ref(node.value, import_aliases, environ_aliases)
+                )
             ):
                 offenders.append("os.environ.value")
                 environ_aliases.add(node.target.id)
+            if isinstance(node.target, ast.Name) and node.value is not None:
+                dynamic_import = _dynamic_import_name(node.value, import_aliases)
+                if dynamic_import is not None:
+                    import_aliases[node.target.id] = dynamic_import
+                if effect_ref is not None and (
+                    _is_os_environ_call_name(effect_ref)
+                    or _is_os_effect_ref(effect_ref)
+                    or effect_ref == "os.getenv"
+                ):
+                    import_aliases[node.target.id] = effect_ref
             if isinstance(node.target, ast.Name) and node.value is not None:
                 path_constructor_ref = _qualified_call_name(node.value, import_aliases)
                 if path_constructor_ref in {"Path", "pathlib.Path"}:
@@ -303,6 +343,9 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append(call_name or "os.environ.call")
             if _is_os_environ_alias_call_name(call_name, environ_aliases):
                 offenders.append(call_name or "os.environ.alias.call")
+            os_getattr_ref = _os_getattr_effect_name(node.func, import_aliases)
+            if os_getattr_ref is not None:
+                offenders.append(os_getattr_ref)
             if any(
                 _is_os_environ_value_ref(argument, import_aliases, environ_aliases)
                 for argument in node.args
@@ -387,7 +430,12 @@ def _is_os_environ_value_ref(
     environ_aliases: set[str],
 ) -> bool:
     name = _qualified_call_name(node, import_aliases)
-    return name == "os.environ" or (name is not None and name in environ_aliases)
+    return (
+        name == "os.environ"
+        or (name is not None and name in environ_aliases)
+        or _os_getattr_effect_name(node, import_aliases) == "os.environ"
+        or _is_os_environ_dict_subscript(node, import_aliases)
+    )
 
 
 def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
@@ -396,17 +444,77 @@ def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
     if isinstance(node, ast.Attribute):
         owner = _qualified_call_name(node.value, import_aliases)
         if owner is None and isinstance(node.value, ast.Call):
-            owner = _dynamic_import_name(node.value)
+            owner = _dynamic_import_name(node.value, import_aliases)
         if owner is None:
             return None
         return f"{owner}.{node.attr}"
     return None
 
 
-def _dynamic_import_name(node: ast.Call) -> str | None:
-    if not isinstance(node.func, ast.Name) or node.func.id != "__import__":
+def _dynamic_import_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
+    if not isinstance(node, ast.Call):
         return None
-    return _constant_string_argument(node)
+    if isinstance(node.func, ast.Name) and node.func.id == "__import__":
+        return _constant_string_argument(node)
+    if _qualified_call_name(node.func, import_aliases) == "importlib.import_module":
+        return _constant_string_argument(node)
+    return None
+
+
+def _os_getattr_effect_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:
+    if not isinstance(node, ast.Call):
+        return None
+    if _qualified_call_name(node.func, import_aliases) != "getattr":
+        return None
+    if len(node.args) < 2:
+        return None
+    owner_name = _qualified_call_name(node.args[0], import_aliases)
+    if owner_name != "os":
+        return None
+    attr_name = _constant_string_argument_at(node, 1)
+    if attr_name == "environ":
+        return "os.environ"
+    if attr_name is None:
+        return None
+    effect_name = f"os.{attr_name}"
+    if _is_os_effect_ref(effect_name) or effect_name == "os.getenv":
+        return effect_name
+    return None
+
+
+def _constant_string_argument_at(node: ast.Call, index: int) -> str | None:
+    if len(node.args) <= index:
+        return None
+    argument = node.args[index]
+    if isinstance(argument, ast.Constant) and isinstance(argument.value, str):
+        return argument.value
+    return None
+
+
+def _is_os_environ_dict_subscript(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    if not isinstance(node, ast.Subscript):
+        return False
+    key = _constant_subscript_key(node)
+    if key != "environ":
+        return False
+    if _qualified_call_name(node.value, import_aliases) == "os.__dict__":
+        return True
+    return _is_vars_os_call(node.value, import_aliases)
+
+
+def _constant_subscript_key(node: ast.Subscript) -> str | None:
+    if isinstance(node.slice, ast.Constant) and isinstance(node.slice.value, str):
+        return node.slice.value
+    return None
+
+
+def _is_vars_os_call(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    return (
+        isinstance(node, ast.Call)
+        and _qualified_call_name(node.func, import_aliases) == "vars"
+        and len(node.args) == 1
+        and _qualified_call_name(node.args[0], import_aliases) == "os"
+    )
 
 
 def _is_os_effect_ref(call_name: str | None) -> bool:

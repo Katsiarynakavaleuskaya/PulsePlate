@@ -14,7 +14,7 @@ import json
 import math
 import re
 from types import MappingProxyType
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 JsonScalar: TypeAlias = str | int | float | bool | None
 JsonValue: TypeAlias = (
@@ -204,6 +204,7 @@ _UNSAFE_EVIDENCE_ID_RE = re.compile(
 )
 _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS = frozenset(
     {
+        "aiohttp",
         "backendadapter",
         "backendclient",
         "backendclients",
@@ -216,6 +217,8 @@ _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS = frozenset(
         "fastapi",
         "filewrite",
         "filewrites",
+        "httpx",
+        "insightroute",
         "migration",
         "migrations",
         "network",
@@ -223,13 +226,17 @@ _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS = frozenset(
         "provider",
         "redisclient",
         "redisclients",
+        "requests",
+        "routewiring",
+        "runtimeserving",
         "semanticsimilarity",
+        "servingbackend",
+        "socket",
+        "urllib",
         "vectorsearch",
     }
 )
-_UNSAFE_RUNTIME_SCOPE_VERSION_PREFIXES = frozenset(
-    token for token in _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS if token != "db"
-)
+_UNSAFE_RUNTIME_SCOPE_VERSION_PREFIXES = _UNSAFE_RUNTIME_SCOPE_SINGLE_TOKENS
 _RUNTIME_SCOPE_VERSION_SUFFIX_RE = re.compile(r"(?:v|version)?[0-9][a-z0-9]*")
 _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES = (
     ("availability", "probe"),
@@ -245,10 +252,14 @@ _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES = (
     ("fast", "api"),
     ("gptcache", "client"),
     ("gptcache", "clients"),
+    ("insight", "route"),
     ("open", "api"),
     ("redis", "client"),
     ("redis", "clients"),
+    ("route", "wiring"),
+    ("runtime", "serving"),
     ("semantic", "similarity"),
+    ("serving", "backend"),
     ("vector", "search"),
 )
 SC_G5_MIN_NEGATIVE_CONTROL_COUNT = 10
@@ -484,10 +495,9 @@ class SemanticCacheBackendCandidate:
             object.__setattr__(
                 self,
                 "current_head_ci_proof_id",
-                _validate_structured_proof_id(
+                _validate_current_head_ci_proof_id(
                     "current_head_ci_proof_id",
                     self.current_head_ci_proof_id,
-                    prefixes=("ci:pr-", "ci:current-head:", "verification-bundle:ci:"),
                 ),
             )
         if self.human_approval_record_id is not None:
@@ -1269,19 +1279,41 @@ def _contains_unsafe_runtime_scope(value: str) -> bool:
     for sequence in _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES:
         sequence_length = len(sequence)
         for index in range(0, len(tokens) - sequence_length + 1):
-            if tokens[index : index + sequence_length] == sequence:
+            if _runtime_scope_sequence_matches(tokens, index, sequence):
                 return True
     return False
+
+
+def _runtime_scope_sequence_matches(
+    tokens: tuple[str, ...],
+    index: int,
+    sequence: tuple[str, ...],
+) -> bool:
+    if tokens[index : index + len(sequence)] == sequence:
+        return True
+    if len(sequence) < 2:
+        return False
+    prefix_tokens = tokens[index : index + len(sequence) - 1]
+    if prefix_tokens != sequence[:-1]:
+        return False
+    suffix_token = tokens[index + len(sequence) - 1]
+    return _token_has_version_suffix(suffix_token, sequence[-1])
 
 
 def _has_unsafe_runtime_scope_version_suffix(token: str) -> bool:
     for prefix in _UNSAFE_RUNTIME_SCOPE_VERSION_PREFIXES:
         if not token.startswith(prefix) or token == prefix:
             continue
-        suffix = token[len(prefix) :]
-        if _RUNTIME_SCOPE_VERSION_SUFFIX_RE.fullmatch(suffix):
+        if _token_has_version_suffix(token, prefix):
             return True
     return False
+
+
+def _token_has_version_suffix(token: str, prefix: str) -> bool:
+    if not token.startswith(prefix) or token == prefix:
+        return False
+    suffix = token[len(prefix) :]
+    return _RUNTIME_SCOPE_VERSION_SUFFIX_RE.fullmatch(suffix) is not None
 
 
 def _normalize_required_unique_tokens(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
@@ -1294,7 +1326,7 @@ def _normalize_required_unique_tokens(name: str, values: tuple[str, ...]) -> tup
 def _normalize_unique_tokens(name: str, values: tuple[str, ...] | list[str]) -> tuple[str, ...]:
     normalized_values: list[str] = []
     seen: set[str] = set()
-    for value in values:
+    for value in _ensure_token_sequence(name, values):
         normalized = _validate_token(name, value)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
@@ -1309,7 +1341,7 @@ def _normalize_unique_runtime_safe_tokens(
 ) -> tuple[str, ...]:
     normalized_values: list[str] = []
     seen: set[str] = set()
-    for value in values:
+    for value in _ensure_token_sequence(name, values):
         normalized = _validate_runtime_safe_token(name, value)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
@@ -1326,7 +1358,7 @@ def _normalize_required_structured_proof_ids(
 ) -> tuple[str, ...]:
     normalized_values: list[str] = []
     seen: set[str] = set()
-    for value in values:
+    for value in _ensure_token_sequence(name, values):
         normalized = _validate_structured_proof_id(name, value, prefixes=prefixes)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
@@ -1340,7 +1372,7 @@ def _normalize_required_structured_proof_ids(
 def _normalize_required_runtime_safe_tokens(name: str, values: tuple[str, ...]) -> tuple[str, ...]:
     normalized_values: list[str] = []
     seen: set[str] = set()
-    for value in values:
+    for value in _ensure_token_sequence(name, values):
         normalized = _validate_runtime_safe_token(name, value)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
@@ -1356,7 +1388,7 @@ def _normalize_required_runtime_safe_evidence_ids(
 ) -> tuple[str, ...]:
     normalized_values: list[str] = []
     seen: set[str] = set()
-    for value in values:
+    for value in _ensure_token_sequence(name, values):
         normalized = _validate_runtime_safe_evidence_id(name, value)
         if normalized in seen:
             raise ValueError(f"{name} contains duplicate entries")
@@ -1373,6 +1405,15 @@ def _normalize_reason_codes(values: tuple[str, ...]) -> tuple[str, ...]:
         if reason_code not in ALLOWED_REASON_CODES:
             raise ValueError(f"unsupported reason_code: {reason_code!r}")
     return reason_codes
+
+
+def _ensure_token_sequence(
+    name: str,
+    values: object,
+) -> tuple[str, ...] | list[str]:
+    if isinstance(values, str) or not isinstance(values, (tuple, list)):
+        raise ValueError(f"{name} must be a tuple/list of strings")
+    return cast(tuple[str, ...] | list[str], values)
 
 
 def _validate_token(name: str, value: str) -> str:
@@ -1442,6 +1483,40 @@ def _validate_structured_proof_id(
     return normalized
 
 
+def _validate_current_head_ci_proof_id(name: str, value: str) -> str:
+    normalized = _validate_structured_proof_id(
+        name,
+        value,
+        prefixes=("ci:pr-", "ci:current-head:", "verification-bundle:ci:"),
+    )
+    parts = tuple(normalized.split(":"))
+    if _ci_proof_parts_have_valid_shape(parts):
+        return normalized
+    if parts[:2] == ("verification-bundle", "ci") and _ci_proof_parts_have_valid_shape(
+        ("ci", *parts[2:])
+    ):
+        return normalized
+    raise ValueError(f"{name} must use a current-head CI proof shape")
+
+
+def _ci_proof_parts_have_valid_shape(parts: tuple[str, ...]) -> bool:
+    if len(parts) < 4 or parts[0] != "ci":
+        return False
+    if parts[1] == "current-head":
+        return _is_git_sha_segment(parts[2]) and _has_structured_proof_suffix(parts[3:])
+    if _is_pr_proof_segment(parts[1]):
+        return (
+            parts[2].startswith("head-")
+            and _is_git_sha_segment(parts[2].removeprefix("head-"))
+            and _has_structured_proof_suffix(parts[3:])
+        )
+    return False
+
+
+def _is_git_sha_segment(value: str) -> bool:
+    return 7 <= len(value) <= 40 and all(char in "0123456789abcdef" for char in value)
+
+
 def _validate_backend_label(value: str) -> str:
     normalized = _validate_token("backend_label", value)
     if normalized not in ALLOWED_BACKEND_LABELS:
@@ -1483,13 +1558,19 @@ def _ci_proof_parts_match_current_head(parts: tuple[str, ...], current_head_sha:
         return False
     if parts[1] == "current-head":
         return parts[2] == current_head_sha and _has_structured_proof_suffix(parts[3:])
-    if parts[1].startswith("pr-"):
+    if _is_pr_proof_segment(parts[1]):
         return parts[2] == f"head-{current_head_sha}" and _has_structured_proof_suffix(parts[3:])
     return False
 
 
+def _is_pr_proof_segment(value: str) -> bool:
+    return value.startswith("pr-") and value.removeprefix("pr-").isdigit()
+
+
 def _has_structured_proof_suffix(parts: tuple[str, ...]) -> bool:
-    return any(any(char.isalnum() for char in part) for part in parts)
+    return any(
+        part.startswith("run-") and any(char.isalnum() for char in part[4:]) for part in parts
+    )
 
 
 def _rollback_proof_matches_backend(

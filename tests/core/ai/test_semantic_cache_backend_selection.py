@@ -403,21 +403,23 @@ def test_current_head_ci_proof_must_match_criteria_head_sha() -> None:
         ),
         criteria=_criteria(),
     )
-    spoofed_bundled_proof = evaluate_semantic_cache_backend_candidate(
-        candidate=_candidate(
-            current_head_ci_passed=True,
-            current_head_ci_proof_id=("verification-bundle:ci:note:current-head:d91b58100:manual"),
-        ),
-        criteria=_criteria(),
-    )
 
     assert stale_proof.decision == DECISION_INELIGIBLE
     assert REASON_CURRENT_HEAD_CI_MISSING in stale_proof.reason_codes
     assert current_proof.decision == DECISION_ELIGIBLE
     assert natural_current_head_proof.decision == DECISION_ELIGIBLE
     assert bundled_current_proof.decision == DECISION_ELIGIBLE
-    assert spoofed_bundled_proof.decision == DECISION_INELIGIBLE
-    assert REASON_CURRENT_HEAD_CI_MISSING in spoofed_bundled_proof.reason_codes
+    for weak_proof in (
+        "ci:current-head:d91b58100",
+        "ci:current-head:d91b58100:manual",
+        "ci:current-head:d91b58100:x",
+        "ci:pr-abc:head-d91b58100:run-25914493764",
+        "ci:pr-1742:head-d91b58100:manual",
+        "verification-bundle:ci:current-head:d91b58100:manual",
+        "verification-bundle:ci:note:current-head:d91b58100:manual",
+    ):
+        with pytest.raises(ValueError, match="current-head CI proof shape"):
+            _candidate(current_head_ci_proof_id=weak_proof)
 
 
 def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
@@ -1053,11 +1055,23 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_evidence(), evidence_fingerprints=(unsafe_proof_token,))
     for unsafe_runtime_token in (
+        "aiohttp",
+        "backend-client",
+        "dependency-addition",
         "fastapi",
         "fast_api",
+        "httpx",
+        "insight-route",
         "openapi",
         "open-api",
         "network",
+        "requests",
+        "route-wiring",
+        "runtime-serving",
+        "serving-backend",
+        "socket",
+        "urllib",
+        "vector-search",
         "file-write",
     ):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
@@ -1088,11 +1102,21 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_backend_version in (
         "fastapi",
         "fastapiv1",
+        "fast_apiv1",
         "openapi",
+        "open_apiv3",
         "network",
         "networkv1",
+        "dbv1",
         "file-write",
         "filewritev2",
+        "file_writev2",
+        "vector_searchv1",
+        "semantic_similarityv2",
+        "backend_clientv2",
+        "dependency_additionv2",
+        "redis_clientv1",
+        "gptcache_clientv2",
     ):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_candidate(), backend_version=unsafe_backend_version)
@@ -1108,10 +1132,13 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             replace(_candidate(), metadata={"scope": unsafe_split_runtime_token})
     with pytest.raises(ValueError, match="unsafe metadata"):
         replace(_candidate(), metadata={"scope": "openapiv3"})
+    with pytest.raises(ValueError, match="unsafe metadata"):
+        replace(_candidate(), metadata={"scope": "dbv1"})
     for unsafe_scalar_evidence_id in (
         lambda: replace(_evidence(), evidence_id="evidence:fastapi"),
         lambda: replace(_evidence(), evidence_id="evidence:fast_api"),
         lambda: replace(_evidence(), evidence_id="evidence:fastapiv1"),
+        lambda: replace(_evidence(), evidence_id="evidence:dbv1"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:openapi"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:open-api"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:openapiv3"),
@@ -1153,6 +1180,17 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         replace(_candidate(), supported_surfaces=())
     with pytest.raises(ValueError, match="bool"):
         replace(_criteria(), require_human_approval=cast(Any, "yes"))
+    for bare_string_tuple_field in (
+        lambda: replace(_evidence(), source_fingerprints=cast(Any, "abc")),
+        lambda: replace(_candidate(), supported_surfaces=cast(Any, "insight")),
+        lambda: replace(_rollback(), disabled_state_test_ids=cast(Any, "test-disabled")),
+        lambda: replace(
+            evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=_criteria()),
+            reason_codes=cast(Any, "eligible"),
+        ),
+    ):
+        with pytest.raises(ValueError, match="tuple/list"):
+            bare_string_tuple_field()
 
 
 def test_stable_mapping_rejects_unsupported_value() -> None:
@@ -1342,6 +1380,10 @@ def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
 def test_import_guard_rejects_direct_os_environ_value_reads(tmp_path: Path) -> None:
     for filename, source_text in {
         "unsafe_env_dict.py": "import os\nsettings = dict(os.environ)\n",
+        "unsafe_env_getattr.py": "import os\nsettings = getattr(os, 'environ')\n",
+        "unsafe_env_getattr_dict.py": "import os\nsettings = dict(getattr(os, 'environ'))\n",
+        "unsafe_env_dunder_dict.py": "import os\nsettings = os.__dict__['environ']\n",
+        "unsafe_env_vars.py": "import os\nsettings = vars(os)['environ']\n",
         "unsafe_env_nested_dict.py": "import os\nsettings = {'env': os.environ}\n",
         "unsafe_env_unpack.py": "import os\nsettings = {**os.environ}\n",
         "unsafe_env_loop.py": "import os\nfor key in os.environ:\n    pass\n",
@@ -1505,6 +1547,29 @@ def test_import_guard_rejects_dynamic_os_process_calls(tmp_path: Path) -> None:
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_importlib_dynamic_os_effects(tmp_path: Path) -> None:
+    for filename, source_text in {
+        "unsafe_importlib_os_effect.py": (
+            "import importlib\n"
+            "importlib.import_module('os').system('/usr/bin/curl https://example.invalid')\n"
+        ),
+        "unsafe_importlib_alias_os_effect.py": (
+            "from importlib import import_module\n"
+            "import_module('os').system('/usr/bin/curl https://example.invalid')\n"
+        ),
+        "unsafe_importlib_module_alias.py": (
+            "import importlib\n"
+            "module = importlib.import_module('os')\n"
+            "module.system('/usr/bin/curl https://example.invalid')\n"
+        ),
+    }.items():
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="os.system"):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_os_effect_aliases(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_os_alias.py"
     source.write_text(
@@ -1514,6 +1579,31 @@ def test_import_guard_rejects_os_effect_aliases(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="os.system.alias"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_getattr_os_effect_aliases(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_getattr_os_system.py",
+            "import os\nlauncher = getattr(os, 'system')\nlauncher('/usr/bin/curl https://example.invalid')\n",
+            "os.system.alias",
+        ),
+        (
+            "unsafe_getattr_os_getenv.py",
+            "import os\nreader = getattr(os, 'getenv')\nreader('REDIS_URL')\n",
+            "os.getenv.alias",
+        ),
+        (
+            "unsafe_getattr_os_system_call.py",
+            "import os\ngetattr(os, 'system')('/usr/bin/curl https://example.invalid')\n",
+            "os.system",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_copy_and_open_alias_escape_hatches(tmp_path: Path) -> None:
@@ -1579,7 +1669,11 @@ def test_import_guard_rejects_dynamic_forbidden_imports(tmp_path: Path) -> None:
 
 def test_import_guard_rejects_core_ai_runtime_facade_imports(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_core_ai_facade_import.py"
-    source.write_text("from core.ai import prepare_insight_runtime\n", encoding="utf-8")
+    source.write_text(
+        "from core.ai import prepare_insight_runtime\n"
+        "from core.ai.insight_runtime import PreparedInsightRuntime\n",
+        encoding="utf-8",
+    )
 
     with pytest.raises(AssertionError, match="core.ai"):
         assert_no_forbidden_semantic_cache_imports(source)
