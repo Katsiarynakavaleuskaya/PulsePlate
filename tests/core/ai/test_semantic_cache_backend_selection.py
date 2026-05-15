@@ -387,10 +387,18 @@ def test_current_head_ci_proof_must_match_criteria_head_sha() -> None:
         ),
         criteria=_criteria(),
     )
+    natural_current_head_proof = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            current_head_ci_passed=True,
+            current_head_ci_proof_id="ci:current-head:d91b58100:run-25914493764",
+        ),
+        criteria=_criteria(),
+    )
 
     assert stale_proof.decision == DECISION_INELIGIBLE
     assert REASON_CURRENT_HEAD_CI_MISSING in stale_proof.reason_codes
     assert current_proof.decision == DECISION_ELIGIBLE
+    assert natural_current_head_proof.decision == DECISION_ELIGIBLE
 
 
 def test_selection_uses_safety_first_then_latency_cost_tiebreakers() -> None:
@@ -777,6 +785,10 @@ def test_type_and_value_validation_fail_closed() -> None:
     with pytest.raises(ValueError, match="unsafe runtime scope"):
         replace(_candidate(), supported_surfaces=("insight", "fastapi"))
     with pytest.raises(ValueError, match="unsafe runtime scope"):
+        replace(_candidate(), supported_surfaces=("insight", "fast_api"))
+    with pytest.raises(ValueError, match="unsafe runtime scope"):
+        replace(_candidate(), supported_surfaces=("insight", "open-api"))
+    with pytest.raises(ValueError, match="unsafe runtime scope"):
         replace(_candidate(), capability_flags=("label-only", "provider-call"))
 
 
@@ -1021,7 +1033,14 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             replace(_evidence(), eval_event_ids=(unsafe_proof_token,))
         with pytest.raises(ValueError, match="unsafe proof token"):
             replace(_evidence(), evidence_fingerprints=(unsafe_proof_token,))
-    for unsafe_runtime_token in ("fastapi", "openapi", "network", "file-write"):
+    for unsafe_runtime_token in (
+        "fastapi",
+        "fast_api",
+        "openapi",
+        "open-api",
+        "network",
+        "file-write",
+    ):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_evidence(), source_fingerprints=(unsafe_runtime_token,))
         with pytest.raises(ValueError, match="unsafe runtime scope"):
@@ -1050,9 +1069,21 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
     for unsafe_backend_version in ("fastapi", "openapi", "network", "file-write"):
         with pytest.raises(ValueError, match="unsafe runtime scope"):
             replace(_candidate(), backend_version=unsafe_backend_version)
+    for unsafe_split_runtime_token in ("fast_api", "open-api"):
+        with pytest.raises(ValueError, match="unsafe runtime scope"):
+            replace(
+                _candidate(),
+                current_head_ci_proof_id=(
+                    f"ci:current-head:d91b58100:{unsafe_split_runtime_token}"
+                ),
+            )
+        with pytest.raises(ValueError, match="unsafe metadata"):
+            replace(_candidate(), metadata={"scope": unsafe_split_runtime_token})
     for unsafe_scalar_evidence_id in (
         lambda: replace(_evidence(), evidence_id="evidence:fastapi"),
+        lambda: replace(_evidence(), evidence_id="evidence:fast_api"),
         lambda: replace(_evidence(), sc_g2_contract_id="contract:openapi"),
+        lambda: replace(_evidence(), sc_g2_contract_id="contract:open-api"),
         lambda: replace(_evidence(), sc_g3_contract_id="contract:network"),
         lambda: replace(_evidence(), sc_g4_contract_id="contract:file-write"),
         lambda: replace(_evidence(), admission_decision_id="admission:provider"),
@@ -1273,6 +1304,20 @@ def test_import_guard_rejects_environment_reads(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="os.getenv"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_direct_os_environ_value_reads(tmp_path: Path) -> None:
+    for filename, source_text in {
+        "unsafe_env_dict.py": "import os\nsettings = dict(os.environ)\n",
+        "unsafe_env_loop.py": "import os\nfor key in os.environ:\n    pass\n",
+        "unsafe_env_comprehension.py": "import os\nkeys = [key for key in os.environ]\n",
+        "unsafe_env_alias_value.py": "import os\nenv = os.environ\nsettings = dict(env)\n",
+    }.items():
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="os.environ.value"):
+            assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_path_open_context_manager_writes(tmp_path: Path) -> None:

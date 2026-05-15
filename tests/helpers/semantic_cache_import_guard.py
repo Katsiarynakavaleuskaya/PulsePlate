@@ -235,6 +235,7 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             if _qualified_call_name(node.value, import_aliases) == "os.getenv":
                 offenders.append("os.getenv.alias")
             if _qualified_call_name(node.value, import_aliases) == "os.environ":
+                offenders.append("os.environ.value")
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         environ_aliases.add(target.id)
@@ -273,6 +274,7 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 and node.value is not None
                 and _qualified_call_name(node.value, import_aliases) == "os.environ"
             ):
+                offenders.append("os.environ.value")
                 environ_aliases.add(node.target.id)
             if isinstance(node.target, ast.Name) and node.value is not None:
                 path_constructor_ref = _qualified_call_name(node.value, import_aliases)
@@ -301,6 +303,16 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append(call_name or "os.environ.call")
             if _is_os_environ_alias_call_name(call_name, environ_aliases):
                 offenders.append(call_name or "os.environ.alias.call")
+            if any(
+                _is_os_environ_value_ref(argument, import_aliases, environ_aliases)
+                for argument in node.args
+            ):
+                offenders.append("os.environ.value")
+            if any(
+                _is_os_environ_value_ref(keyword.value, import_aliases, environ_aliases)
+                for keyword in node.keywords
+            ):
+                offenders.append("os.environ.value")
             if _is_path_write_call(node.func, import_aliases, path_aliases):
                 offenders.append("Path.write")
             if _is_path_getattr_effect_call(node.func, import_aliases, path_aliases):
@@ -319,6 +331,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             subscript_name = _qualified_call_name(node.value, import_aliases)
             if subscript_name == "os.environ" or subscript_name in environ_aliases:
                 offenders.append("os.environ[]")
+        elif isinstance(node, (ast.For, ast.AsyncFor)):
+            if _is_os_environ_value_ref(node.iter, import_aliases, environ_aliases):
+                offenders.append("os.environ.value")
+        elif isinstance(node, ast.comprehension):
+            if _is_os_environ_value_ref(node.iter, import_aliases, environ_aliases):
+                offenders.append("os.environ.value")
 
     assert offenders == [], f"forbidden semantic-cache calls found: {offenders}"
 
@@ -355,6 +373,15 @@ def _is_os_environ_alias_call_name(call_name: str | None, environ_aliases: set[s
     if call_name is None:
         return False
     return any(call_name == alias or call_name.startswith(f"{alias}.") for alias in environ_aliases)
+
+
+def _is_os_environ_value_ref(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    environ_aliases: set[str],
+) -> bool:
+    name = _qualified_call_name(node, import_aliases)
+    return name == "os.environ" or (name is not None and name in environ_aliases)
 
 
 def _qualified_call_name(node: ast.expr, import_aliases: dict[str, str]) -> str | None:

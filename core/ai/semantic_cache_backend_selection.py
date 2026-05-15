@@ -238,8 +238,10 @@ _UNSAFE_RUNTIME_SCOPE_TOKEN_SEQUENCES = (
     ("dependency", "additions"),
     ("file", "write"),
     ("file", "writes"),
+    ("fast", "api"),
     ("gptcache", "client"),
     ("gptcache", "clients"),
+    ("open", "api"),
     ("redis", "client"),
     ("redis", "clients"),
     ("semantic", "similarity"),
@@ -1452,7 +1454,9 @@ def _backend_tokens_in_proof_id(proof_id: str) -> frozenset[str]:
 
 
 def _ci_proof_matches_current_head(proof_id: str, current_head_sha: str) -> bool:
-    return f":head-{current_head_sha}:" in proof_id
+    return (
+        f":head-{current_head_sha}:" in proof_id or f":current-head:{current_head_sha}:" in proof_id
+    )
 
 
 def _rollback_proof_matches_backend(
