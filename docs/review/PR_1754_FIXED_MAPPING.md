@@ -112,21 +112,28 @@ Post-open `qa-engineer-agent -> bug-hunter` pass is required before readiness.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 Draft PR opened with no review threads at mapping creation time. Any future
 CodeRabbit, Sourcery, Cubic, Codex, or human comments are blocking when
 actionable and must be dispositioned here before resolution.
 
 ## Fixed in Commit Mapping
 
-- Premortem/security finding: wrong `actions/github-script` tag-object SHA ->
+- No actionable review comments
+
+## Premortem Fixed Evidence Mapping
+
+- Wrong `actions/github-script` tag-object SHA:
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
-- Premortem finding: artifact contract drift risk ->
+- Artifact contract drift risk:
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
-- Premortem finding: PR automation permission drift risk ->
+- PR automation permission drift risk:
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
-- Workflow runtime cleanup: `actions/download-artifact` Node 24 pin ->
+- `actions/download-artifact` Node 24 pin:
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
-- Workflow runtime cleanup: `actions/github-script` Node 24 pin ->
+- `actions/github-script` Node 24 pin:
   `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
 
 ## Merge Readiness
