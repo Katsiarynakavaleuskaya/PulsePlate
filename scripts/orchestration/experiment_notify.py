@@ -89,6 +89,15 @@ class ExperimentEmailDeliveryError(ExperimentNotificationError):
     """Email delivery failed without exposing provider details."""
 
 
+def _resolve_input_path(raw_path: str, *, label: str) -> Path:
+    """Resolve a caller-supplied artifact input path without leaking path details."""
+
+    try:
+        return Path(raw_path).expanduser().resolve()
+    except (OSError, RuntimeError) as exc:
+        raise ValueError(f"Unable to resolve {label} path.") from exc
+
+
 def _read_json_object(path: Path, *, label: str) -> dict[str, Any]:
     payload, _sha256 = _read_json_object_with_sha256(path, label=label)
     return payload
@@ -133,14 +142,19 @@ def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
 def _resolve_email_audit_path(experiment_id: str) -> Path:
     """Resolve the canonical email audit artifact for an experiment."""
 
-    safe_experiment_id = str(validate_experiment_id(experiment_id, label="Experiment notification"))
-    notification_dir = Path(NOTIFICATION_ARTIFACT_DIR)
-    audit_path = notification_dir / f"{safe_experiment_id}.email-audit.json"
-    _reject_symlinked_output_components(
-        audit_path.absolute(),
-        artifact_dir=notification_dir.absolute(),
-    )
-    return audit_path
+    try:
+        safe_experiment_id = str(
+            validate_experiment_id(experiment_id, label="Experiment notification")
+        )
+        notification_dir = Path(NOTIFICATION_ARTIFACT_DIR)
+        audit_path = notification_dir / f"{safe_experiment_id}.email-audit.json"
+        _reject_symlinked_output_components(
+            audit_path.absolute(),
+            artifact_dir=notification_dir.absolute(),
+        )
+        return audit_path
+    except ValueError as exc:
+        raise ExperimentEmailDeliveryError("Email audit artifact path is invalid.") from exc
 
 
 def _reject_symlinked_output_components(candidate: Path, *, artifact_dir: Path) -> None:
@@ -976,11 +990,11 @@ def main(argv: list[str] | None = None) -> int:
     """Run the notification renderer CLI."""
 
     args = _parse_args(argv)
-    packet_path = Path(args.packet).expanduser().resolve()
-    result_path = Path(args.result).expanduser().resolve()
     email_recipient = None
 
     try:
+        packet_path = _resolve_input_path(args.packet, label="experiment packet")
+        result_path = _resolve_input_path(args.result, label="experiment result")
         if args.email:
             email_recipient = _require_allowed_email_recipient(args.email_to)
         elif args.email_to:
@@ -994,7 +1008,9 @@ def main(argv: list[str] | None = None) -> int:
         )
         result = validate_experiment_result(result_payload)
         promotion = None
-        promotion_path = Path(args.promotion).expanduser().resolve() if args.promotion else None
+        promotion_path = (
+            _resolve_input_path(args.promotion, label="promotion") if args.promotion else None
+        )
         promotion_sha256 = None
         if args.promotion:
             if promotion_path is None:
