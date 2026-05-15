@@ -4,7 +4,8 @@
 
 - PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1754
 - Branch: `codex/fix-gha-node24-artifact-script-cleanup`
-- Head commit: `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
+- Implementation commit: `459038d99bb4a0ed4a3a9d255859e8ea215d367e`
+- Governance artifact commits: `f1e652604`, `0cf7965e6`, `e7ae5b552`
 - Backlog anchor: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-gha-node24-cache-warning-cleanup`
 
 ## Goal
