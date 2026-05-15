@@ -331,15 +331,19 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 | Final bug-hunter pass: version-suffixed runtime labels and nested environment reads could still bypass guard checks. | FIXED | `6816648df` | Runtime-scope matching now rejects version-suffixed unsafe labels such as `fastapiv1`, `openapiv3`, `networkv1`, and `filewritev2`; focused tests cover backend versions, metadata, scalar evidence IDs, and env alias forms. |
 | Final security pass: current-head CI proof matching was substring-based for broad verification-bundle proof IDs. | FIXED | `6816648df` | CI proof matching now parses explicit segment schemas for `ci:pr-...:head-<sha>:...`, `ci:current-head:<sha>:...`, and wrapped `verification-bundle:ci:` forms; spoofed note/manual bundle proof is rejected in tests. |
 | Codex Security final scan after latest substantive fix. | CLEAN | `6816648df` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/6816648df_20260515T115940Z/report.md` reports no surviving findings. |
+| Final QA pass: dynamic runtime/effect imports, route/network labels, weak proof construction, and bare string tuple fields still had bypasses. | FIXED | `33ee042a4` | Import guard now blocks `core.ai.*` runtime imports, `importlib.import_module(\"os\")` effects, `getattr(os, ...)` effects, and dynamic environment refs; runtime-scope screening blocks network/route/serving labels; current-head CI proof construction requires strict `run-*` shapes; tuple normalizers reject bare strings. |
+| Final bug-hunter pass: dynamic `os.environ` reads, split-token version suffixes, and weak CI proof suffixes still bypassed tests. | FIXED | `33ee042a4` | Regression tests cover `getattr(os, \"environ\")`, `os.__dict__`, `vars(os)`, split-token suffixes such as `fast_apiv1` and `redis_clientv1`, and invalid manual/short proof suffixes. |
+| Final security pass: `dbv1` still bypassed runtime-scope suffix screening. | FIXED | `33ee042a4` | Runtime-scope version-prefix matching now includes `db`; regression tests reject `dbv1` in backend version, metadata, and evidence IDs while preserving the safe digest negative control `sha256:abdb0000`. |
+| Codex Security final scan after final guard escape fix. | CLEAN | `33ee042a4` | `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/33ee042a4_20260515T121728Z/report.md` reports no surviving findings. |
 
 ## Bot Review Tracking
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after `6816648df` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after `6816648df` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after `6816648df` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Codex Security | Clean after final substantive fix | Final scan for commit `6816648df` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/6816648df_20260515T115940Z/report.md`. |
+| CodeRabbit | Pending current-head re-review after `33ee042a4` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Sourcery | Pending current-head re-review after `33ee042a4` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Cubic | Pending current-head re-review after `33ee042a4` push | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| Codex Security | Clean after final substantive fix | Final scan for commit `33ee042a4` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/33ee042a4_20260515T121728Z/report.md`. |
 | Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
 
 ## Local Evidence Before PR Open
@@ -357,6 +361,7 @@ Evidence: Latest current-head review wave was fixed in code/tests: current-head 
 - Latest current-head decision/guard focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6663ddb67`.
 - Latest current-head proof/runtime-label/environment guard focused pytest, mypy, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `0e04e1717`.
 - Latest agent-finding guard hardening focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `6816648df`.
+- Latest final guard escape focused pytest, mypy, semantic-cache/docs gates, `make validate-changed`, and `PATH=.venv/bin:$PATH pre-commit run --all-files` passed before `33ee042a4`.
 - Latest pre-push hooks passed during `95ecc9412` branch push, including full repo Bandit and docker build test. Pre-push must rerun before the next push.
 
 ## Merge Readiness
