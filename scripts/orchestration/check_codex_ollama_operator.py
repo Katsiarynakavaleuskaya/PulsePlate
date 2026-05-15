@@ -47,13 +47,17 @@ def _format_version(version: tuple[int, int, int]) -> str:
 
 
 def _run_version(binary: str, args: Sequence[str]) -> tuple[int, str]:
-    completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
-        [binary, *args],
-        text=True,
-        capture_output=True,
-        check=False,
-        timeout=10,
-    )
+    try:
+        completed = subprocess.run(  # nosec B603: argv uses shutil.which-resolved absolute binaries (remove-by: 2026-08-15, ref: PR-WALK3-OLLAMA-CODEX)
+            [binary, *args],
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=10,
+        )
+    except subprocess.TimeoutExpired as exc:
+        command = " ".join(str(part) for part in exc.cmd)
+        return 124, f"`{command}` timed out after {exc.timeout} seconds"
     output = "\n".join(part for part in (completed.stdout, completed.stderr) if part)
     return completed.returncode, output.strip()
 
@@ -132,6 +136,16 @@ def _validate_local_url(raw_url: str) -> tuple[bool, str]:
     if parsed.hostname not in LOCAL_OLLAMA_HOSTS:
         return False, "Ollama URL must be localhost, 127.0.0.1, or ::1 for this doctor."
     return True, ""
+
+
+def _positive_timeout(raw_value: str) -> float:
+    try:
+        timeout_s = float(raw_value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError("timeout must be a number of seconds") from exc
+    if timeout_s <= 0:
+        raise argparse.ArgumentTypeError("timeout must be greater than 0 seconds")
+    return timeout_s
 
 
 def _check_ollama_server(base_url: str, timeout_s: float) -> CheckResult:
@@ -234,7 +248,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         description="Check local Codex + Ollama operator setup without writing host config."
     )
     parser.add_argument("--ollama-url", default=DEFAULT_OLLAMA_URL)
-    parser.add_argument("--timeout", type=float, default=1.0)
+    parser.add_argument("--timeout", type=_positive_timeout, default=1.0)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     args = parser.parse_args(argv)
 

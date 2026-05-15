@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
+from subprocess import TimeoutExpired
 from typing import Any
 
 import pytest
@@ -15,6 +15,19 @@ def test_parse_version_accepts_major_minor_patch() -> None:
     assert doctor._parse_version("ollama version is 0.15.1") == (0, 15, 1)
     assert doctor._parse_version("client version is 0.12.0") == (0, 12, 0)
     assert doctor._parse_version("version 1.2") == (1, 2, 0)
+
+
+def test_run_version_reports_cli_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _timeout(*args: Any, **kwargs: Any) -> Any:
+        raise TimeoutExpired(cmd=["/usr/bin/ollama", "--version"], timeout=10)
+
+    monkeypatch.setattr(doctor.subprocess, "run", _timeout)
+
+    returncode, output = doctor._run_version("/usr/bin/ollama", ["--version"])
+
+    assert returncode == 124
+    assert "timed out" in output
+    assert "/usr/bin/ollama --version" in output
 
 
 def test_stale_ollama_version_reports_launch_fix(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -95,6 +108,13 @@ def test_successful_server_check_uses_local_version_endpoint(
 
     assert result.ok is True
     assert observed == {"url": "http://127.0.0.1:11434/api/version", "timeout": 0.5}
+
+
+def test_timeout_must_be_positive() -> None:
+    assert doctor._positive_timeout("0.5") == 0.5
+
+    with pytest.raises(SystemExit):
+        doctor.main(["--timeout", "0"])
 
 
 def test_main_json_reports_host_write_guard(monkeypatch: pytest.MonkeyPatch, capsys: Any) -> None:
