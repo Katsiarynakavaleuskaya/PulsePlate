@@ -404,12 +404,20 @@ def test_current_head_ci_proof_must_match_criteria_head_sha() -> None:
         ),
         criteria=_criteria(),
     )
+    db_prefixed_sha_proof = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(
+            current_head_ci_passed=True,
+            current_head_ci_proof_id="ci:pr-1742:head-db12345:run-25914493764",
+        ),
+        criteria=replace(_criteria(), current_head_sha="db12345"),
+    )
 
     assert stale_proof.decision == DECISION_INELIGIBLE
     assert REASON_CURRENT_HEAD_CI_MISSING in stale_proof.reason_codes
     assert current_proof.decision == DECISION_ELIGIBLE
     assert natural_current_head_proof.decision == DECISION_ELIGIBLE
     assert bundled_current_proof.decision == DECISION_ELIGIBLE
+    assert db_prefixed_sha_proof.decision == DECISION_ELIGIBLE
     for weak_proof in (
         "ci:current-head:d91b58100",
         "ci:current-head:d91b58100:manual",
@@ -1040,12 +1048,12 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
         with pytest.raises(ValueError, match="unsafe"):
             replace(_candidate(), human_approval_record_id=unsafe_value)
     for generic_value in ("foo", "bar", "proof:ci"):
-        with pytest.raises(ValueError, match="structured proof"):
+        with pytest.raises(ValueError, match="current-head CI proof shape"):
             replace(_candidate(), current_head_ci_proof_id=generic_value)
         with pytest.raises(ValueError, match="structured proof"):
             replace(_candidate(), human_approval_record_id=generic_value)
     for prefix_only_value in ("ci:current-head:", "verification-bundle:ci:"):
-        with pytest.raises(ValueError, match="proof evidence"):
+        with pytest.raises(ValueError, match="current-head CI proof shape"):
             replace(_candidate(), current_head_ci_proof_id=prefix_only_value)
     for prefix_only_value in ("approval:human:", "verification-bundle:approval:"):
         with pytest.raises(ValueError, match="proof evidence"):
@@ -1140,7 +1148,7 @@ def test_validation_helpers_reject_bad_numbers_and_tokens() -> None:
             replace(
                 _candidate(),
                 current_head_ci_proof_id=(
-                    f"ci:current-head:d91b58100:{unsafe_split_runtime_token}"
+                    f"ci:current-head:d91b58100:run-{unsafe_split_runtime_token}"
                 ),
             )
         with pytest.raises(ValueError, match="unsafe metadata"):
@@ -1642,6 +1650,33 @@ def test_import_guard_rejects_tuple_unpacked_effect_aliases(tmp_path: Path) -> N
 
         with pytest.raises(AssertionError, match=expected):
             assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_tuple_unpacked_dynamic_import_aliases(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_tuple_import_alias.py"
+    source.write_text(
+        "loader, _ = __import__, None\nloader('redis')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="redis"):
+        assert_no_forbidden_semantic_cache_imports(source)
+    with pytest.raises(AssertionError, match="__dynamic_import__"):
+        assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_path_objects_from_containers(tmp_path: Path) -> None:
+    source = tmp_path / "unsafe_path_container.py"
+    source.write_text(
+        "from pathlib import Path\n"
+        "path = Path('payload.txt')\n"
+        "paths = [path]\n"
+        "paths[0].write_text('payload')\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="Path.write"):
+        assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_getattr_os_effect_aliases(tmp_path: Path) -> None:

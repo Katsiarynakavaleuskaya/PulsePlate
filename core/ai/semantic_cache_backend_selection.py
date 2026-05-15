@@ -1450,7 +1450,7 @@ def _validate_token(name: str, value: str) -> str:
 
 
 def _validate_git_sha(name: str, value: str) -> str:
-    normalized = _validate_runtime_safe_token(name, value)
+    normalized = _validate_token(name, value)
     if len(normalized) < 7 or len(normalized) > 40:
         raise ValueError(f"{name} must be a 7- to 40-character git SHA")
     if any(char not in "0123456789abcdef" for char in normalized):
@@ -1498,17 +1498,12 @@ def _validate_structured_proof_id(
 
 
 def _validate_current_head_ci_proof_id(name: str, value: str) -> str:
-    normalized = _validate_structured_proof_id(
-        name,
-        value,
-        prefixes=("ci:pr-", "ci:current-head:", "verification-bundle:ci:"),
-    )
+    normalized = _validate_evidence_id(name, value)
     parts = tuple(normalized.split(":"))
-    if _ci_proof_parts_have_valid_shape(parts):
-        return normalized
-    if parts[:2] == ("verification-bundle", "ci") and _ci_proof_parts_have_valid_shape(
-        ("ci", *parts[2:])
-    ):
+    normalized_parts = ("ci", *parts[2:]) if parts[:2] == ("verification-bundle", "ci") else parts
+    if _ci_proof_parts_have_valid_shape(normalized_parts):
+        if _ci_proof_suffix_has_unsafe_runtime_scope(normalized_parts):
+            raise ValueError(f"{name} contains unsafe runtime scope")
         return normalized
     raise ValueError(f"{name} must use a current-head CI proof shape")
 
@@ -1585,6 +1580,12 @@ def _has_structured_proof_suffix(parts: tuple[str, ...]) -> bool:
     return any(
         part.startswith("run-") and any(char.isalnum() for char in part[4:]) for part in parts
     )
+
+
+def _ci_proof_suffix_has_unsafe_runtime_scope(parts: tuple[str, ...]) -> bool:
+    if len(parts) < 4:
+        return False
+    return any(_contains_unsafe_runtime_scope(part) for part in parts[3:])
 
 
 def _rollback_proof_matches_backend(

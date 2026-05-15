@@ -356,6 +356,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             )
         elif isinstance(node, ast.Call):
             call_name = _qualified_call_name(node.func, import_aliases)
+            if call_name in {"__import__", "importlib.import_module"}:
+                offenders.append("__dynamic_import__")
             if call_name == "__dynamic_import__" or (
                 call_name is not None and call_name.startswith("__dynamic_import__.")
             ):
@@ -600,7 +602,11 @@ def _collect_path_expr_aliases(
 ) -> None:
     for target in targets:
         for target_name, target_value in _target_names_for_value(target, value):
-            if _is_path_expr(target_value, import_aliases, path_aliases):
+            if _is_path_expr(
+                target_value,
+                import_aliases,
+                path_aliases,
+            ) or _is_path_container_expr(target_value, import_aliases, path_aliases):
                 path_aliases.add(target_name)
 
 
@@ -751,8 +757,22 @@ def _is_path_expr(
         return False
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Div):
         return _is_path_expr(node.left, import_aliases, path_aliases)
+    if isinstance(node, ast.Subscript):
+        return _is_path_expr(node.value, import_aliases, path_aliases)
     if isinstance(node, ast.Name):
         return node.id in path_aliases
+    return False
+
+
+def _is_path_container_expr(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return any(_is_path_expr(item, import_aliases, path_aliases) for item in node.elts)
+    if isinstance(node, ast.Dict):
+        return any(_is_path_expr(item, import_aliases, path_aliases) for item in node.values)
     return False
 
 
