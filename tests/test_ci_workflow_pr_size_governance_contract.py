@@ -61,6 +61,20 @@ GITHUB_SCRIPT_NODE24_SHA = "".join(
         "a1b3",
     )
 )
+CODECOV_ACTION_NODE24_SHA = "".join(
+    (
+        "57e3",
+        "a136",
+        "b779",
+        "b570",
+        "ffcd",
+        "bf80",
+        "b3bd",
+        "c90e",
+        "7fab",
+        "3de2",
+    )
+)
 OLD_DOWNLOAD_ARTIFACT_SHA = "".join(
     (
         "fa0a",
@@ -87,6 +101,20 @@ OLD_GITHUB_SCRIPT_SHA = "".join(
         "cb62",
         "90c5",
         "673b",
+    )
+)
+OLD_CODECOV_ACTION_SHA = "".join(
+    (
+        "af09",
+        "b5e3",
+        "94c9",
+        "3991",
+        "b95a",
+        "5e76",
+        "46ae",
+        "b90c",
+        "1917",
+        "f78f",
     )
 )
 GITHUB_SCRIPT_V9_TAG_OBJECT_SHA = "".join(
@@ -268,6 +296,33 @@ def test_node24_artifact_and_script_action_pins_use_verified_commit_shas() -> No
     )
     assert f"actions/github-script@{OLD_GITHUB_SCRIPT_SHA}" not in pr_automation_text
     assert GITHUB_SCRIPT_V9_TAG_OBJECT_SHA not in pr_automation_text
+
+
+def test_codecov_action_pin_uses_node24_transitive_github_script() -> None:
+    """Guard Codecov uploads against reintroducing the old Node 20 github-script dependency."""
+
+    expected_codecov_line = (
+        f"codecov/codecov-action@{CODECOV_ACTION_NODE24_SHA} "
+        "# v6.0.0 / Node 24 transitive github-script"
+    )
+    workflow_counts = {
+        CI_WORKFLOW_PATH: 3,
+        CODECOV_UPLOAD_WORKFLOW_PATH: 1,
+    }
+
+    observed_codecov_steps = []
+    for workflow_path, expected_count in workflow_counts.items():
+        workflow_text = workflow_path.read_text(encoding="utf-8")
+        assert workflow_text.count(expected_codecov_line) == expected_count
+        assert f"codecov/codecov-action@{OLD_CODECOV_ACTION_SHA}" not in workflow_text
+
+        for job_id, step in _iter_job_steps(workflow_path):
+            uses = step.get("uses")
+            if isinstance(uses, str) and uses.startswith("codecov/codecov-action@"):
+                observed_codecov_steps.append((workflow_path, job_id, step))
+                assert uses == f"codecov/codecov-action@{CODECOV_ACTION_NODE24_SHA}"
+
+    assert len(observed_codecov_steps) == sum(workflow_counts.values())
 
 
 def test_node24_artifact_migration_preserves_download_contracts() -> None:

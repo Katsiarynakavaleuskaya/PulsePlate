@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload to Codecov
         if: ${{ !inputs['skip-upload'] }}
-        uses: codecov/codecov-action@af09b5e394c93991b95a5e7646aeb90c1917f78f # v5.5.1
+        uses: codecov/codecov-action@57e3a136b779b570ffcdbf80b3bdc90e7fab3de2 # v6.0.0 / Node 24 transitive github-script
         with:
           files: ${{ inputs['coverage-file'] }}
           flags: ${{ inputs.flags }}
