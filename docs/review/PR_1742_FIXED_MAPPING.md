@@ -421,6 +421,14 @@ Evidence: Canonical matrix hashing now recomputes the final decision via the det
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3251108990 -> e85a368f3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#pullrequestreview-4301518129 -> e85a368f3
 
+Disposition: FIXED
+Commit: f891a1952
+Evidence: Current-head connector findings were fixed in CI/guard code/tests: docs Phase1 no longer exits before markdownlint when only non-doc Markdown changed, semantic-cache guards reject string execution calls and aliases, callable effect wrappers, and dynamic effect storage/container aliases. Focused pytest, `make validate-changed`, and `pre-commit run --all-files` passed before this mapping update.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3253362223 -> f891a1952
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3253362225 -> f891a1952
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3253362227 -> f891a1952
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1742#discussion_r3253362228 -> f891a1952
+
 ## Post-Open Agent Review Fixes
 
 | Source | Disposition | Commit | Evidence |
