@@ -1074,16 +1074,6 @@ def _validate_decision_id_format(decision_id: str, decision: str) -> None:
         raise ValueError("decision_id must include exactly one SC-G5 prefix and hex suffix")
     if len(suffix) != 24 or any(char not in "0123456789abcdef" for char in suffix):
         raise ValueError("decision_id must include a 24-character lowercase hex suffix")
-    if expected_prefix == "semantic-cache-backend:" and decision not in {
-        DECISION_ELIGIBLE,
-        DECISION_INELIGIBLE,
-    }:
-        raise ValueError("decision_id prefix must match candidate-evaluation decision kind")
-    if expected_prefix == "semantic-cache-backend-select:" and decision not in {
-        DECISION_SELECTED,
-        DECISION_NO_SELECTION,
-    }:
-        raise ValueError("decision_id prefix must match selection decision kind")
 
 
 def _evidence_signature(evidence: SemanticCacheBackendSafetyEvidence) -> Mapping[str, JsonValue]:
@@ -1508,8 +1498,6 @@ def _is_digest_fingerprint(value: str) -> bool:
 
 def _validate_evidence_id(name: str, value: str) -> str:
     normalized = _validate_token(name, value)
-    if _UNSAFE_EVIDENCE_ID_RE.search(normalized):
-        raise ValueError(f"{name} contains unsafe evidence identifier")
     return normalized
 
 

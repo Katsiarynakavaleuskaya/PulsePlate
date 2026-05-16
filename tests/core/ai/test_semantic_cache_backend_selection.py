@@ -22,6 +22,7 @@ from core.ai.semantic_cache_backend_selection import (
     REASON_ELIGIBLE,
     REASON_FALSE_HIT_RATE_EXCEEDED,
     REASON_HUMAN_APPROVAL_MISSING,
+    REASON_BACKEND_LABEL_NOT_ALLOWED,
     REASON_CONTEXT_LEAKAGE_EXCEEDED,
     REASON_FRESH_RUNTIME_COMPARISONS_MISSING,
     REASON_MODEL_MISMATCH_EXCEEDED,
@@ -45,6 +46,21 @@ from core.ai.semantic_cache_backend_selection import (
     evaluate_semantic_cache_backend_matrix,
     select_semantic_cache_backend,
     to_stable_mapping,
+    _backend_rollback_token,
+    _ci_proof_parts_match_current_head,
+    _ci_proof_suffix_has_unsafe_runtime_scope,
+    _normalize_required_runtime_safe_evidence_ids,
+    _normalize_required_runtime_safe_tokens,
+    _normalize_required_structured_proof_ids,
+    _normalize_required_unique_tokens,
+    _normalize_unique_tokens,
+    _normalize_unique_runtime_safe_tokens,
+    _runtime_scope_sequence_matches,
+    _validate_decision_id_format,
+    _candidate_failure_reasons,
+    _validate_evidence_id,
+    _validate_git_sha,
+    _validate_token,
 )
 from tests.helpers.semantic_cache_import_guard import (
     assert_no_forbidden_semantic_cache_calls,
@@ -361,6 +377,122 @@ def test_rollback_proof_requires_structured_machine_ids() -> None:
     ):
         with pytest.raises(ValueError, match="structured proof"):
             bad_rollback()
+
+
+def test_private_validation_helpers_cover_uncovered_branches() -> None:
+    criteria = _criteria()
+    replacement = replace(_criteria(), allowed_backend_labels=(BACKEND_LABEL_REDIS,))
+    blocked_reason = evaluate_semantic_cache_backend_candidate(
+        candidate=_candidate(backend_label=BACKEND_LABEL_GPTCACHE), criteria=replacement
+    )
+    selected = evaluate_semantic_cache_backend_candidate(candidate=_candidate(), criteria=criteria)
+    no_selection = select_semantic_cache_backend(
+        candidates=(_candidate(evidence=_evidence(false_hit_rate_bps=1)),), criteria=criteria
+    )
+
+    with pytest.raises(ValueError, match="criteria must be"):
+        build_semantic_cache_backend_matrix_id(
+            candidates=(_candidate(),),
+            criteria=cast(Any, "bad"),
+            final_decision=selected,
+        )
+    with pytest.raises(ValueError, match="final_decision must match"):
+        build_semantic_cache_backend_matrix_id(
+            candidates=(_candidate(),),
+            criteria=criteria,
+            final_decision=cast(Any, no_selection),
+        )
+    assert REASON_BACKEND_LABEL_NOT_ALLOWED in blocked_reason.reason_codes
+
+    with pytest.raises(ValueError, match="unsupported decision"):
+        _validate_decision_id_format(
+            "semantic-cache-backend:000000000000000000000001", "bad-decision"
+        )
+    with pytest.raises(ValueError):
+        _validate_decision_id_format("semantic-cache-backend:abcd", DECISION_ELIGIBLE)
+    with pytest.raises(ValueError, match="candidate-evaluation decision kind"):
+        _validate_decision_id_format(
+            "semantic-cache-backend-select:000000000000000000000001",
+            DECISION_ELIGIBLE,
+        )
+    with pytest.raises(ValueError, match="selection decision kind"):
+        _validate_decision_id_format(
+            "semantic-cache-backend:000000000000000000000001", DECISION_SELECTED
+        )
+    _validate_decision_id_format(
+        "semantic-cache-backend-select:000000000000000000000001",
+        DECISION_SELECTED,
+    )
+
+
+def test_private_normalizer_and_scope_helpers_cover_edge_paths() -> None:
+    assert (
+        _runtime_scope_sequence_matches(tokens=("insight",), index=0, sequence=("other",)) is False
+    )
+    with pytest.raises(ValueError):
+        _normalize_required_unique_tokens("fields", ())
+    with pytest.raises(ValueError):
+        _normalize_unique_tokens("fields", ["same", "same"])
+    with pytest.raises(ValueError):
+        _normalize_required_structured_proof_ids("proof_ids", (), prefixes=("proof:",))
+    with pytest.raises(ValueError):
+        _normalize_required_structured_proof_ids(
+            "proof_ids", ("proof:one", "proof:one"), prefixes=("proof:",)
+        )
+    with pytest.raises(ValueError):
+        _normalize_required_runtime_safe_tokens("scopes", ())
+    with pytest.raises(ValueError):
+        _normalize_required_runtime_safe_tokens("scopes", ("insight", "insight"))
+    with pytest.raises(ValueError):
+        _normalize_required_runtime_safe_evidence_ids("proof_ids", ())
+    with pytest.raises(ValueError):
+        _normalize_required_runtime_safe_evidence_ids(
+            "proof_ids", ("verification-bundle:ci:current-head:d91b58100:run-25914493764",) * 2
+        )
+
+    with pytest.raises(ValueError):
+        _validate_token("field", "")
+    with pytest.raises(ValueError):
+        _validate_git_sha("sha", "ABCdef1")
+    with pytest.raises(ValueError):
+        _validate_git_sha("sha", "abc")
+    with pytest.raises(ValueError):
+        _validate_evidence_id("evidence_id", "evidence:raw_prompt")
+    with pytest.raises(ValueError):
+        _validate_evidence_id("evidence_id", "raw_queries:abc")
+    with pytest.raises(ValueError, match="unsupported backend_label"):
+        _backend_rollback_token("unsupported")
+    with pytest.raises(ValueError, match="contains duplicate entries"):
+        _normalize_unique_runtime_safe_tokens("scopes", ("insight", "insight"))
+    assert (
+        _ci_proof_parts_match_current_head(
+            ("ci", "pr-1742", "head-bad", "run-25914493764"),
+            "d91b58100",
+        )
+        is False
+    )
+    assert (
+        _ci_proof_parts_match_current_head(
+            ("ci", "build", "head-d91b58100", "run-25914493764"),
+            "d91b58100",
+        )
+        is False
+    )
+    assert (
+        _ci_proof_suffix_has_unsafe_runtime_scope(
+            ("ci", "current-head", "d91b58100", "run-25914493764", "safe")
+        )
+        is False
+    )
+    assert _ci_proof_suffix_has_unsafe_runtime_scope(("ci", "current-head", "d91b58100")) is False
+
+
+def test_current_head_ci_check_is_skipped_when_not_required() -> None:
+    criteria = _criteria()
+    object.__setattr__(criteria, "require_current_head_ci", False)
+    candidate = _candidate(current_head_ci_proof_id="ci:current-head:d91b58100:run-25914493764")
+    reasons = _candidate_failure_reasons(candidate=candidate, criteria=criteria)
+    assert REASON_CURRENT_HEAD_CI_MISSING not in reasons
 
 
 def test_current_head_ci_requires_auditable_proof_id() -> None:
