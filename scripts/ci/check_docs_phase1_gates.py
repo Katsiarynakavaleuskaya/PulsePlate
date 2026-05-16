@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
-import importlib.util
 import re
 from pathlib import Path
-from typing import cast
+from typing import Any, Protocol, cast
 
 PR_TBD_RE = re.compile(r"(?im)^\s*(?:[-*+]\s+)?(?:\*\*PR:\*\*|PR:)\s*TBD\b")
 EVIDENCE_ANCHOR_RE = re.compile(
@@ -18,7 +17,28 @@ EVIDENCE_ANCHOR_RE = re.compile(
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CHECKER_PATH = Path(__file__).resolve().with_name("check_semantic_cache_gate.py")
+
+try:
+    from scripts.ci.check_semantic_cache_gate import (
+        validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
+        validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
+        validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
+        validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
+        validate_semantic_cache_gate as _validate_semantic_cache_gate,
+        validate_semantic_cache_observability_contract as _validate_observability_contract,
+        validate_semantic_cache_rollout_contract as _validate_rollout_contract,
+    )
+except ModuleNotFoundError:
+    from check_semantic_cache_gate import (  # noqa: E402
+        validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
+        validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
+        validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
+        validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
+        validate_semantic_cache_gate as _validate_semantic_cache_gate,
+        validate_semantic_cache_observability_contract as _validate_observability_contract,
+        validate_semantic_cache_rollout_contract as _validate_rollout_contract,
+    )
+
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
 SEMANTIC_CACHE_ROLLOUT_CONTRACT_DOC = "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md"
 EXACT_FUZZY_CACHE_SCAFFOLD_DOC = "docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md"
@@ -28,39 +48,59 @@ SEMANTIC_CACHE_OBSERVABILITY_CONTRACT_DOC = (
 SEMANTIC_CACHE_BOUNDED_INSIGHT_CONTRACT_DOC = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md"
 )
+SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+)
+SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.schema.json"
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
-def _load_validator(symbol: str) -> SemanticCacheGateValidator:
-    spec = importlib.util.spec_from_file_location("check_semantic_cache_gate", CHECKER_PATH)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"cannot load semantic-cache gate checker: {CHECKER_PATH}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    validator = getattr(module, symbol, None)
-    if not callable(validator):
-        raise RuntimeError(f"semantic-cache gate checker missing {symbol}")
+class SemanticCacheBackendSelectionSchemaValidator(Protocol):
+    def __call__(self, *, schema_text: str, contract_text: str) -> list[str]: ...
+
+
+def _as_semantic_cache_gate_validator(validator: Any) -> SemanticCacheGateValidator:
     return cast(SemanticCacheGateValidator, validator)
 
 
+def _as_semantic_cache_backend_selection_schema_validator(
+    validator: Any,
+) -> SemanticCacheBackendSelectionSchemaValidator:
+    return cast(SemanticCacheBackendSelectionSchemaValidator, validator)
+
+
 def _load_semantic_cache_gate_validator() -> SemanticCacheGateValidator:
-    return _load_validator("validate_semantic_cache_gate")
+    return _as_semantic_cache_gate_validator(_validate_semantic_cache_gate)
 
 
 def _load_semantic_cache_rollout_contract_validator() -> SemanticCacheGateValidator:
-    return _load_validator("validate_semantic_cache_rollout_contract")
+    return _as_semantic_cache_gate_validator(_validate_rollout_contract)
 
 
 def _load_exact_fuzzy_scaffold_validator() -> SemanticCacheGateValidator:
-    return _load_validator("validate_exact_fuzzy_scaffold_contract")
+    return _as_semantic_cache_gate_validator(_validate_exact_fuzzy_scaffold_contract)
 
 
 def _load_semantic_cache_observability_validator() -> SemanticCacheGateValidator:
-    return _load_validator("validate_semantic_cache_observability_contract")
+    return _as_semantic_cache_gate_validator(_validate_observability_contract)
 
 
 def _load_semantic_cache_bounded_insight_validator() -> SemanticCacheGateValidator:
-    return _load_validator("validate_semantic_cache_bounded_insight_experiment_contract")
+    return _as_semantic_cache_gate_validator(_validate_bounded_insight_contract)
+
+
+def _load_semantic_cache_backend_selection_validator() -> SemanticCacheGateValidator:
+    return _as_semantic_cache_gate_validator(_validate_backend_selection_contract)
+
+
+def _load_semantic_cache_backend_selection_schema_validator() -> (
+    SemanticCacheBackendSelectionSchemaValidator
+):
+    return _as_semantic_cache_backend_selection_schema_validator(
+        _validate_backend_selection_schema,
+    )
 
 
 def _read_text(relpath: str) -> str:
@@ -120,6 +160,50 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             errors.extend(
                 f"{relpath}: {error}" for error in validate_bounded_insight_contract(content)
             )
+
+        if relpath == SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC:
+            validate_backend_selection_contract = _load_semantic_cache_backend_selection_validator()
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_backend_selection_contract(content)
+            )
+            validate_backend_selection_schema = (
+                _load_semantic_cache_backend_selection_schema_validator()
+            )
+            try:
+                schema_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_backend_selection_schema(
+                        schema_text=schema_text,
+                        contract_text=content,
+                    )
+                )
+
+        if relpath == SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA:
+            validate_backend_selection_schema = (
+                _load_semantic_cache_backend_selection_schema_validator()
+            )
+            try:
+                contract_text = _read_text(SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_backend_selection_schema(
+                        schema_text=content,
+                        contract_text=contract_text,
+                    )
+                )
 
     return errors
 

@@ -238,6 +238,36 @@ def test_pr_risk_profile_uses_pull_request_head_sha() -> None:
     assert '--head-sha "${HEAD_SHA}" \\' in risk_profile_section
 
 
+def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
+    """SC-G5 schema-only edits must still run the docs Phase1 validator."""
+
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    docs_phase1_section = _extract_job_section(workflow_text, "  docs_phase1_gates:")
+
+    assert "PHASE1_CHANGED_FILES=()" in docs_phase1_section
+    assert "'docs/orchestration/contracts/*.schema.json'" in docs_phase1_section
+    assert (
+        "No changed markdown or Phase1 schema files; skipping docs Phase1 gates."
+        in docs_phase1_section
+    )
+    assert (
+        'if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
+        in docs_phase1_section
+    )
+    assert (
+        "No changed docs markdown or Phase1 schema files; skipping docs Phase1 validator."
+        in docs_phase1_section
+    )
+    assert (
+        'python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"'
+        in docs_phase1_section
+    )
+    assert (
+        'python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"'
+        not in docs_phase1_section
+    )
+
+
 def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> None:
     """Guard the Node 24 paths-filter migration and iOS path-gating contract."""
 
@@ -466,7 +496,9 @@ def test_feature_push_risk_profile_uses_origin_main_merge_base() -> None:
 
 def test_feature_push_branches_include_feature_prefix() -> None:
     workflow = _load_ci_workflow()
-    on_section = workflow.get("on", workflow.get(True))
+    on_section = workflow.get("on")
+    if on_section is None:
+        on_section = workflow.get(True)
     assert isinstance(on_section, dict)
     push_section = on_section["push"]
     assert isinstance(push_section, dict)
