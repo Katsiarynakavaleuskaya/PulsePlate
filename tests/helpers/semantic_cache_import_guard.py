@@ -61,6 +61,15 @@ ALLOWED_SEMANTIC_CACHE_IMPORTS = (
 )
 
 FORBIDDEN_SEMANTIC_CACHE_CALLS = (
+    "eval",
+    "exec",
+    "compile",
+    "builtins.eval",
+    "builtins.exec",
+    "builtins.compile",
+    "__builtins__.eval",
+    "__builtins__.exec",
+    "__builtins__.compile",
     "datetime.now",
     "datetime.utcnow",
     "datetime.datetime.now",
@@ -152,6 +161,18 @@ FORBIDDEN_SEMANTIC_CACHE_CALLS = (
     "shutil.move",
     "os.getenv",
     "os.environ.get",
+)
+FORBIDDEN_CALLABLE_WRAPPER_CALLS = frozenset(
+    {
+        "functools.partial",
+        "operator.methodcaller",
+    }
+)
+FORBIDDEN_DYNAMIC_EFFECT_STORAGE_CALLS = frozenset(
+    {
+        "globals",
+        "setattr",
+    }
 )
 PATH_CONSTRUCTOR_NAMES = frozenset(
     {
@@ -292,10 +313,14 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
         elif isinstance(node, ast.Assign):
             for target in node.targets:
                 for target_name, target_value in _target_names_for_value(target, node.value):
+                    if _is_string_execution_ref(target_value, import_aliases):
+                        offenders.append("string-execution.alias")
                     if _is_open_effect_ref(target_value, import_aliases):
                         offenders.append("open.alias")
                     if _is_path_effect_method_ref(target_value, import_aliases, path_aliases):
                         offenders.append("Path.method-alias")
+                    if _contains_stored_effect_ref(target_value, import_aliases, path_aliases):
+                        offenders.append("effect.container")
                     effect_ref = _qualified_call_name(target_value, import_aliases)
                     if effect_ref in {"getattr", "__import__", "importlib.import_module"}:
                         import_aliases[target_name] = effect_ref
@@ -325,10 +350,14 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                     ):
                         import_aliases[target_name] = effect_ref
                 if isinstance(target, ast.Attribute):
+                    if _is_string_execution_ref(node.value, import_aliases):
+                        offenders.append("string-execution.alias")
                     if _is_open_effect_ref(node.value, import_aliases):
                         offenders.append("open.alias")
                     if _is_path_effect_method_ref(node.value, import_aliases, path_aliases):
                         offenders.append("Path.method-alias")
+                    if _contains_stored_effect_ref(node.value, import_aliases, path_aliases):
+                        offenders.append("effect.container")
                     effect_ref = _qualified_call_name(node.value, import_aliases)
                     if _is_os_effect_ref(effect_ref):
                         offenders.append(f"{effect_ref}.alias")
@@ -349,6 +378,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 path_aliases=path_aliases,
             )
         elif isinstance(node, ast.AnnAssign):
+            if node.value is not None and _is_string_execution_ref(node.value, import_aliases):
+                offenders.append("string-execution.alias")
             if node.value is not None and _is_open_effect_ref(node.value, import_aliases):
                 offenders.append("open.alias")
             if node.value is not None and _is_path_effect_method_ref(
@@ -360,6 +391,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             effect_ref = (
                 _qualified_call_name(node.value, import_aliases) if node.value is not None else None
             )
+            if node.value is not None and _contains_stored_effect_ref(
+                node.value,
+                import_aliases,
+                path_aliases,
+            ):
+                offenders.append("effect.container")
             if isinstance(node.target, ast.Name) and effect_ref in {
                 "getattr",
                 "__import__",
@@ -421,10 +458,14 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                     offenders.append("__dynamic_import__.alias")
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             for default in _callable_defaults(node):
+                if _is_string_execution_ref(default, import_aliases):
+                    offenders.append("string-execution.alias")
                 if _is_open_effect_ref(default, import_aliases):
                     offenders.append("open.alias")
                 if _is_path_effect_method_ref(default, import_aliases, path_aliases):
                     offenders.append("Path.method-alias")
+                if _contains_stored_effect_ref(default, import_aliases, path_aliases):
+                    offenders.append("effect.container")
                 effect_ref = _qualified_call_name(default, import_aliases)
                 if _is_os_effect_ref(effect_ref):
                     offenders.append(f"{effect_ref}.alias")
@@ -448,6 +489,8 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
             if _is_open_effect_ref(node.func, import_aliases):
                 offenders.append(call_name or "open")
             if isinstance(node.func, ast.NamedExpr):
+                if _is_string_execution_ref(node.func.value, import_aliases):
+                    offenders.append("string-execution.alias")
                 if _is_open_effect_ref(node.func.value, import_aliases):
                     offenders.append("open.alias")
                 if _is_path_effect_method_ref(node.func.value, import_aliases, path_aliases):
@@ -466,6 +509,12 @@ def assert_no_forbidden_semantic_cache_calls(path: Path) -> None:
                 offenders.append("__dynamic_import__")
             if call_name in FORBIDDEN_SEMANTIC_CACHE_CALLS:
                 offenders.append(call_name)
+            if _is_forbidden_string_execution_call(node.func, import_aliases):
+                offenders.append("string-execution")
+            if call_name in FORBIDDEN_CALLABLE_WRAPPER_CALLS:
+                offenders.append(call_name)
+            if _is_forbidden_dynamic_effect_storage_call(node.func, import_aliases):
+                offenders.append(call_name or "dynamic-effect-storage")
             if _is_network_call_name(call_name):
                 offenders.append(call_name or "network.call")
             if _is_os_environ_call_name(call_name):
@@ -610,6 +659,27 @@ def _is_builtin_import_ref(node: ast.expr, import_aliases: dict[str, str]) -> bo
     return _is_builtin_ref(node, import_aliases, "__import__")
 
 
+def _is_string_execution_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
+    return any(_is_builtin_ref(node, import_aliases, name) for name in ("eval", "exec", "compile"))
+
+
+def _is_forbidden_string_execution_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+) -> bool:
+    return _is_string_execution_ref(node, import_aliases)
+
+
+def _is_forbidden_dynamic_effect_storage_call(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+) -> bool:
+    return any(
+        _is_builtin_ref(node, import_aliases, name)
+        for name in FORBIDDEN_DYNAMIC_EFFECT_STORAGE_CALLS
+    )
+
+
 def _is_dynamic_import_ref(node: ast.expr, import_aliases: dict[str, str]) -> bool:
     return _qualified_call_name(node, import_aliases) in {
         "__import__",
@@ -694,6 +764,33 @@ def _os_dict_effect_name(node: ast.expr, import_aliases: dict[str, str]) -> str 
     if _is_os_effect_ref(effect_name) or effect_name == "os.getenv":
         return effect_name
     return None
+
+
+def _contains_stored_effect_ref(
+    node: ast.expr,
+    import_aliases: dict[str, str],
+    path_aliases: set[str],
+) -> bool:
+    if isinstance(node, (ast.List, ast.Tuple, ast.Set)):
+        return any(
+            _contains_stored_effect_ref(item, import_aliases, path_aliases) for item in node.elts
+        )
+    if isinstance(node, ast.Dict):
+        return any(
+            value is not None and _contains_stored_effect_ref(value, import_aliases, path_aliases)
+            for value in node.values
+        )
+
+    effect_ref = _qualified_call_name(node, import_aliases)
+    return (
+        _is_string_execution_ref(node, import_aliases)
+        or _is_open_effect_ref(node, import_aliases)
+        or _is_path_effect_method_ref(node, import_aliases, path_aliases)
+        or _is_dynamic_import_ref(node, import_aliases)
+        or _dynamic_import_name(node, import_aliases) is not None
+        or _is_os_effect_ref(effect_ref)
+        or effect_ref in {"os.getenv", "os.environ"}
+    )
 
 
 def _constant_string_argument_at(node: ast.Call, index: int) -> str | None:

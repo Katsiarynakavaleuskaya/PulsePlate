@@ -1664,6 +1664,39 @@ def test_import_guard_rejects_path_effect_method_aliases(tmp_path: Path) -> None
         assert_no_forbidden_semantic_cache_calls(source)
 
 
+def test_import_guard_rejects_callable_effect_wrappers(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_partial_open.py",
+            "from functools import partial\npartial(open, 'payload.txt', 'w')()\n",
+            "functools.partial",
+        ),
+        (
+            "unsafe_partial_path.py",
+            (
+                "from functools import partial\n"
+                "from pathlib import Path\n"
+                "partial(Path('payload.txt').write_text, 'payload')()\n"
+            ),
+            "functools.partial",
+        ),
+        (
+            "unsafe_methodcaller.py",
+            (
+                "from operator import methodcaller\n"
+                "from pathlib import Path\n"
+                "methodcaller('write_text', 'payload')(Path('payload.txt'))\n"
+            ),
+            "operator.methodcaller",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
 def test_import_guard_rejects_path_mutations_and_os_file_mutations(tmp_path: Path) -> None:
     source = tmp_path / "unsafe_mutations.py"
     source.write_text(
@@ -1736,6 +1769,20 @@ def test_import_guard_rejects_dynamic_os_process_calls(tmp_path: Path) -> None:
 
     with pytest.raises(AssertionError, match="os.system"):
         assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_string_execution_calls(tmp_path: Path) -> None:
+    for filename, source_text in (
+        ("unsafe_eval.py", "eval(\"__import__('redis')\")\n"),
+        ("unsafe_exec.py", "exec(\"open('payload.txt', 'w').write('x')\")\n"),
+        ("unsafe_compile.py", "compile(\"__import__('redis')\", '<sc-g5>', 'exec')\n"),
+        ("unsafe_eval_alias.py", "runner = eval\nrunner(\"__import__('redis')\")\n"),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match="string-execution|eval|exec|compile"):
+            assert_no_forbidden_semantic_cache_calls(source)
 
 
 def test_import_guard_rejects_importlib_dynamic_os_effects(tmp_path: Path) -> None:
@@ -1996,6 +2043,36 @@ def test_import_guard_rejects_attribute_bound_effect_aliases(tmp_path: Path) -> 
             "unsafe_attr_path.py",
             "from pathlib import Path\nclass C: pass\nC.writer = Path('payload.txt').write_text\nC.writer('payload')\n",
             "Path.method-alias",
+        ),
+    ):
+        source = tmp_path / filename
+        source.write_text(source_text, encoding="utf-8")
+
+        with pytest.raises(AssertionError, match=expected):
+            assert_no_forbidden_semantic_cache_calls(source)
+
+
+def test_import_guard_rejects_dynamic_effect_storage_helpers(tmp_path: Path) -> None:
+    for filename, source_text, expected in (
+        (
+            "unsafe_setattr_open.py",
+            "class C: pass\nsetattr(C, 'writer', open)\nC.writer('payload.txt', 'w')\n",
+            "setattr",
+        ),
+        (
+            "unsafe_setattr_import.py",
+            "class C: pass\nsetattr(C, 'loader', __import__)\nC.loader('redis')\n",
+            "setattr",
+        ),
+        (
+            "unsafe_globals.py",
+            "globals()['writer'] = open\nwriter('payload.txt', 'w')\n",
+            "globals",
+        ),
+        (
+            "unsafe_effect_container.py",
+            "effects = {'writer': open}\neffects['writer']('payload.txt', 'w')\n",
+            "effect.container",
         ),
     ):
         source = tmp_path / filename

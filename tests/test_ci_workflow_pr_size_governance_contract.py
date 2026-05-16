@@ -251,6 +251,14 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        'if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
+        in docs_phase1_section
+    )
+    assert (
+        "No changed docs markdown or Phase1 schema files; skipping docs Phase1 validator."
+        in docs_phase1_section
+    )
+    assert (
         'python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"'
         in docs_phase1_section
     )

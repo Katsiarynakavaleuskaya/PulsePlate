@@ -246,7 +246,7 @@ jobs:
           done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- \
             'docs/orchestration/contracts/*.schema.json')
 
-          if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ]; then
+          if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then
             echo "No changed markdown or Phase1 schema files; skipping docs Phase1 gates."
             exit 0
           fi
@@ -263,7 +263,11 @@ jobs:
 
           printf "Docs Phase1 gate targets:\n"
           printf '%s\n' "${PHASE1_CHANGED_FILES[@]}"
-          python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"
+          if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ]; then
+            echo "No changed docs markdown or Phase1 schema files; skipping docs Phase1 validator."
+          else
+            python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"
+          fi
 
           if [ "${#LINT_MD[@]}" -eq 0 ]; then
             echo "No markdown files eligible for markdownlint after AGENTS.md exclusion."
