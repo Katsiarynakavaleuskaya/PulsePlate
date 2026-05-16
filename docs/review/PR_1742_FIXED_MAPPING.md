@@ -457,11 +457,11 @@ Evidence: Canonical matrix hashing now recomputes the final decision via the det
 
 | Source | Status | Disposition |
 | --- | --- | --- |
-| CodeRabbit | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Sourcery | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
-| Cubic | Pending current-head re-review after latest fixes | Prior actionables mapped above; not merge-ready until bot reports no remaining actionables or explicit dispositions. |
+| CodeRabbit | Current-head pass | Prior actionables are mapped above; strict merge wrapper and live PR checks report no remaining actionable CodeRabbit blockers. |
+| Sourcery | Current-head pass/skipped with no actionables | Prior actionables are mapped above; strict merge wrapper and live PR checks report no remaining actionable Sourcery blockers. |
+| Cubic | Current-head pass/no actionables | Prior actionables are mapped above; strict merge wrapper reports all actionable bot comments mapped in the canonical artifact. |
 | Codex Security | Clean after latest current-head sync | Final scan for current head `b5a67395a` reports no surviving findings at `/tmp/codex-security-scans/ai-runtime-semantic-cache-backend-selection-contract/b5a67395a_20260515T151739Z/report.md`. |
-| Codecov | Pending current-head CI parity | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage remains current-head CI plus local focused diff-cover evidence. |
+| Codecov | Current-head patch/diff coverage pass | Historical patch coverage comment is not merge-readiness proof; canonical diff coverage is the current-head CI `diff-coverage` pass. |
 
 ## Local Evidence Before PR Open
 
@@ -492,11 +492,11 @@ Evidence: Canonical matrix hashing now recomputes the final decision via the det
 
 ## Merge Readiness
 
-Not merge-ready at PR open. Required before merge:
+Merge-readiness status after final current-head pass:
 
-- Current-head CI clean.
-- Strict merge wrapper with auth passes.
-- No unresolved review threads.
-- CodeRabbit, Sourcery, Cubic have no actionables or explicit dispositions.
-- Codex Security review clean or dispositioned.
-- Mandatory wait-window observed.
+- [x] Current-head CI clean.
+- [x] Strict merge wrapper with auth passes.
+- [x] No unresolved review threads.
+- [x] CodeRabbit, Sourcery, Cubic have no actionables or explicit dispositions.
+- [x] Codex Security review clean or dispositioned.
+- [x] Mandatory wait-window observed.
