@@ -341,13 +341,13 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
     if mode == "review":
         return "CodeReview"
 
-    if is_reviewer:
-        return "CodeReview"
-
     slug = agent_def.get("slug") or agent_def.get("name", "")
 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
+
+    if is_reviewer:
+        return "CodeReview"
 
     if agent_def.get("readonly") or mode in ("analysis", "docs-only"):
         return "Research"
@@ -557,7 +557,13 @@ def _detect_parallel_groups(
         if item.get("readonly")
         and not item.get("depends_on_previous")
         and item.get("role_slug") != "agent-coordinator"
+        and item.get("qoder_subagent_type") != "Verify"
     ]
+    slug_counts: Dict[str, int] = {}
+    for item in readonly_items:
+        slug = item["role_slug"]
+        slug_counts[slug] = slug_counts.get(slug, 0) + 1
+    readonly_items = [item for item in readonly_items if slug_counts[item["role_slug"]] == 1]
 
     if len(readonly_items) < 2:
         return []
@@ -603,6 +609,10 @@ def _validated_bracket_groups(
         if any(item.get("depends_on_previous") for item in group_items if item is not None):
             continue
         if any(not item.get("readonly") for item in group_items if item is not None):
+            continue
+        if any(
+            item.get("qoder_subagent_type") == "Verify" for item in group_items if item is not None
+        ):
             continue
         if any(
             item.get("role_slug") == "agent-coordinator" for item in group_items if item is not None
@@ -727,6 +737,7 @@ def build_dispatch_manifest(
         "dispatch_sequence": dispatch_sequence,
         "parallelizable_groups": parallel_groups,
         "mandatory_post_open": ["qa-engineer-agent", "bug-hunter"],
+        "missing_agents": missing_agents,
     }
 
     return manifest
@@ -825,6 +836,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         bracket_groups=packet_bracket_groups,
         chained_successors=packet_chained_successors,
     )
+    if manifest.get("missing_agents"):
+        print(
+            "FAIL: Agent definitions not found for: "
+            + ", ".join(str(slug) for slug in manifest["missing_agents"]),
+            file=sys.stderr,
+        )
+        return 1
 
     # Output
     indent = 2 if args.pretty else None

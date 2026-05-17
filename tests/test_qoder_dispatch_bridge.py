@@ -119,6 +119,13 @@ class TestRoleToQoderTypeMapping:
             == "Verify"
         )
 
+    def test_qa_engineer_agent_reviewer_slot_stays_verify(self) -> None:
+        agent_def = {"slug": "qa-engineer-agent", "name": "qa-engineer-agent", "readonly": True}
+        result = qoder_dispatch_bridge.resolve_qoder_type(
+            agent_def, mode="analysis", is_reviewer=True
+        )
+        assert result == "Verify"
+
     def test_bug_hunter(self) -> None:
         agent_def = {"slug": "bug-hunter", "name": "bug-hunter", "readonly": True}
         result = qoder_dispatch_bridge.resolve_qoder_type(
@@ -434,6 +441,56 @@ def test_coordinator_is_not_parallelized_with_readonly_reviewers() -> None:
     assert all("agent-coordinator" not in group for group in manifest["parallelizable_groups"])
 
 
+def test_verify_agents_are_not_parallelized_with_reviewers() -> None:
+    """Verify agents are readonly but still run in validation order, not parallel."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["architecture-specialist", "qa-engineer-agent"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+        bracket_groups=[slugs],
+    )
+
+    assert all("qa-engineer-agent" not in group for group in manifest["parallelizable_groups"])
+
+
+def test_duplicate_readonly_slugs_are_not_auto_parallelized() -> None:
+    """Slug-only auto parallel groups cannot represent repeated role phases safely."""
+    dispatch_items: List[Dict[str, Any]] = [
+        {
+            "role_slug": "architecture-specialist",
+            "readonly": True,
+            "depends_on_previous": False,
+            "qoder_subagent_type": "CodeReview",
+        },
+        {
+            "role_slug": "architecture-specialist",
+            "readonly": True,
+            "depends_on_previous": False,
+            "qoder_subagent_type": "CodeReview",
+        },
+        {
+            "role_slug": "philosophy-agent",
+            "readonly": True,
+            "depends_on_previous": False,
+            "qoder_subagent_type": "Research",
+        },
+    ]
+    routing = {
+        "architecture": {"reviewer": "architecture-specialist"},
+        "philosophy": {"primary": "philosophy-agent"},
+    }
+
+    groups = qoder_dispatch_bridge._detect_parallel_groups(dispatch_items, routing)
+
+    assert all("architecture-specialist" not in group for group in groups)
+
+
 # ---------------------------------------------------------------------------
 # 6. test_manifest_schema_compliance
 # ---------------------------------------------------------------------------
@@ -531,11 +588,25 @@ def test_missing_agent_definition_graceful(capsys: pytest.CaptureFixture[str]) -
 
     # Missing agents should be skipped (not in dispatch_sequence)
     assert manifest["dispatch_sequence"] == []
+    assert manifest["missing_agents"] == slugs
 
     # A warning should be emitted to stderr
     captured = capsys.readouterr()
     assert "nonexistent-agent-xyz-12345" in captured.err
     assert "another-missing-agent-abc" in captured.err
+
+
+def test_cli_fails_when_requested_role_definition_is_missing(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Executable CLI dispatch fails instead of emitting an empty manifest."""
+    result = qoder_dispatch_bridge.main(
+        ["--roles", "nonexistent-agent-xyz-12345", "--mode", "analysis"]
+    )
+
+    captured = capsys.readouterr()
+    assert result == 1
+    assert "FAIL: Agent definitions not found for: nonexistent-agent-xyz-12345" in captured.err
 
 
 # ---------------------------------------------------------------------------
