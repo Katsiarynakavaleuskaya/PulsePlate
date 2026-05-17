@@ -39,7 +39,7 @@ click==8.3.1
     #   -c requirements.txt
     #   black
     #   pip-tools
-coverage[toml]==7.13.5
+coverage[toml]==7.14.0
     # via
     #   -r requirements-dev.in
     #   pytest-cov
@@ -59,7 +59,7 @@ distlib==0.4.0
     # via virtualenv
 execnet==2.1.2
     # via pytest-xdist
-faker==40.15.0
+faker==40.18.0
     # via -r requirements-dev.in
 filelock==3.24.3
     # via
@@ -67,7 +67,7 @@ filelock==3.24.3
     #   virtualenv
 flake8==7.3.0
     # via -r requirements-dev.in
-hypothesis==6.152.4
+hypothesis==6.152.7
     # via -r requirements-dev.in
 identify==2.6.15
     # via pre-commit
@@ -231,7 +231,7 @@ tomli==2.3.0
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
-types-pyyaml==6.0.12.20260508
+types-pyyaml==6.0.12.20260510
     # via -r requirements-dev.in
 typing-extensions==4.15.0
     # via
@@ -249,6 +249,10 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.1
+    # via
+    #   pip-api
+    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
