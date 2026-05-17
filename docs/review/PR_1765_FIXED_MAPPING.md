@@ -19,20 +19,17 @@
 Disposition: FIXED
 Commit: cd05b9a2d
 Evidence: Cubic found that pre-resolving `--promotion-output` broke relative output paths. `scripts/orchestration/experiment_pipeline.py` now preserves the raw relative output argument for `experiment_promote.py` while resolving the expected artifact path for notification/summary use, and `tests/test_experiment_pipeline.py` covers `--promotion-output nested/decision.json`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#pullrequestreview-4306228421 -> cd05b9a2d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255402933 -> cd05b9a2d
 
 Disposition: FIXED
 Commit: cd05b9a2d
 Evidence: CodeRabbit found that placeholder co-author guidance with whitespace inside angle brackets could bypass the regex. `scripts/orchestration/check_experiment_runner_identity.py` now rejects `< runner@example.com >`, and `tests/test_experiment_runner_identity_policy.py` covers that variant.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255410259 -> cd05b9a2d
 
 Disposition: FIXED
 Commit: cd05b9a2d
 Evidence: CodeRabbit found that child stage stderr and unexpected exceptions could leak outside the pipeline's sanitized failure path. `scripts/orchestration/experiment_pipeline.py` now redirects both stdout and stderr and normalizes unexpected stage exceptions to the generic stage failure message; `tests/test_experiment_pipeline.py` covers stderr and exception redaction.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255410262 -> cd05b9a2d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#pullrequestreview-4306234841 -> cd05b9a2d
 
