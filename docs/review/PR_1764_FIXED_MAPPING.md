@@ -52,7 +52,7 @@ External CodeRabbit, Sourcery, and Cubic reviews remain merge-blocking until the
 
 - [x] Pre-flight + agent consistency: PASS.
 - [x] Canonical artifact: this file (`docs/review/PR_1764_FIXED_MAPPING.md`).
-- [x] PR body mirror: will be updated from this artifact before pushing this commit.
+- [x] PR body mirror: updated from this artifact.
 - [ ] Current-head CI: pending rerun after this artifact lands.
 - [ ] Bot summaries reviewed (CodeRabbit / Sourcery / Cubic): pending terminal statuses.
 - [ ] Strict review-thread disposition: pending `check_review_threads_disposition.py --require-auth`.
