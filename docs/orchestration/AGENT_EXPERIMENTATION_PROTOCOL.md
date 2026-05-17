@@ -85,6 +85,13 @@ identity defined in `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`:
 PulsePlate Experiment Runner <pulseplate@pm.me>
 ```
 
+When the Experiment Runner materially contributes to a commit, use the
+canonical trailer:
+
+```text
+Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>
+```
+
 This identity is attribution-only unless an operator-managed external signing
 boundary exists. Git author fields and `Co-authored-by` trailers are text and
 must not be treated as proof of machine authorship by themselves.
@@ -348,11 +355,19 @@ If a candidate wins, the coordinator promotes it into exactly one destination:
 summary from validated experiment packet, result, and optional promotion
 decision artifacts.
 
+`scripts/orchestration/experiment_pipeline.py` is the governed completion
+wrapper for agents that should not manually run each stage. It sequences
+runner -> promotion -> notification and may request email delivery only with
+the explicit `--email-reports` flag.
+
 Rules:
 
 - notification output is evidence-only and does not change promotion,
   merge-readiness, or review-thread disposition authority,
 - local markdown artifacts are the default delivery sink,
+- automatic email reports are available only through
+  `experiment_pipeline.py --email-reports`; git attribution email is never a
+  delivery trigger,
 - SMTP email delivery requires an explicit CLI flag, an explicit allowlisted
   recipient, and runtime SMTP secret configuration,
 - SMTP port `465` uses implicit TLS (`SMTP_SSL`); other allowed ports use
