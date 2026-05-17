@@ -39,6 +39,16 @@ DEFAULT_BACKEND_SELECTION_CONTRACT = (
     / "SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
 )
 DEFAULT_BACKEND_SELECTION_SCHEMA = DEFAULT_BACKEND_SELECTION_CONTRACT.with_suffix(".schema.json")
+DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
+)
+DEFAULT_PHILOSOPHY_ADMISSION_SCHEMA = DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT.with_suffix(
+    ".schema.json"
+)
 
 REQUIRED_MARKERS = {
     "SEMANTIC_CACHE_GATE_STATUS": "closed",
@@ -649,8 +659,71 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
     ),
 )
 
+PHILOSOPHY_ADMISSION_ROLLOUT_ORDER = (
+    "SC-G1 rollout gate contract",
+    "SC-G2 exact/fuzzy cache scaffold",
+    "SC-G3 observability and false-hit harness",
+    "SC-G4 bounded `/insight` semantic-cache experiment",
+    "SC-G5 backend selection",
+    "Philosophy admission contract reconciliation",
+)
+
+PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS = (
+    ("Philosophy PR-1 admission", re.compile(r"\bphilosophy epic v2 pr-1\b")),
+    ("does not open gate", re.compile(r"\bdoes not open (?:the )?semantic-cache gate\b")),
+    ("gate remains closed", re.compile(r"\bgate remains closed\b")),
+    ("runtime allowed false", re.compile(r"\bruntime allowed:\s*false\b")),
+    ("implementation allowed false", re.compile(r"\bimplementation allowed:\s*false\b")),
+    ("does not duplicate SC-G5", re.compile(r"\bdoes not duplicate\b.*\bsc-g5\b")),
+    ("runtime_only class", re.compile(r"\bruntime_only\b")),
+    ("blocked_from_cache class", re.compile(r"\bblocked_from_cache\b")),
+    (
+        "verification_bundle_required class",
+        re.compile(r"\bverification_bundle_required\b"),
+    ),
+    (
+        "future_cache_candidate_deferred class",
+        re.compile(r"\bfuture_cache_candidate_deferred\b"),
+    ),
+    ("philosophical_runtime reference", re.compile(r"\bcore/insight/philosophical_runtime\.py\b")),
+    ("SC-G5 reference", re.compile(r"\bsemantic_cache_backend_selection_contract\.md\b")),
+    ("sc_g5 merge commit", re.compile(r"\bcb1db8b40\b")),
+    ("no Redis imports", re.compile(r"\bno redis imports\b")),
+    ("no GPTCache imports", re.compile(r"\bno gptcache imports\b")),
+    ("no embeddings", re.compile(r"\bno embeddings\b")),
+    ("no insight cache wiring", re.compile(r"\bno\b.*\b/insight\b.*\bcache wiring\b")),
+)
+
+PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
+    (
+        "philosophy admission opens gate",
+        re.compile(r"\bphilosophy admission opens (?:the )?semantic-cache gate\b"),
+    ),
+    (
+        "philosophical semantic cache live",
+        re.compile(r"\bphilosophical semantic cache (?:is )?(?:live|active|enabled|open)\b"),
+    ),
+    (
+        "redis philosophical cache approved",
+        re.compile(r"\bredis philosophical cache (?:is )?approved\b"),
+    ),
+    (
+        "gptcache philosophical cache approved",
+        re.compile(r"\bgptcache philosophical cache (?:is )?approved\b"),
+    ),
+    (
+        "verification bundle optional",
+        re.compile(r"\bverification bundles? (?:are )?optional for cache\b"),
+    ),
+    (
+        "SC-G5 matrix duplicated",
+        re.compile(r"\bcandidate backend labels only\b.*\bphilosophy\b"),
+    ),
+)
+
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 MACHINE_JSON_RE = re.compile(r"```json\s*(?P<payload>\{.*?\})\s*```", re.DOTALL)
+MARKDOWN_SECTION_RE = re.compile(r"(?m)^##\s+")
 
 
 def _normalize_text(text: str) -> str:
@@ -681,16 +754,49 @@ def _forbidden_claim_errors(text: str) -> list[str]:
     ]
 
 
+def _without_markdown_sections(text: str, headings: set[str]) -> str:
+    """Remove named level-two markdown sections before claim scanning."""
+    matches = list(MARKDOWN_SECTION_RE.finditer(text))
+    if not matches:
+        return text
+
+    kept_parts: list[str] = []
+    cursor = 0
+    for index, match in enumerate(matches):
+        section_start = match.start()
+        section_end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        kept_parts.append(text[cursor:section_start])
+        heading_line_end = text.find("\n", match.end())
+        if heading_line_end == -1:
+            heading_line_end = section_end
+        heading = text[match.end() : heading_line_end].strip().lower()
+        if heading not in headings:
+            kept_parts.append(text[section_start:section_end])
+        cursor = section_end
+    kept_parts.append(text[cursor:])
+    return "".join(kept_parts)
+
+
+def _philosophy_admission_assertion_text(text: str) -> str:
+    """Keep claim scanning on assertive prose, not forbidden examples or JSON."""
+    return _without_markdown_sections(
+        text,
+        headings={"forbidden claims", "machine-readable state"},
+    )
+
+
 def _validate_rollout_order(
     normalized: str,
     *,
     missing_prefix: str,
     out_of_order_prefix: str,
+    order: tuple[str, ...] | None = None,
 ) -> list[str]:
     errors: list[str] = []
     positions: dict[str, int] = {}
+    phrases = order if order is not None else ROLLOUT_ORDER
 
-    for phrase in ROLLOUT_ORDER:
+    for phrase in phrases:
         normalized_phrase = _normalize_text(phrase)
         index = normalized.find(normalized_phrase)
         if index == -1:
@@ -699,7 +805,7 @@ def _validate_rollout_order(
         positions[phrase] = index
 
     previous_index = -1
-    for phrase in ROLLOUT_ORDER:
+    for phrase in phrases:
         current_index = positions.get(phrase)
         if current_index is None:
             continue
@@ -1164,6 +1270,258 @@ def validate_semantic_cache_backend_selection_schema(
     return errors
 
 
+def _philosophy_admission_machine_state_json(text: str) -> tuple[str, list[str]]:
+    heading = re.search(r"(?im)^##\s+Machine-Readable State\s*$", text)
+    if heading is None:
+        return "", ["philosophy admission contract missing Machine-Readable State heading"]
+    section = text[heading.end() :]
+    next_heading = re.search(r"(?m)^##\s+", section)
+    if next_heading is not None:
+        section = section[: next_heading.start()]
+    matches = list(MACHINE_JSON_RE.finditer(section))
+    if not matches:
+        return "", ["philosophy admission contract missing machine-readable JSON state"]
+    if len(matches) > 1:
+        return "", ["philosophy admission contract has multiple machine-readable JSON states"]
+    return matches[0].group("payload"), []
+
+
+def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str]:
+    """Return stable validation errors for Philosophy PR-1 admission contracts."""
+    errors: list[str] = []
+    normalized = _normalize_text(text)
+
+    for label, pattern in PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS:
+        if not pattern.search(normalized):
+            errors.append(f"philosophy admission contract missing anchor: {label}")
+
+    rollout_section_index = normalized.find("required rollout order remains:")
+    rollout_section = (
+        normalized[rollout_section_index:] if rollout_section_index != -1 else normalized
+    )
+    errors.extend(
+        _validate_rollout_order(
+            rollout_section,
+            order=PHILOSOPHY_ADMISSION_ROLLOUT_ORDER,
+            missing_prefix="philosophy admission contract missing phase",
+            out_of_order_prefix="philosophy admission contract phase out of order",
+        )
+    )
+    assertion_text = _philosophy_admission_assertion_text(text)
+    assertion_normalized = _normalize_text(assertion_text)
+    errors.extend(_forbidden_claim_errors(assertion_text))
+    errors.extend(
+        f"forbidden philosophy admission contract claim: {label}"
+        for label, pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS
+        if pattern.search(assertion_normalized)
+    )
+    errors.extend(_validate_philosophy_admission_machine_state(text))
+
+    return errors
+
+
+def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
+    payload_text, state_errors = _philosophy_admission_machine_state_json(text)
+    if state_errors:
+        return state_errors
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as exc:
+        return [f"philosophy admission contract invalid JSON state: {exc.msg}"]
+    if not isinstance(payload, dict):
+        return ["philosophy admission contract JSON state must be an object"]
+
+    errors: list[str] = []
+    expected_keys = {
+        "admission_classes",
+        "blocked_surfaces",
+        "default_admission_while_gate_closed",
+        "does_not_duplicate_sc_g5_backend_selection",
+        "forbidden_claims",
+        "gate_status",
+        "implementation_allowed",
+        "references",
+        "rollout_phase",
+        "runtime_allowed",
+        "sc_g5_merge_commit",
+        "runtime_only_surfaces",
+        "verification_bundle_required_surfaces",
+        "future_cache_candidate_deferred_surfaces",
+    }
+    actual_keys = set(payload)
+    for key in sorted(expected_keys - actual_keys):
+        errors.append(f"philosophy admission contract JSON missing required key: {key}")
+    for key in sorted(actual_keys - expected_keys):
+        errors.append(f"philosophy admission contract JSON unexpected key: {key}")
+
+    expected_values = {
+        "gate_status": "closed",
+        "runtime_allowed": False,
+        "implementation_allowed": False,
+        "rollout_phase": "PHILOSOPHY-PR1",
+        "default_admission_while_gate_closed": "runtime_only",
+        "does_not_duplicate_sc_g5_backend_selection": True,
+        "sc_g5_merge_commit": "cb1db8b40",
+    }
+    for key, expected in expected_values.items():
+        if payload.get(key) != expected:
+            errors.append(
+                f"philosophy admission contract JSON {key}: expected {expected!r}, "
+                f"got {payload.get(key)!r}"
+            )
+
+    admission_classes = payload.get("admission_classes")
+    if not isinstance(admission_classes, list) or not all(
+        isinstance(item, str) for item in admission_classes
+    ):
+        errors.append("philosophy admission contract JSON admission_classes must be a string list")
+    elif set(admission_classes) != {
+        "runtime_only",
+        "blocked_from_cache",
+        "verification_bundle_required",
+        "future_cache_candidate_deferred",
+    }:
+        errors.append("philosophy admission contract JSON admission_classes set mismatch")
+
+    sc_g5_ref = "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+    references = payload.get("references")
+    if isinstance(references, list) and sc_g5_ref not in references:
+        errors.append("philosophy admission contract JSON references missing SC-G5 contract path")
+
+    required_lists = {
+        "blocked_surfaces": (
+            "billing_auth_entitlement_truth",
+            "auth_session_account_identity_truth",
+            "medical_or_therapy_routing",
+            "compliance_legal_output_cache",
+            "raw_user_free_text_cache_keys",
+            "advisory_wiki_product_truth",
+            "workforce_memory_product_truth",
+            "graphrag_product_truth",
+            "plugin_control_plane_product_truth",
+            "fitchef_cbt_bypassing_validators",
+        ),
+        "forbidden_claims": (
+            "claim_class_gate_open_equivalence",
+            "claim_class_live_philosophy_cache",
+            "claim_class_provider_rollout_approved",
+            "claim_class_verification_bundle_skipped",
+        ),
+        "runtime_only_surfaces": (
+            "philosophical_runtime_preview_validate_rewrite",
+            "offline_logic_philosophy_replay",
+            "eval_harness_without_cache_serving",
+        ),
+        "verification_bundle_required_surfaces": (
+            "knowledge_promotion_decisions",
+            "semantic_cache_admission_decisions",
+            "recursive_retrieval_verification_merges",
+            "philosophical_outputs_presentation_risk_canonical_facts",
+        ),
+    }
+    for key, required_items in required_lists.items():
+        actual = payload.get(key)
+        if not isinstance(actual, list):
+            errors.append(f"philosophy admission contract JSON {key}: expected list")
+            continue
+        missing = [item for item in required_items if item not in actual]
+        for item in missing:
+            errors.append(f"philosophy admission contract JSON {key}: missing {item}")
+
+    return errors
+
+
+def validate_philosophy_semantic_cache_admission_schema(
+    *,
+    schema_text: str,
+    contract_text: str,
+) -> list[str]:
+    """Validate the Philosophy PR-1 JSON schema against the contract machine state."""
+    errors: list[str] = []
+    try:
+        schema = json.loads(schema_text)
+    except json.JSONDecodeError as exc:
+        return [f"philosophy admission schema invalid JSON: {exc.msg}"]
+    if not isinstance(schema, dict):
+        return ["philosophy admission schema must be an object"]
+    if schema.get("type") != "object":
+        errors.append("philosophy admission schema root type must be object")
+
+    payload_text, state_errors = _philosophy_admission_machine_state_json(contract_text)
+    if state_errors:
+        return state_errors
+    try:
+        payload = json.loads(payload_text)
+    except json.JSONDecodeError as exc:
+        return [f"philosophy admission contract invalid JSON state: {exc.msg}"]
+    if not isinstance(payload, dict):
+        return ["philosophy admission contract JSON state must be an object"]
+
+    properties = schema.get("properties")
+    required = schema.get("required")
+    if not isinstance(properties, dict):
+        errors.append("philosophy admission schema properties must be an object")
+        properties = {}
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("philosophy admission schema required must be a string list")
+        required = []
+
+    if schema.get("additionalProperties") is not False:
+        errors.append("philosophy admission schema must set additionalProperties false")
+
+    required_set = set(required)
+    payload_keys = set(payload)
+    property_keys = set(properties)
+    for key in sorted(required_set - payload_keys):
+        errors.append(f"philosophy admission schema required key missing from contract JSON: {key}")
+    for key in sorted(payload_keys - required_set):
+        errors.append(f"philosophy admission contract JSON key missing from schema required: {key}")
+    for key in sorted(payload_keys - property_keys):
+        errors.append(
+            f"philosophy admission contract JSON key missing from schema properties: {key}"
+        )
+
+    const_keys = {
+        "default_admission_while_gate_closed",
+        "does_not_duplicate_sc_g5_backend_selection",
+        "gate_status",
+        "implementation_allowed",
+        "rollout_phase",
+        "runtime_allowed",
+        "sc_g5_merge_commit",
+    }
+    for key, spec in properties.items():
+        if not isinstance(spec, dict) or key not in payload:
+            continue
+        if key in const_keys and "const" not in spec:
+            errors.append(f"philosophy admission schema const missing for {key}")
+        if "const" in spec and payload[key] != spec["const"]:
+            errors.append(
+                f"philosophy admission schema const mismatch for {key}: "
+                f"expected {spec['const']!r}, got {payload[key]!r}"
+            )
+        items = spec.get("items")
+        if isinstance(payload[key], list):
+            if spec.get("type") != "array":
+                errors.append(f"philosophy admission schema array type missing for {key}")
+            if payload[key] and not isinstance(spec.get("minItems"), int):
+                errors.append(f"philosophy admission schema minItems missing for {key}")
+            if spec.get("uniqueItems") is not True:
+                errors.append(f"philosophy admission schema uniqueItems missing for {key}")
+            if not isinstance(items, dict) or items.get("type") != "string":
+                errors.append(f"philosophy admission schema string items missing for {key}")
+        if isinstance(items, dict) and "enum" in items and isinstance(payload[key], list):
+            enum = items["enum"]
+            if not isinstance(enum, list) or not all(isinstance(item, str) for item in enum):
+                errors.append(f"philosophy admission schema enum must be a string list for {key}")
+            else:
+                invalid = [item for item in payload[key] if item not in enum]
+                for item in invalid:
+                    errors.append(f"philosophy admission schema enum mismatch for {key}: {item!r}")
+
+    return errors
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Check semantic-cache gate markers.")
     parser.add_argument(
@@ -1207,6 +1565,18 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         default=DEFAULT_BACKEND_SELECTION_SCHEMA,
         help="SC-G5 backend selection JSON schema to validate.",
+    )
+    parser.add_argument(
+        "--philosophy-admission-contract",
+        type=Path,
+        default=DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT,
+        help="Philosophy PR-1 admission markdown document to validate.",
+    )
+    parser.add_argument(
+        "--philosophy-admission-schema",
+        type=Path,
+        default=DEFAULT_PHILOSOPHY_ADMISSION_SCHEMA,
+        help="Philosophy PR-1 admission JSON schema to validate.",
     )
     args = parser.parse_args(argv)
 
@@ -1259,6 +1629,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
+    philosophy_admission_contract = args.philosophy_admission_contract
+    if not philosophy_admission_contract.exists():
+        print(
+            f"ERROR: philosophy admission contract missing: {philosophy_admission_contract}",
+            file=sys.stderr,
+        )
+        return 1
+    philosophy_admission_schema = args.philosophy_admission_schema
+    if not philosophy_admission_schema.exists():
+        print(
+            f"ERROR: philosophy admission schema missing: {philosophy_admission_schema}",
+            file=sys.stderr,
+        )
+        return 1
+
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
     errors.extend(
@@ -1285,6 +1670,17 @@ def main(argv: list[str] | None = None) -> int:
             contract_text=backend_selection_contract.read_text(encoding="utf-8"),
         )
     )
+    errors.extend(
+        validate_philosophy_semantic_cache_admission_contract(
+            philosophy_admission_contract.read_text(encoding="utf-8")
+        )
+    )
+    errors.extend(
+        validate_philosophy_semantic_cache_admission_schema(
+            schema_text=philosophy_admission_schema.read_text(encoding="utf-8"),
+            contract_text=philosophy_admission_contract.read_text(encoding="utf-8"),
+        )
+    )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -1296,6 +1692,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"cache observability contract closed: {observability_contract}")
     print(f"bounded insight experiment contract closed: {bounded_insight_contract}")
     print(f"backend selection contract closed: {backend_selection_contract}")
+    print(f"philosophy admission contract closed: {philosophy_admission_contract}")
     return 0
 
 

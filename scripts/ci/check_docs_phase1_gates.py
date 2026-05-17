@@ -21,6 +21,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 try:
     from scripts.ci.check_semantic_cache_gate import (
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
+        validate_philosophy_semantic_cache_admission_contract as _validate_philosophy_admission_contract,
+        validate_philosophy_semantic_cache_admission_schema as _validate_philosophy_admission_schema,
         validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
         validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
         validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
@@ -31,6 +33,8 @@ try:
 except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
+        validate_philosophy_semantic_cache_admission_contract as _validate_philosophy_admission_contract,
+        validate_philosophy_semantic_cache_admission_schema as _validate_philosophy_admission_schema,
         validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
         validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
         validate_semantic_cache_bounded_insight_experiment_contract as _validate_bounded_insight_contract,
@@ -54,10 +58,16 @@ SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC = (
 SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_SCHEMA = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.schema.json"
 )
+PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC = (
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
+)
+PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA = (
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json"
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
-class SemanticCacheBackendSelectionSchemaValidator(Protocol):
+class ContractSchemaValidator(Protocol):
     def __call__(self, *, schema_text: str, contract_text: str) -> list[str]: ...
 
 
@@ -65,10 +75,10 @@ def _as_semantic_cache_gate_validator(validator: Any) -> SemanticCacheGateValida
     return cast(SemanticCacheGateValidator, validator)
 
 
-def _as_semantic_cache_backend_selection_schema_validator(
+def _as_contract_schema_validator(
     validator: Any,
-) -> SemanticCacheBackendSelectionSchemaValidator:
-    return cast(SemanticCacheBackendSelectionSchemaValidator, validator)
+) -> ContractSchemaValidator:
+    return cast(ContractSchemaValidator, validator)
 
 
 def _load_semantic_cache_gate_validator() -> SemanticCacheGateValidator:
@@ -95,11 +105,19 @@ def _load_semantic_cache_backend_selection_validator() -> SemanticCacheGateValid
     return _as_semantic_cache_gate_validator(_validate_backend_selection_contract)
 
 
-def _load_semantic_cache_backend_selection_schema_validator() -> (
-    SemanticCacheBackendSelectionSchemaValidator
-):
-    return _as_semantic_cache_backend_selection_schema_validator(
+def _load_semantic_cache_backend_selection_schema_validator() -> ContractSchemaValidator:
+    return _as_contract_schema_validator(
         _validate_backend_selection_schema,
+    )
+
+
+def _load_philosophy_admission_contract_validator() -> SemanticCacheGateValidator:
+    return _as_semantic_cache_gate_validator(_validate_philosophy_admission_contract)
+
+
+def _load_philosophy_admission_schema_validator() -> ContractSchemaValidator:
+    return _as_contract_schema_validator(
+        _validate_philosophy_admission_schema,
     )
 
 
@@ -200,6 +218,46 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                 errors.extend(
                     f"{relpath}: {error}"
                     for error in validate_backend_selection_schema(
+                        schema_text=content,
+                        contract_text=contract_text,
+                    )
+                )
+
+        if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC:
+            validate_philosophy_admission_contract = _load_philosophy_admission_contract_validator()
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_philosophy_admission_contract(content)
+            )
+            validate_philosophy_admission_schema = _load_philosophy_admission_schema_validator()
+            try:
+                schema_text = _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_philosophy_admission_schema(
+                        schema_text=schema_text,
+                        contract_text=content,
+                    )
+                )
+
+        if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA:
+            validate_philosophy_admission_schema = _load_philosophy_admission_schema_validator()
+            try:
+                contract_text = _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_philosophy_admission_schema(
                         schema_text=content,
                         contract_text=contract_text,
                     )

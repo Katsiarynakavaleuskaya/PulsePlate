@@ -50,6 +50,13 @@ That contract is offline, label-only, recommendation-only, and non-serving; it
 does not open the global semantic-cache gate, approve Redis/GPTCache rollout, or
 activate any backend by default.
 
+The Philosophy Epic V2 PR-1 admission contract is defined in
+[`PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`](../orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md).
+That contract is policy-only, gate-closed, and non-serving; it defines which
+philosophical request classes may enter a future semantic-cache path after gate
+open and references merged SC-G5 (`cb1db8b40`) without duplicating the backend
+selection matrix.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
@@ -95,6 +102,7 @@ If the gate opens later, the rollout order is fixed:
 3. SC-G3 observability and false-hit harness
 4. SC-G4 bounded `/insight` semantic-cache experiment
 5. SC-G5 backend selection
+6. Philosophy admission contract reconciliation for philosophical request classes
 
 ## First-Pass Safety Limits
 
