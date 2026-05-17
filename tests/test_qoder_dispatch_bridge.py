@@ -305,6 +305,26 @@ def test_packet_bracket_groups_drop_ambiguous_repeated_dispatch_slug() -> None:
     assert groups == []
 
 
+def test_first_dispatch_item_cannot_depend_on_missing_previous_step() -> None:
+    """Explicit dependency metadata is ignored for the first dispatch item."""
+    assert (
+        qoder_dispatch_bridge._depends_on_previous(
+            "agent-coordinator",
+            {"depends_on_previous": True},
+            previous_slug=None,
+        )
+        is False
+    )
+    assert (
+        qoder_dispatch_bridge._depends_on_previous(
+            "agent-coordinator",
+            {"depends_on_previous": True},
+            previous_slug="dev-operator",
+        )
+        is True
+    )
+
+
 def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
     """Bracket groups stay parallel while qa-engineer-agent -> bug-hunter stays sequential."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"

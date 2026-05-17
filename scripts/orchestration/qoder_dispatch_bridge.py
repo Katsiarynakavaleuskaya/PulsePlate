@@ -136,6 +136,8 @@ def _depends_on_previous(
     slug: str, agent_def: Dict[str, Any], previous_slug: Optional[str]
 ) -> bool:
     """Return whether this dispatch item must wait for the previous item."""
+    if previous_slug is None:
+        return False
     if agent_def.get("depends_on_previous"):
         return True
     # The mandatory post-open review pass is sequential: qa-engineer-agent -> bug-hunter.
