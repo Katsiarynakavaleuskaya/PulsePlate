@@ -271,11 +271,13 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
 
-    if slug in ("backend-engineer", "frontend-engineer", "dev-operator"):
-        return "Coding"
-
+    # Specific mode-dependent check first (frontend runtime → Browser)
     if slug == "frontend-engineer" and mode == "runtime":
         return "Browser"
+
+    # Then generic implementation roles
+    if slug in ("backend-engineer", "frontend-engineer", "dev-operator"):
+        return "Coding"
 
     return "Research"  # Safe fallback
 

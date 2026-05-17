@@ -6,8 +6,16 @@
 
 ## Premortem Findings (Pre-Open Disposition)
 
-_(No premortem findings — tooling PR with deterministic tests. All 15 tests pass.)_
+| # | Finding | Disposition | Evidence |
+|---|---------|-------------|----------|
+| PM-1 | Routing graph loader silent fallback | NOT-A-BUG | Fallback is intentional design for optional dependency (`_ensure_routing_graph` → `_parse_routing_graph_fallback`) |
+| PM-2 | YAML frontmatter edge cases | NOT-A-BUG | Manual fallback handles common cases; heuristic approach acceptable for internal tooling (`_parse_frontmatter` line 162) |
+| PM-3 | Skill auto-discovery | NOT-A-BUG | Qoder discovers skills from filesystem automatically; `_SKILL_MAP` is a static recommendation heuristic |
 
 ## Review Threads (Post-Open)
 
-_(Pending bot reviews — CodeRabbit, Sourcery, Cubic)_
+| # | Thread/Finding | Disposition | Evidence |
+|---|----------------|-------------|----------|
+| CR-1 | Unreachable code in `resolve_qoder_type()` frontend-engineer runtime check | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py` (this commit) |
+| CR-2 | Missing CLI error case tests | DEFERRED | `docs/roadmap/BACKLOG_LEDGER.md` |
+| CR-3 | YAML import error handling too broad | DEFERRED | `docs/roadmap/BACKLOG_LEDGER.md` |
