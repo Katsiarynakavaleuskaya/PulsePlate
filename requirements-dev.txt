@@ -231,7 +231,7 @@ tomli==2.3.0
     # via pip-audit
 tomli-w==1.2.0
     # via pip-audit
-types-pyyaml==6.0.12.20260508
+types-pyyaml==6.0.12.20260510
     # via -r requirements-dev.in
 typing-extensions==4.15.0
     # via
@@ -249,6 +249,10 @@ yamllint==1.38.0
     # via -r requirements-dev.in
 
 # The following packages are considered to be unsafe in a requirements file:
+pip==26.1.1
+    # via
+    #   pip-api
+    #   pip-tools
 setuptools==78.1.1
     # via
     #   -c requirements.txt
