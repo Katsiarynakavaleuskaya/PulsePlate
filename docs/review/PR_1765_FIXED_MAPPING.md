@@ -37,6 +37,7 @@ Evidence: CodeRabbit found that child stage stderr and unexpected exceptions cou
 Disposition: FIXED
 Commit: fcb539efa
 Evidence: CodeRabbit found that `experiment_pipeline.py --promotion-output` could widen the wrapper write boundary with absolute paths or `..` escapes. `scripts/orchestration/experiment_pipeline.py` now resolves the candidate output and fails closed unless it remains under `artifacts/orchestration/experiments/promotions/`; `tests/test_experiment_pipeline.py` covers parent-directory and absolute-path escapes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#pullrequestreview-4306290275 -> fcb539efa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255475576 -> fcb539efa
 
 ## Role-Agent Findings
