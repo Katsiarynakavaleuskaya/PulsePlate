@@ -285,7 +285,7 @@ def _parse_context_map() -> Dict[str, List[str]]:
         # Capture backtick-quoted paths
         for path_match in re.finditer(r"`([^`]+(?:\.\w+|/\w+)[^`]*)`", line):
             candidate = path_match.group(1)
-            # Filter out things that look like file paths or doc references
+            # Keep path-shaped backtick tokens (repo paths and markdown/python refs).
             if "/" in candidate or candidate.endswith(".md") or candidate.endswith(".py"):
                 # Strip line-range suffixes like :12-24
                 cleaned = re.sub(r":\d+(-\d+)?$", "", candidate)
