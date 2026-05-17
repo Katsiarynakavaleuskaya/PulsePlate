@@ -24,9 +24,16 @@
   is the default, SMTP email delivery is explicit opt-in only, and no notification
   sink may expose raw patches, oracle stdout/stderr, secrets, absolute local
   paths, or user data.
+- `experiment_pipeline.py` is the governed completion wrapper for
+  runner -> promotion -> notification sequencing. Email reports are automatic
+  only inside that wrapper when `--email-reports` is explicitly present; the
+  wrapper must use the fixed governed v1 recipient and must delegate SMTP,
+  redaction, idempotency, and audit behavior to `experiment_notify.py`.
 - Experiment Runner Git attribution must follow
   `docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md`; placeholder
   identities such as `runner@example.com` are not allowed for new attribution.
+  When Experiment Runner materially contributes to a commit, use exactly:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 - `scripts/orchestration/check_experiment_runner_identity.py` validates the
   machine-readable identity policy. It must remain offline, deterministic, and
   must not generate, read, or persist signing key material.

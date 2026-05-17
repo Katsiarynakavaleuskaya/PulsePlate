@@ -14,6 +14,13 @@ The governed Experiment Runner identity is:
 PulsePlate Experiment Runner <pulseplate@pm.me>
 ```
 
+When the Experiment Runner materially contributes to a commit, the canonical
+co-author trailer is:
+
+```text
+Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>
+```
+
 The email address is public Git attribution metadata only. It is not an experiment result delivery channel, an SMTP recipient by implication, or proof that a commit was produced by a trusted machine.
 
 The placeholder `runner@example.com` is forbidden for new Experiment Runner attribution. Historical references may remain only when they describe prior behavior or review evidence.
@@ -42,9 +49,14 @@ The Experiment Runner may be a co-author or local PR-lane author only when a hum
 
 ## Notification Boundary
 
-Experiment result delivery is governed by `scripts/orchestration/experiment_notify.py` and `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
+Experiment result delivery is governed by `scripts/orchestration/experiment_notify.py`, `scripts/orchestration/experiment_pipeline.py`, and `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.
 
 Default delivery is a local artifact. Email delivery is explicit opt-in and requires an allowlisted recipient plus runtime SMTP secrets. The Git attribution email does not cause email delivery.
+
+Automatic email reports are available only through the governed completion
+wrapper when `experiment_pipeline.py --email-reports` is explicitly used. The
+recipient remains the v1 governed recipient `pulseplate@pm.me`, and SMTP
+configuration remains runtime-secret backed.
 
 ## Slack Boundary
 

@@ -19,7 +19,19 @@ EXPECTED_SCHEMA_VERSION = "1.0"
 EXPECTED_IDENTITY_SLUG = "experiment-runner"
 EXPECTED_DISPLAY_NAME = "PulsePlate Experiment Runner"
 EXPECTED_EMAIL = "pulseplate@pm.me"
+EXPECTED_CO_AUTHOR_TRAILER = "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>"
+FORBIDDEN_CO_AUTHOR_TRAILER = "Co-authored-by: Experiment Runner <runner@example.com>"
 FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
+FORBIDDEN_CO_AUTHOR_EMAIL_RE = re.compile(
+    r"Co-authored-by:\s*[^\n<]*<\s*runner@example\.com\s*>",
+    re.IGNORECASE,
+)
+GUIDANCE_PATHS = (
+    REPO_ROOT / "AGENTS.md",
+    REPO_ROOT / "scripts" / "AGENTS.md",
+    REPO_ROOT / "docs" / "orchestration" / "AGENT_EXPERIMENTATION_PROTOCOL.md",
+    REPO_ROOT / "docs" / "orchestration" / "GOVERNED_NON_HUMAN_IDENTITY_POLICY.md",
+)
 ALLOWED_SIGNING_METHODS = frozenset({"ssh", "gpg", "github_app_verified_signature"})
 SENSITIVE_FIELD_RE = re.compile(
     r"(access[\s_-]*key|api[\s_-]*key|private[\s_-]*key|pass[\s_-]*phrase|password|secret|token|credential|signing[\s_-]*key)",
@@ -282,6 +294,11 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         raise IdentityPolicyError("git_attribution.name must match display_name.")
     if _normalized_email(git_attribution.get("email")) != EXPECTED_EMAIL:
         raise IdentityPolicyError("git_attribution.email must be pulseplate@pm.me.")
+    if git_attribution.get("co_author_trailer") != EXPECTED_CO_AUTHOR_TRAILER:
+        raise IdentityPolicyError(
+            "git_attribution.co_author_trailer must use the governed PulsePlate "
+            "Experiment Runner identity."
+        )
     if git_attribution.get("purpose") != "public_attribution_only":
         raise IdentityPolicyError("git_attribution.purpose must be public_attribution_only.")
     forbidden = git_attribution.get("forbidden_placeholder_emails")
@@ -357,6 +374,24 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     return payload
 
 
+def validate_co_author_guidance(paths: tuple[Path, ...] = GUIDANCE_PATHS) -> None:
+    """Validate agent-facing co-author guidance stays on the governed identity."""
+
+    for path in paths:
+        try:
+            label = str(path.relative_to(REPO_ROOT))
+        except ValueError:
+            label = path.name
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError as exc:
+            raise IdentityPolicyError("Unable to read Experiment Runner guidance.") from exc
+        if EXPECTED_CO_AUTHOR_TRAILER not in content:
+            raise IdentityPolicyError(f"{label} must include the governed co-author trailer.")
+        if FORBIDDEN_CO_AUTHOR_TRAILER in content or FORBIDDEN_CO_AUTHOR_EMAIL_RE.search(content):
+            raise IdentityPolicyError(f"{label} must not include placeholder co-author guidance.")
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--policy", default=str(DEFAULT_POLICY_PATH), help="Policy JSON path.")
@@ -365,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         policy = validate_identity_policy(_read_policy(Path(args.policy)))
+        validate_co_author_guidance()
     except IdentityPolicyError as exc:
         if args.json:
             print(json.dumps({"status": "fail", "error": str(exc)}, sort_keys=True))
@@ -375,6 +411,7 @@ def main(argv: list[str] | None = None) -> int:
     result = {
         "status": "pass",
         "identity_slug": policy["identity_slug"],
+        "co_author_trailer": policy["git_attribution"]["co_author_trailer"],
         "git_email": policy["git_attribution"]["email"],
         "slack_identity": policy["slack_identity"]["status"],
     }

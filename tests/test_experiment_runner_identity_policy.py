@@ -21,7 +21,59 @@ def test_default_policy_validates() -> None:
 
     assert policy["identity_slug"] == "experiment-runner"
     assert policy["git_attribution"]["email"] == "pulseplate@pm.me"
+    assert (
+        policy["git_attribution"]["co_author_trailer"]
+        == "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>"
+    )
     assert policy["slack_identity"]["status"] == "deferred"
+
+
+def test_default_co_author_guidance_validates() -> None:
+    identity_check.validate_co_author_guidance()
+
+
+def test_rejects_missing_co_author_trailer() -> None:
+    policy = _valid_policy()
+    policy["git_attribution"].pop("co_author_trailer")
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="co_author_trailer"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_placeholder_co_author_guidance(tmp_path: Path) -> None:
+    guidance_path = tmp_path / "AGENTS.md"
+    guidance_path.write_text(
+        "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        "Co-authored-by: Experiment Runner <runner@example.com>\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="placeholder"):
+        identity_check.validate_co_author_guidance((guidance_path,))
+
+
+def test_rejects_placeholder_co_author_email_with_governed_name(tmp_path: Path) -> None:
+    guidance_path = tmp_path / "AGENTS.md"
+    guidance_path.write_text(
+        "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        "Co-authored-by: PulsePlate Experiment Runner <runner@example.com>\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="placeholder"):
+        identity_check.validate_co_author_guidance((guidance_path,))
+
+
+def test_rejects_placeholder_co_author_email_with_angle_whitespace(tmp_path: Path) -> None:
+    guidance_path = tmp_path / "AGENTS.md"
+    guidance_path.write_text(
+        "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        "Co-authored-by: PulsePlate Experiment Runner < runner@example.com >\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="placeholder"):
+        identity_check.validate_co_author_guidance((guidance_path,))
 
 
 def test_rejects_placeholder_runner_email() -> None:
@@ -425,6 +477,7 @@ def test_cli_json_success(capsys: pytest.CaptureFixture[str]) -> None:
 
     assert exit_code == 0
     assert json.loads(capsys.readouterr().out) == {
+        "co_author_trailer": "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>",
         "git_email": "pulseplate@pm.me",
         "identity_slug": "experiment-runner",
         "slack_identity": "deferred",
