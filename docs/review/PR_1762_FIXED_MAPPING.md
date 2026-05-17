@@ -36,7 +36,6 @@ Evidence: Qoder dispatch bridge bot threads: preflight/import hygiene, slug vs n
 Disposition: FIXED
 Commit: fa2b02f2580d519123d736cabe16ab88b09f3b35
 Evidence: Closed the 2026-05-17 bot review cycle by removing dynamic test imports, preserving Verify dispatch for QA/bug roles before readonly analysis fallback, validating packet bracket groups against emitted independent dispatch items, and keeping mandatory post-open QA -> bug sequencing deterministic. Local proof: `. .venv/bin/activate && pytest -q tests/test_qoder_dispatch_bridge.py`; `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`; `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1762 pre-commit run --all-files`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#pullrequestreview-4305161221 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254346769 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254346774 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
