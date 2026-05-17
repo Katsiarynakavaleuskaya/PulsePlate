@@ -263,6 +263,83 @@ def test_pipeline_preserves_relative_promotion_output(
     )
 
 
+@pytest.mark.parametrize(
+    "raw_output",
+    [
+        "../outside.json",
+        "../../outside.json",
+    ],
+)
+def test_pipeline_rejects_parent_promotion_output_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    raw_output: str,
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+
+    def forbidden_runner_main(argv: list[str]) -> int:
+        raise AssertionError(f"runner should not run for invalid output: {argv}")
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", forbidden_runner_main)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("patch text\n", encoding="utf-8")
+
+    exit_code = experiment_pipeline.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+            "--promotion-output",
+            raw_output,
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "promotion output must stay within governed artifact directory" in captured.out
+    assert raw_output not in captured.out
+    assert str(tmp_path) not in captured.out
+
+
+def test_pipeline_rejects_absolute_promotion_output_escape(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+
+    def forbidden_runner_main(argv: list[str]) -> int:
+        raise AssertionError(f"runner should not run for invalid output: {argv}")
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", forbidden_runner_main)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("patch text\n", encoding="utf-8")
+    absolute_output = tmp_path / "outside.json"
+
+    exit_code = experiment_pipeline.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+            "--promotion-output",
+            str(absolute_output),
+        ]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "promotion output must stay within governed artifact directory" in captured.out
+    assert str(absolute_output) not in captured.out
+    assert str(tmp_path) not in captured.out
+
+
 def test_pipeline_stage_failure_captures_stderr_without_leak(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -75,11 +75,18 @@ def _default_promotion_path(experiment_id: str) -> Path:
 def _promotion_output_path(raw_output: str | None, experiment_id: str) -> Path:
     """Mirror promotion output path selection without widening write permissions."""
 
+    artifact_dir: Path = experiment_promote.PROMOTION_ARTIFACT_DIR.resolve()
     if raw_output:
         candidate = Path(raw_output).expanduser()
         if not candidate.is_absolute():
-            artifact_dir: Path = experiment_promote.PROMOTION_ARTIFACT_DIR
             candidate = artifact_dir / candidate
+        candidate = candidate.resolve()
+        try:
+            candidate.relative_to(artifact_dir)
+        except ValueError as exc:
+            raise ExperimentPipelineError(
+                "Experiment promotion output must stay within governed artifact directory."
+            ) from exc
         return candidate
     return _default_promotion_path(experiment_id)
 
