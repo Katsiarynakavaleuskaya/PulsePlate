@@ -660,12 +660,14 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
 )
 
 # --- Philosophy Admission Contract Constants ---
-PHILOSOPHY_ADMISSION_CLASSES = frozenset({
-    "runtime_only",
-    "blocked_from_cache",
-    "verification_bundle_required",
-    "future_cache_candidate_deferred",
-})
+PHILOSOPHY_ADMISSION_CLASSES = frozenset(
+    {
+        "runtime_only",
+        "blocked_from_cache",
+        "verification_bundle_required",
+        "future_cache_candidate_deferred",
+    }
+)
 
 PHILOSOPHY_BLOCKED_SURFACES = (
     "billing_auth_entitlement_truth",
@@ -1671,9 +1673,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     backend_selection_text = backend_selection_contract.read_text(encoding="utf-8")
-    errors.extend(
-        validate_semantic_cache_backend_selection_contract(backend_selection_text)
-    )
+    errors.extend(validate_semantic_cache_backend_selection_contract(backend_selection_text))
     errors.extend(
         validate_semantic_cache_backend_selection_schema(
             schema_text=backend_selection_schema.read_text(encoding="utf-8"),
@@ -1681,9 +1681,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     philosophy_admission_text = philosophy_admission_contract.read_text(encoding="utf-8")
-    errors.extend(
-        validate_philosophy_semantic_cache_admission_contract(philosophy_admission_text)
-    )
+    errors.extend(validate_philosophy_semantic_cache_admission_contract(philosophy_admission_text))
     errors.extend(
         validate_philosophy_semantic_cache_admission_schema(
             schema_text=philosophy_admission_schema.read_text(encoding="utf-8"),
