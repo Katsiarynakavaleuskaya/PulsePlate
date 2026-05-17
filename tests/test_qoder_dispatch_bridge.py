@@ -270,6 +270,11 @@ def test_packet_bracket_groups_must_match_independent_dispatch_items() -> None:
             "depends_on_previous": False,
         },
         {
+            "role_slug": "philosophy-agent",
+            "readonly": True,
+            "depends_on_previous": False,
+        },
+        {
             "role_slug": "bug-hunter",
             "readonly": False,
             "depends_on_previous": True,
@@ -278,6 +283,7 @@ def test_packet_bracket_groups_must_match_independent_dispatch_items() -> None:
 
     groups = qoder_dispatch_bridge._validated_bracket_groups(
         [
+            ["architecture-specialist", "philosophy-agent"],
             ["agent-coordinator", "architecture-specialist"],
             ["agent-coordinator", "missing-agent"],
             ["agent-coordinator", "bug-hunter"],
@@ -286,7 +292,7 @@ def test_packet_bracket_groups_must_match_independent_dispatch_items() -> None:
         dispatch_items,
     )
 
-    assert groups == [["agent-coordinator", "architecture-specialist"]]
+    assert groups == [["architecture-specialist", "philosophy-agent"]]
 
 
 def test_packet_bracket_groups_drop_ambiguous_repeated_dispatch_slug() -> None:
@@ -325,6 +331,27 @@ def test_first_dispatch_item_cannot_depend_on_missing_previous_step() -> None:
     )
 
 
+def test_packet_chain_successors_depend_on_previous() -> None:
+    """Explicit packet chain notation carries dependency metadata into the manifest."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["agent-coordinator", "architecture-specialist", "philosophy-agent"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+        chained_successors={"architecture-specialist", "philosophy-agent"},
+    )
+    by_slug = {e["role_slug"]: e for e in manifest["dispatch_sequence"]}
+
+    assert by_slug["agent-coordinator"]["depends_on_previous"] is False
+    assert by_slug["architecture-specialist"]["depends_on_previous"] is True
+    assert by_slug["philosophy-agent"]["depends_on_previous"] is True
+
+
 def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
     """Bracket groups stay parallel while qa-engineer-agent -> bug-hunter stays sequential."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
@@ -354,6 +381,57 @@ def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
     assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
     assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
     assert by_slug["bug-hunter"]["depends_on_previous"] is True
+
+
+def test_verify_agents_are_readonly_when_frontmatter_omits_readonly(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify agents stay readonly even when frontmatter does not say so explicitly."""
+
+    def fake_load_agent_definition(slug: str) -> Dict[str, Any]:
+        return {
+            "slug": slug,
+            "name": slug,
+            "description": "",
+            "readonly": False,
+            "readonly_explicit": False,
+            "body": "",
+            "definition_path": f".cursor/agents/{slug}.md",
+        }
+
+    monkeypatch.setattr(qoder_dispatch_bridge, "_load_agent_definition", fake_load_agent_definition)
+    monkeypatch.setattr(qoder_dispatch_bridge, "_parse_context_map", lambda: {})
+    monkeypatch.setattr(qoder_dispatch_bridge, "_ensure_routing_graph", lambda: {})
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["qa-engineer-agent", "bug-hunter"],
+        mode="analysis",
+        packet_source="test",
+    )
+
+    assert [item["qoder_subagent_type"] for item in manifest["dispatch_sequence"]] == [
+        "Verify",
+        "Verify",
+    ]
+    assert all(item["readonly"] for item in manifest["dispatch_sequence"])
+
+
+def test_coordinator_is_not_parallelized_with_readonly_reviewers() -> None:
+    """Coordinator-first stays sequential and is excluded from auto-parallel groups."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["agent-coordinator", "architecture-specialist"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+        bracket_groups=[["agent-coordinator", "architecture-specialist"]],
+    )
+
+    assert all("agent-coordinator" not in group for group in manifest["parallelizable_groups"])
 
 
 # ---------------------------------------------------------------------------
@@ -670,6 +748,44 @@ def test_bracket_group_detection(tmp_path: Path) -> None:
     assert len(groups) >= 1
     assert slug_a in groups[0]
     assert slug_b in groups[0]
+
+
+def test_bracket_group_detection_strips_inline_code_ticks(tmp_path: Path) -> None:
+    """Markdown inline code around bracket slugs should not drop the group."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    known = sorted(item.stem for item in agents_dir.glob("*.md") if item.stem != "AGENTS")
+    if len(known) < 2:
+        pytest.skip("Need at least two agent definitions for bracket group test")
+
+    slug_a, slug_b = known[0], known[1]
+    packet_content = "# Test\n\n" "## Coordinator Role Order\n\n" f"1. [`{slug_a}`, `{slug_b}`]\n"
+    fake_packet = tmp_path / "bracket_backticks_test.md"
+    fake_packet.write_text(packet_content, encoding="utf-8")
+
+    groups = qoder_dispatch_bridge._extract_bracket_groups(
+        fake_packet.read_text(encoding="utf-8").splitlines()
+    )
+    assert groups == [[slug_a, slug_b]]
+
+
+def test_fallback_role_order_field_continuation_is_parsed(tmp_path: Path) -> None:
+    """Fallback parsing includes indented continuations for role-order fields."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["agent-coordinator", "architecture-specialist", "qa-engineer-agent"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    packet_content = (
+        "# Test\n\n"
+        "## Packet Notes\n\n"
+        "- Required role order:\n"
+        "  `agent-coordinator -> architecture-specialist -> qa-engineer-agent`\n"
+    )
+    fake_packet = tmp_path / "continued_role_order.md"
+    fake_packet.write_text(packet_content, encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(fake_packet) == slugs
 
 
 # ---------------------------------------------------------------------------

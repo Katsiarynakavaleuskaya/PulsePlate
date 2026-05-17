@@ -133,11 +133,16 @@ def _dispatch_is_reviewer_slot(
 
 
 def _depends_on_previous(
-    slug: str, agent_def: Dict[str, Any], previous_slug: Optional[str]
+    slug: str,
+    agent_def: Dict[str, Any],
+    previous_slug: Optional[str],
+    chained_successors: Optional[set[str]] = None,
 ) -> bool:
     """Return whether this dispatch item must wait for the previous item."""
     if previous_slug is None:
         return False
+    if chained_successors and slug in chained_successors:
+        return True
     if agent_def.get("depends_on_previous"):
         return True
     # The mandatory post-open review pass is sequential: qa-engineer-agent -> bug-hunter.
@@ -364,6 +369,24 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
 
 _ROLE_SLUG_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
 _BRACKET_GROUP_RE = re.compile(r"\[([^\]]+)\]")
+_ROLE_ORDER_FIELD_RE = re.compile(
+    r"\b(?:required\s+)?(?:role|agent|dispatch)\s+order\b",
+    re.IGNORECASE,
+)
+
+
+def _strip_inline_code_token(value: str) -> str:
+    """Normalize Markdown inline-code role tokens."""
+    return value.strip().strip("`").strip()
+
+
+def _known_role_slugs_from_text(text: str, known: set[str]) -> List[str]:
+    """Extract known role slugs from text while preserving order."""
+    slugs: List[str] = []
+    for candidate in _ROLE_SLUG_RE.findall(text):
+        if candidate in known and (not slugs or slugs[-1] != candidate):
+            slugs.append(candidate)
+    return slugs
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -395,19 +418,31 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
     known_agents = _list_known_agent_slugs()
     ordered: List[str] = []
     in_fence = False
+    capture_continuation = False
     for line in lines:
         stripped = line.strip()
         if stripped.startswith("```"):
             in_fence = not in_fence
+            capture_continuation = False
             continue
         if in_fence:
             continue
-        if re.match(r"^\d+\.\s+", stripped) or stripped.startswith("- "):
-            for slug in _ROLE_SLUG_RE.findall(stripped):
-                if slug in known_agents:
-                    # Only skip consecutive duplicates
-                    if not ordered or ordered[-1] != slug:
-                        ordered.append(slug)
+        if not stripped or stripped.startswith("##"):
+            capture_continuation = False
+            continue
+        is_list_item = bool(re.match(r"^\d+\.\s+", stripped) or stripped.startswith("- "))
+        if capture_continuation and not is_list_item:
+            for slug in _known_role_slugs_from_text(stripped, known_agents):
+                if not ordered or ordered[-1] != slug:
+                    ordered.append(slug)
+            continue
+        capture_continuation = False
+        if is_list_item and _ROLE_ORDER_FIELD_RE.search(stripped):
+            capture_continuation = True
+        if is_list_item:
+            for slug in _known_role_slugs_from_text(stripped, known_agents):
+                if not ordered or ordered[-1] != slug:
+                    ordered.append(slug)
 
     return ordered
 
@@ -433,13 +468,31 @@ def _extract_roles_from_section(lines: List[str], heading_fragment: str) -> List
             break
         if not in_section:
             continue
-        for candidate in _ROLE_SLUG_RE.findall(stripped):
-            if candidate in known:
-                # Preserve intentional repeats; only skip consecutive duplicates
-                if not slugs or slugs[-1] != candidate:
-                    slugs.append(candidate)
+        for candidate in _known_role_slugs_from_text(stripped, known):
+            if not slugs or slugs[-1] != candidate:
+                slugs.append(candidate)
 
     return slugs
+
+
+def _extract_chain_successors(lines: List[str]) -> set[str]:
+    """Extract slugs that are successors in explicit ``a -> b`` chain notation."""
+    known = _list_known_agent_slugs()
+    successors: set[str] = set()
+    in_fence = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or "->" not in stripped:
+            continue
+        slugs = _known_role_slugs_from_text(stripped, known)
+        if len(slugs) >= 2:
+            successors.update(slugs[1:])
+
+    return successors
 
 
 def _list_known_agent_slugs() -> set[str]:
@@ -469,7 +522,7 @@ def _extract_bracket_groups(lines: List[str]) -> List[List[str]]:
             continue
         for match in _BRACKET_GROUP_RE.finditer(stripped):
             inner = match.group(1)
-            slugs = [s.strip() for s in inner.split(",")]
+            slugs = [_strip_inline_code_token(s) for s in inner.split(",")]
             valid_slugs = [s for s in slugs if s in known]
             if len(valid_slugs) >= 2:
                 groups.append(valid_slugs)
@@ -501,7 +554,9 @@ def _detect_parallel_groups(
     readonly_items = [
         item
         for item in dispatch_items
-        if item.get("readonly") and not item.get("depends_on_previous")
+        if item.get("readonly")
+        and not item.get("depends_on_previous")
+        and item.get("role_slug") != "agent-coordinator"
     ]
 
     if len(readonly_items) < 2:
@@ -549,6 +604,10 @@ def _validated_bracket_groups(
             continue
         if any(not item.get("readonly") for item in group_items if item is not None):
             continue
+        if any(
+            item.get("role_slug") == "agent-coordinator" for item in group_items if item is not None
+        ):
+            continue
         validated.append(unique_group)
 
     return validated
@@ -585,6 +644,7 @@ def build_dispatch_manifest(
     mode: str,
     packet_source: Optional[str] = None,
     bracket_groups: Optional[List[List[str]]] = None,
+    chained_successors: Optional[set[str]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
@@ -622,7 +682,7 @@ def build_dispatch_manifest(
         if agent_def.get("readonly_explicit"):
             readonly = agent_def["readonly"]
         else:
-            readonly = qoder_type in ("Research", "CodeReview")
+            readonly = qoder_type in ("Research", "CodeReview", "Verify")
 
         # System prompt excerpt: first 500 chars of body
         body_excerpt = agent_def["body"][:500] if agent_def["body"] else ""
@@ -639,7 +699,9 @@ def build_dispatch_manifest(
             "description": agent_def["description"],
             "readonly": readonly,
             "constraints": [],
-            "depends_on_previous": _depends_on_previous(slug, agent_def, previous_slug),
+            "depends_on_previous": _depends_on_previous(
+                slug, agent_def, previous_slug, chained_successors
+            ),
         }
         dispatch_sequence.append(item)
         previous_slug = slug
@@ -728,6 +790,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     # Resolve role slugs
     packet_source: Optional[str] = None
     packet_bracket_groups: Optional[List[List[str]]] = None
+    packet_chained_successors: Optional[set[str]] = None
     if args.packet:
         packet_path = Path(args.packet)
         if not packet_path.is_absolute():
@@ -736,6 +799,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         # Extract bracket-notation parallelizable groups from packet
         packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
         packet_bracket_groups = _extract_bracket_groups(packet_lines) or None
+        packet_chained_successors = _extract_chain_successors(packet_lines) or None
         try:
             packet_source = str(packet_path.relative_to(REPO_ROOT))
         except ValueError:
@@ -759,6 +823,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         mode=args.mode,
         packet_source=packet_source,
         bracket_groups=packet_bracket_groups,
+        chained_successors=packet_chained_successors,
     )
 
     # Output
