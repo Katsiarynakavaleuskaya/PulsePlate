@@ -1385,7 +1385,9 @@ def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
 
     sc_g5_ref = "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
     references = payload.get("references")
-    if isinstance(references, list) and sc_g5_ref not in references:
+    if "references" in payload and not isinstance(references, list):
+        errors.append("philosophy admission contract JSON references must be a string list")
+    elif isinstance(references, list) and sc_g5_ref not in references:
         errors.append("philosophy admission contract JSON references missing SC-G5 contract path")
 
     required_lists = {
