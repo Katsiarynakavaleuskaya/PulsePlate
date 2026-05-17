@@ -117,11 +117,19 @@ def _dispatch_is_reviewer_slot(
       reviewers only when they are the **last** role in a multi-role dispatch
       (typical merge / security review tail), not when solo lead.
     """
-    if slug not in reviewer_slugs:
-        return False
-    if slug not in primary_slugs:
+    # Explicit routing-graph reviewer (not primary-capable) -> always reviewer
+    if slug in reviewer_slugs and slug not in primary_slugs:
         return True
-    return total_roles >= 2 and order_idx == total_roles and order_idx > 1
+
+    # Name-based detection: slugs containing auditor/reviewer/review keywords
+    _REVIEWER_KEYWORDS = ("auditor", "reviewer", "review")
+    is_reviewer_by_name = any(kw in slug for kw in _REVIEWER_KEYWORDS)
+
+    # Graph-aware or name-based reviewer in tail position
+    if slug in reviewer_slugs or is_reviewer_by_name:
+        return total_roles >= 2 and order_idx == total_roles and order_idx > 1
+
+    return False
 
 
 def _parse_routing_graph_fallback() -> Dict[str, Any]:
@@ -246,6 +254,7 @@ def _load_agent_definition(slug: str) -> Optional[Dict[str, Any]]:
         "model": meta.get("model", ""),
         "description": meta.get("description", ""),
         "readonly": bool(meta.get("readonly", False)),
+        "readonly_explicit": "readonly" in meta,
         "body": body,
         "definition_path": str(agent_path.relative_to(REPO_ROOT)),
     }
@@ -310,6 +319,10 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
     - ``Coding``     — implementation agents in runtime mode
     - ``Browser``    — frontend in runtime mode (UI validation)
     """
+    # mode=review forces CodeReview for all agents
+    if mode == "review":
+        return "CodeReview"
+
     if is_reviewer:
         return "CodeReview"
 
@@ -337,6 +350,7 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
 # ---------------------------------------------------------------------------
 
 _ROLE_SLUG_RE = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*")
+_BRACKET_GROUP_RE = re.compile(r"\[([^\]]+)\]")
 
 
 def _parse_packet_roles(packet_path: Path) -> List[str]:
@@ -367,12 +381,20 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
     # Strategy 3: scan for numbered list items containing agent slugs
     known_agents = _list_known_agent_slugs()
     ordered: List[str] = []
+    in_fence = False
     for line in lines:
         stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if re.match(r"^\d+\.\s+", stripped) or stripped.startswith("- "):
             for slug in _ROLE_SLUG_RE.findall(stripped):
-                if slug in known_agents and slug not in ordered:
-                    ordered.append(slug)
+                if slug in known_agents:
+                    # Only skip consecutive duplicates
+                    if not ordered or ordered[-1] != slug:
+                        ordered.append(slug)
 
     return ordered
 
@@ -380,11 +402,17 @@ def _parse_packet_roles(packet_path: Path) -> List[str]:
 def _extract_roles_from_section(lines: List[str], heading_fragment: str) -> List[str]:
     """Extract role slugs from a markdown section matching the heading fragment."""
     in_section = False
+    in_fence = False
     slugs: List[str] = []
     known = _list_known_agent_slugs()
 
     for line in lines:
         stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
         if stripped.startswith("##") and heading_fragment.lower() in stripped.lower():
             in_section = True
             continue
@@ -393,8 +421,10 @@ def _extract_roles_from_section(lines: List[str], heading_fragment: str) -> List
         if not in_section:
             continue
         for candidate in _ROLE_SLUG_RE.findall(stripped):
-            if candidate in known and candidate not in slugs:
-                slugs.append(candidate)
+            if candidate in known:
+                # Preserve intentional repeats; only skip consecutive duplicates
+                if not slugs or slugs[-1] != candidate:
+                    slugs.append(candidate)
 
     return slugs
 
@@ -405,6 +435,33 @@ def _list_known_agent_slugs() -> set[str]:
     if not agents_dir.is_dir():
         return set()
     return {p.stem for p in agents_dir.glob("*.md") if p.stem != "AGENTS"}
+
+
+def _extract_bracket_groups(lines: List[str]) -> List[List[str]]:
+    """Extract parallelizable groups from bracket notation ``[slug-a, slug-b]``.
+
+    Returns a list of groups, where each group is a list of slugs that should
+    run in parallel.
+    """
+    known = _list_known_agent_slugs()
+    groups: List[List[str]] = []
+    in_fence = False
+
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for match in _BRACKET_GROUP_RE.finditer(stripped):
+            inner = match.group(1)
+            slugs = [s.strip() for s in inner.split(",")]
+            valid_slugs = [s for s in slugs if s in known]
+            if len(valid_slugs) >= 2:
+                groups.append(valid_slugs)
+
+    return groups
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +538,7 @@ def build_dispatch_manifest(
     role_slugs: List[str],
     mode: str,
     packet_source: Optional[str] = None,
+    bracket_groups: Optional[List[List[str]]] = None,
 ) -> Dict[str, Any]:
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
@@ -509,6 +567,12 @@ def build_dispatch_manifest(
         context_paths = context_map.get(slug, [])
         skills = _recommend_skills(slug)
 
+        # Derive readonly: use agent frontmatter if explicitly set, else infer from Qoder type
+        if agent_def.get("readonly_explicit"):
+            readonly = agent_def["readonly"]
+        else:
+            readonly = qoder_type in ("Research", "CodeReview")
+
         # System prompt excerpt: first 500 chars of body
         body_excerpt = agent_def["body"][:500] if agent_def["body"] else ""
 
@@ -522,7 +586,7 @@ def build_dispatch_manifest(
             "mode": mode,
             "system_prompt_excerpt": body_excerpt,
             "description": agent_def["description"],
-            "readonly": agent_def["readonly"],
+            "readonly": readonly,
             "constraints": [],
             "depends_on_previous": order_idx > 1,
         }
@@ -535,6 +599,11 @@ def build_dispatch_manifest(
         )
 
     parallel_groups = _detect_parallel_groups(dispatch_sequence, routing)
+    # Merge bracket groups from packet notation [slug-a, slug-b]
+    if bracket_groups:
+        for bg in bracket_groups:
+            if bg not in parallel_groups:
+                parallel_groups.append(bg)
 
     manifest: Dict[str, Any] = {
         "schema_version": "1.0",
@@ -580,7 +649,7 @@ def _parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
 
     parser.add_argument(
         "--mode",
-        choices=("analysis", "docs-only", "runtime"),
+        choices=("analysis", "docs-only", "runtime", "review"),
         default="analysis",
         help="Task mode (default: analysis).",
     )
@@ -606,11 +675,15 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     # Resolve role slugs
     packet_source: Optional[str] = None
+    packet_bracket_groups: Optional[List[List[str]]] = None
     if args.packet:
         packet_path = Path(args.packet)
         if not packet_path.is_absolute():
             packet_path = (REPO_ROOT / packet_path).resolve()
         role_slugs = _parse_packet_roles(packet_path)
+        # Extract bracket-notation parallelizable groups from packet
+        packet_lines = packet_path.read_text(encoding="utf-8").splitlines()
+        packet_bracket_groups = _extract_bracket_groups(packet_lines) or None
         try:
             packet_source = str(packet_path.relative_to(REPO_ROOT))
         except ValueError:
@@ -633,6 +706,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         role_slugs=role_slugs,
         mode=args.mode,
         packet_source=packet_source,
+        bracket_groups=packet_bracket_groups,
     )
 
     # Output
