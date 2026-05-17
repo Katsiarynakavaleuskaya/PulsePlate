@@ -90,4 +90,5 @@ Evidence: Final Qoder bridge closeout preserves coordinator-first dispatch seman
 Disposition: FIXED
 Commit: 556c1fb05889e7445cfbc1dbb6fdd705225c8da9
 Evidence: `_depends_on_previous(...)` now returns `False` when `previous_slug is None`, so the first dispatch item cannot depend on a missing predecessor. Deterministic coverage added in `tests/test_qoder_dispatch_bridge.py::test_first_dispatch_item_cannot_depend_on_missing_previous_step`. Local proof: `. .venv/bin/activate && pytest -q tests/test_qoder_dispatch_bridge.py`; `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`; `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1762 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#pullrequestreview-4306166352 -> 556c1fb05889e7445cfbc1dbb6fdd705225c8da9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255334164 -> 556c1fb05889e7445cfbc1dbb6fdd705225c8da9
