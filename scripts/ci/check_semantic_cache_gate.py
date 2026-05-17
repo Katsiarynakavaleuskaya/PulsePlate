@@ -659,6 +659,32 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
     ),
 )
 
+# --- Philosophy Admission Contract Constants ---
+PHILOSOPHY_ADMISSION_CLASSES = frozenset({
+    "runtime_only",
+    "blocked_from_cache",
+    "verification_bundle_required",
+    "future_cache_candidate_deferred",
+})
+
+PHILOSOPHY_BLOCKED_SURFACES = (
+    "billing_auth_entitlement_truth",
+    "auth_session_account_identity_truth",
+    "medical_or_therapy_routing",
+    "compliance_legal_output_cache",
+    "raw_user_free_text_cache_keys",
+    "advisory_wiki_product_truth",
+    "workforce_memory_product_truth",
+    "graphrag_product_truth",
+    "plugin_control_plane_product_truth",
+    "fitchef_cbt_bypassing_validators",
+)
+
+PHILOSOPHY_SC_G5_MERGE_SHA = "cb1db8b40"
+PHILOSOPHY_SC_G5_CONTRACT_PATH = (
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+)
+
 PHILOSOPHY_ADMISSION_ROLLOUT_ORDER = (
     "SC-G1 rollout gate contract",
     "SC-G2 exact/fuzzy cache scaffold",
@@ -1361,7 +1387,7 @@ def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
         "rollout_phase": "PHILOSOPHY-PR1",
         "default_admission_while_gate_closed": "runtime_only",
         "does_not_duplicate_sc_g5_backend_selection": True,
-        "sc_g5_merge_commit": "cb1db8b40",
+        "sc_g5_merge_commit": PHILOSOPHY_SC_G5_MERGE_SHA,
     }
     for key, expected in expected_values.items():
         if payload.get(key) != expected:
@@ -1375,34 +1401,17 @@ def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
         isinstance(item, str) for item in admission_classes
     ):
         errors.append("philosophy admission contract JSON admission_classes must be a string list")
-    elif set(admission_classes) != {
-        "runtime_only",
-        "blocked_from_cache",
-        "verification_bundle_required",
-        "future_cache_candidate_deferred",
-    }:
+    elif set(admission_classes) != PHILOSOPHY_ADMISSION_CLASSES:
         errors.append("philosophy admission contract JSON admission_classes set mismatch")
 
-    sc_g5_ref = "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
     references = payload.get("references")
     if "references" in payload and not isinstance(references, list):
         errors.append("philosophy admission contract JSON references must be a string list")
-    elif isinstance(references, list) and sc_g5_ref not in references:
+    elif isinstance(references, list) and PHILOSOPHY_SC_G5_CONTRACT_PATH not in references:
         errors.append("philosophy admission contract JSON references missing SC-G5 contract path")
 
     required_lists = {
-        "blocked_surfaces": (
-            "billing_auth_entitlement_truth",
-            "auth_session_account_identity_truth",
-            "medical_or_therapy_routing",
-            "compliance_legal_output_cache",
-            "raw_user_free_text_cache_keys",
-            "advisory_wiki_product_truth",
-            "workforce_memory_product_truth",
-            "graphrag_product_truth",
-            "plugin_control_plane_product_truth",
-            "fitchef_cbt_bypassing_validators",
-        ),
+        "blocked_surfaces": PHILOSOPHY_BLOCKED_SURFACES,
         "forbidden_claims": (
             "claim_class_gate_open_equivalence",
             "claim_class_live_philosophy_cache",
@@ -1661,26 +1670,24 @@ def main(argv: list[str] | None = None) -> int:
             bounded_insight_contract.read_text(encoding="utf-8")
         )
     )
+    backend_selection_text = backend_selection_contract.read_text(encoding="utf-8")
     errors.extend(
-        validate_semantic_cache_backend_selection_contract(
-            backend_selection_contract.read_text(encoding="utf-8")
-        )
+        validate_semantic_cache_backend_selection_contract(backend_selection_text)
     )
     errors.extend(
         validate_semantic_cache_backend_selection_schema(
             schema_text=backend_selection_schema.read_text(encoding="utf-8"),
-            contract_text=backend_selection_contract.read_text(encoding="utf-8"),
+            contract_text=backend_selection_text,
         )
     )
+    philosophy_admission_text = philosophy_admission_contract.read_text(encoding="utf-8")
     errors.extend(
-        validate_philosophy_semantic_cache_admission_contract(
-            philosophy_admission_contract.read_text(encoding="utf-8")
-        )
+        validate_philosophy_semantic_cache_admission_contract(philosophy_admission_text)
     )
     errors.extend(
         validate_philosophy_semantic_cache_admission_schema(
             schema_text=philosophy_admission_schema.read_text(encoding="utf-8"),
-            contract_text=philosophy_admission_contract.read_text(encoding="utf-8"),
+            contract_text=philosophy_admission_text,
         )
     )
     if errors:

@@ -6,6 +6,9 @@ from pathlib import Path
 
 import scripts.ci.check_docs_phase1_gates as docs_phase1
 from scripts.ci.check_semantic_cache_gate import (
+    PHILOSOPHY_ADMISSION_CLASSES,
+    PHILOSOPHY_SC_G5_MERGE_SHA,
+    PHILOSOPHY_SC_G5_CONTRACT_PATH,
     validate_philosophy_semantic_cache_admission_contract,
     validate_philosophy_semantic_cache_admission_schema,
 )
@@ -70,14 +73,11 @@ def test_machine_state_admission_classes_are_complete() -> None:
     state = _machine_state()
     classes = state["admission_classes"]
     assert isinstance(classes, list)
-    assert set(classes) == {
-        "runtime_only",
-        "blocked_from_cache",
-        "verification_bundle_required",
-        "future_cache_candidate_deferred",
-    }
+    expected = sorted(PHILOSOPHY_ADMISSION_CLASSES)
+    assert len(classes) == len(expected)
+    assert sorted(classes) == expected
     assert state["gate_status"] == "closed"
-    assert state["sc_g5_merge_commit"] == "cb1db8b40"
+    assert state["sc_g5_merge_commit"] == PHILOSOPHY_SC_G5_MERGE_SHA
     assert state["does_not_duplicate_sc_g5_backend_selection"] is True
     verification_surfaces = state["verification_bundle_required_surfaces"]
     assert isinstance(verification_surfaces, list)
@@ -86,9 +86,10 @@ def test_machine_state_admission_classes_are_complete() -> None:
 
 
 def test_checker_requires_blocked_truth_surfaces() -> None:
-    mutated = _contract_text().replace(
-        '    "medical_or_therapy_routing",\n',
+    mutated = re.sub(
+        r'\s*"medical_or_therapy_routing"\s*,?\s*\n?',
         "",
+        _contract_text(),
     )
 
     errors = validate_philosophy_semantic_cache_admission_contract(mutated)
@@ -99,9 +100,10 @@ def test_checker_requires_blocked_truth_surfaces() -> None:
 
 
 def test_schema_validator_rejects_missing_blocked_surface_enum() -> None:
-    mutated_schema = SCHEMA.read_text(encoding="utf-8").replace(
-        '          "medical_or_therapy_routing",\n',
+    mutated_schema = re.sub(
+        r'\s*"medical_or_therapy_routing"\s*,?\s*\n?',
         "",
+        SCHEMA.read_text(encoding="utf-8"),
     )
 
     errors = validate_philosophy_semantic_cache_admission_schema(
@@ -161,9 +163,10 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
 
 def test_checker_requires_admission_classes_complete() -> None:
     """Validator rejects contract when an admission class is missing from JSON."""
-    mutated = _contract_text().replace(
-        '    "verification_bundle_required",\n    "future_cache_candidate_deferred"',
-        '    "verification_bundle_required"',
+    mutated = re.sub(
+        r',\s*"future_cache_candidate_deferred"',
+        "",
+        _contract_text(),
     )
 
     errors = validate_philosophy_semantic_cache_admission_contract(mutated)

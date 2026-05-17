@@ -131,6 +131,7 @@
     },
     "future_cache_candidate_deferred_surfaces": {
       "type": "array",
+      "maxItems": 0,
       "uniqueItems": true,
       "items": { "type": "string", "minLength": 1 }
     }
