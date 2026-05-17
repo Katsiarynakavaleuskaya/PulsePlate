@@ -92,3 +92,12 @@ Commit: 556c1fb05889e7445cfbc1dbb6fdd705225c8da9
 Evidence: `_depends_on_previous(...)` now returns `False` when `previous_slug is None`, so the first dispatch item cannot depend on a missing predecessor. Deterministic coverage added in `tests/test_qoder_dispatch_bridge.py::test_first_dispatch_item_cannot_depend_on_missing_previous_step`. Local proof: `. .venv/bin/activate && pytest -q tests/test_qoder_dispatch_bridge.py`; `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`; `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1762 pre-commit run --all-files`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#pullrequestreview-4306166352 -> 556c1fb05889e7445cfbc1dbb6fdd705225c8da9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255334164 -> 556c1fb05889e7445cfbc1dbb6fdd705225c8da9
+
+Disposition: FIXED
+Commit: 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
+Evidence: Preserved packet chain dependencies in manifests, marked Verify fallbacks readonly, excluded `agent-coordinator` from auto/bracket parallel groups, parsed continued role-order fields, and stripped inline-code ticks from bracket groups. Deterministic coverage added in `tests/test_qoder_dispatch_bridge.py`. Local proof: `. .venv/bin/activate && pytest -q tests/test_qoder_dispatch_bridge.py`; `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`; `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1762 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353276 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353277 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353280 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353282 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353284 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
