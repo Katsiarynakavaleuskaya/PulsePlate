@@ -7,6 +7,7 @@
 - Implementing commits:
   - `d0daee249` - added canonical Experiment Runner co-author guidance, governed pipeline wrapper, identity guidance guard coverage, email-report regression tests, and mypy-compatible promotion typing cleanup.
   - `cd05b9a2d` - fixed Cubic and CodeRabbit review findings for relative promotion output handling, placeholder-email whitespace variants, and sanitized stage stderr/exception handling.
+  - `fcb539efa` - fixed CodeRabbit promotion-output containment finding by rejecting wrapper output paths that escape the governed promotions artifact root.
 - Scope: Experiment Runner attribution instructions and governed automatic email report wrapper only. No Slack delivery, no git-attribution delivery trigger, no signing key storage, no merge authority change, and no review-thread authority change.
 
 ## Discussion Thread Pass
@@ -32,6 +33,11 @@ Commit: cd05b9a2d
 Evidence: CodeRabbit found that child stage stderr and unexpected exceptions could leak outside the pipeline's sanitized failure path. `scripts/orchestration/experiment_pipeline.py` now redirects both stdout and stderr and normalizes unexpected stage exceptions to the generic stage failure message; `tests/test_experiment_pipeline.py` covers stderr and exception redaction.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255410262 -> cd05b9a2d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#pullrequestreview-4306234841 -> cd05b9a2d
+
+Disposition: FIXED
+Commit: fcb539efa
+Evidence: CodeRabbit found that `experiment_pipeline.py --promotion-output` could widen the wrapper write boundary with absolute paths or `..` escapes. `scripts/orchestration/experiment_pipeline.py` now resolves the candidate output and fails closed unless it remains under `artifacts/orchestration/experiments/promotions/`; `tests/test_experiment_pipeline.py` covers parent-directory and absolute-path escapes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255475576 -> fcb539efa
 
 ## Role-Agent Findings
 
