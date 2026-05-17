@@ -23,7 +23,7 @@ EXPECTED_CO_AUTHOR_TRAILER = "Co-authored-by: PulsePlate Experiment Runner <puls
 FORBIDDEN_CO_AUTHOR_TRAILER = "Co-authored-by: Experiment Runner <runner@example.com>"
 FORBIDDEN_EMAILS = frozenset({"runner@example.com"})
 FORBIDDEN_CO_AUTHOR_EMAIL_RE = re.compile(
-    r"Co-authored-by:\s*[^\n<]*<runner@example\.com>",
+    r"Co-authored-by:\s*[^\n<]*<\s*runner@example\.com\s*>",
     re.IGNORECASE,
 )
 GUIDANCE_PATHS = (

@@ -10,7 +10,7 @@ authority boundaries.
 from __future__ import annotations
 
 import argparse
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
@@ -72,6 +72,18 @@ def _default_promotion_path(experiment_id: str) -> Path:
     return artifact_dir / f"{experiment_id}.json"
 
 
+def _promotion_output_path(raw_output: str | None, experiment_id: str) -> Path:
+    """Mirror promotion output path selection without widening write permissions."""
+
+    if raw_output:
+        candidate = Path(raw_output).expanduser()
+        if not candidate.is_absolute():
+            artifact_dir: Path = experiment_promote.PROMOTION_ARTIFACT_DIR
+            candidate = artifact_dir / candidate
+        return candidate
+    return _default_promotion_path(experiment_id)
+
+
 def _run_stage(
     stage: str,
     stage_main: Callable[[list[str]], int],
@@ -80,8 +92,12 @@ def _run_stage(
     """Run a child stage while preventing child stdout leakage."""
 
     stdout = io.StringIO()
-    with redirect_stdout(stdout):
-        exit_code = stage_main(argv)
+    stderr = io.StringIO()
+    try:
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = stage_main(argv)
+    except Exception as exc:
+        raise ExperimentPipelineError(f"Experiment pipeline {stage} stage failed.") from exc
     if exit_code != 0:
         raise ExperimentPipelineError(f"Experiment pipeline {stage} stage failed.")
     raw_output = stdout.getvalue().strip()
@@ -134,10 +150,11 @@ def main(argv: list[str] | None = None) -> int:
         packet = _read_packet(packet_path)
         experiment_id = packet["experiment_id"]
         result_path = _default_result_path(experiment_id)
-        promotion_path = (
-            Path(args.promotion_output).expanduser().resolve()
+        promotion_path = _promotion_output_path(args.promotion_output, experiment_id)
+        promotion_output_arg = (
+            str(Path(args.promotion_output).expanduser())
             if args.promotion_output
-            else _default_promotion_path(experiment_id)
+            else str(promotion_path)
         )
 
         _run_stage(
@@ -161,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
                 "--result",
                 str(result_path),
                 "--output",
-                str(promotion_path),
+                promotion_output_arg,
             ],
         )
         notify_args = [

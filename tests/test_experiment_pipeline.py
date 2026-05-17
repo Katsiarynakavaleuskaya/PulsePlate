@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import sys
 from typing import Any
 
 import pytest
@@ -206,6 +207,119 @@ def _install_fake_runner_and_promote(monkeypatch: pytest.MonkeyPatch, repo: Path
 
     monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", fake_runner_main)
     monkeypatch.setattr(experiment_pipeline.experiment_promote, "main", fake_promote_main)
+
+
+def test_pipeline_preserves_relative_promotion_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+    _reset_fake_smtp()
+    captured_promote_args: list[str] = []
+
+    def fake_runner_main(argv: list[str]) -> int:
+        output_path = Path(argv[argv.index("--output") + 1])
+        _write_json(output_path, _result())
+        print(json.dumps({"output": str(output_path), "status": "accepted"}))
+        return 0
+
+    def fake_promote_main(argv: list[str]) -> int:
+        captured_promote_args.extend(argv)
+        raw_output = argv[argv.index("--output") + 1]
+        assert raw_output == "nested/decision.json"
+        output_path = experiment_promote.PROMOTION_ARTIFACT_DIR / raw_output
+        audit_path = repo / "docs/audit/EXPERIMENT_EXP_PIPELINE.md"
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        audit_path.write_text("# Experiment Audit Artifact: exp-pipeline\n", encoding="utf-8")
+        _write_json(output_path, _promotion())
+        print(json.dumps({"output": str(output_path), "disposition": "promoted"}))
+        return 0
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", fake_runner_main)
+    monkeypatch.setattr(experiment_pipeline.experiment_promote, "main", fake_promote_main)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("patch text\n", encoding="utf-8")
+
+    exit_code = experiment_pipeline.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+            "--promotion-output",
+            "nested/decision.json",
+        ]
+    )
+    stdout = capsys.readouterr().out
+
+    assert exit_code == 0
+    assert captured_promote_args
+    payload = json.loads(stdout)
+    assert payload["promotion"] == (
+        "artifacts/orchestration/experiments/promotions/nested/decision.json"
+    )
+
+
+def test_pipeline_stage_failure_captures_stderr_without_leak(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+
+    def leaking_runner_main(argv: list[str]) -> int:
+        del argv
+        print("secret stdout")
+        print("secret stderr", file=sys.stderr)
+        return 1
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", leaking_runner_main)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("patch text\n", encoding="utf-8")
+
+    exit_code = experiment_pipeline.main(
+        ["--packet", str(packet_path), "--candidate-patch", str(patch_path)]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "runner stage failed" in captured.out
+    assert "secret stdout" not in captured.out
+    assert "secret stderr" not in captured.out
+    assert "secret stderr" not in captured.err
+
+
+def test_pipeline_stage_exception_is_sanitized(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+
+    def exploding_runner_main(argv: list[str]) -> int:
+        del argv
+        raise RuntimeError("secret exception detail")
+
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", exploding_runner_main)
+    packet_path = _write_json(tmp_path / "packet.json", _packet())
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("patch text\n", encoding="utf-8")
+
+    exit_code = experiment_pipeline.main(
+        ["--packet", str(packet_path), "--candidate-patch", str(patch_path)]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "runner stage failed" in captured.out
+    assert "secret exception detail" not in captured.out
+    assert "secret exception detail" not in captured.err
 
 
 def test_pipeline_does_not_email_without_explicit_flag(

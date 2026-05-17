@@ -64,6 +64,18 @@ def test_rejects_placeholder_co_author_email_with_governed_name(tmp_path: Path) 
         identity_check.validate_co_author_guidance((guidance_path,))
 
 
+def test_rejects_placeholder_co_author_email_with_angle_whitespace(tmp_path: Path) -> None:
+    guidance_path = tmp_path / "AGENTS.md"
+    guidance_path.write_text(
+        "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        "Co-authored-by: PulsePlate Experiment Runner < runner@example.com >\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="placeholder"):
+        identity_check.validate_co_author_guidance((guidance_path,))
+
+
 def test_rejects_placeholder_runner_email() -> None:
     policy = _valid_policy()
     policy["git_attribution"]["email"] = "runner@example.com"
