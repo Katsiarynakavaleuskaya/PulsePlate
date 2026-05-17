@@ -135,6 +135,23 @@ def check_artifact_gitignore() -> bool:
     return True
 
 
+def _advisory_dispatch_bridge() -> None:
+    """Advisory smoke-test: verify qoder_dispatch_bridge imports if present."""
+    bridge = ROOT / "scripts" / "orchestration" / "qoder_dispatch_bridge.py"
+    if not bridge.exists():
+        return  # bridge is optional tooling — skip silently
+    try:
+        import importlib.util
+
+        spec = importlib.util.spec_from_file_location("qoder_dispatch_bridge", bridge)
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+        print("qoder_dispatch_bridge: importable \u2713 (advisory)")
+    except Exception as exc:  # noqa: BLE001
+        print(f"WARNING: qoder_dispatch_bridge: import warning (advisory, non-blocking): {exc}")
+
+
 def check_working_tree_clean() -> bool:
     """Verify working tree is clean. Return True if clean."""
     code, out = _run(["git", "status", "--porcelain"])
@@ -319,6 +336,7 @@ def main(argv: list[str] | None = None) -> int:
     ok &= check_worktrees_untracked()
     ok &= check_agent_consistency()
     check_artifact_gitignore()  # Soft guard: warning only, never fails
+    _advisory_dispatch_bridge()  # Advisory: bridge import smoke-test
 
     if mode == "analyze":
         if task_paths:
