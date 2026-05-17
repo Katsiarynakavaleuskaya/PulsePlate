@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -10,14 +11,20 @@ from typing import Any, Dict, List
 import pytest
 
 # ---------------------------------------------------------------------------
-# Module import setup
+# Module import setup (importlib-based to satisfy import hygiene guard)
 # ---------------------------------------------------------------------------
 
-_SCRIPTS_ORCH = str(Path(__file__).resolve().parent.parent / "scripts" / "orchestration")
-if _SCRIPTS_ORCH not in sys.path:
-    sys.path.insert(0, _SCRIPTS_ORCH)
-
-import qoder_dispatch_bridge  # noqa: E402
+_BRIDGE_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "scripts"
+    / "orchestration"
+    / "qoder_dispatch_bridge.py"
+)
+_spec = importlib.util.spec_from_file_location("qoder_dispatch_bridge", _BRIDGE_PATH)
+assert _spec is not None and _spec.loader is not None, f"Cannot load bridge from {_BRIDGE_PATH}"
+qoder_dispatch_bridge = importlib.util.module_from_spec(_spec)
+sys.modules["qoder_dispatch_bridge"] = qoder_dispatch_bridge
+_spec.loader.exec_module(qoder_dispatch_bridge)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -267,7 +274,7 @@ def test_manifest_schema_compliance():
     """Verify output has all required top-level and entry-level keys."""
     # Use a known existing agent for a minimal manifest
     agents_dir = REPO_ROOT / ".cursor" / "agents"
-    existing_slugs = [p.stem for p in agents_dir.glob("*.md") if p.stem != "AGENTS"]
+    existing_slugs = sorted([p.stem for p in agents_dir.glob("*.md") if p.stem != "AGENTS"])
     if not existing_slugs:
         pytest.skip("No agent definition files found")
 
@@ -381,3 +388,59 @@ def test_mandatory_post_open_detection():
     assert isinstance(post_open, list)
     assert "qa-engineer-agent" in post_open
     assert "bug-hunter" in post_open
+
+
+# ---------------------------------------------------------------------------
+# 11. test_graph_reviewer_slot_infers_code_review
+# ---------------------------------------------------------------------------
+
+
+def test_solo_primary_capable_reviewer_is_not_code_review_by_default():
+    """Solo ``security-auditor`` is a primary-capable lead → analysis type stays Research."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    if not (agents_dir / "security-auditor.md").is_file():
+        pytest.skip("security-auditor agent definition not found")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["security-auditor"],
+        mode="analysis",
+        packet_source="test",
+    )
+    assert len(manifest["dispatch_sequence"]) == 1
+    assert manifest["dispatch_sequence"][0]["qoder_subagent_type"] == "Research"
+
+
+def test_security_auditor_tail_role_is_code_review():
+    """When ``security-auditor`` is last in a multi-role list, treat as graph reviewer (CodeReview)."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["agent-coordinator", "security-auditor"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+    by_slug = {e["role_slug"]: e["qoder_subagent_type"] for e in manifest["dispatch_sequence"]}
+    assert by_slug["agent-coordinator"] == "Research"
+    assert by_slug["security-auditor"] == "CodeReview"
+
+
+def test_architecture_specialist_after_coordinator_is_code_review():
+    """Two-role orchestration lane: coordinator then architecture reviewer → CodeReview."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["agent-coordinator", "architecture-specialist"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+    by_slug = {e["role_slug"]: e["qoder_subagent_type"] for e in manifest["dispatch_sequence"]}
+    assert by_slug["agent-coordinator"] == "Research"
+    assert by_slug["architecture-specialist"] == "CodeReview"

@@ -47,6 +47,6 @@ After parsing, verify:
 1. First entry is `agent-coordinator` (or coordinator-equivalent)
 2. Last entry includes the QA mandatory pass
 3. No duplicate slugs (except in chain notation)
-4. All slugs resolve to known agent definitions in `.github/agents/`
+4. All slugs resolve to known agent definitions in `.cursor/agents/`
 
 If validation fails, emit a warning but proceed with best-effort parsing.

@@ -64,4 +64,4 @@ coordinator's declared role order into a sequence of Qoder subagent invocations.
 - `docs/orchestration/AGENT_ROUTING_GRAPH.md` — canonical routing baseline
 - `docs/orchestration/AGENT_CONTEXT_MAP.md` — per-role context requirements
 - `docs/orchestration/AGENT_CAPABILITY_MATRIX.md` — role capabilities
-- `.github/agents/` — agent definition files
+- `.cursor/agents/` — agent definition files

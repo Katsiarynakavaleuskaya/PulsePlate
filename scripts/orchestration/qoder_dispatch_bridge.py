@@ -74,6 +74,56 @@ def _ensure_routing_graph() -> Dict[str, Any]:
     return _routing_graph
 
 
+def _primary_slugs_from_routing(routing: Dict[str, Any]) -> set[str]:
+    """Collect agent slugs that appear as domain primary or secondary."""
+    slugs: set[str] = set()
+    for route_info in routing.values():
+        for key in ("primary", "secondary"):
+            agent = route_info.get(key)
+            if not agent:
+                continue
+            slug = str(agent).strip()
+            if slug:
+                slugs.add(slug)
+    return slugs
+
+
+def _reviewer_slugs_from_routing(routing: Dict[str, Any]) -> set[str]:
+    """Collect agent slugs that appear in the ``reviewer`` column."""
+    slugs: set[str] = set()
+    for route_info in routing.values():
+        agent = route_info.get("reviewer")
+        if not agent:
+            continue
+        slug = str(agent).strip()
+        if slug:
+            slugs.add(slug)
+    return slugs
+
+
+def _dispatch_is_reviewer_slot(
+    slug: str,
+    order_idx: int,
+    total_roles: int,
+    *,
+    primary_slugs: set[str],
+    reviewer_slugs: set[str],
+) -> bool:
+    """Infer whether this position should use Qoder ``CodeReview`` typing.
+
+    - Any graph **reviewer** that never appears as primary/secondary is always
+      a reviewer slot (e.g. ``architecture-specialist``).
+    - Agents that are both primary-capable and reviewers are treated as
+      reviewers only when they are the **last** role in a multi-role dispatch
+      (typical merge / security review tail), not when solo lead.
+    """
+    if slug not in reviewer_slugs:
+        return False
+    if slug not in primary_slugs:
+        return True
+    return total_roles >= 2 and order_idx == total_roles and order_idx > 1
+
+
 def _parse_routing_graph_fallback() -> Dict[str, Any]:
     """Standalone parser for AGENT_ROUTING_GRAPH.md § 4 table."""
     graph_path = REPO_ROOT / "docs" / "orchestration" / "AGENT_ROUTING_GRAPH.md"
@@ -266,7 +316,7 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
     if agent_def.get("readonly") or mode in ("analysis", "docs-only"):
         return "Research"
 
-    slug = agent_def.get("name", agent_def.get("slug", ""))
+    slug = agent_def.get("slug") or agent_def.get("name", "")
 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
@@ -435,6 +485,9 @@ def build_dispatch_manifest(
     """Build the full JSON dispatch manifest for the given role order."""
     context_map = _parse_context_map()
     routing = _ensure_routing_graph()
+    primary_slugs = _primary_slugs_from_routing(routing)
+    reviewer_slugs = _reviewer_slugs_from_routing(routing)
+    total_roles = len(role_slugs)
 
     dispatch_sequence: List[Dict[str, Any]] = []
     missing_agents: List[str] = []
@@ -445,10 +498,13 @@ def build_dispatch_manifest(
             missing_agents.append(slug)
             continue
 
-        # In a dispatch sequence, no agent is pre-flagged as reviewer;
-        # the Qoder type is driven by readonly + mode. The caller can
-        # override if a specific agent is designated as the reviewer.
-        is_reviewer = False
+        is_reviewer = _dispatch_is_reviewer_slot(
+            slug,
+            order_idx,
+            total_roles,
+            primary_slugs=primary_slugs,
+            reviewer_slugs=reviewer_slugs,
+        )
         qoder_type = resolve_qoder_type(agent_def, mode, is_reviewer)
         context_paths = context_map.get(slug, [])
         skills = _recommend_skills(slug)

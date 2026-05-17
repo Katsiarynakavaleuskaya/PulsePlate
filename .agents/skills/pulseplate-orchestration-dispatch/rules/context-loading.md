@@ -35,7 +35,7 @@ This file lists, per agent slug:
 ## Prompt Assembly Order
 
 ```
-1. System instructions (agent definition from .github/agents/<slug>.md)
+1. System instructions (agent definition from .cursor/agents/<slug>.md)
 2. Packet constraints (scope, DoD, hard rules)
 3. Required Context (loaded files)
 4. Previous agent output (if depends_on_previous)

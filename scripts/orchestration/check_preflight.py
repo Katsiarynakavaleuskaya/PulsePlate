@@ -147,7 +147,11 @@ def _advisory_dispatch_bridge() -> None:
         if spec and spec.loader:
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-        print("qoder_dispatch_bridge: importable \u2713 (advisory)")
+            print("qoder_dispatch_bridge: importable \u2713 (advisory)")
+        else:
+            print(
+                "WARNING: qoder_dispatch_bridge: spec/loader unavailable (advisory, non-blocking)"
+            )
     except Exception as exc:  # noqa: BLE001
         print(f"WARNING: qoder_dispatch_bridge: import warning (advisory, non-blocking): {exc}")
 

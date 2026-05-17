@@ -2,20 +2,39 @@
 
 **PR:** feat(orchestration): add Qoder dispatch bridge for auto-dispatching role agents
 **Branch:** `codex/orchestration-qoder-dispatch-bridge`
-**Commit:** `c55674f2e`
 
-## Premortem Findings (Pre-Open Disposition)
+## Discussion Thread Pass
 
-| # | Finding | Disposition | Evidence |
-|---|---------|-------------|----------|
-| PM-1 | Routing graph loader silent fallback | NOT-A-BUG | Fallback is intentional design for optional dependency (`_ensure_routing_graph` → `_parse_routing_graph_fallback`) |
-| PM-2 | YAML frontmatter edge cases | NOT-A-BUG | Manual fallback handles common cases; heuristic approach acceptable for internal tooling (`_parse_frontmatter` line 162) |
-| PM-3 | Skill auto-discovery | NOT-A-BUG | Qoder discovers skills from filesystem automatically; `_SKILL_MAP` is a static recommendation heuristic |
+All blocking bot review findings addressed. Deferred items tracked in BACKLOG_LEDGER.md.
 
-## Review Threads (Post-Open)
+## Fixed in Commit Mapping
 
-| # | Thread/Finding | Disposition | Evidence |
-|---|----------------|-------------|----------|
-| CR-1 | Unreachable code in `resolve_qoder_type()` frontend-engineer runtime check | FIXED | `scripts/orchestration/qoder_dispatch_bridge.py` (this commit) |
-| CR-2 | Missing CLI error case tests | DEFERRED | `docs/roadmap/BACKLOG_LEDGER.md` |
-| CR-3 | YAML import error handling too broad | DEFERRED | `docs/roadmap/BACKLOG_LEDGER.md` |
+### FIXED
+
+- Sourcery: slug vs name resolution in `resolve_qoder_type()` — prefers `slug` over `name` -> e1929c405
+- Sourcery: preflight success message prints unconditionally when spec is None -> e1929c405
+- Sourcery: documentation path mismatch `.github/agents/` to `.cursor/agents/` -> e1929c405
+- Sourcery: `frontend-engineer` unreachable code in type mapping -> ffab3c2eb
+- CodeRabbit: `sys.path.insert` violates import hygiene guard -> e1929c405
+- CodeRabbit: non-deterministic glob ordering in test -> e1929c405
+- Cubic: slug vs name resolution (same as Sourcery) -> e1929c405
+- Cubic: `frontend-engineer` unreachable (same as Sourcery) -> ffab3c2eb
+- Cubic: documentation path mismatch (same as Sourcery) -> e1929c405
+
+### DEFERRED
+
+- CodeRabbit: type annotations for internal functions — docs/roadmap/BACKLOG_LEDGER.md
+- Cubic: parallelizable_groups heuristic improvements — docs/roadmap/BACKLOG_LEDGER.md
+- Codex QA: full QA pass skipped (pilot scope) — docs/roadmap/BACKLOG_LEDGER.md
+- Codex: readonly derivation from frontmatter — docs/roadmap/BACKLOG_LEDGER.md
+- Codex: fenced code extraction from packet — docs/roadmap/BACKLOG_LEDGER.md
+- Codex: reviewer slot auto-detection — docs/roadmap/BACKLOG_LEDGER.md
+- Codex: mode=review support — docs/roadmap/BACKLOG_LEDGER.md
+- Codex: coordinator de-dup logic — docs/roadmap/BACKLOG_LEDGER.md
+- Codex: post-open chain notation parsing — docs/roadmap/BACKLOG_LEDGER.md
+
+### NOT-A-BUG
+
+- PM-1: Routing graph loader silent fallback — intentional design for optional dependency
+- PM-2: YAML frontmatter edge cases — manual fallback acceptable for internal tooling
+- PM-3: Skill auto-discovery — `_SKILL_MAP` is a static recommendation heuristic
