@@ -101,3 +101,11 @@ Evidence: Preserved packet chain dependencies in manifests, marked Verify fallba
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353280 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353282 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255353284 -> 925d7d7f6336fd43e85e76f7c94a4ebb679b4062
+
+Disposition: FIXED
+Commit: 1e03831fa7a61445d3c7e47fa13d63664b595e90
+Evidence: QA/bug roles now keep Verify typing before reviewer overrides; Verify entries are excluded from auto/bracket parallel groups; duplicate readonly slugs are removed from slug-only auto parallel groups; executable CLI dispatch fails when requested role definitions are missing. Deterministic coverage added in `tests/test_qoder_dispatch_bridge.py`. Local proof: `. .venv/bin/activate && pytest -q tests/test_qoder_dispatch_bridge.py`; `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`; `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1762 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255382177 -> 1e03831fa7a61445d3c7e47fa13d63664b595e90
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255382179 -> 1e03831fa7a61445d3c7e47fa13d63664b595e90
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255382180 -> 1e03831fa7a61445d3c7e47fa13d63664b595e90
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3255382181 -> 1e03831fa7a61445d3c7e47fa13d63664b595e90
