@@ -2,29 +2,12 @@
 
 from __future__ import annotations
 
-import importlib.util
 import json
-import sys
 from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
-
-# ---------------------------------------------------------------------------
-# Module import setup (importlib-based to satisfy import hygiene guard)
-# ---------------------------------------------------------------------------
-
-_BRIDGE_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "scripts"
-    / "orchestration"
-    / "qoder_dispatch_bridge.py"
-)
-_spec = importlib.util.spec_from_file_location("qoder_dispatch_bridge", _BRIDGE_PATH)
-assert _spec is not None and _spec.loader is not None, f"Cannot load bridge from {_BRIDGE_PATH}"
-qoder_dispatch_bridge = importlib.util.module_from_spec(_spec)
-sys.modules["qoder_dispatch_bridge"] = qoder_dispatch_bridge
-_spec.loader.exec_module(qoder_dispatch_bridge)
+from scripts.orchestration import qoder_dispatch_bridge
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -126,18 +109,26 @@ class TestRoleToQoderTypeMapping:
         assert result == "Coding"
 
     def test_qa_engineer_agent(self) -> None:
-        agent_def = {"slug": "qa-engineer-agent", "name": "qa-engineer-agent", "readonly": False}
+        agent_def = {"slug": "qa-engineer-agent", "name": "qa-engineer-agent", "readonly": True}
         result = qoder_dispatch_bridge.resolve_qoder_type(
-            agent_def, mode="runtime", is_reviewer=False
+            agent_def, mode="analysis", is_reviewer=False
         )
         assert result == "Verify"
+        assert (
+            qoder_dispatch_bridge.resolve_qoder_type(agent_def, mode="docs-only", is_reviewer=False)
+            == "Verify"
+        )
 
     def test_bug_hunter(self) -> None:
-        agent_def = {"slug": "bug-hunter", "name": "bug-hunter", "readonly": False}
+        agent_def = {"slug": "bug-hunter", "name": "bug-hunter", "readonly": True}
         result = qoder_dispatch_bridge.resolve_qoder_type(
-            agent_def, mode="runtime", is_reviewer=False
+            agent_def, mode="analysis", is_reviewer=False
         )
         assert result == "Verify"
+        assert (
+            qoder_dispatch_bridge.resolve_qoder_type(agent_def, mode="docs-only", is_reviewer=False)
+            == "Verify"
+        )
 
     def test_reviewer_slot(self) -> None:
         agent_def = {"slug": "security-auditor", "name": "security-auditor", "readonly": True}
@@ -265,6 +256,86 @@ def test_parallelizable_group_detection() -> None:
     assert "beta-agent" in flat
 
 
+def test_packet_bracket_groups_must_match_independent_dispatch_items() -> None:
+    """Packet bracket groups cannot name skipped agents or dependent steps."""
+    dispatch_items: List[Dict[str, Any]] = [
+        {
+            "role_slug": "agent-coordinator",
+            "readonly": True,
+            "depends_on_previous": False,
+        },
+        {
+            "role_slug": "architecture-specialist",
+            "readonly": True,
+            "depends_on_previous": False,
+        },
+        {
+            "role_slug": "bug-hunter",
+            "readonly": False,
+            "depends_on_previous": True,
+        },
+    ]
+
+    groups = qoder_dispatch_bridge._validated_bracket_groups(
+        [
+            ["agent-coordinator", "architecture-specialist"],
+            ["agent-coordinator", "missing-agent"],
+            ["agent-coordinator", "bug-hunter"],
+            ["agent-coordinator", "agent-coordinator"],
+        ],
+        dispatch_items,
+    )
+
+    assert groups == [["agent-coordinator", "architecture-specialist"]]
+
+
+def test_packet_bracket_groups_drop_ambiguous_repeated_dispatch_slug() -> None:
+    """Duplicate dispatch slugs make slug-only parallel groups ambiguous."""
+    dispatch_items: List[Dict[str, Any]] = [
+        {"role_slug": "agent-coordinator", "readonly": True, "depends_on_previous": False},
+        {"role_slug": "architecture-specialist", "readonly": True, "depends_on_previous": False},
+        {"role_slug": "agent-coordinator", "readonly": True, "depends_on_previous": False},
+    ]
+
+    groups = qoder_dispatch_bridge._validated_bracket_groups(
+        [["agent-coordinator", "architecture-specialist"]],
+        dispatch_items,
+    )
+
+    assert groups == []
+
+
+def test_manifest_bracket_parallel_group_and_qa_bug_chain() -> None:
+    """Bracket groups stay parallel while qa-engineer-agent -> bug-hunter stays sequential."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = [
+        "agent-coordinator",
+        "architecture-specialist",
+        "philosophy-agent",
+        "qa-engineer-agent",
+        "bug-hunter",
+    ]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+        bracket_groups=[["architecture-specialist", "philosophy-agent"]],
+    )
+    by_slug = {e["role_slug"]: e for e in manifest["dispatch_sequence"]}
+
+    assert by_slug["architecture-specialist"]["depends_on_previous"] is False
+    assert by_slug["philosophy-agent"]["depends_on_previous"] is False
+    assert ["architecture-specialist", "philosophy-agent"] in manifest["parallelizable_groups"]
+    assert by_slug["qa-engineer-agent"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
+    assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["bug-hunter"]["depends_on_previous"] is True
+
+
 # ---------------------------------------------------------------------------
 # 6. test_manifest_schema_compliance
 # ---------------------------------------------------------------------------
@@ -390,6 +461,27 @@ def test_mandatory_post_open_detection() -> None:
     assert "bug-hunter" in post_open
 
 
+def test_mandatory_post_open_bug_hunter_depends_on_qa() -> None:
+    """The post-open qa-engineer-agent -> bug-hunter pass stays sequential."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["qa-engineer-agent", "bug-hunter"]
+    for s in slugs:
+        if not (agents_dir / f"{s}.md").is_file():
+            pytest.skip(f"Agent definition not found: {s}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+    by_slug = {e["role_slug"]: e for e in manifest["dispatch_sequence"]}
+
+    assert by_slug["qa-engineer-agent"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["qa-engineer-agent"]["depends_on_previous"] is False
+    assert by_slug["bug-hunter"]["qoder_subagent_type"] == "Verify"
+    assert by_slug["bug-hunter"]["depends_on_previous"] is True
+
+
 # ---------------------------------------------------------------------------
 # 11. test_graph_reviewer_slot_infers_code_review
 # ---------------------------------------------------------------------------
@@ -425,6 +517,22 @@ def test_security_auditor_tail_role_is_code_review() -> None:
     )
     by_slug = {e["role_slug"]: e["qoder_subagent_type"] for e in manifest["dispatch_sequence"]}
     assert by_slug["agent-coordinator"] == "Research"
+    assert by_slug["security-auditor"] == "CodeReview"
+
+
+def test_missing_role_does_not_hide_tail_reviewer_slot() -> None:
+    """Missing slugs are excluded before tail reviewer detection."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    if not (agents_dir / "security-auditor.md").is_file():
+        pytest.skip("security-auditor agent definition not found")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=["missing-agent", "agent-coordinator", "security-auditor", "also-missing"],
+        mode="analysis",
+        packet_source="test",
+    )
+    by_slug = {e["role_slug"]: e["qoder_subagent_type"] for e in manifest["dispatch_sequence"]}
+
     assert by_slug["security-auditor"] == "CodeReview"
 
 

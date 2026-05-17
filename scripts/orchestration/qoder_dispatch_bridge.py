@@ -132,6 +132,16 @@ def _dispatch_is_reviewer_slot(
     return False
 
 
+def _depends_on_previous(
+    slug: str, agent_def: Dict[str, Any], previous_slug: Optional[str]
+) -> bool:
+    """Return whether this dispatch item must wait for the previous item."""
+    if agent_def.get("depends_on_previous"):
+        return True
+    # The mandatory post-open review pass is sequential: qa-engineer-agent -> bug-hunter.
+    return slug == "bug-hunter" and previous_slug == "qa-engineer-agent"
+
+
 def _parse_routing_graph_fallback() -> Dict[str, Any]:
     """Standalone parser for AGENT_ROUTING_GRAPH.md § 4 table."""
     graph_path = REPO_ROOT / "docs" / "orchestration" / "AGENT_ROUTING_GRAPH.md"
@@ -255,6 +265,7 @@ def _load_agent_definition(slug: str) -> Optional[Dict[str, Any]]:
         "description": meta.get("description", ""),
         "readonly": bool(meta.get("readonly", False)),
         "readonly_explicit": "readonly" in meta,
+        "depends_on_previous": bool(meta.get("depends_on_previous", False)),
         "body": body,
         "definition_path": str(agent_path.relative_to(REPO_ROOT)),
     }
@@ -326,13 +337,13 @@ def resolve_qoder_type(agent_def: Dict[str, Any], mode: str, is_reviewer: bool) 
     if is_reviewer:
         return "CodeReview"
 
-    if agent_def.get("readonly") or mode in ("analysis", "docs-only"):
-        return "Research"
-
     slug = agent_def.get("slug") or agent_def.get("name", "")
 
     if slug in ("qa-engineer-agent", "bug-hunter"):
         return "Verify"
+
+    if agent_def.get("readonly") or mode in ("analysis", "docs-only"):
+        return "Research"
 
     # Specific mode-dependent check first (frontend runtime → Browser)
     if slug == "frontend-engineer" and mode == "runtime":
@@ -508,6 +519,39 @@ def _detect_parallel_groups(
     return []
 
 
+def _validated_bracket_groups(
+    bracket_groups: List[List[str]],
+    dispatch_items: List[Dict[str, Any]],
+) -> List[List[str]]:
+    """Keep only packet bracket groups that match runnable independent dispatch items."""
+    dispatch_by_slug = {item["role_slug"]: item for item in dispatch_items}
+    ambiguous_slugs = {
+        item["role_slug"]
+        for item in dispatch_items
+        if sum(1 for candidate in dispatch_items if candidate["role_slug"] == item["role_slug"]) > 1
+    }
+    validated: List[List[str]] = []
+
+    for group in bracket_groups:
+        if len(set(group)) != len(group):
+            continue
+        unique_group = list(dict.fromkeys(group))
+        if len(unique_group) < 2:
+            continue
+        if any(slug in ambiguous_slugs for slug in unique_group):
+            continue
+        group_items = [dispatch_by_slug.get(slug) for slug in unique_group]
+        if any(item is None for item in group_items):
+            continue
+        if any(item.get("depends_on_previous") for item in group_items if item is not None):
+            continue
+        if any(not item.get("readonly") for item in group_items if item is not None):
+            continue
+        validated.append(unique_group)
+
+    return validated
+
+
 # ---------------------------------------------------------------------------
 # Skill recommendation (simple heuristic)
 # ---------------------------------------------------------------------------
@@ -545,17 +589,22 @@ def build_dispatch_manifest(
     routing = _ensure_routing_graph()
     primary_slugs = _primary_slugs_from_routing(routing)
     reviewer_slugs = _reviewer_slugs_from_routing(routing)
-    total_roles = len(role_slugs)
 
     dispatch_sequence: List[Dict[str, Any]] = []
     missing_agents: List[str] = []
+    loaded_agents: List[Tuple[str, Dict[str, Any]]] = []
 
-    for order_idx, slug in enumerate(role_slugs, start=1):
+    for slug in role_slugs:
         agent_def = _load_agent_definition(slug)
         if agent_def is None:
             missing_agents.append(slug)
             continue
+        loaded_agents.append((slug, agent_def))
 
+    total_roles = len(loaded_agents)
+    previous_slug: Optional[str] = None
+
+    for order_idx, (slug, agent_def) in enumerate(loaded_agents, start=1):
         is_reviewer = _dispatch_is_reviewer_slot(
             slug,
             order_idx,
@@ -588,9 +637,10 @@ def build_dispatch_manifest(
             "description": agent_def["description"],
             "readonly": readonly,
             "constraints": [],
-            "depends_on_previous": order_idx > 1,
+            "depends_on_previous": _depends_on_previous(slug, agent_def, previous_slug),
         }
         dispatch_sequence.append(item)
+        previous_slug = slug
 
     if missing_agents:
         print(
@@ -601,7 +651,7 @@ def build_dispatch_manifest(
     parallel_groups = _detect_parallel_groups(dispatch_sequence, routing)
     # Merge bracket groups from packet notation [slug-a, slug-b]
     if bracket_groups:
-        for bg in bracket_groups:
+        for bg in _validated_bracket_groups(bracket_groups, dispatch_sequence):
             if bg not in parallel_groups:
                 parallel_groups.append(bg)
 
