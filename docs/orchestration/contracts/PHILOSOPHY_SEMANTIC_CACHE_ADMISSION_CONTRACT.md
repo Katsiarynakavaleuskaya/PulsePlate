@@ -16,7 +16,8 @@ Gate remains closed.
 - Runtime allowed: false.
 - Implementation allowed: false.
 - Admission mode: policy-only metadata.
-- Default path while gate closed: `runtime_only` and `blocked_from_cache`.
+- Default admission while gate closed: `runtime_only`.
+- Hard-blocked surfaces remain `blocked_from_cache`.
 
 ## Wellness-Only Scope
 
@@ -35,8 +36,8 @@ rules, candidate labels, or backend evaluation matrices:
   — SC-G5 label-only backend selection (merged via PR #1742,
   `cb1db8b40`).
 - `core/insight/philosophical_runtime.py` — bounded philosophical runtime seam.
-- `core/verification/` and `core/rag/orchestration.py` — verify-before-write
-  bundle requirements for promotion paths.
+- `core/verification/` — verify-before-write bundle requirements for
+  promotion paths.
 
 ## Admission Classes
 

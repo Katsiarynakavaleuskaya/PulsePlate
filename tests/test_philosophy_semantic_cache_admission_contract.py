@@ -41,6 +41,19 @@ def _machine_state() -> dict[str, object]:
     return state
 
 
+def _contract_text_with_state(state: dict[str, object]) -> str:
+    text = _contract_text()
+    anchor = "## Machine-Readable State"
+    assert anchor in text
+    section_start = text.index(anchor)
+    section = text[section_start:]
+    match = re.search(r"```json\n(.*?)\n```", section, re.DOTALL)
+    assert match is not None
+    payload_start = section_start + match.start(1)
+    payload_end = section_start + match.end(1)
+    return text[:payload_start] + json.dumps(state, indent=2) + text[payload_end:]
+
+
 def test_contract_exists_and_keeps_gate_closed() -> None:
     text = _contract_text().lower()
 
@@ -85,6 +98,18 @@ def test_machine_state_admission_classes_are_complete() -> None:
     assert "philosophical_outputs_as_canonical_facts" not in verification_surfaces
 
 
+def test_upstream_contract_prose_uses_exact_machine_references() -> None:
+    """Upstream prose paths must not drift beyond the exact reference set."""
+    text = _contract_text()
+    section = text.split("## Upstream Contracts (Reference Only)", maxsplit=1)[1]
+    section = section.split("## Admission Classes", maxsplit=1)[0]
+    prose_paths = {item for item in re.findall(r"`([^`]+)`", section) if "/" in item}
+    references = _machine_state()["references"]
+    assert isinstance(references, list)
+
+    assert prose_paths == set(references)
+
+
 def test_checker_requires_blocked_truth_surfaces() -> None:
     mutated = re.sub(
         r'\s*"medical_or_therapy_routing"\s*,?\s*\n?',
@@ -115,6 +140,215 @@ def test_schema_validator_rejects_missing_blocked_surface_enum() -> None:
         "philosophy admission schema enum mismatch for blocked_surfaces: "
         "'medical_or_therapy_routing'"
     ) in errors
+
+
+def test_schema_validator_requires_explicit_array_max_items() -> None:
+    """Validator requires enum-backed admission lists to state exact cardinality."""
+    mutated_schema = re.sub(
+        r',\n      "maxItems": 4',
+        "",
+        SCHEMA.read_text(encoding="utf-8"),
+        count=1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=mutated_schema,
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema maxItems mismatch for admission_classes: expected 4"
+    ) in errors
+
+
+def test_schema_validator_requires_required_properties_parity() -> None:
+    """Validator keeps required keys, properties, and contract JSON in exact sync."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    del properties["rollout_phase"]
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema required key missing from properties: rollout_phase" in errors
+    )
+    assert (
+        "philosophy admission contract JSON key missing from schema properties: rollout_phase"
+    ) in errors
+
+
+def test_schema_validator_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
+    """Validator rejects schema drift that would allow deferred cache candidates now."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    deferred = properties["future_cache_candidate_deferred_surfaces"]
+    assert isinstance(deferred, dict)
+    deferred["maxItems"] = 1
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema maxItems mismatch for "
+        "future_cache_candidate_deferred_surfaces: expected 0"
+    ) in errors
+
+
+def test_checker_rejects_duplicate_machine_state_lists() -> None:
+    """Machine-state lists must stay duplicate-free, including references."""
+    state = json.loads(json.dumps(_machine_state()))
+    blocked = state["blocked_surfaces"]
+    references = state["references"]
+    assert isinstance(blocked, list)
+    assert isinstance(references, list)
+    blocked[0] = blocked[1]
+    references.append(references[0])
+
+    errors = validate_philosophy_semantic_cache_admission_contract(_contract_text_with_state(state))
+
+    assert "philosophy admission contract JSON blocked_surfaces: contains duplicates" in errors
+    assert "philosophy admission contract JSON references contains duplicates" in errors
+
+
+def test_checker_rejects_non_string_machine_state_lists() -> None:
+    """Machine-state lists must contain only strings."""
+    state = json.loads(json.dumps(_machine_state()))
+    references = state["references"]
+    runtime_only = state["runtime_only_surfaces"]
+    assert isinstance(references, list)
+    assert isinstance(runtime_only, list)
+    references[0] = 123
+    runtime_only[0] = 123
+
+    errors = validate_philosophy_semantic_cache_admission_contract(_contract_text_with_state(state))
+
+    assert "philosophy admission contract JSON references must be a string list" in errors
+    assert "philosophy admission contract JSON runtime_only_surfaces: expected list" in errors
+
+
+def test_checker_rejects_unallowlisted_runtime_adapter_references() -> None:
+    """Closed-gate references cannot smuggle provider/cache adapter surfaces."""
+    state = json.loads(json.dumps(_machine_state()))
+    references = state["references"]
+    assert isinstance(references, list)
+    references.append("providers/semantic_cache/runtime_adapter.py")
+
+    errors = validate_philosophy_semantic_cache_admission_contract(_contract_text_with_state(state))
+
+    assert (
+        "philosophy admission contract JSON references unexpected "
+        "providers/semantic_cache/runtime_adapter.py"
+    ) in errors
+
+
+def test_schema_validator_requires_references_exact_enum() -> None:
+    """Schema must keep references enum-backed with exact closed-gate cardinality."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    references = properties["references"]
+    assert isinstance(references, dict)
+    references["items"] = {"type": "string", "minLength": 1}
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert "philosophy admission schema enum missing for references" in errors
+
+
+def test_checker_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
+    """The closed gate cannot name future cache candidates yet."""
+    state = json.loads(json.dumps(_machine_state()))
+    state["future_cache_candidate_deferred_surfaces"] = ["meaning_as_use_cache_key_enrichment"]
+
+    errors = validate_philosophy_semantic_cache_admission_contract(_contract_text_with_state(state))
+
+    assert (
+        "philosophy admission contract JSON future_cache_candidate_deferred_surfaces: "
+        "must stay empty while gate closed"
+    ) in errors
+
+
+def test_forbidden_sc_g5_label_duplication_rejected() -> None:
+    """Philosophy admission prose must not duplicate SC-G5 backend labels."""
+    cases = (
+        ("in_memory_label", "SC-G5 in-memory label duplicated"),
+        ("redis_label", "SC-G5 redis label duplicated"),
+        ("gptcache_label", "SC-G5 gptcache label duplicated"),
+    )
+
+    for backend_label, error_label in cases:
+        mutated = _contract_text().replace(
+            "This contract does not open the semantic-cache gate.",
+            (
+                "This contract does not open the semantic-cache gate.\n\n"
+                f"{backend_label} is listed here."
+            ),
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and error_label in e for e in errors)
+
+
+def test_forbidden_sc_g5_label_assertive_verbs_rejected() -> None:
+    """Assertive prose cannot document, name, or enumerate SC-G5 backend labels."""
+    cases = (
+        ("in_memory_label", "SC-G5 in-memory label duplicated"),
+        ("redis_label", "SC-G5 redis label duplicated"),
+        ("gptcache_label", "SC-G5 gptcache label duplicated"),
+    )
+
+    for backend_label, error_label in cases:
+        for verb in ("documents", "names", "enumerates"):
+            mutated = _contract_text().replace(
+                "This contract does not open the semantic-cache gate.",
+                (
+                    "This contract does not open the semantic-cache gate.\n\n"
+                    f"This contract {verb} {backend_label} here."
+                ),
+                1,
+            )
+
+            errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+            assert any("forbidden" in e and error_label in e for e in errors)
+
+
+def test_negative_sc_g5_label_non_duplication_prose_allowed() -> None:
+    """Negative guardrail prose can name an SC-G5 label without duplicating it."""
+    cases = (
+        ("in_memory_label", "SC-G5 in-memory label duplicated"),
+        ("redis_label", "SC-G5 redis label duplicated"),
+        ("gptcache_label", "SC-G5 gptcache label duplicated"),
+    )
+
+    for backend_label, error_label in cases:
+        mutated = _contract_text().replace(
+            "This contract does not open the semantic-cache gate.",
+            (
+                "This contract does not open the semantic-cache gate.\n\n"
+                f"It must never duplicate `{backend_label}` from SC-G5."
+            ),
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any(error_label in e for e in errors)
 
 
 def test_forbidden_gate_open_claim_rejected() -> None:

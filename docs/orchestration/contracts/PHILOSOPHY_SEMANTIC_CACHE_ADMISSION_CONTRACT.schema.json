@@ -23,6 +23,7 @@
     "admission_classes": {
       "type": "array",
       "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
       "items": {
         "type": "string",
@@ -37,6 +38,7 @@
     "blocked_surfaces": {
       "type": "array",
       "minItems": 10,
+      "maxItems": 10,
       "uniqueItems": true,
       "items": {
         "type": "string",
@@ -65,6 +67,7 @@
     "forbidden_claims": {
       "type": "array",
       "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
       "items": {
         "type": "string",
@@ -86,9 +89,18 @@
     },
     "references": {
       "type": "array",
-      "minItems": 1,
+      "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
-      "items": { "type": "string", "minLength": 1 }
+      "items": {
+        "type": "string",
+        "enum": [
+          "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+          "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+          "core/insight/philosophical_runtime.py",
+          "core/verification/"
+        ]
+      }
     },
     "rollout_phase": {
       "type": "string",
@@ -105,6 +117,7 @@
     "runtime_only_surfaces": {
       "type": "array",
       "minItems": 3,
+      "maxItems": 3,
       "uniqueItems": true,
       "items": {
         "type": "string",
@@ -118,6 +131,7 @@
     "verification_bundle_required_surfaces": {
       "type": "array",
       "minItems": 4,
+      "maxItems": 4,
       "uniqueItems": true,
       "items": {
         "type": "string",

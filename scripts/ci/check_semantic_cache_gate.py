@@ -682,6 +682,35 @@ PHILOSOPHY_BLOCKED_SURFACES = (
     "fitchef_cbt_bypassing_validators",
 )
 
+PHILOSOPHY_FORBIDDEN_CLAIM_CLASSES = (
+    "claim_class_gate_open_equivalence",
+    "claim_class_live_philosophy_cache",
+    "claim_class_provider_rollout_approved",
+    "claim_class_verification_bundle_skipped",
+)
+
+PHILOSOPHY_RUNTIME_ONLY_SURFACES = (
+    "philosophical_runtime_preview_validate_rewrite",
+    "offline_logic_philosophy_replay",
+    "eval_harness_without_cache_serving",
+)
+
+PHILOSOPHY_VERIFICATION_BUNDLE_REQUIRED_SURFACES = (
+    "knowledge_promotion_decisions",
+    "semantic_cache_admission_decisions",
+    "recursive_retrieval_verification_merges",
+    "philosophical_outputs_presentation_risk_canonical_facts",
+)
+
+PHILOSOPHY_FUTURE_CACHE_CANDIDATE_DEFERRED_SURFACES: tuple[str, ...] = ()
+
+PHILOSOPHY_REFERENCES = (
+    "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+    "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+    "core/insight/philosophical_runtime.py",
+    "core/verification/",
+)
+
 PHILOSOPHY_SC_G5_MERGE_SHA = "cb1db8b40"
 PHILOSOPHY_SC_G5_CONTRACT_PATH = (
     "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
@@ -747,7 +776,53 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "SC-G5 matrix duplicated",
         re.compile(r"\bcandidate backend labels only\b.*\bphilosophy\b"),
     ),
+    (
+        "SC-G5 in-memory label duplicated",
+        re.compile(
+            r"\b(?<!not\s)(?<!no\s)(?<!never\s)"
+            r"(?:lists?|includes?|copies|duplicates?|defines|uses|allows|approves|reuses|"
+            r"restates|documents?|names?|enumerates?)"
+            r"\s+(?:the\s+)?(?:sc-g5\s+)?in_memory_label\b"
+            r"|\bin_memory_label\s+(?:is\s+)?"
+            r"(?:listed|included|copied|duplicated|defined|used|allowed|approved|reused|"
+            r"restated|documented|named|enumerated)\b"
+        ),
+    ),
+    (
+        "SC-G5 redis label duplicated",
+        re.compile(
+            r"\b(?<!not\s)(?<!no\s)(?<!never\s)"
+            r"(?:lists?|includes?|copies|duplicates?|defines|uses|allows|approves|reuses|"
+            r"restates|documents?|names?|enumerates?)"
+            r"\s+(?:the\s+)?(?:sc-g5\s+)?redis_label\b"
+            r"|\bredis_label\s+(?:is\s+)?"
+            r"(?:listed|included|copied|duplicated|defined|used|allowed|approved|reused|"
+            r"restated|documented|named|enumerated)\b"
+        ),
+    ),
+    (
+        "SC-G5 gptcache label duplicated",
+        re.compile(
+            r"\b(?<!not\s)(?<!no\s)(?<!never\s)"
+            r"(?:lists?|includes?|copies|duplicates?|defines|uses|allows|approves|reuses|"
+            r"restates|documents?|names?|enumerates?)"
+            r"\s+(?:the\s+)?(?:sc-g5\s+)?gptcache_label\b"
+            r"|\bgptcache_label\s+(?:is\s+)?"
+            r"(?:listed|included|copied|duplicated|defined|used|allowed|approved|reused|"
+            r"restated|documented|named|enumerated)\b"
+        ),
+    ),
 )
+
+PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
+    "claim_class_gate_open_equivalence": ("philosophy admission opens gate",),
+    "claim_class_live_philosophy_cache": ("philosophical semantic cache live",),
+    "claim_class_provider_rollout_approved": (
+        "redis philosophical cache approved",
+        "gptcache philosophical cache approved",
+    ),
+    "claim_class_verification_bundle_skipped": ("verification bundle optional",),
+}
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 MACHINE_JSON_RE = re.compile(r"```json\s*(?P<payload>\{.*?\})\s*```", re.DOTALL)
@@ -1403,43 +1478,74 @@ def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
         isinstance(item, str) for item in admission_classes
     ):
         errors.append("philosophy admission contract JSON admission_classes must be a string list")
+    elif len(admission_classes) != len(set(admission_classes)):
+        errors.append("philosophy admission contract JSON admission_classes contains duplicates")
     elif set(admission_classes) != PHILOSOPHY_ADMISSION_CLASSES:
         errors.append("philosophy admission contract JSON admission_classes set mismatch")
 
     references = payload.get("references")
-    if "references" in payload and not isinstance(references, list):
+    if "references" in payload and (
+        not isinstance(references, list) or not all(isinstance(item, str) for item in references)
+    ):
         errors.append("philosophy admission contract JSON references must be a string list")
-    elif isinstance(references, list) and PHILOSOPHY_SC_G5_CONTRACT_PATH not in references:
-        errors.append("philosophy admission contract JSON references missing SC-G5 contract path")
+    elif isinstance(references, list) and len(references) != len(set(references)):
+        errors.append("philosophy admission contract JSON references contains duplicates")
+    elif isinstance(references, list):
+        missing = [item for item in PHILOSOPHY_REFERENCES if item not in references]
+        for item in missing:
+            errors.append(f"philosophy admission contract JSON references missing {item}")
+        unexpected = [item for item in references if item not in PHILOSOPHY_REFERENCES]
+        for item in unexpected:
+            errors.append(f"philosophy admission contract JSON references unexpected {item}")
 
     required_lists = {
         "blocked_surfaces": PHILOSOPHY_BLOCKED_SURFACES,
-        "forbidden_claims": (
-            "claim_class_gate_open_equivalence",
-            "claim_class_live_philosophy_cache",
-            "claim_class_provider_rollout_approved",
-            "claim_class_verification_bundle_skipped",
-        ),
-        "runtime_only_surfaces": (
-            "philosophical_runtime_preview_validate_rewrite",
-            "offline_logic_philosophy_replay",
-            "eval_harness_without_cache_serving",
-        ),
-        "verification_bundle_required_surfaces": (
-            "knowledge_promotion_decisions",
-            "semantic_cache_admission_decisions",
-            "recursive_retrieval_verification_merges",
-            "philosophical_outputs_presentation_risk_canonical_facts",
-        ),
+        "forbidden_claims": PHILOSOPHY_FORBIDDEN_CLAIM_CLASSES,
+        "runtime_only_surfaces": PHILOSOPHY_RUNTIME_ONLY_SURFACES,
+        "verification_bundle_required_surfaces": PHILOSOPHY_VERIFICATION_BUNDLE_REQUIRED_SURFACES,
     }
     for key, required_items in required_lists.items():
         actual = payload.get(key)
-        if not isinstance(actual, list):
+        if not isinstance(actual, list) or not all(isinstance(item, str) for item in actual):
             errors.append(f"philosophy admission contract JSON {key}: expected list")
             continue
+        if len(actual) != len(set(actual)):
+            errors.append(f"philosophy admission contract JSON {key}: contains duplicates")
         missing = [item for item in required_items if item not in actual]
         for item in missing:
             errors.append(f"philosophy admission contract JSON {key}: missing {item}")
+        unexpected = [item for item in actual if item not in required_items]
+        for item in unexpected:
+            errors.append(f"philosophy admission contract JSON {key}: unexpected {item}")
+
+    forbidden_claims = payload.get("forbidden_claims")
+    if isinstance(forbidden_claims, list) and all(
+        isinstance(item, str) for item in forbidden_claims
+    ):
+        active_pattern_labels = {
+            label for label, _pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS
+        }
+        for claim_class in forbidden_claims:
+            for pattern_label in PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS.get(claim_class, ()):
+                if pattern_label not in active_pattern_labels:
+                    errors.append(
+                        "philosophy admission contract JSON forbidden_claims "
+                        f"{claim_class}: missing active detector {pattern_label}"
+                    )
+
+    deferred_surfaces = payload.get("future_cache_candidate_deferred_surfaces")
+    if not isinstance(deferred_surfaces, list) or not all(
+        isinstance(item, str) for item in deferred_surfaces
+    ):
+        errors.append(
+            "philosophy admission contract JSON future_cache_candidate_deferred_surfaces: "
+            "expected list"
+        )
+    elif deferred_surfaces != list(PHILOSOPHY_FUTURE_CACHE_CANDIDATE_DEFERRED_SURFACES):
+        errors.append(
+            "philosophy admission contract JSON future_cache_candidate_deferred_surfaces: "
+            "must stay empty while gate closed"
+        )
 
     return errors
 
@@ -1493,6 +1599,10 @@ def validate_philosophy_semantic_cache_admission_schema(
         errors.append(
             f"philosophy admission contract JSON key missing from schema properties: {key}"
         )
+    for key in sorted(required_set - property_keys):
+        errors.append(f"philosophy admission schema required key missing from properties: {key}")
+    for key in sorted(property_keys - payload_keys):
+        errors.append(f"philosophy admission schema property missing from contract JSON: {key}")
 
     const_keys = {
         "default_admission_while_gate_closed",
@@ -1513,16 +1623,42 @@ def validate_philosophy_semantic_cache_admission_schema(
                 f"philosophy admission schema const mismatch for {key}: "
                 f"expected {spec['const']!r}, got {payload[key]!r}"
             )
+        if isinstance(payload[key], bool) and spec.get("type") != "boolean":
+            errors.append(f"philosophy admission schema boolean type mismatch for {key}")
+        elif isinstance(payload[key], str) and spec.get("type") != "string":
+            errors.append(f"philosophy admission schema string type mismatch for {key}")
         items = spec.get("items")
         if isinstance(payload[key], list):
             if spec.get("type") != "array":
                 errors.append(f"philosophy admission schema array type missing for {key}")
-            if payload[key] and not isinstance(spec.get("minItems"), int):
+            min_items = spec.get("minItems")
+            max_items = spec.get("maxItems")
+            enum_backed = isinstance(items, dict) and "enum" in items
+            if payload[key] and not isinstance(min_items, int):
                 errors.append(f"philosophy admission schema minItems missing for {key}")
+            elif payload[key] and enum_backed and min_items != len(payload[key]):
+                errors.append(
+                    f"philosophy admission schema minItems mismatch for {key}: "
+                    f"expected {len(payload[key])}"
+                )
+            if payload[key] and enum_backed and max_items != len(payload[key]):
+                errors.append(
+                    f"philosophy admission schema maxItems mismatch for {key}: "
+                    f"expected {len(payload[key])}"
+                )
+            if key == "future_cache_candidate_deferred_surfaces" and max_items != 0:
+                errors.append(
+                    "philosophy admission schema maxItems mismatch for "
+                    "future_cache_candidate_deferred_surfaces: expected 0"
+                )
             if spec.get("uniqueItems") is not True:
                 errors.append(f"philosophy admission schema uniqueItems missing for {key}")
             if not isinstance(items, dict) or items.get("type") != "string":
                 errors.append(f"philosophy admission schema string items missing for {key}")
+            if key == "references" and not (
+                isinstance(items, dict) and isinstance(items.get("enum"), list)
+            ):
+                errors.append("philosophy admission schema enum missing for references")
         if isinstance(items, dict) and "enum" in items and isinstance(payload[key], list):
             enum = items["enum"]
             if not isinstance(enum, list) or not all(isinstance(item, str) for item in enum):
@@ -1531,6 +1667,12 @@ def validate_philosophy_semantic_cache_admission_schema(
                 invalid = [item for item in payload[key] if item not in enum]
                 for item in invalid:
                     errors.append(f"philosophy admission schema enum mismatch for {key}: {item!r}")
+                missing = [item for item in enum if item not in payload[key]]
+                for item in missing:
+                    errors.append(
+                        f"philosophy admission schema enum missing from contract for {key}: "
+                        f"{item!r}"
+                    )
 
     return errors
 

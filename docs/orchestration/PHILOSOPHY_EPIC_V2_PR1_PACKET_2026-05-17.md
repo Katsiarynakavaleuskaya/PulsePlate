@@ -54,7 +54,7 @@ evidence before any merge-ready claim.
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 python3 scripts/ci/check_semantic_cache_gate.py
-pytest -q tests/test_philosophy_semantic_cache_admission_contract.py
+python3 -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py
 python3 scripts/ci/check_docs_phase1_gates.py --files \
   docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md \
   docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md
