@@ -113,3 +113,59 @@ def test_schema_validator_rejects_missing_blocked_surface_enum() -> None:
         "philosophy admission schema enum mismatch for blocked_surfaces: "
         "'medical_or_therapy_routing'"
     ) in errors
+
+
+def test_forbidden_gate_open_claim_rejected() -> None:
+    """Validator catches a forbidden gate-open assertion in prose."""
+    text = _contract_text()
+    # Inject forbidden phrase into assertive prose (outside Machine-Readable State
+    # and Forbidden Claims sections which are excluded from assertion scanning).
+    mutated = text.replace(
+        "does not open the semantic-cache gate",
+        "does not open the semantic-cache gate\n\nphilosophy admission opens semantic-cache gate",
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert any("forbidden" in e and "philosophy admission opens gate" in e for e in errors)
+
+
+def test_forbidden_runtime_live_claim_rejected() -> None:
+    """Validator catches a forbidden 'philosophical semantic cache is live' claim."""
+    text = _contract_text()
+    mutated = text.replace(
+        "gate remains closed",
+        "gate remains closed\n\nphilosophical semantic cache is live",
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert any("forbidden" in e and "philosophical semantic cache live" in e for e in errors)
+
+
+def test_forbidden_verification_optional_claim_rejected() -> None:
+    """Validator catches a forbidden 'verification bundles optional for cache' claim."""
+    text = _contract_text()
+    mutated = text.replace(
+        "gate remains closed",
+        "gate remains closed\n\nverification bundles are optional for cache",
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert any("forbidden" in e and "verification bundle optional" in e for e in errors)
+
+
+def test_checker_requires_admission_classes_complete() -> None:
+    """Validator rejects contract when an admission class is missing from JSON."""
+    mutated = _contract_text().replace(
+        '    "verification_bundle_required",\n    "future_cache_candidate_deferred"',
+        '    "verification_bundle_required"',
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert "philosophy admission contract JSON admission_classes set mismatch" in errors
