@@ -56,3 +56,33 @@ Evidence: Closed the 2026-05-17 bot review cycle by removing dynamic test import
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#pullrequestreview-4305666183 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254897188 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254897191 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+
+Disposition: FIXED
+Commit: fa2b02f2580d519123d736cabe16ab88b09f3b35
+Evidence: Final Qoder bridge closeout preserves coordinator-first dispatch semantics, deterministic manifest ordering, bracket parallel validation, QA/bug Verify routing, missing-role dependency rebasing, and guard-compliant test imports. Local proof: `. .venv/bin/activate && pytest -q tests/test_qoder_dispatch_bridge.py`; `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`; `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1762 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254342233 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254346997 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254347001 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254347003 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254347004 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254347006 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254347007 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254511074 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254511076 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254511078 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254511080 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254511083 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254534366 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254534368 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254534370 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254534372 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254534375 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254589189 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254589193 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254589194 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254589196 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254589198 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254909080 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254909081 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254909083 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1762#discussion_r3254909085 -> fa2b02f2580d519123d736cabe16ab88b09f3b35
