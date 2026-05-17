@@ -367,6 +367,13 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 - Semantic cache is forbidden until evidence asset lineage, replay-safe promotion, and metadata admission gates exist and the dedicated semantic-cache gate (`docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`) explicitly opens.
 - Any new evidence-bearing artifact must define asset type, upstream assets, fingerprint, policy version, idempotency key, and replay/admission behavior.
 
+**Experiment Runner attribution invariant (hard rule):**
+
+- When the Experiment Runner materially contributes to a commit, use exactly this co-author trailer:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Do not use placeholder attribution such as `runner@example.com` for new Experiment Runner work.
+- This trailer is public Git attribution text only; it is not an email delivery channel, a cryptographic signature, review-thread authority, or merge-readiness authority.
+
 ---
 
 ## REQUIRED READING (before any change)

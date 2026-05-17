@@ -5,6 +5,7 @@
   "git_attribution": {
     "name": "PulsePlate Experiment Runner",
     "email": "pulseplate@pm.me",
+    "co_author_trailer": "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>",
     "purpose": "public_attribution_only",
     "forbidden_placeholder_emails": [
       "runner@example.com"
