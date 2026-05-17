@@ -4,8 +4,9 @@
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765>
 - Branch: `codex/experiment-runner-attribution-auto-email-reports`
 - Title: `feat(orchestration): add experiment runner email pipeline`
-- Implementing commit:
+- Implementing commits:
   - `d0daee249` - added canonical Experiment Runner co-author guidance, governed pipeline wrapper, identity guidance guard coverage, email-report regression tests, and mypy-compatible promotion typing cleanup.
+  - `cd05b9a2d` - fixed Cubic and CodeRabbit review findings for relative promotion output handling, placeholder-email whitespace variants, and sanitized stage stderr/exception handling.
 - Scope: Experiment Runner attribution instructions and governed automatic email report wrapper only. No Slack delivery, no git-attribution delivery trigger, no signing key storage, no merge authority change, and no review-thread authority change.
 
 ## Discussion Thread Pass
@@ -15,7 +16,25 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: cd05b9a2d
+Evidence: Cubic found that pre-resolving `--promotion-output` broke relative output paths. `scripts/orchestration/experiment_pipeline.py` now preserves the raw relative output argument for `experiment_promote.py` while resolving the expected artifact path for notification/summary use, and `tests/test_experiment_pipeline.py` covers `--promotion-output nested/decision.json`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#pullrequestreview-4306228421 -> cd05b9a2d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255402933 -> cd05b9a2d
+
+Disposition: FIXED
+Commit: cd05b9a2d
+Evidence: CodeRabbit found that placeholder co-author guidance with whitespace inside angle brackets could bypass the regex. `scripts/orchestration/check_experiment_runner_identity.py` now rejects `< runner@example.com >`, and `tests/test_experiment_runner_identity_policy.py` covers that variant.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255410259 -> cd05b9a2d
+
+Disposition: FIXED
+Commit: cd05b9a2d
+Evidence: CodeRabbit found that child stage stderr and unexpected exceptions could leak outside the pipeline's sanitized failure path. `scripts/orchestration/experiment_pipeline.py` now redirects both stdout and stderr and normalizes unexpected stage exceptions to the generic stage failure message; `tests/test_experiment_pipeline.py` covers stderr and exception redaction.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#discussion_r3255410262 -> cd05b9a2d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1765#pullrequestreview-4306234841 -> cd05b9a2d
 
 ## Role-Agent Findings
 
@@ -46,8 +65,8 @@ Reason: The remaining sensitive behaviors are handled by existing tested notific
 ## Bot Review Notes
 
 Disposition: NOT-A-BUG
-Evidence: CodeRabbit CLI agent review completed on committed diff with `findings: 0`.
-Reason: No actionable CodeRabbit code issues were reported.
+Evidence: CodeRabbit CLI agent review completed on the initial committed diff with `findings: 0`; GitHub CodeRabbit later reported two actionable comments, both fixed in `cd05b9a2d` and mapped above.
+Reason: The CLI result is historical evidence only; GitHub CodeRabbit actionables are treated as fixed.
 
 Disposition: NOT-A-BUG
 Evidence: `chatgpt-codex-connector` PR comment reported Codex code-review usage limits only and did not identify code changes or review-thread actionables.
