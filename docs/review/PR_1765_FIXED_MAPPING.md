@@ -43,6 +43,20 @@ Disposition: NOT-A-BUG
 Evidence: Codex Security diff-focused scan found no surviving reportable finding: the wrapper uses no shell/subprocess execution, delegates SMTP/redaction/audit to `experiment_notify.py`, suppresses child stdout leakage, does not accept arbitrary recipients, and returns sanitized stage failures.
 Reason: The remaining sensitive behaviors are handled by existing tested notification and experiment modules.
 
+## Bot Review Notes
+
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit CLI agent review completed on committed diff with `findings: 0`.
+Reason: No actionable CodeRabbit code issues were reported.
+
+Disposition: NOT-A-BUG
+Evidence: `chatgpt-codex-connector` PR comment reported Codex code-review usage limits only and did not identify code changes or review-thread actionables.
+Reason: Usage-limit notification is operational, not a code finding.
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery review comment reported weekly diff-character rate-limit exhaustion only and did not identify code changes or review-thread actionables.
+Reason: Rate-limit notification is operational, not a code finding.
+
 ## Local Validation
 
 - `python3 scripts/orchestration/check_preflight.py --path ...` PASS.
