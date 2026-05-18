@@ -422,8 +422,11 @@ ignore if {
 # Rationale: GitHub Code Scanning alert #594 reports Ruby gem `jwt` 2.10.2
 #   from ios/Gemfile.lock with fixed version 3.2.0. Bundler resolves latest
 #   Fastlane 2.234.0 with `jwt >= 2.1.0, < 3`, so the fixed jwt 3.x line is
-#   not reachable through a safe lockfile update. This is release tooling only,
-#   not an iOS app binary runtime dependency.
+#   not reachable through a safe lockfile update. Trivy's Rego input for
+#   Bundler findings does not expose the target path, so this rule uses exact
+#   package, version, PURL, and advisory URL fields instead of a global CVE-only
+#   suppression. This is release tooling only, not an iOS app binary runtime
+#   dependency.
 # Monitor: https://rubygems.org/gems/fastlane/versions/2.234.0
 # Monitor: https://rubygems.org/gems/jwt/versions/3.2.0
 # Monitor: https://avd.aquasec.com/nvd/cve-2026-45363
@@ -435,19 +438,12 @@ ignore if {
 
 cve_2026_45363_jwt_version := "2.10.2"
 
-cve_2026_45363_jwt_pkgpath_match if {
-	input.PkgPath == "ios/Gemfile.lock"
-}
-
-cve_2026_45363_jwt_pkgpath_match if {
-	endswith(input.PkgPath, "/ios/Gemfile.lock")
-}
-
 ignore if {
 	input.VulnerabilityID == "CVE-2026-45363"
 	input.PkgName == "jwt"
 	input.InstalledVersion == cve_2026_45363_jwt_version
 	input.FixedVersion == "3.2.0"
-	cve_2026_45363_jwt_pkgpath_match
-	startswith(input.PkgID, sprintf("jwt@%s", [cve_2026_45363_jwt_version]))
+	input.PkgID == sprintf("jwt@%s", [cve_2026_45363_jwt_version])
+	input.PkgIdentifier.PURL == sprintf("pkg:gem/jwt@%s", [cve_2026_45363_jwt_version])
+	input.PrimaryURL == "https://avd.aquasec.com/nvd/cve-2026-45363"
 }

@@ -33,8 +33,9 @@ Commit: 9df304969f34712868223eadd75151206ecf07fb
 Evidence: `bug-hunter` found that a CVE-only `.trivyignore` entry would be too
 broad. The PR does not modify `.trivyignore`; `trivy/ignore-policy.rego` now
 scopes the suppression to CVE-2026-45363, package `jwt`, installed version
-`2.10.2`, fixed version `3.2.0`, `PkgID` prefix `jwt@2.10.2`, and `PkgPath`
-matching `ios/Gemfile.lock`.
+`2.10.2`, fixed version `3.2.0`, `PkgID` `jwt@2.10.2`, PURL
+`pkg:gem/jwt@2.10.2`, and primary advisory URL
+`https://avd.aquasec.com/nvd/cve-2026-45363`.
 
 Disposition: FIXED
 Commit: 9df304969f34712868223eadd75151206ecf07fb
@@ -103,9 +104,9 @@ release tooling no longer depends on Fastlane's `jwt` 2.x graph.
 
 ## Risks / Rollback
 
-- Risk: Trivy policy input does not populate `PkgPath` for Bundler findings,
-  leaving alert #594 open. This should fail current-head security-scan rather
-  than silently over-suppress.
+- Risk: Trivy's Bundler policy input shape changes again and the exact
+  package/advisory predicate no longer matches. This should fail current-head
+  security-scan rather than silently over-suppress.
 - Rollback: revert implementing commit `9df304969f34712868223eadd75151206ecf07fb`
   and this mapping artifact commit; no runtime behavior changed.
 
