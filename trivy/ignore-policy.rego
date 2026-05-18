@@ -433,6 +433,7 @@ ignore if {
 # Monitor: https://github.com/advisories/GHSA-c32j-vqhx-rx3x
 # Documented in: docs/security/CVE-2026-45363-jwt-fastlane.md
 # Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363
+# Expiry is governed by the single file-level marker at the top of this policy.
 # Removal condition: Remove when Fastlane permits jwt >= 3.2.0 or the iOS
 #   release tooling no longer depends on Fastlane's jwt 2.x graph
 
