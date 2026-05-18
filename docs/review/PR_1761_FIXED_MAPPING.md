@@ -61,6 +61,18 @@ Evidence: Hardened the Philosophy PR-1 admission contract/checker/schema/tests w
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3254964907 -> 6d404193812286bb9baa406a71678867b77be114
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3254964909 -> 6d404193812286bb9baa406a71678867b77be114
 
+Disposition: FIXED
+Commit: 2370b4e665b2af112343f2c19da59085bf4bbed6
+Evidence: Tightened Philosophy PR-1 admission validation for post-push review findings. Contracted negative SC-G5 label guardrail prose now stays allowed without allowing assertive duplication bypasses, and `future_cache_candidate_deferred_surfaces` rejects positive or boolean cardinality drift while the gate is closed. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`28 passed`) and `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4306492817 -> 2370b4e665b2af112343f2c19da59085bf4bbed6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3255697920 -> 2370b4e665b2af112343f2c19da59085bf4bbed6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3255699587 -> 2370b4e665b2af112343f2c19da59085bf4bbed6
+
+Disposition: NOT-A-BUG
+Evidence: The current PR branch history contains the mapped proof commit. Local command `git merge-base --is-ancestor 6d404193812286bb9baa406a71678867b77be114 HEAD` exited `0`, and `git log --oneline --max-count=5` shows `6d4041938` before `aa83ead17` and the follow-up `2370b4e66` commit.
+Reason: The Codex ancestry warning was based on an older reviewed commit snapshot; current branch head includes the implementation proof SHA, so the mapping is verifiable from this PR history.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3255699585
+
 ## Merge Readiness
 
 - [x] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
