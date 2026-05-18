@@ -426,6 +426,8 @@ ignore if {
 #   not an iOS app binary runtime dependency.
 # Monitor: https://rubygems.org/gems/fastlane/versions/2.234.0
 # Monitor: https://rubygems.org/gems/jwt/versions/3.2.0
+# Monitor: https://avd.aquasec.com/nvd/cve-2026-45363
+# Monitor: https://github.com/advisories/GHSA-c32j-vqhx-rx3x
 # Documented in: docs/security/CVE-2026-45363-jwt-fastlane.md
 # Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363
 # Removal condition: Remove when Fastlane permits jwt >= 3.2.0 or the iOS
