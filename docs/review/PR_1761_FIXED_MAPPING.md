@@ -110,6 +110,13 @@ Evidence: Tightened the final Philosophy PR-1 gate detectors after Cubic/Codex r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4310275053 -> 44b25436d442e9556d0df0c49af2f669784c8887
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259013153 -> 44b25436d442e9556d0df0c49af2f669784c8887
 
+Disposition: FIXED
+Commit: b8f01ee908668b1a9546f554835e2773f1c279d1
+Evidence: Aligned the machine-readable Philosophy PR-1 verification-bundle surface list with the existing prose requirement for paths that write or mutate knowledge records by adding `write_or_mutate_knowledge_records` to the contract state, schema enum/cardinality, checker allowlist, and focused tests. Kept Merge Readiness checkboxes unchecked until the final merge cycle and replaced repeated machine-state deep-copy expressions with `_copy_machine_state()`. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`35 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4310539589 -> b8f01ee908668b1a9546f554835e2773f1c279d1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259244576 -> b8f01ee908668b1a9546f554835e2773f1c279d1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259244587 -> b8f01ee908668b1a9546f554835e2773f1c279d1
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
