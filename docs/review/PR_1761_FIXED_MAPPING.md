@@ -152,6 +152,16 @@ Evidence: Closed the latest Philosophy PR-1 runtime detector gaps without openin
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259651499 -> fde7344bcb8f3d22be131ca0bf793a67d883a588
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259651507 -> fde7344bcb8f3d22be131ca0bf793a67d883a588
 
+Disposition: FIXED
+Commit: a1dd3aa20656ca11670c26912906bae082426692
+Evidence: Closed the downstream Philosophy admission guard gaps from the latest CodeRabbit/Codex pass. The contract machine state, schema enum/cardinality, checker class list, and detector mapping now include all governed forbidden-claim classes, including production-live cache-key behavior, PDF/design gate override, and runtime expansion approval. The schema validator rejects duplicate schema keys and unsupported item constraints even for gate-closed empty lists. The docs Phase 1 gate now applies Philosophy forbidden-claim scanning to downstream `docs/orchestration/` and `docs/roadmap/` markdown while excluding review artifacts, and serving live/open assertions are rejected. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`53 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259741323 -> a1dd3aa20656ca11670c26912906bae082426692
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259741349 -> a1dd3aa20656ca11670c26912906bae082426692
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259741364 -> a1dd3aa20656ca11670c26912906bae082426692
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259768207 -> a1dd3aa20656ca11670c26912906bae082426692
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259768214 -> a1dd3aa20656ca11670c26912906bae082426692
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259768226 -> a1dd3aa20656ca11670c26912906bae082426692
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
