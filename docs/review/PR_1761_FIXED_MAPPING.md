@@ -124,6 +124,20 @@ Evidence: Closed the remaining Philosophy PR-1 Codex validator gaps. The forbidd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259221936 -> 7732dafec1081ea0a815c367dfacdce8ca688e26
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259221944 -> 7732dafec1081ea0a815c367dfacdce8ca688e26
 
+Disposition: FIXED
+Commit: 553c6cd95f9a09a3862cb829607d6be9ccaca351
+Evidence: Closed the final Codex Philosophy PR-1 detector and schema-validator gaps. The checker now rejects live/open path-status claims, passive/modal gate-open claims scoped to Philosophy admission, runtime permission wording scoped to Philosophy admission, non-object governed property schemas, unsupported array and item constraints that would reject the current payload, and the tests cover annotations that remain allowed. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`43 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405748 -> 553c6cd95f9a09a3862cb829607d6be9ccaca351
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405790 -> 553c6cd95f9a09a3862cb829607d6be9ccaca351
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405798 -> 553c6cd95f9a09a3862cb829607d6be9ccaca351
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405806 -> 553c6cd95f9a09a3862cb829607d6be9ccaca351
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405815 -> 553c6cd95f9a09a3862cb829607d6be9ccaca351
+
+Disposition: FIXED
+Commit: 0eae5866b1d175ee30bd28d21293d3b37cdcd5bc
+Evidence: Corrected the previous CodeRabbit follow-up proof SHA from an unreachable typo to the actual branch commit `b8f01ee90c109a541f33da78ae1d7799db0919b5`, so the disposition guard can verify commit-after-comment and trigger-only policy against a reachable object.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405783 -> 0eae5866b1d175ee30bd28d21293d3b37cdcd5bc
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
