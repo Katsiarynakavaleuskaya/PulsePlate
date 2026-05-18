@@ -225,6 +225,22 @@ def test_schema_validator_rejects_duplicate_enum_values() -> None:
     assert "philosophy admission schema enum contains duplicates for blocked_surfaces" in errors
 
 
+def test_schema_validator_rejects_non_object_property_schema() -> None:
+    """Governed property schemas cannot be boolean schemas."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    properties["gate_status"] = True
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert "philosophy admission schema property must be an object for gate_status" in errors
+
+
 def test_schema_validator_rejects_scalar_constraints_excluding_payload() -> None:
     """Const scalar fields cannot gain extra schema constraints that reject payload."""
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -266,6 +282,89 @@ def test_schema_validator_allows_scalar_annotations() -> None:
     )
 
     assert not any("unsupported scalar constraint for gate_status" in error for error in errors)
+
+
+def test_schema_validator_rejects_array_constraints_excluding_payload() -> None:
+    """Array fields cannot gain unsupported constraints that reject current payload."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    references = properties["references"]
+    assert isinstance(references, dict)
+    references["contains"] = {"const": "not-present"}
+    references["minContains"] = 1
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema unsupported array constraint for references: contains"
+        in errors
+    )
+    assert (
+        "philosophy admission schema unsupported array constraint for references: minContains"
+    ) in errors
+
+
+def test_schema_validator_rejects_array_item_constraints_excluding_payload() -> None:
+    """Array item schemas cannot gain constraints that reject current payload values."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    references = properties["references"]
+    assert isinstance(references, dict)
+    items = references["items"]
+    assert isinstance(items, dict)
+    items["const"] = "not-present"
+    items["pattern"] = "^not-present$"
+    items["minLength"] = 99
+    items["format"] = "uri"
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema unsupported array item constraint for references: const"
+    ) in errors
+    assert (
+        "philosophy admission schema unsupported array item constraint for references: format"
+    ) in errors
+    assert (
+        "philosophy admission schema unsupported array item constraint for references: minLength"
+    ) in errors
+    assert (
+        "philosophy admission schema unsupported array item constraint for references: pattern"
+    ) in errors
+
+
+def test_schema_validator_allows_array_annotations() -> None:
+    """Non-validating JSON Schema annotations are allowed on array fields."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    references = properties["references"]
+    assert isinstance(references, dict)
+    items = references["items"]
+    assert isinstance(items, dict)
+    references["description"] = "Reference-only upstream evidence paths."
+    references["$comment"] = "Operator-facing context only."
+    items["description"] = "Reference path value."
+    items["$comment"] = "Operator-facing item context only."
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert not any("unsupported array constraint for references" in error for error in errors)
+    assert not any("unsupported array item constraint for references" in error for error in errors)
 
 
 def test_schema_validator_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
@@ -581,6 +680,10 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the global gate is open for Philosophy PR-1",
         "Philosophy PR-1 admission can open the global gate",
         "Philosophy PR-1 admission may open the global gate",
+        "philosophy admission can open the global gate",
+        "the semantic-cache gate is open for Philosophy admission",
+        "the semantic-cache gate may be opened for Philosophy admission",
+        "the global gate can be opened for Philosophy admission",
     )
 
     for claim in cases:
@@ -626,6 +729,8 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
         "production-live philosophical cache-key behavior",
         "philosophical semantic-cache serving is approved",
         "philosophical semantic-cache paths are approved for serving",
+        "philosophical semantic-cache paths are live",
+        "philosophical semantic-cache paths are open",
     )
 
     for claim in cases:
@@ -706,12 +811,28 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
     """Validator catches affirmative PR-1 runtime expansion claims."""
     cases = (
         ("redis imports are allowed in PR-1", "redis imports allowed in pr-1"),
+        ("redis imports are allowed for Philosophy admission", "redis imports allowed in pr-1"),
         ("GPTCache imports are permitted in PR-1", "gptcache imports allowed in pr-1"),
+        (
+            "GPTCache imports are permitted for Philosophy admission",
+            "gptcache imports allowed in pr-1",
+        ),
         ("embeddings are permitted in PR-1", "embeddings allowed in pr-1"),
+        ("embeddings are permitted for Philosophy admission", "embeddings allowed in pr-1"),
         ("/insight cache wiring is permitted in PR-1", "insight cache wiring allowed in pr-1"),
+        (
+            "/insight cache wiring is permitted for Philosophy admission",
+            "insight cache wiring allowed in pr-1",
+        ),
         ("vector search is permitted in PR-1", "vector search allowed in pr-1"),
+        ("vector search is permitted for Philosophy admission", "vector search allowed in pr-1"),
         ("connection strings are permitted in PR-1", "connection strings allowed in pr-1"),
+        (
+            "connection strings are permitted for Philosophy admission",
+            "connection strings allowed in pr-1",
+        ),
         ("cache adapters are permitted in PR-1", "cache adapters allowed in pr-1"),
+        ("cache adapters are permitted for Philosophy admission", "cache adapters allowed in pr-1"),
     )
 
     for claim, error_label in cases:

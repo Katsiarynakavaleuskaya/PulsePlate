@@ -769,7 +769,12 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy )?pr-1(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy pr-1\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate (?:can|may) be opened "
+            r"for philosophy admission\b"
             r"|\bphilosophy pr-1 admission (?:can|may) open "
+            r"(?:the )?(?:global|semantic[- ]cache) gate\b"
+            r"|\bphilosophy admission (?:can|may) open "
             r"(?:the )?(?:global|semantic[- ]cache) gate\b"
         ),
     ),
@@ -777,6 +782,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "philosophical semantic cache live",
         re.compile(
             r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"
+            r"|\bphilosophical semantic[- ]cache paths? (?:are )?"
+            r"(?:live|active|enabled|open)\b"
             r"|\bproduction[- ]live philosophical cache[- ]key behavior\b"
             r"|\bphilosophical semantic[- ]cache serving (?:is )?approved\b"
             r"|\bphilosophical semantic[- ]cache paths? (?:are )?approved for serving\b"
@@ -800,31 +807,52 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     ),
     (
         "redis imports allowed in pr-1",
-        re.compile(r"\bredis imports? (?:are )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"\bredis imports? (?:are )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "gptcache imports allowed in pr-1",
-        re.compile(r"\bgptcache imports? (?:are )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"\bgptcache imports? (?:are )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "embeddings allowed in pr-1",
-        re.compile(r"\bembeddings? (?:are )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"\bembeddings? (?:are )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "insight cache wiring allowed in pr-1",
-        re.compile(r"(?<!\w)/insight cache wiring (?:is )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"(?<!\w)/insight cache wiring (?:is )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "vector search allowed in pr-1",
-        re.compile(r"\bvector search (?:is )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"\bvector search (?:is )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "connection strings allowed in pr-1",
-        re.compile(r"\bconnection strings? (?:are )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"\bconnection strings? (?:are )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "cache adapters allowed in pr-1",
-        re.compile(r"\bcache adapters? (?:are )?(?:allowed|permitted) in pr-1\b"),
+        re.compile(
+            r"\bcache adapters? (?:are )?(?:allowed|permitted) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
     ),
     (
         "design intake overrides gate markers",
@@ -1764,20 +1792,29 @@ def validate_philosophy_semantic_cache_admission_schema(
         "runtime_allowed",
         "sc_g5_merge_commit",
     }
-    scalar_schema_keys = {
+    schema_annotation_keys = {
         "$comment",
-        "const",
         "default",
         "deprecated",
         "description",
         "examples",
         "readOnly",
         "title",
-        "type",
         "writeOnly",
     }
+    scalar_schema_keys = schema_annotation_keys | {"const", "type"}
+    array_schema_keys = scalar_schema_keys | {
+        "items",
+        "maxItems",
+        "minItems",
+        "uniqueItems",
+    }
+    array_item_schema_keys = schema_annotation_keys | {"enum", "type"}
     for key, spec in properties.items():
-        if not isinstance(spec, dict) or key not in payload:
+        if key not in payload:
+            continue
+        if not isinstance(spec, dict):
+            errors.append(f"philosophy admission schema property must be an object for {key}")
             continue
         if key in const_keys and "const" not in spec:
             errors.append(f"philosophy admission schema const missing for {key}")
@@ -1799,6 +1836,12 @@ def validate_philosophy_semantic_cache_admission_schema(
                 )
         items = spec.get("items")
         if isinstance(payload[key], list):
+            unsupported_array_constraints = sorted(set(spec) - array_schema_keys)
+            for constraint in unsupported_array_constraints:
+                errors.append(
+                    "philosophy admission schema unsupported array constraint for "
+                    f"{key}: {constraint}"
+                )
             if spec.get("type") != "array":
                 errors.append(f"philosophy admission schema array type missing for {key}")
             min_items = spec.get("minItems")
@@ -1834,6 +1877,13 @@ def validate_philosophy_semantic_cache_admission_schema(
                 errors.append(f"philosophy admission schema uniqueItems missing for {key}")
             if not isinstance(items, dict) or items.get("type") != "string":
                 errors.append(f"philosophy admission schema string items missing for {key}")
+            if payload[key] and isinstance(items, dict):
+                unsupported_item_constraints = sorted(set(items) - array_item_schema_keys)
+                for constraint in unsupported_item_constraints:
+                    errors.append(
+                        "philosophy admission schema unsupported array item constraint for "
+                        f"{key}: {constraint}"
+                    )
             if key == "references" and not (
                 isinstance(items, dict) and isinstance(items.get("enum"), list)
             ):
