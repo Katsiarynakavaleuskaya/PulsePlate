@@ -687,6 +687,9 @@ PHILOSOPHY_FORBIDDEN_CLAIM_CLASSES = (
     "claim_class_live_philosophy_cache",
     "claim_class_provider_rollout_approved",
     "claim_class_verification_bundle_skipped",
+    "claim_class_production_live_cache_key_behavior",
+    "claim_class_pdf_design_intake_gate_override",
+    "claim_class_runtime_expansion_approved",
 )
 
 PHILOSOPHY_RUNTIME_ONLY_SURFACES = (
@@ -798,10 +801,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"
             r"|\bphilosophical semantic[- ]cache paths? (?:are )?"
             r"(?:live|active|enabled|open)\b"
-            r"|\bproduction[- ]live philosophical cache[- ]key behavior\b"
-            r"|\bphilosophical semantic[- ]cache serving (?:is )?approved\b"
+            r"|\bphilosophical semantic[- ]cache serving (?:is )?"
+            r"(?:live|active|enabled|open|approved)\b"
             r"|\bphilosophical semantic[- ]cache paths? (?:are )?approved for serving\b"
         ),
+    ),
+    (
+        "production-live philosophical cache-key behavior",
+        re.compile(r"\bproduction[- ]live philosophical cache[- ]key behavior\b"),
     ),
     (
         "redis philosophical cache approved",
@@ -980,10 +987,12 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
         "connection strings allowed in pr-1",
         "cache adapters allowed in pr-1",
     ),
-    "claim_class_verification_bundle_skipped": (
-        "verification bundle optional",
-        "design intake overrides gate markers",
+    "claim_class_runtime_expansion_approved": ("runtime allowed in pr-1",),
+    "claim_class_verification_bundle_skipped": ("verification bundle optional",),
+    "claim_class_production_live_cache_key_behavior": (
+        "production-live philosophical cache-key behavior",
     ),
+    "claim_class_pdf_design_intake_gate_override": ("design intake overrides gate markers",),
 }
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
@@ -1634,7 +1643,8 @@ def _load_philosophy_admission_machine_state(payload_text: str) -> tuple[object,
 def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str]:
     """Return stable validation errors for Philosophy PR-1 admission contracts."""
     errors: list[str] = []
-    normalized = _normalize_text(text)
+    assertion_text = _philosophy_admission_assertion_text(text)
+    normalized = _normalize_text(assertion_text)
 
     for label, pattern in PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS:
         if not pattern.search(normalized):
@@ -1659,13 +1669,42 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
             out_of_order_prefix="philosophy admission contract phase out of order",
         )
     )
-    assertion_text = _philosophy_admission_assertion_text(text)
-    assertion_normalized = _normalize_text(assertion_text)
     errors.extend(_forbidden_claim_errors(assertion_text))
-    errors.extend(_philosophy_admission_forbidden_claim_errors(assertion_normalized))
+    errors.extend(_philosophy_admission_forbidden_claim_errors(normalized))
     errors.extend(_validate_philosophy_admission_machine_state(text))
 
     return errors
+
+
+def validate_philosophy_semantic_cache_admission_downstream_text(text: str) -> list[str]:
+    """Reject Philosophy PR-1 forbidden claims in downstream docs without contract anchors."""
+    assertion_text = _without_philosophy_admission_machine_state_json(text)
+    assertion_normalized = _normalize_text(assertion_text)
+    errors = _forbidden_claim_errors(assertion_text)
+    errors.extend(_philosophy_admission_forbidden_claim_errors(assertion_normalized))
+    return errors
+
+
+def _load_philosophy_admission_schema_json(schema_text: str) -> tuple[object, list[str]]:
+    duplicate_keys: list[str] = []
+
+    def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        parsed: dict[str, object] = {}
+        for key, value in pairs:
+            if key in parsed and key not in duplicate_keys:
+                duplicate_keys.append(key)
+            parsed[key] = value
+        return parsed
+
+    try:
+        schema = json.loads(schema_text, object_pairs_hook=reject_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        return None, [f"philosophy admission schema invalid JSON: {exc.msg}"]
+    if duplicate_keys:
+        return schema, [
+            f"philosophy admission schema duplicate key: {key}" for key in sorted(duplicate_keys)
+        ]
+    return schema, []
 
 
 def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
@@ -1801,10 +1840,9 @@ def validate_philosophy_semantic_cache_admission_schema(
 ) -> list[str]:
     """Validate the Philosophy PR-1 JSON schema against the contract machine state."""
     errors: list[str] = []
-    try:
-        schema = json.loads(schema_text)
-    except json.JSONDecodeError as exc:
-        return [f"philosophy admission schema invalid JSON: {exc.msg}"]
+    schema, parse_errors = _load_philosophy_admission_schema_json(schema_text)
+    if parse_errors:
+        return parse_errors
     if not isinstance(schema, dict):
         return ["philosophy admission schema must be an object"]
     if schema.get("type") != "object":
@@ -1961,7 +1999,7 @@ def validate_philosophy_semantic_cache_admission_schema(
                 errors.append(f"philosophy admission schema uniqueItems missing for {key}")
             if not isinstance(items, dict) or items.get("type") != "string":
                 errors.append(f"philosophy admission schema string items missing for {key}")
-            if payload[key] and isinstance(items, dict):
+            if isinstance(items, dict):
                 unsupported_item_constraints = sorted(set(items) - array_item_schema_keys)
                 for constraint in unsupported_item_constraints:
                     errors.append(

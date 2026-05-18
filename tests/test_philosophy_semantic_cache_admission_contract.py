@@ -4,9 +4,14 @@ import json
 import re
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_docs_phase1_gates as docs_phase1
 from scripts.ci.check_semantic_cache_gate import (
     PHILOSOPHY_ADMISSION_CLASSES,
+    PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS,
+    PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS,
+    PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS,
     PHILOSOPHY_SC_G5_MERGE_SHA,
     PHILOSOPHY_SC_G5_CONTRACT_PATH,
     validate_philosophy_semantic_cache_admission_contract,
@@ -86,6 +91,45 @@ def test_phase1_docs_gate_wires_philosophy_admission_contract() -> None:
     assert errors == []
 
 
+def test_phase1_docs_gate_rejects_downstream_forbidden_philosophy_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Downstream Philosophy docs cannot bypass PR-1 forbidden-claim checks."""
+    relpath = "docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return "## Forbidden Claims\n\nphilosophical semantic-cache is live"
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
+def test_phase1_docs_gate_does_not_scan_review_mapping_for_forbidden_claims(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Review artifacts may quote bot findings without becoming downstream product docs."""
+    relpath = "docs/review/PR_1761_FIXED_MAPPING.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return "philosophical semantic-cache is live"
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
 def test_machine_state_admission_classes_are_complete() -> None:
     state = _machine_state()
     classes = state["admission_classes"]
@@ -101,6 +145,21 @@ def test_machine_state_admission_classes_are_complete() -> None:
     assert "philosophical_outputs_presentation_risk_canonical_facts" in verification_surfaces
     assert "write_or_mutate_knowledge_records" in verification_surfaces
     assert "philosophical_outputs_as_canonical_facts" not in verification_surfaces
+
+
+def test_forbidden_claim_classes_cover_active_detectors() -> None:
+    """Every active Philosophy detector must be owned by a governed claim class."""
+    active_labels = {
+        label
+        for label, _pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS
+        if label not in PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS
+        and not label.startswith("SC-G5 ")
+    }
+    mapped_labels = {
+        label for labels in PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS.values() for label in labels
+    }
+
+    assert active_labels <= mapped_labels
 
 
 def test_upstream_contract_prose_uses_exact_machine_references() -> None:
@@ -217,6 +276,22 @@ def test_schema_validator_allows_root_annotations() -> None:
     )
 
     assert not any("unsupported root constraint" in error for error in errors)
+
+
+def test_schema_validator_rejects_duplicate_schema_keys() -> None:
+    """Raw schema JSON cannot hide a stricter value behind a duplicate key."""
+    mutated_schema = SCHEMA.read_text(encoding="utf-8").replace(
+        '  "type": "object",',
+        '  "type": "array",\n  "type": "object",',
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=mutated_schema,
+        contract_text=_contract_text(),
+    )
+
+    assert "philosophy admission schema duplicate key: type" in errors
 
 
 def test_checker_rejects_duplicate_machine_state_keys() -> None:
@@ -450,6 +525,29 @@ def test_schema_validator_allows_array_annotations() -> None:
 
     assert not any("unsupported array constraint for references" in error for error in errors)
     assert not any("unsupported array item constraint for references" in error for error in errors)
+
+
+def test_schema_validator_rejects_empty_list_item_constraints() -> None:
+    """Empty gate-closed arrays still need item-schema keyword validation."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    deferred = properties["future_cache_candidate_deferred_surfaces"]
+    assert isinstance(deferred, dict)
+    items = deferred["items"]
+    assert isinstance(items, dict)
+    items["pattern"] = ".*"
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema unsupported array item constraint for "
+        "future_cache_candidate_deferred_surfaces: pattern"
+    ) in errors
 
 
 def test_schema_validator_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
@@ -815,16 +913,24 @@ def test_runtime_exclusion_anchors_require_local_negation() -> None:
 def test_forbidden_runtime_live_claim_rejected() -> None:
     """Validator catches a forbidden 'philosophical semantic cache is live' claim."""
     cases = (
-        "philosophical semantic cache is live",
-        "philosophical semantic-cache is live",
-        "production-live philosophical cache-key behavior",
-        "philosophical semantic-cache serving is approved",
-        "philosophical semantic-cache paths are approved for serving",
-        "philosophical semantic-cache paths are live",
-        "philosophical semantic-cache paths are open",
+        ("philosophical semantic cache is live", "philosophical semantic cache live"),
+        ("philosophical semantic-cache is live", "philosophical semantic cache live"),
+        (
+            "production-live philosophical cache-key behavior",
+            "production-live philosophical cache-key behavior",
+        ),
+        ("philosophical semantic-cache serving is approved", "philosophical semantic cache live"),
+        ("philosophical semantic-cache serving is live", "philosophical semantic cache live"),
+        ("philosophical semantic-cache serving is open", "philosophical semantic cache live"),
+        (
+            "philosophical semantic-cache paths are approved for serving",
+            "philosophical semantic cache live",
+        ),
+        ("philosophical semantic-cache paths are live", "philosophical semantic cache live"),
+        ("philosophical semantic-cache paths are open", "philosophical semantic cache live"),
     )
 
-    for claim in cases:
+    for claim, error_label in cases:
         mutated = _contract_text().replace(
             "gate remains closed",
             f"gate remains closed\n\n{claim}",
@@ -833,7 +939,7 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
 
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
-        assert any("forbidden" in e and "philosophical semantic cache live" in e for e in errors)
+        assert any("forbidden" in e and error_label in e for e in errors)
 
 
 def test_forbidden_claim_after_machine_state_json_rejected() -> None:

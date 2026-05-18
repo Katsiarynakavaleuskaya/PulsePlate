@@ -22,6 +22,7 @@ try:
     from scripts.ci.check_semantic_cache_gate import (
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
         validate_philosophy_semantic_cache_admission_contract as _validate_philosophy_admission_contract,
+        validate_philosophy_semantic_cache_admission_downstream_text as _validate_philosophy_admission_downstream_text,
         validate_philosophy_semantic_cache_admission_schema as _validate_philosophy_admission_schema,
         validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
         validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
@@ -34,6 +35,7 @@ except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
         validate_philosophy_semantic_cache_admission_contract as _validate_philosophy_admission_contract,
+        validate_philosophy_semantic_cache_admission_downstream_text as _validate_philosophy_admission_downstream_text,
         validate_philosophy_semantic_cache_admission_schema as _validate_philosophy_admission_schema,
         validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
         validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
@@ -63,6 +65,10 @@ PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC = (
 )
 PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json"
+)
+PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES = (
+    "docs/orchestration/",
+    "docs/roadmap/",
 )
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
@@ -115,6 +121,10 @@ def _load_philosophy_admission_contract_validator() -> SemanticCacheGateValidato
     return _as_semantic_cache_gate_validator(_validate_philosophy_admission_contract)
 
 
+def _load_philosophy_admission_downstream_validator() -> SemanticCacheGateValidator:
+    return _as_semantic_cache_gate_validator(_validate_philosophy_admission_downstream_text)
+
+
 def _load_philosophy_admission_schema_validator() -> ContractSchemaValidator:
     return _as_contract_schema_validator(
         _validate_philosophy_admission_schema,
@@ -135,6 +145,14 @@ def _is_security_or_audit_path(relpath: str) -> bool:
     ) and relpath.endswith(".md")
 
 
+def _is_philosophy_downstream_doc_path(relpath: str) -> bool:
+    return (
+        relpath.endswith(".md")
+        and relpath != PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC
+        and any(relpath.startswith(prefix) for prefix in PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES)
+    )
+
+
 def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
     errors: list[str] = []
     for relpath in markdown_files:
@@ -153,6 +171,14 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
             errors.append(
                 f"{relpath}: missing `file:line` evidence anchor "
                 "(example: `tests/test_repo_policy_guards.py:264`)."
+            )
+
+        if _is_philosophy_downstream_doc_path(relpath):
+            validate_philosophy_admission_downstream = (
+                _load_philosophy_admission_downstream_validator()
+            )
+            errors.extend(
+                f"{relpath}: {error}" for error in validate_philosophy_admission_downstream(content)
             )
 
         if relpath == SEMANTIC_CACHE_GATE_DOC:

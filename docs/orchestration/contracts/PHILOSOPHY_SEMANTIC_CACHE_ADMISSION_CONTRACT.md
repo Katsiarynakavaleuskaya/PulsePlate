@@ -126,6 +126,7 @@ PR-1 and downstream docs must not claim:
 - any approved Redis/GPTCache rollout for philosophical cache paths;
 - any production-live philosophical cache-key behavior;
 - any skipped verification-bundle requirement for cache admission;
+- any approved/enabled runtime expansion for Philosophy admission or PR-1;
 - PDF/design intake overrides repo gate markers.
 
 If PR #1742 is ever superseded or its canonical merge SHA changes, update this
@@ -170,7 +171,10 @@ contract, its JSON schema, `scripts/ci/check_semantic_cache_gate.py`, and
     "claim_class_gate_open_equivalence",
     "claim_class_live_philosophy_cache",
     "claim_class_provider_rollout_approved",
-    "claim_class_verification_bundle_skipped"
+    "claim_class_verification_bundle_skipped",
+    "claim_class_production_live_cache_key_behavior",
+    "claim_class_pdf_design_intake_gate_override",
+    "claim_class_runtime_expansion_approved"
   ],
   "gate_status": "closed",
   "implementation_allowed": false,
