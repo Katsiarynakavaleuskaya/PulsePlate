@@ -1,0 +1,119 @@
+<!-- markdownlint-disable MD013 MD034 -->
+# PR 1766 Fixed In Commit Mapping
+
+- PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766>
+- Branch: `codex/security-jwt-cve-2026-45363`
+- Title: `fix(security): scope jwt CVE suppression`
+- Implementing commit: `9df304969f34712868223eadd75151206ecf07fb`
+- Scope: Trivy suppression governance for Ruby `jwt` CVE-2026-45363 in
+  `ios/Gemfile.lock` release tooling only. No `.trivyignore`, lockfile,
+  workflow, runtime backend, frontend, OpenAPI, iOS app binary, auth, billing,
+  quota, or deployment behavior changed.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Initial post-open governance pass found no actionable human review threads.
+External CodeRabbit, Sourcery, and Cubic reviews remain merge-blocking until
+their current-head statuses are terminal and reviewed.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Role-Agent Findings
+
+Disposition: FIXED
+Commit: 9df304969f34712868223eadd75151206ecf07fb
+Evidence: `bug-hunter` found that a CVE-only `.trivyignore` entry would be too
+broad. The PR does not modify `.trivyignore`; `trivy/ignore-policy.rego` now
+scopes the suppression to CVE-2026-45363, package `jwt`, installed version
+`2.10.2`, fixed version `3.2.0`, `PkgID` prefix `jwt@2.10.2`, and `PkgPath`
+matching `ios/Gemfile.lock`.
+
+Disposition: FIXED
+Commit: 9df304969f34712868223eadd75151206ecf07fb
+Evidence: `security-auditor` required temporary risk acceptance to remain
+documented and removable. `docs/security/CVE-2026-45363-jwt-fastlane.md`
+records the resolver blocker, release-tooling risk, monitor links, review
+target, and removal condition; `docs/roadmap/BACKLOG_LEDGER.md` tracks the
+follow-up removal DoD.
+
+Disposition: NOT-A-BUG
+Evidence: `app-store-release-agent` confirmed that this dependency is release
+tooling, not iOS app binary runtime, and that local validation should not claim
+protected App Store upload success.
+Reason: The PR body and security note explicitly limit local Fastlane evidence
+to no-auth metadata validation.
+
+Disposition: NOT-A-BUG
+Evidence: Codex Security diff-focused scan found no new reportable finding in
+the diff. Artifact:
+`/tmp/codex-security-scans/BMI-App_2025_clean/jwt_cve_2026_45363_20260518T200205Z/report.md`.
+Reason: The patch adds no executable runtime code, no secrets, no auth/network
+path, and no global suppression.
+
+Disposition: FIXED
+Commit: 9df304969f34712868223eadd75151206ecf07fb
+Evidence: `pulseplate-premortem-risk-review` identified broad suppression and
+stale risk acceptance as the likely failure modes. The Rego rule is path and
+version scoped, the policy file keeps the shared 2026-05-27 expiry, and the
+ledger entry requires removal once Fastlane permits `jwt >= 3.2.0` or the
+release tooling no longer depends on Fastlane's `jwt` 2.x graph.
+
+## Bot Review Notes
+
+- CodeRabbit: pending current-head terminal review.
+- Sourcery: pending current-head terminal review.
+- Cubic: pending current-head terminal review.
+
+## Local Validation
+
+- `.venv/bin/python scripts/orchestration/check_preflight.py` - PASS.
+- `.venv/bin/python scripts/orchestration/check_agent_consistency.py` - PASS.
+- `.venv/bin/python scripts/ci/check_trivy_ignore_policy_expiry.py` - PASS.
+- `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-45363-jwt-fastlane.md docs/roadmap/BACKLOG_LEDGER.md` - PASS.
+- `cd ios && bundle check` - PASS.
+- `cd ios && bundle exec fastlane validate_metadata_package` - PASS.
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; no Python files changed.
+- `pre-commit run --all-files` - PASS.
+- Pre-push hook PASS: pip-audit, backend pre-push tests, and full-repo Bandit.
+
+### Machine-heavy / operator-approved narrow gate
+
+- Full local `make verify` is deferred per the operator-approved machine-safe
+  policy and root `AGENTS.md` machine-heavy PR exception. This PR uses focused
+  local gates plus current-head GitHub CI as the heavy matrix/security signal.
+
+## Security Notes
+
+- This is temporary release-tooling risk acceptance, not a full vulnerability
+  remediation.
+- The suppression must be removed once Fastlane permits `jwt >= 3.2.0` or iOS
+  release tooling no longer depends on the Fastlane `jwt` 2.x graph.
+- Current-head Trivy/GitHub Code Scanning evidence is required before any
+  merge-ready claim.
+
+## Risks / Rollback
+
+- Risk: Trivy policy input does not populate `PkgPath` for Bundler findings,
+  leaving alert #594 open. This should fail current-head security-scan rather
+  than silently over-suppress.
+- Rollback: revert implementing commit `9df304969f34712868223eadd75151206ecf07fb`
+  and this mapping artifact commit; no runtime behavior changed.
+
+## Merge Readiness
+
+- [x] Pre-flight + agent consistency: PASS.
+- [x] Canonical artifact: this file (`docs/review/PR_1766_FIXED_MAPPING.md`).
+- [ ] PR body mirror: pending update after this artifact lands.
+- [ ] Current-head CI: pending terminal current-head checks.
+- [ ] Bot summaries reviewed (CodeRabbit / Sourcery / Cubic): pending terminal statuses.
+- [ ] Strict review-thread disposition: pending `check_review_threads_disposition.py --require-auth`.
+- [ ] Strict merge readiness: pending `check_merge_ready.py --require-auth`.
+
+## Deferred / Follow-ups
+
+- `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363`
