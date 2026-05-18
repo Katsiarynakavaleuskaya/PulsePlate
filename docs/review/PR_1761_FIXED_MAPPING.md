@@ -145,6 +145,13 @@ Evidence: Closed the final governed-schema parity gaps. The Philosophy admission
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259482244 -> 59857122af79e98bdd9f50f0e0e0887e613e4166
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259482250 -> 59857122af79e98bdd9f50f0e0e0887e613e4166
 
+Disposition: FIXED
+Commit: fde7344bcb8f3d22be131ca0bf793a67d883a588
+Evidence: Closed the latest Philosophy PR-1 runtime detector gaps without opening the semantic-cache gate or touching runtime/provider/OpenAPI/client surfaces. The checker now requires Runtime-Only Default anchors in the runtime section, rejects intransitive and passive/past gate-open claims, rejects approved/enabled provider and runtime-permission claims for Philosophy admission, covers singular import/adaptor spellings, preserves negated guardrail wording, and keeps the patch checker/test-only. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`48 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259651493 -> fde7344bcb8f3d22be131ca0bf793a67d883a588
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259651499 -> fde7344bcb8f3d22be131ca0bf793a67d883a588
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259651507 -> fde7344bcb8f3d22be131ca0bf793a67d883a588
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
