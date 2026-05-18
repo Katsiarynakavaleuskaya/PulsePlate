@@ -15,13 +15,16 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Initial post-open governance pass found no actionable human review threads.
-External CodeRabbit, Sourcery, and Cubic reviews remain merge-blocking until
-their current-head statuses are terminal and reviewed.
+Initial post-open governance pass found one actionable CodeRabbit review thread,
+fixed and mapped below. External CodeRabbit, Sourcery, and Cubic reviews remain
+merge-blocking until their current-head statuses are terminal and reviewed.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: dd24159e3a6f099b6f7334098baae275e65459c7
+Evidence: CodeRabbit found that the new Trivy suppression block referenced Fastlane and jwt version pages but lacked a direct CVE tracker URL. The suppression block now includes `https://avd.aquasec.com/nvd/cve-2026-45363` and `https://github.com/advisories/GHSA-c32j-vqhx-rx3x`; the security note and ledger also link GitHub Dependabot alert #142 for the same `jwt` / `ios/Gemfile.lock` advisory.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#discussion_r3261793183 -> dd24159e3a6f099b6f7334098baae275e65459c7
 
 ## Role-Agent Findings
 
@@ -65,7 +68,9 @@ release tooling no longer depends on Fastlane's `jwt` 2.x graph.
 
 ## Bot Review Notes
 
-- CodeRabbit: pending current-head terminal review.
+- CodeRabbit: one actionable thread fixed in
+  `dd24159e3a6f099b6f7334098baae275e65459c7`; pending current-head terminal
+  review after latest push.
 - Sourcery: pending current-head terminal review.
 - Cubic: pending current-head terminal review.
 
