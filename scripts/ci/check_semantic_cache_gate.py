@@ -700,6 +700,7 @@ PHILOSOPHY_VERIFICATION_BUNDLE_REQUIRED_SURFACES = (
     "semantic_cache_admission_decisions",
     "recursive_retrieval_verification_merges",
     "philosophical_outputs_presentation_risk_canonical_facts",
+    "write_or_mutate_knowledge_records",
 )
 
 PHILOSOPHY_FUTURE_CACHE_CANDIDATE_DEFERRED_SURFACES: tuple[str, ...] = ()

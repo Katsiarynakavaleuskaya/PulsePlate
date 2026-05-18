@@ -112,11 +112,11 @@ Evidence: Tightened the final Philosophy PR-1 gate detectors after Cubic/Codex r
 
 ## Merge Readiness
 
-- [x] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
-- [x] `docs/review/PR_1761_FIXED_MAPPING.md` created with canonical URL→SHA format
-- [x] All premortem findings dispositioned (FIXED/NOT-A-BUG/DEFERRED)
-- [x] All code-review findings dispositioned
-- [x] All bot-review findings dispositioned (Sourcery/CodeRabbit/Cubic)
+- [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
+- [ ] `docs/review/PR_1761_FIXED_MAPPING.md` created with canonical URL→SHA format
+- [ ] All premortem findings dispositioned (FIXED/NOT-A-BUG/DEFERRED)
+- [ ] All code-review findings dispositioned
+- [ ] All bot-review findings dispositioned (Sourcery/CodeRabbit/Cubic)
 - [ ] Canonical CI current-head parity before merge-ready claim
 - [ ] No semantic-cache gate markers changed to open
 - [ ] Mandatory wait-window elapsed after latest review activity

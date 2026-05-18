@@ -192,7 +192,8 @@ contract, its JSON schema, `scripts/ci/check_semantic_cache_gate.py`, and
     "knowledge_promotion_decisions",
     "semantic_cache_admission_decisions",
     "recursive_retrieval_verification_merges",
-    "philosophical_outputs_presentation_risk_canonical_facts"
+    "philosophical_outputs_presentation_risk_canonical_facts",
+    "write_or_mutate_knowledge_records"
   ],
   "future_cache_candidate_deferred_surfaces": []
 }

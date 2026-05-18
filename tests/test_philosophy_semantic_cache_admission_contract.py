@@ -54,6 +54,10 @@ def _contract_text_with_state(state: dict[str, object]) -> str:
     return text[:payload_start] + json.dumps(state, indent=2) + text[payload_end:]
 
 
+def _copy_machine_state() -> dict[str, object]:
+    return json.loads(json.dumps(_machine_state()))
+
+
 def test_contract_exists_and_keeps_gate_closed() -> None:
     text = _contract_text().lower()
 
@@ -95,6 +99,7 @@ def test_machine_state_admission_classes_are_complete() -> None:
     verification_surfaces = state["verification_bundle_required_surfaces"]
     assert isinstance(verification_surfaces, list)
     assert "philosophical_outputs_presentation_risk_canonical_facts" in verification_surfaces
+    assert "write_or_mutate_knowledge_records" in verification_surfaces
     assert "philosophical_outputs_as_canonical_facts" not in verification_surfaces
 
 
@@ -268,7 +273,7 @@ def test_schema_validator_rejects_boolean_deferred_candidate_cardinality() -> No
 
 def test_checker_rejects_duplicate_machine_state_lists() -> None:
     """Machine-state lists must stay duplicate-free, including references."""
-    state = json.loads(json.dumps(_machine_state()))
+    state = _copy_machine_state()
     blocked = state["blocked_surfaces"]
     references = state["references"]
     assert isinstance(blocked, list)
@@ -284,7 +289,7 @@ def test_checker_rejects_duplicate_machine_state_lists() -> None:
 
 def test_checker_rejects_non_string_machine_state_lists() -> None:
     """Machine-state lists must contain only strings."""
-    state = json.loads(json.dumps(_machine_state()))
+    state = _copy_machine_state()
     references = state["references"]
     runtime_only = state["runtime_only_surfaces"]
     assert isinstance(references, list)
@@ -300,7 +305,7 @@ def test_checker_rejects_non_string_machine_state_lists() -> None:
 
 def test_checker_rejects_unallowlisted_runtime_adapter_references() -> None:
     """Closed-gate references cannot smuggle provider/cache adapter surfaces."""
-    state = json.loads(json.dumps(_machine_state()))
+    state = _copy_machine_state()
     references = state["references"]
     assert isinstance(references, list)
     references.append("providers/semantic_cache/runtime_adapter.py")
@@ -333,7 +338,7 @@ def test_schema_validator_requires_references_exact_enum() -> None:
 
 def test_checker_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
     """The closed gate cannot name future cache candidates yet."""
-    state = json.loads(json.dumps(_machine_state()))
+    state = _copy_machine_state()
     state["future_cache_candidate_deferred_surfaces"] = ["meaning_as_use_cache_key_enrichment"]
 
     errors = validate_philosophy_semantic_cache_admission_contract(_contract_text_with_state(state))

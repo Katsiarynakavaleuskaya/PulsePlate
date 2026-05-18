@@ -130,8 +130,8 @@
     },
     "verification_bundle_required_surfaces": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 5,
+      "maxItems": 5,
       "uniqueItems": true,
       "items": {
         "type": "string",
@@ -139,7 +139,8 @@
           "knowledge_promotion_decisions",
           "semantic_cache_admission_decisions",
           "recursive_retrieval_verification_merges",
-          "philosophical_outputs_presentation_risk_canonical_facts"
+          "philosophical_outputs_presentation_risk_canonical_facts",
+          "write_or_mutate_knowledge_records"
         ]
       }
     },
