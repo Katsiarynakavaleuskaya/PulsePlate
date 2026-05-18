@@ -120,6 +120,32 @@ def test_phase1_docs_gate_rejects_downstream_forbidden_philosophy_claim(
     ) in errors
 
 
+def test_phase1_docs_gate_scans_downstream_machine_state_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Downstream docs cannot hide Philosophy claims in machine-state JSON."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Machine-Readable State\n\n"
+                "```json\n"
+                '{"claim": "philosophical semantic-cache is live"}\n'
+                "```"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
 def test_phase1_docs_gate_does_not_scan_review_mapping_for_forbidden_claims(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1140,6 +1166,10 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "redis philosophical cache approved",
         ),
         (
+            "Philosophy admission approves Redis rollout for philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
             "Not only approved Redis rollout for philosophical cache paths.",
             "redis philosophical cache approved",
         ),
@@ -1200,6 +1230,14 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "gptcache philosophical cache approved",
         ),
         (
+            "PR-1 enables GPTCache rollout for philosophical semantic-cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "PR-1 authorizes GPTCache rollout for philosophical semantic-cache paths.",
+            "gptcache philosophical cache approved",
+        ),
+        (
             "Not only enabled GPTCache rollout for philosophical semantic-cache paths.",
             "gptcache philosophical cache approved",
         ),
@@ -1225,6 +1263,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("redis imports are approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are enabled for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis import is approved for Philosophy admission", "redis imports allowed in pr-1"),
+        ("Philosophy admission approves Redis imports", "redis imports allowed in pr-1"),
+        ("Philosophy admission authorizes Redis imports.", "redis imports allowed in pr-1"),
         ("GPTCache imports are permitted in PR-1", "gptcache imports allowed in pr-1"),
         (
             "GPTCache imports are permitted for Philosophy admission",
@@ -1242,6 +1282,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("embeddings are permitted for Philosophy admission", "embeddings allowed in pr-1"),
         ("embeddings are approved for Philosophy admission", "embeddings allowed in pr-1"),
         ("embedding is approved for Philosophy admission", "embeddings allowed in pr-1"),
+        ("PR-1 enables embeddings", "embeddings allowed in pr-1"),
+        ("PR-1 authorizes embeddings.", "embeddings allowed in pr-1"),
         ("/insight cache wiring is permitted in PR-1", "insight cache wiring allowed in pr-1"),
         (
             "/insight cache wiring is permitted for Philosophy admission",
@@ -1254,6 +1296,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("vector search is permitted in PR-1", "vector search allowed in pr-1"),
         ("vector search is permitted for Philosophy admission", "vector search allowed in pr-1"),
         ("vector search is enabled for Philosophy admission", "vector search allowed in pr-1"),
+        ("PR-1 allows vector search", "vector search allowed in pr-1"),
         ("connection strings are permitted in PR-1", "connection strings allowed in pr-1"),
         (
             "connection strings are permitted for Philosophy admission",
@@ -1280,6 +1323,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime permissions are approved for Philosophy admission", "runtime allowed in pr-1"),
+        ("PR-1 enables runtime permissions", "runtime allowed in pr-1"),
+        ("Philosophy admission enables runtime permissions", "runtime allowed in pr-1"),
         ("Philosophy admission approves runtime expansion", "runtime allowed in pr-1"),
         ("PR-1 approves runtime expansion for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime expansion is approved for Philosophy admission", "runtime allowed in pr-1"),
@@ -1420,7 +1466,11 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy admission authorizes backend selection.",
         "Philosophy admission authorizes serving.",
         "Philosophy admission approves semantic-cache serving.",
+        "Philosophy PR-1 enables semantic-cache serving.",
         "Philosophy admission enables backend selection and serving.",
+        "backend selection is approved for Philosophy admission.",
+        "Philosophy admission performs backend selection.",
+        "Philosophy admission selects a backend for serving.",
         "backend selection is authorized by Philosophy admission.",
         "serving is authorized by Philosophy admission.",
     )

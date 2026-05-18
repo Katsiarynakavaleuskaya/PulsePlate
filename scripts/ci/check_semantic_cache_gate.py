@@ -839,6 +839,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "redis philosophical cache approved",
         re.compile(
             r"\bredis philosophical cache (?:is )?(?:approved|enabled)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) redis rollout "
+            r"for (?:the )?philosophical (?:semantic[- ]cache|cache) paths?\b"
             r"|\bredis(?: rollout)? "
             r"(?:is |is not (?:only|just|merely|simply|solely|exclusively) |"
             r"isn't (?:only|just|merely|simply|solely|exclusively) )?"
@@ -858,6 +861,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "gptcache philosophical cache approved",
         re.compile(
             r"\bgptcache philosophical cache (?:is )?(?:approved|enabled)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) gptcache rollout "
+            r"for (?:the )?philosophical (?:semantic[- ]cache|cache) paths?\b"
             r"|\bgptcache(?: rollout)? "
             r"(?:is |is not (?:only|just|merely|simply|solely|exclusively) |"
             r"isn't (?:only|just|merely|simply|solely|exclusively) )?"
@@ -878,6 +884,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bredis imports? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) redis imports?\b"
         ),
     ),
     (
@@ -885,6 +893,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bgptcache imports? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) gptcache imports?\b"
         ),
     ),
     (
@@ -892,6 +902,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bembeddings? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) embeddings?\b"
         ),
     ),
     (
@@ -900,6 +912,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?<!\w)/insight cache wiring (?:is )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) (?<!\w)/insight cache wiring\b"
         ),
     ),
     (
@@ -907,6 +921,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bvector search (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) vector search\b"
         ),
     ),
     (
@@ -915,6 +931,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"\bconnection strings? (?:(?:are|is) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) connection strings?\b"
         ),
     ),
     (
@@ -923,19 +941,21 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"\bcache adapt(?:er|or)s? (?:(?:are|is) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) cache adapt(?:er|or)s?\b"
         ),
     ),
     (
         "runtime allowed in pr-1",
         re.compile(
-            r"\bruntime(?: behavior|[- ]expansion| paths?)? "
+            r"\bruntime(?: behavior|[- ]expansion| paths?| permissions?)? "
             r"(?:(?:are|is) |(?:are|is) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
-            r"|\b(?:philosophy admission|pr-1) "
-            r"(?:approves|allows|permits|enables) runtime[- ]expansion"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables) runtime(?:[- ]expansion| permissions?)"
             r"(?: for philosophy admission)?\b"
         ),
     ),
@@ -962,8 +982,13 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "backend selection authorized by philosophy admission",
         re.compile(
             r"\bphilosophy admission replaces sc-g2-sc-g5 contracts\b"
-            r"|\bphilosophy admission (?:authorizes|approves|enables|permits) "
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|enables|permits) "
             r"(?:backend selection|serving|semantic[- ]cache serving|backend selection and serving)\b"
+            r"|\bbackend selection (?:is|are) (?:authorized|approved|enabled|permitted) "
+            r"for philosophy admission\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:performs backend selection|selects (?:a )?backend for serving)\b"
             r"|\b(?:backend selection|serving) (?:is|are) authorized by philosophy admission\b"
         ),
     ),
@@ -1808,9 +1833,8 @@ def _strip_forbidden_claims_line_prefixes(line: str) -> tuple[str, bool]:
 
 def validate_philosophy_semantic_cache_admission_downstream_text(text: str) -> list[str]:
     """Reject Philosophy PR-1 forbidden claims in downstream docs without contract anchors."""
-    assertion_text = _without_philosophy_admission_machine_state_json(text)
-    assertion_normalized = _normalize_text(assertion_text)
-    errors = _forbidden_claim_errors(assertion_text)
+    assertion_normalized = _normalize_text(text)
+    errors = _forbidden_claim_errors(text)
     errors.extend(_philosophy_admission_forbidden_claim_errors(assertion_normalized))
     return errors
 
