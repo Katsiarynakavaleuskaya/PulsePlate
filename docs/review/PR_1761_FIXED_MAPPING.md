@@ -117,6 +117,13 @@ Evidence: Aligned the machine-readable Philosophy PR-1 verification-bundle surfa
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259244576 -> b8f01ee908668b1a9546f554835e2773f1c279d1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259244587 -> b8f01ee908668b1a9546f554835e2773f1c279d1
 
+Disposition: FIXED
+Commit: 7732dafec1081ea0a815c367dfacdce8ca688e26
+Evidence: Closed the remaining Philosophy PR-1 Codex validator gaps. The forbidden-claim scanner now exempts only the fenced machine-state JSON payload and continues scanning prose after that JSON block; the schema validator rejects payload-excluding scalar constraints while allowing non-validating JSON Schema annotations; and enum-backed list schemas now reject duplicate enum values. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`39 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259221928 -> 7732dafec1081ea0a815c367dfacdce8ca688e26
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259221936 -> 7732dafec1081ea0a815c367dfacdce8ca688e26
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259221944 -> 7732dafec1081ea0a815c367dfacdce8ca688e26
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
