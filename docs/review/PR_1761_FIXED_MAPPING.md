@@ -185,6 +185,15 @@ Evidence: Closed the latest Codex admission-boundary gaps while preserving the g
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260560142 -> 5bacf711ca35f4758df282d0591a004b3619ac05
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260560150 -> 5bacf711ca35f4758df282d0591a004b3619ac05
 
+Disposition: FIXED
+Commit: dc24cd2f0ad38ff058a4fd96857d2b27b0e9071f
+Evidence: Closed the newest Codex subject-order bypasses while keeping the Philosophy admission lane gate-closed. Downstream docs now scan machine-state JSON for Philosophy forbidden claims; the checker rejects subject-first runtime permission claims, direct backend-selection claims, subject-first Redis/GPTCache rollout approvals, and PR-1 / Philosophy PR-1 semantic-cache serving authorization claims. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`58 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, `pre-commit run --all-files`, bug-hunter PASS, QA PASS, architecture PASS, and diff-scoped Codex Security PASS.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260821429 -> dc24cd2f0ad38ff058a4fd96857d2b27b0e9071f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260821435 -> dc24cd2f0ad38ff058a4fd96857d2b27b0e9071f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260821440 -> dc24cd2f0ad38ff058a4fd96857d2b27b0e9071f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260821445 -> dc24cd2f0ad38ff058a4fd96857d2b27b0e9071f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260821447 -> dc24cd2f0ad38ff058a4fd96857d2b27b0e9071f
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
