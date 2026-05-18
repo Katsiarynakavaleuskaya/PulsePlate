@@ -616,7 +616,12 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
     ("SC-G5 opens gate", re.compile(r"\bsc-g5\s+opens\s+(?:the\s+)?gate\b")),
     (
         "backend selected for serving",
-        re.compile(r"\bbackend\s+(?:is\s+)?selected\s+for\s+serving\b"),
+        re.compile(
+            r"\bbackend\s+(?:is\s+)?selected\s+for\s+serving\b"
+            r"|\bbackend selection (?:is )?(?:authorized|approved) for serving\b"
+            r"|\bserving backend selection (?:is )?(?:authorized|approved)\b"
+            r"|\bselected backend (?:is )?(?:authorized|approved) for serving\b"
+        ),
     ),
     (
         "backend active",
@@ -624,7 +629,10 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
     ),
     (
         "semantic cache serving ready",
-        re.compile(r"\bsemantic(?:-| )cache\s+serving\s+(?:is\s+)?(?:ready|active|enabled|live)\b"),
+        re.compile(
+            r"\bsemantic(?:-| )cache\s+serving\s+(?:is\s+)?"
+            r"(?:ready|active|enabled|live|authorized)\b"
+        ),
     ),
     (
         "Redis approved",
@@ -941,7 +949,22 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"\bverification[- ]bundles? (?:are )?optional for cache\b"
             r"|\bverification[- ]bundle requirements? (?:is|are|may be|can be) skipped "
             r"for cache admission\b"
+            r"|\bverification[- ]bundles? (?:(?:is|are) )?not required "
+            r"for cache admission\b"
+            r"|\bverification[- ]bundles? (?:(?:may be|can be|is|are) )?omitted "
+            r"for cache admission\b"
+            r"|\bverification[- ]bundle requirements? (?:(?:may be|can be|is|are) )?"
+            r"omitted for cache admission\b"
             r"|\bskipped verification[- ]bundle requirements? for cache admission\b"
+        ),
+    ),
+    (
+        "backend selection authorized by philosophy admission",
+        re.compile(
+            r"\bphilosophy admission replaces sc-g2-sc-g5 contracts\b"
+            r"|\bphilosophy admission (?:authorizes|approves|enables|permits) "
+            r"(?:backend selection|serving|semantic[- ]cache serving|backend selection and serving)\b"
+            r"|\b(?:backend selection|serving) (?:is|are) authorized by philosophy admission\b"
         ),
     ),
     (
@@ -1034,7 +1057,10 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
         "connection strings allowed in pr-1",
         "cache adapters allowed in pr-1",
     ),
-    "claim_class_runtime_expansion_approved": ("runtime allowed in pr-1",),
+    "claim_class_runtime_expansion_approved": (
+        "runtime allowed in pr-1",
+        "backend selection authorized by philosophy admission",
+    ),
     "claim_class_verification_bundle_skipped": ("verification bundle optional",),
     "claim_class_production_live_cache_key_behavior": (
         "production-live philosophical cache-key behavior",

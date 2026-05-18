@@ -16,6 +16,7 @@ from scripts.ci.check_semantic_cache_gate import (
     PHILOSOPHY_SC_G5_CONTRACT_PATH,
     validate_philosophy_semantic_cache_admission_contract,
     validate_philosophy_semantic_cache_admission_schema,
+    validate_semantic_cache_backend_selection_contract,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +28,13 @@ CONTRACT = (
     / "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
 )
 SCHEMA = CONTRACT.with_suffix(".schema.json")
+BACKEND_SELECTION_CONTRACT = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md"
+)
 REL_CONTRACT = "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
 
 
@@ -95,7 +103,7 @@ def test_phase1_docs_gate_rejects_downstream_forbidden_philosophy_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Downstream Philosophy docs cannot bypass PR-1 forbidden-claim checks."""
-    relpath = "docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md"
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
 
     def fake_read_text(path: str) -> str:
         if path == relpath:
@@ -1376,6 +1384,12 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
     """Validator catches a forbidden 'verification bundles optional for cache' claim."""
     cases = (
         "verification bundles are optional for cache",
+        "verification bundles are not required for cache admission",
+        "verification bundle is not required for cache admission",
+        "verification bundles may be omitted for cache admission",
+        "verification bundles can be omitted for cache admission",
+        "verification bundles are omitted for cache admission",
+        "verification-bundle requirements may be omitted for cache admission",
         "verification bundle requirement is skipped for cache admission",
         "verification-bundle requirement may be skipped for cache admission",
         "verification-bundle requirement can be skipped for cache admission",
@@ -1396,6 +1410,50 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and "verification bundle optional" in e for e in errors)
+
+
+def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
+    """Philosophy admission cannot authorize backend selection or serving."""
+    cases = (
+        "Philosophy admission replaces SC-G2-SC-G5 contracts and authorizes backend selection "
+        "and serving.",
+        "Philosophy admission authorizes backend selection.",
+        "Philosophy admission authorizes serving.",
+        "Philosophy admission approves semantic-cache serving.",
+        "Philosophy admission enables backend selection and serving.",
+        "backend selection is authorized by Philosophy admission.",
+        "serving is authorized by Philosophy admission.",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any(
+            "forbidden" in e and "backend selection authorized by philosophy admission" in e
+            for e in errors
+        )
+
+
+def test_backend_selection_contract_rejects_authorization_for_serving_claims() -> None:
+    """SC-G5 backend-selection contract cannot authorize serving while closed."""
+    base_text = BACKEND_SELECTION_CONTRACT.read_text(encoding="utf-8")
+    cases = (
+        ("backend selection is authorized for serving", "backend selected for serving"),
+        ("serving backend selection is authorized", "backend selected for serving"),
+        ("selected backend is authorized for serving", "backend selected for serving"),
+        ("semantic cache serving is authorized", "semantic cache serving ready"),
+    )
+
+    for claim, error_label in cases:
+        errors = validate_semantic_cache_backend_selection_contract(f"{base_text}\n\n{claim}")
+
+        assert any("forbidden" in e and error_label in e for e in errors)
 
 
 def test_forbidden_design_intake_override_claim_rejected() -> None:
