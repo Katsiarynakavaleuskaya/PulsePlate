@@ -102,6 +102,14 @@ Evidence: Closed the follow-up Philosophy PR-1 detector gaps from the latest Cod
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3258841136 -> 01d7816295ef8f4b3048e8e01997db201ec487d4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3258841142 -> 01d7816295ef8f4b3048e8e01997db201ec487d4
 
+Disposition: FIXED
+Commit: 44b25436d442e9556d0df0c49af2f669784c8887
+Evidence: Tightened the final Philosophy PR-1 gate detectors after Cubic/Codex review. Runtime-exclusion anchors now require explicit local no/blocked wording for vector search, connection strings, and cache adapters; the contract prose mirrors that local-negation shape; and the gate-open detector rejects passive/modal semantic-cache and global-gate claims. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`35 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`, `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4310266812 -> 44b25436d442e9556d0df0c49af2f669784c8887
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259005350 -> 44b25436d442e9556d0df0c49af2f669784c8887
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4310275053 -> 44b25436d442e9556d0df0c49af2f669784c8887
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259013153 -> 44b25436d442e9556d0df0c49af2f669784c8887
+
 ## Merge Readiness
 
 - [x] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
