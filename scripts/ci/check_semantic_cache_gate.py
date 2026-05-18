@@ -1570,6 +1570,29 @@ def _philosophy_admission_machine_state_json(text: str) -> tuple[str, list[str]]
     return matches[0].group("payload"), []
 
 
+def _load_philosophy_admission_machine_state(payload_text: str) -> tuple[object, list[str]]:
+    duplicate_keys: list[str] = []
+
+    def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        parsed: dict[str, object] = {}
+        for key, value in pairs:
+            if key in parsed and key not in duplicate_keys:
+                duplicate_keys.append(key)
+            parsed[key] = value
+        return parsed
+
+    try:
+        payload = json.loads(payload_text, object_pairs_hook=reject_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        return None, [f"philosophy admission contract invalid JSON state: {exc.msg}"]
+    if duplicate_keys:
+        return payload, [
+            f"philosophy admission contract JSON duplicate key: {key}"
+            for key in sorted(duplicate_keys)
+        ]
+    return payload, []
+
+
 def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str]:
     """Return stable validation errors for Philosophy PR-1 admission contracts."""
     errors: list[str] = []
@@ -1604,10 +1627,9 @@ def _validate_philosophy_admission_machine_state(text: str) -> list[str]:
     payload_text, state_errors = _philosophy_admission_machine_state_json(text)
     if state_errors:
         return state_errors
-    try:
-        payload = json.loads(payload_text)
-    except json.JSONDecodeError as exc:
-        return [f"philosophy admission contract invalid JSON state: {exc.msg}"]
+    payload, parse_errors = _load_philosophy_admission_machine_state(payload_text)
+    if parse_errors:
+        return parse_errors
     if not isinstance(payload, dict):
         return ["philosophy admission contract JSON state must be an object"]
 
@@ -1746,12 +1768,29 @@ def validate_philosophy_semantic_cache_admission_schema(
     payload_text, state_errors = _philosophy_admission_machine_state_json(contract_text)
     if state_errors:
         return state_errors
-    try:
-        payload = json.loads(payload_text)
-    except json.JSONDecodeError as exc:
-        return [f"philosophy admission contract invalid JSON state: {exc.msg}"]
+    payload, parse_errors = _load_philosophy_admission_machine_state(payload_text)
+    if parse_errors:
+        return parse_errors
     if not isinstance(payload, dict):
         return ["philosophy admission contract JSON state must be an object"]
+
+    root_schema_keys = {
+        "$comment",
+        "$schema",
+        "additionalProperties",
+        "default",
+        "deprecated",
+        "description",
+        "examples",
+        "properties",
+        "readOnly",
+        "required",
+        "title",
+        "type",
+        "writeOnly",
+    }
+    for constraint in sorted(set(schema) - root_schema_keys):
+        errors.append(f"philosophy admission schema unsupported root constraint: {constraint}")
 
     properties = schema.get("properties")
     required = schema.get("required")
@@ -1884,10 +1923,10 @@ def validate_philosophy_semantic_cache_admission_schema(
                         "philosophy admission schema unsupported array item constraint for "
                         f"{key}: {constraint}"
                     )
-            if key == "references" and not (
+            if key != "future_cache_candidate_deferred_surfaces" and not (
                 isinstance(items, dict) and isinstance(items.get("enum"), list)
             ):
-                errors.append("philosophy admission schema enum missing for references")
+                errors.append(f"philosophy admission schema enum missing for {key}")
         if isinstance(items, dict) and "enum" in items and isinstance(payload[key], list):
             enum = items["enum"]
             if not isinstance(enum, list) or not all(isinstance(item, str) for item in enum):

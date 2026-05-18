@@ -147,6 +147,75 @@ def test_schema_validator_rejects_missing_blocked_surface_enum() -> None:
     ) in errors
 
 
+def test_schema_validator_requires_governed_array_enums() -> None:
+    """All non-empty governed array fields must stay enum-backed."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    verification = properties["verification_bundle_required_surfaces"]
+    assert isinstance(verification, dict)
+    items = verification["items"]
+    assert isinstance(items, dict)
+    del items["enum"]
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema enum missing for verification_bundle_required_surfaces"
+    ) in errors
+
+
+def test_schema_validator_rejects_root_constraints_excluding_payload() -> None:
+    """Root schema constraints cannot drift beyond the exact contract payload."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    schema["minProperties"] = 99
+    schema["maxProperties"] = 1
+    schema["allOf"] = [{"required": ["not_present"]}]
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert "philosophy admission schema unsupported root constraint: allOf" in errors
+    assert "philosophy admission schema unsupported root constraint: maxProperties" in errors
+    assert "philosophy admission schema unsupported root constraint: minProperties" in errors
+
+
+def test_schema_validator_allows_root_annotations() -> None:
+    """Non-validating JSON Schema annotations are allowed at the schema root."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    schema["description"] = "Philosophy admission machine-state schema."
+    schema["examples"] = [{}]
+    schema["default"] = {}
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert not any("unsupported root constraint" in error for error in errors)
+
+
+def test_checker_rejects_duplicate_machine_state_keys() -> None:
+    """Duplicate JSON object keys cannot hide an earlier gate-open value."""
+    mutated = _contract_text().replace(
+        '  "gate_status": "closed",',
+        '  "gate_status": "open",\n  "gate_status": "closed",',
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert "philosophy admission contract JSON duplicate key: gate_status" in errors
+
+
 def test_schema_validator_requires_explicit_array_max_items() -> None:
     """Validator requires enum-backed admission lists to state exact cardinality."""
     mutated_schema = re.sub(
