@@ -95,6 +95,13 @@ Evidence: Expanded Philosophy PR-1 forbidden-claim detectors and deterministic r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256728524 -> b351f25aec0dfe43d791b6be636ed9c652315b23
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256728526 -> b351f25aec0dfe43d791b6be636ed9c652315b23
 
+Disposition: FIXED
+Commit: 01d7816295ef8f4b3048e8e01997db201ec487d4
+Evidence: Closed the follow-up Philosophy PR-1 detector gaps from the latest Codex pass. The validator now rejects approved serving-status claims for philosophical semantic-cache paths, duplicate `required` keys in the Philosophy admission schema, and affirmative PR-1 runtime expansion claims for vector search, connection strings, and cache adapters. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`34 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3258841130 -> 01d7816295ef8f4b3048e8e01997db201ec487d4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3258841136 -> 01d7816295ef8f4b3048e8e01997db201ec487d4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3258841142 -> 01d7816295ef8f4b3048e8e01997db201ec487d4
+
 ## Merge Readiness
 
 - [x] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
