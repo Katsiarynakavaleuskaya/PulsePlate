@@ -9,7 +9,7 @@
     temporary Trivy suppression, security note, and backlog removal item.
   - `dd24159e3a6f099b6f7334098baae275e65459c7` - added direct CVE/GHSA
     tracker references and Dependabot alert #142 evidence.
-  - `8751b4958c0f3f432bd75f9860abbd37770f8533` - aligned the Rego predicate
+  - `8751b49584c375bedd4fd640f0247221560fa98a` - aligned the Rego predicate
     with Trivy 0.69.3 Bundler policy input fields.
   - `5053d698bc8b69655e471abb2918497bf2b81063` - clarified single file-level
     expiry handling and normalized `PkgID` wording.
@@ -32,16 +32,19 @@ merge-blocking until their current-head statuses are terminal and reviewed.
 Disposition: FIXED
 Commit: dd24159e3a6f099b6f7334098baae275e65459c7
 Evidence: CodeRabbit found that the new Trivy suppression block referenced Fastlane and jwt version pages but lacked a direct CVE tracker URL. The suppression block now includes `https://avd.aquasec.com/nvd/cve-2026-45363` and `https://github.com/advisories/GHSA-c32j-vqhx-rx3x`; the security note and ledger also link GitHub Dependabot alert #142 for the same `jwt` / `ios/Gemfile.lock` advisory.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#pullrequestreview-4313494312 -> dd24159e3a6f099b6f7334098baae275e65459c7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#discussion_r3261793183 -> dd24159e3a6f099b6f7334098baae275e65459c7
 
 Disposition: FIXED
 Commit: 5053d698bc8b69655e471abb2918497bf2b81063
 Evidence: Sourcery found inconsistent `package id` wording in the security note. `docs/security/CVE-2026-45363-jwt-fastlane.md` now uses explicit `PkgID` wording for the Trivy field.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#pullrequestreview-4313559314 -> 5053d698bc8b69655e471abb2918497bf2b81063
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#discussion_r3261847247 -> 5053d698bc8b69655e471abb2918497bf2b81063
 
 Disposition: NOT-A-BUG
 Evidence: `trivy/ignore-policy.rego:10` documents that CI enforces a single file-level expiry marker; `trivy/ignore-policy.rego:12` has the required `Suppression expires: 2026-05-27` marker; `scripts/ci/check_trivy_ignore_policy_expiry.py:21` rejects multiple markers with `expected exactly one expiry per policy file`; `trivy/ignore-policy.rego:435` now notes that expiry is governed by the single file-level marker.
 Reason: CodeRabbit requested a second block-level `Suppression expires:` marker for the JWT rule, but adding it would break the canonical expiry checker. The current file-level expiry is the repo-approved policy format.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#pullrequestreview-4313617562
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766#discussion_r3261895753
 
 ## Role-Agent Findings
@@ -91,12 +94,11 @@ release tooling no longer depends on Fastlane's `jwt` 2.x graph.
 - CodeRabbit: one actionable thread fixed in
   `dd24159e3a6f099b6f7334098baae275e65459c7`; one expiry-format thread
   dispositioned as NOT-A-BUG because the requested second expiry marker would
-  violate the repo's exactly-one-expiry checker; pending current-head terminal
-  review after latest push.
+  violate the repo's exactly-one-expiry checker.
 - Sourcery: wording nit fixed in `5053d698bc8b69655e471abb2918497bf2b81063`;
   stale PkgPath helper comment was superseded by
-  `8751b4958c0f3f432bd75f9860abbd37770f8533`.
-- Cubic: pending current-head terminal review.
+  `8751b49584c375bedd4fd640f0247221560fa98a`.
+- Cubic: no issues found in the current review pass.
 
 ## Local Validation
 
@@ -133,17 +135,21 @@ release tooling no longer depends on Fastlane's `jwt` 2.x graph.
   security-scan rather than silently over-suppress.
 - Rollback: revert implementing commits `9df304969f34712868223eadd75151206ecf07fb`,
   `dd24159e3a6f099b6f7334098baae275e65459c7`, and
-  `8751b4958c0f3f432bd75f9860abbd37770f8533`; no runtime behavior changed.
+  `8751b49584c375bedd4fd640f0247221560fa98a`; no runtime behavior changed.
 
 ## Merge Readiness
 
 - [x] Pre-flight + agent consistency: PASS.
 - [x] Canonical artifact: this file (`docs/review/PR_1766_FIXED_MAPPING.md`).
 - [x] PR body mirror: PASS.
-- [ ] Current-head CI: pending terminal current-head checks.
-- [ ] Bot summaries reviewed (CodeRabbit / Sourcery / Cubic): pending terminal statuses.
-- [ ] Strict review-thread disposition: pending `check_review_threads_disposition.py --require-auth`.
-- [ ] Strict merge readiness: pending `check_merge_ready.py --require-auth`.
+- [ ] Current-head CI: pending terminal current-head checks after the latest
+  governance commit.
+- [x] Bot summaries reviewed (CodeRabbit / Sourcery / Cubic): no open
+  actionables after disposition.
+- [x] Strict review-thread disposition: PASS
+  (`check_review_threads_disposition.py --require-auth`).
+- [x] Strict merge-readiness review governance: PASS
+  (`check_pr_merge_readiness.py --pr-number 1766 --repo Katsiarynakavaleuskaya/PulsePlate`).
 
 ## Deferred / Follow-ups
 
