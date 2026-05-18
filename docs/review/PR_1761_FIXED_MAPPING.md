@@ -138,6 +138,13 @@ Commit: 0eae5866b1d175ee30bd28d21293d3b37cdcd5bc
 Evidence: Corrected the previous CodeRabbit follow-up proof SHA from an unreachable typo to the actual branch commit `b8f01ee90c109a541f33da78ae1d7799db0919b5`, so the disposition guard can verify commit-after-comment and trigger-only policy against a reachable object.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259405783 -> 0eae5866b1d175ee30bd28d21293d3b37cdcd5bc
 
+Disposition: FIXED
+Commit: 59857122af79e98bdd9f50f0e0e0887e613e4166
+Evidence: Closed the final governed-schema parity gaps. The Philosophy admission validator now rejects duplicate raw machine-state JSON keys before `json.loads` can collapse them, rejects payload-excluding root schema constraints while allowing root annotations, and requires enum-backed items for every governed non-empty array field. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`47 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259482240 -> 59857122af79e98bdd9f50f0e0e0887e613e4166
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259482244 -> 59857122af79e98bdd9f50f0e0e0887e613e4166
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3259482250 -> 59857122af79e98bdd9f50f0e0e0887e613e4166
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
