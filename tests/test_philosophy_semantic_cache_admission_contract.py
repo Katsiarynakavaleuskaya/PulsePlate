@@ -129,6 +129,22 @@ def test_checker_requires_blocked_truth_surfaces() -> None:
     ) in errors
 
 
+def test_runtime_exclusion_anchors_are_scoped_to_runtime_section() -> None:
+    """Runtime-only guardrails must be present in the Runtime-Only Default section."""
+    mutated = _contract_text().replace("No Redis imports.", "Runtime imports stay blocked.", 1)
+    mutated = mutated.replace(
+        "PR-1 and downstream docs must not claim:",
+        "PR-1 and downstream docs must not claim:\n\nNo Redis imports.",
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert (
+        "philosophy admission contract runtime section missing anchor: no Redis imports"
+    ) in errors
+
+
 def test_schema_validator_rejects_missing_blocked_surface_enum() -> None:
     mutated_schema = re.sub(
         r'\s*"medical_or_therapy_routing"\s*,?\s*\n?',
@@ -753,6 +769,12 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the semantic-cache gate is open for Philosophy admission",
         "the semantic-cache gate may be opened for Philosophy admission",
         "the global gate can be opened for Philosophy admission",
+        "the semantic-cache gate opens for Philosophy admission",
+        "the global gate opens for Philosophy admission",
+        "the semantic-cache gate is opened for Philosophy admission",
+        "the global gate is opened for Philosophy admission",
+        "the semantic-cache gate opened for Philosophy admission",
+        "the global gate opened for Philosophy admission",
     )
 
     for claim in cases:
@@ -838,6 +860,7 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "redis is approved for philosophical semantic-cache paths",
             "redis philosophical cache approved",
         ),
+        ("redis is enabled for philosophical cache paths", "redis philosophical cache approved"),
         (
             "redis rollout is approved for philosophical cache paths",
             "redis philosophical cache approved",
@@ -852,6 +875,10 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
         ),
         (
             "gptcache is approved for philosophical semantic-cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "gptcache is enabled for philosophical cache paths",
             "gptcache philosophical cache approved",
         ),
         (
@@ -881,27 +908,65 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
     cases = (
         ("redis imports are allowed in PR-1", "redis imports allowed in pr-1"),
         ("redis imports are allowed for Philosophy admission", "redis imports allowed in pr-1"),
+        ("redis imports are approved for Philosophy admission", "redis imports allowed in pr-1"),
+        ("redis imports are enabled for Philosophy admission", "redis imports allowed in pr-1"),
+        ("redis import is approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("GPTCache imports are permitted in PR-1", "gptcache imports allowed in pr-1"),
         (
             "GPTCache imports are permitted for Philosophy admission",
             "gptcache imports allowed in pr-1",
         ),
+        (
+            "GPTCache imports are enabled for Philosophy admission",
+            "gptcache imports allowed in pr-1",
+        ),
+        (
+            "GPTCache import is enabled for Philosophy admission",
+            "gptcache imports allowed in pr-1",
+        ),
         ("embeddings are permitted in PR-1", "embeddings allowed in pr-1"),
         ("embeddings are permitted for Philosophy admission", "embeddings allowed in pr-1"),
+        ("embeddings are approved for Philosophy admission", "embeddings allowed in pr-1"),
+        ("embedding is approved for Philosophy admission", "embeddings allowed in pr-1"),
         ("/insight cache wiring is permitted in PR-1", "insight cache wiring allowed in pr-1"),
         (
             "/insight cache wiring is permitted for Philosophy admission",
             "insight cache wiring allowed in pr-1",
         ),
+        (
+            "/insight cache wiring is enabled for Philosophy admission",
+            "insight cache wiring allowed in pr-1",
+        ),
         ("vector search is permitted in PR-1", "vector search allowed in pr-1"),
         ("vector search is permitted for Philosophy admission", "vector search allowed in pr-1"),
+        ("vector search is enabled for Philosophy admission", "vector search allowed in pr-1"),
         ("connection strings are permitted in PR-1", "connection strings allowed in pr-1"),
         (
             "connection strings are permitted for Philosophy admission",
             "connection strings allowed in pr-1",
         ),
+        (
+            "connection string is enabled for Philosophy admission",
+            "connection strings allowed in pr-1",
+        ),
         ("cache adapters are permitted in PR-1", "cache adapters allowed in pr-1"),
         ("cache adapters are permitted for Philosophy admission", "cache adapters allowed in pr-1"),
+        (
+            "cache adapter is approved for Philosophy admission",
+            "cache adapters allowed in pr-1",
+        ),
+        (
+            "cache adaptor is approved for Philosophy admission",
+            "cache adapters allowed in pr-1",
+        ),
+        (
+            "cache adaptors are enabled for Philosophy admission",
+            "cache adapters allowed in pr-1",
+        ),
+        ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime paths are approved for Philosophy admission", "runtime allowed in pr-1"),
     )
 
     for claim, error_label in cases:
@@ -926,6 +991,8 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
         "No vector search is permitted in PR-1.",
         "No connection strings are permitted in PR-1.",
         "No cache adapters are permitted in PR-1.",
+        "No runtime is enabled for Philosophy admission.",
+        "No runtime behavior is approved for Philosophy admission.",
     )
 
     for claim in cases:

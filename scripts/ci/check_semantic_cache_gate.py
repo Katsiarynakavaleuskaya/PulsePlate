@@ -752,7 +752,17 @@ PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS = (
     ("no vector search", re.compile(r"\b(?:no|blocked)\s+vector search\b")),
     ("no connection strings", re.compile(r"\b(?:no|blocked)\s+connection strings\b")),
     ("no cache adapters", re.compile(r"\b(?:no|blocked)\s+cache adapters\b")),
-    ("no insight cache wiring", re.compile(r"\bno\b.*\b/insight\b.*\bcache wiring\b")),
+    ("no insight cache wiring", re.compile(r"\bno\b.*(?<!\w)/insight(?!\w).*\bcache wiring\b")),
+)
+
+PHILOSOPHY_RUNTIME_ONLY_SECTION_REQUIRED_ANCHORS = (
+    ("no Redis imports", re.compile(r"\bno redis imports\b")),
+    ("no GPTCache imports", re.compile(r"\bno gptcache imports\b")),
+    ("no embeddings", re.compile(r"\bno embeddings\b")),
+    ("no vector search", re.compile(r"\b(?:no|blocked)\s+vector search\b")),
+    ("no connection strings", re.compile(r"\b(?:no|blocked)\s+connection strings\b")),
+    ("no cache adapters", re.compile(r"\b(?:no|blocked)\s+cache adapters\b")),
+    ("no insight cache wiring", re.compile(r"\bno\b.*(?<!\w)/insight(?!\w).*\bcache wiring\b")),
 )
 
 PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
@@ -770,8 +780,12 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy pr-1\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate is opened "
+            r"for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate opened for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate (?:can|may) be opened "
             r"for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate opens for philosophy admission\b"
             r"|\bphilosophy pr-1 admission (?:can|may) open "
             r"(?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\bphilosophy admission (?:can|may) open "
@@ -792,65 +806,76 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "redis philosophical cache approved",
         re.compile(
-            r"\bredis philosophical cache (?:is )?approved\b"
-            r"|\bredis(?: rollout)? (?:is )?approved for (?:the )?philosophical "
+            r"\bredis philosophical cache (?:is )?(?:approved|enabled)\b"
+            r"|\bredis(?: rollout)? (?:is )?(?:approved|enabled) for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
         ),
     ),
     (
         "gptcache philosophical cache approved",
         re.compile(
-            r"\bgptcache philosophical cache (?:is )?approved\b"
-            r"|\bgptcache(?: rollout)? (?:is )?approved for (?:the )?philosophical "
+            r"\bgptcache philosophical cache (?:is )?(?:approved|enabled)\b"
+            r"|\bgptcache(?: rollout)? (?:is )?(?:approved|enabled) for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
         ),
     ),
     (
         "redis imports allowed in pr-1",
         re.compile(
-            r"\bredis imports? (?:are )?(?:allowed|permitted) "
+            r"\bredis imports? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
     (
         "gptcache imports allowed in pr-1",
         re.compile(
-            r"\bgptcache imports? (?:are )?(?:allowed|permitted) "
+            r"\bgptcache imports? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
     (
         "embeddings allowed in pr-1",
         re.compile(
-            r"\bembeddings? (?:are )?(?:allowed|permitted) "
+            r"\bembeddings? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
     (
         "insight cache wiring allowed in pr-1",
         re.compile(
-            r"(?<!\w)/insight cache wiring (?:is )?(?:allowed|permitted) "
+            r"(?<!\w)/insight cache wiring (?:is )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
     (
         "vector search allowed in pr-1",
         re.compile(
-            r"\bvector search (?:is )?(?:allowed|permitted) "
+            r"\bvector search (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
     (
         "connection strings allowed in pr-1",
         re.compile(
-            r"\bconnection strings? (?:are )?(?:allowed|permitted) "
+            r"\bconnection strings? (?:(?:are|is) )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
     (
         "cache adapters allowed in pr-1",
         re.compile(
-            r"\bcache adapters? (?:are )?(?:allowed|permitted) "
+            r"\bcache adapt(?:er|or)s? (?:(?:are|is) )?"
+            r"(?:allowed|permitted|approved|enabled) "
+            r"(?:in pr-1|for philosophy admission)\b"
+        ),
+    ),
+    (
+        "runtime allowed in pr-1",
+        re.compile(
+            r"\bruntime(?: behavior| paths?)? (?:(?:are|is) )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
         ),
     ),
@@ -926,6 +951,7 @@ PHILOSOPHY_PR1_PERMISSION_PATTERN_LABELS = {
     "vector search allowed in pr-1",
     "connection strings allowed in pr-1",
     "cache adapters allowed in pr-1",
+    "runtime allowed in pr-1",
 }
 
 PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
@@ -1041,6 +1067,18 @@ def _without_markdown_sections(text: str, headings: set[str]) -> str:
         cursor = section_end
     kept_parts.append(text[cursor:])
     return "".join(kept_parts)
+
+
+def _markdown_section(text: str, heading: str) -> str:
+    heading_pattern = re.compile(rf"(?im)^##\s+{re.escape(heading)}\s*$")
+    match = heading_pattern.search(text)
+    if match is None:
+        return ""
+    section = text[match.end() :]
+    next_heading = re.search(r"(?m)^##\s+", section)
+    if next_heading is not None:
+        section = section[: next_heading.start()]
+    return section
 
 
 def _philosophy_admission_assertion_text(text: str) -> str:
@@ -1601,6 +1639,13 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
     for label, pattern in PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS:
         if not pattern.search(normalized):
             errors.append(f"philosophy admission contract missing anchor: {label}")
+
+    runtime_section = _normalize_text(_markdown_section(text, "Runtime-Only Default"))
+    for label, pattern in PHILOSOPHY_RUNTIME_ONLY_SECTION_REQUIRED_ANCHORS:
+        if not pattern.search(runtime_section):
+            errors.append(
+                "philosophy admission contract runtime section missing anchor: " f"{label}"
+            )
 
     rollout_section_index = normalized.find("required rollout order remains:")
     rollout_section = (
