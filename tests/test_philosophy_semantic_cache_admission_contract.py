@@ -182,6 +182,22 @@ def test_schema_validator_requires_required_properties_parity() -> None:
     ) in errors
 
 
+def test_schema_validator_rejects_duplicate_required_keys() -> None:
+    """Validator rejects duplicate schema required keys before set conversion."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    required = schema["required"]
+    assert isinstance(required, list)
+    required.append(required[0])
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert "philosophy admission schema required contains duplicates" in errors
+
+
 def test_schema_validator_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
     """Validator rejects schema drift that would allow deferred cache candidates now."""
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -512,6 +528,8 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
         "philosophical semantic cache is live",
         "philosophical semantic-cache is live",
         "production-live philosophical cache-key behavior",
+        "philosophical semantic-cache serving is approved",
+        "philosophical semantic-cache paths are approved for serving",
     )
 
     for claim in cases:
@@ -579,6 +597,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("GPTCache imports are permitted in PR-1", "gptcache imports allowed in pr-1"),
         ("embeddings are permitted in PR-1", "embeddings allowed in pr-1"),
         ("/insight cache wiring is permitted in PR-1", "insight cache wiring allowed in pr-1"),
+        ("vector search is permitted in PR-1", "vector search allowed in pr-1"),
+        ("connection strings are permitted in PR-1", "connection strings allowed in pr-1"),
+        ("cache adapters are permitted in PR-1", "cache adapters allowed in pr-1"),
     )
 
     for claim, error_label in cases:
@@ -600,6 +621,9 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
         "No GPTCache imports are permitted in PR-1.",
         "No embeddings are permitted in PR-1.",
         "No /insight cache wiring is permitted in PR-1.",
+        "No vector search is permitted in PR-1.",
+        "No connection strings are permitted in PR-1.",
+        "No cache adapters are permitted in PR-1.",
     )
 
     for claim in cases:

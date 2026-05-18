@@ -748,6 +748,9 @@ PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS = (
     ("no Redis imports", re.compile(r"\bno redis imports\b")),
     ("no GPTCache imports", re.compile(r"\bno gptcache imports\b")),
     ("no embeddings", re.compile(r"\bno embeddings\b")),
+    ("no vector search", re.compile(r"\bno\b.*\bvector search\b")),
+    ("no connection strings", re.compile(r"\bno\b.*\bconnection strings\b")),
+    ("no cache adapters", re.compile(r"\bno\b.*\bcache adapters\b")),
     ("no insight cache wiring", re.compile(r"\bno\b.*\b/insight\b.*\bcache wiring\b")),
 )
 
@@ -771,6 +774,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"
             r"|\bproduction[- ]live philosophical cache[- ]key behavior\b"
+            r"|\bphilosophical semantic[- ]cache serving (?:is )?approved\b"
+            r"|\bphilosophical semantic[- ]cache paths? (?:are )?approved for serving\b"
         ),
     ),
     (
@@ -804,6 +809,18 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "insight cache wiring allowed in pr-1",
         re.compile(r"(?<!\w)/insight cache wiring (?:is )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "vector search allowed in pr-1",
+        re.compile(r"\bvector search (?:is )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "connection strings allowed in pr-1",
+        re.compile(r"\bconnection strings? (?:are )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "cache adapters allowed in pr-1",
+        re.compile(r"\bcache adapters? (?:are )?(?:allowed|permitted) in pr-1\b"),
     ),
     (
         "design intake overrides gate markers",
@@ -874,6 +891,9 @@ PHILOSOPHY_PR1_PERMISSION_PATTERN_LABELS = {
     "gptcache imports allowed in pr-1",
     "embeddings allowed in pr-1",
     "insight cache wiring allowed in pr-1",
+    "vector search allowed in pr-1",
+    "connection strings allowed in pr-1",
+    "cache adapters allowed in pr-1",
 }
 
 PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
@@ -898,6 +918,9 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
         "gptcache imports allowed in pr-1",
         "embeddings allowed in pr-1",
         "insight cache wiring allowed in pr-1",
+        "vector search allowed in pr-1",
+        "connection strings allowed in pr-1",
+        "cache adapters allowed in pr-1",
     ),
     "claim_class_verification_bundle_skipped": (
         "verification bundle optional",
@@ -1688,6 +1711,8 @@ def validate_philosophy_semantic_cache_admission_schema(
     if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
         errors.append("philosophy admission schema required must be a string list")
         required = []
+    elif len(required) != len(set(required)):
+        errors.append("philosophy admission schema required contains duplicates")
 
     if schema.get("additionalProperties") is not False:
         errors.append("philosophy admission schema must set additionalProperties false")
