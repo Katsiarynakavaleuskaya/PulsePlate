@@ -82,6 +82,19 @@ Evidence: Hardened Philosophy PR-1 forbidden-claim detectors for the new Codex r
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256558853 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256558858 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
 
+Disposition: NOT-A-BUG
+Evidence: The current PR branch history contains the mapped proof commit. Local command `git merge-base --is-ancestor 6d404193812286bb9baa406a71678867b77be114 HEAD` exited `0` at head `b351f25aec0dfe43d791b6be636ed9c652315b23`.
+Reason: The Codex ancestry warning was based on an older reviewed state (`7550b1...`). Current branch history includes the implementation proof SHA, so the prior mapping is verifiable from this PR branch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256728516
+
+Disposition: FIXED
+Commit: b351f25aec0dfe43d791b6be636ed9c652315b23
+Evidence: Expanded Philosophy PR-1 forbidden-claim detectors and deterministic regressions for exact forbidden claims that were still escaping: production-live philosophical cache-key behavior, PDF/design intake overriding repo gate markers, Redis/GPTCache approval for philosophical semantic-cache paths, and affirmative PR-1 runtime expansion claims for Redis imports, GPTCache imports, embeddings, and `/insight` cache wiring. The fix preserves negated guardrail wording. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`33 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `python3 scripts/orchestration/check_preflight.py`, `python3 scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `PRE_COMMIT_HOME=/tmp/pulseplate-precommit-pr1761 pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4307667273 -> b351f25aec0dfe43d791b6be636ed9c652315b23
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256728519 -> b351f25aec0dfe43d791b6be636ed9c652315b23
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256728524 -> b351f25aec0dfe43d791b6be636ed9c652315b23
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256728526 -> b351f25aec0dfe43d791b6be636ed9c652315b23
+
 ## Merge Readiness
 
 - [x] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
