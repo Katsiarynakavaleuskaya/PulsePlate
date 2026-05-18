@@ -73,6 +73,15 @@ Evidence: The current PR branch history contains the mapped proof commit. Local 
 Reason: The Codex ancestry warning was based on an older reviewed commit snapshot; current branch head includes the implementation proof SHA, so the mapping is verifiable from this PR history.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3255699585
 
+Disposition: FIXED
+Commit: 5b6b179301225dd7e3ca33566a8360f536381c9f
+Evidence: Hardened Philosophy PR-1 forbidden-claim detectors for the new Codex review pass while keeping the gate closed and contract-only. The validator now catches hyphenated live semantic-cache claims, direct/global gate-open equivalence claims, Redis/GPTCache philosophical-cache approval wording, and skipped verification-bundle requirements. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`30 passed`) and `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4307476051 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256558846 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256558849 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256558853 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3256558858 -> 5b6b179301225dd7e3ca33566a8360f536381c9f
+
 ## Merge Readiness
 
 - [x] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
