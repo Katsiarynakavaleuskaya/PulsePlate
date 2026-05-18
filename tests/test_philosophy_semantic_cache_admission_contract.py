@@ -910,6 +910,135 @@ def test_runtime_exclusion_anchors_require_local_negation() -> None:
         assert f"philosophy admission contract missing anchor: {error_label}" in errors
 
 
+def test_forbidden_claims_section_requires_negative_polarity() -> None:
+    """Forbidden examples may be excluded only while the section remains prohibitive."""
+    cases = (
+        "PR-1 and downstream docs may claim:",
+        "PR-1 and downstream docs may now claim:",
+        "PR-1 and downstream docs are now allowed to claim:",
+        "PR-1 and downstream docs must not claim:\n\nPR-1 and downstream docs may claim:",
+        "PR-1 and downstream docs must not claim:\n\nAllowed claim: "
+        "philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n\nClaim allowed: "
+        "philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n\nClaim is allowed: "
+        "philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n\nClaim is now allowed: "
+        "philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n\nClaims are now allowed: "
+        "philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n\nAllowed runtime claim: "
+        "philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n\nAllowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- Allowed runtime claim: philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- Claim is allowed: philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- PR-1 and downstream docs may claim: philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "* Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "+ Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "1. Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "1) Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "2) PR-1 and downstream docs may claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "10) Claim is allowed:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "> Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- > Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "* > PR-1 and downstream docs may claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "1) > Claim is allowed:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- > - Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- > [ ] Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "* > 1) PR-1 and downstream docs may claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "### Allowed runtime claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "#### PR-1 and downstream docs may claim:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "### Claim is allowed:\n"
+        "- philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- [ ] Allowed runtime claim: philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "- [x] Allowed runtime claim: philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "* [ ] PR-1 and downstream docs may claim: philosophical semantic-cache is live.",
+    )
+
+    for replacement in cases:
+        mutated = _contract_text().replace(
+            "PR-1 and downstream docs must not claim:",
+            replacement,
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert (
+            "philosophy admission contract Forbidden Claims section must retain "
+            "negative must-not-claim polarity"
+        ) in errors
+
+
+def test_forbidden_claims_section_allows_additional_negative_polarity() -> None:
+    """Additional negative lead-ins should not be treated as permissive drift."""
+    cases = (
+        "PR-1 and downstream docs must never claim:",
+        "PR-1 and downstream docs are not allowed to claim:",
+        "PR-1 and downstream docs are never allowed to claim:",
+        "Not allowed runtime claim:",
+        "Not permitted runtime claim:",
+        "Never approved runtime claim:",
+        "No approved runtime claim:",
+        "Not currently allowed runtime claim:",
+        "Never actually approved runtime claim:",
+        "Claim is not allowed:",
+        "Claims are never allowed:",
+        "Claim is no longer allowed:",
+        "Claims are no longer permitted:",
+        "Claim is no longer enabled:",
+    )
+
+    for extra_negative in cases:
+        mutated = _contract_text().replace(
+            "PR-1 and downstream docs must not claim:",
+            f"PR-1 and downstream docs must not claim:\n\n{extra_negative}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("negative must-not-claim polarity" in error for error in errors)
+
+
 def test_forbidden_runtime_live_claim_rejected() -> None:
     """Validator catches a forbidden 'philosophical semantic cache is live' claim."""
     cases = (

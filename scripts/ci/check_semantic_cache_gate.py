@@ -768,6 +768,23 @@ PHILOSOPHY_RUNTIME_ONLY_SECTION_REQUIRED_ANCHORS = (
     ("no insight cache wiring", re.compile(r"\bno\b.*(?<!\w)/insight(?!\w).*\bcache wiring\b")),
 )
 
+PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_POLARITY_RE = re.compile(
+    r"\bpr-1 and downstream docs must not claim\s*:"
+)
+PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE = re.compile(
+    r"^pr-1 and downstream docs (?:may|can|should|must)"
+    r"(?!\s+(?:not|never)\b)(?:\s+\w+){0,3}\s+claim\s*:"
+    r"|^pr-1 and downstream docs "
+    r"(?!are\s+(?:not|never)\s+(?:allowed|permitted|approved|enabled)\b)"
+    r"(?:are\s+)?(?!(?:not|never)\s)"
+    r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s+to\s+claim\s*:"
+    r"|^(?:allowed|permitted|approved|enabled)"
+    r"(?:\s+(?!to\b)\w+){0,3}\s+claims?\s*:"
+    r"|^claims?\s+(?!(?:\w+\s+){0,3}(?:not|never|no\s+longer)\s+)"
+    r"(?:(?:is|are)\s+)?"
+    r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s*:"
+)
+
 PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "philosophy admission opens gate",
@@ -997,6 +1014,10 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 MACHINE_JSON_RE = re.compile(r"```json\s*(?P<payload>\{.*?\})\s*```", re.DOTALL)
+MARKDOWN_BULLET_PREFIX_RE = re.compile(r"^(?:[-*+]|\d+[.)])\s+")
+MARKDOWN_TASK_PREFIX_RE = re.compile(r"^\[[ xX]\]\s+")
+MARKDOWN_BLOCKQUOTE_PREFIX_RE = re.compile(r"^(?:>\s*)+")
+MARKDOWN_HEADING_PREFIX_RE = re.compile(r"^#{1,6}\s+")
 MARKDOWN_SECTION_RE = re.compile(r"(?m)^##\s+")
 
 
@@ -1646,6 +1667,35 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
     assertion_text = _philosophy_admission_assertion_text(text)
     normalized = _normalize_text(assertion_text)
 
+    forbidden_claims_section_text = _markdown_section(text, "Forbidden Claims")
+    forbidden_claims_section = _normalize_text(forbidden_claims_section_text)
+    if not PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_POLARITY_RE.search(forbidden_claims_section):
+        errors.append(
+            "philosophy admission contract Forbidden Claims section must retain "
+            "negative must-not-claim polarity"
+        )
+    for line in forbidden_claims_section_text.splitlines():
+        stripped_line, had_bullet = _strip_forbidden_claims_line_prefixes(line)
+        if not stripped_line:
+            continue
+        normalized_line = _normalize_text(stripped_line)
+        if PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE.search(normalized_line):
+            errors.append(
+                "philosophy admission contract Forbidden Claims section must retain "
+                "negative must-not-claim polarity"
+            )
+            break
+        if had_bullet:
+            continue
+        line_errors = _forbidden_claim_errors(stripped_line)
+        line_errors.extend(_philosophy_admission_forbidden_claim_errors(normalized_line))
+        if line_errors:
+            errors.append(
+                "philosophy admission contract Forbidden Claims section must retain "
+                "negative must-not-claim polarity"
+            )
+            break
+
     for label, pattern in PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS:
         if not pattern.search(normalized):
             errors.append(f"philosophy admission contract missing anchor: {label}")
@@ -1674,6 +1724,30 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
     errors.extend(_validate_philosophy_admission_machine_state(text))
 
     return errors
+
+
+def _strip_forbidden_claims_line_prefixes(line: str) -> tuple[str, bool]:
+    """Normalize nested Markdown prefixes while preserving bullet-example status."""
+    stripped = line.strip()
+    had_bullet = False
+    while stripped:
+        original = stripped
+        blockquote_match = MARKDOWN_BLOCKQUOTE_PREFIX_RE.match(stripped)
+        if blockquote_match is not None:
+            stripped = stripped[blockquote_match.end() :].strip()
+        heading_match = MARKDOWN_HEADING_PREFIX_RE.match(stripped)
+        if heading_match is not None:
+            stripped = stripped[heading_match.end() :].strip()
+        bullet_match = MARKDOWN_BULLET_PREFIX_RE.match(stripped)
+        if bullet_match is not None:
+            had_bullet = True
+            stripped = stripped[bullet_match.end() :].strip()
+        task_match = MARKDOWN_TASK_PREFIX_RE.match(stripped)
+        if task_match is not None:
+            stripped = stripped[task_match.end() :].strip()
+        if stripped == original:
+            break
+    return stripped, had_bullet
 
 
 def validate_philosophy_semantic_cache_admission_downstream_text(text: str) -> list[str]:
