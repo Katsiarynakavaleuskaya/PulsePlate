@@ -4,7 +4,13 @@
 - PR: <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1766>
 - Branch: `codex/security-jwt-cve-2026-45363`
 - Title: `fix(security): scope jwt CVE suppression`
-- Implementing commit: `9df304969f34712868223eadd75151206ecf07fb`
+- Implementing commits:
+  - `9df304969f34712868223eadd75151206ecf07fb` - added the initial
+    temporary Trivy suppression, security note, and backlog removal item.
+  - `dd24159e3a6f099b6f7334098baae275e65459c7` - added direct CVE/GHSA
+    tracker references and Dependabot alert #142 evidence.
+  - `8751b4958c0f3f432bd75f9860abbd37770f8533` - aligned the Rego predicate
+    with Trivy 0.69.3 Bundler policy input fields.
 - Scope: Trivy suppression governance for Ruby `jwt` CVE-2026-45363 in
   `ios/Gemfile.lock` release tooling only. No `.trivyignore`, lockfile,
   workflow, runtime backend, frontend, OpenAPI, iOS app binary, auth, billing,
@@ -62,9 +68,10 @@ path, and no global suppression.
 Disposition: FIXED
 Commit: 9df304969f34712868223eadd75151206ecf07fb
 Evidence: `pulseplate-premortem-risk-review` identified broad suppression and
-stale risk acceptance as the likely failure modes. The Rego rule is path and
-version scoped, the policy file keeps the shared 2026-05-27 expiry, and the
-ledger entry requires removal once Fastlane permits `jwt >= 3.2.0` or the
+stale risk acceptance as the likely failure modes. The Rego rule is scoped to
+exact CVE, package, installed version, fixed version, PURL, and primary
+advisory URL fields; the policy file keeps the shared 2026-05-27 expiry, and
+the ledger entry requires removal once Fastlane permits `jwt >= 3.2.0` or the
 release tooling no longer depends on Fastlane's `jwt` 2.x graph.
 
 ## Bot Review Notes
@@ -81,6 +88,7 @@ release tooling no longer depends on Fastlane's `jwt` 2.x graph.
 - `.venv/bin/python scripts/orchestration/check_agent_consistency.py` - PASS.
 - `.venv/bin/python scripts/ci/check_trivy_ignore_policy_expiry.py` - PASS.
 - `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-45363-jwt-fastlane.md docs/roadmap/BACKLOG_LEDGER.md` - PASS.
+- `trivy 0.69.3 fs --scanners vuln --severity HIGH,CRITICAL --ignore-policy trivy/ignore-policy.rego --format json ios` - PASS; no `jwt` / `CVE-2026-45363` findings remained after the exact-field policy update.
 - `cd ios && bundle check` - PASS.
 - `cd ios && bundle exec fastlane validate_metadata_package` - PASS.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS; no Python files changed.
@@ -107,14 +115,15 @@ release tooling no longer depends on Fastlane's `jwt` 2.x graph.
 - Risk: Trivy's Bundler policy input shape changes again and the exact
   package/advisory predicate no longer matches. This should fail current-head
   security-scan rather than silently over-suppress.
-- Rollback: revert implementing commit `9df304969f34712868223eadd75151206ecf07fb`
-  and this mapping artifact commit; no runtime behavior changed.
+- Rollback: revert implementing commits `9df304969f34712868223eadd75151206ecf07fb`,
+  `dd24159e3a6f099b6f7334098baae275e65459c7`, and
+  `8751b4958c0f3f432bd75f9860abbd37770f8533`; no runtime behavior changed.
 
 ## Merge Readiness
 
 - [x] Pre-flight + agent consistency: PASS.
 - [x] Canonical artifact: this file (`docs/review/PR_1766_FIXED_MAPPING.md`).
-- [ ] PR body mirror: pending update after this artifact lands.
+- [x] PR body mirror: PASS.
 - [ ] Current-head CI: pending terminal current-head checks.
 - [ ] Bot summaries reviewed (CodeRabbit / Sourcery / Cubic): pending terminal statuses.
 - [ ] Strict review-thread disposition: pending `check_review_threads_disposition.py --require-auth`.
