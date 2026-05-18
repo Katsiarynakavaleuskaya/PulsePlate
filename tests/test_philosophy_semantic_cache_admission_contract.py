@@ -203,6 +203,71 @@ def test_schema_validator_rejects_duplicate_required_keys() -> None:
     assert "philosophy admission schema required contains duplicates" in errors
 
 
+def test_schema_validator_rejects_duplicate_enum_values() -> None:
+    """Enum-backed admission lists must keep schema enum values unique."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    blocked = properties["blocked_surfaces"]
+    assert isinstance(blocked, dict)
+    items = blocked["items"]
+    assert isinstance(items, dict)
+    enum = items["enum"]
+    assert isinstance(enum, list)
+    enum.append(enum[0])
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert "philosophy admission schema enum contains duplicates for blocked_surfaces" in errors
+
+
+def test_schema_validator_rejects_scalar_constraints_excluding_payload() -> None:
+    """Const scalar fields cannot gain extra schema constraints that reject payload."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    gate_status = properties["gate_status"]
+    assert isinstance(gate_status, dict)
+    gate_status["minLength"] = 10
+    gate_status["pattern"] = "^open$"
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema unsupported scalar constraint for gate_status: minLength"
+    ) in errors
+    assert (
+        "philosophy admission schema unsupported scalar constraint for gate_status: pattern"
+    ) in errors
+
+
+def test_schema_validator_allows_scalar_annotations() -> None:
+    """Non-validating JSON Schema annotations do not exclude the contract payload."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    gate_status = properties["gate_status"]
+    assert isinstance(gate_status, dict)
+    gate_status["description"] = "Closed Philosophy PR-1 admission gate status."
+    gate_status["$comment"] = "Operator-facing context only."
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert not any("unsupported scalar constraint for gate_status" in error for error in errors)
+
+
 def test_schema_validator_requires_deferred_candidates_to_stay_closed_gate_empty() -> None:
     """Validator rejects schema drift that would allow deferred cache candidates now."""
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -573,6 +638,22 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and "philosophical semantic cache live" in e for e in errors)
+
+
+def test_forbidden_claim_after_machine_state_json_rejected() -> None:
+    """Machine-state JSON is exempt from claim scanning, but nearby prose is not."""
+    mutated = _contract_text().replace(
+        "The deferred list is intentionally empty until a future reviewed gate-open PR",
+        (
+            "philosophical semantic-cache is live.\n\n"
+            "The deferred list is intentionally empty until a future reviewed gate-open PR"
+        ),
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert any("forbidden" in e and "philosophical semantic cache live" in e for e in errors)
 
 
 def test_forbidden_provider_approval_claim_rejected() -> None:

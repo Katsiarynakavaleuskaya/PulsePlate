@@ -1017,10 +1017,28 @@ def _without_markdown_sections(text: str, headings: set[str]) -> str:
 
 def _philosophy_admission_assertion_text(text: str) -> str:
     """Keep claim scanning on assertive prose, not forbidden examples or JSON."""
-    return _without_markdown_sections(
-        text,
-        headings={"forbidden claims", "machine-readable state"},
+    text_without_json = _without_philosophy_admission_machine_state_json(text)
+    return _without_markdown_sections(text_without_json, headings={"forbidden claims"})
+
+
+def _without_philosophy_admission_machine_state_json(text: str) -> str:
+    """Remove only the fenced Philosophy machine-state JSON, not nearby prose."""
+    heading = re.search(r"(?im)^##\s+Machine-Readable State\s*$", text)
+    if heading is None:
+        return text
+    section_start = heading.end()
+    section = text[section_start:]
+    next_heading = re.search(r"(?m)^##\s+", section)
+    section_end = section_start + (
+        next_heading.start() if next_heading is not None else len(section)
     )
+    matches = list(MACHINE_JSON_RE.finditer(text[section_start:section_end]))
+    if len(matches) != 1:
+        return text
+    match = matches[0]
+    payload_start = section_start + match.start()
+    payload_end = section_start + match.end()
+    return text[:payload_start] + "\n" + text[payload_end:]
 
 
 def _validate_rollout_order(
@@ -1746,6 +1764,18 @@ def validate_philosophy_semantic_cache_admission_schema(
         "runtime_allowed",
         "sc_g5_merge_commit",
     }
+    scalar_schema_keys = {
+        "$comment",
+        "const",
+        "default",
+        "deprecated",
+        "description",
+        "examples",
+        "readOnly",
+        "title",
+        "type",
+        "writeOnly",
+    }
     for key, spec in properties.items():
         if not isinstance(spec, dict) or key not in payload:
             continue
@@ -1760,6 +1790,13 @@ def validate_philosophy_semantic_cache_admission_schema(
             errors.append(f"philosophy admission schema boolean type mismatch for {key}")
         elif isinstance(payload[key], str) and spec.get("type") != "string":
             errors.append(f"philosophy admission schema string type mismatch for {key}")
+        if key in const_keys and isinstance(payload[key], (bool, str)):
+            unsupported_scalar_constraints = sorted(set(spec) - scalar_schema_keys)
+            for constraint in unsupported_scalar_constraints:
+                errors.append(
+                    "philosophy admission schema unsupported scalar constraint for "
+                    f"{key}: {constraint}"
+                )
         items = spec.get("items")
         if isinstance(payload[key], list):
             if spec.get("type") != "array":
@@ -1806,6 +1843,8 @@ def validate_philosophy_semantic_cache_admission_schema(
             if not isinstance(enum, list) or not all(isinstance(item, str) for item in enum):
                 errors.append(f"philosophy admission schema enum must be a string list for {key}")
             else:
+                if len(enum) != len(set(enum)):
+                    errors.append(f"philosophy admission schema enum contains duplicates for {key}")
                 invalid = [item for item in payload[key] if item not in enum]
                 for item in invalid:
                     errors.append(f"philosophy admission schema enum mismatch for {key}: {item!r}")
