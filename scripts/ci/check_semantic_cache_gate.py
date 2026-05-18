@@ -748,9 +748,9 @@ PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS = (
     ("no Redis imports", re.compile(r"\bno redis imports\b")),
     ("no GPTCache imports", re.compile(r"\bno gptcache imports\b")),
     ("no embeddings", re.compile(r"\bno embeddings\b")),
-    ("no vector search", re.compile(r"\bno\b.*\bvector search\b")),
-    ("no connection strings", re.compile(r"\bno\b.*\bconnection strings\b")),
-    ("no cache adapters", re.compile(r"\bno\b.*\bcache adapters\b")),
+    ("no vector search", re.compile(r"\b(?:no|blocked)\s+vector search\b")),
+    ("no connection strings", re.compile(r"\b(?:no|blocked)\s+connection strings\b")),
+    ("no cache adapters", re.compile(r"\b(?:no|blocked)\s+cache adapters\b")),
     ("no insight cache wiring", re.compile(r"\bno\b.*\b/insight\b.*\bcache wiring\b")),
 )
 
@@ -767,6 +767,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy pr-1\b"
+            r"|\bphilosophy pr-1 admission (?:can|may) open "
+            r"(?:the )?(?:global|semantic[- ]cache) gate\b"
         ),
     ),
     (

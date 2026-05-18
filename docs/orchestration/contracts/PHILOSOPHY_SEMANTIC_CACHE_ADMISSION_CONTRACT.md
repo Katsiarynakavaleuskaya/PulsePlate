@@ -99,9 +99,9 @@ default to `runtime_only`:
 - offline logic+philosophy replay lanes;
 - eval harness fixtures without cache serving.
 
-No Redis imports. No GPTCache imports. No embeddings, vector search,
-connection strings, cache adapters, or `/insight` cache wiring are permitted in
-PR-1.
+No Redis imports. No GPTCache imports. No embeddings. No vector search. No
+connection strings. No cache adapters. No `/insight` cache wiring is permitted
+in PR-1.
 
 ## Required Rollout Order Remains
 

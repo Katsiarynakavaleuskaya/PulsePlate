@@ -506,6 +506,11 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "pr-1 is equivalent to opening the global gate",
         "pr-1 admission is equivalent to opening the global gate",
         "pr-1 admission is equivalent to opening the semantic-cache gate",
+        "the semantic-cache gate is open for Philosophy PR-1",
+        "Philosophy PR-1 admission can open the semantic-cache gate",
+        "the global gate is open for Philosophy PR-1",
+        "Philosophy PR-1 admission can open the global gate",
+        "Philosophy PR-1 admission may open the global gate",
     )
 
     for claim in cases:
@@ -520,6 +525,27 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and "philosophy admission opens gate" in e for e in errors)
+
+
+def test_runtime_exclusion_anchors_require_local_negation() -> None:
+    """Runtime-exclusion anchors require explicit local no/blocked wording."""
+    cases = (
+        ("No vector search.", "No unrelated prose mentions vector search.", "no vector search"),
+        (
+            "No connection strings.",
+            "No unrelated prose mentions connection strings.",
+            "no connection strings",
+        ),
+        ("No cache adapters.", "No unrelated prose mentions cache adapters.", "no cache adapters"),
+    )
+
+    for original, replacement, error_label in cases:
+        pattern = re.escape(original).replace(r"\ ", r"\s+")
+        mutated = re.sub(pattern, replacement, _contract_text(), count=1)
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert f"philosophy admission contract missing anchor: {error_label}" in errors
 
 
 def test_forbidden_runtime_live_claim_rejected() -> None:
