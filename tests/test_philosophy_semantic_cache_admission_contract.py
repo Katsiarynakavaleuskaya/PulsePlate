@@ -472,46 +472,142 @@ def test_assertive_sc_g5_label_duplication_with_negation_words_rejected() -> Non
 
 def test_forbidden_gate_open_claim_rejected() -> None:
     """Validator catches a forbidden gate-open assertion in prose."""
-    text = _contract_text()
-    # Inject forbidden phrase into assertive prose (outside Machine-Readable State
-    # and Forbidden Claims sections which are excluded from assertion scanning).
-    mutated = text.replace(
-        "does not open the semantic-cache gate",
-        "does not open the semantic-cache gate\n\nphilosophy admission opens semantic-cache gate",
-        1,
+    cases = (
+        "philosophy admission opens semantic-cache gate",
+        "philosophy admission opens semantic cache gate",
+        "philosophy pr-1 admission opens the semantic-cache gate",
+        "philosophy pr-1 admission opens the semantic cache gate",
+        "philosophy pr-1 opens the semantic-cache gate",
+        "philosophy pr-1 opens the semantic cache gate",
+        "philosophy admission opens the global gate",
+        "philosophy pr-1 admission opens the global gate",
+        "pr-1 opens the global gate",
+        "philosophy admission is equivalent to opening the global gate",
+        "philosophy pr-1 is equivalent to opening the global gate",
+        "philosophy pr-1 admission is equivalent to opening the global gate",
+        "philosophy pr-1 admission is equivalent to opening the semantic-cache gate",
+        "philosophy admission is equivalent to opening the semantic cache gate",
+        "pr-1 is equivalent to opening the global gate",
+        "pr-1 admission is equivalent to opening the global gate",
+        "pr-1 admission is equivalent to opening the semantic-cache gate",
     )
 
-    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+    for claim in cases:
+        # Inject forbidden phrase into assertive prose (outside Machine-Readable State
+        # and Forbidden Claims sections which are excluded from assertion scanning).
+        mutated = _contract_text().replace(
+            "does not open the semantic-cache gate",
+            f"does not open the semantic-cache gate\n\n{claim}",
+            1,
+        )
 
-    assert any("forbidden" in e and "philosophy admission opens gate" in e for e in errors)
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and "philosophy admission opens gate" in e for e in errors)
 
 
 def test_forbidden_runtime_live_claim_rejected() -> None:
     """Validator catches a forbidden 'philosophical semantic cache is live' claim."""
-    text = _contract_text()
-    mutated = text.replace(
-        "gate remains closed",
-        "gate remains closed\n\nphilosophical semantic cache is live",
-        1,
+    cases = (
+        "philosophical semantic cache is live",
+        "philosophical semantic-cache is live",
     )
 
-    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
 
-    assert any("forbidden" in e and "philosophical semantic cache live" in e for e in errors)
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and "philosophical semantic cache live" in e for e in errors)
+
+
+def test_forbidden_provider_approval_claim_rejected() -> None:
+    """Validator catches Redis/GPTCache approval claims for philosophy cache paths."""
+    cases = (
+        ("redis is approved for philosophical cache paths", "redis philosophical cache approved"),
+        (
+            "redis rollout is approved for philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "redis rollout is approved for the philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "gptcache is approved for philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "gptcache rollout is approved for philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "gptcache rollout is approved for the philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+    )
+
+    for claim, error_label in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and error_label in e for e in errors)
+
+
+def test_provider_approval_exclusion_wording_avoids_philosophy_path_detector() -> None:
+    """Provider approval exclusions must not trip the philosophy-path detector."""
+    cases = (
+        "redis rollout is approved by SC-G5, but not for philosophical cache paths",
+        "redis is approved for non-philosophical cache paths only",
+        "gptcache rollout is approved by SC-G5, but not for philosophical cache paths",
+        "gptcache is approved for non-philosophical cache paths only",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("philosophical cache approved" in e for e in errors)
 
 
 def test_forbidden_verification_optional_claim_rejected() -> None:
     """Validator catches a forbidden 'verification bundles optional for cache' claim."""
-    text = _contract_text()
-    mutated = text.replace(
-        "gate remains closed",
-        "gate remains closed\n\nverification bundles are optional for cache",
-        1,
+    cases = (
+        "verification bundles are optional for cache",
+        "verification bundle requirement is skipped for cache admission",
+        "verification-bundle requirement may be skipped for cache admission",
+        "verification-bundle requirement can be skipped for cache admission",
+        "verification-bundle requirements may be skipped for cache admission",
+        "verification bundle requirements can be skipped for cache admission",
+        "verification-bundle requirements are skipped for cache admission",
+        "skipped verification-bundle requirement for cache admission",
+        "skipped verification-bundle requirements for cache admission",
     )
 
-    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
 
-    assert any("forbidden" in e and "verification bundle optional" in e for e in errors)
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and "verification bundle optional" in e for e in errors)
 
 
 def test_checker_requires_admission_classes_complete() -> None:

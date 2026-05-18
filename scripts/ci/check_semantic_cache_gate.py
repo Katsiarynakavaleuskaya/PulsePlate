@@ -754,23 +754,44 @@ PHILOSOPHY_ADMISSION_REQUIRED_ANCHORS = (
 PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "philosophy admission opens gate",
-        re.compile(r"\bphilosophy admission opens (?:the )?semantic-cache gate\b"),
+        re.compile(
+            r"\bphilosophy admission opens (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy pr-1 admission opens (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy pr-1 opens (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy admission opens (?:the )?global gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? opens (?:the )?global gate\b"
+            r"|\bphilosophy(?: pr-1)?(?: admission)? "
+            r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? "
+            r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
+        ),
     ),
     (
         "philosophical semantic cache live",
-        re.compile(r"\bphilosophical semantic cache (?:is )?(?:live|active|enabled|open)\b"),
+        re.compile(r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"),
     ),
     (
         "redis philosophical cache approved",
-        re.compile(r"\bredis philosophical cache (?:is )?approved\b"),
+        re.compile(
+            r"\bredis philosophical cache (?:is )?approved\b"
+            r"|\bredis(?: rollout)? (?:is )?approved for (?:the )?philosophical cache paths?\b"
+        ),
     ),
     (
         "gptcache philosophical cache approved",
-        re.compile(r"\bgptcache philosophical cache (?:is )?approved\b"),
+        re.compile(
+            r"\bgptcache philosophical cache (?:is )?approved\b"
+            r"|\bgptcache(?: rollout)? (?:is )?approved for (?:the )?philosophical cache paths?\b"
+        ),
     ),
     (
         "verification bundle optional",
-        re.compile(r"\bverification bundles? (?:are )?optional for cache\b"),
+        re.compile(
+            r"\bverification[- ]bundles? (?:are )?optional for cache\b"
+            r"|\bverification[- ]bundle requirements? (?:is|are|may be|can be) skipped "
+            r"for cache admission\b"
+            r"|\bskipped verification[- ]bundle requirements? for cache admission\b"
+        ),
     ),
     (
         "SC-G5 matrix duplicated",
