@@ -107,7 +107,7 @@ def test_phase1_docs_gate_rejects_downstream_forbidden_philosophy_claim(
 
     def fake_read_text(path: str) -> str:
         if path == relpath:
-            return "## Forbidden Claims\n\nphilosophical semantic-cache is live"
+            return "## Runtime Notes\n\nphilosophical semantic-cache is live"
         return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
 
     monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
@@ -144,6 +144,174 @@ def test_phase1_docs_gate_scans_downstream_machine_state_json(
         f"{relpath}: forbidden philosophy admission contract claim: "
         "philosophical semantic cache live"
     ) in errors
+
+
+def test_phase1_docs_gate_allows_downstream_forbidden_claim_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Downstream docs can quote forbidden examples only inside the examples section."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim: philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
+def test_phase1_docs_gate_allows_downstream_forbidden_claim_bullet_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Negative Forbidden Claims sections may list examples as bullets."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "- philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    (
+        "- Example: philosophical semantic-cache is live",
+        "- Do not claim: philosophical semantic-cache is live",
+    ),
+)
+def test_phase1_docs_gate_allows_downstream_prefixed_negative_examples(
+    monkeypatch: pytest.MonkeyPatch,
+    line: str,
+) -> None:
+    """Safe example prefixes must not turn negative examples into failures."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n" "PR-1 and downstream docs must not claim:\n\n" f"{line}"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
+@pytest.mark.parametrize(
+    "line",
+    (
+        "Allowed claim: philosophical semantic-cache is live",
+        "- Allowed runtime claim: philosophical semantic-cache is live",
+        "- PR-1 and downstream docs may claim: philosophical semantic-cache is live",
+    ),
+)
+def test_phase1_docs_gate_rejects_downstream_permissive_forbidden_claim_examples(
+    monkeypatch: pytest.MonkeyPatch,
+    line: str,
+) -> None:
+    """Forbidden Claims examples cannot become permissive downstream assertions."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n" "PR-1 and downstream docs must not claim:\n\n" f"{line}"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
+def test_phase1_docs_gate_rejects_same_line_downstream_permissive_forbidden_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A negative lead-in cannot hide a same-line permissive downstream assertion."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim: "
+                "PR-1 and downstream docs may claim: philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
+@pytest.mark.parametrize(
+    ("line", "error_label"),
+    (
+        (
+            "- Implementation note: verification-bundle requirement is bypassed "
+            "for cache admission",
+            "verification bundle optional",
+        ),
+        (
+            "- Implementation note - philosophical semantic-cache is live",
+            "philosophical semantic cache live",
+        ),
+        (
+            "- Implementation note: backend selection is approved by Philosophy admission",
+            "backend selection authorized by philosophy admission",
+        ),
+    ),
+)
+def test_phase1_docs_gate_rejects_downstream_prefixed_forbidden_claim_bullets(
+    monkeypatch: pytest.MonkeyPatch,
+    line: str,
+    error_label: str,
+) -> None:
+    """Forbidden Claims bullets cannot hide assertions behind prose prefixes."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n" "PR-1 and downstream docs must not claim:\n\n" f"{line}"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (f"{relpath}: forbidden philosophy admission contract claim: {error_label}") in errors
 
 
 def test_phase1_docs_gate_does_not_scan_review_mapping_for_forbidden_claims(
@@ -1436,6 +1604,9 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         "verification bundles can be omitted for cache admission",
         "verification bundles are omitted for cache admission",
         "verification-bundle requirements may be omitted for cache admission",
+        "verification-bundle requirement is bypassed for cache admission",
+        "verification-bundle requirement may be bypassed for cache admission",
+        "verification-bundle requirements can be waived for cache admission",
         "verification bundle requirement is skipped for cache admission",
         "verification-bundle requirement may be skipped for cache admission",
         "verification-bundle requirement can be skipped for cache admission",
@@ -1458,6 +1629,26 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         assert any("forbidden" in e and "verification bundle optional" in e for e in errors)
 
 
+def test_negated_verification_optional_claims_allowed() -> None:
+    """Validator permits explicit no-bypass/no-waiver verification wording."""
+    cases = (
+        "verification-bundle requirements must not be waived for cache admission",
+        "verification bundle requirement is not bypassed for cache admission",
+        "verification-bundle requirements are not waived for cache admission",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("verification bundle optional" in e for e in errors)
+
+
 def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
     """Philosophy admission cannot authorize backend selection or serving."""
     cases = (
@@ -1469,6 +1660,9 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy PR-1 enables semantic-cache serving.",
         "Philosophy admission enables backend selection and serving.",
         "backend selection is approved for Philosophy admission.",
+        "backend selection is approved by Philosophy admission.",
+        "serving is enabled by Philosophy admission.",
+        "serving is permitted by Philosophy admission.",
         "Philosophy admission performs backend selection.",
         "Philosophy admission selects a backend for serving.",
         "backend selection is authorized by Philosophy admission.",
@@ -1488,6 +1682,26 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
             "forbidden" in e and "backend selection authorized by philosophy admission" in e
             for e in errors
         )
+
+
+def test_negated_backend_selection_authorization_claims_allowed() -> None:
+    """Validator permits explicit no-authorization wording for Philosophy admission."""
+    cases = (
+        "backend selection is not approved by Philosophy admission.",
+        "serving is not enabled by Philosophy admission.",
+        "serving is not permitted by Philosophy admission.",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("backend selection authorized by philosophy admission" in e for e in errors)
 
 
 def test_backend_selection_contract_rejects_authorization_for_serving_claims() -> None:

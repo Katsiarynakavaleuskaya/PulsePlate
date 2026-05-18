@@ -792,6 +792,17 @@ PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE = re.compile(
     r"(?:(?:is|are)\s+)?"
     r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s*:"
 )
+PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE = re.compile(
+    r"^(?:"
+    r"(?:forbidden\s+)?examples?"
+    r"|do\s+not\s+claim"
+    r"|must\s+not\s+claim"
+    r"|not\s+allowed(?:\s+\w+){0,3}\s+claims?"
+    r"|not\s+permitted(?:\s+\w+){0,3}\s+claims?"
+    r"|never(?:\s+\w+){0,3}\s+claims?"
+    r"|no(?:\s+\w+){0,3}\s+claims?"
+    r")\s*(?::|-)$"
+)
 
 PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
@@ -975,6 +986,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"for cache admission\b"
             r"|\bverification[- ]bundle requirements? (?:(?:may be|can be|is|are) )?"
             r"omitted for cache admission\b"
+            r"|\bverification[- ]bundle requirements? (?:(?:is|are|may be|can be) )?"
+            r"(?:bypassed|waived) for cache admission\b"
             r"|\bskipped verification[- ]bundle requirements? for cache admission\b"
         ),
     ),
@@ -987,9 +1000,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:backend selection|serving|semantic[- ]cache serving|backend selection and serving)\b"
             r"|\bbackend selection (?:is|are) (?:authorized|approved|enabled|permitted) "
             r"for philosophy admission\b"
+            r"|\b(?:backend selection|serving) (?:is|are) "
+            r"(?:authorized|approved|enabled|permitted) by philosophy admission\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backend for serving)\b"
-            r"|\b(?:backend selection|serving) (?:is|are) authorized by philosophy admission\b"
         ),
     ),
     (
@@ -1833,10 +1847,66 @@ def _strip_forbidden_claims_line_prefixes(line: str) -> tuple[str, bool]:
 
 def validate_philosophy_semantic_cache_admission_downstream_text(text: str) -> list[str]:
     """Reject Philosophy PR-1 forbidden claims in downstream docs without contract anchors."""
-    assertion_normalized = _normalize_text(text)
-    errors = _forbidden_claim_errors(text)
+    assertion_text = _philosophy_downstream_assertion_text(text)
+    assertion_normalized = _normalize_text(assertion_text)
+    errors = _forbidden_claim_errors(assertion_text)
     errors.extend(_philosophy_admission_forbidden_claim_errors(assertion_normalized))
     return errors
+
+
+def _has_prefixed_forbidden_claim_assertion(normalized_line: str) -> bool:
+    """Return true when a bullet wraps a forbidden claim in assertive prose."""
+    for _label, pattern in (*FORBIDDEN_CLAIM_PATTERNS, *PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS):
+        match = pattern.search(normalized_line)
+        if match is None or match.start() == 0:
+            continue
+        prefix = normalized_line[: match.start()].strip()
+        if not prefix or PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(prefix):
+            continue
+        return True
+    return False
+
+
+def _philosophy_downstream_assertion_text(text: str) -> str:
+    """Keep downstream scans broad while allowing explicitly negative examples."""
+    kept_lines: list[str] = []
+    in_forbidden_claims_section = False
+    negative_example_block = False
+    for line in text.splitlines():
+        heading_match = re.match(r"^##\s+(?P<heading>.+?)\s*$", line.strip())
+        if heading_match is not None:
+            heading = heading_match.group("heading").strip().lower()
+            in_forbidden_claims_section = heading == "forbidden claims"
+            negative_example_block = False
+            kept_lines.append(line)
+            continue
+        if not in_forbidden_claims_section:
+            kept_lines.append(line)
+            continue
+
+        stripped_line, had_bullet = _strip_forbidden_claims_line_prefixes(line)
+        normalized_line = _normalize_text(stripped_line)
+        negative_polarity_match = PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_POLARITY_RE.search(
+            normalized_line
+        )
+        if negative_polarity_match is not None:
+            tail = normalized_line[negative_polarity_match.end() :].strip()
+            if PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE.search(tail):
+                kept_lines.append(tail)
+                continue
+            negative_example_block = True
+            continue
+        if (
+            negative_example_block
+            and had_bullet
+            and not PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE.search(
+                normalized_line
+            )
+            and not _has_prefixed_forbidden_claim_assertion(normalized_line)
+        ):
+            continue
+        kept_lines.append(line)
+    return "\n".join(kept_lines)
 
 
 def _load_philosophy_admission_schema_json(schema_text: str) -> tuple[object, list[str]]:
