@@ -768,21 +768,46 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     ),
     (
         "philosophical semantic cache live",
-        re.compile(r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"),
+        re.compile(
+            r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"
+            r"|\bproduction[- ]live philosophical cache[- ]key behavior\b"
+        ),
     ),
     (
         "redis philosophical cache approved",
         re.compile(
             r"\bredis philosophical cache (?:is )?approved\b"
-            r"|\bredis(?: rollout)? (?:is )?approved for (?:the )?philosophical cache paths?\b"
+            r"|\bredis(?: rollout)? (?:is )?approved for (?:the )?philosophical "
+            r"(?:semantic[- ]cache|cache) paths?\b"
         ),
     ),
     (
         "gptcache philosophical cache approved",
         re.compile(
             r"\bgptcache philosophical cache (?:is )?approved\b"
-            r"|\bgptcache(?: rollout)? (?:is )?approved for (?:the )?philosophical cache paths?\b"
+            r"|\bgptcache(?: rollout)? (?:is )?approved for (?:the )?philosophical "
+            r"(?:semantic[- ]cache|cache) paths?\b"
         ),
+    ),
+    (
+        "redis imports allowed in pr-1",
+        re.compile(r"\bredis imports? (?:are )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "gptcache imports allowed in pr-1",
+        re.compile(r"\bgptcache imports? (?:are )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "embeddings allowed in pr-1",
+        re.compile(r"\bembeddings? (?:are )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "insight cache wiring allowed in pr-1",
+        re.compile(r"(?<!\w)/insight cache wiring (?:is )?(?:allowed|permitted) in pr-1\b"),
+    ),
+    (
+        "design intake overrides gate markers",
+        re.compile(r"\bpdf/design intake overrides repo gate markers\b"),
     ),
     (
         "verification bundle optional",
@@ -844,8 +869,21 @@ PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS = {
     "SC-G5 gptcache label duplicated",
 }
 
+PHILOSOPHY_PR1_PERMISSION_PATTERN_LABELS = {
+    "redis imports allowed in pr-1",
+    "gptcache imports allowed in pr-1",
+    "embeddings allowed in pr-1",
+    "insight cache wiring allowed in pr-1",
+}
+
 PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
     r"\b(?:can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
+    r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
+    r"(?:\s+(?:safely|intentionally|accidentally|ever))?\s*$"
+)
+
+PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE = re.compile(
+    r"\b(?:no|not|never|can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
     r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
     r"(?:\s+(?:safely|intentionally|accidentally|ever))?\s*$"
 )
@@ -856,8 +894,15 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
     "claim_class_provider_rollout_approved": (
         "redis philosophical cache approved",
         "gptcache philosophical cache approved",
+        "redis imports allowed in pr-1",
+        "gptcache imports allowed in pr-1",
+        "embeddings allowed in pr-1",
+        "insight cache wiring allowed in pr-1",
     ),
-    "claim_class_verification_bundle_skipped": ("verification bundle optional",),
+    "claim_class_verification_bundle_skipped": (
+        "verification bundle optional",
+        "design intake overrides gate markers",
+    ),
 }
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
@@ -898,12 +943,21 @@ def _is_negated_philosophy_duplication_claim(text: str, match: re.Match[str]) ->
     return PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE.search(prefix) is not None
 
 
+def _is_negated_philosophy_permission_claim(text: str, match: re.Match[str]) -> bool:
+    prefix = text[max(0, match.start() - 80) : match.start()]
+    return PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE.search(prefix) is not None
+
+
 def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
     errors: list[str] = []
     for label, pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS:
         for match in pattern.finditer(text):
             if label in PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS and (
                 _is_negated_philosophy_duplication_claim(text, match)
+            ):
+                continue
+            if label in PHILOSOPHY_PR1_PERMISSION_PATTERN_LABELS and (
+                _is_negated_philosophy_permission_claim(text, match)
             ):
                 continue
             errors.append(f"forbidden philosophy admission contract claim: {label}")

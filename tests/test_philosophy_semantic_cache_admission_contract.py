@@ -511,6 +511,7 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
     cases = (
         "philosophical semantic cache is live",
         "philosophical semantic-cache is live",
+        "production-live philosophical cache-key behavior",
     )
 
     for claim in cases:
@@ -530,6 +531,10 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
     cases = (
         ("redis is approved for philosophical cache paths", "redis philosophical cache approved"),
         (
+            "redis is approved for philosophical semantic-cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
             "redis rollout is approved for philosophical cache paths",
             "redis philosophical cache approved",
         ),
@@ -539,6 +544,10 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
         ),
         (
             "gptcache is approved for philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "gptcache is approved for philosophical semantic-cache paths",
             "gptcache philosophical cache approved",
         ),
         (
@@ -561,6 +570,48 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and error_label in e for e in errors)
+
+
+def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
+    """Validator catches affirmative PR-1 runtime expansion claims."""
+    cases = (
+        ("redis imports are allowed in PR-1", "redis imports allowed in pr-1"),
+        ("GPTCache imports are permitted in PR-1", "gptcache imports allowed in pr-1"),
+        ("embeddings are permitted in PR-1", "embeddings allowed in pr-1"),
+        ("/insight cache wiring is permitted in PR-1", "insight cache wiring allowed in pr-1"),
+    )
+
+    for claim, error_label in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and error_label in e for e in errors)
+
+
+def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
+    """Validator permits negated PR-1 runtime guardrail wording."""
+    cases = (
+        "No Redis imports are allowed in PR-1.",
+        "No GPTCache imports are permitted in PR-1.",
+        "No embeddings are permitted in PR-1.",
+        "No /insight cache wiring is permitted in PR-1.",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("allowed in pr-1" in e for e in errors)
 
 
 def test_provider_approval_exclusion_wording_avoids_philosophy_path_detector() -> None:
@@ -608,6 +659,22 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and "verification bundle optional" in e for e in errors)
+
+
+def test_forbidden_design_intake_override_claim_rejected() -> None:
+    """Validator catches claims that PDF/design intake can override repo gates."""
+    cases = ("PDF/design intake overrides repo gate markers",)
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and "design intake overrides gate markers" in e for e in errors)
 
 
 def test_checker_requires_admission_classes_complete() -> None:
