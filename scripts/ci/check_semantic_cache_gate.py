@@ -779,7 +779,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "SC-G5 in-memory label duplicated",
         re.compile(
-            r"\b(?<!not\s)(?<!no\s)(?<!never\s)"
+            r"\b(?<!not\s)(?<!no\s)(?<!never\s)(?<!can't\s)(?<!cannot\s)"
+            r"(?<!won't\s)(?<!shouldn't\s)(?<!mustn't\s)(?<!doesn't\s)(?<!don't\s)"
             r"(?:lists?|includes?|copies|duplicates?|defines|uses|allows|approves|reuses|"
             r"restates|documents?|names?|enumerates?)"
             r"\s+(?:the\s+)?(?:sc-g5\s+)?in_memory_label\b"
@@ -791,7 +792,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "SC-G5 redis label duplicated",
         re.compile(
-            r"\b(?<!not\s)(?<!no\s)(?<!never\s)"
+            r"\b(?<!not\s)(?<!no\s)(?<!never\s)(?<!can't\s)(?<!cannot\s)"
+            r"(?<!won't\s)(?<!shouldn't\s)(?<!mustn't\s)(?<!doesn't\s)(?<!don't\s)"
             r"(?:lists?|includes?|copies|duplicates?|defines|uses|allows|approves|reuses|"
             r"restates|documents?|names?|enumerates?)"
             r"\s+(?:the\s+)?(?:sc-g5\s+)?redis_label\b"
@@ -803,7 +805,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "SC-G5 gptcache label duplicated",
         re.compile(
-            r"\b(?<!not\s)(?<!no\s)(?<!never\s)"
+            r"\b(?<!not\s)(?<!no\s)(?<!never\s)(?<!can't\s)(?<!cannot\s)"
+            r"(?<!won't\s)(?<!shouldn't\s)(?<!mustn't\s)(?<!doesn't\s)(?<!don't\s)"
             r"(?:lists?|includes?|copies|duplicates?|defines|uses|allows|approves|reuses|"
             r"restates|documents?|names?|enumerates?)"
             r"\s+(?:the\s+)?(?:sc-g5\s+)?gptcache_label\b"
@@ -812,6 +815,18 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"restated|documented|named|enumerated)\b"
         ),
     ),
+)
+
+PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS = {
+    "SC-G5 in-memory label duplicated",
+    "SC-G5 redis label duplicated",
+    "SC-G5 gptcache label duplicated",
+}
+
+PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
+    r"\b(?:can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
+    r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
+    r"(?:\s+(?:safely|intentionally|accidentally|ever))?\s*$"
 )
 
 PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
@@ -855,6 +870,24 @@ def _forbidden_claim_errors(text: str) -> list[str]:
         for label, pattern in FORBIDDEN_CLAIM_PATTERNS
         if pattern.search(normalized)
     ]
+
+
+def _is_negated_philosophy_duplication_claim(text: str, match: re.Match[str]) -> bool:
+    prefix = text[max(0, match.start() - 80) : match.start()]
+    return PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE.search(prefix) is not None
+
+
+def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
+    errors: list[str] = []
+    for label, pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS:
+        for match in pattern.finditer(text):
+            if label in PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS and (
+                _is_negated_philosophy_duplication_claim(text, match)
+            ):
+                continue
+            errors.append(f"forbidden philosophy admission contract claim: {label}")
+            break
+    return errors
 
 
 def _without_markdown_sections(text: str, headings: set[str]) -> str:
@@ -1413,11 +1446,7 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
     assertion_text = _philosophy_admission_assertion_text(text)
     assertion_normalized = _normalize_text(assertion_text)
     errors.extend(_forbidden_claim_errors(assertion_text))
-    errors.extend(
-        f"forbidden philosophy admission contract claim: {label}"
-        for label, pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS
-        if pattern.search(assertion_normalized)
-    )
+    errors.extend(_philosophy_admission_forbidden_claim_errors(assertion_normalized))
     errors.extend(_validate_philosophy_admission_machine_state(text))
 
     return errors
@@ -1634,7 +1663,7 @@ def validate_philosophy_semantic_cache_admission_schema(
             min_items = spec.get("minItems")
             max_items = spec.get("maxItems")
             enum_backed = isinstance(items, dict) and "enum" in items
-            if payload[key] and not isinstance(min_items, int):
+            if payload[key] and type(min_items) is not int:
                 errors.append(f"philosophy admission schema minItems missing for {key}")
             elif payload[key] and enum_backed and min_items != len(payload[key]):
                 errors.append(
@@ -1646,7 +1675,16 @@ def validate_philosophy_semantic_cache_admission_schema(
                     f"philosophy admission schema maxItems mismatch for {key}: "
                     f"expected {len(payload[key])}"
                 )
-            if key == "future_cache_candidate_deferred_surfaces" and max_items != 0:
+            if key == "future_cache_candidate_deferred_surfaces" and (
+                min_items is not None and (type(min_items) is not int or min_items != 0)
+            ):
+                errors.append(
+                    "philosophy admission schema minItems mismatch for "
+                    "future_cache_candidate_deferred_surfaces: expected 0"
+                )
+            if key == "future_cache_candidate_deferred_surfaces" and (
+                type(max_items) is not int or max_items != 0
+            ):
                 errors.append(
                     "philosophy admission schema maxItems mismatch for "
                     "future_cache_candidate_deferred_surfaces: expected 0"

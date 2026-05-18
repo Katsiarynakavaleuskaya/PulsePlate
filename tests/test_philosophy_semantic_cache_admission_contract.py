@@ -203,6 +203,53 @@ def test_schema_validator_requires_deferred_candidates_to_stay_closed_gate_empty
     ) in errors
 
 
+def test_schema_validator_rejects_deferred_candidate_min_items_drift() -> None:
+    """An empty gate-closed deferred list cannot gain a positive minItems floor."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    deferred = properties["future_cache_candidate_deferred_surfaces"]
+    assert isinstance(deferred, dict)
+    deferred["minItems"] = 1
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema minItems mismatch for "
+        "future_cache_candidate_deferred_surfaces: expected 0"
+    ) in errors
+
+
+def test_schema_validator_rejects_boolean_deferred_candidate_cardinality() -> None:
+    """Boolean cardinality values are invalid even though bool subclasses int."""
+    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    deferred = properties["future_cache_candidate_deferred_surfaces"]
+    assert isinstance(deferred, dict)
+    deferred["minItems"] = False
+    deferred["maxItems"] = False
+
+    errors = validate_philosophy_semantic_cache_admission_schema(
+        schema_text=json.dumps(schema),
+        contract_text=_contract_text(),
+    )
+
+    assert (
+        "philosophy admission schema minItems mismatch for "
+        "future_cache_candidate_deferred_surfaces: expected 0"
+    ) in errors
+    assert (
+        "philosophy admission schema maxItems mismatch for "
+        "future_cache_candidate_deferred_surfaces: expected 0"
+    ) in errors
+
+
 def test_checker_rejects_duplicate_machine_state_lists() -> None:
     """Machine-state lists must stay duplicate-free, including references."""
     state = json.loads(json.dumps(_machine_state()))
@@ -349,6 +396,78 @@ def test_negative_sc_g5_label_non_duplication_prose_allowed() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert not any(error_label in e for e in errors)
+
+
+def test_contracted_negative_sc_g5_label_non_duplication_prose_allowed() -> None:
+    """Contracted negations before duplication verbs stay allowed guardrails."""
+    cases = (
+        ("in_memory_label", "can't list", "SC-G5 in-memory label duplicated"),
+        ("redis_label", "won't document", "SC-G5 redis label duplicated"),
+        ("gptcache_label", "shouldn't enumerate", "SC-G5 gptcache label duplicated"),
+    )
+
+    for backend_label, negative_phrase, error_label in cases:
+        mutated = _contract_text().replace(
+            "This contract does not open the semantic-cache gate.",
+            (
+                "This contract does not open the semantic-cache gate.\n\n"
+                f"PR-1 {negative_phrase} `{backend_label}` from SC-G5."
+            ),
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any(error_label in e for e in errors)
+
+
+def test_contracted_negative_sc_g5_label_with_adverb_allowed() -> None:
+    """Negation can include a short modifier before the duplication verb."""
+    cases = (
+        ("in_memory_label", "can't safely list", "SC-G5 in-memory label duplicated"),
+        ("redis_label", "won't intentionally document", "SC-G5 redis label duplicated"),
+        (
+            "gptcache_label",
+            "shouldn't accidentally enumerate",
+            "SC-G5 gptcache label duplicated",
+        ),
+    )
+
+    for backend_label, negative_phrase, error_label in cases:
+        mutated = _contract_text().replace(
+            "This contract does not open the semantic-cache gate.",
+            (
+                "This contract does not open the semantic-cache gate.\n\n"
+                f"PR-1 {negative_phrase} `{backend_label}` from SC-G5."
+            ),
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any(error_label in e for e in errors)
+
+
+def test_assertive_sc_g5_label_duplication_with_negation_words_rejected() -> None:
+    """Negation words cannot hide assertive duplication claims."""
+    cases = (
+        ("redis_label", "not only lists", "SC-G5 redis label duplicated"),
+        ("gptcache_label", "does not merely document", "SC-G5 gptcache label duplicated"),
+    )
+
+    for backend_label, phrase, error_label in cases:
+        mutated = _contract_text().replace(
+            "This contract does not open the semantic-cache gate.",
+            (
+                "This contract does not open the semantic-cache gate.\n\n"
+                f"PR-1 {phrase} `{backend_label}` from SC-G5."
+            ),
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any(error_label in e for e in errors)
 
 
 def test_forbidden_gate_open_claim_rejected() -> None:
