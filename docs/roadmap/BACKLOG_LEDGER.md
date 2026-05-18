@@ -4518,6 +4518,28 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Mark `docs/security/CVE-2026-33846-gnutls.md` resolved or update with remediation evidence
     - Trivy Code Scanning alert #590 remains closed on `main`
 
+<a id="ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363"></a>
+- [ ] Remove Trivy suppression for Ruby jwt CVE-2026-45363
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: TBD (follow-up after Fastlane permits jwt 3.x)
+  - Status: Open
+  - Area: security / iOS release tooling / code-scanning
+  - Finding Type: release-tooling dependency vulnerability
+  - Reason: GitHub Code Scanning alert #594 reports Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-18 shows latest Fastlane `2.234.0` still requires `jwt >= 2.1.0, < 3`, so the fixed `jwt` 3.x line is not reachable through a safe lockfile update. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` scoped to `ios/Gemfile.lock` while monitoring Fastlane support.
+  - Links:
+    - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/594
+    - docs/security/CVE-2026-45363-jwt-fastlane.md
+    - trivy/ignore-policy.rego
+    - https://rubygems.org/gems/fastlane/versions/2.234.0
+    - https://rubygems.org/gems/jwt/versions/3.2.0
+  - DoD:
+    - Fastlane publishes a compatible release that permits `jwt >= 3.2.0`, or iOS release tooling no longer depends on Fastlane's `jwt` 2.x graph
+    - Update `ios/Gemfile.lock` to remove the vulnerable `jwt` resolution
+    - Remove suppression rule from `trivy/ignore-policy.rego`
+    - Mark `docs/security/CVE-2026-45363-jwt-fastlane.md` resolved or update with remediation evidence
+    - Trivy Code Scanning alert #594 remains closed on `main`
+
 <a id="ledger-p1-reconcile-open-dependabot-alerts"></a>
 - [ ] P1: Reconcile open Dependabot alerts on `main` after manifest fixes
   - Owner: @katsiaryna_kavaleuskaya

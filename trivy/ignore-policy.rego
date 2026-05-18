@@ -11,7 +11,7 @@ default ignore := false
 #
 # Suppression expires: 2026-05-27 (manual removal)
 # Last reviewed: 2026-04-02
-# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2026-33845-gnutls.md, docs/security/CVE-2026-33846-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md, docs/security/CVE-2026-4878-libcap2.md
+# Documented in: docs/security/CVE-2026-0915-glibc.md, docs/security/CVE-2026-4046-glibc.md, docs/security/CVE-2025-15281-glibc.md, docs/security/CVE-2026-27171-zlib1g.md, docs/security/CVE-2026-3184-util-linux.md, docs/security/CVE-2025-14831-gnutls.md, docs/security/CVE-2026-33845-gnutls.md, docs/security/CVE-2026-33846-gnutls.md, docs/security/CVE-2025-69720-ncurses.md, docs/security/CVE-2026-29111-systemd.md, docs/security/CVE-2026-4878-libcap2.md, docs/security/CVE-2026-45363-jwt-fastlane.md
 
 ignore if {
 	input.VulnerabilityID == "CVE-2026-0915"
@@ -414,4 +414,38 @@ ignore if {
 	cve_2026_4878_image_reference_match
 	cve_2026_4878_distro_match
 	startswith(input.PkgID, sprintf("libcap2@%s", [cve_2026_4878_libcap2_version]))
+}
+
+# anchor:cve-2026-45363-jwt-fastlane-suppression
+# CVE-2026-45363 (Ruby jwt) - fixed version blocked by Fastlane dependency constraint
+# Review-by: 2026-05-27 (manual removal)
+# Rationale: GitHub Code Scanning alert #594 reports Ruby gem `jwt` 2.10.2
+#   from ios/Gemfile.lock with fixed version 3.2.0. Bundler resolves latest
+#   Fastlane 2.234.0 with `jwt >= 2.1.0, < 3`, so the fixed jwt 3.x line is
+#   not reachable through a safe lockfile update. This is release tooling only,
+#   not an iOS app binary runtime dependency.
+# Monitor: https://rubygems.org/gems/fastlane/versions/2.234.0
+# Monitor: https://rubygems.org/gems/jwt/versions/3.2.0
+# Documented in: docs/security/CVE-2026-45363-jwt-fastlane.md
+# Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363
+# Removal condition: Remove when Fastlane permits jwt >= 3.2.0 or the iOS
+#   release tooling no longer depends on Fastlane's jwt 2.x graph
+
+cve_2026_45363_jwt_version := "2.10.2"
+
+cve_2026_45363_jwt_pkgpath_match if {
+	input.PkgPath == "ios/Gemfile.lock"
+}
+
+cve_2026_45363_jwt_pkgpath_match if {
+	endswith(input.PkgPath, "/ios/Gemfile.lock")
+}
+
+ignore if {
+	input.VulnerabilityID == "CVE-2026-45363"
+	input.PkgName == "jwt"
+	input.InstalledVersion == cve_2026_45363_jwt_version
+	input.FixedVersion == "3.2.0"
+	cve_2026_45363_jwt_pkgpath_match
+	startswith(input.PkgID, sprintf("jwt@%s", [cve_2026_45363_jwt_version]))
 }
