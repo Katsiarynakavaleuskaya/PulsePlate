@@ -1101,7 +1101,42 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "redis philosophical cache approved",
         ),
         (
+            "Redis rollout is not only approved for philosophical cache paths, it is enabled too.",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Redis rollout is not merely approved for philosophical cache paths, "
+            "it is enabled too.",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Redis rollout isn't just approved for philosophical cache paths, "
+            "it is enabled too.",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Redis rollout is not exclusively approved for philosophical cache paths, "
+            "it is enabled too.",
+            "redis philosophical cache approved",
+        ),
+        (
             "redis rollout is approved for the philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "approved Redis rollout for philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "enabled Redis rollout for philosophical semantic-cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Not only approved Redis rollout for philosophical cache paths.",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Never merely enabled Redis rollout for philosophical semantic-cache paths.",
             "redis philosophical cache approved",
         ),
         (
@@ -1121,7 +1156,43 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "gptcache philosophical cache approved",
         ),
         (
+            "GPTCache rollout is not only enabled for philosophical cache paths, it is approved.",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "GPTCache rollout is not just approved for philosophical semantic-cache paths, "
+            "it is enabled.",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "GPTCache rollout is not simply enabled for philosophical cache paths, "
+            "it is approved.",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "GPTCache rollout is not solely enabled for philosophical cache paths, "
+            "it is approved.",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "GPTCache rollout isn't exclusively enabled for philosophical cache paths, "
+            "it is approved.",
+            "gptcache philosophical cache approved",
+        ),
+        (
             "gptcache rollout is approved for the philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "approved GPTCache rollout for philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "enabled GPTCache rollout for philosophical semantic-cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "Not only enabled GPTCache rollout for philosophical semantic-cache paths.",
             "gptcache philosophical cache approved",
         ),
     )
@@ -1201,6 +1272,31 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("Philosophy admission approves runtime expansion", "runtime allowed in pr-1"),
+        ("PR-1 approves runtime expansion for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime expansion is approved for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime expansion is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        (
+            "Runtime expansion is not only approved for Philosophy admission, it is enabled.",
+            "runtime allowed in pr-1",
+        ),
+        (
+            "Runtime expansion is not just approved for Philosophy admission, it is enabled.",
+            "runtime allowed in pr-1",
+        ),
+        (
+            "Runtime expansion is not merely approved for Philosophy admission, it is enabled.",
+            "runtime allowed in pr-1",
+        ),
+        (
+            "Runtime expansion is not solely approved for Philosophy admission, it is enabled.",
+            "runtime allowed in pr-1",
+        ),
+        (
+            "Runtime expansion isn't solely approved for Philosophy admission, it is enabled.",
+            "runtime allowed in pr-1",
+        ),
+        ("runtime-expansion is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime paths are approved for Philosophy admission", "runtime allowed in pr-1"),
     )
 
@@ -1228,6 +1324,9 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
         "No cache adapters are permitted in PR-1.",
         "No runtime is enabled for Philosophy admission.",
         "No runtime behavior is approved for Philosophy admission.",
+        "No runtime expansion is approved for Philosophy admission.",
+        "Philosophy admission does not approve runtime expansion.",
+        "PR-1 must not approve runtime expansion for Philosophy admission.",
     )
 
     for claim in cases:
@@ -1247,8 +1346,18 @@ def test_provider_approval_exclusion_wording_avoids_philosophy_path_detector() -
     cases = (
         "redis rollout is approved by SC-G5, but not for philosophical cache paths",
         "redis is approved for non-philosophical cache paths only",
+        "No approved Redis rollout for philosophical cache paths.",
+        "No enabled Redis rollout for philosophical semantic-cache paths.",
+        "Not currently approved Redis rollout for philosophical cache paths.",
+        "Not yet approved Redis rollout for philosophical cache paths.",
+        "Never actually enabled Redis rollout for philosophical semantic-cache paths.",
         "gptcache rollout is approved by SC-G5, but not for philosophical cache paths",
         "gptcache is approved for non-philosophical cache paths only",
+        "No approved GPTCache rollout for philosophical cache paths.",
+        "No enabled GPTCache rollout for philosophical semantic-cache paths.",
+        "Not currently approved GPTCache rollout for philosophical cache paths.",
+        "No formally approved GPTCache rollout for philosophical cache paths.",
+        "Never actually enabled GPTCache rollout for philosophical semantic-cache paths.",
     )
 
     for claim in cases:

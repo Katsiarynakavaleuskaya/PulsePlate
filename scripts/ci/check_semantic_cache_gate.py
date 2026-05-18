@@ -831,7 +831,18 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "redis philosophical cache approved",
         re.compile(
             r"\bredis philosophical cache (?:is )?(?:approved|enabled)\b"
-            r"|\bredis(?: rollout)? (?:is )?(?:approved|enabled) for (?:the )?philosophical "
+            r"|\bredis(?: rollout)? "
+            r"(?:is |is not (?:only|just|merely|simply|solely|exclusively) |"
+            r"isn't (?:only|just|merely|simply|solely|exclusively) )?"
+            r"(?:approved|enabled) "
+            r"for (?:the )?philosophical "
+            r"(?:semantic[- ]cache|cache) paths?\b"
+            r"|(?<!\bno )(?<!\bnot )(?<!\bnever )"
+            r"(?<!\bno currently )(?<!\bnot currently )(?<!\bnever currently )"
+            r"(?<!\bno actually )(?<!\bnot actually )(?<!\bnever actually )"
+            r"(?<!\bno explicitly )(?<!\bnot explicitly )(?<!\bnever explicitly )"
+            r"\b(?:approved|enabled) redis rollout "
+            r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
         ),
     ),
@@ -839,7 +850,18 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "gptcache philosophical cache approved",
         re.compile(
             r"\bgptcache philosophical cache (?:is )?(?:approved|enabled)\b"
-            r"|\bgptcache(?: rollout)? (?:is )?(?:approved|enabled) for (?:the )?philosophical "
+            r"|\bgptcache(?: rollout)? "
+            r"(?:is |is not (?:only|just|merely|simply|solely|exclusively) |"
+            r"isn't (?:only|just|merely|simply|solely|exclusively) )?"
+            r"(?:approved|enabled) "
+            r"for (?:the )?philosophical "
+            r"(?:semantic[- ]cache|cache) paths?\b"
+            r"|(?<!\bno )(?<!\bnot )(?<!\bnever )"
+            r"(?<!\bno currently )(?<!\bnot currently )(?<!\bnever currently )"
+            r"(?<!\bno actually )(?<!\bnot actually )(?<!\bnever actually )"
+            r"(?<!\bno explicitly )(?<!\bnot explicitly )(?<!\bnever explicitly )"
+            r"\b(?:approved|enabled) gptcache rollout "
+            r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
         ),
     ),
@@ -898,9 +920,15 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "runtime allowed in pr-1",
         re.compile(
-            r"\bruntime(?: behavior| paths?)? (?:(?:are|is) )?"
+            r"\bruntime(?: behavior|[- ]expansion| paths?)? "
+            r"(?:(?:are|is) |(?:are|is) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\b(?:philosophy admission|pr-1) "
+            r"(?:approves|allows|permits|enables) runtime[- ]expansion"
+            r"(?: for philosophy admission)?\b"
         ),
     ),
     (
@@ -968,6 +996,8 @@ PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS = {
 }
 
 PHILOSOPHY_PR1_PERMISSION_PATTERN_LABELS = {
+    "redis philosophical cache approved",
+    "gptcache philosophical cache approved",
     "redis imports allowed in pr-1",
     "gptcache imports allowed in pr-1",
     "embeddings allowed in pr-1",
@@ -987,7 +1017,7 @@ PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
 PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE = re.compile(
     r"\b(?:no|not|never|can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
     r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
-    r"(?:\s+(?:safely|intentionally|accidentally|ever))?\s*$"
+    r"(?:\s+(?:currently|yet|formally|actually|explicitly)){0,3}\s*$"
 )
 
 PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
