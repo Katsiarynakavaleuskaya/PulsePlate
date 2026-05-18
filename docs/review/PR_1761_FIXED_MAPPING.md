@@ -178,6 +178,13 @@ Evidence: Closed the new Codex detector gaps for runtime-expansion approval and 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260207500 -> bae85b90471946708d77483ef4179f3cfd167d29
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260207501 -> bae85b90471946708d77483ef4179f3cfd167d29
 
+Disposition: FIXED
+Commit: 5bacf711ca35f4758df282d0591a004b3619ac05
+Evidence: Closed the latest Codex admission-boundary gaps while preserving the gate-closed, contract-only scope. The checker now rejects verification-bundle `not required` / `omitted` claims, scans Philosophy forbidden claims across all changed `docs/*.md` downstream docs except review artifacts, rejects Philosophy admission backend-selection/semantic-cache-serving authorization claims, and extends the SC-G5 backend-selection contract detector for serving authorization forms. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`57 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, `pre-commit run --all-files`, bug-hunter PASS, QA PASS, architecture PASS, and diff-scoped Codex Security PASS.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260560139 -> 5bacf711ca35f4758df282d0591a004b3619ac05
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260560142 -> 5bacf711ca35f4758df282d0591a004b3619ac05
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3260560150 -> 5bacf711ca35f4758df282d0591a004b3619ac05
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
