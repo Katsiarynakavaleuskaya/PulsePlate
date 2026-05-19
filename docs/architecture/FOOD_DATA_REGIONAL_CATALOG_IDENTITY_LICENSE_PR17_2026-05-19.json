@@ -19,7 +19,7 @@
     "database_write",
     "digitalocean_postgres_load"
   ],
-  "budget_first_policy": "USDA and Open Food Facts remain the budget-first canonical nutrition baseline. Regional catalog candidates in attached source reports and charts are review context only. PR17 keeps API calls, seller or partner access, scraping, downloads, paid source use, cache authority, redistribution, runtime source authority, product display, and nutrition authority blocked.",
+  "budget_first_policy": "USDA and Open Food Facts remain the budget-first canonical nutrition baseline. Regional catalog candidates in attached source reports and charts are review context only. PR17 keeps API calls, seller or partner access, scraping, downloads, paid source activity, cache authority, redistribution, runtime source authority, product display, and nutrition authority blocked.",
   "bulk_ingest": false,
   "cache_authority_allowed": false,
   "candidate_reviews": [
@@ -242,7 +242,7 @@
   "generated_on": "2026-05-19",
   "network_allowed": false,
   "next_recommended_lane": "regional_catalog_provider_terms_matrix",
-  "notes": "PR17 records regional catalog identity/license review candidates as evidence-only. It keeps API calls, scraping, downloads, seller or partner access, paid source use, cache authority, redistribution, runtime source authority, product display, nutrition authority, database writes, and ingest blocked.",
+  "notes": "PR17 records regional catalog identity/license review candidates as evidence-only. It keeps API calls, scraping, downloads, seller or partner access, paid source activity, cache authority, redistribution, runtime source authority, product display, nutrition authority, database writes, and ingest blocked.",
   "nutrition_authority_allowed": false,
   "onboarding_ref": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
   "paid_source_use_allowed": false,

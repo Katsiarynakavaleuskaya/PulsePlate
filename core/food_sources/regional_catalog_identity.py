@@ -264,6 +264,7 @@ _APPROVAL_TERMS = (
 _USE_TERMS = r"may be used|can be used|relied on"
 _BLOCKED_NOTE_TERMS = (
     r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller apis?|partner apis?|"
+    r"apis?|seller account access|partner menu access|provider apis?|"
     r"provider integration|cache authority|redistribution|runtime authority|product display|"
     r"nutrition authority|source authority|public dataset claim|automated collection|"
     r"digitalocean postgres(?:ql)? load|postgres(?:ql)? load|database writes?|db writes?|"
@@ -273,6 +274,9 @@ _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS})\b"),
     re.compile(rf"\b(?:{_APPROVAL_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"),
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_USE_TERMS})\b"),
+    re.compile(
+        rf"\b(?:will\s+use|use|uses|using)\b(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    ),
     re.compile(
         r"\bdata portal\b(?:\W+\w+){0,4}\W+\b(?:is|becomes|serves as|treated as)\b"
         r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
@@ -617,7 +621,7 @@ def _validate_pr16_report(report: dict[str, object], context: str) -> None:
         "file_only": True,
     }
     for flag_name, expected_value in pr16_expected_flags.items():
-        if report.get(flag_name) != expected_value:
+        if report.get(flag_name) is not expected_value:
             raise _identity_error(context, f"PR16 report {flag_name} must remain {expected_value}")
 
 

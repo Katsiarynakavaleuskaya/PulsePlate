@@ -441,6 +441,9 @@ def test_preference_mapping_closeout_rejects_top_level_unsafe_flags(
     (
         "Seller API use approved for PR16 closeout.",
         "Partner API use allowed for PR16 closeout.",
+        "Provider API approved for PR16 closeout.",
+        "Seller account access allowed for PR16 closeout.",
+        "Partner menu access allowed for PR16 closeout.",
     ),
 )
 def test_preference_mapping_closeout_rejects_seller_partner_api_notes(

@@ -424,6 +424,12 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Relied on seller api only.",
         "We approve seller api use for tests.",
         "We allow seller api use for tests.",
+        "We will use seller api for tests.",
+        "API approved for testing.",
+        "API may be used for testing.",
+        "Seller account access allowed for testing.",
+        "Partner menu access allowed for testing.",
+        "Provider API allowed for testing.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -733,6 +739,32 @@ def test_regional_catalog_identity_rejects_unsafe_pr16_safety_report(
 ) -> None:
     pr16_report = _pr16_report()
     pr16_report[flag_name] = True
+
+    with pytest.raises(RegionalCatalogIdentityError, match=f"PR16 report {flag_name}"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=pr16_report,
+        )
+
+
+@pytest.mark.parametrize(
+    ("flag_name", "flag_value"),
+    (
+        ("file_only", 1),
+        ("network_allowed", 0),
+        ("seller_api_use_allowed", 0),
+        ("partner_api_use_allowed", 0),
+    ),
+)
+def test_regional_catalog_identity_rejects_non_bool_pr16_safety_report(
+    flag_name: str,
+    flag_value: int,
+) -> None:
+    pr16_report = _pr16_report()
+    pr16_report[flag_name] = flag_value
 
     with pytest.raises(RegionalCatalogIdentityError, match=f"PR16 report {flag_name}"):
         parse_regional_catalog_identity_governance(
