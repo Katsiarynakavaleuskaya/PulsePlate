@@ -154,6 +154,14 @@ Evidence: `core/food_sources/regional_catalog_identity.py` rejects PR16 reports 
   - Commit: `8071ec136`
   - Evidence: `docs/review/PR_1771_FIXED_MAPPING.md` and PR body mirror add the
     split justification required by `pr_scope_guard`.
+- Post-open bug-hunter finding: mixed negation still bypassed the authority-prose
+  guard when a denied authority term masked a later positive approval/use term.
+  - Disposition: `FIXED`
+  - Commit: `aedec303e`
+  - Evidence: `core/food_sources/regional_catalog_identity.py` strips only
+    directly negated authority language and still rejects remaining positive
+    authority terms; `tests/test_food_source_regional_catalog_identity.py`
+    covers the five adversarial phrases reported by bug-hunter.
 
 `## Fixed in Commit Mapping` must be updated if CodeRabbit, Cubic, Codex
 Security, bot, or human review emits additional actionable comments.
@@ -178,7 +186,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 88 tests.
+- Focused PR17 tests: passed, 93 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
