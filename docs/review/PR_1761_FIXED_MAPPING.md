@@ -262,6 +262,10 @@ Evidence: Closed current-head Codex follow-ups for passive semantic-cache/global
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264240284 -> 2da573fa1911c8e41857f663c570ec46be22c178
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264240287 -> 2da573fa1911c8e41857f663c570ec46be22c178
 
+Disposition: FIXED
+Commit: be116e073f02ea5e114488ec7230be8ba5ba0b54
+Evidence: Closed final bug-hunter recheck gaps for `/insight cache wiring was/has been approved for PR-1` and `semantic-cache backend selection is/was granted by Philosophy admission`. Proof: direct repro script for all four variants, `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py -k "forbidden_pr1_runtime_expansion_claim_rejected or forbidden_backend_selection_authorization_claim_rejected"` (`2 passed`), `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`79 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute ...`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, and `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`.
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
