@@ -164,6 +164,16 @@ Evidence: `core/food_sources/regional_catalog_identity.py` now rejects unnegated
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269745039 -> af0e4376a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269813208 -> ea85532f0
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/preference_mapping_closeout.py` includes seller/partner API use in PR16 forbidden-note detection; `core/food_sources/regional_catalog_identity.py` catches use-term-before-target and approval-verb authority grants while allowing negated data-portal authority prose; PR16 and PR17 tests cover these review cases.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#pullrequestreview-4323458219 -> c18a19c51
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269847083 -> c18a19c51
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269848244 -> c18a19c51
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269848250 -> c18a19c51
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269848254 -> c18a19c51
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -203,7 +213,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 101 tests.
+- Focused PR17 tests: passed, 106 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
