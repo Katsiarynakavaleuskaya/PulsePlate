@@ -23,9 +23,10 @@ from core.food_sources.preference_recipe_mapping import (
     load_preference_recipe_mapping_governance,
 )
 from core.food_sources.recipe_dish_corpus import load_recipe_dish_corpus_governance
-from core.food_sources.source_catalog import load_source_catalog
+from core.food_sources.recipe_dish_corpus import RecipeDishCorpusGovernance
+from core.food_sources.source_catalog import SourceCatalog, load_source_catalog
 from core.food_sources.source_gap_audit import SourceGapAudit, load_source_gap_audit
-from core.food_sources.source_onboarding import load_source_onboarding
+from core.food_sources.source_onboarding import SourceOnboarding, load_source_onboarding
 
 _REPO_ROOT = Path(__file__).parents[1]
 _CATALOG_PATH = (
@@ -57,12 +58,12 @@ _CLI_TIMEOUT_SECONDS = 30
 
 
 @functools.cache
-def _catalog():
+def _catalog() -> SourceCatalog:
     return load_source_catalog(_CATALOG_PATH)
 
 
 @functools.cache
-def _onboarding():
+def _onboarding() -> SourceOnboarding:
     return load_source_onboarding(
         _ONBOARDING_PATH,
         catalog=_catalog(),
@@ -82,7 +83,7 @@ def _coverage() -> SourceGapAudit:
 
 
 @functools.cache
-def _recipe_dish_corpus():
+def _recipe_dish_corpus() -> RecipeDishCorpusGovernance:
     return load_recipe_dish_corpus_governance(
         _RECIPE_DISH_CORPUS_PATH,
         onboarding=_onboarding(),
@@ -124,6 +125,7 @@ def _coverage_with_regional_domain(
     next_action: str | None = None,
     approved_ingest: bool | None = None,
     approved_runtime_authority: bool | None = None,
+    notes: str | None = None,
 ) -> SourceGapAudit:
     coverage = copy.deepcopy(_coverage())
     domains = tuple(
@@ -139,6 +141,7 @@ def _coverage_with_regional_domain(
                     if approved_runtime_authority is None
                     else approved_runtime_authority
                 ),
+                notes=domain.notes if notes is None else notes,
             )
             if domain.domain == "regional_local_products"
             else domain
@@ -153,6 +156,8 @@ def _coverage_with_regional_source(
     paid_source_use_allowed: bool | None = None,
     approved_ingest: bool | None = None,
     approved_runtime_authority: bool | None = None,
+    api_calls_allowed: bool | None = None,
+    notes: str | None = None,
 ) -> SourceGapAudit:
     coverage = copy.deepcopy(_coverage())
     sources = tuple(
@@ -172,6 +177,10 @@ def _coverage_with_regional_source(
                     if approved_runtime_authority is None
                     else approved_runtime_authority
                 ),
+                api_calls_allowed=(
+                    source.api_calls_allowed if api_calls_allowed is None else api_calls_allowed
+                ),
+                notes=source.notes if notes is None else notes,
             )
             if source.source == "regional_catalogs"
             else source
@@ -388,6 +397,67 @@ def test_preference_mapping_closeout_rejects_regional_source_approval() -> None:
         )
 
 
+def test_preference_mapping_closeout_rejects_duplicate_regional_domain() -> None:
+    payload = _closeout_payload()
+    coverage = _coverage()
+    regional_domain = next(
+        domain for domain in coverage.coverage_domains if domain.domain == "regional_local_products"
+    )
+    duplicated = replace(
+        coverage,
+        coverage_domains=(*coverage.coverage_domains, replace(regional_domain)),
+    )
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="must appear exactly once"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=duplicated,
+        )
+
+
+def test_preference_mapping_closeout_rejects_duplicate_regional_source() -> None:
+    payload = _closeout_payload()
+    coverage = _coverage()
+    regional_source = next(
+        source for source in coverage.source_gap_decisions if source.source == "regional_catalogs"
+    )
+    duplicated = replace(
+        coverage,
+        source_gap_decisions=(
+            *coverage.source_gap_decisions,
+            replace(regional_source, api_calls_allowed=True),
+        ),
+    )
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="must appear exactly once"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=duplicated,
+        )
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        _coverage_with_regional_domain(notes="api calls are allowed for regional catalogs"),
+        _coverage_with_regional_source(notes="api calls are allowed for regional catalogs"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_regional_handoff_authority_notes(
+    coverage: SourceGapAudit,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="notes must not approve"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
 @pytest.mark.parametrize(
     "bad_notes",
     (
@@ -396,8 +466,14 @@ def test_preference_mapping_closeout_rejects_regional_source_approval() -> None:
         "The docx is authority and api calls allowed.",
         "The image is authority for product display.",
         "Attached spreadsheet approves paid APIs for source decisions.",
+        "Attached reports are approved for source decisions.",
         "The report authorizes provider snapshots for the next lane.",
         "The image permits scrapers for restaurant menu evidence.",
+        "Cache authority allowed.",
+        "Database writes allowed.",
+        "Redistribution allowed.",
+        "Ingest allowed.",
+        "Source use allowed.",
     ),
 )
 def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
@@ -412,6 +488,30 @@ def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
             preference_mapping=_preference_mapping(),
             coverage=_coverage(),
         )
+
+
+@pytest.mark.parametrize(
+    "safe_notes",
+    (
+        "No paid source approved for PR16 closeout.",
+        "No api calls approved by this evidence packet.",
+        "No api calls allowed in PR16.",
+        "The report does not approve provider snapshots.",
+    ),
+)
+def test_preference_mapping_closeout_allows_negated_blocked_approval_notes(
+    safe_notes: str,
+) -> None:
+    payload = _closeout_payload()
+    payload["notes"] = safe_notes
+
+    parsed = parse_preference_mapping_closeout_governance(
+        payload,
+        preference_mapping=_preference_mapping(),
+        coverage=_coverage(),
+    )
+
+    assert parsed.notes == safe_notes
 
 
 @pytest.mark.parametrize(

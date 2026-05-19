@@ -103,12 +103,13 @@ Pre-open local gates:
 ```bash
 python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_food_source_preference_mapping_closeout.py
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_food_source_preference_recipe_mapping.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_repo_policy_guards.py
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m scripts.food_source_preference_mapping_closeout --json
+VENV_PYTHON="${VENV_PYTHON:-.venv/bin/python}"
+"${VENV_PYTHON}" -m pytest -q tests/test_food_source_preference_mapping_closeout.py
+"${VENV_PYTHON}" -m pytest -q tests/test_food_source_preference_recipe_mapping.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py
+"${VENV_PYTHON}" -m pytest -q tests/test_repo_policy_guards.py
+"${VENV_PYTHON}" -m scripts.food_source_preference_mapping_closeout --json
 pre-commit run --all-files
-make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python
+make validate-changed VENV_PYTHON="${VENV_PYTHON}"
 ```
 
 Observed:

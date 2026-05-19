@@ -158,10 +158,15 @@ _EXTERNAL_EVIDENCE_TERMS = (
 _BLOCKED_AUTHORITY_TERMS = (
     r"paid apis?|paid source use|paid providers?|provider snapshots?|provider integration|"
     r"scrapers?|scraping|api calls?|source downloads?|downloads?|runtime authority|"
-    r"nutrition authority|product display"
+    r"cache authority|database writes?|db writes?|redistribution|ingests?|source use|"
+    r"source authority|nutrition authority|product display"
 )
 _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_EXTERNAL_EVIDENCE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_VERBS})\b"),
+    re.compile(
+        rf"\b(?:{_EXTERNAL_EVIDENCE_TERMS})\b"
+        rf"(?:\W+\b(?:is|are|be|been|being)\b)?\W+\b(?:{_APPROVAL_STATES})\b"
+    ),
     re.compile(rf"\b(?:{_APPROVAL_VERBS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_EXTERNAL_EVIDENCE_TERMS})\b"),
     re.compile(
         rf"\b(?:{_BLOCKED_AUTHORITY_TERMS})\b"
@@ -273,7 +278,8 @@ def _parse_date(value: str, context: str) -> date:
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", value.lower()).strip()
     for phrase in _FORBIDDEN_NOTE_PHRASES:
-        if phrase in normalized:
+        phrase_start = normalized.find(phrase)
+        if phrase_start != -1 and not _is_negated_approval_match(phrase, normalized, phrase_start):
             raise _closeout_error(context, "notes must not approve blocked source authority")
     for pattern in _FORBIDDEN_NOTE_PATTERNS:
         match = pattern.search(normalized)
@@ -292,6 +298,10 @@ def _is_negated_approval_match(text: str, normalized: str, start: int) -> bool:
             window,
         )
         or re.search(rf"\bno\s+(?:{_APPROVAL_STATES}|approval|authority)\b", window)
+        or re.search(
+            rf"\bno\b(?:\W+\w+){{0,4}}\W+\b(?:{_APPROVAL_STATES}|{_APPROVAL_VERBS})\b",
+            window,
+        )
     )
 
 
@@ -318,16 +328,14 @@ def _require_pr15_handoff(
 
 
 def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
-    regional_domain = next(
-        (
-            domain
-            for domain in coverage.coverage_domains
-            if domain.domain == "regional_local_products"
-        ),
-        None,
+    regional_domains = tuple(
+        domain for domain in coverage.coverage_domains if domain.domain == "regional_local_products"
     )
-    if regional_domain is None:
-        raise _closeout_error(context, "PR11 regional_local_products domain is required")
+    if len(regional_domains) != 1:
+        raise _closeout_error(
+            context, "PR11 regional_local_products domain must appear exactly once"
+        )
+    regional_domain = regional_domains[0]
     if regional_domain.next_action != NEXT_SUBSTANTIVE_LANE:
         raise _closeout_error(
             context,
@@ -335,23 +343,23 @@ def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
         )
     if regional_domain.approved_ingest or regional_domain.approved_runtime_authority:
         raise _closeout_error(context, "PR11 regional_local_products must stay unapproved")
+    _require_safe_notes(regional_domain.notes, context)
 
-    regional_source = next(
-        (
-            source
-            for source in coverage.source_gap_decisions
-            if source.source == "regional_catalogs"
-        ),
-        None,
+    regional_sources = tuple(
+        source for source in coverage.source_gap_decisions if source.source == "regional_catalogs"
     )
-    if regional_source is None:
-        raise _closeout_error(context, "PR11 regional_catalogs source decision is required")
+    if len(regional_sources) != 1:
+        raise _closeout_error(
+            context, "PR11 regional_catalogs source decision must appear exactly once"
+        )
+    regional_source = regional_sources[0]
     if (
         regional_source.decision != "deferred_unresolved"
         or regional_source.source_family != "regional_catalog"
         or regional_source.allowed_role != "identity_license_review_candidate"
     ):
         raise _closeout_error(context, "PR11 regional_catalogs must remain identity/license review")
+    _require_safe_notes(regional_source.notes, context)
     if (
         regional_source.approved_ingest
         or regional_source.approved_runtime_authority
