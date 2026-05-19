@@ -477,6 +477,14 @@ Evidence: Closed fresh current-head Codex false-green findings from 2026-05-19T2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269431126 -> 08b3b88ef358ed107a3e06b66f41c8ed862f83f4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269431129 -> 08b3b88ef358ed107a3e06b66f41c8ed862f83f4
 
+Disposition: FIXED
+Commit: 753e1a518455bd5b41ce028b8281d16a8e7e0f21
+Evidence: Closed the fresh 2026-05-19T20:56:16Z conditional-modality false-green findings by extending the same proposition-class detector to `could` / `would` / `should` / `might` gate-open assertions, verification-bundle waiver claims, serving/backend authorization claims, and past-tense Redis import possession. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, exact conditional probe returned `fresh_conditional_misses []`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269570426 -> 753e1a518455bd5b41ce028b8281d16a8e7e0f21
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269570433 -> 753e1a518455bd5b41ce028b8281d16a8e7e0f21
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269570435 -> 753e1a518455bd5b41ce028b8281d16a8e7e0f21
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269570439 -> 753e1a518455bd5b41ce028b8281d16a8e7e0f21
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
