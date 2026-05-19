@@ -71,6 +71,27 @@ def _compatible_release_version(contents: str, package: str) -> str | None:
     return matched_versions[0]
 
 
+def _minimum_requirement_version(contents: str, package: str) -> str | None:
+    pattern = re.compile(rf"^{re.escape(package)}(?:\[[^]]+\])?\s*>=\s*([^,<\s;#]+)")
+    matched_versions: list[str] = []
+    for raw_line in contents.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        match = pattern.match(line)
+        if match is None:
+            continue
+        matched_versions.append(match.group(1).strip())
+
+    if not matched_versions:
+        return None
+
+    assert (
+        len(set(matched_versions)) == 1
+    ), f"Expected a single minimum pin for {package!r}, found {matched_versions!r}."
+    return matched_versions[0]
+
+
 def _resolver_miss_runtimeerror_like_run_command(package: str, version: str) -> RuntimeError:
     """Shape like :func:`run_command` on pip failure (``exit 1`` plus stderr text)."""
     requirement = f"{package}=={version}"
@@ -335,6 +356,76 @@ def test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces() -> None
 
     assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_in)
     assert ("mypy", expected_version) in _exact_requirement_pairs(requirements_dev_txt)
+
+
+def test_repo_quality_tooling_profile_matches_dependabot_replacement_contract() -> None:
+    artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
+    constraints_text = (REPO_ROOT / "constraints.txt").read_text(encoding="utf-8")
+    requirements_all_text = (REPO_ROOT / "requirements-all.txt").read_text(encoding="utf-8")
+    requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
+    requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
+    requirements_lock_txt = (REPO_ROOT / "requirements-lock.txt").read_text(encoding="utf-8")
+
+    assert _minimum_requirement_version(constraints_text, "black") == "26.5.0"
+    assert _minimum_requirement_version(constraints_text, "mypy") == "2.1.0"
+    assert _minimum_requirement_version(constraints_text, "ruff") == "0.15.13"
+    assert _minimum_requirement_version(requirements_all_text, "black") == "26.5.0"
+    assert _minimum_requirement_version(requirements_all_text, "mypy") == "2.1.0"
+    assert _minimum_requirement_version(requirements_all_text, "ruff") == "0.15.13"
+
+    assert _compatible_release_version(requirements_dev_in, "black") == "26.5.0"
+    assert _compatible_release_version(requirements_dev_in, "ruff") == "0.15.13"
+    assert ("mypy", "2.1.0") in _exact_requirement_pairs(requirements_dev_in)
+    assert ("black", "26.5.0") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("mypy", "2.1.0") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("ruff", "0.15.13") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("librt", "0.11.0") in _exact_requirement_pairs(requirements_dev_txt)
+    assert ("ruff", "0.15.13") in _exact_requirement_pairs(requirements_lock_txt)
+
+    assert ("mypy", "2.1.0") in artifacts
+    assert ("ruff", "0.15.13") in artifacts
+    assert not any(package == "black" for package, _version in artifacts)
+
+
+def test_repo_dev_quality_emergency_wheels_are_selected_from_active_manifest(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_downloads: list[tuple[str, str, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination.name, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[REPO_ROOT / "requirements-dev.txt"],
+        constraints_file=REPO_ROOT / "constraints.txt",
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=_repo_emergency_manifest_path(),
+    )
+
+    observed_by_filename = {filename: (url, sha256) for url, filename, sha256 in observed_downloads}
+    assert {
+        path.name for path in staged if path.name.startswith(("mypy-2.1.0-", "ruff-0.15.13-"))
+    } == {
+        "mypy-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+        "ruff-0.15.13-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    }
+    assert observed_by_filename[
+        "mypy-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl"
+    ] == (
+        "https://files.pythonhosted.org/packages/94/21/f54be870d6dd53a82c674407e0f8eed7174b05ec78d42e5abd7b42e84fd5/mypy-2.1.0-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+        "e195b817c13f02352a9c124301f9f30f078405444679b6753c1b96b6eed37285",
+    )
+    assert observed_by_filename[
+        "ruff-0.15.13-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
+    ] == (
+        "https://files.pythonhosted.org/packages/e8/31/bf1a0803d077e679cfeee5f2f67290a0fa79c7385b5d9a8c17b9db2c48f0/ruff-0.15.13-py3-none-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "cc411dfebe5eebe55ce041c6ae080eb7668955e866daa2fbb16692a784f1c4ca",
+    )
+    assert not any(filename.startswith("black-") for _url, filename, _sha256 in observed_downloads)
 
 
 def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:

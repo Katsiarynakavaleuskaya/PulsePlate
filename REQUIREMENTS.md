@@ -34,10 +34,10 @@ pytest>=8.3         # Dev tools with minimum versions
 ...
 ```
 
-**`constraints.txt`** - Exact versions for reproducible dev environments
+**`constraints.txt`** - Minimum and bounded versions for reproducible dev resolution
 ```bash
-pytest==9.0.3
-black==25.9.0
+pytest>=9.0.3
+black>=26.5.0
 ...
 ```
 
@@ -48,7 +48,7 @@ black==25.9.0
 pip install -r requirements.txt
 ```
 
-### Development Environment (with exact versions)
+### Development Environment (with locked dev requirements and constraints)
 ```bash
 pip install -r requirements-dev.txt -c constraints.txt
 ```

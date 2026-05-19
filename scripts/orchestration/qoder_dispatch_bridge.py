@@ -38,10 +38,7 @@ _routing_graph: Optional[Dict[str, Any]] = None
 _routing_loader_available = False
 
 try:
-    from scripts.orchestration.routing_graph_loader import (
-        DomainRoute,
-        load_routing_graph,
-    )
+    from scripts.orchestration.routing_graph_loader import load_routing_graph
 
     _routing_loader_available = True
 except Exception:  # pragma: no cover – optional dependency
