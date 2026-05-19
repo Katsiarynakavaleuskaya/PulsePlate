@@ -2154,7 +2154,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md`
     - `docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md`
     - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
-    - `docs/orchestration/FOOD_DATA_PREFERENCE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md`
+    - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
@@ -2166,7 +2166,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json`
     - `docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json`
     - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json`
-    - `docs/architecture/FOOD_DATA_PREFERENCE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`
+    - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`

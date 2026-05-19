@@ -42,7 +42,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--closeout",
         type=Path,
         default=Path(
-            "docs/architecture/FOOD_DATA_PREFERENCE_MAPPING_CLOSEOUT_PR16_2026-05-19.json"
+            "docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json"
         ),
     )
     parser.add_argument("--json", action="store_true", dest="json_output")

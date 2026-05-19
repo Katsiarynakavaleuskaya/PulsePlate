@@ -42,7 +42,7 @@ qa-engineer-agent -> bug-hunter
 
 In scope:
 
-- `docs/architecture/FOOD_DATA_PREFERENCE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`
+- `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`
 - typed validator and deterministic report builder under `core/food_sources/`
 - CLI wrapper under `scripts/`
 - focused pytest coverage for valid artifact load, malformed artifact rejection,

@@ -50,7 +50,7 @@ _CLOSEOUT_PATH = (
     _REPO_ROOT
     / "docs"
     / "architecture"
-    / "FOOD_DATA_PREFERENCE_MAPPING_CLOSEOUT_PR16_2026-05-19.json"
+    / "FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json"
 )
 _CLI_MODULE = "scripts.food_source_preference_mapping_closeout"
 _CLI_TIMEOUT_SECONDS = 30

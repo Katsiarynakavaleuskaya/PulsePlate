@@ -66,9 +66,22 @@ external research artifacts as nutrition/source authority.
   Evidence: commit `8ab32f709`; validator cross-checks PR11
   `regional_local_products.next_action`.
 
-## Fixed In Commit Mapping
+## Discussion Thread Pass
 
-No GitHub review threads existed at mapping creation time.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+- [x] No actionable human review threads existed at mapping creation time.
+- [x] CodeRabbit minor naming consistency finding is fixed by commit
+  `8ab32f709` plus the follow-up governance commit that renames PR16 artifact
+  paths to include `PREFERENCE_RECIPE_MAPPING_CLOSEOUT`.
+- [x] Sourcery and Cubic are pending final external bot state and remain
+  readiness blockers until PASS/no-actionables or mapped dispositions exist.
+
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Pre-Open Finding Dispositions
 
 Pre-open fixes:
 
@@ -120,6 +133,8 @@ Pending after mapping creation:
 - post-open `task_bootstrap.py --pr-phase post_open_review`
 - mandatory `qa-engineer-agent -> bug-hunter`
 - CodeRabbit review pass
+- Sourcery PASS/no-actionables or mapped disposition
+- Cubic PASS/no-actionables or mapped disposition
 - Codex Security diff-scoped scan
 - security-auditor pass
 - current-head checks inspection
