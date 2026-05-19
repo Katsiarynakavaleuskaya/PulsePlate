@@ -187,9 +187,10 @@ Observed:
   `tests/test_food_source_preference_mapping_closeout.py`.
 - Commit hook: passed after activating the repo `.venv`; a prior unactivated
   commit attempt failed with `ModuleNotFoundError: No module named 'fastapi'`.
-- Codex Security diff-scoped scan: no reportable findings.
+- Codex Security diff-scoped scan: no reportable findings after latest code
+  remediation.
   Evidence:
-  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/d9b08dc9b_20260519T133512Z/report.md`.
+  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/45cd2d4cb_20260519T134936Z/report.md`.
 
 Full local `make verify` is intentionally deferred per operator instruction for
 this governance-only lane. Merge readiness still requires current-head PR CI
