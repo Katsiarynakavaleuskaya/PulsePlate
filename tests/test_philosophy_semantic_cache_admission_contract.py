@@ -1164,6 +1164,8 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "Philosophy PR-1 admission can open the semantic-cache gate",
         "the global gate is open for Philosophy PR-1",
         "the semantic-cache gate is open for PR-1",
+        "semantic-cache gate is open",
+        "the global semantic-cache gate is open",
         "the semantic-cache gate is now open for PR-1",
         "Philosophy PR-1 admission can open the global gate",
         "PR-1 can open the semantic-cache gate",
@@ -1313,6 +1315,18 @@ def test_forbidden_claims_section_requires_negative_polarity() -> None:
             "philosophy admission contract Forbidden Claims section must retain "
             "negative must-not-claim polarity"
         ) in errors
+
+
+def test_forbidden_claims_section_must_not_be_duplicated() -> None:
+    """Duplicate Forbidden Claims sections cannot hide permissive assertions."""
+    mutated = (
+        _contract_text() + "\n\n## Forbidden Claims\n\nAllowed claims:\n\n"
+        "- philosophical semantic-cache is live"
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert "philosophy admission contract Forbidden Claims section must be unique" in errors
 
 
 def test_forbidden_claims_section_rejects_prefixed_assertive_bullets() -> None:
@@ -1645,6 +1659,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "cache adapters have been allowed in PR-1",
             "cache adapters allowed in pr-1",
         ),
+        ("Redis imports are approved by Philosophy admission", "redis imports allowed in pr-1"),
+        ("embeddings are enabled by Philosophy admission", "embeddings allowed in pr-1"),
+        ("vector search is allowed by PR-1", "vector search allowed in pr-1"),
         ("runtime behavior gets enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions are approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions get approved for Philosophy admission", "runtime allowed in pr-1"),
@@ -1827,6 +1844,8 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy admission authorizes serving.",
         "Philosophy admission approves semantic-cache serving.",
         "Philosophy admission approved backend selection.",
+        "Philosophy admission authorizes semantic-cache backend selection.",
+        "Philosophy admission approves semantic cache backend selection.",
         "Philosophy PR-1 enables semantic-cache serving.",
         "PR-1 enabled semantic-cache serving.",
         "Philosophy admission enables backend selection and serving.",
