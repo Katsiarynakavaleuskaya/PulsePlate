@@ -367,6 +367,14 @@ Evidence: The fixed-mapping artifact does not point at outside-branch SHAs on cu
 Reason: The reviewed branch history contains the fixing commits; no remap is needed for this thread.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266666387
 
+Disposition: FIXED
+Commit: 72290b4d93b0fd05e3e159a11f0cea349b865b66
+Evidence: Closed current-head Codex follow-ups for blocked-surface availability/support grants, actor-first blocked-surface admission implementation verbs, all machine-state verification-bundle-required surfaces, and active `does not require` / `unnecessary` verification-bundle waiver wording. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, and `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266803310 -> 72290b4d93b0fd05e3e159a11f0cea349b865b66
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266803328 -> 72290b4d93b0fd05e3e159a11f0cea349b865b66
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266803338 -> 72290b4d93b0fd05e3e159a11f0cea349b865b66
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266803345 -> 72290b4d93b0fd05e3e159a11f0cea349b865b66
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
