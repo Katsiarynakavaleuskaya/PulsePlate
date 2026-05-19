@@ -169,6 +169,50 @@ def _coverage_with_regional_domain(
     return replace(coverage, coverage_domains=domains)
 
 
+def _coverage_with_domain(
+    domain_name: str,
+    *,
+    coverage_decision: str | None = None,
+    gap_status: str | None = None,
+    next_action: str | None = None,
+    authority_decision: str | None = None,
+    approved_ingest: bool | None = None,
+    approved_runtime_authority: bool | None = None,
+    auxiliary_sources: tuple[str, ...] | None = None,
+) -> SourceGapAudit:
+    coverage = copy.deepcopy(_coverage())
+    domains = tuple(
+        (
+            replace(
+                domain,
+                coverage_decision=(
+                    domain.coverage_decision if coverage_decision is None else coverage_decision
+                ),
+                gap_status=domain.gap_status if gap_status is None else gap_status,
+                next_action=domain.next_action if next_action is None else next_action,
+                authority_decision=(
+                    domain.authority_decision if authority_decision is None else authority_decision
+                ),
+                approved_ingest=(
+                    domain.approved_ingest if approved_ingest is None else approved_ingest
+                ),
+                approved_runtime_authority=(
+                    domain.approved_runtime_authority
+                    if approved_runtime_authority is None
+                    else approved_runtime_authority
+                ),
+                auxiliary_sources=(
+                    domain.auxiliary_sources if auxiliary_sources is None else auxiliary_sources
+                ),
+            )
+            if domain.domain == domain_name
+            else domain
+        )
+        for domain in coverage.coverage_domains
+    )
+    return replace(coverage, coverage_domains=domains)
+
+
 def _coverage_with_regional_source(
     *,
     blocking_reasons: tuple[str, ...] | None = None,
@@ -209,6 +253,54 @@ def _coverage_with_regional_source(
                 notes=source.notes if notes is None else notes,
             )
             if source.source == "regional_catalogs"
+            else source
+        )
+        for source in coverage.source_gap_decisions
+    )
+    return replace(coverage, source_gap_decisions=sources)
+
+
+def _coverage_with_source(
+    source_name: str,
+    *,
+    decision: str | None = None,
+    source_family: str | None = None,
+    allowed_role: str | None = None,
+    approved_ingest: bool | None = None,
+    approved_runtime_authority: bool | None = None,
+    api_calls_allowed: bool | None = None,
+    scraping_allowed: bool | None = None,
+    paid_source_use_allowed: bool | None = None,
+) -> SourceGapAudit:
+    coverage = copy.deepcopy(_coverage())
+    sources = tuple(
+        (
+            replace(
+                source,
+                decision=source.decision if decision is None else decision,
+                source_family=source.source_family if source_family is None else source_family,
+                allowed_role=source.allowed_role if allowed_role is None else allowed_role,
+                approved_ingest=(
+                    source.approved_ingest if approved_ingest is None else approved_ingest
+                ),
+                approved_runtime_authority=(
+                    source.approved_runtime_authority
+                    if approved_runtime_authority is None
+                    else approved_runtime_authority
+                ),
+                api_calls_allowed=(
+                    source.api_calls_allowed if api_calls_allowed is None else api_calls_allowed
+                ),
+                scraping_allowed=(
+                    source.scraping_allowed if scraping_allowed is None else scraping_allowed
+                ),
+                paid_source_use_allowed=(
+                    source.paid_source_use_allowed
+                    if paid_source_use_allowed is None
+                    else paid_source_use_allowed
+                ),
+            )
+            if source.source == source_name
             else source
         )
         for source in coverage.source_gap_decisions
@@ -493,6 +585,7 @@ def test_preference_mapping_closeout_rejects_pr15_mapping_contract_drift(
 @pytest.mark.parametrize(
     "coverage",
     (
+        replace(_coverage(), schema_version="wrong.v1"),
         replace(_coverage(), next_recommended_lane="paid_provider_lane"),
         replace(_coverage(), final_gate_decision="coverage_gap_allows_ingest"),
         replace(_coverage(), notes="source use allowed"),
@@ -508,6 +601,98 @@ def test_preference_mapping_closeout_rejects_pr11_top_level_handoff_drift(
             payload,
             preference_mapping=_preference_mapping(),
             coverage=coverage,
+        )
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        replace(_coverage(), catalog_ref="docs/architecture/WRONG_CATALOG.json"),
+        replace(_coverage(), onboarding_ref="docs/architecture/WRONG_ONBOARDING.json"),
+        replace(_coverage(), pr10_landed_pr=0),
+    ),
+)
+def test_preference_mapping_closeout_rejects_pr11_identity_handoff_drift(
+    coverage: SourceGapAudit,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        _coverage_with_domain("restaurant_chain_menus", approved_ingest=True),
+        _coverage_with_domain("recipe_dish_corpora", approved_runtime_authority=True),
+        _coverage_with_domain("restaurant_chain_menus", authority_decision="approved"),
+        _coverage_with_domain("recipe_dish_corpora", auxiliary_sources=("nutritionix",)),
+        _coverage_with_domain("restaurant_chain_menus", coverage_decision="adequate_baseline"),
+        _coverage_with_domain("restaurant_chain_menus", gap_status="resolved"),
+        _coverage_with_domain("restaurant_chain_menus", next_action="paid_provider_runtime_review"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_nonregional_domain_authority_drift(
+    coverage: SourceGapAudit,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        _coverage_with_source("nutritionix", api_calls_allowed=True),
+        _coverage_with_source("nutritionix", approved_ingest=True),
+        _coverage_with_source("nutritionix", paid_source_use_allowed=True),
+        _coverage_with_source("edamam_food_database", scraping_allowed=True),
+        _coverage_with_source("nutritionix", decision="approved_contract_review"),
+        _coverage_with_source("nutritionix", source_family="commercial_runtime_api"),
+        _coverage_with_source("nutritionix", allowed_role="runtime_source_authority"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_nonregional_source_authority_drift(
+    coverage: SourceGapAudit,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+def test_preference_mapping_closeout_rejects_duplicate_nonregional_domain() -> None:
+    payload = _closeout_payload()
+    coverage = _coverage()
+    duplicate_domain = next(
+        domain
+        for domain in coverage.coverage_domains
+        if domain.domain == "branded_barcode_products"
+    )
+    mutated = replace(
+        coverage,
+        coverage_domains=(duplicate_domain, *coverage.coverage_domains[1:]),
+    )
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="coverage_domains"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=mutated,
         )
 
 
@@ -594,7 +779,7 @@ def test_preference_mapping_closeout_rejects_duplicate_regional_domain() -> None
         coverage_domains=(*coverage.coverage_domains, replace(regional_domain)),
     )
 
-    with pytest.raises(PreferenceMappingCloseoutError, match="must appear exactly once"):
+    with pytest.raises(PreferenceMappingCloseoutError, match="coverage_domains"):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),
@@ -616,7 +801,7 @@ def test_preference_mapping_closeout_rejects_duplicate_regional_source() -> None
         ),
     )
 
-    with pytest.raises(PreferenceMappingCloseoutError, match="must appear exactly once"):
+    with pytest.raises(PreferenceMappingCloseoutError, match="source_gap_decisions"):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),
@@ -678,6 +863,17 @@ def test_preference_mapping_closeout_rejects_regional_handoff_authority_notes(
         "Paid API use granted.",
         "Cache authority is enabled.",
         "The report grants provider snapshots for the next lane.",
+        "Network access allowed for source checks.",
+        "Paid provider use allowed.",
+        "Paid plans allowed.",
+        "API calls may be used.",
+        "Paid APIs may be used.",
+        "Provider snapshots may be used.",
+        "API calls may be relied on for source checks.",
+        "Paid APIs are usable for source checks.",
+        "Scraping is okay for source checks.",
+        "Provider snapshots can be relied on for the next lane.",
+        "Network access is available for source checks.",
     ),
 )
 def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(

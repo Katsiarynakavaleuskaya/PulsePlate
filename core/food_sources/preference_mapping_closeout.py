@@ -17,6 +17,11 @@ from core.food_sources.preference_recipe_mapping import (
     BLOCKED_METHODS as PR15_BLOCKED_METHODS,
     EVIDENCE_POLICY as PR15_EVIDENCE_POLICY,
     EXPECTED_ALLOWED_ROLES as PR15_EXPECTED_ALLOWED_ROLES,
+    EXPECTED_PR11_CATALOG_REF,
+    EXPECTED_PR11_DOMAIN_SOURCE_REFS,
+    EXPECTED_PR11_ONBOARDING_REF,
+    EXPECTED_PR11_SOURCE_GAP_BLOCKING_REASONS,
+    EXPECTED_PR11_SOURCE_GAP_ORDER,
     EXPECTED_MAPPING_KEYS as PR15_EXPECTED_MAPPING_KEYS,
     FINAL_GATE_DECISION as PR15_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR15_NEXT_RECOMMENDED_LANE,
@@ -35,6 +40,7 @@ from core.food_sources.source_catalog import SourceCatalogError, load_source_cat
 from core.food_sources.source_gap_audit import (
     FINAL_GATE_DECISION as PR11_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR11_NEXT_RECOMMENDED_LANE,
+    REQUIRED_COVERAGE_DOMAINS as PR11_REQUIRED_COVERAGE_DOMAINS,
     SourceGapAudit,
     SourceGapAuditError,
     load_source_gap_audit,
@@ -173,15 +179,126 @@ _BLOCKED_PROVIDER_TERMS = (
 _BLOCKED_AUTHORITY_TERMS = (
     rf"{_BLOCKED_PROVIDER_TERMS}|"
     r"paid apis?|paid api use|paid source use|paid providers?|provider snapshots?|provider integration|"
+    r"paid provider use|paid plans?|network access|network|"
     r"scrapers?|scraping|api calls?|source downloads?|downloads?|runtime authority|"
     r"cache authority|database writes?|db writes?|redistribution|ingests?|source use|"
     r"automated collection|digitalocean postgres load|public dataset claim|"
     r"recipe text authority|user preference text authority|llm output authority|"
     r"source authority|nutrition authority|product display"
 )
+_BLOCKED_AUTHORITY_USE_STATES = r"used|relied on|usable|okay|available"
 _PR15_MAPPING_CONTRACT_STATUS = "mapping_contract_required_not_approved"
 _PR15_PR11_LANDED_PR = 1601
 _PR15_PR14_LANDED_PR = 1743
+_PR11_PR10_LANDED_PR = 1597
+_PR11_DOMAIN_AUTHORITY_DECISIONS = {
+    "generic_food_composition": "usda_first",
+    "branded_barcode_products": "usda_branded_primary_off_auxiliary",
+    "restaurant_chain_menus": "not_approved",
+    "recipe_dish_corpora": "not_approved",
+    "preference_menu_planning": "not_approved",
+    "regional_local_products": "not_approved",
+    "user_manual_evidence": "not_approved",
+}
+_PR11_DOMAIN_DECISIONS = {
+    "generic_food_composition": {
+        "coverage_decision": "adequate_baseline",
+        "gap_status": "baseline_covered",
+        "next_action": "no_new_source_before_usda_schema_review",
+    },
+    "branded_barcode_products": {
+        "coverage_decision": "adequate_with_auxiliary",
+        "gap_status": "covered_with_schema_review_needed",
+        "next_action": "off_schema_postgres_review_before_any_new_product_source",
+    },
+    "restaurant_chain_menus": {
+        "coverage_decision": "unresolved_gap",
+        "gap_status": "not_covered_by_usda_or_off",
+        "next_action": "chain_public_nutrition_pages_governance",
+    },
+    "recipe_dish_corpora": {
+        "coverage_decision": "unresolved_gap",
+        "gap_status": "not_covered_by_food_nutrient_sources",
+        "next_action": "recipe_corpus_governance",
+    },
+    "preference_menu_planning": {
+        "coverage_decision": "requires_dish_mapping",
+        "gap_status": "planner_gap_not_source_authority",
+        "next_action": "preference_recipe_mapping_contract",
+    },
+    "regional_local_products": {
+        "coverage_decision": "deferred_unresolved",
+        "gap_status": "locale_gap_unresolved",
+        "next_action": "regional_catalog_identity_license_review",
+    },
+    "user_manual_evidence": {
+        "coverage_decision": "internal_evidence_only",
+        "gap_status": "manual_evidence_not_dataset_authority",
+        "next_action": "manual_evidence_policy_only",
+    },
+}
+_PR11_SOURCE_GAP_DECISIONS = {
+    "usda_foundation": {
+        "decision": "core_authority_for_generic_composition",
+        "source_family": "food_composition",
+        "allowed_role": "primary_product_food_baseline",
+    },
+    "usda_branded": {
+        "decision": "primary_branded_barcode_source",
+        "source_family": "barcode_branded",
+        "allowed_role": "primary_product_food_baseline",
+    },
+    "usda_fndds": {
+        "decision": "supporting_food_composition_source",
+        "source_family": "food_composition",
+        "allowed_role": "supporting_food_composition",
+    },
+    "open_food_facts": {
+        "decision": "auxiliary_barcode_branded_source",
+        "source_family": "barcode_branded",
+        "allowed_role": "auxiliary_product_food_source",
+    },
+    "menustat": {
+        "decision": "archival_reference_only",
+        "source_family": "restaurant_menu",
+        "allowed_role": "historical_schema_reference",
+    },
+    "chain_public_nutrition_pages": {
+        "decision": "preferred_research_lane_blocked",
+        "source_family": "restaurant_menu",
+        "allowed_role": "manual_evidence_governance_candidate",
+    },
+    "edamam_food_database": {
+        "decision": "adjacent_recipe_food_db_review_only",
+        "source_family": "recipe_corpus",
+        "allowed_role": "under_20_review_candidate_only",
+    },
+    "spoonacular": {
+        "decision": "deferred_recipe_experiments_only",
+        "source_family": "recipe_corpus",
+        "allowed_role": "deferred_experiment_candidate_only",
+    },
+    "nutritionix": {
+        "decision": "deferred_contract_review",
+        "source_family": "restaurant_menu",
+        "allowed_role": "deferred_contract_candidate_only",
+    },
+    "fatsecret_platform": {
+        "decision": "not_project_source",
+        "source_family": "commercial_api",
+        "allowed_role": "rejected_for_project_use",
+    },
+    "regional_catalogs": {
+        "decision": "deferred_unresolved",
+        "source_family": "regional_catalog",
+        "allowed_role": "identity_license_review_candidate",
+    },
+    "jptn_food_facts": {
+        "decision": "blocked_unresolved",
+        "source_family": "unresolved",
+        "allowed_role": "blocked_until_identity_license_verified",
+    },
+}
 _REGIONAL_DOMAIN_EXPECTED = {
     "coverage_decision": "deferred_unresolved",
     "primary_sources": (),
@@ -213,6 +330,17 @@ _FORBIDDEN_NOTE_PATTERNS = (
         rf"\b(?:{_BLOCKED_AUTHORITY_TERMS}|{_EXTERNAL_EVIDENCE_TERMS})\b"
         rf"(?:\W+\w+){{0,3}}\W+\b(?:is|are|as|become|becomes|serve as|serves as|treated as)\b"
         rf"\W+\b(?:source|nutrition|runtime|cache)?\s*authority\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_AUTHORITY_TERMS})\b" rf"(?:\W+\w+){{0,3}}\W+\b(?:may|can)\s+be\s+used\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_AUTHORITY_TERMS})\b"
+        rf"(?:\W+\w+){{0,3}}\W+\b(?:may|can)\s+be\s+(?:{_BLOCKED_AUTHORITY_USE_STATES})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_AUTHORITY_TERMS})\b"
+        rf"(?:\W+\b(?:is|are|be|been|being)\b)?\W+\b(?:{_BLOCKED_AUTHORITY_USE_STATES})\b"
     ),
 )
 
@@ -343,6 +471,7 @@ def _is_negated_approval_match(text: str, normalized: str, start: int) -> bool:
             and re.search(r"\bnot\W+$", prefix) is not None
         )
         or re.search(r"(?:^|\W)no\W+$", prefix)
+        or re.search(r"\bno\b(?:\W+\w+){0,4}\W+\b(?:or|and)\W+$", prefix)
         or re.search(
             r"\b(?:do|does|did|must|may|can|should|is|are)?\s*not\b"
             r"(?:\W+\w+){0,4}\W+\b(?:become|becomes|serve as|serves as|treated as)\b",
@@ -426,6 +555,18 @@ def _require_pr15_handoff(
 
 
 def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
+    if coverage.catalog_ref != EXPECTED_PR11_CATALOG_REF:
+        raise _closeout_error(context, f"PR11 catalog_ref must be {EXPECTED_PR11_CATALOG_REF}")
+    if coverage.onboarding_ref != EXPECTED_PR11_ONBOARDING_REF:
+        raise _closeout_error(
+            context, f"PR11 onboarding_ref must be {EXPECTED_PR11_ONBOARDING_REF}"
+        )
+    if coverage.pr10_landed_pr != _PR11_PR10_LANDED_PR:
+        raise _closeout_error(context, f"PR11 pr10_landed_pr must be {_PR11_PR10_LANDED_PR}")
+    if coverage.schema_version != "food-data-coverage-source-gap-audit.v1":
+        raise _closeout_error(
+            context, "PR11 schema_version must be food-data-coverage-source-gap-audit.v1"
+        )
     if coverage.next_recommended_lane != PR11_NEXT_RECOMMENDED_LANE:
         raise _closeout_error(
             context, f"PR11 next_recommended_lane must be {PR11_NEXT_RECOMMENDED_LANE}"
@@ -435,6 +576,69 @@ def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
             context, f"PR11 final_gate_decision must be {PR11_FINAL_GATE_DECISION}"
         )
     _require_safe_notes(coverage.notes, context)
+    domain_order = tuple(domain.domain for domain in coverage.coverage_domains)
+    if domain_order != PR11_REQUIRED_COVERAGE_DOMAINS:
+        raise _closeout_error(
+            context,
+            "PR11 coverage_domains must be exactly: " + ", ".join(PR11_REQUIRED_COVERAGE_DOMAINS),
+        )
+    for domain in coverage.coverage_domains:
+        expected_refs = EXPECTED_PR11_DOMAIN_SOURCE_REFS.get(domain.domain)
+        expected_decisions = _PR11_DOMAIN_DECISIONS.get(domain.domain)
+        expected_authority = _PR11_DOMAIN_AUTHORITY_DECISIONS.get(domain.domain)
+        if expected_refs is None or expected_decisions is None or expected_authority is None:
+            raise _closeout_error(context, f"PR11 unknown coverage domain: {domain.domain}")
+        for field_name, expected_value in expected_decisions.items():
+            if getattr(domain, field_name) != expected_value:
+                raise _closeout_error(
+                    context, f"PR11 {domain.domain} {field_name} must be {expected_value}"
+                )
+        if domain.primary_sources != expected_refs["primary_sources"]:
+            raise _closeout_error(
+                context, f"PR11 {domain.domain} primary_sources must stay canonical"
+            )
+        if domain.auxiliary_sources != expected_refs["auxiliary_sources"]:
+            raise _closeout_error(
+                context, f"PR11 {domain.domain} auxiliary_sources must stay canonical"
+            )
+        if domain.authority_decision != expected_authority:
+            raise _closeout_error(
+                context,
+                f"PR11 {domain.domain} authority_decision must be {expected_authority}",
+            )
+        if domain.approved_ingest or domain.approved_runtime_authority:
+            raise _closeout_error(context, f"PR11 {domain.domain} must not approve source use")
+        _require_safe_notes(domain.notes, context)
+    source_order = tuple(source.source for source in coverage.source_gap_decisions)
+    if source_order != EXPECTED_PR11_SOURCE_GAP_ORDER:
+        raise _closeout_error(
+            context,
+            "PR11 source_gap_decisions must be exactly: "
+            + ", ".join(EXPECTED_PR11_SOURCE_GAP_ORDER),
+        )
+    for source in coverage.source_gap_decisions:
+        expected_blocking_reasons = EXPECTED_PR11_SOURCE_GAP_BLOCKING_REASONS.get(source.source)
+        expected_decisions = _PR11_SOURCE_GAP_DECISIONS.get(source.source)
+        if expected_blocking_reasons is None or expected_decisions is None:
+            raise _closeout_error(context, f"PR11 unknown source decision: {source.source}")
+        for field_name, expected_value in expected_decisions.items():
+            if getattr(source, field_name) != expected_value:
+                raise _closeout_error(
+                    context, f"PR11 {source.source} {field_name} must be {expected_value}"
+                )
+        if source.blocking_reasons != expected_blocking_reasons:
+            raise _closeout_error(
+                context, f"PR11 {source.source} blocking_reasons must stay canonical"
+            )
+        if (
+            source.approved_ingest
+            or source.approved_runtime_authority
+            or source.api_calls_allowed
+            or source.scraping_allowed
+            or source.paid_source_use_allowed
+        ):
+            raise _closeout_error(context, f"PR11 {source.source} must not approve source use")
+        _require_safe_notes(source.notes, context)
     regional_domains = tuple(
         domain for domain in coverage.coverage_domains if domain.domain == "regional_local_products"
     )
