@@ -95,78 +95,33 @@ external research artifacts as nutrition/source authority.
 
 ## Fixed in Commit Mapping
 
-CodeRabbit:
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503 -> 4dd9da9f4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214543 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266233058 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244950 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244953 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210266 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210270 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210274 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210281 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374802 -> 5ab352518
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374818 -> 5ab352518
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374826 -> 5ab352518
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374832 -> 5ab352518
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374841 -> 5ab352518
+Disposition: FIXED
+Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503 -> `4dd9da9f4`
-  - Disposition: `FIXED`
-  - Evidence: Phase2 mapping checklist exists and is checked in this file under
-    `## Discussion Thread Pass`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: validation command blocks use `VENV_PYTHON` instead of
-    workstation-specific absolute venv paths.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214543 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: helper loaders in
-    `tests/test_food_source_preference_mapping_closeout.py` have explicit return
-    annotations.
+## Bot Review Body Dispositions
 
-Cubic:
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266233058 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: portable `VENV_PYTHON` validation commands.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244950 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: safe negated blocked-method notes remain accepted.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244953 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: approval-state wording is rejected without false-reding explicit
-    negations.
-- Cubic body review on commit `31bc88c13` identified two P1 issues: first-match
-  phrase scanning and overly broad negation scoping.
+- Cubic body review on commit `31bc88c13` identified first-match phrase scanning
+  and overly broad negation scoping.
   - Disposition: `FIXED`
   - Evidence: commit `5ab352518`; `_require_safe_notes` now iterates every
     phrase/pattern occurrence, and tests reject `No api calls allowed. API calls
     allowed...` plus `No provider snapshots approved. Edamam is source
     authority.`
-
-Codex review suggestions:
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210266 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: negated blocked-method notes are accepted by focused tests.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210270 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: closeout-prohibited approval wording is rejected.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210274 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: regional handoff notes are validated.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210281 -> `31bc88c13`
-  - Disposition: `FIXED`
-  - Evidence: duplicate regional rows are rejected.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374802 -> `5ab352518`
-  - Disposition: `FIXED`
-  - Evidence: PR11 top-level `next_recommended_lane`, `final_gate_decision`,
-    and notes are cross-checked.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374818 -> `5ab352518`
-  - Disposition: `FIXED`
-  - Evidence: PR15 source, classification, family, evidence policy, blocked
-    methods, final decision, notes, and mapping-contract notes are cross-checked.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374826 -> `5ab352518`
-  - Disposition: `FIXED`
-  - Evidence: duplicate regional domain/source rows are rejected.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374832 -> `5ab352518`
-  - Disposition: `FIXED`
-  - Evidence: budget-first policy must preserve the exact USDA + Open Food Facts
-    canonical baseline wording and cannot approve paid/API/scraper authority.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374841 -> `5ab352518`
-  - Disposition: `FIXED`
-  - Evidence: named blocked providers cannot become source/runtime/nutrition
-    authority.
-
-Sourcery:
-
 - Sourcery review body reported weekly rate limit instead of actionable code
   findings.
   - Disposition: `NOT-A-BUG`
