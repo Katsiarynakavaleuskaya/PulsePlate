@@ -78,7 +78,7 @@ Supersedes Dependabot PR #1760 governance blocker: missing canonical fixed-mappi
 - `. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/activate && make validate-changed` — PASS. Note: the first unactivated `make validate-changed` attempt failed because this isolated worktree has no local `.venv` and `python3` could not import `fastapi`; the activated repo venv rerun passed.
 - `pre-commit run --all-files` — PASS after black reformatted `tests/test_install_locked_python_requirements.py` and `.secrets.baseline` was updated for the intentional wheel sha256 fingerprint.
 - `git diff --check` — PASS.
-- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1767` — PASS after PR body mirror normalization.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1767` — PASS after PR body mirror normalization and recheck.
 - `GH_TOKEN` exported: `python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1767 --require-auth` — PASS for all 6 resolved review threads.
 - `GITHUB_TOKEN`/`GH_TOKEN` exported: `python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1767 --repo Katsiarynakavaleuskaya/PulsePlate` — PASS for review governance; current-head CI remains a separate live gate.
 
