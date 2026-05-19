@@ -787,7 +787,7 @@ PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE = re.compile(
     r"(?:are\s+)?(?!(?:not|never)\s)"
     r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s+to\s+claim\s*:"
     r"|^(?:allowed|permitted|approved|enabled)"
-    r"(?:\s+(?!to\b)\w+){0,3}\s+claims?\s*:"
+    r"(?:\s+(?!to\b)\w+){0,3}\s+claims?(?:\s+\w+){0,3}\s*:"
     r"|^claims?\s+(?!(?:\w+\s+){0,3}(?:not|never|no\s+longer)\s+)"
     r"(?:(?:is|are)\s+)?"
     r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s*:"
@@ -864,13 +864,17 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     ),
     (
         "production-live philosophical cache-key behavior",
-        re.compile(r"\bproduction[- ]live philosophical cache[- ]key behavior\b"),
+        re.compile(
+            r"\bproduction[- ]live philosophical cache[- ]key behavior\b"
+            r"|\bphilosophical cache[- ]key behavior "
+            r"(?:is|was|has been) production[- ]live\b"
+        ),
     ),
     (
         "redis philosophical cache approved",
         re.compile(
             r"\bredis philosophical cache "
-            r"(?:(?:is|was|has been) )?(?:approved|enabled)\b"
+            r"(?:(?:is|was|has been) )?(?:allowed|permitted|approved|enabled)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled) redis rollout "
@@ -879,14 +883,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:(?:is|was|has been) |(?:is|was|has been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:approved|enabled) "
+            r"(?:allowed|permitted|approved|enabled) "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
             r"|(?<!\bno )(?<!\bnot )(?<!\bnever )"
             r"(?<!\bno currently )(?<!\bnot currently )(?<!\bnever currently )"
             r"(?<!\bno actually )(?<!\bnot actually )(?<!\bnever actually )"
             r"(?<!\bno explicitly )(?<!\bnot explicitly )(?<!\bnever explicitly )"
-            r"\b(?:approved|enabled) redis rollout "
+            r"\b(?:allowed|permitted|approved|enabled) redis rollout "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
         ),
@@ -895,7 +899,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "gptcache philosophical cache approved",
         re.compile(
             r"\bgptcache philosophical cache "
-            r"(?:(?:is|was|has been) )?(?:approved|enabled)\b"
+            r"(?:(?:is|was|has been) )?(?:allowed|permitted|approved|enabled)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled) gptcache rollout "
@@ -904,14 +908,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:(?:is|was|has been) |(?:is|was|has been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:approved|enabled) "
+            r"(?:allowed|permitted|approved|enabled) "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
             r"|(?<!\bno )(?<!\bnot )(?<!\bnever )"
             r"(?<!\bno currently )(?<!\bnot currently )(?<!\bnever currently )"
             r"(?<!\bno actually )(?<!\bnot actually )(?<!\bnever actually )"
             r"(?<!\bno explicitly )(?<!\bnot explicitly )(?<!\bnever explicitly )"
-            r"\b(?:approved|enabled) gptcache rollout "
+            r"\b(?:allowed|permitted|approved|enabled) gptcache rollout "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
         ),
@@ -919,23 +923,24 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "redis imports allowed in pr-1",
         re.compile(
-            r"\bredis imports? "
+            r"\bredis (?:imports?|clients?|probes?) "
             r"(?:(?:are|is|was|were|has been|have been) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) redis imports?\b"
+            r"(?:authorizes|approves|allows|permits|enables) redis (?:imports?|clients?|probes?)\b"
         ),
     ),
     (
         "gptcache imports allowed in pr-1",
         re.compile(
-            r"\bgptcache imports? "
+            r"\bgptcache (?:imports?|clients?|probes?) "
             r"(?:(?:are|is|was|were|has been|have been) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) gptcache imports?\b"
+            r"(?:authorizes|approves|allows|permits|enables) gptcache "
+            r"(?:imports?|clients?|probes?)\b"
         ),
     ),
     (
@@ -1050,13 +1055,13 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|enables|permits|authorized|approved|"
             r"allowed|enabled|permitted|grants|granted) "
-            r"(?:backend selection|semantic[- ]cache backend selection|serving|"
-            r"semantic[- ]cache serving|backend selection and serving)\b"
-            r"|\b(?:semantic[- ]cache )?backend selections? "
+            r"(?:backend[- ]selection|semantic[- ]cache backend[- ]selection|serving|"
+            r"semantic[- ]cache serving|backend[- ]selection and serving)\b"
+            r"|\b(?:semantic[- ]cache )?backend[- ]selections? "
             r"(?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted|granted) "
             r"for philosophy admission\b"
-            r"|\b(?:(?:semantic[- ]cache )?backend selections?|serving) "
+            r"|\b(?:(?:semantic[- ]cache )?backend[- ]selections?|serving) "
             r"(?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted|granted) "
             r"by philosophy admission\b"

@@ -1302,6 +1302,9 @@ def test_forbidden_claims_section_requires_negative_polarity() -> None:
         "- [x] Allowed runtime claim: philosophical semantic-cache is live.",
         "PR-1 and downstream docs must not claim:\n"
         "* [ ] PR-1 and downstream docs may claim: philosophical semantic-cache is live.",
+        "PR-1 and downstream docs must not claim:\n"
+        "Allowed claims include:\n"
+        "- philosophical semantic-cache is live.",
     )
 
     for replacement in cases:
@@ -1402,6 +1405,14 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
             "production-live philosophical cache-key behavior",
             "production-live philosophical cache-key behavior",
         ),
+        (
+            "philosophical cache-key behavior is production-live",
+            "production-live philosophical cache-key behavior",
+        ),
+        (
+            "philosophical cache key behavior is production live",
+            "production-live philosophical cache-key behavior",
+        ),
         ("philosophical semantic-cache serving is approved", "philosophical semantic cache live"),
         ("philosophical semantic-cache serving was approved", "philosophical semantic cache live"),
         (
@@ -1470,6 +1481,14 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
         ),
         (
             "Redis rollout was approved for philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Redis rollout is allowed for philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Redis rollout is permitted for philosophical semantic-cache paths",
             "redis philosophical cache approved",
         ),
         (
@@ -1596,6 +1615,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("redis imports are allowed in PR-1", "redis imports allowed in pr-1"),
         ("redis imports are allowed for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are approved for Philosophy admission", "redis imports allowed in pr-1"),
+        ("Redis clients are approved in PR-1", "redis imports allowed in pr-1"),
+        ("PR-1 enables Redis clients", "redis imports allowed in pr-1"),
         ("redis import was approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are enabled for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis import is approved for Philosophy admission", "redis imports allowed in pr-1"),
@@ -1606,6 +1627,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "GPTCache imports are permitted for Philosophy admission",
             "gptcache imports allowed in pr-1",
         ),
+        ("GPTCache clients are approved in PR-1", "gptcache imports allowed in pr-1"),
         (
             "GPTCache import was approved for Philosophy admission",
             "gptcache imports allowed in pr-1",
@@ -1868,8 +1890,10 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy admission authorizes serving.",
         "Philosophy admission approves semantic-cache serving.",
         "Philosophy admission approved backend selection.",
+        "Philosophy admission authorizes backend-selection.",
         "Philosophy admission authorizes semantic-cache backend selection.",
         "Philosophy admission approves semantic cache backend selection.",
+        "backend-selection is approved by Philosophy admission.",
         "semantic-cache backend selection is granted by Philosophy admission.",
         "semantic-cache backend selection was granted by Philosophy admission.",
         "Philosophy PR-1 enables semantic-cache serving.",
