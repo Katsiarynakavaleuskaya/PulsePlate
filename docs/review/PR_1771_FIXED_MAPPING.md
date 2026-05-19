@@ -135,6 +135,12 @@ Evidence: `core/food_sources/regional_catalog_identity.py` tightens negated appr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#pullrequestreview-4323063301 -> a986ab233
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269522495 -> a986ab233
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` no longer treats `forbidden` or `rejected` as safe approval negations, and `tests/test_food_source_regional_catalog_identity.py` rejects `Automated collection is never forbidden and allowed.`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269522238 -> 4919c32a7
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
