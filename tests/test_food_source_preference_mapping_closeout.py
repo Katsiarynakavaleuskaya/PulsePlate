@@ -530,6 +530,12 @@ def test_preference_mapping_closeout_rejects_regional_handoff_authority_notes(
         "No api calls approved. Scraping allowed.",
         "No provider snapshots approved. Edamam is source authority.",
         "No api calls allowed. API calls allowed for regional source decisions.",
+        "Paid API use allowed.",
+        "Paid API use is allowed.",
+        "Automated collection allowed.",
+        "DigitalOcean Postgres load allowed.",
+        "Public dataset claim allowed.",
+        "The report does not approve source use; api calls are allowed for next lane.",
     ),
 )
 def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(

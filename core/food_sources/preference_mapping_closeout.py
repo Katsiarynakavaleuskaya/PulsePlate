@@ -170,9 +170,11 @@ _BLOCKED_PROVIDER_TERMS = (
 )
 _BLOCKED_AUTHORITY_TERMS = (
     rf"{_BLOCKED_PROVIDER_TERMS}|"
-    r"paid apis?|paid source use|paid providers?|provider snapshots?|provider integration|"
+    r"paid apis?|paid api use|paid source use|paid providers?|provider snapshots?|provider integration|"
     r"scrapers?|scraping|api calls?|source downloads?|downloads?|runtime authority|"
     r"cache authority|database writes?|db writes?|redistribution|ingests?|source use|"
+    r"automated collection|digitalocean postgres load|public dataset claim|"
+    r"recipe text authority|user preference text authority|llm output authority|"
     r"source authority|nutrition authority|product display"
 )
 _FORBIDDEN_NOTE_PATTERNS = (
@@ -314,12 +316,16 @@ def _require_safe_notes(value: str, context: str) -> str:
 
 def _is_negated_approval_match(text: str, normalized: str, start: int) -> bool:
     text = text.strip()
-    prefix = normalized[max(0, start - 4) : start]
+    prefix = normalized[max(0, start - 16) : start]
     window = normalized[max(0, start - 32) : start + len(text)].strip()
     return bool(
         re.search(
             rf"\b(?:do|does|did|must|may|can|should|is|are)?\s*not\s+(?:{_APPROVAL_VERBS})\b",
-            window,
+            text,
+        )
+        or (
+            re.match(rf"\b(?:{_APPROVAL_VERBS})\b", text) is not None
+            and re.search(r"\bnot\W+$", prefix) is not None
         )
         or re.search(r"(?:^|\W)no\W+$", prefix)
         or re.search(
