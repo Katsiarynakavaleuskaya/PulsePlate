@@ -1,0 +1,509 @@
+"""Tests for the deterministic PR16 preference mapping closeout gate."""
+
+from __future__ import annotations
+
+import copy
+from dataclasses import replace
+import functools
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from core.food_sources.preference_mapping_closeout import (
+    PreferenceMappingCloseoutError,
+    build_preference_mapping_closeout_report,
+    load_preference_mapping_closeout_governance,
+    parse_preference_mapping_closeout_governance,
+)
+from core.food_sources.preference_recipe_mapping import (
+    PreferenceRecipeMappingGovernance,
+    load_preference_recipe_mapping_governance,
+)
+from core.food_sources.recipe_dish_corpus import load_recipe_dish_corpus_governance
+from core.food_sources.source_catalog import load_source_catalog
+from core.food_sources.source_gap_audit import SourceGapAudit, load_source_gap_audit
+from core.food_sources.source_onboarding import load_source_onboarding
+
+_REPO_ROOT = Path(__file__).parents[1]
+_CATALOG_PATH = (
+    _REPO_ROOT / "docs" / "architecture" / "FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json"
+)
+_ONBOARDING_PATH = (
+    _REPO_ROOT / "docs" / "architecture" / "FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json"
+)
+_COVERAGE_PATH = (
+    _REPO_ROOT / "docs" / "architecture" / "FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json"
+)
+_RECIPE_DISH_CORPUS_PATH = (
+    _REPO_ROOT / "docs" / "architecture" / "FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
+)
+_PREFERENCE_MAPPING_PATH = (
+    _REPO_ROOT
+    / "docs"
+    / "architecture"
+    / "FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json"
+)
+_CLOSEOUT_PATH = (
+    _REPO_ROOT
+    / "docs"
+    / "architecture"
+    / "FOOD_DATA_PREFERENCE_MAPPING_CLOSEOUT_PR16_2026-05-19.json"
+)
+_CLI_MODULE = "scripts.food_source_preference_mapping_closeout"
+_CLI_TIMEOUT_SECONDS = 30
+
+
+@functools.cache
+def _catalog():
+    return load_source_catalog(_CATALOG_PATH)
+
+
+@functools.cache
+def _onboarding():
+    return load_source_onboarding(
+        _ONBOARDING_PATH,
+        catalog=_catalog(),
+        expected_catalog_ref="docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+    )
+
+
+@functools.cache
+def _coverage() -> SourceGapAudit:
+    return load_source_gap_audit(
+        _COVERAGE_PATH,
+        catalog=_catalog(),
+        onboarding=_onboarding(),
+        expected_catalog_ref="docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+        expected_onboarding_ref="docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+    )
+
+
+@functools.cache
+def _recipe_dish_corpus():
+    return load_recipe_dish_corpus_governance(
+        _RECIPE_DISH_CORPUS_PATH,
+        onboarding=_onboarding(),
+        coverage=_coverage(),
+    )
+
+
+@functools.cache
+def _preference_mapping() -> PreferenceRecipeMappingGovernance:
+    return load_preference_recipe_mapping_governance(
+        _PREFERENCE_MAPPING_PATH,
+        coverage=_coverage(),
+        recipe_dish_corpus=_recipe_dish_corpus(),
+        expected_coverage_ref="docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json",
+        expected_recipe_dish_corpus_ref=(
+            "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
+        ),
+    )
+
+
+@functools.cache
+def _closeout_payload_template() -> dict[str, object]:
+    payload = json.loads(_CLOSEOUT_PATH.read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return payload
+
+
+def _closeout_payload() -> dict[str, object]:
+    return copy.deepcopy(_closeout_payload_template())
+
+
+def _write_payload(path: Path, payload: dict[str, object]) -> Path:
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
+
+
+def _coverage_with_regional_domain(
+    *,
+    next_action: str | None = None,
+    approved_ingest: bool | None = None,
+    approved_runtime_authority: bool | None = None,
+) -> SourceGapAudit:
+    coverage = copy.deepcopy(_coverage())
+    domains = tuple(
+        (
+            replace(
+                domain,
+                next_action=domain.next_action if next_action is None else next_action,
+                approved_ingest=(
+                    domain.approved_ingest if approved_ingest is None else approved_ingest
+                ),
+                approved_runtime_authority=(
+                    domain.approved_runtime_authority
+                    if approved_runtime_authority is None
+                    else approved_runtime_authority
+                ),
+            )
+            if domain.domain == "regional_local_products"
+            else domain
+        )
+        for domain in coverage.coverage_domains
+    )
+    return replace(coverage, coverage_domains=domains)
+
+
+def _coverage_with_regional_source(
+    *,
+    paid_source_use_allowed: bool | None = None,
+    approved_ingest: bool | None = None,
+    approved_runtime_authority: bool | None = None,
+) -> SourceGapAudit:
+    coverage = copy.deepcopy(_coverage())
+    sources = tuple(
+        (
+            replace(
+                source,
+                paid_source_use_allowed=(
+                    source.paid_source_use_allowed
+                    if paid_source_use_allowed is None
+                    else paid_source_use_allowed
+                ),
+                approved_ingest=(
+                    source.approved_ingest if approved_ingest is None else approved_ingest
+                ),
+                approved_runtime_authority=(
+                    source.approved_runtime_authority
+                    if approved_runtime_authority is None
+                    else approved_runtime_authority
+                ),
+            )
+            if source.source == "regional_catalogs"
+            else source
+        )
+        for source in coverage.source_gap_decisions
+    )
+    return replace(coverage, source_gap_decisions=sources)
+
+
+def test_load_preference_mapping_closeout_accepts_canonical_artifact() -> None:
+    closeout = load_preference_mapping_closeout_governance(
+        _CLOSEOUT_PATH,
+        preference_mapping=_preference_mapping(),
+        coverage=_coverage(),
+    )
+
+    assert closeout.pr15_merged_pr == 1747
+    assert closeout.pr15_next_recommended_lane == (
+        "preference_recipe_mapping_contract_review_closeout"
+    )
+    assert closeout.external_research_evidence_role == ("review_context_only_not_source_authority")
+    assert closeout.next_substantive_lane == "regional_catalog_identity_license_review"
+
+
+def test_preference_mapping_closeout_report_is_deterministic_json_contract() -> None:
+    report = build_preference_mapping_closeout_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        closeout_path=_CLOSEOUT_PATH,
+    )
+
+    assert report == {
+        "success": True,
+        "dry_run": True,
+        "source": "preference_recipe_mapping_contract_review_closeout",
+        "source_classification": "governance_closeout_only",
+        "source_family": "food_data_source_governance",
+        "evidence_policy": "external_research_evidence_only_no_source_authority",
+        "blocked_methods": [
+            "scraping",
+            "automated_collection",
+            "api_call",
+            "download",
+            "paid_api_use",
+            "cache_authority",
+            "redistribution",
+            "runtime_authority",
+            "public_dataset_claim",
+            "digitalocean_postgres_load",
+            "recipe_text_authority",
+            "user_preference_text_authority",
+            "llm_output_authority",
+            "nutrition_authority",
+            "provider_integration",
+            "product_display",
+        ],
+        "pr15_merged_pr": 1747,
+        "pr15_next_recommended_lane": "preference_recipe_mapping_contract_review_closeout",
+        "next_substantive_lane": "regional_catalog_identity_license_review",
+        "runtime_cutover": False,
+        "digitalocean_postgres_load": False,
+        "bulk_ingest": False,
+        "network_allowed": False,
+        "db_writes_allowed": False,
+        "api_calls_allowed": False,
+        "source_download_allowed": False,
+        "scraping_allowed": False,
+        "paid_source_use_allowed": False,
+        "cache_authority_allowed": False,
+        "redistribution_allowed": False,
+        "public_dataset_claim_allowed": False,
+        "automation_allowed": False,
+        "provider_integration_allowed": False,
+        "product_display_allowed": False,
+        "nutrition_authority_allowed": False,
+        "file_only": True,
+        "final_gate_decision": "preference_mapping_closeout_only_no_ingest",
+        "validation_errors": [],
+        "pr15_ref": "docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json",
+        "coverage_ref": "docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json",
+        "recipe_dish_corpus_ref": (
+            "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json"
+        ),
+        "external_research_evidence_role": "review_context_only_not_source_authority",
+        "deferred_followups": [
+            "regional_catalog_identity_license_review",
+            "paid_restaurant_menu_snapshot_provider_governance",
+            "paid_api_or_scraper_provider_contract_review",
+            "runtime_postgresql_cutover_packet",
+        ],
+    }
+
+
+@pytest.mark.parametrize(
+    "flag_name",
+    (
+        "runtime_cutover",
+        "digitalocean_postgres_load",
+        "bulk_ingest",
+        "network_allowed",
+        "db_writes_allowed",
+        "api_calls_allowed",
+        "source_download_allowed",
+        "scraping_allowed",
+        "paid_source_use_allowed",
+        "cache_authority_allowed",
+        "redistribution_allowed",
+        "public_dataset_claim_allowed",
+        "automation_allowed",
+        "provider_integration_allowed",
+        "product_display_allowed",
+        "nutrition_authority_allowed",
+    ),
+)
+def test_preference_mapping_closeout_rejects_top_level_unsafe_flags(
+    flag_name: str,
+) -> None:
+    payload = _closeout_payload()
+    payload[flag_name] = True
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="flags must be false"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_rejects_file_only_false() -> None:
+    payload = _closeout_payload()
+    payload["file_only"] = False
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="file_only must be true"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_rejects_invalid_calendar_date() -> None:
+    payload = _closeout_payload()
+    payload["generated_on"] = "2026-99-19"
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="valid calendar date"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("pr15_merged_pr", 0),
+        ("pr15_next_recommended_lane", "paid_provider_ingest"),
+        ("external_research_evidence_role", "source_authority"),
+        ("next_substantive_lane", "paid_api_provider_integration"),
+        ("final_gate_decision", "closeout_allows_ingest"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_handoff_or_lane_drift(
+    field_name: str,
+    bad_value: object,
+) -> None:
+    payload = _closeout_payload()
+    payload[field_name] = bad_value
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_rejects_pr15_handoff_drift() -> None:
+    payload = _closeout_payload()
+    preference_mapping = replace(_preference_mapping(), next_recommended_lane="provider_runtime")
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="PR15 must recommend"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=preference_mapping,
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_rejects_regional_domain_drift() -> None:
+    payload = _closeout_payload()
+    coverage = _coverage_with_regional_domain(next_action="paid_restaurant_menu_snapshot")
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="regional_local_products"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+def test_preference_mapping_closeout_rejects_regional_source_approval() -> None:
+    payload = _closeout_payload()
+    coverage = _coverage_with_regional_source(paid_source_use_allowed=True)
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="must not approve source use"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_notes",
+    (
+        "Attached spreadsheet is authority for source decisions.",
+        "The report is authority for paid provider use.",
+        "The docx is authority and api calls allowed.",
+        "The image is authority for product display.",
+        "Attached spreadsheet approves paid APIs for source decisions.",
+        "The report authorizes provider snapshots for the next lane.",
+        "The image permits scrapers for restaurant menu evidence.",
+    ),
+)
+def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
+    bad_notes: str,
+) -> None:
+    payload = _closeout_payload()
+    payload["notes"] = bad_notes
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="notes must not approve"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_budget_policy",
+    (
+        "USDA + Open Food Facts remain baseline, but paid APIs approved for use.",
+        "USDA + Open Food Facts remain baseline, and provider snapshots are allowed.",
+        "USDA + Open Food Facts remain baseline, and this report permits scrapers.",
+    ),
+)
+def test_preference_mapping_closeout_rejects_budget_policy_authority_promotion(
+    bad_budget_policy: str,
+) -> None:
+    payload = _closeout_payload()
+    payload["budget_first_policy"] = bad_budget_policy
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="notes must not approve"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_rejects_missing_provider_deferrals() -> None:
+    payload = _closeout_payload()
+    payload["deferred_followups"] = ["regional_catalog_identity_license_review"]
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="deferred_followups"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_rejects_malformed_artifact(tmp_path: Path) -> None:
+    malformed_path = tmp_path / "closeout.json"
+    malformed_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="Cannot read"):
+        load_preference_mapping_closeout_governance(
+            malformed_path,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_cli_success_json() -> None:
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            _CLI_MODULE,
+            "--json",
+        ],
+        cwd=_REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=_CLI_TIMEOUT_SECONDS,
+        check=True,
+    )
+
+    report = json.loads(completed.stdout)
+    assert report["success"] is True
+    assert report["next_substantive_lane"] == "regional_catalog_identity_license_review"
+
+
+def test_preference_mapping_closeout_cli_failure_json(tmp_path: Path) -> None:
+    payload = _closeout_payload()
+    payload["api_calls_allowed"] = True
+    bad_path = _write_payload(tmp_path / "bad-closeout.json", payload)
+
+    completed = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            _CLI_MODULE,
+            "--closeout",
+            str(bad_path),
+            "--json",
+        ],
+        cwd=_REPO_ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=_CLI_TIMEOUT_SECONDS,
+        check=False,
+    )
+
+    assert completed.returncode == 1
+    report = json.loads(completed.stdout)
+    assert report["success"] is False
+    assert "api_calls_allowed flags must be false" in report["validation_errors"][0]
