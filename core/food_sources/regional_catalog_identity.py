@@ -257,7 +257,10 @@ _REGIONAL_SOURCE_BLOCKING_REASONS = (
     "Locale-specific source identity, license, language, unit, schema, and redistribution terms are missing.",
 )
 
-_APPROVAL_TERMS = r"approved|allowed|authorized|permitted|granted|enabled|usable|available"
+_APPROVAL_TERMS = (
+    r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
+    r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available"
+)
 _USE_TERMS = r"may be used|can be used|relied on"
 _BLOCKED_NOTE_TERMS = (
     r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller apis?|partner apis?|"

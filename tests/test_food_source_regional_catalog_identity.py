@@ -420,6 +420,10 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Seller API use is blocked for PR17 governance evidence and provider terms but still approved for limited staging sync.",
         "Seller APIs approved for regional catalog checks.",
         "Partner APIs allowed for regional catalog checks.",
+        "May be used seller api for testing.",
+        "Relied on seller api only.",
+        "We approve seller api use for tests.",
+        "We allow seller api use for tests.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -444,6 +448,7 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Automated collection is blocked for regional catalogs.",
         "DigitalOcean Postgres load is not allowed for PR17.",
         "Data portal is not source authority for PR17.",
+        "Data portal is not source authority for product display.",
         "Nutrition authority for regional catalogs is not approved.",
     ),
 )

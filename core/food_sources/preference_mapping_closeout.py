@@ -185,7 +185,8 @@ _BLOCKED_PROVIDER_TERMS = (
 _BLOCKED_AUTHORITY_TERMS = (
     rf"{_BLOCKED_PROVIDER_TERMS}|"
     r"paid apis?|paid api use|paid source use|paid providers?|provider snapshots?|provider integration|"
-    r"paid provider use|paid plans?|network access|network|"
+    r"paid provider use|paid plans?|seller apis?|seller api use|partner apis?|partner api use|"
+    r"network access|network|"
     r"scrapers?|scraping|api calls?|source downloads?|downloads?|runtime authority|"
     r"cache authority|database writes?|db writes?|redistribution|ingests?|source use|"
     r"automated collection|digitalocean postgres load|public dataset claim|"

@@ -436,6 +436,27 @@ def test_preference_mapping_closeout_rejects_top_level_unsafe_flags(
         )
 
 
+@pytest.mark.parametrize(
+    "bad_notes",
+    (
+        "Seller API use approved for PR16 closeout.",
+        "Partner API use allowed for PR16 closeout.",
+    ),
+)
+def test_preference_mapping_closeout_rejects_seller_partner_api_notes(
+    bad_notes: str,
+) -> None:
+    payload = _closeout_payload()
+    payload["notes"] = bad_notes
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="notes"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
 def test_preference_mapping_closeout_rejects_file_only_false() -> None:
     payload = _closeout_payload()
     payload["file_only"] = False
