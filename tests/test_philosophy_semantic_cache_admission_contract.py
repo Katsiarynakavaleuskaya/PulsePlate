@@ -15,6 +15,7 @@ from scripts.ci.check_semantic_cache_gate import (
     PHILOSOPHY_SC_G5_MERGE_SHA,
     PHILOSOPHY_SC_G5_CONTRACT_PATH,
     validate_philosophy_semantic_cache_admission_contract,
+    validate_philosophy_semantic_cache_admission_downstream_text,
     validate_philosophy_semantic_cache_admission_schema,
     validate_semantic_cache_backend_selection_contract,
 )
@@ -252,6 +253,29 @@ def test_phase1_docs_gate_allows_downstream_prefixed_negative_examples(
     def fake_read_text(path: str) -> str:
         if path == relpath:
             return f"## Forbidden Claims\n\nPR-1 and downstream docs must not claim:\n\n{line}"
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
+def test_phase1_docs_gate_preserves_negative_examples_after_explanatory_separator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Safe explanatory separators keep Forbidden Claims examples negative."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "The following are forbidden examples:\n\n"
+                "- philosophical semantic-cache is live"
+            )
         return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
 
     monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
@@ -1221,6 +1245,8 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "semantic-cache gate is not closed anymore",
         "semantic-cache gate is active",
         "semantic-cache gate is enabled",
+        "the semantic-cache gate is on",
+        "the semantic-cache gate is turned on",
         "the semantic-cache gate is open for Philosophy admission",
         "the semantic-cache gate may be opened for Philosophy admission",
         "the global gate can be opened for Philosophy admission",
@@ -1265,6 +1291,25 @@ def test_negated_gate_unlocked_claim_allowed() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert not any("philosophy admission opens gate" in e for e in errors)
+
+
+def test_dangling_negation_does_not_hide_forbidden_downstream_claims() -> None:
+    """Negation bypass only applies to the local claim phrase."""
+    cases = (
+        (
+            "This prior sentence is not\n\nPhilosophy admission opens the semantic-cache gate.",
+            "philosophy admission opens gate",
+        ),
+        (
+            "This prior bullet does not\n\nRedis imports are approved in PR-1.",
+            "redis imports allowed in pr-1",
+        ),
+    )
+
+    for text, error_label in cases:
+        errors = validate_philosophy_semantic_cache_admission_downstream_text(text)
+
+        assert any("forbidden" in e and error_label in e for e in errors)
 
 
 def test_runtime_exclusion_anchors_require_local_negation() -> None:

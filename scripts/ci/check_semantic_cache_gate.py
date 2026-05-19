@@ -801,6 +801,7 @@ PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE = re.compile(
     r"(?:forbidden\s+)?examples?"
     r"|do\s+not\s+claim"
     r"|must\s+not\s+claim"
+    r"|the\s+following\s+are\s+forbidden\s+examples?"
     r"|not\s+allowed(?:\s+\w+){0,3}\s+claims?"
     r"|not\s+permitted(?:\s+\w+){0,3}\s+claims?"
     r"|never(?:\s+\w+){0,3}\s+claims?"
@@ -858,7 +859,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been) not closed anymore\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
-            r"(?:is|was|has been) (?:active|enabled)\b"
+            r"(?:is|was|has been) (?:active|enabled|on|turned on)\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been) opened by "
             r"(?:philosophy admission|philosophy pr-1|pr-1)\b"
@@ -1353,9 +1354,15 @@ PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
 )
 
 PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE = re.compile(
-    r"\b(?:no|not|never|can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
+    r"(?:^|\s)(?:no|not|never|can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
     r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
     r"(?:\s+(?:currently|yet|formally|actually|explicitly)){0,3}\s*$"
+)
+PHILOSOPHY_NEGATED_PERMISSION_DOMAIN_RE = re.compile(
+    r"\b(?:pr-1|philosophy admission|semantic[- ]cache gate|global gate|redis|"
+    r"gptcache|backend[- ]selection|serving|runtime|providers?|storage|cache|"
+    r"insight|verification|billing|subscription|entitlement|paywall|medical|"
+    r"compliance|raw|advisory|workforce|graphrag|plugin|fitchef|cbt)\b"
 )
 
 PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
@@ -1435,7 +1442,10 @@ def _is_negated_philosophy_duplication_claim(text: str, match: re.Match[str]) ->
 
 def _is_negated_philosophy_permission_claim(text: str, match: re.Match[str]) -> bool:
     prefix = text[max(0, match.start() - 80) : match.start()]
-    return PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE.search(prefix) is not None
+    if PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE.search(prefix) is None:
+        return False
+    token_count = len(prefix.strip().split())
+    return token_count <= 3 or PHILOSOPHY_NEGATED_PERMISSION_DOMAIN_RE.search(prefix) is not None
 
 
 def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
