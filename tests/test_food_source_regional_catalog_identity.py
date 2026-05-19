@@ -410,6 +410,7 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Automated collection allowed for regional catalogs.",
         "DigitalOcean Postgres load enabled for regional catalogs.",
         "Seller API is not blocked and approved for catalog enrichment.",
+        "Automated collection is never forbidden and allowed.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:

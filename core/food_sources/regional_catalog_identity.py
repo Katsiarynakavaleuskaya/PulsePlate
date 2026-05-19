@@ -276,7 +276,7 @@ _FORBIDDEN_NOTE_PATTERNS = (
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
-    r"\b(?:unapproved|forbidden|rejected)\b"
+    r"\bunapproved\b"
 )
 
 
