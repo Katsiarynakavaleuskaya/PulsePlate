@@ -147,6 +147,13 @@ Evidence: `core/food_sources/regional_catalog_identity.py` rejects PR16 reports 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269624890 -> f3d8cedb1
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/preference_mapping_closeout.py` and the PR16 closeout artifact now emit explicit `seller_api_use_allowed` and `partner_api_use_allowed` false flags; `core/food_sources/regional_catalog_identity.py` requires those PR16 report flags to be explicitly present and false; PR16 and PR17 tests cover the handoff.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#pullrequestreview-4323359808 -> af0e4376a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269764389 -> af0e4376a
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -186,7 +193,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 93 tests.
+- Focused PR17 tests: passed, 95 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
