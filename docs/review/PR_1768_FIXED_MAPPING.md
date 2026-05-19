@@ -117,9 +117,11 @@ external research artifacts as nutrition/source authority.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266428110
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266428124
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266428130
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4318818868
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4319417988
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling. Commit d9b08dc9b rewrites the mapping into parser-compatible wording, removing the flagged typo text. Commit 999a7f413 rejects exact blocked-method approval notes, including paid API use, automated collection, DigitalOcean Postgres load, public dataset claim, and unrelated earlier negation before later approval.
+Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. CodeRabbit review-level comments are mapped to the same fix commits as their inline actionables. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling. Commit d9b08dc9b rewrites the mapping into parser-compatible wording, removing the flagged typo text. Commit 999a7f413 rejects exact blocked-method approval notes, including paid API use, automated collection, DigitalOcean Postgres load, public dataset claim, and unrelated earlier negation before later approval.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503 -> 4dd9da9f4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535 -> 31bc88c13
@@ -142,6 +144,8 @@ Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266428110 -> 999a7f413
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266428124 -> 999a7f413
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266428130 -> 999a7f413
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4318818868 -> 31bc88c13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4319417988 -> d9b08dc9b
 
 ## Bot Review Body Dispositions
 
