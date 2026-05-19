@@ -870,6 +870,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate (?:can|may) be opened "
             r"for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate opens for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate opens "
+            r"(?:in|during|with|by) (?:philosophy )?pr-1\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? (?:can|may) open "
             r"(?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\bphilosophy admission (?:can|may) open "
@@ -984,6 +986,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:adds?|imports?|uses?|wires?) redis (?:imports?|clients?|probes?)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:adds?|imports?|uses?|wires?) redis\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:using|wiring|importing) redis(?: for philosophy admission)?\b"
         ),
     ),
     (
@@ -1005,6 +1010,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:adds?|imports?|uses?|wires?) gptcache (?:imports?|clients?|probes?)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:adds?|imports?|uses?|wires?) gptcache\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:using|wiring|importing) gptcache(?: for philosophy admission)?\b"
         ),
     ),
     (
@@ -1140,6 +1148,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:adds?|uses?|wires?|calls?) "
             r"(?:providers?|provider calls?|storage|semantic[- ]cache storage|cache storage)"
             r"(?: for philosophy admission)?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"calls? (?:openai|anthropic|google|azure|llm|model) providers?"
+            r"(?: for philosophy admission)?\b"
         ),
     ),
     (
@@ -1266,6 +1277,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:semantic[- ]cache |cache )?admission "
             r"(?:does not|doesn't|do not|don't) require "
             r"(?:a )?verification[- ]bundle\b"
+            r"|\b(?:semantic[- ]cache |cache )?admission "
+            r"(?:does not|doesn't|do not|don't) need "
+            r"(?:a )?verification[- ]bundle\b"
             r"|\bverification[- ]bundles? (?:(?:may be|can be|is|are) )?omitted "
             r"for (?:semantic[- ]cache|cache) admission\b"
             r"|\bverification[- ]bundle requirements? (?:(?:may be|can be|is|are) )?"
@@ -1313,7 +1327,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:as (?:the )?(?:semantic[- ]cache )?backend|"
             r"backend for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"serves (?:philosophical )?(?:semantic[- ]cache|cache) traffic\b"
+            r"serves (?:(?:philosophical|philosophy) )?(?:semantic[- ]cache|cache) traffic\b"
         ),
     ),
     (
