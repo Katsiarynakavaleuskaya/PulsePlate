@@ -78,6 +78,7 @@ _SAFETY_FLAG_TEMPLATE: dict[str, bool] = {
     "cache_authority_allowed": False,
     "redistribution_allowed": False,
     "provider_integration_allowed": False,
+    "public_dataset_claim_allowed": False,
     "product_display_allowed": False,
     "nutrition_authority_allowed": False,
     "file_only": True,
@@ -167,6 +168,63 @@ _EXPECTED_EVIDENCE_TYPES = {
     "apify_scraping_providers": "attached_report_only",
 }
 
+_EXPECTED_CANDIDATE_IDENTITY_FIELDS = {
+    "data_europa_national_portals": {
+        "candidate_name": "data.europa.eu and national open-data portals",
+        "region_scope": "europe",
+        "country_or_market": "EU and national markets",
+        "source_url": "https://data.europa.eu/en",
+    },
+    "kroger": {
+        "candidate_name": "Kroger Products API",
+        "region_scope": "usa",
+        "country_or_market": "USA",
+        "source_url": "https://developer.kroger.com/",
+    },
+    "walmart": {
+        "candidate_name": "Walmart API",
+        "region_scope": "usa",
+        "country_or_market": "USA",
+        "source_url": "https://developer.walmart.com/",
+    },
+    "pepesto_grocery": {
+        "candidate_name": "Pepesto Grocery API",
+        "region_scope": "europe",
+        "country_or_market": "EU",
+        "source_url": "https://www.pepesto.com/",
+    },
+    "pricesapi": {
+        "candidate_name": "PricesAPI",
+        "region_scope": "global",
+        "country_or_market": "Global",
+        "source_url": "https://www.pricesapi.com/",
+    },
+    "yandex_eda": {
+        "candidate_name": "Yandex EDA Vendor API",
+        "region_scope": "cis",
+        "country_or_market": "CIS",
+        "source_url": "https://yandex.com/dev/eda/doc/en/",
+    },
+    "wildberries": {
+        "candidate_name": "Wildberries Seller API",
+        "region_scope": "cis",
+        "country_or_market": "Russia/CIS",
+        "source_url": "https://dev.wildberries.ru/",
+    },
+    "ozon": {
+        "candidate_name": "Ozon Seller API",
+        "region_scope": "cis",
+        "country_or_market": "Russia/CIS",
+        "source_url": "https://docs.ozon.ru/api/seller/",
+    },
+    "apify_scraping_providers": {
+        "candidate_name": "Apify and scraping-style catalog providers",
+        "region_scope": "global",
+        "country_or_market": "Global",
+        "source_url": "https://apify.com/",
+    },
+}
+
 _BLOCKED_STATUS_FIELDS = {
     "provider_identity_status": "not_verified",
     "license_status": "unverified",
@@ -204,7 +262,9 @@ _USE_TERMS = r"may be used|can be used|relied on"
 _BLOCKED_NOTE_TERMS = (
     r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller api|partner api|"
     r"provider integration|cache authority|redistribution|runtime authority|product display|"
-    r"nutrition authority|source authority|database writes?|db writes?|data portal|marketplace terms?"
+    r"nutrition authority|source authority|public dataset claim|automated collection|"
+    r"digitalocean postgres(?:ql)? load|postgres(?:ql)? load|database writes?|db writes?|"
+    r"data portal|marketplace terms?"
 )
 _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS})\b"),
@@ -212,6 +272,9 @@ _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_USE_TERMS})\b"),
     re.compile(r"\bdata portal\b(?:\W+\w+){0,4}\W+\b(?:is|becomes|serves as|treated as)\b"),
     re.compile(r"\b(?:source authority|nutrition authority)\b(?:\W+\w+){0,4}\W+\bfor\b"),
+)
+_NEGATED_APPROVAL_RE = re.compile(
+    r"\b(?:no|not|never|without|blocked|unapproved|forbidden|rejected)\b"
 )
 
 
@@ -354,7 +417,10 @@ def _relative_repo_path(path: Path | str) -> str:
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", value.lower()).strip()
     for pattern in _FORBIDDEN_NOTE_PATTERNS:
-        if pattern.search(normalized):
+        for match in pattern.finditer(normalized):
+            match_text = match.group(0)
+            if _NEGATED_APPROVAL_RE.search(match_text):
+                continue
             raise _identity_error(context, "notes must not approve regional catalog source use")
     return value
 
@@ -547,6 +613,9 @@ def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogC
         raise _identity_error(
             context, f"{candidate_id} upstream_evidence_type must stay review-only"
         )
+    for field_name, expected_value in _EXPECTED_CANDIDATE_IDENTITY_FIELDS[candidate_id].items():
+        if _require_string(data, field_name, context) != expected_value:
+            raise _identity_error(context, f"{candidate_id} {field_name} must be {expected_value}")
     for field_name, expected_value in _BLOCKED_STATUS_FIELDS.items():
         if _require_string(data, field_name, context) != expected_value:
             raise _identity_error(context, f"{candidate_id} {field_name} must be {expected_value}")
@@ -555,10 +624,10 @@ def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogC
         raise _identity_error(context, f"{candidate_id} blocking_reasons must stay unresolved")
     return RegionalCatalogCandidateReview(
         candidate_id=candidate_id,
-        candidate_name=_require_string(data, "candidate_name", context),
-        region_scope=_require_string(data, "region_scope", context),
-        country_or_market=_require_string(data, "country_or_market", context),
-        source_url=_require_string(data, "source_url", context),
+        candidate_name=_EXPECTED_CANDIDATE_IDENTITY_FIELDS[candidate_id]["candidate_name"],
+        region_scope=_EXPECTED_CANDIDATE_IDENTITY_FIELDS[candidate_id]["region_scope"],
+        country_or_market=_EXPECTED_CANDIDATE_IDENTITY_FIELDS[candidate_id]["country_or_market"],
+        source_url=_EXPECTED_CANDIDATE_IDENTITY_FIELDS[candidate_id]["source_url"],
         upstream_evidence_type=evidence_type,
         provider_identity_status=_require_string(data, "provider_identity_status", context),
         license_status=_require_string(data, "license_status", context),

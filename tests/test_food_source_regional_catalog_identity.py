@@ -300,6 +300,7 @@ def test_regional_catalog_identity_report_is_deterministic_json_contract() -> No
         "cache_authority_allowed",
         "redistribution_allowed",
         "provider_integration_allowed",
+        "public_dataset_claim_allowed",
         "product_display_allowed",
         "nutrition_authority_allowed",
     ),
@@ -355,6 +356,9 @@ def test_regional_catalog_identity_rejects_unexpected_keys() -> None:
         ("cache_decision", "approved"),
         ("redistribution_decision", "approved"),
         ("nutrient_schema_status", "approved"),
+        ("candidate_name", "Different Provider"),
+        ("country_or_market", "Different Market"),
+        ("source_url", "https://example.invalid/changed"),
     ),
 )
 def test_regional_catalog_identity_rejects_candidate_approval_drift(
@@ -401,6 +405,9 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Marketplace terms approved for runtime authority.",
         "Cache authority enabled for regional catalogs.",
         "Nutrition authority granted to Kroger.",
+        "Public dataset claim approved for regional catalogs.",
+        "Automated collection allowed for regional catalogs.",
+        "DigitalOcean Postgres load enabled for regional catalogs.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -415,6 +422,30 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
             coverage=_coverage(),
             pr16_report=_pr16_report(),
         )
+
+
+@pytest.mark.parametrize(
+    "safe_notes",
+    (
+        "API calls are not approved for regional catalog checks.",
+        "Public dataset claim remains unapproved for regional catalogs.",
+        "Automated collection is blocked for regional catalogs.",
+        "DigitalOcean Postgres load is not allowed for PR17.",
+    ),
+)
+def test_regional_catalog_identity_allows_negated_authority_prose(safe_notes: str) -> None:
+    payload = _identity_payload()
+    payload["notes"] = safe_notes
+
+    gate = parse_regional_catalog_identity_governance(
+        payload,
+        catalog=_catalog(),
+        onboarding=_onboarding(),
+        coverage=_coverage(),
+        pr16_report=_pr16_report(),
+    )
+
+    assert gate.notes == safe_notes
 
 
 @pytest.mark.parametrize(
