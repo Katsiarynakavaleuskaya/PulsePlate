@@ -1,5 +1,5 @@
 <!-- markdownlint-disable MD013 MD034 -->
-# PR TBD Premortem - idna 3.15 Dependabot security alerts
+# PR #1770 Premortem - idna 3.15 Dependabot security alerts
 
 ## Summary
 
@@ -55,10 +55,10 @@ broad `pip-compile` regeneration.
 
 ## Pre-merge Checklist
 
-- [ ] All seven Python alert surfaces pin `idna==3.15`.
-- [ ] No repo-managed Python requirement profile pins `idna==3.11`.
-- [ ] No `idna` emergency wheel entry was added.
-- [ ] Bundler resolver evidence still records Fastlane's `jwt < 3` blocker.
+- [x] All seven Python alert surfaces pin `idna==3.15`.
+- [x] No repo-managed Python requirement profile pins `idna==3.11`.
+- [x] No `idna` emergency wheel entry was added.
+- [x] Bundler resolver evidence still records Fastlane's `jwt < 3` blocker.
 - [ ] Fixed mapping and PR body mirror classify #145-#151 as FIXED and #142 as
       DEFERRED.
 - [ ] CodeRabbit, Sourcery, Cubic, review threads, and strict governance gates
