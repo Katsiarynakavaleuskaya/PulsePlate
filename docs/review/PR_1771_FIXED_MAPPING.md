@@ -174,6 +174,15 @@ Evidence: `core/food_sources/preference_mapping_closeout.py` includes seller/par
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269848250 -> c18a19c51
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269848254 -> c18a19c51
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/preference_mapping_closeout.py` and `core/food_sources/regional_catalog_identity.py` now reject bare API approval, seller account access, partner menu access, provider API, and direct `use ... API` authority wording; PR16 handoff flags must be real booleans, not integer truthy/falsey values. PR16 and PR17 tests cover these review cases, and the PR17 canonical artifact wording remains validator-safe.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269879777 -> 1f56df4a6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269879783 -> 1f56df4a6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269879790 -> 1f56df4a6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269879801 -> 1f56df4a6
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -213,7 +222,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 106 tests.
+- Focused PR17 tests: passed, 116 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
