@@ -510,6 +510,18 @@ Evidence: Closed the fresh 2026-05-19T21:41:03Z claim-grammar stabilization find
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823307 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823309 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
 
+Disposition: FIXED
+Commit: 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+Evidence: Closed the fresh 2026-05-19T21:59:25Z continued/result-state claim-grammar findings by extending the bounded PR-1 admission detector to reject `became`/`becomes` unlocked gate assertions, `keeps`/`kept` gate-status assertions, past-tense verification-bundle waiver claims, continued semantic-cache serving authorization, continued Redis/GPTCache import usage, continued cache I/O, continued blocked-surface cache eligibility, and continued design-intake gate-marker overrides. The fix preserves the gate-closed, contract-only scope and broadens deterministic regression generators from 692 to 1252 gate-open variants and from 847 to 1262 fresh-review claim variants. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, exact current-wave probe returned `misses []`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, `pre-commit run --all-files`, agent-coordinator scope PASS, and `pulseplate-premortem-risk-review` decision `proceed with changes` with findings FIXED/NOT-A-BUG in this evidence chain.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900831 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900835 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900839 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900842 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900847 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900851 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900854 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900857 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
