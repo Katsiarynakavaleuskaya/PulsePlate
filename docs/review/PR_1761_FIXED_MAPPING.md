@@ -393,6 +393,13 @@ Evidence: Closed current-head Codex follow-ups for fenced negative examples, pro
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267036253 -> a4d2ce66ea52e36f9df7926a1b8a97928de3ecc2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267036262 -> a4d2ce66ea52e36f9df7926a1b8a97928de3ecc2
 
+Disposition: FIXED
+Commit: 26798791d91ca15cc39976c12fd2a10b5a01ea76
+Evidence: Closed current-head Codex follow-ups for downstream global `semantic-cache is live` claims, live semantic-cache/global gate assertions, and approved/ready gate assertions while preserving scoped philosophical negative examples. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267161011 -> 26798791d91ca15cc39976c12fd2a10b5a01ea76
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267161020 -> 26798791d91ca15cc39976c12fd2a10b5a01ea76
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267161027 -> 26798791d91ca15cc39976c12fd2a10b5a01ea76
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
