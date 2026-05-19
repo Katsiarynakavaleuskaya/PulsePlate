@@ -652,7 +652,8 @@ def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
             context,
             f"PR11 regional_local_products next_action must be {NEXT_SUBSTANTIVE_LANE}",
         )
-    for field_name, expected_value in _REGIONAL_DOMAIN_EXPECTED.items():
+    for field_name in _REGIONAL_DOMAIN_EXPECTED:
+        expected_value = _REGIONAL_DOMAIN_EXPECTED[field_name]
         if getattr(regional_domain, field_name) != expected_value:
             raise _closeout_error(
                 context,

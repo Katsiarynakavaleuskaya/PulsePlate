@@ -52,11 +52,14 @@ Role-agent dispositions:
   provider authority rejection for Edamam, Spoonacular, Nutritionix, and
   TheMealDB, plus tests for unrelated earlier negation not suppressing later
   approvals. Latest repeat identified missing regression coverage for future
-  guard narrowing; disposition `FIXED` by commit `d9944723a`.
+  guard narrowing; disposition `FIXED` by commit `d9944723a`. Second repeat
+  found PR11 non-regional and narrative wording bypasses; disposition `FIXED`
+  by commit `093df9bca`, and final repeat passed.
 - `dev-operator`: Disposition `FIXED`. Evidence: pre-commit and
   `make validate-changed` passed after the latest code/test remediation.
 - `security-auditor`: Repeat pass after the latest direct-object handoff
-  remediation found no new blockers. Evidence: commit `d9944723a`.
+  remediation found no new blockers. Evidence: commits `d9944723a` and
+  `093df9bca`; final repeat passed.
 
 ## Premortem
 
@@ -81,10 +84,11 @@ external research artifacts as nutrition/source authority.
   Spoonacular, Nutritionix, and TheMealDB while allowing explicit negations.
 - Finding: PR16 bypasses unresolved PR11 regional catalog governance.
   Disposition: `FIXED`.
-  Evidence: commits `5ab352518` and `d9944723a`; validator cross-checks PR11
+  Evidence: commits `5ab352518`, `d9944723a`, and `093df9bca`; validator cross-checks PR11
   top-level state, exactly one regional domain/source handoff to
-  `regional_catalog_identity_license_review`, regional domain source
-  references, unresolved blocking reasons, and all source-use denial flags.
+  `regional_catalog_identity_license_review`, exact PR11 schema/domain/source
+  parity, regional domain source references, unresolved blocking reasons, and
+  all source-use denial flags.
 
 ## Discussion Thread Pass
 
@@ -129,11 +133,17 @@ external research artifacts as nutrition/source authority.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266882450
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266882457
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266882466
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156580
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156588
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156595
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156599
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156610
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156617
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4318818868
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4319417988
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. CodeRabbit review-level comments are mapped to the same fix commits as their inline actionables. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling. Commit d9b08dc9b rewrites the mapping into parser-compatible wording, removing the flagged typo text. Commit 999a7f413 rejects exact blocked-method approval notes, including paid API use, automated collection, DigitalOcean Postgres load, public dataset claim, and unrelated earlier negation before later approval. Commit d9944723a pins direct PR15 object handoff identity, landed PR refs, mapping key order, mapping contract status, allowed roles, PR11 regional domain/source fields, regional source references, blocking reasons, and granted/enabled approval wording; it also adds regression tests for all affected direct-object mutation paths.
+Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. CodeRabbit review-level comments are mapped to the same fix commits as their inline actionables. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling. Commit d9b08dc9b rewrites the mapping into parser-compatible wording, removing the flagged typo text. Commit 999a7f413 rejects exact blocked-method approval notes, including paid API use, automated collection, DigitalOcean Postgres load, public dataset claim, and unrelated earlier negation before later approval. Commit d9944723a pins direct PR15 object handoff identity, landed PR refs, mapping key order, mapping contract status, allowed roles, PR11 regional domain/source fields, regional source references, blocking reasons, and granted/enabled approval wording; it also adds regression tests for affected direct-object mutation paths. Commit 093df9bca enforces full PR11 schema/domain/source parity and rejects network/paid-provider/may-be-used/relied-on/usable/okay/available approval wording.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503 -> 4dd9da9f4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535 -> 31bc88c13
@@ -162,6 +172,12 @@ Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the m
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266882450 -> d9944723a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266882457 -> d9944723a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266882466 -> d9944723a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156580 -> 093df9bca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156588 -> 093df9bca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156595 -> 093df9bca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156599 -> 093df9bca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156610 -> 093df9bca
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3267156617 -> 093df9bca
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4318818868 -> 31bc88c13
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#pullrequestreview-4319417988 -> d9b08dc9b
 
@@ -214,10 +230,14 @@ Observed:
 - Latest pre-commit after direct handoff authority fixes: passed.
 - Latest `make validate-changed` after direct handoff authority fixes: passed,
   selecting `tests/test_food_source_preference_mapping_closeout.py`.
+- Latest full PR11 parity/narrative approval fixes: focused PR16 tests passed,
+  adjacent food-source regression bundle passed, repo policy guards passed, CLI
+  JSON smoke returned `success: true`, `pre-commit run --all-files` passed, and
+  `make validate-changed` passed.
 - Codex Security diff-scoped scan: no reportable findings after latest code
   remediation.
   Evidence:
-  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/faf6d1d75_20260519T142852Z/report.md`.
+  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/093df9bca_20260519T163609Z/report.md`.
 
 Full local `make verify` is intentionally deferred per operator instruction for
 this governance-only lane. Merge readiness still requires current-head PR CI
