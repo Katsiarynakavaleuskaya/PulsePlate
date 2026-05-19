@@ -183,6 +183,20 @@ Evidence: `core/food_sources/preference_mapping_closeout.py` and `core/food_sour
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269879790 -> 1f56df4a6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269879801 -> 1f56df4a6
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` now evaluates authority prose per clause instead of treating unrelated blocked and authority words anywhere in a note as unsafe, accepts common `not/never a source authority` negation, and rejects direct `used`/`relied on ... API` authority wording. `tests/test_food_source_regional_catalog_identity.py` covers the review examples.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269908647 -> 16d2e990e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269908653 -> 16d2e990e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269908657 -> 16d2e990e
+
+Disposition: NOT-A-BUG
+Evidence: `core/food_sources/regional_catalog_identity.py` validates PR16 handoff flags with identity comparison (`is not expected_value`), and `tests/test_food_source_regional_catalog_identity.py` rejects integer sentinels for `file_only`, `network_allowed`, `seller_api_use_allowed`, and `partner_api_use_allowed`.
+Reason: The current PR head already rejects the malformed PR16 boolean handoff described in the thread; no additional code change is required for this comment.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269908656
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -222,7 +236,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 116 tests.
+- Focused PR17 tests: passed, 120 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
