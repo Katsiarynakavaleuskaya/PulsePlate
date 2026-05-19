@@ -809,10 +809,16 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "philosophy admission opens gate",
         re.compile(
             r"\bphilosophy admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy admission unlock(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy pr-1 admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy pr-1 admission unlock(?:s|ed) "
+            r"(?:the )?semantic[- ]cache gate\b"
             r"|\b(?:philosophy )?pr-1 open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\b(?:philosophy )?pr-1 unlock(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy admission open(?:s|ed) (?:the )?global gate\b"
+            r"|\bphilosophy admission unlock(?:s|ed) (?:the )?global gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? open(?:s|ed) (?:the )?global gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? unlock(?:s|ed) (?:the )?global gate\b"
             r"|\bphilosophy(?: pr-1)?(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? "
@@ -825,6 +831,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is opened "
             r"for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate opened for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
+            r"(?:is|was|has been) opened\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been) opened by "
             r"(?:philosophy admission|philosophy pr-1|pr-1)\b"
@@ -925,10 +933,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bredis (?:imports?|clients?|probes?) "
             r"(?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled) "
+            r"(?:allowed|permitted|approved|enabled|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) redis (?:imports?|clients?|probes?)\b"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled|grants|granted) redis (?:imports?|clients?|probes?)\b"
         ),
     ),
     (
@@ -936,10 +945,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bgptcache (?:imports?|clients?|probes?) "
             r"(?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled) "
+            r"(?:allowed|permitted|approved|enabled|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) gptcache "
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled|grants|granted) gptcache "
             r"(?:imports?|clients?|probes?)\b"
         ),
     ),
@@ -982,12 +992,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "connection strings allowed in pr-1",
         re.compile(
-            r"\bconnection strings? (?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled) "
+            r"\b(?:redis |gptcache )?connection strings? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
-            r"allowed|permitted|enabled) connection strings?\b"
+            r"allowed|permitted|enabled|grants|granted) "
+            r"(?:redis |gptcache )?connection strings?\b"
         ),
     ),
     (
@@ -1010,15 +1022,50 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:are|is|was|were|has been|have been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled) "
+            r"(?:allowed|permitted|approved|enabled|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\bruntime(?: behavior|[- ]expansion| paths?| permissions?)? "
             r"(?:get|gets) (?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
-            r"allowed|permitted|enabled) runtime(?:[- ]expansion| permissions?)"
+            r"allowed|permitted|enabled|grants|granted) runtime(?:[- ]expansion| permissions?)"
             r"(?: for philosophy admission)?\b"
+        ),
+    ),
+    (
+        "cache IO allowed in pr-1",
+        re.compile(
+            r"\bsemantic[- ]cache (?:reads?|writes?|admission(?: decisions?)?) "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled|granted) "
+            r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:authorizes|approves|allows|permits|enables|grants|authorized|approved|"
+            r"allowed|permitted|enabled|granted) semantic[- ]cache "
+            r"(?:reads?|writes?|admission(?: decisions?)?)\b"
+        ),
+    ),
+    (
+        "blocked surface cache admission allowed",
+        re.compile(
+            r"\b(?:billing[/ ]auth entitlement truth|auth session account identity truth|"
+            r"medical(?: or therapy)? routing|compliance legal output cache|"
+            r"raw user free text cache keys|advisory wiki product truth|"
+            r"workforce memory product truth|graphrag product truth|"
+            r"plugin control plane product truth|fitchef cbt bypassing validators) "
+            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled|granted|cache eligible) "
+            r"for (?:semantic[- ]cache|cache) admission(?: in pr-1)?\b"
+        ),
+    ),
+    (
+        "cache admission without verification bundle",
+        re.compile(
+            r"\b(?:knowledge promotion|semantic[- ]cache admission) decisions? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:cache eligible|allowed|permitted|approved|enabled) "
+            r"without (?:a )?(?:passed )?(?:verification[- ]bundle|bundle)\b"
         ),
     ),
     (
@@ -1061,10 +1108,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted|granted) "
             r"for philosophy admission\b"
-            r"|\b(?:(?:semantic[- ]cache )?backend[- ]selections?|serving) "
+            r"|\b(?:(?:semantic[- ]cache )?backend[- ]selections?|semantic[- ]cache serving|serving) "
             r"(?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted|granted) "
-            r"by philosophy admission\b"
+            r"(?:by philosophy admission|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"
         ),
@@ -1162,8 +1209,13 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
     "claim_class_runtime_expansion_approved": (
         "runtime allowed in pr-1",
         "backend selection authorized by philosophy admission",
+        "cache IO allowed in pr-1",
+        "blocked surface cache admission allowed",
     ),
-    "claim_class_verification_bundle_skipped": ("verification bundle optional",),
+    "claim_class_verification_bundle_skipped": (
+        "verification bundle optional",
+        "cache admission without verification bundle",
+    ),
     "claim_class_production_live_cache_key_behavior": (
         "production-live philosophical cache-key behavior",
     ),
