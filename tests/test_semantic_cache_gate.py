@@ -193,6 +193,8 @@ def test_checker_fails_if_doc_says_semantic_cache_is_implemented(tmp_path: Path)
     "claim",
     [
         "Semantic cache is active.",
+        "Semantic cache is live.",
+        "Semantic-cache is live.",
         "Semantic cache is enabled.",
         "Semantic-cache is enabled.",
         "Semantic cache has been enabled.",

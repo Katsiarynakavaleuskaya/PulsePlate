@@ -81,15 +81,17 @@ FORBIDDEN_CLAIM_PATTERNS = (
     (
         "semantic cache live claim",
         re.compile(
-            r"\bsemantic\s+cache\s+(?:(?:is|has\s+been)\s+)?(?:now\s+)?"
-            r"(?:implemented|active|enabled|open|approved|ready)\b"
+            r"(?<!philosophical )\bsemantic\s+cache\s+"
+            r"(?:(?:is|has\s+been)\s+)?(?:now\s+)?"
+            r"(?:implemented|active|enabled|open|approved|ready|live)\b"
         ),
     ),
     (
         "semantic-cache live claim",
         re.compile(
-            r"\bsemantic-cache\s+(?:(?:is|has\s+been)\s+)?(?:now\s+)?"
-            r"(?:implemented|active|enabled|open|approved|ready)\b"
+            r"(?<!philosophical )\bsemantic-cache\s+"
+            r"(?:(?:is|has\s+been)\s+)?(?:now\s+)?"
+            r"(?:implemented|active|enabled|open|approved|ready|live)\b"
         ),
     ),
     (
@@ -861,7 +863,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been) not closed anymore\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
-            r"(?:is|was|has been) (?:active|enabled|on|turned on)\b"
+            r"(?:is|was|has been) (?:active|enabled|on|turned on|live|approved|ready)\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been) opened by "
             r"(?:philosophy admission|philosophy pr-1|pr-1)\b"

@@ -1269,6 +1269,13 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "semantic-cache gate is not closed anymore",
         "semantic-cache gate is active",
         "semantic-cache gate is enabled",
+        "the semantic-cache gate is live",
+        "the global gate is live",
+        "the global semantic-cache gate is live",
+        "the semantic-cache gate is approved",
+        "the semantic-cache gate is ready",
+        "the global gate is approved",
+        "the global gate is ready",
         "the semantic-cache gate is on",
         "the semantic-cache gate is turned on",
         "the semantic-cache gate is open for Philosophy admission",
@@ -1329,6 +1336,19 @@ def test_dangling_negation_does_not_hide_forbidden_downstream_claims() -> None:
             "This prior bullet does not\n\nRedis imports are approved in PR-1.",
             "redis imports allowed in pr-1",
         ),
+    )
+
+    for text, error_label in cases:
+        errors = validate_philosophy_semantic_cache_admission_downstream_text(text)
+
+        assert any("forbidden" in e and error_label in e for e in errors)
+
+
+def test_downstream_global_semantic_cache_live_claims_rejected() -> None:
+    """Downstream docs cannot assert global semantic-cache live state."""
+    cases = (
+        ("semantic-cache is live", "semantic-cache live claim"),
+        ("semantic cache is live", "semantic cache live claim"),
     )
 
     for text, error_label in cases:
