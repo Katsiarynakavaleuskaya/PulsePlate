@@ -11,7 +11,14 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: d23616f72
+Evidence: `docs/review/PR_1767_FIXED_MAPPING.md` is the canonical replacement artifact, marks required artifact discussion checkboxes complete, uses parser-safe raw commit evidence, and moved implementation evidence out of the thread-mapping section; `docs/review/PR_1767_PREMORTEM.md` is the canonical replacement premortem artifact.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#pullrequestreview-4318257613 -> d23616f72
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265717327 -> d23616f72
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265719096 -> d23616f72
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#pullrequestreview-4318259512 -> d23616f72
 
 ## Implementation Evidence
 
