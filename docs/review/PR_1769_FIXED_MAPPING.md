@@ -11,11 +11,19 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1769#pullrequestreview-4319355948 -> 6e25c5bfa
+Disposition: FIXED
+Commit: 6e25c5bfa
+Evidence: CodeRabbit's REQUIREMENTS.md finding is fixed by changing the best-practice wording to minimum/bounded dev versions, and the backlog ordering nitpick is fixed by aligning the active emergency fallback package order between the Reason and Evidence sections.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1769#pullrequestreview-4319320677
+Disposition: NOT-A-BUG
+Evidence: Sourcery reported a weekly diff-character rate limit rather than a code, documentation, test, or governance finding. The current Sourcery status check is PASS on PR #1769.
+Reason: No actionable Sourcery review finding exists to fix in this PR.
 
 ## Implementation Evidence
 
-No GitHub review threads were resolved at mapping creation time.
+Initial mapping creation had no resolved GitHub review threads. The post-open CodeRabbit actionable review was fixed and mapped above.
 
 Disposition: FIXED
 Commit: 4f91a0f64
