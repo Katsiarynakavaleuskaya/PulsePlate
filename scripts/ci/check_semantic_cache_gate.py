@@ -1073,6 +1073,13 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled|grants|granted) "
             r"(?:redis |gptcache )?connection strings?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|uses?|wires?|stores?|persists?) "
+            r"(?:redis |gptcache )?connection strings?\b"
+            r"|\b(?:redis |gptcache )?connection strings? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:added|used|wired|stored|persisted) "
+            r"(?:in pr-1|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
         ),
     ),
     (
@@ -1089,6 +1096,12 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled|grants|granted) cache adapt(?:er|or)s?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|uses?|wires?|stores?|persists?) cache adapt(?:er|or)s?\b"
+            r"|\bcache adapt(?:er|or)s? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:added|used|wired|stored|persisted) "
+            r"(?:in pr-1|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
         ),
     ),
     (
@@ -1194,6 +1207,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"advisory wiki outputs as product truth|"
             r"workforce memory outputs as product truth|graphrag outputs as product truth|"
             r"plugin[/ ]control[- ]plane outputs as product truth|"
+            r"advisory wiki product truth|"
+            r"workforce memory product truth|graphrag product truth|"
+            r"plugin[/ ]control[- ]plane product truth|"
             r"fitchef[/ ]cbt coaching paths? (?:that )?bypass(?:ing)? "
             r"wellness[- ]only validators)"
             r"(?: (?:to|for) (?:semantic[- ]cache|cache) admission)?\b"
@@ -1209,6 +1225,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:decisions? )?"
             r"(?:(?:are|is|was|were|has been|have been) )?"
             r"(?:cache eligible|allowed|permitted|approved|enabled) "
+            r"without (?:a )?(?:passed )?(?:verification[- ]bundle|bundle)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:promotes?|writes?|mutates?|stores?|persists?) "
+            r"(?:knowledge|knowledge records?|knowledge promotion(?: decisions?)?) "
             r"without (?:a )?(?:passed )?(?:verification[- ]bundle|bundle)\b"
         ),
     ),
@@ -1279,6 +1299,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"by (?:philosophy admission|philosophy pr-1|pr-1)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"selects (?:redis|gptcache) "
+            r"(?:as (?:the )?(?:semantic[- ]cache )?backend|"
+            r"backend for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"serves (?:semantic[- ]cache|cache) traffic\b"
         ),

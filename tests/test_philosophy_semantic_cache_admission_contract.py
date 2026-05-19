@@ -1847,6 +1847,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "Philosophy admission authorizes GPTCache connection strings",
             "connection strings allowed in pr-1",
         ),
+        ("PR-1 adds connection strings", "connection strings allowed in pr-1"),
+        ("Philosophy admission uses connection strings", "connection strings allowed in pr-1"),
+        ("connection strings are used in PR-1", "connection strings allowed in pr-1"),
         ("cache adapters are permitted in PR-1", "cache adapters allowed in pr-1"),
         ("cache adapters are permitted for Philosophy admission", "cache adapters allowed in pr-1"),
         (
@@ -1867,6 +1870,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "cache adaptors are enabled for Philosophy admission",
             "cache adapters allowed in pr-1",
         ),
+        ("PR-1 adds cache adapters", "cache adapters allowed in pr-1"),
+        ("PR-1 wires cache adapters", "cache adapters allowed in pr-1"),
+        ("Philosophy admission uses cache adapter", "cache adapters allowed in pr-1"),
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
@@ -2008,6 +2014,18 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "blocked surface cache admission allowed",
         ),
         (
+            "PR-1 caches advisory wiki product truth",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "PR-1 uses workforce memory product truth for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "PR-1 caches GraphRAG product truth",
+            "blocked surface cache admission allowed",
+        ),
+        (
             "paywall truth is approved for cache admission",
             "blocked surface cache admission allowed",
         ),
@@ -2088,6 +2106,14 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         (
             "philosophical outputs presentation risk canonical facts are enabled "
             "without a verification bundle",
+            "cache admission without verification bundle",
+        ),
+        (
+            "Philosophy admission promotes knowledge without verification bundle",
+            "cache admission without verification bundle",
+        ),
+        (
+            "Philosophy admission writes knowledge records without verification bundle",
             "cache admission without verification bundle",
         ),
         ("Philosophy admission approves runtime expansion", "runtime allowed in pr-1"),
@@ -2354,6 +2380,8 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy admission performs backend selection.",
         "Philosophy admission selects a backend for serving.",
         "Philosophy admission selects backends for serving.",
+        "Philosophy admission selects Redis as the semantic-cache backend.",
+        "PR-1 selects GPTCache backend for philosophy admission.",
         "backend selection is authorized by Philosophy admission.",
         "serving is authorized by Philosophy admission.",
     )
