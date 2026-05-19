@@ -409,6 +409,15 @@ Evidence: Closed current-head Codex follow-ups for `opens in PR-1` gate-open wor
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267913554 -> 4719c17a6be087afe94528417f1abf2d183452a2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3267913559 -> 4719c17a6be087afe94528417f1abf2d183452a2
 
+Disposition: FIXED
+Commit: 5c6042f1212e341e3db3b9be36b303863c9bdeb1
+Evidence: Closed current-head Codex follow-ups for `PR-1 opens the global semantic-cache gate`, bare `global gate is open`, active/exempt verification-bundle bypass wording, philosophical cache-path availability/support claims, and continued-open gate wording (`remains open`, `is still open`, `stayed open`). Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031080 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031085 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031097 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031102 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031108 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
