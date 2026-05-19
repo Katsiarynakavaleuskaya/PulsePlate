@@ -11,9 +11,11 @@
 
 ## Fixed in Commit Mapping
 
-No GitHub review threads were resolved at mapping creation time.
+- No actionable review comments
 
 ## Implementation Evidence
+
+No GitHub review threads were resolved at mapping creation time.
 
 Disposition: FIXED
 Commit: 4f91a0f64
