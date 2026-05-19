@@ -93,6 +93,10 @@ PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR = {
         "will enable",
         "can open",
         "can reopen",
+        "could open",
+        "would open",
+        "should open",
+        "might open",
         "may unlock",
         "has opened",
         "has reopened",
@@ -180,6 +184,19 @@ PHILOSOPHY_FRESH_REVIEW_FALSE_GREEN_EXAMPLES = (
         "PR-1 is promoting knowledge without a verification bundle",
         "cache admission without verification bundle",
     ),
+    ("PR-1 could open the semantic-cache gate.", "philosophy admission opens gate"),
+    ("PR-1 would open the semantic-cache gate.", "philosophy admission opens gate"),
+    ("cache admission should skip verification bundle", "verification bundle optional"),
+    ("cache admission might bypass verification bundle", "verification bundle optional"),
+    (
+        "semantic-cache serving might be authorized by philosophy admission.",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "semantic-cache backend selections would be authorized for philosophy admission.",
+        "backend selection authorized by philosophy admission",
+    ),
+    ("PR-1 had Redis imports for philosophy admission", "redis imports allowed in pr-1"),
 )
 
 PHILOSOPHY_FRESH_REVIEW_NEGATIVE_CONTROLS = (
@@ -231,7 +248,15 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
     claims: list[tuple[str, str]] = list(PHILOSOPHY_FRESH_REVIEW_FALSE_GREEN_EXAMPLES)
 
     for admission in ("cache admission", "semantic-cache admission"):
-        for action in ("does not require", "bypasses", "is exempt from"):
+        for action in (
+            "does not require",
+            "bypasses",
+            "is exempt from",
+            "should skip",
+            "might bypass",
+            "could omit",
+            "would waive",
+        ):
             for bundle in ("verification bundle", "verification bundles"):
                 claims.append((f"{admission} {action} {bundle}.", "verification bundle optional"))
 
@@ -240,10 +265,18 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
             "has promoted",
             "will promote",
             "can promote",
+            "could promote",
+            "would promote",
+            "should promote",
+            "might promote",
             "is promoting",
             "has written",
             "will write",
             "can write",
+            "could write",
+            "would write",
+            "should write",
+            "might write",
             "is writing",
         ):
             for object_ in ("knowledge", "knowledge records"):
@@ -255,15 +288,19 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
                         )
                     )
 
-    for subject in ("PR-1", "Philosophy PR-1", "Philosophy admission"):
-        for verb in ("has", "includes", "contains"):
-            for object_ in ("GPTCache import", "GPTCache imports", "GPTCache client"):
-                claims.append(
-                    (
-                        f"{subject} {verb} {object_} for philosophy admission.",
-                        "gptcache imports allowed in pr-1",
+    for provider, label in (
+        ("GPTCache", "gptcache imports allowed in pr-1"),
+        ("Redis", "redis imports allowed in pr-1"),
+    ):
+        for subject in ("PR-1", "Philosophy PR-1", "Philosophy admission"):
+            for verb in ("has", "had", "includes", "included", "contains", "contained"):
+                for object_ in (f"{provider} import", f"{provider} imports", f"{provider} client"):
+                    claims.append(
+                        (
+                            f"{subject} {verb} {object_} for philosophy admission.",
+                            label,
+                        )
                     )
-                )
 
     for subject in (
         "semantic-cache backend selection",
@@ -271,7 +308,17 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
         "semantic-cache serving",
         "serving",
     ):
-        for auxiliary in ("can be", "will be", "is still", "remains", "has remained"):
+        for auxiliary in (
+            "can be",
+            "could be",
+            "will be",
+            "would be",
+            "should be",
+            "might be",
+            "is still",
+            "remains",
+            "has remained",
+        ):
             for state in ("authorized", "approved", "allowed", "enabled", "permitted", "granted"):
                 relation = (
                     "for philosophy admission"
@@ -295,7 +342,7 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
                     )
                 )
 
-    return tuple(claims)
+    return tuple(dict.fromkeys(claims))
 
 
 def test_contract_exists_and_keeps_gate_closed() -> None:
@@ -1554,7 +1601,7 @@ def test_generated_forbidden_gate_open_claim_grammar_rejected() -> None:
     """Gate-open policy is propositional; deterministic paraphrase classes must fail."""
     claims = _generated_forbidden_gate_open_claims()
 
-    assert len(claims) == 560
+    assert len(claims) == 608
     misses = []
     for claim in claims:
         errors = validate_philosophy_semantic_cache_admission_downstream_text(
@@ -1570,7 +1617,7 @@ def test_generated_fresh_review_false_green_claim_grammar_rejected() -> None:
     """Fresh review findings are protected by equivalence-class regression cases."""
     claims = _generated_fresh_review_forbidden_claims()
 
-    assert len(claims) == len(set(claims)) == 282
+    assert len(claims) == len(set(claims)) == 544
     misses = []
     for claim, expected_label in claims:
         errors = validate_philosophy_semantic_cache_admission_downstream_text(
