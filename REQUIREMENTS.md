@@ -34,10 +34,10 @@ pytest>=8.3         # Dev tools with minimum versions
 ...
 ```
 
-**`constraints.txt`** - Exact versions for reproducible dev environments
+**`constraints.txt`** - Minimum and bounded versions for reproducible dev resolution
 ```bash
-pytest==9.0.3
-black==25.9.0
+pytest>=9.0.3
+black>=26.5.0
 ...
 ```
 
@@ -48,7 +48,7 @@ black==25.9.0
 pip install -r requirements.txt
 ```
 
-### Development Environment (with exact versions)
+### Development Environment (with locked dev requirements and constraints)
 ```bash
 pip install -r requirements-dev.txt -c constraints.txt
 ```
@@ -100,7 +100,7 @@ pip-compile --allow-unsafe --output-file=requirements-lock.txt requirements-dev.
 
 1. **Single Source of Truth**: `requirements.txt` is canonical for production
 2. **Use `-r` Reference**: Avoid duplicating pins in `requirements-all.txt`
-3. **Constraints for Reproducibility**: Use `constraints.txt` for exact dev versions
+3. **Constraints for Reproducibility**: Use `constraints.txt` for minimum/bounded dev versions
 4. **Verify Before Commit**: Always run `verify_requirements.py`
 5. **CI/CD**: GitHub Actions uses `requirements-dev.txt` for testing
 
