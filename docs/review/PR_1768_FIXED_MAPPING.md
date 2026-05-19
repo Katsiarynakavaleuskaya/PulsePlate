@@ -213,3 +213,11 @@ Pending after this mapping update:
 - `gh pr checks 1768 --repo Katsiarynakavaleuskaya/PulsePlate`
 
 No merge-readiness claim is made in this mapping.
+
+## Merge Readiness
+
+- [ ] No unresolved review threads
+- [ ] Required checks PASS
+- [ ] PR body mirror updated
+- [ ] Fixed in Commit Mapping confirmed
+- [ ] Branch up-to-date with target
