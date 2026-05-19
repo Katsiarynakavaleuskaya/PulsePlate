@@ -100,7 +100,7 @@ pip-compile --allow-unsafe --output-file=requirements-lock.txt requirements-dev.
 
 1. **Single Source of Truth**: `requirements.txt` is canonical for production
 2. **Use `-r` Reference**: Avoid duplicating pins in `requirements-all.txt`
-3. **Constraints for Reproducibility**: Use `constraints.txt` for exact dev versions
+3. **Constraints for Reproducibility**: Use `constraints.txt` for minimum/bounded dev versions
 4. **Verify Before Commit**: Always run `verify_requirements.py`
 5. **CI/CD**: GitHub Actions uses `requirements-dev.txt` for testing
 

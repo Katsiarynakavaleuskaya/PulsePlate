@@ -589,7 +589,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
       `annotated-types 0.7.0`, `anyio 4.12.0`, `bandit 1.9.4`,
       `certifi 2026.1.4`, `requests 2.33.0`,
       `cryptography 46.0.7`, `pillow 12.2.0`, `pytest 9.0.3`, `faker 40.15.0`,
-      `hypothesis 6.152.4`, `sentence-transformers 5.5.0`, `mypy 2.1.0`, `ruff 0.15.13`,
+      `hypothesis 6.152.4`, `mypy 2.1.0`, `ruff 0.15.13`, `sentence-transformers 5.5.0`,
       `types-pyyaml 6.0.12.20260408`, and `transformers 5.8.1`.
     - Installer/bootstrap fallback logic is implemented in
       `scripts/ci/install_locked_python_requirements.py:275-359`
