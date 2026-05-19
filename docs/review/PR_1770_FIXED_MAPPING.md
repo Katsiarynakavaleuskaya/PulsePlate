@@ -8,7 +8,7 @@
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] Post-open `qa-engineer-agent -> bug-hunter` pass completed
+- [x] Post-open `qa-engineer-agent -> bug-hunter` pass completed
 - [ ] CodeRabbit, Sourcery, Cubic, and review-thread no-actionable status verified
 
 ## Fixed in Commit Mapping
