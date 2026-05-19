@@ -15,6 +15,17 @@ import scripts.ci.install_locked_python_requirements as installer
 
 APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 REPO_ROOT = Path(__file__).resolve().parents[1]
+IDNA_SECURITY_FLOOR = "3.15"
+IDNA_PREVIOUS_VULNERABLE_PIN = "3.11"
+IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES = (
+    "requirements.txt",
+    "requirements-dev.txt",
+    "requirements-ci-lite.txt",
+    "requirements-lock.txt",
+    "requirements-docker-runtime.txt",
+    "requirements-rag-vector.txt",
+    "requirements-rag-vector-cpu.txt",
+)
 
 
 def _repo_emergency_manifest_path() -> Path:
@@ -337,26 +348,17 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
 
 
 def test_repo_idna_security_floor_matches_dependabot_alert_surfaces() -> None:
-    requirement_files = (
-        "requirements.txt",
-        "requirements-dev.txt",
-        "requirements-ci-lite.txt",
-        "requirements-lock.txt",
-        "requirements-docker-runtime.txt",
-        "requirements-rag-vector.txt",
-        "requirements-rag-vector-cpu.txt",
-    )
+    requirement_files = set(IDNA_DEPENDABOT_ALERT_REQUIREMENT_FILES)
 
-    for requirement_file in requirement_files:
-        contents = (REPO_ROOT / requirement_file).read_text(encoding="utf-8")
-        assert ("idna", "3.15") in _exact_requirement_pairs(contents)
-        assert ("idna", "3.11") not in _exact_requirement_pairs(contents)
-
-    repo_requirement_files = sorted(REPO_ROOT.glob("requirements*.txt"))
+    repo_requirement_files = {path.name: path for path in REPO_ROOT.glob("requirements*.txt")}
     assert repo_requirement_files
-    for requirement_file in repo_requirement_files:
-        contents = requirement_file.read_text(encoding="utf-8")
-        assert ("idna", "3.11") not in _exact_requirement_pairs(contents)
+    assert requirement_files <= set(repo_requirement_files)
+
+    for requirement_file, path in repo_requirement_files.items():
+        pairs = _exact_requirement_pairs(path.read_text(encoding="utf-8"))
+        assert ("idna", IDNA_PREVIOUS_VULNERABLE_PIN) not in pairs
+        if requirement_file in requirement_files:
+            assert ("idna", IDNA_SECURITY_FLOOR) in pairs
 
     artifact_packages = {item["package"] for item in _repo_active_emergency_artifacts()}
     assert "idna" not in artifact_packages

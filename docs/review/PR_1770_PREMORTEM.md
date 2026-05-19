@@ -59,7 +59,7 @@ broad `pip-compile` regeneration.
 - [x] No repo-managed Python requirement profile pins `idna==3.11`.
 - [x] No `idna` emergency wheel entry was added.
 - [x] Bundler resolver evidence still records Fastlane's `jwt < 3` blocker.
-- [ ] Fixed mapping and PR body mirror classify #145-#151 as FIXED and #142 as
+- [x] Fixed mapping and PR body both classify #145-#151 as FIXED and #142 as
       DEFERRED.
 - [ ] CodeRabbit, Sourcery, Cubic, review threads, and strict governance gates
       have no unresolved actionables before merge-readiness.
