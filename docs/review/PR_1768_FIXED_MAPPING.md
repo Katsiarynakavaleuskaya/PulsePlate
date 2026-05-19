@@ -89,6 +89,7 @@ external research artifacts as nutrition/source authority.
 - [x] CodeRabbit actionable comments mapped.
 - [x] Cubic actionable comments mapped.
 - [x] Codex review suggestions mapped.
+- [x] Codex Security diff-scoped scan completed with no reportable findings.
 - [ ] Strict review-thread disposition guard pending after push.
 - [ ] Current-head PR checks pending after push.
 - [ ] Strict merge-readiness check pending after push.
@@ -157,6 +158,9 @@ Observed:
   `tests/test_food_source_preference_mapping_closeout.py`.
 - Commit hook: passed after activating the repo `.venv`; a prior unactivated
   commit attempt failed with `ModuleNotFoundError: No module named 'fastapi'`.
+- Codex Security diff-scoped scan: no reportable findings.
+  Evidence:
+  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/d9b08dc9b_20260519T133512Z/report.md`.
 
 Full local `make verify` is intentionally deferred per operator instruction for
 this governance-only lane. Merge readiness still requires current-head PR CI
@@ -170,7 +174,6 @@ Pending after this mapping update:
 - push latest commits
 - PR body mirror update
 - post-push CodeRabbit/Cubic/Codex bot-state inspection
-- Codex Security diff-scoped scan on latest pushed head
 - `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1768 --require-auth`
 - `GITHUB_TOKEN="$(gh auth token)" python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1768 --repo Katsiarynakavaleuskaya/PulsePlate`
 - `gh pr checks 1768 --repo Katsiarynakavaleuskaya/PulsePlate`
