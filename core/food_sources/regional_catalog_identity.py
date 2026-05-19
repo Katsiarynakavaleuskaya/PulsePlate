@@ -261,7 +261,7 @@ _APPROVAL_TERMS = (
     r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
     r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available"
 )
-_USE_TERMS = r"may be used|can be used|relied on"
+_USE_TERMS = r"may be used|can be used|is used|are used|used|relied on"
 _BLOCKED_NOTE_TERMS = (
     r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller apis?|partner apis?|"
     r"apis?|seller account access|partner menu access|provider apis?|"
@@ -271,11 +271,12 @@ _BLOCKED_NOTE_TERMS = (
     r"data portal|marketplace terms?"
 )
 _FORBIDDEN_NOTE_PATTERNS = (
-    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS})\b"),
-    re.compile(rf"\b(?:{_APPROVAL_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"),
-    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_USE_TERMS})\b"),
+    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_TERMS})\b"),
+    re.compile(rf"\b(?:{_APPROVAL_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"),
+    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_USE_TERMS})\b"),
     re.compile(
-        rf"\b(?:will\s+use|use|uses|using)\b(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+        rf"\b(?:will\s+use|use|used|uses|using|relied\s+on)\b"
+        rf"(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
     ),
     re.compile(
         r"\bdata portal\b(?:\W+\w+){0,4}\W+\b(?:is|becomes|serves as|treated as)\b"
@@ -290,7 +291,11 @@ _NEGATED_APPROVAL_RE = re.compile(
 )
 _AUTHORITY_LANGUAGE_RE = re.compile(rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_USE_TERMS})\b")
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
-    r"\b(?:no|not|never)\s+(?:become\s+)?(?:source authority|nutrition authority|product display)\b"
+    r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
+    r"(?:source authority|nutrition authority|product display)\b|"
+    r"\b(?:is|are|be|becomes?|serves as|treated as)\s+"
+    r"(?:no|not|never)\s+(?:a\s+|an\s+)?"
+    r"(?:source authority|nutrition authority|product display)\b"
 )
 
 
@@ -431,23 +436,24 @@ def _relative_repo_path(path: Path | str) -> str:
 
 
 def _require_safe_notes(value: str, context: str) -> str:
-    normalized = re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", value.lower()).strip()
-    remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", normalized)
-    if _BLOCKED_NOTE_RE.search(normalized) and _AUTHORITY_LANGUAGE_RE.search(
-        remaining_authority_text
-    ):
-        raise _identity_error(context, "notes must not approve regional catalog source use")
-    for pattern in _FORBIDDEN_NOTE_PATTERNS:
-        for match in pattern.finditer(normalized):
-            match_text = match.group(0)
-            if _NEGATED_DIRECT_AUTHORITY_RE.search(match_text):
-                continue
-            if not _AUTHORITY_LANGUAGE_RE.search(match_text):
+    segments = [
+        re.sub(r"[\s_\-/:,()[\]{}]+", " ", segment).strip()
+        for segment in re.split(r"[.;\n]+", value.lower())
+    ]
+    for normalized in (segment for segment in segments if segment):
+        for pattern in _FORBIDDEN_NOTE_PATTERNS:
+            for match in pattern.finditer(normalized):
+                match_text = match.group(0)
+                if _NEGATED_DIRECT_AUTHORITY_RE.search(match_text):
+                    continue
+                if not _AUTHORITY_LANGUAGE_RE.search(match_text):
+                    raise _identity_error(
+                        context, "notes must not approve regional catalog source use"
+                    )
+                remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", match_text)
+                if not _AUTHORITY_LANGUAGE_RE.search(remaining_authority_text):
+                    continue
                 raise _identity_error(context, "notes must not approve regional catalog source use")
-            remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", match_text)
-            if not _AUTHORITY_LANGUAGE_RE.search(remaining_authority_text):
-                continue
-            raise _identity_error(context, "notes must not approve regional catalog source use")
     return value
 
 
