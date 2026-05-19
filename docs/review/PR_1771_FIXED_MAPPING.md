@@ -102,8 +102,8 @@ commercial, seller, partner, portal, or scraping sources.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass pending after bot/human review comments settle.
-- [x] Fixed in commit mapping artifact created.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 - [ ] PR body mirror updated after this artifact commit.
 - [ ] Post-open role-agent pass completed:
   `qa-engineer-agent -> bug-hunter`.
@@ -114,17 +114,21 @@ commercial, seller, partner, portal, or scraping sources.
 - [ ] Current-head PR checks pending.
 - [ ] Strict merge-readiness check pending.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
   - Disposition: `FIXED`
-  - Commit: pending current artifact commit
+  - Commit: `8071ec136`
   - Evidence: `docs/review/PR_1771_FIXED_MAPPING.md` and PR body mirror add the
     split justification required by `pr_scope_guard`.
 
-No GitHub review-thread URL mappings exist yet. This section must be updated if
-CodeRabbit, Cubic, Codex Security, bot, or human review emits actionable
-comments.
+No GitHub review-thread URL mappings exist yet. `## Fixed in Commit Mapping`
+must be updated if CodeRabbit, Cubic, Codex Security, bot, or human review emits
+actionable comments.
 
 ## Validation Evidence
 
