@@ -51,6 +51,11 @@ Disposition: FIXED
 Commit: f747a8aa6
 Evidence: Codex governance finding about replacement PR artifact naming is fixed by using `PR_1767_FIXED_MAPPING.md` and `PR_1767_PREMORTEM.md`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265863779
+Disposition: NOT-A-BUG
+Evidence: Current PR head is `59f38d2bfb88c0fae6fa4f1e72300fd09418397a`; `git merge-base --is-ancestor d23616f72 HEAD`, `git merge-base --is-ancestor f747a8aa6 HEAD`, and `git merge-base --is-ancestor 7c99fb9e8 HEAD` all pass locally. The reviewed head named in the comment, `d906de3`, is not present in this branch history.
+Reason: The mapped proof commits are ancestors of the current replacement PR head; the comment evaluated stale/non-current head identity.
+
 ## Implementation Evidence
 
 Disposition: FIXED
