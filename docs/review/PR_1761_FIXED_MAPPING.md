@@ -418,6 +418,15 @@ Evidence: Closed current-head Codex follow-ups for `PR-1 opens the global semant
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031102 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268031108 -> 5c6042f1212e341e3db3b9be36b303863c9bdeb1
 
+Disposition: FIXED
+Commit: 72de31da991b59385f3c665e914397b18b4f6689
+Evidence: Closed current-head Codex follow-ups for progressive PR-1 gate-open wording, user-account truth admission claims, active `admission skips verification bundle` wording, Redis enablement runtime claims, and cache-adapter possession claims. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845722 -> 72de31da991b59385f3c665e914397b18b4f6689
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845727 -> 72de31da991b59385f3c665e914397b18b4f6689
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845731 -> 72de31da991b59385f3c665e914397b18b4f6689
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845738 -> 72de31da991b59385f3c665e914397b18b4f6689
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845743 -> 72de31da991b59385f3c665e914397b18b4f6689
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
