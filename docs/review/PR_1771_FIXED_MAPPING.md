@@ -194,7 +194,6 @@ Evidence: `core/food_sources/regional_catalog_identity.py` now evaluates authori
 Disposition: NOT-A-BUG
 Evidence: `core/food_sources/regional_catalog_identity.py` validates PR16 handoff flags with identity comparison (`is not expected_value`), and `tests/test_food_source_regional_catalog_identity.py` rejects integer sentinels for `file_only`, `network_allowed`, `seller_api_use_allowed`, and `partner_api_use_allowed`.
 Reason: The current PR head already rejects the malformed PR16 boolean handoff described in the thread; no additional code change is required for this comment.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269908656
 
 ## Role-Agent / CI Findings
