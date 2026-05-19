@@ -222,6 +222,16 @@ Evidence: The CodeRabbit review-level summary is a container for inline actionab
 Reason: No separate code change is required for the review-level summary once every actionable inline comment it summarizes has a FIXED disposition and proof commit.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#pullrequestreview-4311113881
 
+Disposition: FIXED
+Commit: 8e7b924374994c434db1018ecaf7377e7e072959
+Evidence: Closed current-head Codex findings for downstream nested permissive Forbidden Claims headings and bare PR-1 semantic-cache gate-open wording. The downstream scanner now resets negative-example mode for nested non-negative headings, and the gate-open detector rejects bare `PR-1` semantic-cache gate-open/can-open/may-open variants. Proof: direct repro script for `PR-1 opens/can open/may open the semantic-cache gate` and `the semantic-cache gate is now open for PR-1`, `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`75 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute ...`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3263563112 -> 8e7b924374994c434db1018ecaf7377e7e072959
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3263563115 -> 8e7b924374994c434db1018ecaf7377e7e072959
+
+Disposition: FIXED
+Commit: 94faaa79b1599633952e86694175ba8da19791a7
+Evidence: Closed the coordinator/bug-hunter adjacent false-green for `verification bundle is not needed for cache admission`, which now maps to the existing `verification bundle optional` forbidden-claim class. Proof: direct repro script for `verification bundle is not needed for cache admission`, `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`75 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, and `pre-commit run --all-files`.
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
