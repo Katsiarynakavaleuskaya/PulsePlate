@@ -499,6 +499,17 @@ Evidence: Closed the fresh 2026-05-19T21:25:44Z `must` modal false-green finding
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742395 -> b16fa528d190d96e68da69327d96c7f083d6be0a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742400 -> b16fa528d190d96e68da69327d96c7f083d6be0a
 
+Disposition: FIXED
+Commit: 18caf4d6647ba1ca9452b5dcb575579e7317406e
+Evidence: Closed the fresh 2026-05-19T21:41:03Z claim-grammar stabilization findings by extending equivalence-class detection for present-perfect `opened up`, present-perfect Redis/GPTCache wiring (`has used` / `had used`), obligation-form verification-bundle waiver claims (`has/have to`, `need not`, `needn't`), obligation-form serving/backend authorization, and direct Redis/GPTCache connection assertions. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, exact stabilization probe returned `stabilization_misses []`, and generated fresh-review grammar now covers 847 unique claim variants.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823290 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823295 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823298 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823302 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823303 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823307 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269823309 -> 18caf4d6647ba1ca9452b5dcb575579e7317406e
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
