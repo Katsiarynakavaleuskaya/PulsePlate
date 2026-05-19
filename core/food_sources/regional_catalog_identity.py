@@ -274,7 +274,9 @@ _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(r"\b(?:source authority|nutrition authority)\b(?:\W+\w+){0,4}\W+\bfor\b"),
 )
 _NEGATED_APPROVAL_RE = re.compile(
-    r"\b(?:no|not|never|without|blocked|unapproved|forbidden|rejected)\b"
+    rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
+    r"\bwithout\s+(?:approval|authorization|permission)\b|"
+    r"\b(?:unapproved|forbidden|rejected)\b"
 )
 
 

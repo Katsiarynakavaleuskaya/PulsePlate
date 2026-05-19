@@ -6,6 +6,7 @@ import ast
 import copy
 from dataclasses import replace
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -408,6 +409,7 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Public dataset claim approved for regional catalogs.",
         "Automated collection allowed for regional catalogs.",
         "DigitalOcean Postgres load enabled for regional catalogs.",
+        "Seller API is not blocked and approved for catalog enrichment.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -728,8 +730,28 @@ def test_regional_catalog_identity_cli_is_file_only_and_json(
     monkeypatch.setenv("DATABASE_URL", "postgres://must-not-be-used.invalid/db")
     before = sorted(path.relative_to(tmp_path) for path in tmp_path.rglob("*"))
     result = subprocess.run(
-        [sys.executable, "-m", _CLI_MODULE, "--json"],
-        cwd=_REPO_ROOT,
+        [
+            sys.executable,
+            "-m",
+            _CLI_MODULE,
+            "--catalog",
+            str(_CATALOG_PATH),
+            "--onboarding",
+            str(_ONBOARDING_PATH),
+            "--coverage",
+            str(_COVERAGE_PATH),
+            "--recipe-dish-corpus",
+            str(_RECIPE_DISH_CORPUS_PATH),
+            "--preference-mapping",
+            str(_PREFERENCE_MAPPING_PATH),
+            "--pr16-closeout",
+            str(_PR16_CLOSEOUT_PATH),
+            "--regional-identity",
+            str(_REGIONAL_IDENTITY_PATH),
+            "--json",
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "PYTHONPATH": str(_REPO_ROOT)},
         check=True,
         text=True,
         capture_output=True,
