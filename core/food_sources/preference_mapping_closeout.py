@@ -16,6 +16,8 @@ import re
 from core.food_sources.preference_recipe_mapping import (
     BLOCKED_METHODS as PR15_BLOCKED_METHODS,
     EVIDENCE_POLICY as PR15_EVIDENCE_POLICY,
+    EXPECTED_ALLOWED_ROLES as PR15_EXPECTED_ALLOWED_ROLES,
+    EXPECTED_MAPPING_KEYS as PR15_EXPECTED_MAPPING_KEYS,
     FINAL_GATE_DECISION as PR15_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR15_NEXT_RECOMMENDED_LANE,
     PreferenceRecipeMappingError,
@@ -158,8 +160,8 @@ _FORBIDDEN_NOTE_PHRASES = (
     "image is authority",
 )
 
-_APPROVAL_VERBS = r"approves?|authorizes?|permits?|allows?"
-_APPROVAL_STATES = r"approved|authorized|permitted|allowed"
+_APPROVAL_VERBS = r"approves?|authorizes?|permits?|allows?|grants?|enables?"
+_APPROVAL_STATES = r"approved|authorized|permitted|allowed|granted|enabled"
 _EXTERNAL_EVIDENCE_TERMS = (
     r"reports?|spreadsheets?|docx|documents?|images?|charts?|artifacts?|research"
 )
@@ -176,6 +178,19 @@ _BLOCKED_AUTHORITY_TERMS = (
     r"automated collection|digitalocean postgres load|public dataset claim|"
     r"recipe text authority|user preference text authority|llm output authority|"
     r"source authority|nutrition authority|product display"
+)
+_PR15_MAPPING_CONTRACT_STATUS = "mapping_contract_required_not_approved"
+_PR15_PR11_LANDED_PR = 1601
+_PR15_PR14_LANDED_PR = 1743
+_REGIONAL_DOMAIN_EXPECTED = {
+    "coverage_decision": "deferred_unresolved",
+    "primary_sources": (),
+    "auxiliary_sources": ("regional_catalogs",),
+    "gap_status": "locale_gap_unresolved",
+    "authority_decision": "not_approved",
+}
+_REGIONAL_SOURCE_BLOCKING_REASONS = (
+    "Locale-specific source identity, license, language, unit, schema, and redistribution terms are missing.",
 )
 _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(
@@ -364,6 +379,14 @@ def _require_pr15_handoff(
     preference_mapping: PreferenceRecipeMappingGovernance,
     context: str,
 ) -> None:
+    if preference_mapping.coverage_ref != PR11_REF:
+        raise _closeout_error(context, f"PR15 coverage_ref must be {PR11_REF}")
+    if preference_mapping.recipe_dish_corpus_ref != PR14_REF:
+        raise _closeout_error(context, f"PR15 recipe_dish_corpus_ref must be {PR14_REF}")
+    if preference_mapping.pr11_landed_pr != _PR15_PR11_LANDED_PR:
+        raise _closeout_error(context, f"PR15 pr11_landed_pr must be {_PR15_PR11_LANDED_PR}")
+    if preference_mapping.pr14_landed_pr != _PR15_PR14_LANDED_PR:
+        raise _closeout_error(context, f"PR15 pr14_landed_pr must be {_PR15_PR14_LANDED_PR}")
     if preference_mapping.source != PR15_SOURCE:
         raise _closeout_error(context, f"PR15 source must be {PR15_SOURCE}")
     if preference_mapping.source_classification != PR15_SOURCE_CLASSIFICATION:
@@ -380,8 +403,25 @@ def _require_pr15_handoff(
         raise _closeout_error(context, "PR15 must recommend preference mapping closeout")
     if preference_mapping.final_gate_decision != PR15_FINAL_GATE_DECISION:
         raise _closeout_error(context, "PR15 final_gate_decision must remain no-ingest")
+    mapping_keys = tuple(contract.mapping_key for contract in preference_mapping.mapping_contracts)
+    if mapping_keys != PR15_EXPECTED_MAPPING_KEYS:
+        raise _closeout_error(
+            context,
+            "PR15 mapping_contracts must be exactly: " + ", ".join(PR15_EXPECTED_MAPPING_KEYS),
+        )
     _require_safe_notes(preference_mapping.notes, context)
     for mapping_contract in preference_mapping.mapping_contracts:
+        if mapping_contract.contract_status != _PR15_MAPPING_CONTRACT_STATUS:
+            raise _closeout_error(
+                context,
+                f"PR15 {mapping_contract.mapping_key} contract_status must be "
+                f"{_PR15_MAPPING_CONTRACT_STATUS}",
+            )
+        expected_role = PR15_EXPECTED_ALLOWED_ROLES[mapping_contract.mapping_key]
+        if mapping_contract.allowed_role != expected_role:
+            raise _closeout_error(
+                context, f"PR15 {mapping_contract.mapping_key} allowed_role must be {expected_role}"
+            )
         _require_safe_notes(mapping_contract.notes, context)
 
 
@@ -408,6 +448,12 @@ def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
             context,
             f"PR11 regional_local_products next_action must be {NEXT_SUBSTANTIVE_LANE}",
         )
+    for field_name, expected_value in _REGIONAL_DOMAIN_EXPECTED.items():
+        if getattr(regional_domain, field_name) != expected_value:
+            raise _closeout_error(
+                context,
+                f"PR11 regional_local_products {field_name} must be {expected_value!r}",
+            )
     if regional_domain.approved_ingest or regional_domain.approved_runtime_authority:
         raise _closeout_error(context, "PR11 regional_local_products must stay unapproved")
     _require_safe_notes(regional_domain.notes, context)
@@ -435,6 +481,11 @@ def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
         or regional_source.paid_source_use_allowed
     ):
         raise _closeout_error(context, "PR11 regional_catalogs must not approve source use")
+    if regional_source.blocking_reasons != _REGIONAL_SOURCE_BLOCKING_REASONS:
+        raise _closeout_error(
+            context,
+            "PR11 regional_catalogs blocking_reasons must preserve unresolved identity/license evidence",
+        )
 
 
 def parse_preference_mapping_closeout_governance(

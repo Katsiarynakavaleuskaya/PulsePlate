@@ -122,6 +122,11 @@ def _write_payload(path: Path, payload: dict[str, object]) -> Path:
 
 def _coverage_with_regional_domain(
     *,
+    coverage_decision: str | None = None,
+    primary_sources: tuple[str, ...] | None = None,
+    auxiliary_sources: tuple[str, ...] | None = None,
+    gap_status: str | None = None,
+    authority_decision: str | None = None,
     next_action: str | None = None,
     approved_ingest: bool | None = None,
     approved_runtime_authority: bool | None = None,
@@ -132,6 +137,19 @@ def _coverage_with_regional_domain(
         (
             replace(
                 domain,
+                coverage_decision=(
+                    domain.coverage_decision if coverage_decision is None else coverage_decision
+                ),
+                primary_sources=(
+                    domain.primary_sources if primary_sources is None else primary_sources
+                ),
+                auxiliary_sources=(
+                    domain.auxiliary_sources if auxiliary_sources is None else auxiliary_sources
+                ),
+                gap_status=domain.gap_status if gap_status is None else gap_status,
+                authority_decision=(
+                    domain.authority_decision if authority_decision is None else authority_decision
+                ),
                 next_action=domain.next_action if next_action is None else next_action,
                 approved_ingest=(
                     domain.approved_ingest if approved_ingest is None else approved_ingest
@@ -153,10 +171,12 @@ def _coverage_with_regional_domain(
 
 def _coverage_with_regional_source(
     *,
+    blocking_reasons: tuple[str, ...] | None = None,
     paid_source_use_allowed: bool | None = None,
     approved_ingest: bool | None = None,
     approved_runtime_authority: bool | None = None,
     api_calls_allowed: bool | None = None,
+    scraping_allowed: bool | None = None,
     notes: str | None = None,
 ) -> SourceGapAudit:
     coverage = copy.deepcopy(_coverage())
@@ -179,6 +199,12 @@ def _coverage_with_regional_source(
                 ),
                 api_calls_allowed=(
                     source.api_calls_allowed if api_calls_allowed is None else api_calls_allowed
+                ),
+                scraping_allowed=(
+                    source.scraping_allowed if scraping_allowed is None else scraping_allowed
+                ),
+                blocking_reasons=(
+                    source.blocking_reasons if blocking_reasons is None else blocking_reasons
                 ),
                 notes=source.notes if notes is None else notes,
             )
@@ -376,6 +402,28 @@ def test_preference_mapping_closeout_rejects_pr15_handoff_drift() -> None:
 @pytest.mark.parametrize(
     "preference_mapping",
     (
+        replace(_preference_mapping(), coverage_ref="docs/architecture/WRONG_PR11.json"),
+        replace(_preference_mapping(), recipe_dish_corpus_ref="docs/architecture/WRONG_PR14.json"),
+        replace(_preference_mapping(), pr11_landed_pr=0),
+        replace(_preference_mapping(), pr14_landed_pr=0),
+    ),
+)
+def test_preference_mapping_closeout_rejects_pr15_identity_handoff_drift(
+    preference_mapping: PreferenceRecipeMappingGovernance,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=preference_mapping,
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    "preference_mapping",
+    (
         replace(_preference_mapping(), evidence_policy="source_authority_allowed"),
         replace(_preference_mapping(), notes="api calls are allowed"),
         replace(
@@ -388,6 +436,48 @@ def test_preference_mapping_closeout_rejects_pr15_handoff_drift() -> None:
     ),
 )
 def test_preference_mapping_closeout_rejects_pr15_authority_handoff_drift(
+    preference_mapping: PreferenceRecipeMappingGovernance,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=preference_mapping,
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    "preference_mapping",
+    (
+        replace(
+            _preference_mapping(),
+            mapping_contracts=(
+                replace(
+                    _preference_mapping().mapping_contracts[0],
+                    contract_status="mapping_contract_approved",
+                ),
+                *_preference_mapping().mapping_contracts[1:],
+            ),
+        ),
+        replace(
+            _preference_mapping(),
+            mapping_contracts=(
+                replace(
+                    _preference_mapping().mapping_contracts[0],
+                    allowed_role="recipe_source_authority",
+                ),
+                *_preference_mapping().mapping_contracts[1:],
+            ),
+        ),
+        replace(
+            _preference_mapping(),
+            mapping_contracts=tuple(reversed(_preference_mapping().mapping_contracts)),
+        ),
+    ),
+)
+def test_preference_mapping_closeout_rejects_pr15_mapping_contract_drift(
     preference_mapping: PreferenceRecipeMappingGovernance,
 ) -> None:
     payload = _closeout_payload()
@@ -433,11 +523,59 @@ def test_preference_mapping_closeout_rejects_regional_domain_drift() -> None:
         )
 
 
-def test_preference_mapping_closeout_rejects_regional_source_approval() -> None:
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        _coverage_with_regional_domain(coverage_decision="adequate_baseline"),
+        _coverage_with_regional_domain(primary_sources=("regional_catalogs",)),
+        _coverage_with_regional_domain(auxiliary_sources=()),
+        _coverage_with_regional_domain(gap_status="baseline_covered"),
+        _coverage_with_regional_domain(authority_decision="approved"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_regional_domain_authority_drift(
+    coverage: SourceGapAudit,
+) -> None:
     payload = _closeout_payload()
-    coverage = _coverage_with_regional_source(paid_source_use_allowed=True)
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="regional_local_products"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        _coverage_with_regional_source(paid_source_use_allowed=True),
+        _coverage_with_regional_source(approved_ingest=True),
+        _coverage_with_regional_source(approved_runtime_authority=True),
+        _coverage_with_regional_source(api_calls_allowed=True),
+        _coverage_with_regional_source(scraping_allowed=True),
+    ),
+)
+def test_preference_mapping_closeout_rejects_regional_source_approval(
+    coverage: SourceGapAudit,
+) -> None:
+    payload = _closeout_payload()
 
     with pytest.raises(PreferenceMappingCloseoutError, match="must not approve source use"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
+def test_preference_mapping_closeout_rejects_regional_source_blocking_reason_drift() -> None:
+    payload = _closeout_payload()
+    coverage = _coverage_with_regional_source(
+        blocking_reasons=("source identity is verified and redistribution allowed",)
+    )
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="blocking_reasons"):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),
@@ -536,6 +674,10 @@ def test_preference_mapping_closeout_rejects_regional_handoff_authority_notes(
         "DigitalOcean Postgres load allowed.",
         "Public dataset claim allowed.",
         "The report does not approve source use; api calls are allowed for next lane.",
+        "API calls enabled.",
+        "Paid API use granted.",
+        "Cache authority is enabled.",
+        "The report grants provider snapshots for the next lane.",
     ),
 )
 def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
