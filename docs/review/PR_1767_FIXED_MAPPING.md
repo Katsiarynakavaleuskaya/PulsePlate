@@ -1,4 +1,4 @@
-# PR #1760 Replacement — Fixed in Commit Mapping
+# PR #1767 — Fixed in Commit Mapping
 
 **Supersedes:** <https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1760>
 **Replacement branch:** `codex/dependabot-pr1760-sentence-transformers-5-5-0`
@@ -20,7 +20,7 @@ Evidence: `requirements-rag-vector.in`, `requirements-rag-vector.txt`, `requirem
 ## Role-Agent / Premortem Pass
 
 - `agent-coordinator` initial pass — completed; decision: proceed with changes before commit/push.
-- `pulseplate-premortem-risk-review` — completed in `docs/review/PR_1760_PREMORTEM.md`; decision: proceed with changes.
+- `pulseplate-premortem-risk-review` — completed in `docs/review/PR_1767_PREMORTEM.md`; decision: proceed with changes.
 - `cursor-specialist-agent` — completed; stale packet and validation-plan findings FIXED via task packet `artifacts/orchestration/task_packets/4640174232c5.json` and validation-path update.
 - `security-auditor` — completed; no supply-chain blocker found, exact sha256 fallback and fail-closed installer contract preserved.
 - Codex Security diff-scoped scan — completed through threat-model/discovery; no plausible security candidates found, so validation and attack-path phases were skipped per plugin workflow.
@@ -30,7 +30,7 @@ Evidence: `requirements-rag-vector.in`, `requirements-rag-vector.txt`, `requirem
 
 ## Local Validation
 
-- `python3 scripts/orchestration/check_preflight.py --path requirements-rag-vector-cpu.in --path requirements-rag-vector-cpu.txt --path requirements-rag-vector.in --path requirements-rag-vector.txt --path scripts/ci/emergency_python_wheels.json --path tests/test_install_locked_python_requirements.py --path tests/test_python_supply_chain_controls.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_1760_FIXED_MAPPING.md --path docs/review/PR_1760_PREMORTEM.md` — PASS.
+- `python3 scripts/orchestration/check_preflight.py --path requirements-rag-vector-cpu.in --path requirements-rag-vector-cpu.txt --path requirements-rag-vector.in --path requirements-rag-vector.txt --path scripts/ci/emergency_python_wheels.json --path tests/test_install_locked_python_requirements.py --path tests/test_python_supply_chain_controls.py --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_1767_FIXED_MAPPING.md --path docs/review/PR_1767_PREMORTEM.md` — PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py` — PASS.
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py` — PASS.
 - `. /Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/activate && make validate-changed` — PASS. Note: the first unactivated `make validate-changed` attempt failed because this isolated worktree has no local `.venv` and `python3` could not import `fastapi`; the activated repo venv rerun passed.

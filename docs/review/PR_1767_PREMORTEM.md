@@ -1,4 +1,4 @@
-# PR #1760 Replacement Premortem
+# PR #1767 Premortem
 
 **Mode:** `pr-premortem`
 **Task packet:** `artifacts/orchestration/task_packets/4640174232c5.json`
@@ -29,11 +29,11 @@ It is 6 months from now. This dependency replacement failed because a narrow loc
 
 **Underlying assumption:** A replacement PR can inherit Dependabot context without its own canonical mapping artifact.
 
-**Early warning signs:** `docs/review/PR_1760_FIXED_MAPPING.md` contains `pending` evidence after commit, omits touched tests, or lacks the machine-heavy deferral note.
+**Early warning signs:** `docs/review/PR_1767_FIXED_MAPPING.md` contains `pending` evidence after commit, omits touched tests, or lacks the machine-heavy deferral note.
 
 **Containment action:** Keep the mapping artifact in the branch from the start, update it with real commit evidence after the first commit exists, and mirror deferrals in the PR body after open.
 
-**Disposition:** FIXED for pre-open planning by adding the fixed mapping artifact and including the touched regression test in the local validation command list. Final commit SHA replacement remains a required post-commit governance step.
+**Disposition:** FIXED by adding the replacement PR fixed mapping artifact, including the touched regression test in the local validation command list, and replacing placeholder evidence with commit `7c99fb9e8`.
 
 ### 3. Machine-heavy exception masked a current-head failure
 
