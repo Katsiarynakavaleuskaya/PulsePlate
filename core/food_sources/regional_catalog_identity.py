@@ -590,6 +590,8 @@ def _validate_pr16_report(report: dict[str, object], context: str) -> None:
         "scraping_allowed": False,
         "automation_allowed": False,
         "paid_source_use_allowed": False,
+        "seller_api_use_allowed": False,
+        "partner_api_use_allowed": False,
         "cache_authority_allowed": False,
         "redistribution_allowed": False,
         "provider_integration_allowed": False,
@@ -601,9 +603,6 @@ def _validate_pr16_report(report: dict[str, object], context: str) -> None:
     for flag_name, expected_value in pr16_expected_flags.items():
         if report.get(flag_name) != expected_value:
             raise _identity_error(context, f"PR16 report {flag_name} must remain {expected_value}")
-    for flag_name in ("seller_api_use_allowed", "partner_api_use_allowed"):
-        if report.get(flag_name, False) is not False:
-            raise _identity_error(context, f"PR16 report {flag_name} must remain False")
 
 
 def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogCandidateReview:

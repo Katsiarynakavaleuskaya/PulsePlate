@@ -687,6 +687,8 @@ def test_regional_catalog_identity_rejects_pr16_handoff_drift() -> None:
         "automation_allowed",
         "provider_integration_allowed",
         "public_dataset_claim_allowed",
+        "seller_api_use_allowed",
+        "partner_api_use_allowed",
     ),
 )
 def test_regional_catalog_identity_rejects_incomplete_pr16_safety_report(
