@@ -156,6 +156,17 @@ Commit: 0146902ae.
 Evidence: this artifact and the PR body now use portable `python` commands
 after `. .venv/bin/activate` rather than absolute host-local interpreter paths.
 
+## Split Justification
+
+This PR intentionally stays together as one security-governance lane because
+the `jwt` alert cannot be safely fixed in `ios/Gemfile.lock` until Fastlane
+permits a patched `jwt` resolver path. The code guard, suppression expiry
+guard, regression tests, security note, backlog anchor, and review mapping are
+one auditable control set for Dependabot alert `#142` / `CVE-2026-45363`.
+Splitting them would leave either the suppression without an unblock monitor or
+the monitor without the canonical suppression/backlog evidence. No runtime API,
+OpenAPI, frontend, or iOS app behavior changes are included.
+
 ## Local Validation
 
 - PASS: `python3 scripts/orchestration/check_preflight.py --path .github/workflows/ci.yml --path scripts/ci/check_jwt_fastlane_unblock.py --path scripts/ci/check_trivy_ignore_policy_expiry.py --path scripts/ci/check_current_head_pr_checks.py --path tests/test_jwt_fastlane_unblock_guard.py --path tests/test_trivy_ignore_policy_expiry.py --path tests/test_current_head_pr_checks.py --path docs/security/CVE-2026-45363-jwt-fastlane.md --path docs/roadmap/BACKLOG_LEDGER.md --path docs/review/PR_1772_PREMORTEM.md --path docs/review/PR_1772_FIXED_MAPPING.md --path trivy/ignore-policy.rego`
