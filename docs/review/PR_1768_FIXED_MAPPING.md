@@ -21,29 +21,37 @@ display, or nutrition authority.
 Pre-open bootstrap packet:
 `artifacts/orchestration/task_packets/810d06e7f204.json`
 
+Post-open bootstrap packet:
+`artifacts/orchestration/task_packets/c3688ad26bb6.json`
+
 Coordinator-declared role order:
 `agent-coordinator -> security-auditor -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> dev-operator`
 
-Pre-open role findings:
+Post-open remediation coordinator packet was rerun in this thread before the
+latest fix cycle. It kept the same role order and required the mandatory repeat:
+`qa-engineer-agent -> bug-hunter -> security-auditor`.
 
-- `security-auditor`: Disposition `FIXED`. Evidence: commit `8ab32f709`
-  wraps invalid calendar dates in `PreferenceMappingCloseoutError` and adds a
-  deterministic invalid-date test.
-- `data-scientist-agent`: Disposition `FIXED`. Evidence: commit `8ab32f709`
-  rejects external report/spreadsheet/docx/image authority promotion and paid
-  provider/API/scraper approval language.
-- `backend-engineer`: Disposition `FIXED`. Evidence: commit `8ab32f709`
-  preserves canonical negative wording while still rejecting authority-promotion
-  wording and keeps test helpers typed.
-- `qa-engineer-agent`: Disposition `FIXED`. Evidence: commit `8ab32f709`
-  keeps the canonical artifact valid, adds explicit `VENV_PYTHON` validation
-  guidance, and preserves CLI success.
-- `bug-hunter`: Disposition `NOT-A-BUG`. Evidence: no additional findings;
-  checked unsafe flags, PR15 handoff, PR11 regional handoff, CLI JSON failure
-  semantics, and focused coverage.
-- `dev-operator`: Disposition `FIXED`. Evidence: commit `8ab32f709` was created
-  before `make validate-changed`, so the branch-diff gate was not a false noop;
-  the PR16 packet now names post-open mapping/body/readiness gates.
+Role-agent dispositions:
+
+- `security-auditor`: Disposition `FIXED`. Evidence: commit `5ab352518`
+  fixes unsafe top-level safety flags that could fail open and adds coverage for
+  provider-name authority wording. Repeat pass: `PASS`.
+- `data-scientist-agent`: Disposition `FIXED`. Evidence: commit `5ab352518`
+  hardens PR11/PR15 handoff checks while preserving PR14/PR15 no-ingest,
+  no-provider-authority posture. Regional lane selection remains
+  `NOT-A-BUG` because it comes from PR11 `regional_local_products.next_action`.
+- `backend-engineer`: Disposition `FIXED`. Evidence: commit `5ab352518`
+  moves expected-false safety flag rejection out of the unreachable branch,
+  checks all forbidden-note occurrences, tightens negation scoping, and keeps
+  safe negative wording accepted.
+- `qa-engineer-agent`: Disposition `FIXED`. Evidence: commit `5ab352518` plus
+  local focused/adjacent tests listed below. Repeat pass: `PASS`.
+- `bug-hunter`: Disposition `FIXED`. Evidence: commit `5ab352518` adds named
+  provider authority rejection for Edamam, Spoonacular, Nutritionix, and
+  TheMealDB, plus tests for unrelated earlier negation not suppressing later
+  approvals.
+- `dev-operator`: Disposition `FIXED`. Evidence: pre-commit and
+  `make validate-changed` passed after the latest code/test remediation.
 
 ## Premortem
 
@@ -53,52 +61,121 @@ external research artifacts as nutrition/source authority.
 
 - Finding: external report/spreadsheet/docx/images become source authority.
   Disposition: `FIXED`.
-  Evidence: commit `8ab32f709`; validator requires
-  `external_research_evidence_role` to remain
+  Evidence: commits `8ab32f709`, `31bc88c13`, and `5ab352518`; validator
+  requires `external_research_evidence_role` to remain
   `review_context_only_not_source_authority` and tests reject authority wording.
 - Finding: budget-first policy is misread as permission to buy/scrape/provider
   load immediately.
   Disposition: `FIXED`.
-  Evidence: commit `8ab32f709`; unsafe flags and deferred follow-ups are
-  validated and tested.
+  Evidence: commit `5ab352518`; unsafe flags fail closed, all forbidden note
+  occurrences are checked, and unrelated earlier negation cannot suppress later
+  approval language.
+- Finding: named paid/API providers become source/runtime/nutrition authority.
+  Disposition: `FIXED`.
+  Evidence: commit `5ab352518`; tests reject named authority claims for Edamam,
+  Spoonacular, Nutritionix, and TheMealDB while allowing explicit negations.
 - Finding: PR16 bypasses unresolved PR11 regional catalog governance.
   Disposition: `FIXED`.
-  Evidence: commit `8ab32f709`; validator cross-checks PR11
-  `regional_local_products.next_action`.
+  Evidence: commit `5ab352518`; validator cross-checks PR11 top-level state and
+  exactly one regional domain/source handoff to
+  `regional_catalog_identity_license_review`.
 
 ## Discussion Thread Pass
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [x] No actionable human review threads existed at mapping creation time.
-- [x] CodeRabbit minor naming consistency finding is fixed by commit
-  `8ab32f709` plus the follow-up governance commit that renames PR16 artifact
-  paths to include `PREFERENCE_RECIPE_MAPPING_CLOSEOUT`.
-- [x] Sourcery and Cubic are pending final external bot state and remain
-  readiness blockers until PASS/no-actionables or mapped dispositions exist.
+- [x] Post-open role-agent pass completed:
+  `qa-engineer-agent -> bug-hunter -> security-auditor`
+- [x] CodeRabbit actionable comments mapped.
+- [x] Cubic actionable comments mapped.
+- [x] Codex review suggestions mapped.
+- [ ] Strict review-thread disposition guard pending after push.
+- [ ] Current-head PR checks pending after push.
+- [ ] Strict merge-readiness check pending after push.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+CodeRabbit:
 
-## Pre-Open Finding Dispositions
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503 -> `4dd9da9f4`
+  - Disposition: `FIXED`
+  - Evidence: Phase2 mapping checklist exists and is checked in this file under
+    `## Discussion Thread Pass`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: validation command blocks use `VENV_PYTHON` instead of
+    workstation-specific absolute venv paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214543 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: helper loaders in
+    `tests/test_food_source_preference_mapping_closeout.py` have explicit return
+    annotations.
 
-Pre-open fixes:
+Cubic:
 
-- Security/date parsing finding -> `8ab32f709`
-- External evidence authority-promotion finding -> `8ab32f709`
-- Budget-first paid/API/scraper promotion finding -> `8ab32f709`
-- Canonical negative wording false-red finding -> `8ab32f709`
-- Typed test-helper / mypy-risk finding -> `8ab32f709`
-- Worktree `VENV_PYTHON` validation guidance finding -> `8ab32f709`
-- Branch-diff false-noop finding -> `8ab32f709`
-- Post-open gate explicitness finding -> `8ab32f709`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266233058 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: portable `VENV_PYTHON` validation commands.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244950 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: safe negated blocked-method notes remain accepted.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244953 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: approval-state wording is rejected without false-reding explicit
+    negations.
+- Cubic body review on commit `31bc88c13` identified two P1 issues: first-match
+  phrase scanning and overly broad negation scoping.
+  - Disposition: `FIXED`
+  - Evidence: commit `5ab352518`; `_require_safe_notes` now iterates every
+    phrase/pattern occurrence, and tests reject `No api calls allowed. API calls
+    allowed...` plus `No provider snapshots approved. Edamam is source
+    authority.`
 
-Post-open review threads must be appended here before they are resolved.
+Codex review suggestions:
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210266 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: negated blocked-method notes are accepted by focused tests.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210270 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: closeout-prohibited approval wording is rejected.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210274 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: regional handoff notes are validated.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210281 -> `31bc88c13`
+  - Disposition: `FIXED`
+  - Evidence: duplicate regional rows are rejected.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374802 -> `5ab352518`
+  - Disposition: `FIXED`
+  - Evidence: PR11 top-level `next_recommended_lane`, `final_gate_decision`,
+    and notes are cross-checked.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374818 -> `5ab352518`
+  - Disposition: `FIXED`
+  - Evidence: PR15 source, classification, family, evidence policy, blocked
+    methods, final decision, notes, and mapping-contract notes are cross-checked.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374826 -> `5ab352518`
+  - Disposition: `FIXED`
+  - Evidence: duplicate regional domain/source rows are rejected.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374832 -> `5ab352518`
+  - Disposition: `FIXED`
+  - Evidence: budget-first policy must preserve the exact USDA + Open Food Facts
+    canonical baseline wording and cannot approve paid/API/scraper authority.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374841 -> `5ab352518`
+  - Disposition: `FIXED`
+  - Evidence: named blocked providers cannot become source/runtime/nutrition
+    authority.
+
+Sourcery:
+
+- Sourcery review body reported weekly rate limit instead of actionable code
+  findings.
+  - Disposition: `NOT-A-BUG`
+  - Evidence: no actionable Sourcery review threads were emitted. This remains a
+    bot-state item to recheck before merge readiness.
 
 ## Validation Evidence
 
-Pre-open local gates:
+Current local gates after the latest remediation:
 
 ```bash
 python3 scripts/orchestration/check_preflight.py
@@ -114,30 +191,33 @@ make validate-changed VENV_PYTHON="${VENV_PYTHON}"
 
 Observed:
 
-- Focused PR16 tests: `42 passed`.
+- `check_preflight.py`: passed.
+- `check_agent_consistency.py`: passed.
+- Focused PR16 tests: passed after the latest remediation.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
-- `pre-commit run --all-files`: passed after activating the repo `.venv`.
-- `make validate-changed`: passed on committed branch head.
-- Push hook: passed `mypy` changed files, `pip-audit`, backend pre-push pytest,
-  full-repo Bandit, and docker build test.
+- `pre-commit run --all-files`: passed.
+- `make validate-changed`: passed, selecting
+  `tests/test_food_source_preference_mapping_closeout.py`.
+- Commit hook: passed after activating the repo `.venv`; a prior unactivated
+  commit attempt failed with `ModuleNotFoundError: No module named 'fastapi'`.
 
 Full local `make verify` is intentionally deferred per operator instruction for
 this governance-only lane. Merge readiness still requires current-head PR CI
-parity, strict review-thread disposition, and merge-readiness gates.
+parity, strict review-thread disposition, bot review state, and
+merge-readiness gates.
 
 ## Post-Open Required Gates
 
-Pending after mapping creation:
+Pending after this mapping update:
 
-- post-open `task_bootstrap.py --pr-phase post_open_review`
-- mandatory `qa-engineer-agent -> bug-hunter`
-- CodeRabbit review pass
-- Sourcery PASS/no-actionables or mapped disposition
-- Cubic PASS/no-actionables or mapped disposition
-- Codex Security diff-scoped scan
-- security-auditor pass
-- current-head checks inspection
-- review-thread disposition guard
-- strict merge-readiness check
+- push latest commits
+- PR body mirror update
+- post-push CodeRabbit/Cubic/Codex bot-state inspection
+- Codex Security diff-scoped scan on latest pushed head
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1768 --require-auth`
+- `GITHUB_TOKEN="$(gh auth token)" python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1768 --repo Katsiarynakavaleuskaya/PulsePlate`
+- `gh pr checks 1768 --repo Katsiarynakavaleuskaya/PulsePlate`
+
+No merge-readiness claim is made in this mapping.
