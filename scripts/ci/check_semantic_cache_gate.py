@@ -618,9 +618,9 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
         "backend selected for serving",
         re.compile(
             r"\bbackend\s+(?:is\s+)?selected\s+for\s+serving\b"
-            r"|\bbackend selection (?:is )?(?:authorized|approved) for serving\b"
-            r"|\bserving backend selection (?:is )?(?:authorized|approved)\b"
-            r"|\bselected backend (?:is )?(?:authorized|approved) for serving\b"
+            r"|\bbackend selection (?:is )?(?:authorized|approved|allowed) for serving\b"
+            r"|\bserving backend selection (?:is )?(?:authorized|approved|allowed)\b"
+            r"|\bselected backend (?:is )?(?:authorized|approved|allowed) for serving\b"
         ),
     ),
     (
@@ -808,11 +808,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "philosophy admission opens gate",
         re.compile(
-            r"\bphilosophy admission opens (?:the )?semantic[- ]cache gate\b"
-            r"|\bphilosophy pr-1 admission opens (?:the )?semantic[- ]cache gate\b"
-            r"|\bphilosophy pr-1 opens (?:the )?semantic[- ]cache gate\b"
-            r"|\bphilosophy admission opens (?:the )?global gate\b"
-            r"|\b(?:philosophy )?pr-1(?: admission)? opens (?:the )?global gate\b"
+            r"\bphilosophy admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy pr-1 admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy pr-1 open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\bphilosophy admission open(?:s|ed) (?:the )?global gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? open(?:s|ed) (?:the )?global gate\b"
             r"|\bphilosophy(?: pr-1)?(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? "
@@ -834,12 +834,17 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "philosophical semantic cache live",
         re.compile(
-            r"\bphilosophical semantic[- ]cache (?:is )?(?:live|active|enabled|open)\b"
-            r"|\bphilosophical semantic[- ]cache paths? (?:are )?"
+            r"\bphilosophical semantic[- ]cache "
+            r"(?:(?:is|are|was|were|has been|have been) )?"
             r"(?:live|active|enabled|open)\b"
-            r"|\bphilosophical semantic[- ]cache serving (?:is )?"
+            r"|\bphilosophical semantic[- ]cache paths? "
+            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:live|active|enabled|open)\b"
+            r"|\bphilosophical semantic[- ]cache serving "
+            r"(?:(?:is|are|was|were|has been|have been) )?"
             r"(?:live|active|enabled|open|approved)\b"
-            r"|\bphilosophical semantic[- ]cache paths? (?:are )?approved for serving\b"
+            r"|\bphilosophical semantic[- ]cache paths? "
+            r"(?:(?:is|are|was|were|has been|have been) )?approved for serving\b"
         ),
     ),
     (
@@ -893,7 +898,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "redis imports allowed in pr-1",
         re.compile(
-            r"\bredis imports? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
+            r"\bredis imports? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables) redis imports?\b"
@@ -902,7 +909,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "gptcache imports allowed in pr-1",
         re.compile(
-            r"\bgptcache imports? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
+            r"\bgptcache imports? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables) gptcache imports?\b"
@@ -930,10 +939,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "vector search allowed in pr-1",
         re.compile(
-            r"\bvector search (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
+            r"\bvector search(?:es)? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) vector search\b"
+            r"(?:authorizes|approves|allows|permits|enables) vector search(?:es)?\b"
         ),
     ),
     (
@@ -965,6 +974,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:aren't|isn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
+            r"|\bruntime(?: behavior|[- ]expansion| paths?| permissions?)? "
+            r"(?:get|gets) (?:allowed|permitted|approved|enabled) "
+            r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables) runtime(?:[- ]expansion| permissions?)"
             r"(?: for philosophy admission)?\b"
@@ -988,6 +1000,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"omitted for cache admission\b"
             r"|\bverification[- ]bundle requirements? (?:(?:is|are|may be|can be) )?"
             r"(?:bypassed|waived) for cache admission\b"
+            r"|\bverification[- ]bundles? (?:(?:is|are|may be|can be) )?"
+            r"(?:bypassed|waived) for cache admission\b"
             r"|\bskipped verification[- ]bundle requirements? for cache admission\b"
         ),
     ),
@@ -996,14 +1010,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bphilosophy admission replaces sc-g2-sc-g5 contracts\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|enables|permits) "
+            r"(?:authorizes|approves|allows|enables|permits) "
             r"(?:backend selection|serving|semantic[- ]cache serving|backend selection and serving)\b"
-            r"|\bbackend selection (?:is|are) (?:authorized|approved|enabled|permitted) "
+            r"|\bbackend selection (?:is|are) (?:authorized|approved|allowed|enabled|permitted) "
             r"for philosophy admission\b"
             r"|\b(?:backend selection|serving) (?:is|are) "
-            r"(?:authorized|approved|enabled|permitted) by philosophy admission\b"
+            r"(?:authorized|approved|allowed|enabled|permitted) by philosophy admission\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:performs backend selection|selects (?:a )?backend for serving)\b"
+            r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"
         ),
     ),
     (
@@ -1780,6 +1794,12 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
                 "negative must-not-claim polarity"
             )
             break
+        if had_bullet and _has_prefixed_forbidden_claim_assertion(normalized_line):
+            errors.append(
+                "philosophy admission contract Forbidden Claims section must retain "
+                "negative must-not-claim polarity"
+            )
+            break
         if had_bullet:
             continue
         line_errors = _forbidden_claim_errors(stripped_line)
@@ -1798,9 +1818,7 @@ def validate_philosophy_semantic_cache_admission_contract(text: str) -> list[str
     runtime_section = _normalize_text(_markdown_section(text, "Runtime-Only Default"))
     for label, pattern in PHILOSOPHY_RUNTIME_ONLY_SECTION_REQUIRED_ANCHORS:
         if not pattern.search(runtime_section):
-            errors.append(
-                "philosophy admission contract runtime section missing anchor: " f"{label}"
-            )
+            errors.append(f"philosophy admission contract runtime section missing anchor: {label}")
 
     rollout_section_index = normalized.find("required rollout order remains:")
     rollout_section = (
@@ -1857,13 +1875,34 @@ def validate_philosophy_semantic_cache_admission_downstream_text(text: str) -> l
 def _has_prefixed_forbidden_claim_assertion(normalized_line: str) -> bool:
     """Return true when a bullet wraps a forbidden claim in assertive prose."""
     for _label, pattern in (*FORBIDDEN_CLAIM_PATTERNS, *PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS):
-        match = pattern.search(normalized_line)
-        if match is None or match.start() == 0:
-            continue
-        prefix = normalized_line[: match.start()].strip()
-        if not prefix or PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(prefix):
-            continue
-        return True
+        for match in pattern.finditer(normalized_line):
+            if match.start() == 0:
+                continue
+            prefix = normalized_line[: match.start()].strip()
+            if (
+                not prefix
+                or prefix == "any"
+                or PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(prefix)
+            ):
+                continue
+            return True
+    return False
+
+
+def _has_same_line_forbidden_claim_tail(normalized_tail: str) -> bool:
+    """Return true when a negative lead-in hides a second assertive forbidden claim."""
+    for _label, pattern in (*FORBIDDEN_CLAIM_PATTERNS, *PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS):
+        first_match_seen = False
+        for match in pattern.finditer(normalized_tail):
+            if match.start() == 0 and not first_match_seen:
+                first_match_seen = True
+                continue
+            if match.start() == 0:
+                continue
+            prefix = normalized_tail[: match.start()].strip()
+            if not prefix or PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(prefix):
+                continue
+            return True
     return False
 
 
@@ -1891,7 +1930,9 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
         )
         if negative_polarity_match is not None:
             tail = normalized_line[negative_polarity_match.end() :].strip()
-            if PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE.search(tail):
+            if PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE.search(
+                tail
+            ) or _has_same_line_forbidden_claim_tail(tail):
                 kept_lines.append(tail)
                 continue
             negative_example_block = True

@@ -205,9 +205,7 @@ def test_phase1_docs_gate_allows_downstream_prefixed_negative_examples(
 
     def fake_read_text(path: str) -> str:
         if path == relpath:
-            return (
-                "## Forbidden Claims\n\n" "PR-1 and downstream docs must not claim:\n\n" f"{line}"
-            )
+            return f"## Forbidden Claims\n\nPR-1 and downstream docs must not claim:\n\n{line}"
         return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
 
     monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
@@ -234,9 +232,7 @@ def test_phase1_docs_gate_rejects_downstream_permissive_forbidden_claim_examples
 
     def fake_read_text(path: str) -> str:
         if path == relpath:
-            return (
-                "## Forbidden Claims\n\n" "PR-1 and downstream docs must not claim:\n\n" f"{line}"
-            )
+            return f"## Forbidden Claims\n\nPR-1 and downstream docs must not claim:\n\n{line}"
         return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
 
     monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
@@ -274,6 +270,31 @@ def test_phase1_docs_gate_rejects_same_line_downstream_permissive_forbidden_clai
     ) in errors
 
 
+def test_phase1_docs_gate_rejects_same_line_downstream_assertive_tail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A negative lead-in cannot hide a second same-line assertive claim."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim: "
+                "philosophical semantic-cache is live; however philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
 @pytest.mark.parametrize(
     ("line", "error_label"),
     (
@@ -290,6 +311,11 @@ def test_phase1_docs_gate_rejects_same_line_downstream_permissive_forbidden_clai
             "- Implementation note: backend selection is approved by Philosophy admission",
             "backend selection authorized by philosophy admission",
         ),
+        (
+            "- Example: philosophical semantic-cache is live; however "
+            "philosophical semantic-cache is live",
+            "philosophical semantic cache live",
+        ),
     ),
 )
 def test_phase1_docs_gate_rejects_downstream_prefixed_forbidden_claim_bullets(
@@ -302,9 +328,7 @@ def test_phase1_docs_gate_rejects_downstream_prefixed_forbidden_claim_bullets(
 
     def fake_read_text(path: str) -> str:
         if path == relpath:
-            return (
-                "## Forbidden Claims\n\n" "PR-1 and downstream docs must not claim:\n\n" f"{line}"
-            )
+            return f"## Forbidden Claims\n\nPR-1 and downstream docs must not claim:\n\n{line}"
         return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
 
     monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
@@ -377,16 +401,16 @@ def test_upstream_contract_prose_uses_exact_machine_references() -> None:
 
 
 def test_checker_requires_blocked_truth_surfaces() -> None:
-    mutated = re.sub(
-        r'\s*"medical_or_therapy_routing"\s*,?\s*\n?',
-        "",
-        _contract_text(),
-    )
+    state = _copy_machine_state()
+    blocked_surfaces = state["blocked_surfaces"]
+    assert isinstance(blocked_surfaces, list)
+    blocked_surfaces.remove("medical_or_therapy_routing")
+    mutated = _contract_text_with_state(state)
 
     errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
     assert (
-        "philosophy admission contract JSON blocked_surfaces: " "missing medical_or_therapy_routing"
+        "philosophy admission contract JSON blocked_surfaces: missing medical_or_therapy_routing"
     ) in errors
 
 
@@ -1075,6 +1099,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the global gate is opened for Philosophy admission",
         "the semantic-cache gate opened for Philosophy admission",
         "the global gate opened for Philosophy admission",
+        "Philosophy admission opened the semantic-cache gate",
     )
 
     for claim in cases:
@@ -1210,6 +1235,25 @@ def test_forbidden_claims_section_requires_negative_polarity() -> None:
         ) in errors
 
 
+def test_forbidden_claims_section_rejects_prefixed_assertive_bullets() -> None:
+    """The contract Forbidden Claims section cannot hide assertions in bullet prose."""
+    mutated = _contract_text().replace(
+        "PR-1 and downstream docs must not claim:",
+        (
+            "PR-1 and downstream docs must not claim:\n\n"
+            "- Implementation note: philosophical semantic-cache is live;"
+        ),
+        1,
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert (
+        "philosophy admission contract Forbidden Claims section must retain "
+        "negative must-not-claim polarity"
+    ) in errors
+
+
 def test_forbidden_claims_section_allows_additional_negative_polarity() -> None:
     """Additional negative lead-ins should not be treated as permissive drift."""
     cases = (
@@ -1251,12 +1295,18 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
             "production-live philosophical cache-key behavior",
         ),
         ("philosophical semantic-cache serving is approved", "philosophical semantic cache live"),
+        ("philosophical semantic-cache serving was approved", "philosophical semantic cache live"),
+        (
+            "philosophical semantic-cache serving has been approved",
+            "philosophical semantic cache live",
+        ),
         ("philosophical semantic-cache serving is live", "philosophical semantic cache live"),
         ("philosophical semantic-cache serving is open", "philosophical semantic cache live"),
         (
             "philosophical semantic-cache paths are approved for serving",
             "philosophical semantic cache live",
         ),
+        ("philosophical semantic-cache path is live", "philosophical semantic cache live"),
         ("philosophical semantic-cache paths are live", "philosophical semantic cache live"),
         ("philosophical semantic-cache paths are open", "philosophical semantic cache live"),
     )
@@ -1312,8 +1362,7 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "redis philosophical cache approved",
         ),
         (
-            "Redis rollout isn't just approved for philosophical cache paths, "
-            "it is enabled too.",
+            "Redis rollout isn't just approved for philosophical cache paths, it is enabled too.",
             "redis philosophical cache approved",
         ),
         (
@@ -1371,13 +1420,11 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "gptcache philosophical cache approved",
         ),
         (
-            "GPTCache rollout is not simply enabled for philosophical cache paths, "
-            "it is approved.",
+            "GPTCache rollout is not simply enabled for philosophical cache paths, it is approved.",
             "gptcache philosophical cache approved",
         ),
         (
-            "GPTCache rollout is not solely enabled for philosophical cache paths, "
-            "it is approved.",
+            "GPTCache rollout is not solely enabled for philosophical cache paths, it is approved.",
             "gptcache philosophical cache approved",
         ),
         (
@@ -1429,6 +1476,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("redis imports are allowed in PR-1", "redis imports allowed in pr-1"),
         ("redis imports are allowed for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are approved for Philosophy admission", "redis imports allowed in pr-1"),
+        ("redis import was approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are enabled for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis import is approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("Philosophy admission approves Redis imports", "redis imports allowed in pr-1"),
@@ -1436,6 +1484,10 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("GPTCache imports are permitted in PR-1", "gptcache imports allowed in pr-1"),
         (
             "GPTCache imports are permitted for Philosophy admission",
+            "gptcache imports allowed in pr-1",
+        ),
+        (
+            "GPTCache import was approved for Philosophy admission",
             "gptcache imports allowed in pr-1",
         ),
         (
@@ -1464,6 +1516,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("vector search is permitted in PR-1", "vector search allowed in pr-1"),
         ("vector search is permitted for Philosophy admission", "vector search allowed in pr-1"),
         ("vector search is enabled for Philosophy admission", "vector search allowed in pr-1"),
+        ("vector searches are approved for Philosophy admission", "vector search allowed in pr-1"),
         ("PR-1 allows vector search", "vector search allowed in pr-1"),
         ("connection strings are permitted in PR-1", "connection strings allowed in pr-1"),
         (
@@ -1491,7 +1544,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime behavior gets enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions are approved for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime permissions get approved for Philosophy admission", "runtime allowed in pr-1"),
         ("PR-1 enables runtime permissions", "runtime allowed in pr-1"),
         ("Philosophy admission enables runtime permissions", "runtime allowed in pr-1"),
         ("Philosophy admission approves runtime expansion", "runtime allowed in pr-1"),
@@ -1606,6 +1661,7 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         "verification-bundle requirements may be omitted for cache admission",
         "verification-bundle requirement is bypassed for cache admission",
         "verification-bundle requirement may be bypassed for cache admission",
+        "verification bundle is waived for cache admission",
         "verification-bundle requirements can be waived for cache admission",
         "verification bundle requirement is skipped for cache admission",
         "verification-bundle requirement may be skipped for cache admission",
@@ -1655,6 +1711,7 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy admission replaces SC-G2-SC-G5 contracts and authorizes backend selection "
         "and serving.",
         "Philosophy admission authorizes backend selection.",
+        "Philosophy admission allows backend selection.",
         "Philosophy admission authorizes serving.",
         "Philosophy admission approves semantic-cache serving.",
         "Philosophy PR-1 enables semantic-cache serving.",
@@ -1665,6 +1722,7 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "serving is permitted by Philosophy admission.",
         "Philosophy admission performs backend selection.",
         "Philosophy admission selects a backend for serving.",
+        "Philosophy admission selects backends for serving.",
         "backend selection is authorized by Philosophy admission.",
         "serving is authorized by Philosophy admission.",
     )
@@ -1709,6 +1767,7 @@ def test_backend_selection_contract_rejects_authorization_for_serving_claims() -
     base_text = BACKEND_SELECTION_CONTRACT.read_text(encoding="utf-8")
     cases = (
         ("backend selection is authorized for serving", "backend selected for serving"),
+        ("backend selection is allowed for serving", "backend selected for serving"),
         ("serving backend selection is authorized", "backend selected for serving"),
         ("selected backend is authorized for serving", "backend selected for serving"),
         ("semantic cache serving is authorized", "semantic cache serving ready"),

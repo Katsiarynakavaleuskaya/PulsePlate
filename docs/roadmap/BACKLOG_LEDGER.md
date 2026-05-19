@@ -2878,8 +2878,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Philosophy Epic V2 PR-1 semantic-cache admission contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/philosophy-epic-v2-pr1-admission-contract`
-  - Status: 🟡 In progress (pre-open admission-governance PR from settled `origin/main`)
+  - Target PR: #1761 (`codex/philosophy-epic-v2-pr1-admission-contract`)
+  - Status: 🟡 In review / merge-ready stabilization after #1766 main security gate
   - Area: AI / RAG / philosophy / semantic-cache governance
   - Finding Type: admission-contract and gate-closed governance
   - Reason (EN): PR #1742 merged the SC-G5 backend-selection contract as an offline, label-only, non-serving semantic-cache governance layer. Philosophy Epic V2 PR-1 must add the higher-level philosophical admission contract that defines runtime-only, blocked, verification-bundle-required, and future-deferred request classes without opening the semantic-cache gate, duplicating SC-G5 backend-selection ranking, or adding Redis/GPTCache, embeddings, storage, serving, providers, OpenAPI, DB, frontend, or iOS changes.
