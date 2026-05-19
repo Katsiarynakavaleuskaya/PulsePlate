@@ -259,7 +259,8 @@ _REGIONAL_SOURCE_BLOCKING_REASONS = (
 
 _APPROVAL_TERMS = (
     r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
-    r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available"
+    r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available|"
+    r"ok|okay"
 )
 _USE_TERMS = r"may be used|can be used|is used|are used|used|relied on"
 _BLOCKED_NOTE_TERMS = (

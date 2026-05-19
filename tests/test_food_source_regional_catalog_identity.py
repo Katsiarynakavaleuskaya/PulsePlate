@@ -431,6 +431,7 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Partner menu access allowed for testing.",
         "Provider API allowed for testing.",
         "Seller api is used for tests.",
+        "Seller API use is blocked for PR17 but okay for manual testing.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
