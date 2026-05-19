@@ -411,6 +411,11 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "DigitalOcean Postgres load enabled for regional catalogs.",
         "Seller API is not blocked and approved for catalog enrichment.",
         "Automated collection is never forbidden and allowed.",
+        "API calls are not approved but allowed for regional catalog checks.",
+        "Seller API use is not authorized but permitted for Ozon.",
+        "Partner API access is not approved but can be used for Yandex EDA.",
+        "Public dataset claim is unapproved but usable for regional catalogs.",
+        "DigitalOcean Postgres load is not approved but enabled for regional catalogs.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:

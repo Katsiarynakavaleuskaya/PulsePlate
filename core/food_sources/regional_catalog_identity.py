@@ -278,6 +278,7 @@ _NEGATED_APPROVAL_RE = re.compile(
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
     r"\bunapproved\b"
 )
+_AUTHORITY_LANGUAGE_RE = re.compile(rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_USE_TERMS})\b")
 
 
 class RegionalCatalogIdentityError(ValueError):
@@ -421,7 +422,10 @@ def _require_safe_notes(value: str, context: str) -> str:
     for pattern in _FORBIDDEN_NOTE_PATTERNS:
         for match in pattern.finditer(normalized):
             match_text = match.group(0)
-            if _NEGATED_APPROVAL_RE.search(match_text):
+            if not _AUTHORITY_LANGUAGE_RE.search(match_text):
+                raise _identity_error(context, "notes must not approve regional catalog source use")
+            remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", match_text)
+            if not _AUTHORITY_LANGUAGE_RE.search(remaining_authority_text):
                 continue
             raise _identity_error(context, "notes must not approve regional catalog source use")
     return value
