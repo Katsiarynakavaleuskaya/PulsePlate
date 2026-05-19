@@ -485,6 +485,20 @@ Evidence: Closed the fresh 2026-05-19T20:56:16Z conditional-modality false-green
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269570435 -> 753e1a518455bd5b41ce028b8281d16a8e7e0f21
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269570439 -> 753e1a518455bd5b41ce028b8281d16a8e7e0f21
 
+Disposition: FIXED
+Commit: b16fa528d190d96e68da69327d96c7f083d6be0a
+Evidence: Closed the fresh 2026-05-19T21:25:44Z `must` modal false-green findings by extending the proposition-class detector to assertive `must` wording across gate-open assertions, verification-bundle waiver claims, serving/backend authorization, bundleless knowledge writes, Redis/GPTCache wiring, named-provider calls, and cache I/O assertions. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, and exact must-modal probe returned `must_modal_misses []`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742358 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742365 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742372 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742376 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742379 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742384 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742386 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742390 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742395 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269742400 -> b16fa528d190d96e68da69327d96c7f083d6be0a
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
