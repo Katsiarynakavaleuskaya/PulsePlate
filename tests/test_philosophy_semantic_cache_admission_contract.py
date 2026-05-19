@@ -1191,6 +1191,10 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "Philosophy admission activates the global gate",
         "PR-1 enables the semantic-cache gate",
         "Philosophy PR-1 admission enables the global gate",
+        "PR-1 does not only open the semantic-cache gate",
+        "Philosophy admission does not merely open the global gate",
+        "the semantic-cache gate is no longer closed",
+        "semantic-cache gate is not closed anymore",
         "the semantic-cache gate is open for Philosophy admission",
         "the semantic-cache gate may be opened for Philosophy admission",
         "the global gate can be opened for Philosophy admission",
@@ -1661,6 +1665,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("Philosophy admission approved Redis clients", "redis imports allowed in pr-1"),
         ("redis import was approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are enabled for Philosophy admission", "redis imports allowed in pr-1"),
+        ("Redis imports are not only approved in PR-1", "redis imports allowed in pr-1"),
         ("redis import is approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("Philosophy admission approves Redis imports", "redis imports allowed in pr-1"),
         ("Philosophy admission authorizes Redis imports.", "redis imports allowed in pr-1"),
@@ -1677,6 +1682,10 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ),
         (
             "GPTCache imports are enabled for Philosophy admission",
+            "gptcache imports allowed in pr-1",
+        ),
+        (
+            "GPTCache imports are not merely approved in PR-1",
             "gptcache imports allowed in pr-1",
         ),
         ("PR-1 imports GPTCache", "gptcache imports allowed in pr-1"),
@@ -1725,6 +1734,10 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "connection string is enabled for Philosophy admission",
             "connection strings allowed in pr-1",
         ),
+        (
+            "connection strings are not just approved in PR-1",
+            "connection strings allowed in pr-1",
+        ),
         ("PR-1 enables Redis connection strings", "connection strings allowed in pr-1"),
         (
             "Philosophy admission authorizes GPTCache connection strings",
@@ -1737,6 +1750,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "cache adapters allowed in pr-1",
         ),
         ("cache adapters are granted for Philosophy admission", "cache adapters allowed in pr-1"),
+        ("cache adapters are not only approved in PR-1", "cache adapters allowed in pr-1"),
         (
             "cache adapter is approved for Philosophy admission",
             "cache adapters allowed in pr-1",
@@ -1794,7 +1808,12 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "cache IO allowed in pr-1",
         ),
         ("cache writes are authorized for philosophy admission", "cache IO allowed in pr-1"),
+        ("cache writes are available for philosophy admission", "cache IO allowed in pr-1"),
         ("cache admission is approved for philosophy admission", "cache IO allowed in pr-1"),
+        (
+            "semantic-cache admission is available for philosophy admission",
+            "cache IO allowed in pr-1",
+        ),
         ("cache writes are approved for philosophy admission", "cache IO allowed in pr-1"),
         ("PR-1 authorizes cache admission", "cache IO allowed in pr-1"),
         (

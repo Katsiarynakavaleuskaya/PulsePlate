@@ -827,6 +827,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? enable(?:s|d) (?:the )?"
             r"(?:global|semantic[- ]cache) gate\b"
+            r"|\b(?:philosophy admission|philosophy pr-1 admission|"
+            r"philosophy pr-1|pr-1 admission|pr-1) does not "
+            r"(?:only|just|merely|simply|solely|exclusively) "
+            r"(?:open|unlock|activate|enable) (?:the )?"
+            r"(?:global|semantic[- ]cache) gate\b"
             r"|\bphilosophy(?: pr-1)?(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? "
@@ -844,6 +849,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been|has now been) (?:now )?unlocked"
             r"(?: by (?:philosophy admission|philosophy pr-1|pr-1))?\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
+            r"(?:is|was|has been) no longer closed\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
+            r"(?:is|was|has been) not closed anymore\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:is|was|has been) opened by "
             r"(?:philosophy admission|philosophy pr-1|pr-1)\b"
@@ -943,7 +952,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "redis imports allowed in pr-1",
         re.compile(
             r"\bredis (?:imports?|clients?|probes?) "
-            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|granted|authorized) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -959,7 +972,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "gptcache imports allowed in pr-1",
         re.compile(
             r"\bgptcache (?:imports?|clients?|probes?) "
-            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|granted|authorized) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -975,7 +992,12 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "embeddings allowed in pr-1",
         re.compile(
-            r"\bembeddings? (?:(?:are|is|was|were|has been|have been) )?"
+            r"\bembeddings? "
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|authorized|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -987,7 +1009,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "insight cache wiring allowed in pr-1",
         re.compile(
             r"(?<!\w)/insight cache wiring "
-            r"(?:(?:is|was|has been) )?"
+            r"(?:(?:is|was|has been) |"
+            r"(?:is|was|has been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|authorized|granted) "
             r"(?:in pr-1|for pr-1|for philosophy admission|"
             r"by (?:philosophy admission|philosophy pr-1|pr-1))\b"
@@ -1002,7 +1027,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "vector search allowed in pr-1",
         re.compile(
             r"\bvector search(?:es)? "
-            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|authorized|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -1014,7 +1043,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "connection strings allowed in pr-1",
         re.compile(
             r"\b(?:redis |gptcache )?connection strings? "
-            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|granted|authorized) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -1027,7 +1060,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "cache adapters allowed in pr-1",
         re.compile(
             r"\bcache adapt(?:er|or)s? "
-            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled|authorized|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -1069,11 +1106,15 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "cache IO allowed in pr-1",
         re.compile(
             r"\b(?:semantic[- ]cache |cache )(?:reads?|writes?|admission(?: decisions?)?) "
-            r"(?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized) "
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:aren't|isn't|wasn't|weren't) "
+            r"(?:only|just|merely|simply|solely|exclusively) )?"
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|available|supported) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\bcache admission (?:(?:is|was|has been) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|available|supported) "
             r"for philosophy admission\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|grants|authorized|approved|"
