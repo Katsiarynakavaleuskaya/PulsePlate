@@ -783,14 +783,18 @@ PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_PERMISSIVE_POLARITY_RE = re.compile(
     r"^pr-1 and downstream docs (?:may|can|should|must)"
     r"(?!\s+(?:not|never)\b)(?:\s+\w+){0,3}\s+claim\s*:"
     r"|^pr-1 and downstream docs "
-    r"(?!are\s+(?:not|never)\s+(?:allowed|permitted|approved|enabled)\b)"
+    r"(?!are\s+(?:not|never)\s+"
+    r"(?:allowed|permitted|approved|enabled|authorized|granted|supported|available)\b)"
     r"(?:are\s+)?(?!(?:not|never)\s)"
-    r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s+to\s+claim\s*:"
-    r"|^(?:allowed|permitted|approved|enabled)"
+    r"(?:\w+\s+){0,3}"
+    r"(?:allowed|permitted|approved|enabled|authorized|granted|supported|available)"
+    r"\s+to\s+claim\s*:"
+    r"|^(?:allowed|permitted|approved|enabled|authorized|granted|supported|available)"
     r"(?:\s+(?!to\b)\w+){0,3}\s+claims?(?:\s+\w+){0,3}\s*:"
     r"|^claims?\s+(?!(?:\w+\s+){0,3}(?:not|never|no\s+longer)\s+)"
     r"(?:(?:is|are)\s+)?"
-    r"(?:\w+\s+){0,3}(?:allowed|permitted|approved|enabled)\s*:"
+    r"(?:\w+\s+){0,3}"
+    r"(?:allowed|permitted|approved|enabled|authorized|granted|supported|available)\s*:"
 )
 PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE = re.compile(
     r"^(?:"
@@ -909,7 +913,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "redis philosophical cache approved",
         re.compile(
             r"\bredis philosophical cache "
-            r"(?:(?:is|was|has been) )?(?:allowed|permitted|approved|enabled)\b"
+            r"(?:(?:is|was|has been) )?"
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|supported|available)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled) redis rollout "
@@ -934,7 +939,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "gptcache philosophical cache approved",
         re.compile(
             r"\bgptcache philosophical cache "
-            r"(?:(?:is|was|has been) )?(?:allowed|permitted|approved|enabled)\b"
+            r"(?:(?:is|was|has been) )?"
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|supported|available)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled) gptcache rollout "
@@ -943,7 +949,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:(?:is|was|has been) |(?:is|was|has been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|available|supported) "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
             r"|(?<!\bno )(?<!\bnot )(?<!\bnever )"
@@ -1092,7 +1098,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:are|is|was|were|has been|have been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|available|supported) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\bruntime(?: behavior|[- ]expansion| paths?| permissions?)? "
             r"(?:get|gets) (?:allowed|permitted|approved|enabled|supported) "
@@ -1337,6 +1343,7 @@ PHILOSOPHY_NEGATED_DOWNSTREAM_FORBIDDEN_PATTERN_LABELS = {
     "production-live philosophical cache-key behavior",
     "verification bundle optional",
     "cache admission without verification bundle",
+    "backend selection authorized by philosophy admission",
 }
 
 PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
@@ -1411,11 +1418,14 @@ def _extract_markers(text: str) -> tuple[dict[str, str], list[str]]:
 
 def _forbidden_claim_errors(text: str) -> list[str]:
     normalized = _normalize_text(text)
-    return [
-        f"forbidden semantic-cache claim: {label}"
-        for label, pattern in FORBIDDEN_CLAIM_PATTERNS
-        if pattern.search(normalized)
-    ]
+    errors: list[str] = []
+    for label, pattern in FORBIDDEN_CLAIM_PATTERNS:
+        for match in pattern.finditer(normalized):
+            if _is_negated_philosophy_permission_claim(normalized, match):
+                continue
+            errors.append(f"forbidden semantic-cache claim: {label}")
+            break
+    return errors
 
 
 def _is_negated_philosophy_duplication_claim(text: str, match: re.Match[str]) -> bool:

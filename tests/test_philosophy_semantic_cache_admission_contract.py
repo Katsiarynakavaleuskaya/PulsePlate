@@ -267,6 +267,7 @@ def test_phase1_docs_gate_allows_downstream_prefixed_negative_examples(
         "Allowed claim: philosophical semantic-cache is live",
         "- Allowed runtime claim: philosophical semantic-cache is live",
         "- PR-1 and downstream docs may claim: philosophical semantic-cache is live",
+        "Claims are authorized:\n\n- philosophical semantic-cache is live",
     ),
 )
 def test_phase1_docs_gate_rejects_downstream_permissive_forbidden_claim_examples(
@@ -1585,6 +1586,8 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "redis rollout is approved for the philosophical cache paths",
             "redis philosophical cache approved",
         ),
+        ("redis philosophical cache is authorized", "redis philosophical cache approved"),
+        ("redis philosophical cache is granted", "redis philosophical cache approved"),
         (
             "approved Redis rollout for philosophical cache paths",
             "redis philosophical cache approved",
@@ -1647,6 +1650,16 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
             "gptcache rollout is approved for the philosophical cache paths",
             "gptcache philosophical cache approved",
         ),
+        (
+            "gptcache rollout is available for philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        (
+            "gptcache rollout is supported for philosophical cache paths",
+            "gptcache philosophical cache approved",
+        ),
+        ("gptcache philosophical cache is authorized", "gptcache philosophical cache approved"),
+        ("gptcache philosophical cache is granted", "gptcache philosophical cache approved"),
         (
             "approved GPTCache rollout for philosophical cache paths",
             "gptcache philosophical cache approved",
@@ -1844,6 +1857,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime permissions are approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions were granted for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions are supported for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime permissions are available for philosophy admission", "runtime allowed in pr-1"),
+        ("runtime expansion is available for philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions get approved for Philosophy admission", "runtime allowed in pr-1"),
         ("PR-1 enables runtime permissions", "runtime allowed in pr-1"),
         ("PR-1 grants runtime permissions", "runtime allowed in pr-1"),
@@ -2051,6 +2066,11 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
         "No runtime is enabled for Philosophy admission.",
         "No runtime behavior is approved for Philosophy admission.",
         "No runtime expansion is approved for Philosophy admission.",
+        "No runtime permissions are available for philosophy admission.",
+        "No backend selection is approved by Philosophy admission.",
+        "No PR-1 replaces SC-G2 exact/fuzzy cache scaffold.",
+        "No semantic-cache is active.",
+        "No semantic cache prerequisites are satisfied.",
         "No provider calls are authorized by PR-1.",
         "No provider calls are approved for Philosophy admission.",
         "No semantic-cache storage is authorized by PR-1.",
@@ -2104,6 +2124,9 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
                 "philosophical semantic cache live",
                 "production-live philosophical cache-key behavior",
                 "verification bundle optional",
+                "backend selection authorized by philosophy admission",
+                "semantic-cache live claim",
+                "semantic cache prerequisites satisfied",
             )
         )
 
@@ -2319,6 +2342,7 @@ def test_negated_scg5_matrix_duplication_claim_allowed() -> None:
 def test_negated_backend_selection_authorization_claims_allowed() -> None:
     """Validator permits explicit no-authorization wording for Philosophy admission."""
     cases = (
+        "No backend selection is approved by Philosophy admission.",
         "backend selection is not approved by Philosophy admission.",
         "serving is not enabled by Philosophy admission.",
         "serving is not permitted by Philosophy admission.",
