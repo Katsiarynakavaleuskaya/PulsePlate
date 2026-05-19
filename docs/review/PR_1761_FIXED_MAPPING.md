@@ -446,6 +446,20 @@ Evidence: Closed current-head Codex follow-ups for present-perfect PR-1 gate-ope
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269101290 -> 7929f0442279cb9758a824d905115e02cf0d67bb
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269101293 -> 7929f0442279cb9758a824d905115e02cf0d67bb
 
+Disposition: FIXED
+Commit: f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+Evidence: Closed current-head Codex follow-ups for modal verification-bundle waiver claims, named-provider runtime claims with non-call verbs, continued unlocked/live/enabled gate-status assertions, `opens up` gate-open wording, simple-past verification-bundle waiver claims, Redis-import possession claims, progressive/future philosophy-serving assertions, unlock-variant gate-opening claims, continued global-gate status claims, and modal `omit verification bundle` admission wording. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python - <<'PY' ... linguistic fuzz ... PY`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221153 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221161 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221167 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221177 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221182 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221187 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221190 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221199 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221206 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221213 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
