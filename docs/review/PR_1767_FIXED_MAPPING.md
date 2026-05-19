@@ -11,18 +11,45 @@
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#pullrequestreview-4318257613 -> d23616f72
 Disposition: FIXED
 Commit: d23616f72
-Evidence: `docs/review/PR_1767_FIXED_MAPPING.md` is the canonical replacement artifact, marks required artifact discussion checkboxes complete, uses parser-safe raw commit evidence, and moved implementation evidence out of the thread-mapping section; `docs/review/PR_1767_PREMORTEM.md` is the canonical replacement premortem artifact.
+Evidence: Cubic review-level finding is fixed by canonical replacement artifact names, checked required mapping boxes, raw commit proof, and parser-safe implementation evidence placement.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#pullrequestreview-4318257613 -> d23616f72
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265717327 -> d23616f72
+Disposition: FIXED
+Commit: d23616f72
+Evidence: Cubic inline commit-proof finding is fixed by using canonical `docs/review/PR_1767_FIXED_MAPPING.md` and raw parser-safe commit proof.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265719096 -> d23616f72
+Disposition: FIXED
+Commit: d23616f72
+Evidence: CodeRabbit checkbox finding is fixed by marking the required artifact discussion and fixed-mapping checkboxes complete.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#pullrequestreview-4318259512 -> d23616f72
+Disposition: FIXED
+Commit: d23616f72
+Evidence: CodeRabbit review-level actionable is fixed by the same canonical checkbox and mapping artifact correction as the inline finding.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735783 -> f747a8aa6
+Disposition: FIXED
+Commit: f747a8aa6
+Evidence: Codex governance finding about non-mapping bullets is fixed by keeping the parser-sensitive mapping section limited to URL/disposition/proof blocks and moving implementation details outside it.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735791 -> f747a8aa6
+Disposition: FIXED
+Commit: f747a8aa6
+Evidence: Codex governance finding about raw SHA proof is fixed by using raw hex commit values in the mapping artifact.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735797 -> f747a8aa6
+Disposition: FIXED
+Commit: f747a8aa6
+Evidence: Codex governance finding about required mapping checkboxes is fixed by keeping both artifact checkboxes checked.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735803 -> f747a8aa6
+Disposition: FIXED
+Commit: f747a8aa6
+Evidence: Codex governance finding about replacement PR artifact naming is fixed by using `PR_1767_FIXED_MAPPING.md` and `PR_1767_PREMORTEM.md`.
 
 ## Implementation Evidence
 
