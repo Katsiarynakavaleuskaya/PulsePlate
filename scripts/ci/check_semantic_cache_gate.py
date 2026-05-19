@@ -825,6 +825,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is opened "
             r"for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate opened for philosophy admission\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
+            r"(?:is|was|has been) opened by "
+            r"(?:philosophy admission|philosophy pr-1|pr-1)\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate (?:can|may) be opened "
             r"for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate opens for philosophy admission\b"
@@ -949,11 +952,13 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "insight cache wiring allowed in pr-1",
         re.compile(
-            r"(?<!\w)/insight cache wiring (?:is )?"
+            r"(?<!\w)/insight cache wiring "
+            r"(?:(?:is|was|has been) )?"
             r"(?:allowed|permitted|approved|enabled) "
-            r"(?:in pr-1|for philosophy admission)\b"
+            r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) (?<!\w)/insight cache wiring\b"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) (?<!\w)/insight cache wiring\b"
         ),
     ),
     (
@@ -1768,9 +1773,12 @@ def validate_semantic_cache_backend_selection_schema(
 
 
 def _philosophy_admission_machine_state_json(text: str) -> tuple[str, list[str]]:
-    heading = re.search(r"(?im)^##\s+Machine-Readable State\s*$", text)
-    if heading is None:
+    headings = list(re.finditer(r"(?im)^##\s+Machine-Readable State\s*$", text))
+    if not headings:
         return "", ["philosophy admission contract missing Machine-Readable State heading"]
+    if len(headings) > 1:
+        return "", ["philosophy admission contract Machine-Readable State section must be unique"]
+    heading = headings[0]
     section = text[heading.end() :]
     next_heading = re.search(r"(?m)^##\s+", section)
     if next_heading is not None:

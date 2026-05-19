@@ -1167,6 +1167,8 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "semantic-cache gate is open",
         "the global semantic-cache gate is open",
         "the semantic-cache gate is now open for PR-1",
+        "the semantic-cache gate was opened by Philosophy admission",
+        "the global gate has been opened by PR-1",
         "Philosophy PR-1 admission can open the global gate",
         "PR-1 can open the semantic-cache gate",
         "PR-1 may open the semantic-cache gate",
@@ -1327,6 +1329,18 @@ def test_forbidden_claims_section_must_not_be_duplicated() -> None:
     errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
     assert "philosophy admission contract Forbidden Claims section must be unique" in errors
+
+
+def test_machine_readable_state_section_must_not_be_duplicated() -> None:
+    """Duplicate machine-state sections cannot override the closed-gate payload."""
+    mutated = (
+        _contract_text()
+        + '\n\n## Machine-Readable State\n\n```json\n{"gate_status":"open","runtime_allowed":true}\n```'
+    )
+
+    errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+    assert "philosophy admission contract Machine-Readable State section must be unique" in errors
 
 
 def test_forbidden_claims_section_rejects_prefixed_assertive_bullets() -> None:
@@ -1619,6 +1633,11 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "/insight cache wiring is enabled for Philosophy admission",
             "insight cache wiring allowed in pr-1",
         ),
+        (
+            "Philosophy admission enabled /insight cache wiring",
+            "insight cache wiring allowed in pr-1",
+        ),
+        ("PR-1 approved /insight cache wiring", "insight cache wiring allowed in pr-1"),
         ("vector search is permitted in PR-1", "vector search allowed in pr-1"),
         ("vector search is permitted for Philosophy admission", "vector search allowed in pr-1"),
         ("vector search is enabled for Philosophy admission", "vector search allowed in pr-1"),
