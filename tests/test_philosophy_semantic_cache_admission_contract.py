@@ -285,6 +285,30 @@ def test_phase1_docs_gate_preserves_negative_examples_after_explanatory_separato
     assert errors == []
 
 
+def test_phase1_docs_gate_preserves_fenced_negative_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Forbidden Claims examples may be listed in fenced markdown blocks."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "```text\n"
+                "philosophical semantic-cache is live\n"
+                "```\n"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
 @pytest.mark.parametrize(
     "line",
     (
@@ -1256,6 +1280,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the global gate is opened for Philosophy admission",
         "the semantic-cache gate opened for Philosophy admission",
         "the global gate opened for Philosophy admission",
+        "the semantic-cache gate became open",
         "Philosophy admission opened the semantic-cache gate",
     )
 
@@ -1923,6 +1948,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ),
         ("PR-1 adds provider calls", "runtime allowed in pr-1"),
         ("PR-1 uses provider calls", "runtime allowed in pr-1"),
+        ("PR-1 calls providers for philosophy admission", "runtime allowed in pr-1"),
+        ("Philosophy admission calls provider calls", "runtime allowed in pr-1"),
         ("Philosophy admission wires semantic-cache storage", "runtime allowed in pr-1"),
         (
             "Philosophy admission authorizes semantic-cache writes",
@@ -1943,6 +1970,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("PR-1 authorizes cache admission", "cache IO allowed in pr-1"),
         ("PR-1 reads from cache", "cache IO allowed in pr-1"),
         ("PR-1 writes to cache", "cache IO allowed in pr-1"),
+        ("PR-1 writes cache entries", "cache IO allowed in pr-1"),
+        ("PR-1 writes semantic-cache entries", "cache IO allowed in pr-1"),
+        ("PR-1 reads cache", "cache IO allowed in pr-1"),
         ("PR-1 stores cache entries", "cache IO allowed in pr-1"),
         (
             "billing/auth entitlement truth is approved for semantic-cache admission",
@@ -2367,6 +2397,7 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy PR-1 enables semantic-cache serving.",
         "PR-1 enabled semantic-cache serving.",
         "PR-1 serves semantic-cache traffic.",
+        "PR-1 serves philosophical semantic-cache traffic.",
         "Philosophy admission serves cache traffic.",
         "semantic-cache serving is approved for Philosophy admission.",
         "serving is approved by PR-1.",

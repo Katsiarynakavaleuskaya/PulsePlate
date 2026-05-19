@@ -846,6 +846,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy admission\b"
             r"|\b(?:the )?(?:global )?semantic[- ]cache gate "
             r"(?:is|was|has been) (?:now )?open\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
+            r"(?:became|has become) (?:now )?open\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is opened "
             r"for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate opened for philosophy admission\b"
@@ -1133,8 +1135,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:authorizes|approves|allows|permits|enables|grants) "
             r"(?:providers?|provider calls?|storage|semantic[- ]cache storage|cache storage)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:adds?|uses?|wires?) "
-            r"(?:providers?|provider calls?|storage|semantic[- ]cache storage|cache storage)\b"
+            r"(?:adds?|uses?|wires?|calls?) "
+            r"(?:providers?|provider calls?|storage|semantic[- ]cache storage|cache storage)"
+            r"(?: for philosophy admission)?\b"
         ),
     ),
     (
@@ -1158,6 +1161,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:reads? from|writes? to|stores?)(?: (?:semantic[- ]cache|cache))?"
             r"(?: entries?)?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:reads?|writes?) (?:semantic[- ]cache |cache )?(?:entries?|records?)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"reads? (?:semantic[- ]cache|cache)\b"
         ),
     ),
     (
@@ -1304,7 +1311,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:as (?:the )?(?:semantic[- ]cache )?backend|"
             r"backend for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"serves (?:semantic[- ]cache|cache) traffic\b"
+            r"serves (?:philosophical )?(?:semantic[- ]cache|cache) traffic\b"
         ),
     ),
     (
@@ -2253,6 +2260,7 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
     kept_lines: list[str] = []
     in_forbidden_claims_section = False
     negative_example_block = False
+    negative_example_fence = False
     for line in text.splitlines():
         heading_match = re.match(r"^(?P<marks>#{2,6})\s+(?P<heading>.+?)\s*$", line.strip())
         if heading_match is not None:
@@ -2261,17 +2269,29 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
             if heading == "forbidden claims":
                 in_forbidden_claims_section = True
                 negative_example_block = False
+                negative_example_fence = False
             elif in_forbidden_claims_section and level > 2:
                 normalized_heading = _normalize_text(heading)
                 if not PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(normalized_heading):
                     negative_example_block = False
+                    negative_example_fence = False
             else:
                 in_forbidden_claims_section = False
                 negative_example_block = False
+                negative_example_fence = False
             kept_lines.append(line)
             continue
         if not in_forbidden_claims_section:
             kept_lines.append(line)
+            continue
+
+        stripped = line.strip()
+        if negative_example_block and negative_example_fence:
+            if stripped.startswith(("```", "~~~")):
+                negative_example_fence = False
+            continue
+        if negative_example_block and stripped.startswith(("```", "~~~")):
+            negative_example_fence = True
             continue
 
         stripped_line, had_bullet = _strip_forbidden_claims_line_prefixes(line)
