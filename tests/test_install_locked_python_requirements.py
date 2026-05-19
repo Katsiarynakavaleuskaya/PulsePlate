@@ -17,10 +17,12 @@ APPROVED_PROXY_URL = "https://packages.example.internal/simple"
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def _repo_emergency_manifest() -> dict[str, Any]:
-    return json.loads(
-        (REPO_ROOT / "scripts/ci/emergency_python_wheels.json").read_text(encoding="utf-8")
-    )
+def _repo_emergency_manifest_path() -> Path:
+    return REPO_ROOT / "scripts/ci/emergency_python_wheels.json"
+
+
+def _repo_active_emergency_artifacts() -> list[dict[str, str]]:
+    return installer.load_emergency_wheel_manifest(_repo_emergency_manifest_path())
 
 
 def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
@@ -35,14 +37,16 @@ def _exact_requirement_pairs(contents: str) -> set[tuple[str, str]]:
     return pairs
 
 
-def _manifest_artifact_version(manifest: dict[str, Any], package: str) -> str:
+def _active_manifest_artifact_version(package: str) -> str:
     versions = [
-        str(item["version"]).strip() for item in manifest["artifacts"] if item["package"] == package
+        item["version"].strip()
+        for item in _repo_active_emergency_artifacts()
+        if item["package"] == package
     ]
-    assert versions, f"Emergency wheel manifest must include {package!r}."
+    assert versions, f"Active emergency wheel manifest must include {package!r}."
     assert (
         len(set(versions)) == 1
-    ), f"Emergency wheel manifest must expose a single {package!r} version, found {versions!r}."
+    ), f"Active emergency wheel manifest must expose a single {package!r} version, found {versions!r}."
     return versions[0]
 
 
@@ -286,8 +290,7 @@ def test_private_index_project_health_accepts_underscore_wheel_name(
 
 
 def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
-    manifest = _repo_emergency_manifest()
-    artifacts = {(item["package"], item["version"]) for item in manifest["artifacts"]}
+    artifacts = {(item["package"], item["version"]) for item in _repo_active_emergency_artifacts()}
     requirements_ci_lite = (REPO_ROOT / "requirements-ci-lite.txt").read_text(encoding="utf-8")
     requirements_ci_lite_pins = _exact_requirement_pairs(requirements_ci_lite)
     ci_lite_emergency_pairs = {
@@ -304,7 +307,6 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "anyio",
         "bandit",
         "certifi",
-        "mako",
         "pillow",
         "python-multipart",
         "requests",
@@ -314,8 +316,7 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
 
 
 def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None:
-    manifest = _repo_emergency_manifest()
-    expected_version = _manifest_artifact_version(manifest, "ruff")
+    expected_version = _active_manifest_artifact_version("ruff")
 
     requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
@@ -327,8 +328,7 @@ def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None
 
 
 def test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces() -> None:
-    manifest = _repo_emergency_manifest()
-    expected_version = _manifest_artifact_version(manifest, "mypy")
+    expected_version = _active_manifest_artifact_version("mypy")
 
     requirements_dev_in = (REPO_ROOT / "requirements-dev.in").read_text(encoding="utf-8")
     requirements_dev_txt = (REPO_ROOT / "requirements-dev.txt").read_text(encoding="utf-8")
@@ -338,8 +338,7 @@ def test_repo_mypy_emergency_fallback_matches_dev_requirement_surfaces() -> None
 
 
 def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:
-    manifest = _repo_emergency_manifest()
-    expected_version = _manifest_artifact_version(manifest, "transformers")
+    expected_version = _active_manifest_artifact_version("transformers")
 
     for requirement_path in (
         "requirements-rag-vector.in",
@@ -349,6 +348,21 @@ def test_repo_transformers_emergency_fallback_matches_rag_vector_surfaces() -> N
     ):
         requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
         assert ("transformers", expected_version) in _exact_requirement_pairs(requirement_text)
+
+
+def test_repo_sentence_transformers_emergency_fallback_matches_rag_vector_surfaces() -> None:
+    expected_version = _active_manifest_artifact_version("sentence-transformers")
+
+    for requirement_path in (
+        "requirements-rag-vector.in",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.in",
+        "requirements-rag-vector-cpu.txt",
+    ):
+        requirement_text = (REPO_ROOT / requirement_path).read_text(encoding="utf-8")
+        assert ("sentence-transformers", expected_version) in _exact_requirement_pairs(
+            requirement_text
+        )
 
 
 def test_repo_docker_pip_upgrade_uses_locked_installer_fallback() -> None:

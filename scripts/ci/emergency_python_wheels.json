@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-05-10",
+  "generated_at": "2026-05-19",
   "expires_at": "2026-06-15",
   "reason": "Time-boxed mirror-lag bridge for the EXACT listed wheels only (cp313 manylinux x86_64 where applicable). NOT a generic Cloudflare 521 / proxy-outage fallback: if the approved private proxy is fully unhealthy, any locked install needing a wheel not enumerated in this manifest will still fail. Recovery is infra-owned: see RUNBOOK_AGENT.md (`Python private index proxy (PULSEPLATE_PYTHON_INDEX_URL) triage`) and BACKLOG_LEDGER.md (`ledger-p1-private-pypi-proxy-mirror-parity`).",
   "artifacts": [
@@ -184,10 +184,10 @@
     },
     {
       "package": "sentence-transformers",
-      "version": "5.4.1",
-      "filename": "sentence_transformers-5.4.1-py3-none-any.whl",
-      "url": "https://files.pythonhosted.org/packages/c5/d9/3a9b6f2ccdedc9dc00fe37b2fc58f58f8efbff44565cf4bf39d8568bb13a/sentence_transformers-5.4.1-py3-none-any.whl",
-      "sha256": "a6d640fc363849b63affb8e140e9d328feabab86f83d58ac3e16b1c28140b790"
+      "version": "5.5.0",
+      "filename": "sentence_transformers-5.5.0-py3-none-any.whl",
+      "url": "https://files.pythonhosted.org/packages/55/20/18416624bcbae866ec0b111979766cebabe8e5ff7563ab953ecbaf3ff9e7/sentence_transformers-5.5.0-py3-none-any.whl",
+      "sha256": "75313fdcc2397ec4b58297c25d6187fcca5a6b2aeb09570a72eff5a3223d8d58"
     },
     {
       "package": "ruff",
