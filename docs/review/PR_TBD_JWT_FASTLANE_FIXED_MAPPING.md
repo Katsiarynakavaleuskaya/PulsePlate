@@ -68,7 +68,7 @@ resolver remains blocked by Fastlane's upstream `jwt < 3` contract.
 - PASS: `.venv/bin/python -m black --check scripts/ci/check_jwt_fastlane_unblock.py scripts/ci/check_trivy_ignore_policy_expiry.py scripts/ci/check_current_head_pr_checks.py tests/test_jwt_fastlane_unblock_guard.py tests/test_trivy_ignore_policy_expiry.py tests/test_current_head_pr_checks.py`
 - PASS: `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/security/CVE-2026-45363-jwt-fastlane.md docs/roadmap/BACKLOG_LEDGER.md docs/review/PR_TBD_JWT_FASTLANE_PREMORTEM.md docs/review/PR_TBD_JWT_FASTLANE_FIXED_MAPPING.md`
 - PASS: `VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python pre-commit run --all-files`
-- PENDING: `make validate-changed`
+- PASS: `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
 
 Full local `make verify` is deferred under the operator-approved machine-heavy
 exception. This PR relies on focused local gates plus current-head CI parity
