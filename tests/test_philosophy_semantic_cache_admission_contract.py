@@ -105,7 +105,9 @@ PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR = {
         "may unlock",
         "has opened",
         "has reopened",
+        "has opened up",
         "has unlocked",
+        "had opened up",
         "is opening",
         "is reopening",
         "is unlocking",
@@ -218,7 +220,28 @@ PHILOSOPHY_FRESH_REVIEW_FALSE_GREEN_EXAMPLES = (
     ("PR-1 must write cache entries.", "cache IO allowed in pr-1"),
     ("PR-1 must use Redis clients.", "redis imports allowed in pr-1"),
     ("PR-1 must use GPTCache clients.", "gptcache imports allowed in pr-1"),
+    ("PR-1 has used Redis imports for philosophy admission.", "redis imports allowed in pr-1"),
+    (
+        "PR-1 has used GPTCache imports for philosophy admission.",
+        "gptcache imports allowed in pr-1",
+    ),
     ("PR-1 must call OpenAI providers.", "runtime allowed in pr-1"),
+    (
+        "verification bundle requirements have to be waived for cache admission.",
+        "verification bundle optional",
+    ),
+    ("cache admission has to omit verification bundle.", "verification bundle optional"),
+    ("cache admission need not require a verification bundle.", "verification bundle optional"),
+    ("cache admission needn't require a verification bundle.", "verification bundle optional"),
+    (
+        "semantic-cache backend selections have to be authorized for philosophy admission.",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "semantic-cache serving has to be authorized by philosophy admission.",
+        "backend selection authorized by philosophy admission",
+    ),
+    ("PR-1 has connected to Redis for philosophy admission.", "connection strings allowed in pr-1"),
     ("PR-1 had Redis imports for philosophy admission", "redis imports allowed in pr-1"),
 )
 
@@ -282,6 +305,10 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
             "would waive",
             "must omit",
             "must waive",
+            "has to omit",
+            "have to waive",
+            "need not require",
+            "needn't require",
         ):
             for bundle in ("verification bundle", "verification bundles"):
                 claims.append((f"{admission} {action} {bundle}.", "verification bundle optional"))
@@ -337,6 +364,14 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
                             label,
                         )
                     )
+            for action in ("has used", "had used", "has imported", "had wired"):
+                for object_ in (provider, f"{provider} import", f"{provider} imports"):
+                    claims.append(
+                        (
+                            f"{subject} {action} {object_} for philosophy admission.",
+                            label,
+                        )
+                    )
 
     for subject in (
         "semantic-cache backend selection",
@@ -355,6 +390,8 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
             "is still",
             "remains",
             "has remained",
+            "has to be",
+            "have to be",
         ):
             for state in ("authorized", "approved", "allowed", "enabled", "permitted", "granted"):
                 relation = (
@@ -378,12 +415,22 @@ def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
                         "verification bundle optional",
                     )
                 )
-        for auxiliary in ("must be", "should be", "might be"):
+        for auxiliary in ("must be", "should be", "might be", "has to be", "have to be"):
             for state in ("bypassed", "skipped", "waived", "omitted"):
                 claims.append(
                     (
                         f"{subject} {auxiliary} {state} for semantic-cache admission.",
                         "verification bundle optional",
+                    )
+                )
+
+    for provider in ("Redis", "GPTCache"):
+        for subject in ("PR-1", "Philosophy admission"):
+            for action in ("connects to", "has connected to", "had connected to"):
+                claims.append(
+                    (
+                        f"{subject} {action} {provider} for philosophy admission.",
+                        "connection strings allowed in pr-1",
                     )
                 )
 
@@ -1646,7 +1693,7 @@ def test_generated_forbidden_gate_open_claim_grammar_rejected() -> None:
     """Gate-open policy is propositional; deterministic paraphrase classes must fail."""
     claims = _generated_forbidden_gate_open_claims()
 
-    assert len(claims) == 668
+    assert len(claims) == 692
     misses = []
     for claim in claims:
         errors = validate_philosophy_semantic_cache_admission_downstream_text(
@@ -1662,7 +1709,7 @@ def test_generated_fresh_review_false_green_claim_grammar_rejected() -> None:
     """Fresh review findings are protected by equivalence-class regression cases."""
     claims = _generated_fresh_review_forbidden_claims()
 
-    assert len(claims) == len(set(claims)) == 680
+    assert len(claims) == len(set(claims)) == 847
     misses = []
     for claim, expected_label in claims:
         errors = validate_philosophy_semantic_cache_admission_downstream_text(
