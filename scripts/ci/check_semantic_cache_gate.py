@@ -631,7 +631,7 @@ BACKEND_SELECTION_FORBIDDEN_PATTERNS = (
         "semantic cache serving ready",
         re.compile(
             r"\bsemantic(?:-| )cache\s+serving\s+(?:is\s+)?"
-            r"(?:ready|active|enabled|live|authorized)\b"
+            r"(?:ready|active|enabled|live|authorized|allowed|approved|permitted)\b"
         ),
     ),
     (
@@ -1000,7 +1000,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"omitted for cache admission\b"
             r"|\bverification[- ]bundle requirements? (?:(?:is|are|may be|can be) )?"
             r"(?:bypassed|waived) for cache admission\b"
-            r"|\bverification[- ]bundles? (?:(?:is|are|may be|can be) )?"
+            r"|\bverification[- ]bundles? "
+            r"(?:(?:is|are|was|were|has been|have been|may be|can be) )?"
             r"(?:bypassed|waived) for cache admission\b"
             r"|\bskipped verification[- ]bundle requirements? for cache admission\b"
         ),
@@ -1012,9 +1013,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|enables|permits) "
             r"(?:backend selection|serving|semantic[- ]cache serving|backend selection and serving)\b"
-            r"|\bbackend selection (?:is|are) (?:authorized|approved|allowed|enabled|permitted) "
+            r"|\bbackend selections? (?:is|are) "
+            r"(?:authorized|approved|allowed|enabled|permitted) "
             r"for philosophy admission\b"
-            r"|\b(?:backend selection|serving) (?:is|are) "
+            r"|\b(?:backend selections?|serving) (?:is|are) "
             r"(?:authorized|approved|allowed|enabled|permitted) by philosophy admission\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"

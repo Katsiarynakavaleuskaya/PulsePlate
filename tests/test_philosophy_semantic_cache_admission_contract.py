@@ -1662,6 +1662,7 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         "verification-bundle requirement is bypassed for cache admission",
         "verification-bundle requirement may be bypassed for cache admission",
         "verification bundle is waived for cache admission",
+        "verification bundle was waived for cache admission",
         "verification-bundle requirements can be waived for cache admission",
         "verification bundle requirement is skipped for cache admission",
         "verification-bundle requirement may be skipped for cache admission",
@@ -1717,6 +1718,7 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy PR-1 enables semantic-cache serving.",
         "Philosophy admission enables backend selection and serving.",
         "backend selection is approved for Philosophy admission.",
+        "backend selections are approved by Philosophy admission.",
         "backend selection is approved by Philosophy admission.",
         "serving is enabled by Philosophy admission.",
         "serving is permitted by Philosophy admission.",
@@ -1771,6 +1773,9 @@ def test_backend_selection_contract_rejects_authorization_for_serving_claims() -
         ("serving backend selection is authorized", "backend selected for serving"),
         ("selected backend is authorized for serving", "backend selected for serving"),
         ("semantic cache serving is authorized", "semantic cache serving ready"),
+        ("semantic cache serving is allowed", "semantic cache serving ready"),
+        ("semantic cache serving is approved", "semantic cache serving ready"),
+        ("semantic cache serving is permitted", "semantic cache serving ready"),
     )
 
     for claim, error_label in cases:
