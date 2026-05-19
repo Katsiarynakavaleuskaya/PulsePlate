@@ -1968,6 +1968,14 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "blocked surface cache admission allowed",
         ),
         (
+            "billing truth is available for semantic-cache admission in PR-1",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "auth truth is supported for cache admission in PR-1",
+            "blocked surface cache admission allowed",
+        ),
+        (
             "billing truth is authorized for cache admission",
             "blocked surface cache admission allowed",
         ),
@@ -2041,6 +2049,18 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "blocked surface cache admission allowed",
         ),
         (
+            "PR-1 admits billing truth to semantic-cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "Philosophy admission caches medical routing",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "PR-1 adds auth truth for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
             "Philosophy admission authorizes paywall truth for cache admission",
             "blocked surface cache admission allowed",
         ),
@@ -2054,6 +2074,20 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ),
         (
             "semantic-cache admission decisions are allowed without a passed bundle",
+            "cache admission without verification bundle",
+        ),
+        (
+            "recursive retrieval verification merges are cache eligible "
+            "without a verification bundle",
+            "cache admission without verification bundle",
+        ),
+        (
+            "write or mutate knowledge records is allowed without a verification bundle",
+            "cache admission without verification bundle",
+        ),
+        (
+            "philosophical outputs presentation risk canonical facts are enabled "
+            "without a verification bundle",
             "cache admission without verification bundle",
         ),
         ("Philosophy admission approves runtime expansion", "runtime allowed in pr-1"),
@@ -2222,6 +2256,10 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         "verification bundles are not needed for semantic-cache admission",
         "verification-bundle is not needed for semantic-cache admission",
         "verification bundle is not needed for semantic cache admission",
+        "verification bundles are unnecessary for semantic-cache admission",
+        "verification bundle is unnecessary for cache admission",
+        "cache admission does not require a verification bundle",
+        "semantic-cache admission does not require a verification bundle",
         "verification bundles may be omitted for cache admission",
         "verification bundles can be omitted for cache admission",
         "verification bundles may be omitted for semantic-cache admission",
