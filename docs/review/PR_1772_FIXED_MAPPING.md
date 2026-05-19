@@ -24,14 +24,38 @@ Evidence: bot findings were fixed in code/docs and revalidated with focused loca
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323216766
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661762
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661769
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269670933
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269670942
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269670948
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269688860
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269764142
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269764152
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323359508
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269777107
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269777109
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269777110
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323399365
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269797639
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269797642
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269647532 -> 0146902ae
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269647558 -> b4d3b6dc8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323216766 -> 0146902ae
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661762 -> 0146902ae
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661769 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269670933 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269670942 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269670948 -> e337af86a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269688860 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269764142 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269764152 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323359508 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269777107 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269777109 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269777110 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323399365 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269797639 -> e337af86a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269797642 -> e337af86a
 
 ## Premortem And Alert Dispositions
 
