@@ -12,6 +12,7 @@ CANONICAL_FALLBACK_JOB_IDS = {
     "changes",
     "pr_scope_guard",
     "trivy_ignore_policy_expiry",
+    "jwt_fastlane_unblock_guard",
     "pygments_exception_guard",
     "docs_phase1_gates",
     "pr_body_phase2_gates",

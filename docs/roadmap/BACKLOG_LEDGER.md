@@ -4529,12 +4529,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Status: Open
   - Area: security / iOS release tooling / code-scanning
   - Finding Type: release-tooling dependency vulnerability
-  - Reason: GitHub Code Scanning alert #594 and Dependabot alert #142 report Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-18 shows latest Fastlane `2.234.0` still requires `jwt >= 2.1.0, < 3`, so the fixed `jwt` 3.x line is not reachable through a safe lockfile update. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` scoped by exact CVE, package, installed version, fixed version, PURL, and primary advisory URL while monitoring Fastlane support.
+  - Reason: GitHub Code Scanning alert #594 and Dependabot alert #142 report Ruby gem `jwt` `CVE-2026-45363` at `2.10.2` from `ios/Gemfile.lock`, with fixed version `3.2.0`. Bundler resolver evidence on 2026-05-19 shows latest Fastlane `2.234.0` still requires `jwt >= 2.1.0, < 3`, so the fixed `jwt` 3.x line is not reachable through a safe lockfile update. Live RubyGems package-head evidence on 2026-05-19 shows `jwt 3.2.0`, `fastlane 2.234.0`, `googleauth 1.16.2`, and `signet 0.21.0`; the Fastlane-owned resolver graph still selects `googleauth 1.11.2` and `jwt 2.10.2`. This is covered by a narrow temporary suppression in `trivy/ignore-policy.rego` scoped by exact CVE, package, installed version, fixed version, PURL, and primary advisory URL while monitoring Fastlane support.
   - Links:
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/142
     - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/code-scanning/594
     - docs/security/CVE-2026-45363-jwt-fastlane.md
     - trivy/ignore-policy.rego
+    - scripts/ci/check_jwt_fastlane_unblock.py
+    - scripts/ci/check_trivy_ignore_policy_expiry.py
     - https://github.com/advisories/GHSA-c32j-vqhx-rx3x
     - https://rubygems.org/gems/fastlane/versions/2.234.0
     - https://rubygems.org/gems/jwt/versions/3.2.0

@@ -35,6 +35,7 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "Determine changed paths (for conditional jobs)",
     "pr_scope_guard",
     "Trivy ignore-policy expiry",
+    "Ruby jwt/Fastlane unblock guard",
     "Pygments exception seam guard",
     "Docs Phase1 gates",
     "PR Body Phase2 gates",
