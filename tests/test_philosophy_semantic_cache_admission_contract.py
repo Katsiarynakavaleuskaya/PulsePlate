@@ -1170,7 +1170,16 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the semantic-cache gate was opened by Philosophy admission",
         "the global gate has been opened by PR-1",
         "the semantic-cache gate is opened",
+        "the semantic-cache gate has now been opened",
         "the global gate has been opened",
+        "semantic-cache gate is unlocked",
+        "the semantic-cache gate is now unlocked",
+        "the semantic-cache gate has now been unlocked",
+        "the semantic-cache gate has now been unlocked by PR-1",
+        "the global gate is now unlocked",
+        "the global gate has now been unlocked",
+        "the semantic-cache gate has been unlocked",
+        "semantic-cache gate is unlocked by PR-1",
         "PR-1 unlocks the semantic-cache gate",
         "Philosophy admission unlocks the global gate",
         "Philosophy PR-1 admission can open the global gate",
@@ -1202,6 +1211,26 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and "philosophy admission opens gate" in e for e in errors)
+
+
+def test_negated_gate_unlocked_claim_allowed() -> None:
+    """Validator permits explicit no-open/no-unlock gate wording."""
+    cases = (
+        "No semantic-cache gate has been unlocked.",
+        "No global gate has been unlocked.",
+        "semantic-cache gate has not been unlocked.",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("philosophy admission opens gate" in e for e in errors)
 
 
 def test_runtime_exclusion_anchors_require_local_negation() -> None:
@@ -1708,9 +1737,23 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("provider calls are approved for Philosophy admission", "runtime allowed in pr-1"),
+        ("provider calls are authorized by PR-1", "runtime allowed in pr-1"),
+        ("PR-1 enables semantic-cache storage", "runtime allowed in pr-1"),
+        ("semantic-cache storage is authorized by PR-1", "runtime allowed in pr-1"),
         ("embeddings were approved for Philosophy admission", "embeddings allowed in pr-1"),
+        ("embeddings are authorized by PR-1", "embeddings allowed in pr-1"),
+        (
+            "embeddings are authorized for Philosophy admission",
+            "embeddings allowed in pr-1",
+        ),
         (
             "vector search has been enabled for Philosophy admission",
+            "vector search allowed in pr-1",
+        ),
+        ("vector search is authorized by PR-1", "vector search allowed in pr-1"),
+        (
+            "vector search is authorized for Philosophy admission",
             "vector search allowed in pr-1",
         ),
         (
@@ -1735,8 +1778,114 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "semantic-cache writes are approved for philosophy admission",
             "cache IO allowed in pr-1",
         ),
+        ("cache writes are authorized for philosophy admission", "cache IO allowed in pr-1"),
+        ("cache admission is approved for philosophy admission", "cache IO allowed in pr-1"),
+        ("cache writes are approved for philosophy admission", "cache IO allowed in pr-1"),
+        ("PR-1 authorizes cache admission", "cache IO allowed in pr-1"),
         (
             "billing/auth entitlement truth is approved for semantic-cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "auth/session account identity truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "compliance/legal output cache is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "raw user free-text cache keys are approved for semantic-cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        ("auth truth is approved for cache admission", "blocked surface cache admission allowed"),
+        (
+            "session truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "account identity truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "billing truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "billing truth is authorized for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "subscription truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "entitlement truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "advisory wiki outputs as product truth are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "workforce memory outputs as product truth are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "GraphRAG outputs as product truth are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "plugin control-plane outputs as product truth are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "plugin/control-plane outputs as product truth are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "paywall truth is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "medical diagnosis routing is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "medical treatment routing is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "medical medication routing is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "therapy routing is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "compliance output caches are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "legal output caches are approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "raw user free-text persistence is approved for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "FitChef/CBT coaching paths that bypass wellness-only validators are approved "
+            "for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "PR-1 approves billing truth for cache admission",
+            "blocked surface cache admission allowed",
+        ),
+        (
+            "Philosophy admission authorizes paywall truth for cache admission",
             "blocked surface cache admission allowed",
         ),
         (
@@ -1797,13 +1946,42 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
         "No Redis imports are allowed in PR-1.",
         "No GPTCache imports are permitted in PR-1.",
         "No embeddings are permitted in PR-1.",
+        "No embeddings are authorized by PR-1.",
         "No /insight cache wiring is permitted in PR-1.",
         "No vector search is permitted in PR-1.",
+        "No vector search is authorized by PR-1.",
         "No connection strings are permitted in PR-1.",
         "No cache adapters are permitted in PR-1.",
         "No runtime is enabled for Philosophy admission.",
         "No runtime behavior is approved for Philosophy admission.",
         "No runtime expansion is approved for Philosophy admission.",
+        "No provider calls are authorized by PR-1.",
+        "No provider calls are approved for Philosophy admission.",
+        "No semantic-cache storage is authorized by PR-1.",
+        "No semantic-cache storage is approved for Philosophy admission.",
+        "No cache writes are approved for philosophy admission.",
+        "No cache writes are authorized for philosophy admission.",
+        "No cache admission is approved for philosophy admission.",
+        "No auth/session account identity truth is approved for cache admission.",
+        "No compliance/legal output cache is approved for cache admission.",
+        "No auth truth is approved for cache admission.",
+        "No session truth is approved for cache admission.",
+        "No account identity truth is approved for cache admission.",
+        "No billing truth is approved for cache admission.",
+        "No billing truth is authorized for cache admission.",
+        "No subscription truth is approved for cache admission.",
+        "No entitlement truth is approved for cache admission.",
+        "No paywall truth is approved for cache admission.",
+        "No medical diagnosis routing is approved for cache admission.",
+        "No compliance output caches are approved for cache admission.",
+        "No raw user free-text persistence is approved for cache admission.",
+        "No advisory wiki outputs as product truth are approved for cache admission.",
+        "No workforce memory outputs as product truth are approved for cache admission.",
+        "No GraphRAG outputs as product truth are approved for cache admission.",
+        "No plugin control-plane outputs as product truth are approved for cache admission.",
+        "No plugin/control-plane outputs as product truth are approved for cache admission.",
+        "No FitChef/CBT coaching paths that bypass wellness-only validators are approved "
+        "for cache admission.",
         "Philosophy admission does not approve runtime expansion.",
         "PR-1 must not approve runtime expansion for Philosophy admission.",
     )
@@ -1817,7 +1995,15 @@ def test_negated_pr1_runtime_expansion_guardrails_allowed() -> None:
 
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
-        assert not any("allowed in pr-1" in e for e in errors)
+        assert not any(
+            label in e
+            for e in errors
+            for label in (
+                "allowed in pr-1",
+                "cache IO allowed in pr-1",
+                "blocked surface cache admission allowed",
+            )
+        )
 
 
 def test_provider_approval_exclusion_wording_avoids_philosophy_path_detector() -> None:
@@ -1855,6 +2041,10 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
     """Validator catches a forbidden 'verification bundles optional for cache' claim."""
     cases = (
         "verification bundles are optional for cache",
+        "verification bundles are optional for semantic-cache admission",
+        "verification bundle is optional for cache admission",
+        "verification bundle is optional for semantic-cache admission",
+        "verification-bundle requirements are optional for semantic-cache admission",
         "verification bundles are not required for cache admission",
         "verification bundle is not required for cache admission",
         "verification bundle is not needed for cache admission",
@@ -1879,8 +2069,12 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         "verification-bundle requirement may be skipped for cache admission",
         "verification-bundle requirement can be skipped for cache admission",
         "verification-bundle requirements may be skipped for cache admission",
+        "verification bundle may be skipped for cache admission",
+        "verification bundle is skipped for semantic-cache admission",
+        "verification bundles can be skipped for semantic-cache admission",
         "verification bundle requirements can be skipped for cache admission",
         "verification-bundle requirements are skipped for cache admission",
+        "skipped verification bundle for semantic-cache admission",
         "skipped verification-bundle requirement for cache admission",
         "skipped verification-bundle requirement for semantic-cache admission",
         "skipped verification-bundle requirements for cache admission",
@@ -1964,6 +2158,54 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
             "forbidden" in e and "backend selection authorized by philosophy admission" in e
             for e in errors
         )
+
+
+def test_forbidden_scg5_matrix_duplication_claim_rejected() -> None:
+    """Philosophy admission cannot restate the SC-G5 backend-selection matrix."""
+    cases = (
+        "Philosophy admission restates SC-G5 ranking rules.",
+        "PR-1 duplicates the SC-G5 backend evaluation matrix.",
+        "PR-1 duplicates the SC-G5 backend selection matrix.",
+        "PR-1 documents the SC-G5 backend-selection matrix.",
+        "Philosophy admission includes the SC-G5 backend-selection matrix.",
+        "Philosophy PR-1 copies SC-G5 candidate labels.",
+        "SC-G5 backend evaluation matrix is duplicated by PR-1.",
+        "SC-G5 candidate labels are copied into Philosophy admission.",
+        "SC-G5 ranking rules are restated in Philosophy PR-1.",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert any("forbidden" in e and "SC-G5 matrix duplicated" in e for e in errors)
+
+
+def test_negated_scg5_matrix_duplication_claim_allowed() -> None:
+    """Validator permits explicit no-duplication SC-G5 matrix wording."""
+    cases = (
+        "No PR-1 duplicates the SC-G5 backend evaluation matrix.",
+        "No PR-1 documents the SC-G5 backend-selection matrix.",
+        "No Philosophy admission restates SC-G5 ranking rules.",
+        "No SC-G5 candidate labels are copied into Philosophy admission.",
+        "No SC-G5 ranking rules are restated in Philosophy PR-1.",
+    )
+
+    for claim in cases:
+        mutated = _contract_text().replace(
+            "gate remains closed",
+            f"gate remains closed\n\n{claim}",
+            1,
+        )
+
+        errors = validate_philosophy_semantic_cache_admission_contract(mutated)
+
+        assert not any("SC-G5 matrix duplicated" in e for e in errors)
 
 
 def test_negated_backend_selection_authorization_claims_allowed() -> None:
