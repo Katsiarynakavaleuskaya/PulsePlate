@@ -275,6 +275,19 @@ Evidence: Closed current-head Codex follow-ups for permissive separators in cont
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264315165 -> cc671419ea47a3497e188524e3e3e44f0fe822e5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264315168 -> cc671419ea47a3497e188524e3e3e44f0fe822e5
 
+Disposition: FIXED
+Commit: 19b61d6ad0dc9364c3414bedc4138fa133348554
+Evidence: Closed current-head Codex follow-ups for cache read/write/admission grants, blocked-surface cache-admission claims, bundleless cache eligibility, generic opened-gate assertions, past-tense provider grants, object-first serving approvals, gate-unlock wording, granted runtime permissions, and provider-qualified connection-string grants. Proof: direct repro script covering all nine thread phrasings, `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py -k "forbidden_gate_open_claim_rejected or forbidden_provider_approval_claim_rejected or forbidden_pr1_runtime_expansion_claim_rejected or forbidden_backend_selection_authorization_claim_rejected"` (`4 passed`), `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`79 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute ...`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, and `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264344869 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264344879 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264344881 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264386316 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264386323 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264386329 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264386332 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264386335 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264386343 -> 19b61d6ad0dc9364c3414bedc4138fa133348554
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
