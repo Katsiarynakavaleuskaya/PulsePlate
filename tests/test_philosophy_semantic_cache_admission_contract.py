@@ -1195,6 +1195,8 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "Philosophy admission does not merely open the global gate",
         "the semantic-cache gate is no longer closed",
         "semantic-cache gate is not closed anymore",
+        "semantic-cache gate is active",
+        "semantic-cache gate is enabled",
         "the semantic-cache gate is open for Philosophy admission",
         "the semantic-cache gate may be opened for Philosophy admission",
         "the global gate can be opened for Philosophy admission",
@@ -1469,6 +1471,12 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
             "philosophical semantic cache live",
         ),
         ("philosophical semantic-cache serving is live", "philosophical semantic cache live"),
+        (
+            "semantic-cache serving is live for philosophy admission",
+            "philosophical semantic cache live",
+        ),
+        ("cache serving is live for philosophy admission", "philosophical semantic cache live"),
+        ("serving is live for philosophy admission", "philosophical semantic cache live"),
         ("philosophical semantic-cache serving is open", "philosophical semantic cache live"),
         (
             "philosophical semantic-cache paths are approved for serving",
@@ -1795,10 +1803,16 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime behavior gets enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions are approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions were granted for Philosophy admission", "runtime allowed in pr-1"),
+        ("runtime permissions are supported for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions get approved for Philosophy admission", "runtime allowed in pr-1"),
         ("PR-1 enables runtime permissions", "runtime allowed in pr-1"),
         ("PR-1 grants runtime permissions", "runtime allowed in pr-1"),
         ("Philosophy admission enables runtime permissions", "runtime allowed in pr-1"),
+        ("provider calls are supported for philosophy admission", "runtime allowed in pr-1"),
+        ("storage is supported for philosophy admission", "runtime allowed in pr-1"),
+        ("PR-1 adds provider calls", "runtime allowed in pr-1"),
+        ("PR-1 uses provider calls", "runtime allowed in pr-1"),
+        ("Philosophy admission wires semantic-cache storage", "runtime allowed in pr-1"),
         (
             "Philosophy admission authorizes semantic-cache writes",
             "cache IO allowed in pr-1",
@@ -2151,6 +2165,8 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
     cases = (
         "Philosophy admission replaces SC-G2-SC-G5 contracts and authorizes backend selection "
         "and serving.",
+        "PR-1 replaces SC-G2 exact/fuzzy cache scaffold.",
+        "Philosophy admission replaces SC-G3 observability.",
         "Philosophy admission authorizes backend selection.",
         "Philosophy admission allows backend selection.",
         "Philosophy admission authorizes serving.",
