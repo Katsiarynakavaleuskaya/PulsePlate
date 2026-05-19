@@ -999,7 +999,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "embeddings allowed in pr-1",
         re.compile(
-            r"\bembeddings? "
+            r"\b(?:embeddings?|embedding models?) "
             r"(?:(?:are|is|was|were|has been|have been) |"
             r"(?:are|is|was|were|has been|have been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
@@ -1009,9 +1009,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
-            r"allowed|permitted|enabled|grants|granted) embeddings?\b"
+            r"allowed|permitted|enabled|grants|granted) "
+            r"(?:embeddings?|embedding models?)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:adds?|uses?|wires?) embeddings?\b"
+            r"(?:adds?|uses?|wires?|calls?) (?:embeddings?|embedding models?)\b"
         ),
     ),
     (
@@ -1046,6 +1047,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled|grants|granted) vector search(?:es)?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|uses?|wires?|performs?) vector search(?:es)?\b"
         ),
     ),
     (
@@ -1100,11 +1103,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?: for philosophy admission)?\b"
             r"|\b(?:providers?|storage) "
             r"(?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported|available) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:provider calls?|semantic[- ]cache storage|cache storage) "
             r"(?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported|available) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|grants) "
@@ -1132,6 +1135,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:authorizes|approves|allows|permits|enables|grants|authorized|approved|"
             r"allowed|permitted|enabled|granted) (?:semantic[- ]cache |cache )?"
             r"(?:reads?|writes?|admission(?: decisions?)?)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:reads? from|writes? to|stores?)(?: (?:semantic[- ]cache|cache))?"
+            r"(?: entries?)?\b"
         ),
     ),
     (
@@ -1236,8 +1242,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted|granted) "
             r"(?:by philosophy admission|for philosophy admission)\b"
+            r"|\b(?:semantic[- ]cache serving|cache serving|serving) "
+            r"(?:is|are|was|were|has been|have been) "
+            r"(?:authorized|approved|allowed|enabled|permitted|granted) "
+            r"by (?:philosophy admission|philosophy pr-1|pr-1)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"serves (?:semantic[- ]cache|cache) traffic\b"
         ),
     ),
     (
@@ -1318,6 +1330,13 @@ PHILOSOPHY_PR1_PERMISSION_PATTERN_LABELS = {
 
 PHILOSOPHY_NEGATED_GATE_OPEN_PATTERN_LABELS = {
     "philosophy admission opens gate",
+}
+
+PHILOSOPHY_NEGATED_DOWNSTREAM_FORBIDDEN_PATTERN_LABELS = {
+    "philosophical semantic cache live",
+    "production-live philosophical cache-key behavior",
+    "verification bundle optional",
+    "cache admission without verification bundle",
 }
 
 PHILOSOPHY_NEGATED_DUPLICATION_PREFIX_RE = re.compile(
@@ -1422,6 +1441,10 @@ def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
             ):
                 continue
             if label in PHILOSOPHY_NEGATED_GATE_OPEN_PATTERN_LABELS and (
+                _is_negated_philosophy_permission_claim(text, match)
+            ):
+                continue
+            if label in PHILOSOPHY_NEGATED_DOWNSTREAM_FORBIDDEN_PATTERN_LABELS and (
                 _is_negated_philosophy_permission_claim(text, match)
             ):
                 continue
