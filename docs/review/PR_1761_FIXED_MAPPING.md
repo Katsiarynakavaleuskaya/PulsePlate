@@ -427,6 +427,14 @@ Evidence: Closed current-head Codex follow-ups for progressive PR-1 gate-open wo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845738 -> 72de31da991b59385f3c665e914397b18b4f6689
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268845743 -> 72de31da991b59385f3c665e914397b18b4f6689
 
+Disposition: FIXED
+Commit: 74aea311a8b227c7553c7d41bcca923f9e644fa4
+Evidence: Closed current-head Codex follow-ups for present-perfect gate-open assertions, past-tense concrete backend-selection claims, future-tense PR-1 gate-open assertions, and inverse `requires no verification bundle` waiver wording. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268967365 -> 74aea311a8b227c7553c7d41bcca923f9e644fa4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268967371 -> 74aea311a8b227c7553c7d41bcca923f9e644fa4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268967374 -> 74aea311a8b227c7553c7d41bcca923f9e644fa4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3268967381 -> 74aea311a8b227c7553c7d41bcca923f9e644fa4
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
