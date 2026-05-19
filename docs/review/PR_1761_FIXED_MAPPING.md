@@ -231,6 +231,7 @@ Evidence: Closed current-head Codex findings for downstream nested permissive Fo
 Disposition: FIXED
 Commit: 94faaa79b1599633952e86694175ba8da19791a7
 Evidence: Closed the coordinator/bug-hunter adjacent false-green for `verification bundle is not needed for cache admission`, which now maps to the existing `verification bundle optional` forbidden-claim class. Proof: direct repro script for `verification bundle is not needed for cache admission`, `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`75 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3263563116 -> 94faaa79b1599633952e86694175ba8da19791a7
 
 ## Merge Readiness
 
