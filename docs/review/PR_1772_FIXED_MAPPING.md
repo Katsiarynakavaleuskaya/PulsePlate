@@ -63,7 +63,7 @@ resolver remains blocked by Fastlane's upstream `jwt < 3` contract.
 
 Disposition: FIXED.
 
-Commit: pending parser hardening commit.
+Commit: 0146902ae.
 
 Evidence: `scripts/ci/check_jwt_fastlane_unblock.py` now parses comparison
 operators instead of substring-matching `<3`; `tests/test_jwt_fastlane_unblock_guard.py`
@@ -73,7 +73,7 @@ covers `< 3.2` and `3.2.0.rc1` edge cases.
 
 Disposition: FIXED.
 
-Commit: pending parser hardening commit.
+Commit: 0146902ae.
 
 Evidence: `scripts/ci/check_trivy_ignore_policy_expiry.py` now converts invalid
 `Suppression expires` and `Review-by` dates into deterministic policy failures;
@@ -83,7 +83,7 @@ Evidence: `scripts/ci/check_trivy_ignore_policy_expiry.py` now converts invalid
 
 Disposition: FIXED.
 
-Commit: pending parser hardening commit.
+Commit: 0146902ae.
 
 Evidence: `scripts/ci/check_current_head_pr_checks.py` now allowlists
 `test-main (3.11, 60)`, `test-main (3.12, 90)`, and `test-main (3.13, 90)`;
@@ -94,7 +94,7 @@ Evidence: `scripts/ci/check_current_head_pr_checks.py` now allowlists
 
 Disposition: FIXED.
 
-Commit: pending parser hardening commit.
+Commit: 0146902ae.
 
 Evidence: `.github/workflows/ci.yml` sets `persist-credentials: false` on the
 new `Ruby jwt/Fastlane unblock guard` checkout step.
@@ -103,7 +103,7 @@ new `Ruby jwt/Fastlane unblock guard` checkout step.
 
 Disposition: FIXED.
 
-Commit: pending parser hardening commit.
+Commit: 0146902ae.
 
 Evidence: `docs/security/CVE-2026-45363-jwt-fastlane.md` now points to the
 current `trivy/ignore-policy.rego:443` rule line.
@@ -112,7 +112,7 @@ current `trivy/ignore-policy.rego:443` rule line.
 
 Disposition: FIXED.
 
-Commit: pending parser hardening commit.
+Commit: 0146902ae.
 
 Evidence: this artifact and the PR body now use portable `python` commands
 after `. .venv/bin/activate` rather than absolute host-local interpreter paths.
