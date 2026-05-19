@@ -237,7 +237,7 @@ Observed:
 - Codex Security diff-scoped scan: no reportable findings after latest code
   remediation.
   Evidence:
-  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/093df9bca_20260519T163609Z/report.md`.
+  `/tmp/codex-security-scans/food-data-preference-recipe-mapping-closeout-pr16/1c197371a_20260519T164009Z/report.md`.
 
 Full local `make verify` is intentionally deferred per operator instruction for
 this governance-only lane. Merge readiness still requires current-head PR CI

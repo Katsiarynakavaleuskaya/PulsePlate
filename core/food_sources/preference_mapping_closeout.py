@@ -653,11 +653,11 @@ def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
             f"PR11 regional_local_products next_action must be {NEXT_SUBSTANTIVE_LANE}",
         )
     for field_name in _REGIONAL_DOMAIN_EXPECTED:
-        expected_value = _REGIONAL_DOMAIN_EXPECTED[field_name]
-        if getattr(regional_domain, field_name) != expected_value:
+        regional_expected_value: object = _REGIONAL_DOMAIN_EXPECTED[field_name]
+        if getattr(regional_domain, field_name) != regional_expected_value:
             raise _closeout_error(
                 context,
-                f"PR11 regional_local_products {field_name} must be {expected_value!r}",
+                f"PR11 regional_local_products {field_name} must be {regional_expected_value!r}",
             )
     if regional_domain.approved_ingest or regional_domain.approved_runtime_authority:
         raise _closeout_error(context, "PR11 regional_local_products must stay unapproved")
