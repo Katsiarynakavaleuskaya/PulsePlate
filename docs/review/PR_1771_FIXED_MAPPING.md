@@ -127,6 +127,14 @@ Evidence: `core/food_sources/regional_catalog_identity.py` and `tests/test_food_
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269434377 -> af33cd726
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269434382 -> af33cd726
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` tightens negated approval handling, `tests/test_food_source_regional_catalog_identity.py` covers the `not blocked and approved` bypass and runs the CLI no-write smoke from `tmp_path`, and `docs/roadmap/BACKLOG_LEDGER.md` records PR17 as `#1771`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#pullrequestreview-4322926062 -> a986ab233
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#pullrequestreview-4323063301 -> a986ab233
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269522495 -> a986ab233
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
