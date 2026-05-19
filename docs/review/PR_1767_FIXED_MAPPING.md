@@ -19,6 +19,10 @@ Evidence: `docs/review/PR_1767_FIXED_MAPPING.md` is the canonical replacement ar
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265717327 -> d23616f72
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265719096 -> d23616f72
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#pullrequestreview-4318259512 -> d23616f72
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735783 -> f747a8aa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735791 -> f747a8aa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735797 -> f747a8aa6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1767#discussion_r3265735803 -> f747a8aa6
 
 ## Implementation Evidence
 
