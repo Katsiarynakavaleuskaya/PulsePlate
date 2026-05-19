@@ -82,18 +82,23 @@ PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR = {
     "actions": (
         "opens",
         "opens up",
+        "reopens",
         "unlocks",
         "activates",
         "enables",
         "will open",
+        "will reopen",
         "will unlock",
         "will activate",
         "will enable",
         "can open",
+        "can reopen",
         "may unlock",
         "has opened",
+        "has reopened",
         "has unlocked",
         "is opening",
+        "is reopening",
         "is unlocking",
     ),
     "objects": (
@@ -107,9 +112,104 @@ PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR = {
         "the semantic-cache gate",
         "the global gate",
     ),
-    "state_verbs": ("is", "stays", "remains", "is still", "has stayed"),
-    "states": ("open", "unlocked", "active", "enabled", "approved", "ready", "live"),
+    "state_verbs": (
+        "is",
+        "was",
+        "has been",
+        "stays",
+        "remains",
+        "remained",
+        "has remained",
+        "had remained",
+        "is still",
+        "has stayed",
+    ),
+    "states": ("open", "reopened", "unlocked", "active", "enabled", "approved", "ready", "live"),
 }
+
+PHILOSOPHY_FRESH_REVIEW_FALSE_GREEN_EXAMPLES = (
+    ("PR-1 reopens the semantic-cache gate", "philosophy admission opens gate"),
+    ("the semantic-cache gate was reopened", "philosophy admission opens gate"),
+    (
+        "cache admission does not require verification bundles",
+        "verification bundle optional",
+    ),
+    ("cache admission bypasses verification bundles", "verification bundle optional"),
+    ("cache admission is exempt from verification bundles", "verification bundle optional"),
+    ("the global gate remained unlocked", "philosophy admission opens gate"),
+    ("the global gate has remained unlocked", "philosophy admission opens gate"),
+    ("PR-1 has GPTCache import for philosophy admission", "gptcache imports allowed in pr-1"),
+    ("PR-1 includes GPTCache import", "gptcache imports allowed in pr-1"),
+    (
+        "semantic-cache serving remains authorized by philosophy admission",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "semantic-cache serving is still authorized by philosophy admission",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "PR-1 has promoted knowledge without a verification bundle",
+        "cache admission without verification bundle",
+    ),
+    (
+        "verification bundle requirements remain optional for semantic-cache admission",
+        "verification bundle optional",
+    ),
+    (
+        "verification bundle requirements are still optional for semantic-cache admission",
+        "verification bundle optional",
+    ),
+    (
+        "semantic-cache backend selections can be authorized for philosophy admission",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "semantic-cache backend selections will be authorized for philosophy admission",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "PR-1 will promote knowledge without a verification bundle",
+        "cache admission without verification bundle",
+    ),
+    (
+        "PR-1 can promote knowledge without a verification bundle",
+        "cache admission without verification bundle",
+    ),
+    (
+        "PR-1 is promoting knowledge without a verification bundle",
+        "cache admission without verification bundle",
+    ),
+)
+
+PHILOSOPHY_FRESH_REVIEW_NEGATIVE_CONTROLS = (
+    ("PR-1 does not reopen the semantic-cache gate.", "philosophy admission opens gate"),
+    ("The semantic-cache gate was not reopened.", "philosophy admission opens gate"),
+    ("Cache admission requires verification bundles.", "verification bundle optional"),
+    ("No cache admission bypasses verification bundles.", "verification bundle optional"),
+    ("The global gate has remained closed.", "philosophy admission opens gate"),
+    ("PR-1 has no GPTCache import for philosophy admission.", "gptcache imports allowed in pr-1"),
+    (
+        "Semantic-cache serving remains unauthorized by philosophy admission.",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "PR-1 has promoted knowledge with a passed verification bundle.",
+        "cache admission without verification bundle",
+    ),
+    (
+        "Verification bundle requirements remain mandatory for semantic-cache admission.",
+        "verification bundle optional",
+    ),
+    (
+        "Semantic-cache backend selections cannot be authorized for philosophy admission.",
+        "backend selection authorized by philosophy admission",
+    ),
+    (
+        "PR-1 will not promote knowledge without a verification bundle.",
+        "cache admission without verification bundle",
+    ),
+)
 
 
 def _generated_forbidden_gate_open_claims() -> tuple[str, ...]:
@@ -123,6 +223,78 @@ def _generated_forbidden_gate_open_claims() -> tuple[str, ...]:
         for verb in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["state_verbs"]:
             for state in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["states"]:
                 claims.append(f"{subject} {verb} {state}.")
+    return tuple(claims)
+
+
+def _generated_fresh_review_forbidden_claims() -> tuple[tuple[str, str], ...]:
+    """Generate focused paraphrases for the current PR-1 false-green classes."""
+    claims: list[tuple[str, str]] = list(PHILOSOPHY_FRESH_REVIEW_FALSE_GREEN_EXAMPLES)
+
+    for admission in ("cache admission", "semantic-cache admission"):
+        for action in ("does not require", "bypasses", "is exempt from"):
+            for bundle in ("verification bundle", "verification bundles"):
+                claims.append((f"{admission} {action} {bundle}.", "verification bundle optional"))
+
+    for subject in ("PR-1", "Philosophy admission"):
+        for action in (
+            "has promoted",
+            "will promote",
+            "can promote",
+            "is promoting",
+            "has written",
+            "will write",
+            "can write",
+            "is writing",
+        ):
+            for object_ in ("knowledge", "knowledge records"):
+                for bundle in ("verification bundle", "verification bundles"):
+                    claims.append(
+                        (
+                            f"{subject} {action} {object_} without a {bundle}.",
+                            "cache admission without verification bundle",
+                        )
+                    )
+
+    for subject in ("PR-1", "Philosophy PR-1", "Philosophy admission"):
+        for verb in ("has", "includes", "contains"):
+            for object_ in ("GPTCache import", "GPTCache imports", "GPTCache client"):
+                claims.append(
+                    (
+                        f"{subject} {verb} {object_} for philosophy admission.",
+                        "gptcache imports allowed in pr-1",
+                    )
+                )
+
+    for subject in (
+        "semantic-cache backend selection",
+        "semantic-cache backend selections",
+        "semantic-cache serving",
+        "serving",
+    ):
+        for auxiliary in ("can be", "will be", "is still", "remains", "has remained"):
+            for state in ("authorized", "approved", "allowed", "enabled", "permitted", "granted"):
+                relation = (
+                    "for philosophy admission"
+                    if "backend selection" in subject
+                    else "by philosophy admission"
+                )
+                claims.append(
+                    (
+                        f"{subject} {auxiliary} {state} {relation}.",
+                        "backend selection authorized by philosophy admission",
+                    )
+                )
+
+    for subject in ("verification bundle requirement", "verification bundle requirements"):
+        for auxiliary in ("remains", "remain", "has remained", "are still"):
+            for state in ("optional", "skippable", "waivable", "omittable", "not required"):
+                claims.append(
+                    (
+                        f"{subject} {auxiliary} {state} for semantic-cache admission.",
+                        "verification bundle optional",
+                    )
+                )
+
     return tuple(claims)
 
 
@@ -1382,7 +1554,7 @@ def test_generated_forbidden_gate_open_claim_grammar_rejected() -> None:
     """Gate-open policy is propositional; deterministic paraphrase classes must fail."""
     claims = _generated_forbidden_gate_open_claims()
 
-    assert len(claims) == 320
+    assert len(claims) == 560
     misses = []
     for claim in claims:
         errors = validate_philosophy_semantic_cache_admission_downstream_text(
@@ -1392,6 +1564,33 @@ def test_generated_forbidden_gate_open_claim_grammar_rejected() -> None:
             misses.append(claim)
 
     assert misses == []
+
+
+def test_generated_fresh_review_false_green_claim_grammar_rejected() -> None:
+    """Fresh review findings are protected by equivalence-class regression cases."""
+    claims = _generated_fresh_review_forbidden_claims()
+
+    assert len(claims) == len(set(claims)) == 282
+    misses = []
+    for claim, expected_label in claims:
+        errors = validate_philosophy_semantic_cache_admission_downstream_text(
+            f"gate remains closed\n\n{claim}"
+        )
+        if not any(expected_label in error for error in errors):
+            misses.append((claim, expected_label, errors))
+
+    assert misses == []
+
+
+def test_fresh_review_negative_controls_allowed() -> None:
+    """Fresh claim-class guards must not reject explicit closed-gate controls."""
+    false_hits = []
+    for claim, label in PHILOSOPHY_FRESH_REVIEW_NEGATIVE_CONTROLS:
+        errors = validate_philosophy_semantic_cache_admission_downstream_text(claim)
+        if any(label in error for error in errors):
+            false_hits.append((claim, label, errors))
+
+    assert false_hits == []
 
 
 def test_negated_gate_unlocked_claim_allowed() -> None:
