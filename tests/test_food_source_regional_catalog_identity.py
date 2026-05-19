@@ -706,6 +706,8 @@ def test_regional_catalog_identity_rejects_incomplete_pr16_safety_report(
         "automation_allowed",
         "provider_integration_allowed",
         "public_dataset_claim_allowed",
+        "seller_api_use_allowed",
+        "partner_api_use_allowed",
     ),
 )
 def test_regional_catalog_identity_rejects_unsafe_pr16_safety_report(

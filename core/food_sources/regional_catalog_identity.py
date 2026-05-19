@@ -597,6 +597,9 @@ def _validate_pr16_report(report: dict[str, object], context: str) -> None:
     for flag_name, expected_value in pr16_expected_flags.items():
         if report.get(flag_name) != expected_value:
             raise _identity_error(context, f"PR16 report {flag_name} must remain {expected_value}")
+    for flag_name in ("seller_api_use_allowed", "partner_api_use_allowed"):
+        if report.get(flag_name, False) is not False:
+            raise _identity_error(context, f"PR16 report {flag_name} must remain False")
 
 
 def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogCandidateReview:
