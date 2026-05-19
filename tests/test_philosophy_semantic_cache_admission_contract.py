@@ -189,6 +189,29 @@ def test_phase1_docs_gate_allows_downstream_forbidden_claim_bullet_examples(
     assert errors == []
 
 
+def test_phase1_docs_gate_allows_downstream_forbidden_claim_nested_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Safe nested example headings keep negative examples in example mode."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "### Examples\n\n"
+                "- philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
 @pytest.mark.parametrize(
     "line",
     (
@@ -257,6 +280,32 @@ def test_phase1_docs_gate_rejects_downstream_nested_permissive_heading_examples(
                 "## Forbidden Claims\n\n"
                 "PR-1 and downstream docs must not claim:\n\n"
                 "### Approved claims:\n\n"
+                "- philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
+def test_phase1_docs_gate_rejects_downstream_permissive_separator_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Plain permissive separators must reset downstream example mode."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "Approved claims:\n\n"
                 "- philosophical semantic-cache is live"
             )
         return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
@@ -1328,6 +1377,14 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
         ("philosophical semantic-cache serving is approved", "philosophical semantic cache live"),
         ("philosophical semantic-cache serving was approved", "philosophical semantic cache live"),
         (
+            "philosophical semantic-cache is not merely live",
+            "philosophical semantic cache live",
+        ),
+        (
+            "philosophical semantic-cache serving is not only approved",
+            "philosophical semantic cache live",
+        ),
+        (
             "philosophical semantic-cache serving has been approved",
             "philosophical semantic cache live",
         ),
@@ -1381,6 +1438,10 @@ def test_forbidden_provider_approval_claim_rejected() -> None:
         ("redis is enabled for philosophical cache paths", "redis philosophical cache approved"),
         (
             "redis rollout is approved for philosophical cache paths",
+            "redis philosophical cache approved",
+        ),
+        (
+            "Redis rollout was approved for philosophical cache paths",
             "redis philosophical cache approved",
         ),
         (
@@ -1575,6 +1636,15 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime is approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime behavior is enabled for Philosophy admission", "runtime allowed in pr-1"),
+        ("embeddings were approved for Philosophy admission", "embeddings allowed in pr-1"),
+        (
+            "vector search has been enabled for Philosophy admission",
+            "vector search allowed in pr-1",
+        ),
+        (
+            "cache adapters have been allowed in PR-1",
+            "cache adapters allowed in pr-1",
+        ),
         ("runtime behavior gets enabled for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions are approved for Philosophy admission", "runtime allowed in pr-1"),
         ("runtime permissions get approved for Philosophy admission", "runtime allowed in pr-1"),
@@ -1756,7 +1826,9 @@ def test_forbidden_backend_selection_authorization_claim_rejected() -> None:
         "Philosophy admission allows backend selection.",
         "Philosophy admission authorizes serving.",
         "Philosophy admission approves semantic-cache serving.",
+        "Philosophy admission approved backend selection.",
         "Philosophy PR-1 enables semantic-cache serving.",
+        "PR-1 enabled semantic-cache serving.",
         "Philosophy admission enables backend selection and serving.",
         "backend selection is approved for Philosophy admission.",
         "backend selections are approved by Philosophy admission.",

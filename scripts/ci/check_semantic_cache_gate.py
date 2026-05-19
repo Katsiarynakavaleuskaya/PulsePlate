@@ -801,7 +801,7 @@ PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE = re.compile(
     r"|not\s+permitted(?:\s+\w+){0,3}\s+claims?"
     r"|never(?:\s+\w+){0,3}\s+claims?"
     r"|no(?:\s+\w+){0,3}\s+claims?"
-    r")\s*(?::|-)$"
+    r")\s*(?::|-)?$"
 )
 
 PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
@@ -836,16 +836,25 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "philosophical semantic cache live",
         re.compile(
             r"\bphilosophical semantic[- ]cache "
-            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:(?:is|are|was|were|has been|have been) "
+            r"(?:not (?:only|just|merely|simply|solely|exclusively) )?|"
+            r"(?:isn't|aren't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:live|active|enabled|open)\b"
             r"|\bphilosophical semantic[- ]cache paths? "
-            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:(?:is|are|was|were|has been|have been) "
+            r"(?:not (?:only|just|merely|simply|solely|exclusively) )?|"
+            r"(?:isn't|aren't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:live|active|enabled|open)\b"
             r"|\bphilosophical semantic[- ]cache serving "
-            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:(?:is|are|was|were|has been|have been) "
+            r"(?:not (?:only|just|merely|simply|solely|exclusively) )?|"
+            r"(?:isn't|aren't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:live|active|enabled|open|approved)\b"
             r"|\bphilosophical semantic[- ]cache paths? "
-            r"(?:(?:is|are|was|were|has been|have been) )?approved for serving\b"
+            r"(?:(?:is|are|was|were|has been|have been) "
+            r"(?:not (?:only|just|merely|simply|solely|exclusively) )?|"
+            r"(?:isn't|aren't) (?:only|just|merely|simply|solely|exclusively) )?"
+            r"approved for serving\b"
         ),
     ),
     (
@@ -855,13 +864,16 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "redis philosophical cache approved",
         re.compile(
-            r"\bredis philosophical cache (?:is )?(?:approved|enabled)\b"
+            r"\bredis philosophical cache "
+            r"(?:(?:is|was|has been) )?(?:approved|enabled)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) redis rollout "
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) redis rollout "
             r"for (?:the )?philosophical (?:semantic[- ]cache|cache) paths?\b"
             r"|\bredis(?: rollout)? "
-            r"(?:is |is not (?:only|just|merely|simply|solely|exclusively) |"
-            r"isn't (?:only|just|merely|simply|solely|exclusively) )?"
+            r"(?:(?:is|was|has been) |(?:is|was|has been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:approved|enabled) "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
@@ -877,13 +889,16 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "gptcache philosophical cache approved",
         re.compile(
-            r"\bgptcache philosophical cache (?:is )?(?:approved|enabled)\b"
+            r"\bgptcache philosophical cache "
+            r"(?:(?:is|was|has been) )?(?:approved|enabled)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) gptcache rollout "
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) gptcache rollout "
             r"for (?:the )?philosophical (?:semantic[- ]cache|cache) paths?\b"
             r"|\bgptcache(?: rollout)? "
-            r"(?:is |is not (?:only|just|merely|simply|solely|exclusively) |"
-            r"isn't (?:only|just|merely|simply|solely|exclusively) )?"
+            r"(?:(?:is|was|has been) |(?:is|was|has been) not "
+            r"(?:only|just|merely|simply|solely|exclusively) |"
+            r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:approved|enabled) "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
@@ -921,10 +936,12 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "embeddings allowed in pr-1",
         re.compile(
-            r"\bembeddings? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
+            r"\bembeddings? (?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) embeddings?\b"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) embeddings?\b"
         ),
     ),
     (
@@ -940,37 +957,44 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "vector search allowed in pr-1",
         re.compile(
-            r"\bvector search(?:es)? (?:(?:are|is) )?(?:allowed|permitted|approved|enabled) "
+            r"\bvector search(?:es)? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
+            r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) vector search(?:es)?\b"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) vector search(?:es)?\b"
         ),
     ),
     (
         "connection strings allowed in pr-1",
         re.compile(
-            r"\bconnection strings? (?:(?:are|is) )?"
+            r"\bconnection strings? (?:(?:are|is|was|were|has been|have been) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) connection strings?\b"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) connection strings?\b"
         ),
     ),
     (
         "cache adapters allowed in pr-1",
         re.compile(
-            r"\bcache adapt(?:er|or)s? (?:(?:are|is) )?"
+            r"\bcache adapt(?:er|or)s? "
+            r"(?:(?:are|is|was|were|has been|have been) )?"
             r"(?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) cache adapt(?:er|or)s?\b"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) cache adapt(?:er|or)s?\b"
         ),
     ),
     (
         "runtime allowed in pr-1",
         re.compile(
             r"\bruntime(?: behavior|[- ]expansion| paths?| permissions?)? "
-            r"(?:(?:are|is) |(?:are|is) not "
+            r"(?:(?:are|is|was|were|has been|have been) |"
+            r"(?:are|is|was|were|has been|have been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't) (?:only|just|merely|simply|solely|exclusively) )?"
             r"(?:allowed|permitted|approved|enabled) "
@@ -979,7 +1003,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:get|gets) (?:allowed|permitted|approved|enabled) "
             r"(?:in pr-1|for philosophy admission)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|permits|enables) runtime(?:[- ]expansion| permissions?)"
+            r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
+            r"allowed|permitted|enabled) runtime(?:[- ]expansion| permissions?)"
             r"(?: for philosophy admission)?\b"
         ),
     ),
@@ -1015,12 +1040,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bphilosophy admission replaces sc-g2-sc-g5 contracts\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
-            r"(?:authorizes|approves|allows|enables|permits) "
+            r"(?:authorizes|approves|allows|enables|permits|authorized|approved|"
+            r"allowed|enabled|permitted) "
             r"(?:backend selection|serving|semantic[- ]cache serving|backend selection and serving)\b"
-            r"|\bbackend selections? (?:is|are) "
+            r"|\bbackend selections? (?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted) "
             r"for philosophy admission\b"
-            r"|\b(?:backend selections?|serving) (?:is|are) "
+            r"|\b(?:backend selections?|serving) "
+            r"(?:is|are|was|were|has been|have been) "
             r"(?:authorized|approved|allowed|enabled|permitted) by philosophy admission\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"
@@ -1932,7 +1959,9 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
         stripped_line, had_bullet = _strip_forbidden_claims_line_prefixes(line)
         normalized_line = _normalize_text(stripped_line)
         if re.match(r"^#{3,6}\s+", line.strip()):
-            if not PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(normalized_line):
+            heading_text = re.sub(r"^#{3,6}\s+", "", line.strip())
+            normalized_heading = _normalize_text(heading_text)
+            if not PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(normalized_heading):
                 negative_example_block = False
             kept_lines.append(line)
             continue
@@ -1948,6 +1977,9 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
                 continue
             negative_example_block = True
             continue
+        if negative_example_block and normalized_line and not had_bullet:
+            if not PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(normalized_line):
+                negative_example_block = False
         if (
             negative_example_block
             and had_bullet
