@@ -1,4 +1,4 @@
-# PR TBD Premortem: Dependabot #1757 Quality Tooling Replacement
+# PR #1769 Premortem: Dependabot #1757 Quality Tooling Replacement
 
 ## Summary
 
@@ -64,7 +64,7 @@ requires `librt>=0.11.0`, and the emergency manifest must move with `mypy` and
 - `pre-commit run --all-files` passes, including generated `.secrets.baseline`
   updates if any.
 - Current-head PR CI reaches terminal/pass for required touched surfaces.
-- Review threads and bot findings are mapped in `docs/review/PR_<N>_FIXED_MAPPING.md`.
+- Review threads and bot findings are mapped in `docs/review/PR_1769_FIXED_MAPPING.md`.
 
 ## Decision
 
