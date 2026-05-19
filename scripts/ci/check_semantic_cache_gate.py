@@ -810,14 +810,15 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bphilosophy admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy pr-1 admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
-            r"|\bphilosophy pr-1 open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"|\b(?:philosophy )?pr-1 open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy admission open(?:s|ed) (?:the )?global gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? open(?:s|ed) (?:the )?global gate\b"
             r"|\bphilosophy(?: pr-1)?(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
-            r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy pr-1\b"
+            r"|\b(?:the )?(?:global|semantic[- ]cache) gate (?:is )?(?:now )?open for "
+            r"(?:philosophy pr-1|pr-1)\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is open for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is opened "
             r"for philosophy admission\b"
@@ -825,7 +826,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate (?:can|may) be opened "
             r"for philosophy admission\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate opens for philosophy admission\b"
-            r"|\bphilosophy pr-1 admission (?:can|may) open "
+            r"|\b(?:philosophy )?pr-1(?: admission)? (?:can|may) open "
             r"(?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\bphilosophy admission (?:can|may) open "
             r"(?:the )?(?:global|semantic[- ]cache) gate\b"
@@ -1927,6 +1928,11 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
 
         stripped_line, had_bullet = _strip_forbidden_claims_line_prefixes(line)
         normalized_line = _normalize_text(stripped_line)
+        if re.match(r"^#{3,6}\s+", line.strip()):
+            if not PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(normalized_line):
+                negative_example_block = False
+            kept_lines.append(line)
+            continue
         negative_polarity_match = PHILOSOPHY_FORBIDDEN_CLAIMS_SECTION_POLARITY_RE.search(
             normalized_line
         )

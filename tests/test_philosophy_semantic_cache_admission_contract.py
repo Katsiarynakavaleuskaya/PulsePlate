@@ -245,6 +245,32 @@ def test_phase1_docs_gate_rejects_downstream_permissive_forbidden_claim_examples
     ) in errors
 
 
+def test_phase1_docs_gate_rejects_downstream_nested_permissive_heading_examples(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nested permissive headings must not keep downstream example mode active."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "### Approved claims:\n\n"
+                "- philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert (
+        f"{relpath}: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ) in errors
+
+
 def test_phase1_docs_gate_rejects_same_line_downstream_permissive_forbidden_claim(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1073,6 +1099,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "philosophy pr-1 admission opens the semantic cache gate",
         "philosophy pr-1 opens the semantic-cache gate",
         "philosophy pr-1 opens the semantic cache gate",
+        "PR-1 opens the semantic-cache gate",
         "philosophy admission opens the global gate",
         "philosophy pr-1 admission opens the global gate",
         "pr-1 opens the global gate",
@@ -1087,7 +1114,11 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the semantic-cache gate is open for Philosophy PR-1",
         "Philosophy PR-1 admission can open the semantic-cache gate",
         "the global gate is open for Philosophy PR-1",
+        "the semantic-cache gate is open for PR-1",
+        "the semantic-cache gate is now open for PR-1",
         "Philosophy PR-1 admission can open the global gate",
+        "PR-1 can open the semantic-cache gate",
+        "PR-1 may open the semantic-cache gate",
         "Philosophy PR-1 admission may open the global gate",
         "philosophy admission can open the global gate",
         "the semantic-cache gate is open for Philosophy admission",
