@@ -1221,6 +1221,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "philosophy pr-1 opens the semantic-cache gate",
         "philosophy pr-1 opens the semantic cache gate",
         "PR-1 opens the semantic-cache gate",
+        "PR-1 opens the global semantic-cache gate",
         "philosophy admission opens the global gate",
         "philosophy pr-1 admission opens the global gate",
         "pr-1 opens the global gate",
@@ -1237,6 +1238,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the global gate is open for Philosophy PR-1",
         "the semantic-cache gate is open for PR-1",
         "semantic-cache gate is open",
+        "the global gate is open",
         "the global semantic-cache gate is open",
         "the semantic-cache gate is now open for PR-1",
         "the semantic-cache gate was opened by Philosophy admission",
@@ -1272,6 +1274,9 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the semantic-cache gate is live",
         "the global gate is live",
         "the global semantic-cache gate is live",
+        "the semantic-cache gate remains open",
+        "the semantic-cache gate is still open",
+        "the semantic-cache gate stayed open",
         "the semantic-cache gate is approved",
         "the semantic-cache gate is ready",
         "the global gate is approved",
@@ -1284,6 +1289,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "the semantic-cache gate opens for Philosophy admission",
         "the global gate opens for Philosophy admission",
         "the semantic-cache gate opens in PR-1",
+        "the global semantic-cache gate opens in PR-1",
         "the semantic-cache gate is opened for Philosophy admission",
         "the global gate is opened for Philosophy admission",
         "the semantic-cache gate opened for Philosophy admission",
@@ -1600,6 +1606,8 @@ def test_forbidden_runtime_live_claim_rejected() -> None:
         ("philosophical semantic-cache path is live", "philosophical semantic cache live"),
         ("philosophical semantic-cache paths are live", "philosophical semantic cache live"),
         ("philosophical semantic-cache paths are open", "philosophical semantic cache live"),
+        ("philosophical semantic-cache path is available", "philosophical semantic cache live"),
+        ("philosophical semantic-cache paths are supported", "philosophical semantic cache live"),
     )
 
     for claim, error_label in cases:
@@ -1988,6 +1996,14 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("cache admission is approved for philosophy admission", "cache IO allowed in pr-1"),
         (
             "cache admission does not need verification bundle",
+            "verification bundle optional",
+        ),
+        (
+            "semantic-cache admission bypasses verification bundle",
+            "verification bundle optional",
+        ),
+        (
+            "cache admission is exempt from verification bundle",
             "verification bundle optional",
         ),
         (
