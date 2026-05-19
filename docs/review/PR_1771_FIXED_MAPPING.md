@@ -70,6 +70,10 @@ Role-agent dispositions:
   and the PR body mirror add `## Split Justification` after CI
   `pr_scope_guard` reported `PR size governance: FAIL (>800 LoC without
   explicit split justification)`.
+- Post-open `qa-engineer-agent` follow-up: Disposition `FIXED`. Evidence:
+  this artifact and the PR body mirror no longer leave stale pending
+  checklist items for already-completed mapping, CodeRabbit/Cubic, Codex
+  Security scan, and review-thread disposition checks.
 
 ## Premortem
 
@@ -104,15 +108,17 @@ commercial, seller, partner, portal, or scraping sources.
 
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
-- [ ] PR body mirror updated after this artifact commit.
-- [ ] Post-open role-agent pass completed:
+- [x] PR body mirror updated after latest fixed-mapping artifact change.
+- [ ] Latest post-open role-agent follow-up completed:
   `qa-engineer-agent -> bug-hunter`.
-- [ ] CodeRabbit actionable comments pending.
-- [ ] Cubic actionable comments pending.
-- [ ] Codex Security diff-scoped scan pending.
-- [ ] Strict review-thread disposition guard pending.
+- [x] CodeRabbit actionable comments mapped or no-actionable.
+- [x] Cubic actionable comments mapped or no-actionable.
+- [x] Codex Security diff-scoped scan completed:
+  `/tmp/codex-security-scans/food-data-regional-catalog-identity-license-pr17/eb9cdcd8a_20260519T222714Z/report.md`.
+- [x] Strict review-thread disposition guard passed:
+  `All 32 resolved review threads have Disposition + proof and commit-after-comment`.
 - [ ] Current-head PR checks pending.
-- [ ] Strict merge-readiness check pending.
+- [x] Strict review-governance merge-readiness wrapper passed.
 
 ## Fixed in Commit Mapping
 
