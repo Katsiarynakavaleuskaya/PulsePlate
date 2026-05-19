@@ -201,6 +201,14 @@ Evidence: Closed the downstream Forbidden Claims false-green and latest admissio
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3261387643 -> f37405bb7a2d8be90504c876cd9e541168ca173c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3261387648 -> f37405bb7a2d8be90504c876cd9e541168ca173c
 
+Disposition: FIXED
+Commit: 1907a9cda3a6ebf65b3411400ff86477603bc4ac
+Evidence: Closed coordinator follow-up findings from the security-auditor, qa-engineer-agent, and bug-hunter passes after syncing PR #1761 with `origin/main` at `453fef19fd775ac014e6896bcfdaca275977929b`. The checker now rejects additional false-green forms for backend-selection serving authorization, gate-open wording, live/open/approved philosophical semantic-cache path claims, Redis/GPTCache import approvals, vector-search approvals, runtime permission approvals, verification-bundle bypass/waive claims, and same-line Forbidden Claims assertion tails while keeping negated guardrail examples valid. The backlog entry now points at PR #1761 and records merge-ready stabilization after #1766. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`74 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md scripts/ci/check_semantic_cache_gate.py tests/test_philosophy_semantic_cache_admission_contract.py`, `.venv/bin/python scripts/orchestration/check_preflight.py`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and commit-hook pre-commit checks.
+
+Disposition: FIXED
+Commit: 7095c327b909eab10a53844199a516a28b73d6d8
+Evidence: Closed the final follow-up detector gaps found during the same security/QA/bug-hunter pass. The SC-G5 backend-selection detector now rejects `semantic cache serving is allowed/approved/permitted`, and Philosophy admission tests cover plural backend-selection authorization and past-tense verification-bundle waive wording. Proof: `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`74 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, and commit-hook pre-commit checks.
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
