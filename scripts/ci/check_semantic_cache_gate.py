@@ -918,7 +918,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:(?:is|was|has been) |(?:is|was|has been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|available|supported) "
             r"for (?:the )?philosophical "
             r"(?:semantic[- ]cache|cache) paths?\b"
             r"|(?<!\bno )(?<!\bnot )(?<!\bnever )"
@@ -964,7 +964,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't|wasn't|weren't) "
             r"(?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported|available) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
@@ -984,7 +984,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't|wasn't|weren't) "
             r"(?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|supported|available) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
@@ -1005,11 +1005,13 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't|wasn't|weren't) "
             r"(?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|available|supported) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled|grants|granted) embeddings?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|uses?|wires?) embeddings?\b"
         ),
     ),
     (
@@ -1020,7 +1022,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:is|was|has been) not "
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:isn't|wasn't) (?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|available|supported) "
             r"(?:in pr-1|for pr-1|for philosophy admission|"
             r"by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
@@ -1039,7 +1041,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't|wasn't|weren't) "
             r"(?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|available|supported) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
@@ -1055,7 +1057,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't|wasn't|weren't) "
             r"(?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|granted|authorized) "
+            r"(?:allowed|permitted|approved|enabled|granted|authorized|available|supported) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
@@ -1072,7 +1074,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:only|just|merely|simply|solely|exclusively) |"
             r"(?:aren't|isn't|wasn't|weren't) "
             r"(?:only|just|merely|simply|solely|exclusively) )?"
-            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted|available|supported) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
@@ -1241,8 +1243,7 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "SC-G5 matrix duplicated",
         re.compile(
-            r"\bcandidate backend labels only\b.*\bphilosophy\b"
-            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:restates?|duplicates?|copies|includes?|documents?|enumerates?) "
             r"(?:the )?sc-g5 "
             r"(?:ranking rules?|backend[- ](?:evaluation|selection) matrix|candidate labels?)\b"
@@ -2162,11 +2163,20 @@ def _philosophy_downstream_assertion_text(text: str) -> str:
     in_forbidden_claims_section = False
     negative_example_block = False
     for line in text.splitlines():
-        heading_match = re.match(r"^##\s+(?P<heading>.+?)\s*$", line.strip())
+        heading_match = re.match(r"^(?P<marks>#{2,6})\s+(?P<heading>.+?)\s*$", line.strip())
         if heading_match is not None:
+            level = len(heading_match.group("marks"))
             heading = heading_match.group("heading").strip().lower()
-            in_forbidden_claims_section = heading == "forbidden claims"
-            negative_example_block = False
+            if heading == "forbidden claims":
+                in_forbidden_claims_section = True
+                negative_example_block = False
+            elif in_forbidden_claims_section and level > 2:
+                normalized_heading = _normalize_text(heading)
+                if not PHILOSOPHY_FORBIDDEN_CLAIMS_SAFE_BULLET_PREFIX_RE.search(normalized_heading):
+                    negative_example_block = False
+            else:
+                in_forbidden_claims_section = False
+                negative_example_block = False
             kept_lines.append(line)
             continue
         if not in_forbidden_claims_section:

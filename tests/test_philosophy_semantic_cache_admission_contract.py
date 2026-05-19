@@ -212,6 +212,29 @@ def test_phase1_docs_gate_allows_downstream_forbidden_claim_nested_examples(
     assert errors == []
 
 
+def test_phase1_docs_gate_allows_downstream_nested_forbidden_claims_section(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Nested Forbidden Claims headings may contain negative examples."""
+    relpath = "docs/insights/PHILOSOPHICAL_SPEED_OPTIMIZATION.md"
+
+    def fake_read_text(path: str) -> str:
+        if path == relpath:
+            return (
+                "## Philosophy examples\n\n"
+                "### Forbidden Claims\n\n"
+                "PR-1 and downstream docs must not claim:\n\n"
+                "- philosophical semantic-cache is live"
+            )
+        return (REPO_ROOT / path).read_text(encoding="utf-8", errors="replace")
+
+    monkeypatch.setattr(docs_phase1, "_read_text", fake_read_text)
+
+    errors = docs_phase1.check_docs_phase1_guards(markdown_files=[relpath])
+
+    assert errors == []
+
+
 @pytest.mark.parametrize(
     "line",
     (
@@ -1696,6 +1719,10 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "GPTCache imports are not merely approved in PR-1",
             "gptcache imports allowed in pr-1",
         ),
+        (
+            "GPTCache clients are available for philosophy admission",
+            "gptcache imports allowed in pr-1",
+        ),
         ("PR-1 imports GPTCache", "gptcache imports allowed in pr-1"),
         ("PR-1 uses GPTCache clients", "gptcache imports allowed in pr-1"),
         (
@@ -1708,6 +1735,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("embedding is approved for Philosophy admission", "embeddings allowed in pr-1"),
         ("PR-1 enables embeddings", "embeddings allowed in pr-1"),
         ("PR-1 authorizes embeddings.", "embeddings allowed in pr-1"),
+        ("PR-1 adds embeddings", "embeddings allowed in pr-1"),
+        ("Philosophy admission uses embeddings", "embeddings allowed in pr-1"),
         ("/insight cache wiring is permitted in PR-1", "insight cache wiring allowed in pr-1"),
         (
             "/insight cache wiring is permitted for Philosophy admission",
@@ -1793,11 +1822,13 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "vector search is authorized for Philosophy admission",
             "vector search allowed in pr-1",
         ),
+        ("vector search is available for philosophy admission", "vector search allowed in pr-1"),
         (
             "cache adapters have been allowed in PR-1",
             "cache adapters allowed in pr-1",
         ),
         ("Redis imports are approved by Philosophy admission", "redis imports allowed in pr-1"),
+        ("Redis imports are available for philosophy admission", "redis imports allowed in pr-1"),
         ("embeddings are enabled by Philosophy admission", "embeddings allowed in pr-1"),
         ("vector search is allowed by PR-1", "vector search allowed in pr-1"),
         ("runtime behavior gets enabled for Philosophy admission", "runtime allowed in pr-1"),
@@ -2244,6 +2275,7 @@ def test_negated_scg5_matrix_duplication_claim_allowed() -> None:
         "No Philosophy admission restates SC-G5 ranking rules.",
         "No SC-G5 candidate labels are copied into Philosophy admission.",
         "No SC-G5 ranking rules are restated in Philosophy PR-1.",
+        "SC-G5 provides candidate backend labels only. Philosophy admission does not duplicate them.",
     )
 
     for claim in cases:
