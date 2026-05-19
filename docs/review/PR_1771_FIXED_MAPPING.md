@@ -116,7 +116,16 @@ commercial, seller, partner, portal, or scraping sources.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: af33cd726
+Evidence: `core/food_sources/regional_catalog_identity.py` and `tests/test_food_source_regional_catalog_identity.py` fix public dataset claim flags, candidate identity pinning, blocked prose coverage, and negated wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269413612 -> af33cd726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269430264 -> af33cd726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269434368 -> af33cd726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269434376 -> af33cd726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269434377 -> af33cd726
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269434382 -> af33cd726
 
 ## Role-Agent / CI Findings
 
@@ -126,9 +135,8 @@ commercial, seller, partner, portal, or scraping sources.
   - Evidence: `docs/review/PR_1771_FIXED_MAPPING.md` and PR body mirror add the
     split justification required by `pr_scope_guard`.
 
-No GitHub review-thread URL mappings exist yet. `## Fixed in Commit Mapping`
-must be updated if CodeRabbit, Cubic, Codex Security, bot, or human review emits
-actionable comments.
+`## Fixed in Commit Mapping` must be updated if CodeRabbit, Cubic, Codex
+Security, bot, or human review emits additional actionable comments.
 
 ## Validation Evidence
 
