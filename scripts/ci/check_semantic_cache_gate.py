@@ -995,6 +995,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"for cache admission\b"
             r"|\bverification[- ]bundles? (?:(?:is|are) )?not required "
             r"for cache admission\b"
+            r"|\bverification[- ]bundles? (?:(?:is|are) )?not needed "
+            r"for cache admission\b"
             r"|\bverification[- ]bundles? (?:(?:may be|can be|is|are) )?omitted "
             r"for cache admission\b"
             r"|\bverification[- ]bundle requirements? (?:(?:may be|can be|is|are) )?"

@@ -1686,6 +1686,7 @@ def test_forbidden_verification_optional_claim_rejected() -> None:
         "verification bundles are optional for cache",
         "verification bundles are not required for cache admission",
         "verification bundle is not required for cache admission",
+        "verification bundle is not needed for cache admission",
         "verification bundles may be omitted for cache admission",
         "verification bundles can be omitted for cache admission",
         "verification bundles are omitted for cache admission",
