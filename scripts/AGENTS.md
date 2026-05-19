@@ -15,9 +15,22 @@
 
 - Canonical entrypoints for the experimentation lane are `scripts/orchestration/experiment_bootstrap.py` and `scripts/orchestration/experiment_runner.py`.
 - Run both scripts from repo root so path validation and artifact resolution stay deterministic.
-- `experiment_runner.py` accepts only a validated packet plus a prebuilt unified diff via `--packet <packet.json> --candidate-patch <candidate.patch> [--output ...]`.
+- `experiment_runner.py` accepts a validated packet plus a prebuilt unified diff
+  via `--packet <packet.json> --candidate-patch <candidate.patch> [--output ...]`
+  for default `candidate_patch` mode.
+- In `oracle_only_governance_reviewer` mode, `experiment_runner.py` accepts
+  `--packet <packet.json> [--output ...]` without `--candidate-patch`, runs only
+  immutable oracle commands in an isolated checkout, applies the current tracked
+  worktree diff to that checkout for evidence freshness, and writes a local
+  evidence artifact. This mode is advisory PR participation only and must not
+  promote, resolve review threads, claim merge readiness, or mutate governance
+  surfaces.
 - The runner must apply patches only inside an isolated temporary checkout and must leave the shared working tree untouched.
 - Mutable surfaces, immutable oracles, budgets, and promotion boundaries are defined by `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`; do not duplicate or relax them here.
+- Runner mutation of `scripts/ci/**`, `docs/review/**`, `AGENTS.md`, merge
+  gates, review-thread scripts, tests, fixtures, or policy docs is forbidden
+  unless a separate threat-model PR explicitly opens a narrow allowlist with
+  tests and rollback notes.
 - Result artifacts stay local under `artifacts/orchestration/experiments/results/` and are evidence only, not merge-ready or promotion-ready output.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output

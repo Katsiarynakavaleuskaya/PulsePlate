@@ -47,6 +47,11 @@ Forbidden in this repository:
 
 The Experiment Runner may be a co-author or local PR-lane author only when a human/coordinator-owned process keeps normal PR governance in force.
 
+For oracle-only PR participation, attribution is evidence-based. Add the
+canonical co-author trailer only when the local Experiment Runner result
+artifact materially shaped the human-reviewed commit. Do not add the trailer to
+unrelated human-only commits merely because the PR lane ran the advisory oracle.
+
 ## Notification Boundary
 
 Experiment result delivery is governed by `scripts/orchestration/experiment_notify.py`, `scripts/orchestration/experiment_pipeline.py`, and `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.

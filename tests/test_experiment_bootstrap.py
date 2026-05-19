@@ -184,6 +184,63 @@ def test_build_experiment_packet_keeps_non_cv_packets_backward_compatible() -> N
     )
 
     assert "cv_context" not in packet
+    assert packet["runner_mode"] == "candidate_patch"
+
+
+def test_build_experiment_packet_emits_oracle_only_runner_mode() -> None:
+    """Bootstrap must expose oracle-only mode through the canonical packet surface."""
+
+    packet = build_experiment_packet(
+        decision_question="Run governance validators for PR evidence",
+        task_class="Experimentation",
+        runner_mode="oracle_only_governance_reviewer",
+        mutable_paths=[
+            "scripts/orchestration/experiment_runner.py",
+            "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+        ],
+        oracle_commands=["python3 scripts/orchestration/check_agent_consistency.py"],
+        metrics=["governance_validator_pass"],
+        negative_controls=["no candidate patch", "no governance mutation"],
+        promotion_target="audit_artifact",
+    )
+
+    assert packet["runner_mode"] == "oracle_only_governance_reviewer"
+    assert packet["mutable_candidate_surface"] == [
+        "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+        "scripts/orchestration/experiment_runner.py",
+    ]
+    assert validate_experiment_packet(packet)["runner_mode"] == "oracle_only_governance_reviewer"
+
+
+def test_build_experiment_packet_rejects_governance_surface_in_candidate_mode() -> None:
+    """Bootstrap must not mint candidate packets that rewrite governance oracles."""
+
+    with pytest.raises(ValueError, match="must not include governance"):
+        build_experiment_packet(
+            decision_question="Run governance validators for PR evidence",
+            task_class="Experimentation",
+            mutable_paths=["docs/orchestration/prompts/governance.program.md"],
+            oracle_commands=["python3 scripts/orchestration/check_agent_consistency.py"],
+            metrics=["governance_validator_pass"],
+            negative_controls=["no candidate patch", "no governance mutation"],
+            promotion_target="audit_artifact",
+        )
+
+
+def test_build_experiment_packet_rejects_local_artifact_context_in_oracle_only_mode() -> None:
+    """Oracle-only context must point at repo surfaces, not local artifact paths."""
+
+    with pytest.raises(ValueError, match="repo-relative tracked surfaces"):
+        build_experiment_packet(
+            decision_question="Run governance validators for PR evidence",
+            task_class="Experimentation",
+            runner_mode="oracle_only_governance_reviewer",
+            mutable_paths=["artifacts/orchestration/experiments/results/latest.json"],
+            oracle_commands=["python3 scripts/orchestration/check_agent_consistency.py"],
+            metrics=["governance_validator_pass"],
+            negative_controls=["no candidate patch", "no governance mutation"],
+            promotion_target="audit_artifact",
+        )
 
 
 def test_build_experiment_packet_is_deterministic_for_cv_lane() -> None:
@@ -313,6 +370,45 @@ def test_main_writes_cv_context_when_metadata_is_complete(
     assert packet["cv_context"]["privacy_packet"]["consent_policy"] == "explicit_opt_in"
 
 
+def test_main_writes_oracle_only_runner_mode(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path.resolve()
+    experiment_dir = (repo_root / "artifacts" / "orchestration" / "experiments").resolve()
+    monkeypatch.setattr(experiment_bootstrap, "REPO_ROOT", repo_root)
+    monkeypatch.setattr(experiment_bootstrap, "EXPERIMENT_PACKET_DIR", experiment_dir)
+
+    exit_code = main(
+        [
+            "--decision-question",
+            "Run governance validators for PR evidence",
+            "--runner-mode",
+            "oracle_only_governance_reviewer",
+            "--mutable-path",
+            "core/rag/vector_rag.py",
+            "--oracle-command",
+            "python3 scripts/orchestration/check_agent_consistency.py",
+            "--metric",
+            "governance_validator_pass",
+            "--negative-control",
+            "no candidate patch",
+            "--negative-control",
+            "no governance mutation",
+            "--promotion-target",
+            "audit_artifact",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    output = json.loads(captured.out)
+    packet = json.loads((repo_root / output["output"]).read_text(encoding="utf-8"))
+    assert output["runner_mode"] == "oracle_only_governance_reviewer"
+    assert packet["runner_mode"] == "oracle_only_governance_reviewer"
+
+
 def test_validate_experiment_packet_requires_cv_context_for_cv_lane() -> None:
     """Validation should reject CV packets that arrive without cv_context."""
 
@@ -430,6 +526,7 @@ def test_main_writes_relative_output_inside_repo(
     packet = {
         "schema_version": "1.0",
         "experiment_id": "exp-testpacket",
+        "runner_mode": "candidate_patch",
         "decision_question": "Test experiment bootstrap write",
         "task_class": "Experimentation",
         "domain": "ml",
@@ -731,6 +828,47 @@ def test_compute_experiment_id_keeps_legacy_non_cv_shape() -> None:
     legacy_id = f"exp-{hashlib.sha256(legacy_payload.encode('utf-8')).hexdigest()[:12]}"
 
     assert compute_experiment_id(cv_context=None, **base_kwargs) == legacy_id
+
+
+def test_compute_experiment_id_changes_with_oracle_only_runner_mode() -> None:
+    """Non-default runner behavior must participate in deterministic ids."""
+
+    base_kwargs = {
+        "decision_question": "Run governance validators for PR evidence",
+        "task_class": "Experimentation",
+        "mutable_paths": ["core/rag/vector_rag.py"],
+        "immutable_oracles": [
+            {
+                "command": "python3 scripts/orchestration/check_agent_consistency.py",
+                "expected_signal": "must pass",
+            }
+        ],
+        "metrics": {
+            "primary": "governance_validator_pass",
+            "secondary": [],
+            "baseline_reference": "current-main",
+            "acceptance_threshold": "strict_improvement",
+        },
+        "negative_controls": ["no candidate patch", "no governance mutation"],
+        "promotion_target": "audit_artifact",
+        "budgets": {
+            "wall_clock_seconds": 300,
+            "retry_budget": 1,
+            "max_changed_files": 3,
+            "network_budget": 0,
+            "benchmark_budget": 1,
+            "test_budget": 2,
+        },
+        "stop_condition": "Stop on timeout.",
+    }
+
+    candidate_id = compute_experiment_id(**base_kwargs)
+    oracle_only_id = compute_experiment_id(
+        runner_mode="oracle_only_governance_reviewer",
+        **base_kwargs,
+    )
+
+    assert candidate_id != oracle_only_id
 
 
 def test_validate_cv_context_rejects_missing_dataset() -> None:

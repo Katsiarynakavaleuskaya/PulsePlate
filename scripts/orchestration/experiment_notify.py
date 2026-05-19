@@ -189,6 +189,10 @@ def _require_matching_experiment(
         raise ExperimentNotificationError(
             "Experiment packet and result must reference the same experiment_id."
         )
+    if packet.get("runner_mode") != result.get("runner_mode"):
+        raise ExperimentNotificationError(
+            "Experiment packet and result must reference the same runner_mode."
+        )
     _require_result_evidence_matches_packet(packet, result)
     if promotion is not None and packet["experiment_id"] != promotion.get("experiment_id"):
         raise ExperimentNotificationError(

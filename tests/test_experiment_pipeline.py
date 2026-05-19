@@ -340,6 +340,39 @@ def test_pipeline_rejects_absolute_promotion_output_escape(
     assert str(tmp_path) not in captured.out
 
 
+def test_pipeline_rejects_oracle_only_packet_before_runner(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = tmp_path / "repo"
+    _configure_repo(monkeypatch, repo)
+
+    def oracle_only_packet(payload: dict[str, object]) -> dict[str, object]:
+        del payload
+        packet = _packet()
+        packet["runner_mode"] = experiment_contract.ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        return packet
+
+    def forbidden_runner_main(argv: list[str]) -> int:
+        raise AssertionError(f"oracle-only packet must not enter runner pipeline: {argv}")
+
+    monkeypatch.setattr(experiment_pipeline, "validate_experiment_packet", oracle_only_packet)
+    monkeypatch.setattr(experiment_pipeline.experiment_runner, "main", forbidden_runner_main)
+    packet_path = _write_json(tmp_path / "packet.json", {"stub": True})
+    patch_path = tmp_path / "candidate.patch"
+    patch_path.write_text("patch text\n", encoding="utf-8")
+
+    exit_code = experiment_pipeline.main(
+        ["--packet", str(packet_path), "--candidate-patch", str(patch_path)]
+    )
+    captured = capsys.readouterr()
+
+    assert exit_code == 1
+    assert "runner-only advisory evidence" in captured.out
+    assert str(tmp_path) not in captured.out
+
+
 def test_pipeline_stage_failure_captures_stderr_without_leak(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

@@ -64,6 +64,8 @@ Current governed sub-lane:
 
 - Dev-only agent experimentation loops for bounded optimization or evaluation tasks.
 - Fixed-budget candidate runs against immutable evaluation oracles.
+- Oracle-only governance reviewer runs that evaluate validators and write local
+  result artifacts without applying candidate patches.
 - Experiment charters, result packets, and KPP-compliant promotion decisions.
 - First-wave experimentation for `LLM/RAG reliability`, then later `CV` evaluation and other approved research lanes.
 - CV-specific packet fields, privacy posture, and degrade semantics live in
@@ -106,6 +108,10 @@ Rules:
   before they can be treated as cryptographically attributable.
 - The Experiment Runner has no merge rights, review-thread resolution authority,
   or merge-readiness authority.
+- For non-trivial PR lanes, Experiment Runner participation is expected as
+  advisory evidence: either a local oracle-only result artifact or a documented
+  `not applicable` reason in the PR lane notes. This is not a merge-readiness
+  gate until a later hardening PR explicitly promotes it.
 - Slack identity is not a cryptographic Git identity. A Slack bot/display
   identity remains a separate security-governed follow-up, not part of this
   experimentation protocol.
@@ -125,6 +131,8 @@ Examples:
 - fixture datasets, manifests, checksums, and golden outputs
 - policy and governance docs used as gates
 - review / merge-readiness artifacts
+- governance validators such as preflight, agent-consistency, PR-body,
+  review-thread, semantic-cache, or merge-readiness checks
 
 ### Mutable candidate surfaces
 
@@ -147,6 +155,8 @@ The candidate loop must never mutate:
 - `AGENTS.md`, scoped `AGENTS.md`, `RUNBOOK_AGENT.md`
 - `docs/orchestration/*` policy and governance SoT files
 - `docs/review/PR_*_FIXED_MAPPING.md`
+- `scripts/ci/*`, merge-readiness scripts, review-thread disposition scripts,
+  PR-body gate scripts, or other governance validators
 - `docs/contracts/*` unless a human opens an explicit follow-up PR for contract changes
 - `docs/security/*`, `docs/compliance/*`, `docs/legal/*`
 - benchmark harnesses, tests, fixtures, manifests, or expected outputs used as evaluation oracles
@@ -157,6 +167,29 @@ Interpretation:
 
 - The candidate may optimize implementation under test.
 - The candidate may not rewrite the exam.
+
+### Oracle-only governance reviewer mode
+
+`runner_mode: oracle_only_governance_reviewer` is the safe PR participation
+mode for tooling/governance lanes. In this mode the runner:
+
+- runs immutable oracle commands against an isolated temporary checkout;
+- writes a local result artifact under
+  `artifacts/orchestration/experiments/results/`;
+- records `mutated_paths: []` and `promotion_ready: false`;
+- does not accept or apply `--candidate-patch`;
+- does not resolve review threads, update fixed mappings, claim merge readiness,
+  or change canonical policy.
+
+Oracle-only packets still include `mutable_candidate_surface` for schema
+compatibility and to bind the advisory evidence to the PR's owned context
+surface, including tooling/governance files. In this mode those paths are
+context, not mutation permission.
+
+Validator-script mutation access, including any runner mutation of
+`scripts/ci/**`, requires a separate threat-model PR with an explicit allowlist,
+forbidden-surface regression tests, identity/trailer checks, rollback notes, and
+coordinator approval.
 
 ---
 

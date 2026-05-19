@@ -34,7 +34,9 @@ from app.security.execution_sandbox import SandboxRequest
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.experiment_contract import (
     DEFAULT_STOP_CONDITION,
+    DEFAULT_RUNNER_MODE,
     ORACLE_BINARY_ALLOWLIST,
+    ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
     validate_experiment_packet,
 )
@@ -63,6 +65,7 @@ class InfraFlakeError(ExperimentRunnerError):
 def _result_payload(
     *,
     experiment_id: str,
+    runner_mode: str = DEFAULT_RUNNER_MODE,
     candidate_patch: str,
     status: str,
     failure_class: str | None,
@@ -76,6 +79,7 @@ def _result_payload(
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
         "experiment_id": experiment_id,
+        "runner_mode": runner_mode,
         "candidate_patch": candidate_patch,
         "status": status,
         "failure_class": failure_class,
@@ -247,6 +251,37 @@ def _shared_tree_status(root: Path) -> str:
     """Capture tracked/untracked status to prove the shared tree stayed untouched."""
 
     return _run_git(["status", "--short"], cwd=root).stdout
+
+
+def _working_tree_diff_against_head(root: Path) -> str:
+    """Capture tracked working-tree changes for oracle-only reviewer evidence."""
+
+    return _run_git(["diff", "--binary", "HEAD"], cwd=root).stdout
+
+
+def _safe_result_experiment_id(packet: dict[str, Any]) -> str:
+    raw_experiment_id = str(packet.get("experiment_id", "")).strip()
+    return raw_experiment_id or "invalid-experiment"
+
+
+def _invalid_packet_result(
+    *,
+    packet: dict[str, Any],
+    candidate_patch_ref: str,
+    runner_mode: str,
+    error: str,
+) -> dict[str, Any]:
+    return _result_payload(
+        experiment_id=_safe_result_experiment_id(packet),
+        runner_mode=runner_mode,
+        candidate_patch=candidate_patch_ref,
+        status="rejected",
+        failure_class="policy_violation",
+        mutated_paths=[],
+        oracle_results=[],
+        budget_observations={"runner_error": error},
+        shared_tree_untouched=False,
+    )
 
 
 @contextmanager
@@ -435,6 +470,7 @@ def _evaluate_attempt(
         if not _has_effective_diff(checkout_root):
             return _result_payload(
                 experiment_id=packet["experiment_id"],
+                runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
                 candidate_patch=candidate_patch_ref,
                 status="rejected",
                 failure_class="unchanged_result",
@@ -449,6 +485,7 @@ def _evaluate_attempt(
         status = "accepted" if failure_class is None else "rejected"
         return _result_payload(
             experiment_id=packet["experiment_id"],
+            runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
             candidate_patch=candidate_patch_ref,
             status=status,
             failure_class=failure_class,
@@ -468,6 +505,15 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
     """Evaluate a candidate patch against a validated experiment packet."""
 
     candidate_patch_ref = str(candidate_patch_path)
+    try:
+        packet = validate_experiment_packet(packet)
+    except ValueError as exc:
+        return _invalid_packet_result(
+            packet=packet,
+            candidate_patch_ref=candidate_patch_ref,
+            runner_mode=str(packet.get("runner_mode", DEFAULT_RUNNER_MODE)),
+            error=str(exc),
+        )
     budget_observations = {
         "configured_budgets": dict(packet["budgets"]),
         "stop_condition": packet["budgets"].get("stop_condition", DEFAULT_STOP_CONDITION),
@@ -482,12 +528,17 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
     try:
         candidate_patch_ref = normalize_repo_path(candidate_patch_path)
         shared_status_before = _shared_tree_status(REPO_ROOT)
+        if packet.get("runner_mode") == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise PolicyViolationError(
+                "oracle_only_governance_reviewer mode must not evaluate candidate patches"
+            )
         patch_text = _read_patch_text(candidate_patch_path)
         mutated_paths = _extract_mutated_paths(patch_text)
         budget_observations["candidate_changed_files"] = len(mutated_paths)
         if not mutated_paths:
             result = _result_payload(
                 experiment_id=packet["experiment_id"],
+                runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
                 candidate_patch=candidate_patch_ref,
                 status="rejected",
                 failure_class="unchanged_result",
@@ -526,6 +577,7 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         budget_observations["runner_error"] = str(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
+            runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
             candidate_patch=candidate_patch_ref,
             status="rejected",
             failure_class="policy_violation",
@@ -538,7 +590,132 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         budget_observations["runner_error"] = str(exc)
         result = _result_payload(
             experiment_id=packet["experiment_id"],
+            runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
             candidate_patch=candidate_patch_ref,
+            status="rejected",
+            failure_class="infra_flake",
+            mutated_paths=[],
+            oracle_results=[],
+            budget_observations=budget_observations,
+            shared_tree_untouched=shared_status_before is not None,
+        )
+
+    if shared_status_before is None:
+        result["shared_tree_untouched"] = False
+        result["status"] = "rejected"
+        result["failure_class"] = "infra_flake"
+        result["budget_observations"].setdefault(
+            "runner_error",
+            "Unable to capture shared working tree status before run.",
+        )
+        return result
+
+    try:
+        shared_status_after = _shared_tree_status(REPO_ROOT)
+    except InfraFlakeError as exc:
+        result["shared_tree_untouched"] = False
+        result["status"] = "rejected"
+        result["failure_class"] = "infra_flake"
+        result["budget_observations"]["runner_error"] = str(exc)
+        return result
+    if shared_status_before != shared_status_after:
+        result["shared_tree_untouched"] = False
+        result["status"] = "rejected"
+        result["failure_class"] = "infra_flake"
+        result["budget_observations"]["runner_error"] = "Shared working tree changed during run."
+    return result
+
+
+def evaluate_oracle_only_governance_reviewer(packet: dict[str, Any]) -> dict[str, Any]:
+    """Run immutable governance oracles without applying any candidate patch."""
+
+    try:
+        packet = validate_experiment_packet(packet)
+    except ValueError as exc:
+        return _invalid_packet_result(
+            packet=packet,
+            candidate_patch_ref=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            error=str(exc),
+        )
+    if packet.get("runner_mode") != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        raise PolicyViolationError(
+            "evaluate_oracle_only_governance_reviewer requires oracle-only runner_mode"
+        )
+
+    budget_observations = {
+        "configured_budgets": dict(packet["budgets"]),
+        "stop_condition": packet["budgets"].get("stop_condition", DEFAULT_STOP_CONDITION),
+        "oracle_commands_configured": len(packet["immutable_oracles"]),
+        "oracle_commands_executed": 0,
+        "candidate_changed_files": 0,
+        "attempts": 1,
+        "retries_consumed": 0,
+        "runner_mode": ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+        "source_diff_applied": False,
+        "source_diff_paths": [],
+    }
+    shared_status_before: str | None = None
+
+    try:
+        shared_status_before = _shared_tree_status(REPO_ROOT)
+        source_diff = _working_tree_diff_against_head(REPO_ROOT)
+        source_diff_paths = _extract_mutated_paths(source_diff) if source_diff else []
+        budget_observations["source_diff_paths"] = source_diff_paths
+        context_surface = packet["mutable_candidate_surface"]
+        outside_context = [
+            path
+            for path in source_diff_paths
+            if not any(_path_matches_surface(path, surface) for surface in context_surface)
+        ]
+        if outside_context:
+            joined = ", ".join(outside_context)
+            raise PolicyViolationError(
+                "Oracle-only source diff must stay within packet context surface: " f"{joined}"
+            )
+        temp_dir, checkout_root = _create_temp_checkout(REPO_ROOT)
+        try:
+            if source_diff:
+                _apply_candidate_patch(checkout_root, source_diff)
+                budget_observations["source_diff_applied"] = True
+            oracle_results, failure_class = _run_oracles(packet, checkout_root)
+            budget_observations["oracle_commands_executed"] = len(oracle_results)
+            status = "accepted" if failure_class is None else "rejected"
+            result = _result_payload(
+                experiment_id=packet["experiment_id"],
+                runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+                candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+                status=status,
+                failure_class=failure_class,
+                mutated_paths=[],
+                oracle_results=oracle_results,
+                budget_observations=budget_observations,
+                shared_tree_untouched=True,
+            )
+        finally:
+            try:
+                temp_dir.cleanup()
+            except Exception as exc:
+                raise InfraFlakeError(f"Unable to clean temp checkout: {exc}") from exc
+    except PolicyViolationError as exc:
+        budget_observations["runner_error"] = str(exc)
+        result = _result_payload(
+            experiment_id=packet["experiment_id"],
+            runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            status="rejected",
+            failure_class="policy_violation",
+            mutated_paths=[],
+            oracle_results=[],
+            budget_observations=budget_observations,
+            shared_tree_untouched=shared_status_before is not None,
+        )
+    except InfraFlakeError as exc:
+        budget_observations["runner_error"] = str(exc)
+        result = _result_payload(
+            experiment_id=packet["experiment_id"],
+            runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+            candidate_patch=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
             status="rejected",
             failure_class="infra_flake",
             mutated_paths=[],
@@ -576,10 +753,10 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="experiment_runner",
-        description="Evaluate a candidate patch inside the governed experimentation lane.",
+        description="Evaluate a governed candidate patch or oracle-only reviewer packet.",
     )
     parser.add_argument("--packet", required=True, help="Experiment packet JSON path.")
-    parser.add_argument("--candidate-patch", required=True, help="Unified diff patch path.")
+    parser.add_argument("--candidate-patch", default=None, help="Unified diff patch path.")
     parser.add_argument(
         "--output",
         default=None,
@@ -594,7 +771,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     packet_path = Path(args.packet).expanduser().resolve()
-    candidate_patch_path = Path(args.candidate_patch).expanduser().resolve()
 
     try:
         packet = validate_experiment_packet(_read_json_object(packet_path))
@@ -603,7 +779,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: {exc}")
         return 1
 
-    result = evaluate_candidate(packet, candidate_patch_path)
+    runner_mode = packet.get("runner_mode", DEFAULT_RUNNER_MODE)
+    if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        if args.candidate_patch:
+            print("FAIL: oracle-only governance reviewer mode does not accept --candidate-patch")
+            return 1
+        result = evaluate_oracle_only_governance_reviewer(packet)
+    else:
+        if not args.candidate_patch:
+            print("FAIL: --candidate-patch is required for candidate_patch runner mode")
+            return 1
+        candidate_patch_path = Path(args.candidate_patch).expanduser().resolve()
+        result = evaluate_candidate(packet, candidate_patch_path)
     try:
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(
