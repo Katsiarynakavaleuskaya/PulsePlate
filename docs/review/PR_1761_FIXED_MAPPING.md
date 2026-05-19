@@ -355,6 +355,18 @@ Evidence: Closed current-head Codex follow-ups for available runtime-permission 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266464928 -> 49e67be993f102e8551c5e6a7bcf505a9f77e21b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266464931 -> 49e67be993f102e8551c5e6a7bcf505a9f77e21b
 
+Disposition: FIXED
+Commit: a7928d6250c0628a796a2709e410d27f7ceb2c1a
+Evidence: Closed current-head Codex follow-ups for dangling-negation bypasses, safe explanatory separators in downstream Forbidden Claims examples, and `semantic-cache gate is on/turned on` gate-open assertions. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266666373 -> a7928d6250c0628a796a2709e410d27f7ceb2c1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266666383 -> a7928d6250c0628a796a2709e410d27f7ceb2c1a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266666395 -> a7928d6250c0628a796a2709e410d27f7ceb2c1a
+
+Disposition: NOT-A-BUG
+Evidence: The fixed-mapping artifact does not point at outside-branch SHAs on current head `f7624a0ff49f6fae4f63577c720be11259526da7` / local successor `a7928d6250c0628a796a2709e410d27f7ceb2c1a`. Verification command parsed all 37 forty-character SHAs in `docs/review/PR_1761_FIXED_MAPPING.md`; `git cat-file -e <sha>^{commit}` succeeded for every SHA and `git merge-base --is-ancestor <sha> HEAD` reported no non-ancestors. Spot checks also confirmed `6d404193`, `16cbf6d9920b68306df50036d737e2c1f5e72ccd`, and `49e67be993f102e8551c5e6a7bcf505a9f77e21b` are ancestors of current PR head; the short SHA `b2098c71` named in the review text is not a valid object in this local branch.
+Reason: The reviewed branch history contains the fixing commits; no remap is needed for this thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3266666387
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
