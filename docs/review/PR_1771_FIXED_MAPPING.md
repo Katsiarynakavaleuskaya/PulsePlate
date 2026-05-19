@@ -141,6 +141,12 @@ Evidence: `core/food_sources/regional_catalog_identity.py` no longer treats `for
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269522238 -> 4919c32a7
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` rejects PR16 reports that set `seller_api_use_allowed` or `partner_api_use_allowed` to true, and `tests/test_food_source_regional_catalog_identity.py` covers both flags in the PR16 handoff safety test.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269624890 -> f3d8cedb1
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
