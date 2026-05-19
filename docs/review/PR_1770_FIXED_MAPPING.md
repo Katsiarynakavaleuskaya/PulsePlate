@@ -15,7 +15,7 @@
 
 Disposition: FIXED
 Commit: b1a74e849593e3c7289fc029ac69ae807bf37833
-Evidence: `tests/test_install_locked_python_requirements.py:339` verifies all seven alert surfaces pin `idna==3.15`, no repo-managed requirement profile returns to `idna==3.11`, and no active emergency fallback exists for `idna`.
+Evidence: `tests/test_install_locked_python_requirements.py:350` verifies all seven alert surfaces pin `idna==3.15`, no repo-managed requirement profile returns to `idna==3.11`, and no active emergency fallback exists for `idna`.
 
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363`
@@ -26,8 +26,6 @@ Evidence: `pip index versions idna --index-url "$PULSEPLATE_PYTHON_INDEX_URL"` c
 
 Disposition: FIXED
 Commit: b1a74e849593e3c7289fc029ac69ae807bf37833
-Evidence: exact `idna==3.15` pins plus regression coverage in `tests/test_install_locked_python_requirements.py:339`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/145 -> b1a74e849593e3c7289fc029ac69ae807bf37833
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/146 -> b1a74e849593e3c7289fc029ac69ae807bf37833
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/147 -> b1a74e849593e3c7289fc029ac69ae807bf37833
@@ -39,13 +37,11 @@ Evidence: exact `idna==3.15` pins plus regression coverage in `tests/test_instal
 Disposition: DEFERRED
 Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-remove-trivy-suppression-jwt-cve-2026-45363`
 Evidence: `docs/security/CVE-2026-45363-jwt-fastlane.md:28` and `ios/Gemfile.lock:103` record the Fastlane `jwt < 3` blocker.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/security/dependabot/142
 
 Disposition: FIXED
 Commit: fc4ca0ed4
-Evidence: `docs/review/PR_1770_PREMORTEM.md:62` now uses the clearer wording suggested by Sourcery. `tests/test_install_locked_python_requirements.py:17` defines shared idna floor constants and the test uses one repo requirements scan instead of rereading the same files through separate loops.
-
+Evidence: `docs/review/PR_1770_PREMORTEM.md:62` now uses the clearer wording suggested by Sourcery. `tests/test_install_locked_python_requirements.py:18` defines shared idna floor constants and the test uses one repo requirements scan instead of rereading the same files through separate loops.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1770#pullrequestreview-4322175139 -> fc4ca0ed4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1770#discussion_r3268835017 -> fc4ca0ed4
 
