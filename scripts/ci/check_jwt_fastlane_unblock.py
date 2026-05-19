@@ -23,6 +23,7 @@ FIXED_JWT_FLOOR = "3.2.0"
 
 _SPEC_RE = re.compile(r"^(?P<indent>\s*)(?P<name>[A-Za-z0-9_.-]+) \((?P<body>[^)]+)\)")
 _VERSION_RE = re.compile(r"^\d+(?:\.\d+)*(?:\.[A-Za-z0-9_-]+)?$")
+_CONSTRAINT_RE = re.compile(r"(?P<operator><=|>=|!=|=|~>|<|>)\s*(?P<version>[0-9][A-Za-z0-9_.-]*)")
 
 
 @dataclass(frozen=True)
@@ -33,22 +34,35 @@ class BundlerEvidence:
     jwt_constraints: dict[str, str] = field(default_factory=dict)
 
 
-def _version_tuple(version: str) -> tuple[int, ...]:
-    parts = []
-    for item in version.split("."):
-        if not item.isdigit():
-            break
-        parts.append(int(item))
-    return tuple(parts)
+def _version_key(version: str) -> tuple[tuple[int, ...], int]:
+    """Return comparable numeric version plus prerelease rank.
+
+    Prereleases sort below their corresponding final release. This is enough for
+    the `jwt 3.2.0` floor this guard enforces and avoids a runtime dependency on
+    packaging libraries in a CI bootstrap script.
+    """
+    numeric_parts: list[int] = []
+    prerelease = False
+    for item in re.split(r"[._-]", version):
+        if item.isdigit():
+            numeric_parts.append(int(item))
+            continue
+        prerelease = True
+        break
+    return tuple(numeric_parts), 0 if prerelease else 1
 
 
 def _version_at_least(version: str, floor: str) -> bool:
-    return _version_tuple(version) >= _version_tuple(floor)
+    return _version_key(version) >= _version_key(floor)
 
 
 def _constraint_requires_jwt_lt3(constraint: str) -> bool:
-    normalized = constraint.replace(" ", "")
-    return "<3" in normalized or "<3.0" in normalized
+    for match in _CONSTRAINT_RE.finditer(constraint):
+        operator = match.group("operator")
+        version = match.group("version")
+        if operator in {"<", "<="} and _version_key(version) <= _version_key("3"):
+            return True
+    return False
 
 
 def parse_bundler_evidence(output: str) -> BundlerEvidence:

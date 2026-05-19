@@ -44,9 +44,9 @@ CANONICAL_FALLBACK_CI_CHECK_NAMES = {
     "security",
     "OpenAPI sync (backend -> frontend artifacts)",
     "test-pr (3.13)",
-    "test-main (3.11)",
-    "test-main (3.12)",
-    "test-main (3.13)",
+    "test-main (3.11, 60)",
+    "test-main (3.12, 90)",
+    "test-main (3.13, 90)",
     "coverage-pr",
     "diff-coverage",
 }
