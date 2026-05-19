@@ -117,7 +117,7 @@ commercial, seller, partner, portal, or scraping sources.
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: af33cd726
+Commit: see mapping entries below
 Evidence: `core/food_sources/regional_catalog_identity.py` and `tests/test_food_source_regional_catalog_identity.py` fix public dataset claim flags, candidate identity pinning, blocked prose coverage, and negated wording.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269413612 -> af33cd726
