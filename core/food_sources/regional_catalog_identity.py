@@ -260,7 +260,7 @@ _REGIONAL_SOURCE_BLOCKING_REASONS = (
 _APPROVAL_TERMS = r"approved|allowed|authorized|permitted|granted|enabled|usable|available"
 _USE_TERMS = r"may be used|can be used|relied on"
 _BLOCKED_NOTE_TERMS = (
-    r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller api|partner api|"
+    r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller apis?|partner apis?|"
     r"provider integration|cache authority|redistribution|runtime authority|product display|"
     r"nutrition authority|source authority|public dataset claim|automated collection|"
     r"digitalocean postgres(?:ql)? load|postgres(?:ql)? load|database writes?|db writes?|"
@@ -270,15 +270,21 @@ _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS})\b"),
     re.compile(rf"\b(?:{_APPROVAL_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"),
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_USE_TERMS})\b"),
-    re.compile(r"\bdata portal\b(?:\W+\w+){0,4}\W+\b(?:is|becomes|serves as|treated as)\b"),
-    re.compile(r"\b(?:source authority|nutrition authority)\b(?:\W+\w+){0,4}\W+\bfor\b"),
+    re.compile(
+        r"\bdata portal\b(?:\W+\w+){0,4}\W+\b(?:is|becomes|serves as|treated as)\b"
+        r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
+    ),
 )
+_BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
     r"\bunapproved\b"
 )
 _AUTHORITY_LANGUAGE_RE = re.compile(rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_USE_TERMS})\b")
+_NEGATED_DIRECT_AUTHORITY_RE = re.compile(
+    r"\b(?:no|not|never)\s+(?:become\s+)?(?:source authority|nutrition authority|product display)\b"
+)
 
 
 class RegionalCatalogIdentityError(ValueError):
@@ -419,9 +425,16 @@ def _relative_repo_path(path: Path | str) -> str:
 
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", value.lower()).strip()
+    remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", normalized)
+    if _BLOCKED_NOTE_RE.search(normalized) and _AUTHORITY_LANGUAGE_RE.search(
+        remaining_authority_text
+    ):
+        raise _identity_error(context, "notes must not approve regional catalog source use")
     for pattern in _FORBIDDEN_NOTE_PATTERNS:
         for match in pattern.finditer(normalized):
             match_text = match.group(0)
+            if _NEGATED_DIRECT_AUTHORITY_RE.search(match_text):
+                continue
             if not _AUTHORITY_LANGUAGE_RE.search(match_text):
                 raise _identity_error(context, "notes must not approve regional catalog source use")
             remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", match_text)

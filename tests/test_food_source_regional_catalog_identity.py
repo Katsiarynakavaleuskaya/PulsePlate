@@ -416,6 +416,10 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Partner API access is not approved but can be used for Yandex EDA.",
         "Public dataset claim is unapproved but usable for regional catalogs.",
         "DigitalOcean Postgres load is not approved but enabled for regional catalogs.",
+        "Seller API is not approved but available for testing.",
+        "Seller API use is blocked for PR17 governance evidence and provider terms but still approved for limited staging sync.",
+        "Seller APIs approved for regional catalog checks.",
+        "Partner APIs allowed for regional catalog checks.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -439,6 +443,8 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Public dataset claim remains unapproved for regional catalogs.",
         "Automated collection is blocked for regional catalogs.",
         "DigitalOcean Postgres load is not allowed for PR17.",
+        "Data portal is not source authority for PR17.",
+        "Nutrition authority for regional catalogs is not approved.",
     ),
 )
 def test_regional_catalog_identity_allows_negated_authority_prose(safe_notes: str) -> None:
