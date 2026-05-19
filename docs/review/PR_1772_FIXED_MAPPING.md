@@ -11,10 +11,14 @@
 
 ## Discussion Thread Pass
 
-- [ ] No unresolved actionable review threads remain after PR open.
-- [ ] CodeRabbit/Sourcery/Cubic no-actionable status verified after PR open.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Premortem And Alert Dispositions
 
 ### Dependabot Alert #142 - Ruby `jwt` CVE-2026-45363
 
