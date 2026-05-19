@@ -460,6 +460,10 @@ Evidence: Closed current-head Codex follow-ups for modal verification-bundle wai
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221206 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269221213 -> f40b73b0a10d4c9a29b80a0ae6d65e1d6dfe0c70
 
+Disposition: FIXED
+Commit: 5a442c7187ddf6796aa7c966542c564218ba53a8
+Evidence: Closed proactive QA/bug-hunter systemic false-green finding for gate-open claim-class coverage by adding a deterministic 320-case generated gate-open claim grammar, broadening the gate-open detector across subject/action/object, tense/aspect, modality, and state/status wording, and updating `philosophy-agent` / `qa-engineer-agent` rules so future claim-validator lanes treat reviewer phrases as missing class dimensions rather than isolated strings. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, and `pre-commit run --all-files`.
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
