@@ -373,6 +373,54 @@ def test_preference_mapping_closeout_rejects_pr15_handoff_drift() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "preference_mapping",
+    (
+        replace(_preference_mapping(), evidence_policy="source_authority_allowed"),
+        replace(_preference_mapping(), notes="api calls are allowed"),
+        replace(
+            _preference_mapping(),
+            mapping_contracts=(
+                replace(_preference_mapping().mapping_contracts[0], notes="source use allowed"),
+                *_preference_mapping().mapping_contracts[1:],
+            ),
+        ),
+    ),
+)
+def test_preference_mapping_closeout_rejects_pr15_authority_handoff_drift(
+    preference_mapping: PreferenceRecipeMappingGovernance,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=preference_mapping,
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    "coverage",
+    (
+        replace(_coverage(), next_recommended_lane="paid_provider_lane"),
+        replace(_coverage(), final_gate_decision="coverage_gap_allows_ingest"),
+        replace(_coverage(), notes="source use allowed"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_pr11_top_level_handoff_drift(
+    coverage: SourceGapAudit,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=coverage,
+        )
+
+
 def test_preference_mapping_closeout_rejects_regional_domain_drift() -> None:
     payload = _closeout_payload()
     coverage = _coverage_with_regional_domain(next_action="paid_restaurant_menu_snapshot")
@@ -450,7 +498,7 @@ def test_preference_mapping_closeout_rejects_regional_handoff_authority_notes(
 ) -> None:
     payload = _closeout_payload()
 
-    with pytest.raises(PreferenceMappingCloseoutError, match="notes must not approve"):
+    with pytest.raises(PreferenceMappingCloseoutError):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),
@@ -474,6 +522,14 @@ def test_preference_mapping_closeout_rejects_regional_handoff_authority_notes(
         "Redistribution allowed.",
         "Ingest allowed.",
         "Source use allowed.",
+        "Provider snapshots are source authority for regional catalog decisions.",
+        "Edamam is source authority for regional catalog decisions.",
+        "Spoonacular becomes source authority for regional catalog decisions.",
+        "Nutritionix is nutrition authority for this closeout.",
+        "TheMealDB is runtime authority for recipes.",
+        "No api calls approved. Scraping allowed.",
+        "No provider snapshots approved. Edamam is source authority.",
+        "No api calls allowed. API calls allowed for regional source decisions.",
     ),
 )
 def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
@@ -482,7 +538,7 @@ def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
     payload = _closeout_payload()
     payload["notes"] = bad_notes
 
-    with pytest.raises(PreferenceMappingCloseoutError, match="notes must not approve"):
+    with pytest.raises(PreferenceMappingCloseoutError):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),
@@ -497,6 +553,8 @@ def test_preference_mapping_closeout_rejects_external_evidence_authority_notes(
         "No api calls approved by this evidence packet.",
         "No api calls allowed in PR16.",
         "The report does not approve provider snapshots.",
+        "Edamam is not source authority for PR16 closeout.",
+        "Spoonacular does not become source authority for PR16 closeout.",
     ),
 )
 def test_preference_mapping_closeout_allows_negated_blocked_approval_notes(
@@ -520,6 +578,7 @@ def test_preference_mapping_closeout_allows_negated_blocked_approval_notes(
         "USDA + Open Food Facts remain baseline, but paid APIs approved for use.",
         "USDA + Open Food Facts remain baseline, and provider snapshots are allowed.",
         "USDA + Open Food Facts remain baseline, and this report permits scrapers.",
+        "USDA + Open Food Facts are deprecated and no longer the baseline.",
     ),
 )
 def test_preference_mapping_closeout_rejects_budget_policy_authority_promotion(
@@ -528,7 +587,7 @@ def test_preference_mapping_closeout_rejects_budget_policy_authority_promotion(
     payload = _closeout_payload()
     payload["budget_first_policy"] = bad_budget_policy
 
-    with pytest.raises(PreferenceMappingCloseoutError, match="notes must not approve"):
+    with pytest.raises(PreferenceMappingCloseoutError):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),

@@ -14,9 +14,15 @@ from pathlib import Path
 import re
 
 from core.food_sources.preference_recipe_mapping import (
+    BLOCKED_METHODS as PR15_BLOCKED_METHODS,
+    EVIDENCE_POLICY as PR15_EVIDENCE_POLICY,
+    FINAL_GATE_DECISION as PR15_FINAL_GATE_DECISION,
     NEXT_RECOMMENDED_LANE as PR15_NEXT_RECOMMENDED_LANE,
     PreferenceRecipeMappingError,
     PreferenceRecipeMappingGovernance,
+    SOURCE as PR15_SOURCE,
+    SOURCE_CLASSIFICATION as PR15_SOURCE_CLASSIFICATION,
+    SOURCE_FAMILY as PR15_SOURCE_FAMILY,
     load_preference_recipe_mapping_governance,
 )
 from core.food_sources.recipe_dish_corpus import (
@@ -25,6 +31,8 @@ from core.food_sources.recipe_dish_corpus import (
 )
 from core.food_sources.source_catalog import SourceCatalogError, load_source_catalog
 from core.food_sources.source_gap_audit import (
+    FINAL_GATE_DECISION as PR11_FINAL_GATE_DECISION,
+    NEXT_RECOMMENDED_LANE as PR11_NEXT_RECOMMENDED_LANE,
     SourceGapAudit,
     SourceGapAuditError,
     load_source_gap_audit,
@@ -155,13 +163,24 @@ _APPROVAL_STATES = r"approved|authorized|permitted|allowed"
 _EXTERNAL_EVIDENCE_TERMS = (
     r"reports?|spreadsheets?|docx|documents?|images?|charts?|artifacts?|research"
 )
+_BLOCKED_PROVIDER_TERMS = (
+    r"edamam|spoonacular|nutritionix|themealdb|mealdb|fatsecret|menustat|"
+    r"recipe api|spike api|spike|apify|kitchenhub|pepesto|pricesapi|prices api|"
+    r"yandex eda|ozon|wildberries|walmart api|kroger api"
+)
 _BLOCKED_AUTHORITY_TERMS = (
+    rf"{_BLOCKED_PROVIDER_TERMS}|"
     r"paid apis?|paid source use|paid providers?|provider snapshots?|provider integration|"
     r"scrapers?|scraping|api calls?|source downloads?|downloads?|runtime authority|"
     r"cache authority|database writes?|db writes?|redistribution|ingests?|source use|"
     r"source authority|nutrition authority|product display"
 )
 _FORBIDDEN_NOTE_PATTERNS = (
+    re.compile(
+        rf"\b(?:{_BLOCKED_PROVIDER_TERMS})\b"
+        rf"(?:\W+\w+){{0,3}}\W+\b(?:is|are|as|become|becomes|serve as|serves as|treated as)\b"
+        rf"\W+\b(?:source|nutrition|runtime|cache)?\s*authority\b"
+    ),
     re.compile(rf"\b(?:{_EXTERNAL_EVIDENCE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_VERBS})\b"),
     re.compile(
         rf"\b(?:{_EXTERNAL_EVIDENCE_TERMS})\b"
@@ -173,6 +192,11 @@ _FORBIDDEN_NOTE_PATTERNS = (
         rf"(?:\W+\b(?:is|are|be|been|being)\b)?\W+\b(?:{_APPROVAL_STATES})\b"
     ),
     re.compile(rf"\b(?:{_APPROVAL_VERBS})\b\W+\b(?:{_BLOCKED_AUTHORITY_TERMS})\b"),
+    re.compile(
+        rf"\b(?:{_BLOCKED_AUTHORITY_TERMS}|{_EXTERNAL_EVIDENCE_TERMS})\b"
+        rf"(?:\W+\w+){{0,3}}\W+\b(?:is|are|as|become|becomes|serve as|serves as|treated as)\b"
+        rf"\W+\b(?:source|nutrition|runtime|cache)?\s*authority\b"
+    ),
 )
 
 
@@ -278,28 +302,34 @@ def _parse_date(value: str, context: str) -> date:
 def _require_safe_notes(value: str, context: str) -> str:
     normalized = re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", value.lower()).strip()
     for phrase in _FORBIDDEN_NOTE_PHRASES:
-        phrase_start = normalized.find(phrase)
-        if phrase_start != -1 and not _is_negated_approval_match(phrase, normalized, phrase_start):
-            raise _closeout_error(context, "notes must not approve blocked source authority")
+        for match in re.finditer(re.escape(phrase), normalized):
+            if not _is_negated_approval_match(phrase, normalized, match.start()):
+                raise _closeout_error(context, "notes must not approve blocked source authority")
     for pattern in _FORBIDDEN_NOTE_PATTERNS:
-        match = pattern.search(normalized)
-        if match is not None and not _is_negated_approval_match(
-            match.group(0), normalized, match.start()
-        ):
-            raise _closeout_error(context, "notes must not approve blocked source authority")
+        for match in pattern.finditer(normalized):
+            if not _is_negated_approval_match(match.group(0), normalized, match.start()):
+                raise _closeout_error(context, "notes must not approve blocked source authority")
     return value
 
 
 def _is_negated_approval_match(text: str, normalized: str, start: int) -> bool:
-    window = f"{normalized[max(0, start - 24):start]} {text}".strip()
+    text = text.strip()
+    prefix = normalized[max(0, start - 4) : start]
+    window = normalized[max(0, start - 32) : start + len(text)].strip()
     return bool(
         re.search(
             rf"\b(?:do|does|did|must|may|can|should|is|are)?\s*not\s+(?:{_APPROVAL_VERBS})\b",
             window,
         )
-        or re.search(rf"\bno\s+(?:{_APPROVAL_STATES}|approval|authority)\b", window)
+        or re.search(r"(?:^|\W)no\W+$", prefix)
         or re.search(
-            rf"\bno\b(?:\W+\w+){{0,4}}\W+\b(?:{_APPROVAL_STATES}|{_APPROVAL_VERBS})\b",
+            r"\b(?:do|does|did|must|may|can|should|is|are)?\s*not\b"
+            r"(?:\W+\w+){0,4}\W+\b(?:become|becomes|serve as|serves as|treated as)\b",
+            window,
+        )
+        or re.search(
+            r"\b(?:do|does|did|must|may|can|should|is|are)?\s*not\b"
+            r"(?:\W+\w+){0,4}\W+\b(?:source|nutrition|runtime|cache)?\s*authority\b",
             window,
         )
     )
@@ -314,20 +344,51 @@ def _require_safety_flags(data: dict[str, object], context: str) -> None:
             raise _closeout_error(context, f"{key} flags must be false")
 
 
+def _require_budget_first_policy(value: str, context: str) -> str:
+    if "USDA + Open Food Facts remain the canonical" not in value:
+        raise _closeout_error(
+            context,
+            "budget_first_policy must preserve USDA + Open Food Facts as canonical baseline",
+        )
+    _require_safe_notes(value, context)
+    return value
+
+
 def _require_pr15_handoff(
     preference_mapping: PreferenceRecipeMappingGovernance,
     context: str,
 ) -> None:
+    if preference_mapping.source != PR15_SOURCE:
+        raise _closeout_error(context, f"PR15 source must be {PR15_SOURCE}")
+    if preference_mapping.source_classification != PR15_SOURCE_CLASSIFICATION:
+        raise _closeout_error(
+            context, f"PR15 source_classification must be {PR15_SOURCE_CLASSIFICATION}"
+        )
+    if preference_mapping.source_family != PR15_SOURCE_FAMILY:
+        raise _closeout_error(context, f"PR15 source_family must be {PR15_SOURCE_FAMILY}")
+    if preference_mapping.evidence_policy != PR15_EVIDENCE_POLICY:
+        raise _closeout_error(context, f"PR15 evidence_policy must be {PR15_EVIDENCE_POLICY}")
+    if preference_mapping.blocked_methods != PR15_BLOCKED_METHODS:
+        raise _closeout_error(context, "PR15 blocked_methods drifted")
     if preference_mapping.next_recommended_lane != PR15_NEXT_RECOMMENDED_LANE:
         raise _closeout_error(context, "PR15 must recommend preference mapping closeout")
-    if (
-        preference_mapping.final_gate_decision
-        != "preference_recipe_mapping_contract_only_no_ingest"
-    ):
+    if preference_mapping.final_gate_decision != PR15_FINAL_GATE_DECISION:
         raise _closeout_error(context, "PR15 final_gate_decision must remain no-ingest")
+    _require_safe_notes(preference_mapping.notes, context)
+    for mapping_contract in preference_mapping.mapping_contracts:
+        _require_safe_notes(mapping_contract.notes, context)
 
 
 def _require_regional_handoff(coverage: SourceGapAudit, context: str) -> None:
+    if coverage.next_recommended_lane != PR11_NEXT_RECOMMENDED_LANE:
+        raise _closeout_error(
+            context, f"PR11 next_recommended_lane must be {PR11_NEXT_RECOMMENDED_LANE}"
+        )
+    if coverage.final_gate_decision != PR11_FINAL_GATE_DECISION:
+        raise _closeout_error(
+            context, f"PR11 final_gate_decision must be {PR11_FINAL_GATE_DECISION}"
+        )
+    _require_safe_notes(coverage.notes, context)
     regional_domains = tuple(
         domain for domain in coverage.coverage_domains if domain.domain == "regional_local_products"
     )
@@ -441,9 +502,7 @@ def parse_preference_mapping_closeout_governance(
         data, "blocked_methods", context, expected=BLOCKED_METHODS
     )
     budget_first_policy = _require_string(data, "budget_first_policy", context)
-    if "USDA + Open Food Facts" not in budget_first_policy:
-        raise _closeout_error(context, "budget_first_policy must preserve USDA + Open Food Facts")
-    _require_safe_notes(budget_first_policy, context)
+    _require_budget_first_policy(budget_first_policy, context)
     deferred_followups = _require_string_tuple(data, "deferred_followups", context)
     required_followups = {
         "paid_restaurant_menu_snapshot_provider_governance",
