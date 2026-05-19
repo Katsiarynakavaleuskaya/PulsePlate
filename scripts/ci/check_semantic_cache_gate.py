@@ -815,7 +815,16 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     (
         "philosophy admission opens gate",
         re.compile(
-            r"\bphilosophy admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
+            r"\b(?:philosophy admission|philosophy pr-1 admission|philosophy pr-1|"
+            r"pr-1 admission|pr-1|the admission contract|admission contract) "
+            r"(?:(?:will|shall|can|may) (?:open(?: up)?|unlock|activate|enable)|"
+            r"(?:has|had) (?:opened|unlocked|activated|enabled)|"
+            r"(?:is|was|has been|had been) "
+            r"(?:opening|unlocking|activating|enabling)|"
+            r"(?:open(?:s|ed)?(?: up)?|unlock(?:s|ed)?|"
+            r"activate(?:s|d)?|enable(?:s|d)?)) "
+            r"(?:the )?(?:(?:global )?semantic[- ]cache|global) gate\b"
+            r"|\bphilosophy admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy admission unlock(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy pr-1 admission open(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy pr-1 admission unlock(?:s|ed) "
@@ -858,8 +867,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:the )?(?:(?:global )?semantic[- ]cache|global) gate "
             r"(?:is|was|has been) (?:now )?open\b"
             r"|\b(?:the )?(?:(?:global )?semantic[- ]cache|global) gate "
-            r"(?:(?:is|was|has been) still |(?:still )?remains |stayed |stays )"
-            r"(?:open|unlocked|live|enabled)\b"
+            r"(?:(?:is|was|has been) still |(?:still )?remains |(?:has )?stayed |stays )"
+            r"(?:open|unlocked|live|enabled|active|approved|ready)\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
             r"(?:became|has become) (?:now )?open\b"
             r"|\b(?:the )?(?:(?:global )?semantic[- ]cache|global) gate "

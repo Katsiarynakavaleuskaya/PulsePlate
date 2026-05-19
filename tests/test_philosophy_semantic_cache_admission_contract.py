@@ -72,6 +72,60 @@ def _copy_machine_state() -> dict[str, object]:
     return json.loads(json.dumps(_machine_state()))
 
 
+PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR = {
+    "subjects": (
+        "PR-1",
+        "Philosophy PR-1",
+        "Philosophy admission",
+        "The admission contract",
+    ),
+    "actions": (
+        "opens",
+        "opens up",
+        "unlocks",
+        "activates",
+        "enables",
+        "will open",
+        "will unlock",
+        "will activate",
+        "will enable",
+        "can open",
+        "may unlock",
+        "has opened",
+        "has unlocked",
+        "is opening",
+        "is unlocking",
+    ),
+    "objects": (
+        "the semantic-cache gate",
+        "the semantic cache gate",
+        "the global gate",
+    ),
+    "state_subjects": (
+        "semantic-cache gate",
+        "global gate",
+        "the semantic-cache gate",
+        "the global gate",
+    ),
+    "state_verbs": ("is", "stays", "remains", "is still", "has stayed"),
+    "states": ("open", "unlocked", "active", "enabled", "approved", "ready", "live"),
+}
+
+
+def _generated_forbidden_gate_open_claims() -> tuple[str, ...]:
+    """Generate deterministic paraphrases for the gate-open forbidden claim class."""
+    claims: list[str] = []
+    for subject in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["subjects"]:
+        for action in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["actions"]:
+            for object_ in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["objects"]:
+                claims.append(f"{subject} {action} {object_}.")
+    for subject in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["state_subjects"]:
+        for verb in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["state_verbs"]:
+            for state in PHILOSOPHY_GATE_OPEN_CLAIM_GRAMMAR["states"]:
+                claims.append(f"{subject} {verb} {state}.")
+    return tuple(claims)
+
+
 def test_contract_exists_and_keeps_gate_closed() -> None:
     text = _contract_text().lower()
 
@@ -1322,6 +1376,22 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         errors = validate_philosophy_semantic_cache_admission_contract(mutated)
 
         assert any("forbidden" in e and "philosophy admission opens gate" in e for e in errors)
+
+
+def test_generated_forbidden_gate_open_claim_grammar_rejected() -> None:
+    """Gate-open policy is propositional; deterministic paraphrase classes must fail."""
+    claims = _generated_forbidden_gate_open_claims()
+
+    assert len(claims) == 320
+    misses = []
+    for claim in claims:
+        errors = validate_philosophy_semantic_cache_admission_downstream_text(
+            f"gate remains closed\n\n{claim}"
+        )
+        if not any("philosophy admission opens gate" in e for e in errors):
+            misses.append(claim)
+
+    assert misses == []
 
 
 def test_negated_gate_unlocked_claim_allowed() -> None:
