@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from datetime import date
+from pathlib import Path
 
 from scripts.ci.check_trivy_ignore_policy_expiry import evaluate_policy_file
 
 
-def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path) -> None:
+def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     policy.write_text(
         "\n".join(
@@ -22,7 +23,7 @@ def test_trivy_policy_guard_accepts_unexpired_policy_and_review_dates(tmp_path) 
     assert evaluate_policy_file(policy, today=date(2026, 5, 19)) == []
 
 
-def test_trivy_policy_guard_fails_stale_review_by_dates(tmp_path) -> None:
+def test_trivy_policy_guard_fails_stale_review_by_dates(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     policy.write_text(
         "\n".join(
@@ -44,7 +45,7 @@ def test_trivy_policy_guard_fails_stale_review_by_dates(tmp_path) -> None:
     ]
 
 
-def test_trivy_policy_guard_still_rejects_multiple_file_expiry_markers(tmp_path) -> None:
+def test_trivy_policy_guard_still_rejects_multiple_file_expiry_markers(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     policy.write_text(
         "\n".join(
@@ -67,7 +68,7 @@ def test_trivy_policy_guard_still_rejects_multiple_file_expiry_markers(tmp_path)
     ]
 
 
-def test_trivy_policy_guard_reports_invalid_review_by_dates(tmp_path) -> None:
+def test_trivy_policy_guard_reports_invalid_review_by_dates(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     policy.write_text(
         "\n".join(
@@ -88,7 +89,7 @@ def test_trivy_policy_guard_reports_invalid_review_by_dates(tmp_path) -> None:
     ]
 
 
-def test_trivy_policy_guard_reports_invalid_file_expiry_dates(tmp_path) -> None:
+def test_trivy_policy_guard_reports_invalid_file_expiry_dates(tmp_path: Path) -> None:
     policy = tmp_path / "ignore-policy.rego"
     policy.write_text(
         "\n".join(

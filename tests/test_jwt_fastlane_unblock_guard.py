@@ -54,15 +54,39 @@ def test_jwt_fastlane_guard_fails_when_fastlane_no_longer_blocks_jwt_3() -> None
 
     errors = evaluate_bundler_evidence(parse_bundler_evidence(output))
 
-    assert any("Fastlane 2.234.0 no longer constrains jwt below 3" in error for error in errors)
+    assert any("Fastlane 2.234.0 no longer blocks jwt 3.2.0" in error for error in errors)
 
 
-def test_jwt_fastlane_guard_treats_partial_three_x_constraint_as_unblock_signal() -> None:
+def test_jwt_fastlane_guard_treats_partial_three_x_constraint_as_still_blocked() -> None:
     output = BLOCKED_BUNDLER_OUTPUT.replace("jwt (>= 2.1.0, < 3)", "jwt (>= 2.1.0, < 3.2)")
 
     errors = evaluate_bundler_evidence(parse_bundler_evidence(output))
 
-    assert any("Fastlane 2.234.0 no longer constrains jwt below 3" in error for error in errors)
+    assert errors == []
+
+
+def test_jwt_fastlane_guard_treats_three_zero_constraint_as_still_blocked() -> None:
+    output = BLOCKED_BUNDLER_OUTPUT.replace("jwt (>= 2.1.0, < 3)", "jwt (>= 2.1.0, < 3.0)")
+
+    errors = evaluate_bundler_evidence(parse_bundler_evidence(output))
+
+    assert errors == []
+
+
+def test_jwt_fastlane_guard_treats_pessimistic_two_x_constraint_as_still_blocked() -> None:
+    output = BLOCKED_BUNDLER_OUTPUT.replace("jwt (>= 2.1.0, < 3)", "jwt (~> 2.1)")
+
+    errors = evaluate_bundler_evidence(parse_bundler_evidence(output))
+
+    assert errors == []
+
+
+def test_jwt_fastlane_guard_treats_exact_two_x_constraint_as_still_blocked() -> None:
+    output = BLOCKED_BUNDLER_OUTPUT.replace("jwt (>= 2.1.0, < 3)", "jwt (= 2.10.2)")
+
+    errors = evaluate_bundler_evidence(parse_bundler_evidence(output))
+
+    assert errors == []
 
 
 def test_jwt_fastlane_guard_does_not_treat_jwt_prerelease_as_patched() -> None:
@@ -70,4 +94,4 @@ def test_jwt_fastlane_guard_does_not_treat_jwt_prerelease_as_patched() -> None:
 
     errors = evaluate_bundler_evidence(parse_bundler_evidence(output))
 
-    assert not any("remove the Trivy suppression" in error for error in errors)
+    assert errors == []

@@ -49,6 +49,8 @@ def _version_key(version: str) -> tuple[tuple[int, ...], int]:
             continue
         prerelease = True
         break
+    while len(numeric_parts) < 3:
+        numeric_parts.append(0)
     return tuple(numeric_parts), 0 if prerelease else 1
 
 
@@ -56,12 +58,41 @@ def _version_at_least(version: str, floor: str) -> bool:
     return _version_key(version) >= _version_key(floor)
 
 
-def _constraint_requires_jwt_lt3(constraint: str) -> bool:
+def _numeric_parts(version: str) -> list[int]:
+    parts: list[int] = []
+    for item in re.split(r"[._-]", version):
+        if not item.isdigit():
+            break
+        parts.append(int(item))
+    return parts or [0]
+
+
+def _pessimistic_upper_bound(version: str) -> tuple[tuple[int, ...], int]:
+    parts = _numeric_parts(version)
+    if len(parts) <= 2:
+        upper = [parts[0] + 1, 0, 0]
+    else:
+        upper = [parts[0], parts[1] + 1, 0]
+    return tuple(upper), 1
+
+
+def _constraint_blocks_fixed_jwt_floor(constraint: str, fixed_jwt_floor: str) -> bool:
+    fixed_key = _version_key(fixed_jwt_floor)
     for match in _CONSTRAINT_RE.finditer(constraint):
         operator = match.group("operator")
         version = match.group("version")
-        if operator in {"<", "<="} and _version_key(version) <= _version_key("3"):
+        version_key = _version_key(version)
+        if operator == "<" and not fixed_key < version_key:
             return True
+        if operator == "<=" and not fixed_key <= version_key:
+            return True
+        if operator == "=" and fixed_key != version_key:
+            return True
+        if operator == "~>":
+            lower_key = version_key
+            upper_key = _pessimistic_upper_bound(version)
+            if not (lower_key <= fixed_key < upper_key):
+                return True
     return False
 
 
@@ -122,9 +153,9 @@ def evaluate_bundler_evidence(
             f"Fastlane {fastlane_version} no longer reports a direct jwt constraint; "
             "re-evaluate the lockfile and remove or update the suppression."
         )
-    elif not _constraint_requires_jwt_lt3(fastlane_constraint):
+    elif not _constraint_blocks_fixed_jwt_floor(fastlane_constraint, fixed_jwt_floor):
         errors.append(
-            f"Fastlane {fastlane_version} no longer constrains jwt below 3 "
+            f"Fastlane {fastlane_version} no longer blocks jwt {fixed_jwt_floor} "
             f"({fastlane_constraint}); try resolving jwt >= {fixed_jwt_floor}."
         )
 
