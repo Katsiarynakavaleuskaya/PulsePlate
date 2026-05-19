@@ -6,16 +6,20 @@
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed after replacement PR opens
-- [ ] Fixed in commit mapping completed after replacement PR opens
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
+- No actionable review comments
+
+## Implementation Evidence
+
 Disposition: FIXED
-Commit: `7c99fb9e8`
+Commit: 7c99fb9e8
 Evidence: `requirements-rag-vector.in`, `requirements-rag-vector.txt`, `requirements-rag-vector-cpu.in`, and `requirements-rag-vector-cpu.txt` pin `sentence-transformers==5.5.0`; `scripts/ci/emergency_python_wheels.json` carries the exact `sentence_transformers-5.5.0-py3-none-any.whl` fallback with pinned `sha256`; `tests/test_install_locked_python_requirements.py` guards runtime-effective manifest-to-RAG-profile alignment and avoids treating expired manifest entries as active.
 
-- Supersedes Dependabot PR #1760 governance blocker: missing canonical fixed-mapping artifact on the bot PR.
+Supersedes Dependabot PR #1760 governance blocker: missing canonical fixed-mapping artifact on the bot PR.
 
 ## Role-Agent / Premortem Pass
 
