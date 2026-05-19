@@ -196,6 +196,32 @@ Evidence: `core/food_sources/regional_catalog_identity.py` validates PR16 handof
 Reason: The current PR head already rejects the malformed PR16 boolean handoff described in the thread; no additional code change is required for this comment.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269908656
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` treats `ok`/`okay` as authority language, and `tests/test_food_source_regional_catalog_identity.py` rejects `Seller API use is blocked for PR17 but okay for manual testing.`
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977670 -> 492c3f3d4
+
+Disposition: NOT-A-BUG
+Evidence: `core/food_sources/regional_catalog_identity.py` includes `used` in use-term detection and direct use-before-target detection; `tests/test_food_source_regional_catalog_identity.py` rejects `Seller api is used for tests.`
+Reason: Current PR head already rejects the past-tense `used` examples described in the thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977671
+
+Disposition: NOT-A-BUG
+Evidence: `core/food_sources/regional_catalog_identity.py` evaluates note authority prose per clause, and `tests/test_food_source_regional_catalog_identity.py` accepts `API calls are not approved for ingestion; documentation is available in appendix.`
+Reason: Current PR head already accepts the safe negated API/documentation wording described in the thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977678
+
+Disposition: NOT-A-BUG
+Evidence: `core/food_sources/regional_catalog_identity.py` accepts `not/never a source authority` negation, and `tests/test_food_source_regional_catalog_identity.py` covers `Data portal is not a source authority for PR17.` and `Data portal is never a source authority for PR17.`
+Reason: Current PR head already accepts the safe negated authority wording described in the thread.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977680
+
+Disposition: NOT-A-BUG
+Evidence: `core/food_sources/regional_catalog_identity.py` includes modal/adverb `be used` variants through `_USE_TERMS`; the current focused suite rejects direct blocked-method use wording.
+Reason: Current PR head already rejects `Seller API could be used for tests.` and `Seller API may still be used for tests.`
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977683
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -235,7 +261,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 120 tests.
+- Focused PR17 tests: passed, 121 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
