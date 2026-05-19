@@ -16,7 +16,22 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: bot findings were fixed in code/docs and revalidated with focused local gates plus current-head CI on head `27114aa15`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269647532
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269647558
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323216766
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661762
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661769
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269688860
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269647532 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269647558 -> b4d3b6dc8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#pullrequestreview-4323216766 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661762 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269661769 -> 0146902ae
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1772#discussion_r3269688860 -> 0146902ae
 
 ## Premortem And Alert Dispositions
 
