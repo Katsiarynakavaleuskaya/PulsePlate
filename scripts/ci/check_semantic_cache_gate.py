@@ -817,8 +817,16 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy )?pr-1 unlock(?:s|ed) (?:the )?semantic[- ]cache gate\b"
             r"|\bphilosophy admission open(?:s|ed) (?:the )?global gate\b"
             r"|\bphilosophy admission unlock(?:s|ed) (?:the )?global gate\b"
+            r"|\bphilosophy admission activate(?:s|d) (?:the )?"
+            r"(?:global|semantic[- ]cache) gate\b"
+            r"|\bphilosophy admission enable(?:s|d) (?:the )?"
+            r"(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? open(?:s|ed) (?:the )?global gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? unlock(?:s|ed) (?:the )?global gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? activate(?:s|d) (?:the )?"
+            r"(?:global|semantic[- ]cache) gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? enable(?:s|d) (?:the )?"
+            r"(?:global|semantic[- ]cache) gate\b"
             r"|\bphilosophy(?: pr-1)?(?: admission)? "
             r"is equivalent to opening (?:the )?(?:global|semantic[- ]cache) gate\b"
             r"|\b(?:philosophy )?pr-1(?: admission)? "
@@ -941,6 +949,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled|grants|granted) redis (?:imports?|clients?|probes?)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|imports?|uses?|wires?) redis (?:imports?|clients?|probes?)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|imports?|uses?|wires?) redis\b"
         ),
     ),
     (
@@ -954,6 +966,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled|grants|granted) gptcache "
             r"(?:imports?|clients?|probes?)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|imports?|uses?|wires?) gptcache (?:imports?|clients?|probes?)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|imports?|uses?|wires?) gptcache\b"
         ),
     ),
     (
@@ -978,6 +994,8 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
             r"allowed|permitted|enabled) (?<!\w)/insight cache wiring\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:adds?|uses?|wires?) (?<!\w)/insight cache wiring\b"
         ),
     ),
     (
@@ -1010,11 +1028,11 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         re.compile(
             r"\bcache adapt(?:er|or)s? "
             r"(?:(?:are|is|was|were|has been|have been) )?"
-            r"(?:allowed|permitted|approved|enabled) "
+            r"(?:allowed|permitted|approved|enabled|authorized|granted) "
             r"(?:in pr-1|for philosophy admission|by (?:philosophy admission|philosophy pr-1|pr-1))\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:authorizes|approves|allows|permits|enables|authorized|approved|"
-            r"allowed|permitted|enabled) cache adapt(?:er|or)s?\b"
+            r"allowed|permitted|enabled|grants|granted) cache adapt(?:er|or)s?\b"
         ),
     ),
     (
@@ -1111,7 +1129,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
     ),
     (
         "design intake overrides gate markers",
-        re.compile(r"\bpdf/design intake overrides repo gate markers\b"),
+        re.compile(
+            r"\b(?:pdf[/ ]design intake|pdf intake|design intake) "
+            r"(?:(?:can|may) )?(?:overrides?|bypasses?) repo gate markers\b"
+        ),
     ),
     (
         "verification bundle optional",

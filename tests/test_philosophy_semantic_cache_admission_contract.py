@@ -1187,6 +1187,10 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "PR-1 may open the semantic-cache gate",
         "Philosophy PR-1 admission may open the global gate",
         "philosophy admission can open the global gate",
+        "PR-1 activates the semantic-cache gate",
+        "Philosophy admission activates the global gate",
+        "PR-1 enables the semantic-cache gate",
+        "Philosophy PR-1 admission enables the global gate",
         "the semantic-cache gate is open for Philosophy admission",
         "the semantic-cache gate may be opened for Philosophy admission",
         "the global gate can be opened for Philosophy admission",
@@ -1651,6 +1655,9 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("Redis clients are approved in PR-1", "redis imports allowed in pr-1"),
         ("PR-1 enables Redis clients", "redis imports allowed in pr-1"),
         ("PR-1 enabled Redis imports", "redis imports allowed in pr-1"),
+        ("PR-1 imports Redis", "redis imports allowed in pr-1"),
+        ("PR-1 adds Redis imports", "redis imports allowed in pr-1"),
+        ("PR-1 uses Redis clients", "redis imports allowed in pr-1"),
         ("Philosophy admission approved Redis clients", "redis imports allowed in pr-1"),
         ("redis import was approved for Philosophy admission", "redis imports allowed in pr-1"),
         ("redis imports are enabled for Philosophy admission", "redis imports allowed in pr-1"),
@@ -1672,6 +1679,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "GPTCache imports are enabled for Philosophy admission",
             "gptcache imports allowed in pr-1",
         ),
+        ("PR-1 imports GPTCache", "gptcache imports allowed in pr-1"),
+        ("PR-1 uses GPTCache clients", "gptcache imports allowed in pr-1"),
         (
             "GPTCache import is enabled for Philosophy admission",
             "gptcache imports allowed in pr-1",
@@ -1695,6 +1704,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "Philosophy admission enabled /insight cache wiring",
             "insight cache wiring allowed in pr-1",
         ),
+        ("PR-1 wires /insight cache wiring", "insight cache wiring allowed in pr-1"),
         ("PR-1 approved /insight cache wiring", "insight cache wiring allowed in pr-1"),
         ("/insight cache wiring was approved for PR-1", "insight cache wiring allowed in pr-1"),
         (
@@ -1722,6 +1732,11 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ),
         ("cache adapters are permitted in PR-1", "cache adapters allowed in pr-1"),
         ("cache adapters are permitted for Philosophy admission", "cache adapters allowed in pr-1"),
+        (
+            "cache adapters are authorized for Philosophy admission",
+            "cache adapters allowed in pr-1",
+        ),
+        ("cache adapters are granted for Philosophy admission", "cache adapters allowed in pr-1"),
         (
             "cache adapter is approved for Philosophy admission",
             "cache adapters allowed in pr-1",
@@ -2250,7 +2265,12 @@ def test_backend_selection_contract_rejects_authorization_for_serving_claims() -
 
 def test_forbidden_design_intake_override_claim_rejected() -> None:
     """Validator catches claims that PDF/design intake can override repo gates."""
-    cases = ("PDF/design intake overrides repo gate markers",)
+    cases = (
+        "PDF/design intake overrides repo gate markers",
+        "PDF intake overrides repo gate markers",
+        "design intake can override repo gate markers",
+        "PDF/design intake bypasses repo gate markers",
+    )
 
     for claim in cases:
         mutated = _contract_text().replace(
