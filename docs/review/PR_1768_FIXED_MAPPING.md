@@ -96,6 +96,28 @@ external research artifacts as nutrition/source authority.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214543
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266233058
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244950
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266244953
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210266
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210270
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210274
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266210281
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374802
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374818
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374826
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374832
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374841
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266469712
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266469739
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266682655
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling. Commit d9b08dc9b rewrites the mapping into parser-compatible wording, removing the flagged typo text.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214503 -> 4dd9da9f4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214535 -> 31bc88c13
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266214543 -> 31bc88c13
@@ -111,8 +133,9 @@ external research artifacts as nutrition/source authority.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374826 -> 5ab352518
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374832 -> 5ab352518
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266374841 -> 5ab352518
-Disposition: FIXED
-Evidence: CodeRabbit, Cubic, and Codex review-thread comments are fixed by the mapped commits. Commit 31bc88c13 covers portable VENV_PYTHON validation commands, typed helper loaders, negated note handling, closeout-prohibited approval wording, regional handoff notes, and duplicate regional rows. Commit 5ab352518 covers PR11 and PR15 handoff hardening, budget-first wording, named blocked-provider authority rejection, all-occurrence forbidden-note scanning, and tight negation handling.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266469712 -> 5ab352518
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266469739 -> 5ab352518
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1768#discussion_r3266682655 -> d9b08dc9b
 
 ## Bot Review Body Dispositions
 
