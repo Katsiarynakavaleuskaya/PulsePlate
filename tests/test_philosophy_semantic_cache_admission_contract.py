@@ -1233,6 +1233,7 @@ def test_forbidden_gate_open_claim_rejected() -> None:
         "pr-1 is equivalent to opening the global gate",
         "pr-1 admission is equivalent to opening the global gate",
         "pr-1 admission is equivalent to opening the semantic-cache gate",
+        "PR-1 is opening the semantic-cache gate",
         "the semantic-cache gate is open for Philosophy PR-1",
         "Philosophy PR-1 admission can open the semantic-cache gate",
         "the global gate is open for Philosophy PR-1",
@@ -1803,6 +1804,7 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
         ("PR-1 enables Redis clients", "redis imports allowed in pr-1"),
         ("PR-1 enabled Redis imports", "redis imports allowed in pr-1"),
         ("PR-1 imports Redis", "redis imports allowed in pr-1"),
+        ("PR-1 enables Redis for philosophy admission", "redis imports allowed in pr-1"),
         ("PR-1 adds Redis imports", "redis imports allowed in pr-1"),
         ("PR-1 uses Redis clients", "redis imports allowed in pr-1"),
         ("PR-1 is using Redis for philosophy admission", "redis imports allowed in pr-1"),
@@ -1927,6 +1929,8 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "cache adapters allowed in pr-1",
         ),
         ("PR-1 adds cache adapters", "cache adapters allowed in pr-1"),
+        ("PR-1 has cache adapters", "cache adapters allowed in pr-1"),
+        ("PR-1 includes cache adapters", "cache adapters allowed in pr-1"),
         ("PR-1 wires cache adapters", "cache adapters allowed in pr-1"),
         ("Philosophy admission uses cache adapter", "cache adapters allowed in pr-1"),
         ("runtime is enabled for Philosophy admission", "runtime allowed in pr-1"),
@@ -2003,6 +2007,10 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "verification bundle optional",
         ),
         (
+            "semantic-cache admission skips verification bundle",
+            "verification bundle optional",
+        ),
+        (
             "cache admission is exempt from verification bundle",
             "verification bundle optional",
         ),
@@ -2043,6 +2051,11 @@ def test_forbidden_pr1_runtime_expansion_claim_rejected() -> None:
             "account identity truth is approved for cache admission",
             "blocked surface cache admission allowed",
         ),
+        (
+            "user-account truth is allowed for semantic-cache admission in PR-1",
+            "blocked surface cache admission allowed",
+        ),
+        ("PR-1 admits user-account truth", "blocked surface cache admission allowed"),
         (
             "billing truth is approved for cache admission",
             "blocked surface cache admission allowed",
