@@ -336,6 +336,32 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
     assert ("python-multipart", "0.0.27") in requirements_ci_lite_pins
 
 
+def test_repo_idna_security_floor_matches_dependabot_alert_surfaces() -> None:
+    requirement_files = (
+        "requirements.txt",
+        "requirements-dev.txt",
+        "requirements-ci-lite.txt",
+        "requirements-lock.txt",
+        "requirements-docker-runtime.txt",
+        "requirements-rag-vector.txt",
+        "requirements-rag-vector-cpu.txt",
+    )
+
+    for requirement_file in requirement_files:
+        contents = (REPO_ROOT / requirement_file).read_text(encoding="utf-8")
+        assert ("idna", "3.15") in _exact_requirement_pairs(contents)
+        assert ("idna", "3.11") not in _exact_requirement_pairs(contents)
+
+    repo_requirement_files = sorted(REPO_ROOT.glob("requirements*.txt"))
+    assert repo_requirement_files
+    for requirement_file in repo_requirement_files:
+        contents = requirement_file.read_text(encoding="utf-8")
+        assert ("idna", "3.11") not in _exact_requirement_pairs(contents)
+
+    artifact_packages = {item["package"] for item in _repo_active_emergency_artifacts()}
+    assert "idna" not in artifact_packages
+
+
 def test_repo_ruff_emergency_fallback_matches_dev_requirement_surfaces() -> None:
     expected_version = _active_manifest_artifact_version("ruff")
 
