@@ -255,6 +255,13 @@ Evidence: Closed current-head Codex follow-ups for generic semantic-cache gate-o
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264202873 -> 68867ffbb6c455e7bfef65620c4280477d014e2c
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264202879 -> 68867ffbb6c455e7bfef65620c4280477d014e2c
 
+Disposition: FIXED
+Commit: 2da573fa1911c8e41857f663c570ec46be22c178
+Evidence: Closed current-head Codex follow-ups for passive semantic-cache/global gate-open assertions, duplicate `## Machine-Readable State` sections, and past-tense `/insight` cache-wiring grants. Proof: direct repro script covering all three thread phrasings, `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py -k "forbidden_gate_open_claim_rejected or machine_readable_state_section_must_not_be_duplicated or forbidden_pr1_runtime_expansion_claim_rejected"` (`3 passed`), `.venv/bin/python -m pytest -q tests/test_philosophy_semantic_cache_admission_contract.py` (`79 passed`), `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `.venv/bin/python scripts/orchestration/check_preflight.py --mode execute ...`, `.venv/bin/python scripts/orchestration/check_agent_consistency.py`, and `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264240280 -> 2da573fa1911c8e41857f663c570ec46be22c178
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264240284 -> 2da573fa1911c8e41857f663c570ec46be22c178
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3264240287 -> 2da573fa1911c8e41857f663c570ec46be22c178
+
 ## Merge Readiness
 
 - [ ] PR body includes `## Discussion Thread Pass`, `### Fixed in Commit Mapping`, `## Merge Readiness`
