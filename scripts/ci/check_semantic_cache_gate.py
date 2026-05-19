@@ -838,6 +838,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy )?pr-1 (?:has|had) "
             r"(?:opened(?: up)?|unlocked|activated|enabled) "
             r"(?:the )?(?:(?:global )?semantic[- ]cache|global) gate\b"
+            r"|\b(?:philosophy )?pr-1(?: admission)? "
+            r"(?:keeps|kept|maintains|maintained|continues to keep|continued to keep) "
+            r"(?:the )?(?:(?:global )?semantic[- ]cache|global) gate "
+            r"(?:open|opened|re[- ]?opened|unlocked|live|enabled|active|approved|ready)\b"
             r"|\b(?:philosophy )?pr-1 "
             r"(?:(?:is|was|has been) )?(?:opening|unlocking|activating|enabling) "
             r"(?:the )?(?:(?:global )?semantic[- ]cache|global) gate\b"
@@ -873,7 +877,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:continues|continued|has continued) to be )"
             r"(?:open|opened|re[- ]?opened|unlocked|live|enabled|active|approved|ready)\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate "
-            r"(?:became|has become) (?:now )?open\b"
+            r"(?:became|becomes|has become|had become) (?:now )?"
+            r"(?:open|opened|re[- ]?opened|unlocked|live|enabled|active|approved|ready)"
+            r"(?: for (?:philosophy pr-1|pr-1|philosophy admission))?\b"
             r"|\b(?:the )?(?:(?:global )?semantic[- ]cache|global) gate "
             r"(?:has|had) (?:now )?opened\b"
             r"|\b(?:the )?(?:global|semantic[- ]cache) gate is opened "
@@ -1039,6 +1045,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"(?:(?:is|are|was|were|has been|have been) )?"
             r"(?:using|wiring|importing) redis(?: for philosophy admission)?\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:keeps|kept|continues|continued) "
+            r"(?:using|wiring|importing) redis(?: (?:imports?|clients?|probes?))?"
+            r"(?: for philosophy admission)?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"enables? redis(?: for philosophy admission)?\b"
         ),
     ),
@@ -1072,6 +1082,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:(?:is|are|was|were|has been|have been) )?"
             r"(?:using|wiring|importing) gptcache(?: for philosophy admission)?\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:keeps|kept|continues|continued) "
+            r"(?:using|wiring|importing) gptcache(?: (?:imports?|clients?|probes?))?"
+            r"(?: for philosophy admission)?\b"
         ),
     ),
     (
@@ -1260,6 +1274,10 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:(?:will|shall|can|may|must|could|would|should|might) read|reads?) "
             r"(?:semantic[- ]cache|cache)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:keeps|kept|continues|continued) "
+            r"(?:reading from|writing to|storing|reading|writing) "
+            r"(?:semantic[- ]cache |cache )?(?:entries?|records?)\b"
         ),
     ),
     (
@@ -1280,7 +1298,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"plugin[/ ]control[- ]plane product truth|"
             r"fitchef[/ ]cbt coaching paths? (?:that )?bypass(?:ing)? "
             r"wellness[- ]only validators|fitchef cbt bypassing validators) "
-            r"(?:(?:is|are|was|were|has been|have been) )?"
+            r"(?:(?:is|are|was|were|has been|have been|remains|remained|"
+            r"has remained|had remained|keeps being|kept being|continues being|"
+            r"continued being|stays|stayed) )?"
             r"(?:allowed|permitted|approved|enabled|granted|authorized|"
             r"available|supported|cache eligible) "
             r"for (?:semantic[- ]cache|cache) admission(?: in pr-1)?\b"
@@ -1344,7 +1364,9 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
         "design intake overrides gate markers",
         re.compile(
             r"\b(?:pdf[/ ]design intake|pdf intake|design intake) "
-            r"(?:(?:can|may|must) )?(?:overrides?|bypasses?) repo gate markers\b"
+            r"(?:(?:(?:can|may|must) )?(?:overrides?|bypasses?)|"
+            r"(?:keeps|kept|continues|continued) (?:overriding|bypassing)) "
+            r"repo gate markers\b"
         ),
     ),
     (
@@ -1363,12 +1385,14 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"|\bverification[- ]bundles? (?:(?:is|are) )?unnecessary "
             r"for (?:semantic[- ]cache|cache) admission\b"
             r"|\b(?:semantic[- ]cache |cache )?admission "
-            r"(?:does not|doesn't|do not|don't) require "
+            r"(?:does not|doesn't|do not|don't|did not|didn't) require "
             r"(?:a )?verification[- ]bundles?\b"
             r"|\b(?:semantic[- ]cache |cache )?admission "
-            r"(?:does not|doesn't|do not|don't) need "
+            r"(?:does not|doesn't|do not|don't|did not|didn't) need "
             r"(?:a )?verification[- ]bundles?\b"
             r"|\b(?:semantic[- ]cache |cache )?admission requires no "
+            r"verification[- ]bundles?\b"
+            r"|\b(?:semantic[- ]cache |cache )?admission required no "
             r"verification[- ]bundles?\b"
             r"|\b(?:semantic[- ]cache |cache )?admission "
             r"(?:can|may|must|could|would|should|might) (?:bypass|skip|omit|waive) "
@@ -1458,6 +1482,12 @@ PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS = (
             r"by (?:philosophy admission|philosophy pr-1|pr-1)\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:performs backend selection|selects (?:a )?backends? for serving)\b"
+            r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
+            r"(?:keeps|kept|continues|continued) "
+            r"(?:semantic[- ]cache serving|cache serving|serving|"
+            r"semantic[- ]cache backend[- ]selections?) "
+            r"(?:authorized|approved|allowed|enabled|permitted|granted) "
+            r"(?:by|for) philosophy admission\b"
             r"|\b(?:philosophy admission|philosophy pr-1|pr-1) "
             r"(?:selects|selected|has selected|had selected) (?:redis|gptcache) "
             r"(?:as (?:the )?(?:semantic[- ]cache )?backend|"
