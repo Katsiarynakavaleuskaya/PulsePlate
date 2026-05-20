@@ -31,6 +31,12 @@ oracle.
   rejects the five false-green examples from QA; focused pytest passed locally.
 - `security-auditor` - pre-open pass completed; post-open diff-scoped security
   scan is running after PR creation.
+- `security-auditor` / `codex-security` style post-open diff scan - completed;
+  no security-actionable findings. Evidence: scan checked path/write primitives,
+  JSON-driven regex injection, ReDoS shape, CI weakening, subprocess/network
+  additions, runtime activation drift, and secrets/baseline drift; `git diff
+  --check`, semantic-cache gate drift, docs phase gate, `make validate-changed`,
+  and `pre-commit run --all-files` passed locally.
 - `bug-hunter` - pre-open pass completed; post-open pass is pending after QA per
   role order.
 - `bug-hunter` post-open provider-approval finding - FIXED in commit
