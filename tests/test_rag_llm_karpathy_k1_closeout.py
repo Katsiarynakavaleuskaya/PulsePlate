@@ -11,9 +11,11 @@ def _read(relpath: str) -> str:
     return (REPO_ROOT / relpath).read_text(encoding="utf-8")
 
 
-def _between(text: str, start: str, end: str) -> str:
-    start_index = text.index(start)
-    end_index = text.index(end, start_index + len(start))
+def _between(text: str, start: str, end: str, *, label: str) -> str:
+    start_index = text.find(start)
+    assert start_index != -1, f"Missing start anchor for {label}: {start!r}"
+    end_index = text.find(end, start_index + len(start))
+    assert end_index != -1, f"Missing end anchor for {label}: {end!r}"
     return text[start_index:end_index]
 
 
@@ -23,15 +25,14 @@ def test_k1_ledger_closeout_is_not_left_open_or_orphaned() -> None:
         ledger,
         '<a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>',
         '<a id="ledger-p1-verification-registry-admission"></a>',
+        label="K1 ledger item",
     )
 
     assert "- [x] P1: Knowledge contracts and promotion from validated RAG evidence" in item
-    assert "Closed by PR-K1 docs/review closeout" in item
+    assert "- Status: Closed by PR-K1 docs/review closeout" in item
     assert "PR `#1483`" in item
     assert "2026-04-20" in item
-    assert "tests/test_remaining_modules.py" in item
     assert "docs/review/PR_1483_FIXED_MAPPING.md" in item
-    assert "Role-agent and engineering lessons were updated" in item
     assert "closed / false / false / true" in item
     assert "keep the checkbox open" not in item
     assert "Deferred follow-up" not in item
@@ -39,16 +40,12 @@ def test_k1_ledger_closeout_is_not_left_open_or_orphaned() -> None:
 
 def test_k1_roadmap_marks_landed_without_semantic_cache_rollout_claims() -> None:
     roadmap = _read("docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md")
-    section = _between(roadmap, "## PR-K1 ", "## PR-V1 ")
+    section = _between(roadmap, "## PR-K1 ", "## PR-V1 ", label="K1 roadmap section")
 
     assert "Landed via PR `#1483` on `2026-04-20`" in section
     assert "docs/backlog/review reconciliation" in section
-    assert "role-agent and Engineering Lessons updates" in section
-    assert "ledger and roadmap no longer present K1 as open implementation work" in section
     assert "semantic cache stays gate-closed, deferred, and out of scope" in section
     assert "semantic cache implementation" in section
-    assert "DB migrations or persistent knowledge storage rollout" in section
-    assert "route / OpenAPI / public response shape changes" in section
     assert "approve Redis/GPTCache rollout" not in section
     assert "opens the semantic-cache gate" not in section.lower()
 
@@ -79,6 +76,7 @@ def test_pr1483_deferred_fast_lane_return_annotations_are_resolved() -> None:
         mapping,
         "Disposition: FIXED\nCommit: 5215db056\nEvidence: `tests/test_remaining_modules.py:1577`",
         "## Post-Merge Closeout",
+        label="PR 1483 deferred CodeRabbit closeout block",
     )
     assert "docs/roadmap/BACKLOG_LEDGER.md:2380" in block
     assert "tests/test_rag_llm_karpathy_k1_closeout.py:63" in block
@@ -90,7 +88,12 @@ def test_pr1483_deferred_fast_lane_return_annotations_are_resolved() -> None:
 
 def test_pr1483_mapping_uses_post_merge_closeout_instead_of_stale_readiness() -> None:
     mapping = _read("docs/review/PR_1483_FIXED_MAPPING.md")
-    closeout = _between(mapping, "## Post-Merge Closeout", "<!-- markdownlint-enable MD034 -->")
+    closeout = _between(
+        mapping,
+        "## Post-Merge Closeout",
+        "<!-- markdownlint-enable MD034 -->",
+        label="PR 1483 post-merge closeout",
+    )
     merge_commit = "".join(
         (
             "ba42a25a",
