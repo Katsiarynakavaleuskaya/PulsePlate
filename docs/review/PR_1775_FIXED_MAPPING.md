@@ -45,9 +45,13 @@ Local oracle-only artifact, gitignored and not committed. Runner mode:
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#pullrequestreview-4327750134 -> 1b2db1285
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273330030 -> 1b2db1285
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273330040 -> 1b2db1285
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#pullrequestreview-4327886137 -> 8a4a1922d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273437604 -> 8a4a1922d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#pullrequestreview-4327924616 -> 8a4a1922d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273469191 -> 8a4a1922d
 Disposition: FIXED
-Commit: 1b2db1285
-Evidence: scripts/ci/check_pr_body_phase2_gates.py routes Experiment Runner advisory warnings through checker results and reuses a shared markdown section extractor.
+Commit: 1b2db1285, 8a4a1922d
+Evidence: scripts/ci/check_pr_body_phase2_gates.py routes Experiment Runner advisory warnings through checker results, reuses a shared markdown section extractor, and stops mapping extraction before sibling h3 sections. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md clarifies advisory evidence wording. docs/review/PR_1775_FIXED_MAPPING.md uses portable validation command paths.
 
 ## Deferred / Follow-ups
 
