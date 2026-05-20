@@ -64,7 +64,7 @@ Exit criteria for removing PR-body fallback:
 2. Local tooling supports deterministic artifact lookup without PR-body parsing.
 3. The fallback branch in `scripts/ci/check_pr_body_phase2_gates.py` can be removed without losing local validation ergonomics.
 
-Required sections:
+Phase 2 sections and advisory evidence:
 
 - `## Discussion Thread Pass`
 - Checkbox contract (completed / mapping completed)

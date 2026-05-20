@@ -117,6 +117,23 @@ def test_select_body_validation_mode_prefers_mirror_when_artifact_exists() -> No
     )
 
 
+def test_mapping_section_stops_before_sibling_h3() -> None:
+    section = gates._extract_mapping_section("""## Discussion Thread Pass
+
+### Fixed in Commit Mapping
+- No actionable review comments
+
+### Other Details
+- should not be parsed as mapping
+
+## Merge Readiness
+Not claimed.
+""")
+
+    assert "- No actionable review comments" in section
+    assert "should not be parsed as mapping" not in section
+
+
 def test_experiment_runner_evidence_accepts_valid_artifact_path() -> None:
     errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
 Artifact: artifacts/orchestration/experiments/results/nested/result.json

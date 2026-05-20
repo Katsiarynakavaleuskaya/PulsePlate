@@ -21,9 +21,9 @@ Local oracle-only artifact, gitignored and not committed. Runner mode:
 - `python3 scripts/orchestration/check_preflight.py --path <changed paths>` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 scripts/orchestration/check_experiment_runner_identity.py` - PASS
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_render_codex_start_prompt.py tests/test_local_session_bootstrap.py tests/test_pr_body_phase2_gates.py tests/test_start_pr_lane.py tests/test_experiment_runner.py tests/test_experiment_runner_identity_policy.py tests/test_orchestration_merge_ready.py` - PASS
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH PRE_COMMIT_HOME=/tmp/pulseplate-precommit-experiment-runner-gate pre-commit run --all-files` - PASS
+- `python3 -m pytest -q tests/test_render_codex_start_prompt.py tests/test_local_session_bootstrap.py tests/test_pr_body_phase2_gates.py tests/test_start_pr_lane.py tests/test_experiment_runner.py tests/test_experiment_runner_identity_policy.py tests/test_orchestration_merge_ready.py` - PASS
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS
+- `PATH=.venv/bin:$PATH PRE_COMMIT_HOME=/tmp/pulseplate-precommit-experiment-runner-gate pre-commit run --all-files` - PASS
 - Pre-push hook - PASS: changed-file mypy, pip-audit, backend pytest, full-repo Bandit, docker build test
 
 ## Role Review

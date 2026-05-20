@@ -139,7 +139,7 @@ def _extract_mapping_section(text: str) -> str:
         text,
         level="###",
         title=str(PHASE2_CONFIG["mapping_heading"]),
-        stop_at_heading_level=2,
+        stop_at_heading_level=3,
     )
 
 
