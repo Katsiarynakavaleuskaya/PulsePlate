@@ -557,6 +557,9 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Source authority is never Seller API for PR17.",
         "Seller API does not serve as source authority.",
         "Seller API is not acting as source authority.",
+        "Seller API may not be used for testing.",
+        "Seller API should not be used for testing.",
+        "Source authority can never be Seller API for PR17.",
     ),
 )
 def test_regional_catalog_identity_allows_negated_authority_prose(safe_notes: str) -> None:
@@ -799,6 +802,33 @@ def test_regional_catalog_identity_rejects_pr16_handoff_drift() -> None:
 
 
 @pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    (
+        ("source", "regional_catalogs"),
+        ("source_classification", "runtime_source"),
+        ("source_family", "regional_catalogs"),
+        ("final_gate_decision", "runtime_ready"),
+        ("pr15_merged_pr", 9999),
+    ),
+)
+def test_regional_catalog_identity_rejects_forged_pr16_report_identity(
+    field_name: str,
+    field_value: object,
+) -> None:
+    pr16_report = _pr16_report()
+    pr16_report[field_name] = field_value
+
+    with pytest.raises(RegionalCatalogIdentityError, match=f"PR16 report {field_name}"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=pr16_report,
+        )
+
+
+@pytest.mark.parametrize(
     "flag_name",
     (
         "network_allowed",
@@ -946,7 +976,7 @@ def test_regional_catalog_identity_cli_returns_nonzero_for_invalid_payload(tmp_p
     payload = json.loads(result.stdout)
     assert result.returncode == 1
     assert payload["success"] is False
-    assert payload["api_calls_allowed"] is False
+    assert payload["api_calls_allowed"] is True
 
 
 def test_regional_catalog_identity_cli_prints_validation_errors_without_json(

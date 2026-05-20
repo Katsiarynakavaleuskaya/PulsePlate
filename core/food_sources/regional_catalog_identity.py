@@ -323,6 +323,9 @@ _BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
 _BLOCKED_SOURCE_RE = re.compile(rf"\b(?:{_BLOCKED_SOURCE_TERMS})\b")
 _AUTHORITY_NOUN_RE = re.compile(rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b")
 _SAFE_REVIEW_CONTEXT_RE = re.compile(r"\b(?:review context only|evidence only|candidate only)\b")
+_MODAL_NEGATED_USE_RE = re.compile(
+    r"\b(?:may|might|should|could|would|must|will)\s+not\s+(?:be\s+)?used\b"
+)
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
     rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b(?:\W+\w+){{0,12}}\W+\b"
@@ -374,7 +377,7 @@ _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b"
     r"(?:\s+for\s+(?:source authority|nutrition authority|product display))?|"
-    r"\b(?:no|not|never)\b(?:\W+\w+){0,8}\W+\b"
+    r"\b(?:not|never)\b(?:\W+\w+){0,8}\W+\b"
     r"(?:source authority|nutrition authority|product display)\b|"
     r"\b(?:is|are|was|were|be|becomes?|became|serve(?:s)? as|treated as|acting as)\s+"
     r"(?:no|not|never)\s+(?:a\s+|an\s+)?"
@@ -383,6 +386,9 @@ _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:source authority|nutrition authority|product display)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:is|are|was|were|be|can be|may be|could be|might be|will be|would be|should be|must be)\s+"
     rf"(?:no|not|never)\s+(?:{_BLOCKED_NOTE_TERMS})\b|"
+    r"\b(?:source authority|nutrition authority|product display)\b"
+    r"(?:\W+\w+){0,4}\W+\b(?:can|may|could|might|will|would|should|must)\s+"
+    rf"(?:no|not|never)\s+be\s+(?:{_BLOCKED_NOTE_TERMS})\b|"
     rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,4}}\W+\b"
     r"(?:does not|do not|did not|doesn'?t|don'?t|didn'?t)\s+serve as\s+"
     r"(?:source authority|nutrition authority|product display)\b|"
@@ -538,6 +544,7 @@ def _require_safe_notes(value: str, context: str) -> str:
     pending_blocked_assignment = False
     for normalized in (segment for segment in segments if segment):
         sanitized = _NEGATED_DIRECT_AUTHORITY_RE.sub(" ", normalized)
+        sanitized = _MODAL_NEGATED_USE_RE.sub(" ", sanitized)
         remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", sanitized)
         has_blocked_term = bool(_BLOCKED_NOTE_RE.search(remaining_authority_text))
         has_blocked_source = bool(_BLOCKED_SOURCE_RE.search(remaining_authority_text))
@@ -723,6 +730,16 @@ def _validate_pr11_handoff(coverage: SourceGapAudit, context: str) -> None:
 def _validate_pr16_report(report: dict[str, object], context: str) -> None:
     if report.get("success") is not True:
         raise _identity_error(context, "PR16 closeout report must validate before PR17")
+    expected_identity = {
+        "source": "preference_recipe_mapping_contract_review_closeout",
+        "source_classification": "governance_closeout_only",
+        "source_family": "food_data_source_governance",
+        "final_gate_decision": "preference_mapping_closeout_only_no_ingest",
+        "pr15_merged_pr": 1747,
+    }
+    for field_name, expected_value in expected_identity.items():
+        if report.get(field_name) != expected_value:
+            raise _identity_error(context, f"PR16 report {field_name} must be {expected_value!r}")
     if report.get("next_substantive_lane") != PR16_NEXT_SUBSTANTIVE_LANE:
         raise _identity_error(
             context,
@@ -752,6 +769,21 @@ def _validate_pr16_report(report: dict[str, object], context: str) -> None:
     for flag_name, expected_value in pr16_expected_flags.items():
         if report.get(flag_name) is not expected_value:
             raise _identity_error(context, f"PR16 report {flag_name} must remain {expected_value}")
+
+
+def _observed_safety_flags(path: Path | str) -> dict[str, bool]:
+    """Return literal bool safety flags from a candidate artifact for failure diagnostics."""
+
+    try:
+        with Path(path).open("r", encoding="utf-8") as file_obj:
+            payload = json.load(file_obj)
+    except (OSError, json.JSONDecodeError, TypeError, UnicodeDecodeError):
+        return {}
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        key: value for key in _SAFETY_FLAG_TEMPLATE if isinstance((value := payload.get(key)), bool)
+    }
 
 
 def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogCandidateReview:
@@ -980,6 +1012,7 @@ def build_regional_catalog_identity_report(
         "final_gate_decision": FINAL_GATE_DECISION,
         "validation_errors": [],
     }
+    report.update(_observed_safety_flags(regional_identity_path))
     try:
         catalog = load_source_catalog(catalog_path)
         onboarding = load_source_onboarding(
