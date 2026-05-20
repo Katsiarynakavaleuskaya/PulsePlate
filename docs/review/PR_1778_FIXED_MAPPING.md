@@ -54,7 +54,7 @@ Reason: CodeRabbit flagged that the default `HEAD` fallback could scan unrelated
 Disposition: FIXED
 Commit: b5f97d430
 Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
-Reason: Codex flagged that Experiment Runner co-author diagnostics were still too broad around `Not applicable` evidence, artifact mentions outside the canonical evidence section, co-author-required artifacts, and missing local artifacts. Phase2 now scopes artifact scanning to `## Experiment Runner Evidence`, emits no broad warning when no artifact is referenced, checks commit messages only for artifacts with `coauthor_required: true`, and still warns when a referenced artifact is unavailable even if a canonical trailer is present.
+Reason: Codex flagged that Experiment Runner co-author diagnostics were still too broad around `Not applicable` evidence, artifact mentions outside the canonical evidence section, artifacts requiring co-author verification, and missing local artifacts. Phase2 now scopes artifact scanning to `## Experiment Runner Evidence`, emits no broad warning when no artifact is referenced, checks commit messages only for artifacts with `coauthor_required: true`, and still warns when a referenced artifact is unavailable even if a canonical trailer is present.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554204 -> b5f97d430
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554211 -> b5f97d430
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554222 -> b5f97d430
@@ -65,6 +65,17 @@ Commit: f36f266db
 Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
 Reason: Codex flagged that readable but schema-invalid Experiment Runner artifacts could silently bypass co-author diagnostics. Phase2 now validates artifact contribution/co-author metadata through the shared Experiment Runner contract and emits an advisory warning when the payload is non-object or malformed, including invalid `coauthor_required` values.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274733388 -> f36f266db
+
+Disposition: FIXED
+Commit: 6027b1f31
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: CodeRabbit flagged that referenced Experiment Runner artifact reads followed symlinks and could escape the repository root. Phase2 now resolves the candidate path, verifies it remains under the resolved repo root before reading, and emits the existing unverifiable-artifact advisory for missing, escaping, unreadable, or non-file paths.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329418077 -> 6027b1f31
+
+Disposition: NOT-A-BUG
+Evidence: `docs/review/PR_1778_FIXED_MAPPING.md`
+Reason: CodeRabbit's later review was a low-value prose nit about using `co-author` in human-readable mapping text while preserving code field identifiers such as `coauthor_required`. The mapping text now follows that convention; no product or governance behavior change was required.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329507361
 
 ## Post-Open Review Queue
 
