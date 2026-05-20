@@ -22,7 +22,12 @@ Experiment Runner co-author trailer.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: f8fae1973
+Evidence: `scripts/orchestration/experiment_contract.py`, `scripts/orchestration/experiment_runner.py`, `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_experiment_runner.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Sourcery flagged duplicated contribution/co-author invariants and a fixed `origin/main..HEAD` advisory range. The invariant now lives in `validate_contribution_attribution(...)` and is reused by the runner and result validator; Phase2 accepts `--commit-range` for local advisory diagnostics. The same follow-up also closes the post-open bug-hunter false-green finding by warning when a referenced local Experiment Runner artifact is unavailable and the commit range lacks the canonical trailer.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274150100 -> f8fae1973
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4328739221 -> f8fae1973
 
 ## Post-Open Review Queue
 
