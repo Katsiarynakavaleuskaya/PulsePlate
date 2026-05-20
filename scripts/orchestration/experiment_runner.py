@@ -260,12 +260,16 @@ def _working_tree_diff_against_head(root: Path) -> str:
     return _run_git(["diff", "--binary", "HEAD"], cwd=root).stdout
 
 
-def _safe_result_experiment_id(packet: dict[str, Any]) -> str:
+def _safe_result_experiment_id(packet: Any) -> str:
+    if not isinstance(packet, dict):
+        return "invalid-experiment"
     raw_experiment_id = str(packet.get("experiment_id", "")).strip()
     return raw_experiment_id or "invalid-experiment"
 
 
-def _safe_result_runner_mode(packet: dict[str, Any]) -> str:
+def _safe_result_runner_mode(packet: Any) -> str:
+    if not isinstance(packet, dict):
+        return str(DEFAULT_RUNNER_MODE)
     try:
         return str(validate_runner_mode(packet.get("runner_mode", DEFAULT_RUNNER_MODE)))
     except ValueError:
@@ -280,7 +284,7 @@ def _candidate_patch_ref_for_runner_mode(runner_mode: str, candidate_patch_ref: 
 
 def _invalid_packet_result(
     *,
-    packet: dict[str, Any],
+    packet: Any,
     candidate_patch_ref: str,
     error: str,
 ) -> dict[str, Any]:

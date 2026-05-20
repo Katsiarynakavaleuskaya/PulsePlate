@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from typing import Any, cast
 
 import pytest
 
@@ -479,6 +480,35 @@ def test_evaluate_candidate_invalid_runner_mode_result_is_schema_valid(
     assert result["candidate_patch"]
     assert result["failure_class"] == "policy_violation"
     assert "runner_mode must be one of" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "candidate_patch"
+    )
+
+
+def test_evaluate_candidate_non_dict_packet_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "non-dict-packet.patch",
+    )
+    packet = cast(dict[str, Any], ["not", "a", "packet"])
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["experiment_id"] == "invalid-experiment"
+    assert result["runner_mode"] == "candidate_patch"
+    assert result["candidate_patch"]
+    assert result["failure_class"] == "policy_violation"
+    assert (
+        "Experiment packet must be a JSON object" in result["budget_observations"]["runner_error"]
+    )
     assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
         "candidate_patch"
     )
