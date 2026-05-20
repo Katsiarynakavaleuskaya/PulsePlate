@@ -487,7 +487,7 @@ Evidence: `core/food_sources/regional_catalog_identity.py` now treats `budget_fi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862588 -> 874ca868d
 
 Disposition: FIXED
-Commit: see mapping entry below
+Commit: see mapping entries below
 Evidence: `core/food_sources/regional_catalog_identity.py` preserves observed safety flag values from malformed PR17 artifacts in failed reports instead of replacing non-bool inputs with safe defaults; `tests/test_food_source_regional_catalog_identity.py` covers malformed string values for `api_calls_allowed` and `file_only`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3274049486 -> b71d38276
