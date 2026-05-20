@@ -50,6 +50,9 @@ This creates the isolated worktree, runs analyze preflight, runs
 `task_bootstrap.py`, and prints the non-blocking plugin/runtime checklist, the
 bootstrap packet summary, and a Codex-ready coordinator-start prompt. It does
 not push, open a PR, install host plugins, or auto-start a raw Codex session.
+When the branch is ready to publish, open the PR non-draft by default so bot
+review and current-head checks run; draft mode is an explicit operator
+exception.
 
 Optional raw-session helper when you only need preflight plus a printed
 bootstrap recipe:

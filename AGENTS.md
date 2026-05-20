@@ -436,7 +436,7 @@ Rules:
 All non-trivial PR work must follow this coordinator-owned lifecycle:
 
 1. **Start**: run preflight, inspect the governing docs, and let coordinator define scope, risks, and required agents before editing code or docs.
-2. **Open / keep draft**: keep the PR in draft until the branch has a coherent scope, the canonical artifact path is known, and local validation is ready to begin.
+2. **Open non-draft by default**: open PRs as ready-for-review once the branch has a coherent scope, initial PR body, and canonical artifact path. Draft PRs require an explicit operator exception because they suppress or delay bot review and current-head merge verification.
 3. **Push cycle**: before each push, run `pre-commit run --all-files` and the applicable local gates; after each push, watch the **current-head** CI state, not stale historical runs.
 4. **Review cycle**: treat every new human or bot comment as coordinator input; record disposition in `docs/review/PR_<N>_FIXED_MAPPING.md` first, update the PR-body mirror second, and re-run merge-readiness checks after the latest activity.
 5. **Merge cycle**: claim merge readiness only after the strict wrapper passes, required current-head checks are green with no pending jobs, no actionable bot comments remain, and the mandatory wait-window has elapsed.

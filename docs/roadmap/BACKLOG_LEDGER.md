@@ -2380,15 +2380,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing PASS/NO-GO logic remains unchanged
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
-- [ ] P1: Knowledge contracts and promotion from validated RAG evidence
+- [x] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-K1
-  - Status: ✅ Runtime seam merged via PR `#1483` on `2026-04-20`; keep the checkbox open only until the docs-only closeout lands per ledger policy.
+  - Status: Closed by PR-K1 docs/review closeout after runtime seam merge via PR `#1483` on `2026-04-20`.
+    Delayed-closeout exception: the docs-only follow-up PR `#1776` was opened on `2026-05-20`, one month after the merge, because the same-day/next-working-day handoff required by `AGENTS.md` was missed during the adjacent AI-runtime, semantic-cache, and philosophy-governance cutover; this closeout records the exception with both dates for auditability.
   - Area: AI runtime / knowledge / retrieval orchestration
   - Finding Type: bounded knowledge-promotion contract gap
-  - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
-  - Deferred follow-up (PR #1483 merge closeout): add explicit return annotations to `TestPhilosophicalRuntimeFastLane._runtime_policy` and `_runtime_candidate` in `tests/test_remaining_modules.py`; keep it out of PR-K1 because touching that file here would pull a full-file `black` reformat into the merge lane for a low-risk test-only nitpick.
+  - Reason (EN): Before PR `#1483`, the AI runtime had deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but did not expose a first-class internal fact-promotion contract separated from retrieval artifacts. PR `#1483` closed that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
+  - Closeout evidence:
+    - Runtime seam merged: PR `#1483`, `2026-04-20`
+    - Deferred PR `#1483` test-helper return annotations resolved in `tests/test_remaining_modules.py`
+    - Review-governance reconciliation remains recorded in `docs/review/PR_1483_FIXED_MAPPING.md`
+    - Role-agent and engineering lessons were updated for AI/RAG/cache governance closeout failures
+    - Semantic-cache gate markers remain `closed / false / false / true`
   - Links:
     - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
     - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`
@@ -9941,6 +9947,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runner enforces budgets and failure classes from the experimentation protocol
     - Immutable oracle mutation is rejected fail-closed
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
+
+<a id="ledger-p2-experiment-runner-pr-evidence-hard-gate"></a>
+- [ ] P2: Promote Experiment Runner PR evidence from advisory to hard gate
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (review-governance hardening after advisory signal proves stable)
+  - Target PR: Future governance PR after PR #1775 advisory rollout
+  - Status: 📋 Deferred from PR #1775
+  - Dependencies:
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): PR #1775 introduces Phase2 advisory Experiment Runner evidence for non-trivial PR lanes. A later PR should promote that evidence to a hard merge gate only after the advisory signal is stable and false-positive behavior is understood.
+  - DoD:
+    - `check_merge_ready.py` blocks non-trivial PRs missing valid Experiment Runner evidence or an explicit not-applicable reason
+    - PR-body and fixed-mapping validators share one parser contract for artifact paths and not-applicable reasons
+    - Rollback notes document how to return the gate to advisory mode if review throughput regresses
+
+<a id="ledger-p2-experiment-runner-validator-mutation-threat-model"></a>
+- [ ] P2: Threat-model controlled Experiment Runner validator-script mutation access
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (privileged governance-surface safety)
+  - Target PR: Future security-reviewed governance PR after PR #1775
+  - Status: 📋 Deferred from PR #1775
+  - Dependencies:
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): PR #1775 keeps `scripts/ci/**` mutation access disabled and fail-closed. Any future mutation access needs a separate threat model, explicit allowlist shape, forbidden-surface regression tests, identity/trailer checks, and rollback notes before the runner can touch validator scripts.
+  - DoD:
+    - Security threat model covers validator-script authority, review-thread authority, merge-gate authority, and rollback
+    - Allowlist defaults to empty/fail-closed and has regression tests for forbidden governance surfaces
+    - Identity checks require `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` when runner artifacts materially shape commits
 
 <a id="ledger-p1-agent-experiment-promotion"></a>
 - [x] P1: PR4 experiment promotion and telemetry integration
