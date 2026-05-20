@@ -32,6 +32,18 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - qa-engineer-agent finding: canonical PR #1779 mapping artifact failed Phase2 checkboxes and mapping-line format.
   - Disposition: FIXED
   - Evidence: this artifact now uses checked Phase2 boxes and a valid `review-url -> commit-sha` mapping.
+- bug-hunter finding: checker false-green gaps for `allowed/permitted` Redis/GPTCache approval and semantic-cache permission wording.
+  - Disposition: FIXED
+  - Commit: `f799985d3`
+  - Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:60` and `tests/test_ai_verification_registry_closeout.py:184`
+- bug-hunter finding: merge-readiness checklist used impossible `check_pr_body_phase2_gates.py --require-auth` command.
+  - Disposition: FIXED
+  - Commit: `f799985d3`
+  - Evidence: `docs/review/PR_1779_FIXED_MAPPING.md:64`
+- bug-hunter finding: duplicate `## 12)` section in Engineering Lessons.
+  - Disposition: FIXED
+  - Commit: `f799985d3`
+  - Evidence: `docs/ENGINEERING_LESSONS.md:223`, `docs/ENGINEERING_LESSONS.md:248`, and `docs/ENGINEERING_LESSONS.md:423`
 
 ## Local Evidence
 
