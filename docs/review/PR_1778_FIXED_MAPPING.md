@@ -97,6 +97,12 @@ Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2
 Reason: Codex flagged that a local footer scan still accepted prose ending in a trailer-looking line. Phase2 now delegates trailer parsing to `git interpret-trailers --parse`, so only real Git trailer blocks satisfy the Experiment Runner co-author diagnostic.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3276881473 -> 50836edcd
 
+Disposition: FIXED
+Commit: e1f2fde6f
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Codex flagged that raw commit-message text from `git log %B` can contain divider-like `---` lines that `git interpret-trailers` treats as end-of-input by default. Phase2 now passes `--no-divider` and keeps trailer parsing accurate for raw commit bodies.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3277019165 -> e1f2fde6f
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
