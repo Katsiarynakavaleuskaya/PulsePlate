@@ -391,6 +391,8 @@ authority.
 - landed runtime knowledge policy via `prepare_insight_runtime(...)`
 - landed internal-only promotion candidate seams and deterministic tests
 - docs/backlog/review reconciliation for the K1 closeout state
+- role-agent and Engineering Lessons updates for source-of-truth, mapping,
+  and gate-closed wording failures found during the closeout review
 
 #### Out of scope
 - semantic cache implementation
@@ -404,6 +406,8 @@ authority.
   RAG evidence that survives orchestration
 - degraded paths fail closed, route layer remains thin, and public contracts are unchanged
 - ledger and roadmap no longer present K1 as open implementation work
+- role-agent and engineering lesson updates prevent repeated RAG/cache
+  closeout drift without changing runtime behavior
 - semantic cache stays gate-closed, deferred, and out of scope
 
 ---

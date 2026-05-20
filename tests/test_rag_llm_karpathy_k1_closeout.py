@@ -31,6 +31,7 @@ def test_k1_ledger_closeout_is_not_left_open_or_orphaned() -> None:
     assert "2026-04-20" in item
     assert "tests/test_remaining_modules.py" in item
     assert "docs/review/PR_1483_FIXED_MAPPING.md" in item
+    assert "Role-agent and engineering lessons were updated" in item
     assert "closed / false / false / true" in item
     assert "keep the checkbox open" not in item
     assert "Deferred follow-up" not in item
@@ -42,6 +43,7 @@ def test_k1_roadmap_marks_landed_without_semantic_cache_rollout_claims() -> None
 
     assert "Landed via PR `#1483` on `2026-04-20`" in section
     assert "docs/backlog/review reconciliation" in section
+    assert "role-agent and Engineering Lessons updates" in section
     assert "ledger and roadmap no longer present K1 as open implementation work" in section
     assert "semantic cache stays gate-closed, deferred, and out of scope" in section
     assert "semantic cache implementation" in section
@@ -69,8 +71,40 @@ def test_pr1483_deferred_fast_lane_return_annotations_are_resolved() -> None:
         '-> "KnowledgePolicy":'
     ) in fast_lane
     assert 'def _runtime_candidate() -> "KnowledgeFactCandidate":' in fast_lane
-    assert (
-        "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139572722 -> 5215db056"
-        in mapping
+    review_url = (
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483"
+        "#pullrequestreview-4139572722"
     )
-    assert "Disposition: FIXED" in mapping
+    block = _between(
+        mapping,
+        "Disposition: FIXED\nCommit: 5215db056\nEvidence: `tests/test_remaining_modules.py:1577`",
+        "## Post-Merge Closeout",
+    )
+    assert "docs/roadmap/BACKLOG_LEDGER.md:2380" in block
+    assert "tests/test_rag_llm_karpathy_k1_closeout.py:63" in block
+    assert f"{review_url} -> 5215db056" in block
+    assert block.count(review_url) == 1
+    assert mapping.count(review_url) == 1
+    assert "Disposition: DEFERRED" not in block
+
+
+def test_pr1483_mapping_uses_post_merge_closeout_instead_of_stale_readiness() -> None:
+    mapping = _read("docs/review/PR_1483_FIXED_MAPPING.md")
+    closeout = _between(mapping, "## Post-Merge Closeout", "<!-- markdownlint-enable MD034 -->")
+    merge_commit = "".join(
+        (
+            "ba42a25a",
+            "6c8d2c6d",
+            "030e313a",
+            "b14e1173",
+            "492a9e06",
+        )
+    )
+
+    assert "State: `MERGED`" in closeout
+    assert "Merged at: `2026-04-20T12:09:36Z`" in closeout
+    assert merge_commit in closeout
+    assert "Current readiness evidence for this closeout belongs to the new closeout PR" in closeout
+    assert "## Merge Readiness" not in mapping
+    assert "Current-head CI is green for PR branch head" not in mapping
+    assert "origin/codex/pr-k1-knowledge-promotion" not in mapping

@@ -2389,6 +2389,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Runtime seam merged: PR `#1483`, `2026-04-20`
     - Deferred PR `#1483` test-helper return annotations resolved in `tests/test_remaining_modules.py`
     - Review-governance reconciliation remains recorded in `docs/review/PR_1483_FIXED_MAPPING.md`
+    - Role-agent and engineering lessons were updated for AI/RAG/cache governance closeout failures
     - Semantic-cache gate markers remain `closed / false / false / true`
   - Links:
     - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
