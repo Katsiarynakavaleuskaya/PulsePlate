@@ -74,6 +74,14 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `02762fcc5`
   - Evidence: the bug-hunter mapping now uses command evidence instead of a stale line number.
+- bug-hunter second-pass finding: literal `raw sensitive data` cacheability claim false-greened.
+  - Disposition: FIXED
+  - Commit: `1036e330e`
+  - Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` includes `sensitive data` in the sensitive cache term set and `tests/test_ai_verification_registry_closeout.py` covers forward/reverse raw sensitive data cacheability wording.
+- bug-hunter second-pass finding: PR-V1-first semantic-cache approval/permission wording false-greened.
+  - Disposition: FIXED
+  - Commit: `1036e330e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `permits`, `allows`, `approves`, and `selects` semantic-cache serving variants plus a negated safety statement.
 
 ## Local Evidence
 
