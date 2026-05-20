@@ -326,24 +326,35 @@ def test_git_commit_messages_returns_none_when_git_unavailable(
     assert gates._git_commit_messages() is None
 
 
-def test_phase2_main_warns_when_commit_messages_unverifiable(
-    monkeypatch: pytest.MonkeyPatch,
-    capsys: pytest.CaptureFixture[str],
+def test_experiment_runner_coauthor_advisory_warns_when_commit_messages_unverifiable(
+    tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(gates, "_git_commit_messages", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr(
-        "sys.argv",
-        [
-            "check_pr_body_phase2_gates.py",
-            "--body",
-            VALID_BODY_WITH_MAPPING,
-        ],
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
     )
 
-    result = gates.main()
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=None,
+        repo_root=tmp_path,
+    )
 
-    assert result == 0
-    assert "could not be inspected locally" in capsys.readouterr().out
+    assert warnings == [
+        "Advisory: branch commit messages could not be inspected locally, "
+        "so the Experiment Runner co-author trailer was not verified for "
+        "`artifacts/orchestration/experiments/results/oracle.json`. "
+        "Reason: Runner oracle shaped the fixed mapping."
+    ]
 
 
 def test_phase2_guard_rejects_missing_sections() -> None:

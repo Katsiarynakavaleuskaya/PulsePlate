@@ -281,12 +281,12 @@ def _git_commit_messages(
 def check_experiment_runner_coauthor_advisory(
     text: str,
     *,
-    commit_messages: str,
+    commit_messages: str | None,
     repo_root: Path = REPO_ROOT,
 ) -> list[str]:
     """Warn when a local runner artifact requires co-authoring but commits lack it."""
 
-    if EXPECTED_CO_AUTHOR_TRAILER in commit_messages:
+    if commit_messages is not None and EXPECTED_CO_AUTHOR_TRAILER in commit_messages:
         return []
 
     warnings: list[str] = []
@@ -305,7 +305,14 @@ def check_experiment_runner_coauthor_advisory(
             )
             continue
         if isinstance(payload, dict) and payload.get("coauthor_required") is True:
-            warning = MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING.format(path=artifact_path)
+            if commit_messages is None:
+                warning = (
+                    "Advisory: branch commit messages could not be inspected locally, "
+                    "so the Experiment Runner co-author trailer was not verified for "
+                    f"`{artifact_path}`."
+                )
+            else:
+                warning = MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING.format(path=artifact_path)
             reason = str(payload.get("coauthor_reason", "")).strip()
             if reason:
                 warning = f"{warning} Reason: {reason}"
@@ -470,19 +477,13 @@ def main() -> int:
             args.commit_range,
             fallback_range=args.commit_range_fallback,
         )
-        if commit_messages is None:
-            advisory_warnings.append(
-                "Advisory: branch commit messages could not be inspected locally, "
-                "so Experiment Runner co-author trailers were not verified."
-            )
-        else:
-            for evidence_text in evidence_texts:
-                advisory_warnings.extend(
-                    check_experiment_runner_coauthor_advisory(
-                        evidence_text,
-                        commit_messages=commit_messages,
-                    )
+        for evidence_text in evidence_texts:
+            advisory_warnings.extend(
+                check_experiment_runner_coauthor_advisory(
+                    evidence_text,
+                    commit_messages=commit_messages,
                 )
+            )
         advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]
