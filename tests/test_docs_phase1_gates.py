@@ -184,6 +184,36 @@ def test_phase1_guard_scans_comprehensive_philosophy_insight_doc(
     ]
 
 
+def test_phase1_guard_scans_philosophical_orchestration_packet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    packet_path = "docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md"
+    packet_doc = tmp_path / packet_path
+    packet_doc.parent.mkdir(parents=True)
+    packet_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[packet_path])
+
+    assert errors == [_expected_forbidden_philosophy_claim(packet_path, claim)]
+
+
+def test_phase1_guard_scans_philosophy_contract_sibling_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    contract_path = "docs/orchestration/contracts/PHILOSOPHY_FUTURE_CONTRACT.md"
+    contract_doc = tmp_path / contract_path
+    contract_doc.parent.mkdir(parents=True)
+    contract_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[contract_path])
+
+    assert errors == [_expected_forbidden_philosophy_claim(contract_path, claim)]
+
+
 def test_phase1_guard_runs_philosophy_checker_for_semantic_cache_gate_doc(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

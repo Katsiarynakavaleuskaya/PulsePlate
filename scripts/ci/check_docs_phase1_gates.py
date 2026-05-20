@@ -68,10 +68,12 @@ PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA = (
 )
 PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/PHILOSOPHY_",
+    "docs/orchestration/contracts/PHILOSOPHY_",
     "docs/orchestration/contracts/LOGIC_PHILOSOPHY_",
 )
 PHILOSOPHY_DOWNSTREAM_DOC_NAME_SCOPES: tuple[tuple[str, str], ...] = (
     ("docs/insights/", "PHILOSOPH"),
+    ("docs/orchestration/", "PHILOSOPH"),
 )
 PHILOSOPHY_DOWNSTREAM_DOCS: frozenset[str] = frozenset(
     {
