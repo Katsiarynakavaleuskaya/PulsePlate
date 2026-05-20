@@ -316,7 +316,8 @@ _AUTHORITY_LANGUAGE_RE = re.compile(
     rf"\b(?:{_USE_TERMS})\b|\b(?:{_EQUIVALENCE_TERMS})\b"
 )
 _CANDIDATE_LOCAL_AUTHORITY_RE = re.compile(
-    rf"\b(?:it|this|this candidate|candidate|candidates?|source|provider|portal|dataset)\b"
+    rf"\b(?:it|they|this|this candidate|these|those|those providers?|candidate|"
+    rf"candidates?|source|provider|providers?|portal|dataset)\b"
     rf"(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
     rf"\b(?:this)\b(?:\W+\w+){{0,3}}\W+\b(?:{_USE_TERMS})\b"
 )

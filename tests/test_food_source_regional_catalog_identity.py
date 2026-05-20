@@ -457,6 +457,11 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Candidate is approved for staging after manual review.",
         "This can be used for staging after manual review.",
         "Seller account access remains unapproved. It is approved for manual tests.",
+        "Seller APIs remain blocked for PR17. They are approved for staging.",
+        "Regional catalog candidates remain review context only. They are approved for staging.",
+        "Ozon and Wildberries remain seller terms evidence. They can be used for staging.",
+        "The providers remain unapproved. They have approval for manual tests.",
+        "Those providers can be used for staging.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
