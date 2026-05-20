@@ -18,6 +18,7 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `.cursor/agents/qa-engineer-agent.md:35` fixes the Sourcery tense issue.
@@ -30,6 +31,7 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437 -> 02762fcc5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452 -> c20b185ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
 
 ## Post-Open Role-Agent Findings
 
