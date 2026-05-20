@@ -19,7 +19,7 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437 -> c20b185ce
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452 -> c20b185ce
 Disposition: FIXED
-Commit: 9b79b240b, c20b185ce
+Commit: see mapping entries below
 Evidence: `.cursor/agents/qa-engineer-agent.md:35` fixes the Sourcery tense issue.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:60` and `tests/test_ai_verification_registry_closeout.py:181` add class-based forbidden-claim regression coverage for raw prompt/response caching, Redis rollout approval, and semantic-cache production-ready wording.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:16` documents why the public merge SHA remains split to avoid a detect-secrets false positive.
@@ -43,7 +43,7 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - bug-hunter finding: merge-readiness checklist used impossible `check_pr_body_phase2_gates.py --require-auth` command.
   - Disposition: FIXED
   - Commit: `f799985d3`
-  - Evidence: `docs/review/PR_1779_FIXED_MAPPING.md:76`
+  - Evidence: merge-readiness checklist now uses `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1779` without an unsupported auth flag.
 - bug-hunter finding: duplicate `## 12)` section in Engineering Lessons.
   - Disposition: FIXED
   - Commit: `f799985d3`

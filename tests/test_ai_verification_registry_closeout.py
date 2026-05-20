@@ -222,6 +222,35 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
     assert closeout.validate_closeout(repo_root=tmp_path) == []
 
 
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [
+        (
+            "No review item remains. PR-V1 opens semantic-cache serving.",
+            "PR-V1 opens semantic cache",
+        ),
+        (
+            "No stale finding left here. PR-V1 can cache raw account data safely.",
+            "raw sensitive data cacheable",
+        ),
+        (
+            "Raw prompts are not cacheable. PR-V1 can cache raw prompts safely.",
+            "raw prompts cacheable",
+        ),
+    ],
+)
+def test_checker_rejects_forbidden_claims_after_unrelated_negated_text(
+    tmp_path: Path, claim: str, expected: str
+) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(_valid_roadmap() + f"\n{claim}\n", encoding="utf-8")
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any(expected in error for error in errors)
+
+
 def test_checker_allows_historical_stale_pr1491_text_outside_closeout(
     tmp_path: Path,
 ) -> None:

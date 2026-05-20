@@ -57,103 +57,108 @@ SENSITIVE_CACHE_TERMS = (
 )
 
 SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
+CLAIM_GAP = r"[^.!?\n]{0,80}"
 
 FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 opens semantic cache",
-        re.compile(r"\bpr-v1\b.{0,80}\bopens?\b.{0,80}\bsemantic[- ]cache\b", re.I | re.S),
+        re.compile(rf"\bpr-v1\b{CLAIM_GAP}\bopens?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I),
     ),
     (
         "PR-V1 enables semantic cache",
-        re.compile(r"\bpr-v1\b.{0,80}\benables?\b.{0,80}\bsemantic[- ]cache\b", re.I | re.S),
+        re.compile(rf"\bpr-v1\b{CLAIM_GAP}\benables?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I),
     ),
     (
         "semantic cache active/open claim",
         re.compile(
-            r"\bsemantic[- ]cache\b.{0,80}\b"
+            rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
             r"(?:active|enabled|open|live|production[- ]ready|approved|allowed|permitted)\b",
-            re.I | re.S,
+            re.I,
         ),
     ),
     (
         "PR-V1 makes semantic cache production ready",
         re.compile(
-            r"\bpr-v1\b.{0,80}\b(?:makes?|marks?)\b.{0,80}"
-            r"\bsemantic[- ]cache\b.{0,80}\bproduction[- ]ready\b",
-            re.I | re.S,
+            rf"\bpr-v1\b{CLAIM_GAP}\b(?:makes?|marks?)\b{CLAIM_GAP}"
+            rf"\bsemantic[- ]cache\b{CLAIM_GAP}\bproduction[- ]ready\b",
+            re.I,
         ),
     ),
     (
         "PR-V1 approves Redis/GPTCache rollout",
         re.compile(
-            r"\bpr-v1\b.{0,80}\b"
+            rf"\bpr-v1\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|enables?|enabled|selects?|selected|"
-            r"allows?|allowed|permits?|permitted)\b.{0,80}"
+            rf"allows?|allowed|permits?|permitted)\b{CLAIM_GAP}"
             r"\b(?:redis|gptcache)\b",
-            re.I | re.S,
+            re.I,
         ),
     ),
     (
         "Redis/GPTCache rollout approval",
         re.compile(
-            r"\b(?:redis|gptcache)\b.{0,80}"
+            rf"\b(?:redis|gptcache)\b{CLAIM_GAP}"
             r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
             r"selected|allowed|permitted)\b",
-            re.I | re.S,
+            re.I,
         ),
     ),
     (
         "raw prompts cacheable",
         re.compile(
-            r"\braw\s+(?:model\s+)?prompts?\b.{0,80}\b(?:cache|cached|cacheable)\b",
-            re.I | re.S,
+            rf"\braw\s+(?:model\s+)?prompts?\b{CLAIM_GAP}\b(?:cache|cached|cacheable)\b",
+            re.I,
         ),
     ),
     (
         "raw prompts cacheable",
         re.compile(
-            r"\b(?:cache|caches|cached|cacheable|can\s+cache)\b.{0,80}"
+            rf"\b(?:cache|caches|cached|cacheable|can\s+cache)\b{CLAIM_GAP}"
             r"\braw\s+(?:model\s+)?prompts?\b",
-            re.I | re.S,
+            re.I,
         ),
     ),
     (
         "raw responses cacheable",
         re.compile(
-            r"\braw\s+(?:model\s+)?responses?\b.{0,80}\b(?:cache|cached|cacheable)\b",
-            re.I | re.S,
+            rf"\braw\s+(?:model\s+)?responses?\b{CLAIM_GAP}\b(?:cache|cached|cacheable)\b",
+            re.I,
         ),
     ),
     (
         "raw responses cacheable",
         re.compile(
-            r"\b(?:cache|caches|cached|cacheable|can\s+cache)\b.{0,80}"
+            rf"\b(?:cache|caches|cached|cacheable|can\s+cache)\b{CLAIM_GAP}"
             r"\braw\s+(?:model\s+)?responses?\b",
-            re.I | re.S,
+            re.I,
         ),
     ),
     (
         "raw sensitive data cacheable",
         re.compile(
-            rf"\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b.{0,80}" r"\b(?:cache|cached|cacheable)\b",
-            re.I | re.S,
+            rf"\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b{CLAIM_GAP}"
+            r"\b(?:cache|cached|cacheable)\b",
+            re.I,
         ),
     ),
     (
         "raw sensitive data cacheable",
         re.compile(
-            r"\b(?:cache|caches|cached|cacheable|can\s+cache)\b.{0,80}"
+            rf"\b(?:cache|caches|cached|cacheable|can\s+cache)\b{CLAIM_GAP}"
             rf"\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b",
-            re.I | re.S,
+            re.I,
         ),
     ),
 )
 
 NEGATED_FORBIDDEN_CLAIM_RE = re.compile(
     r"\b(?:"
-    r"not|never|no|without|cannot|can't|"
+    r"cannot|can't|"
     r"must\s+not|should\s+not|does\s+not|doesn't|"
     r"is\s+not|isn't|has\s+not|hasn't|"
+    r"not\s+(?:cache|cached|cacheable|open|opened|enable|enabled|"
+    r"approve|approved|allow|allowed|permit|permitted|production[- ]ready)|"
+    r"without\s+(?:cache|caching|approval|rollout|runtime|activation)|"
     r"remain(?:s)?\s+closed|gate\s+remain(?:s)?\s+closed"
     r")\b",
     re.I,
@@ -218,15 +223,21 @@ def _validate_semantic_cache_gate_markers(text: str) -> list[str]:
 def _validate_forbidden_claims(label: str, text: str) -> list[str]:
     errors: list[str] = []
     for claim, pattern in FORBIDDEN_PR_V1_CLAIMS:
-        match = pattern.search(text)
-        if match and not _is_negated_forbidden_claim(text, match):
-            errors.append(f"{label}: forbidden PR-V1 closeout claim: {claim}")
+        for match in pattern.finditer(text):
+            if not _is_negated_forbidden_claim(text, match):
+                errors.append(f"{label}: forbidden PR-V1 closeout claim: {claim}")
+                break
     return errors
 
 
 def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
-    start = max(0, match.start() - 40)
-    snippet = text[start : match.end()]
+    sentence_start = max(
+        text.rfind(".", 0, match.start()),
+        text.rfind("!", 0, match.start()),
+        text.rfind("?", 0, match.start()),
+        text.rfind("\n", 0, match.start()),
+    )
+    snippet = text[sentence_start + 1 : match.end()]
     return bool(NEGATED_FORBIDDEN_CLAIM_RE.search(snippet))
 
 
