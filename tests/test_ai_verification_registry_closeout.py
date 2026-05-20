@@ -184,7 +184,10 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 can cache raw prompts safely.", "raw prompts cacheable"),
         ("PR-V1 can cache raw responses safely.", "raw responses cacheable"),
         ("PR-V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("PR-V1 permits Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("PR-V1 allows GPTCache for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
+        ("Semantic-cache serving is permitted by PR-V1.", "semantic cache"),
     ],
 )
 def test_checker_rejects_forbidden_claim_variants(

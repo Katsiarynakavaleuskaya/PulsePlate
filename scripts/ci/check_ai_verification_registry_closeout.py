@@ -60,7 +60,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "semantic cache active/open claim",
         re.compile(
             r"\bsemantic[- ]cache\b.{0,80}\b"
-            r"(?:active|enabled|open|live|production[- ]ready|approved)\b",
+            r"(?:active|enabled|open|live|production[- ]ready|approved|allowed|permitted)\b",
             re.I | re.S,
         ),
     ),
@@ -76,7 +76,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "PR-V1 approves Redis/GPTCache rollout",
         re.compile(
             r"\bpr-v1\b.{0,80}\b"
-            r"(?:approves?|approved|enables?|enabled|selects?|selected)\b.{0,80}"
+            r"(?:approves?|approved|enables?|enabled|selects?|selected|"
+            r"allows?|allowed|permits?|permitted)\b.{0,80}"
             r"\b(?:redis|gptcache)\b",
             re.I | re.S,
         ),
@@ -85,7 +86,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "Redis/GPTCache rollout approval",
         re.compile(
             r"\b(?:redis|gptcache)\b.{0,80}"
-            r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|selected)\b",
+            r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
+            r"selected|allowed|permitted)\b",
             re.I | re.S,
         ),
     ),

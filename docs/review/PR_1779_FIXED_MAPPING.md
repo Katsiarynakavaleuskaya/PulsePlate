@@ -61,7 +61,7 @@ Not merge-ready at artifact creation. Required before merge:
 - current-head PR CI terminal-success
 - CodeRabbit/Sourcery/Cubic no-actionables or mapped dispositions
 - Codex Security threat-model/security-scan/validation disposition
-- `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1779 --require-auth`
+- `python scripts/ci/check_pr_body_phase2_gates.py --pr-number 1779`
 - `python scripts/orchestration/check_review_threads_disposition.py --pr-number 1779 --require-auth`
 - strict merge wrapper with auth
 - wait-window pass after latest review activity
