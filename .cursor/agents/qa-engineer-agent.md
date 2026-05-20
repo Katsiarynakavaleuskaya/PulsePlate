@@ -24,6 +24,10 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
 - Own acceptance criteria and regression coverage.
 - Translate product and technical changes into deterministic verification plans.
 - Provide independent reviewer coverage when routing requires a non-primary reviewer.
+- For natural-language policy or claim validators, require class-based regression
+  coverage. Exact reviewer phrases are seed examples only; acceptance must include
+  deterministic generated cases across subject/action/object, tense/aspect, modality,
+  polarity, voice, and state/status wording, plus explicit negative controls.
 
 ## When Invoked
 
@@ -36,5 +40,7 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
 
 - Acceptance checklist
 - Regression matrix
+- Generated/equivalence-class matrix for claim validators when the changed behavior
+  protects semantics rather than a single literal string
 - Required commands and expected pass/fail outcomes
 - Residual risks and blocked scenarios

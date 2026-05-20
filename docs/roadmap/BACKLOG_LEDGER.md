@@ -2853,11 +2853,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Any true residual quota debt is captured as a separate narrow follow-up instead of reopening a full parity lane
 
 <a id="ledger-p1-philosophy-epic-v2-pr0-packet"></a>
-- [ ] P1: Philosophy Epic V2 PR-0 governance packet
+- [x] P1: Philosophy Epic V2 PR-0 governance packet
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/philosophy-epic-v2-pr0-packet`
-  - Status: 🟡 In progress (PR-0 packet branch opened from `origin/main` on 2026-05-13; docs/governance only)
+  - Target PR: PR #1744 (`codex/philosophy-epic-v2-pr0-packet`)
+  - Status: ✅ Closed (merged PR #1744; PR-1 admission contract follow-up is tracked below)
   - Area: AI / RAG / philosophy / orchestration governance
   - Finding Type: epic-sequencing and premortem-closure gate
   - Reason (EN): Two operator-provided Philosophy Epic V2 PDFs define valuable analytical, linguistic, semantic-cache, FitChef, CBT, and rollout ideas, but current repo truth already has bounded philosophical runtime, offline logic+philosophy replay, and a closed semantic-cache gate. PR-0 creates the governed packet that reconciles those inputs before any runtime activation, prevents PDF/design input from becoming runtime authority by accident, and makes `pulseplate-premortem-risk-review` findings blocking unless they are fixed or formally dispositioned.
@@ -2876,6 +2876,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR-1 is constrained by current semantic-cache gate markers and may not implement or enable semantic cache while the gate remains closed
     - Canonical post-open `qa-engineer-agent -> bug-hunter` plus security review are run and mapped before readiness
     - `docs/review/PR_<N>_FIXED_MAPPING.md` is added after the PR number exists and mirrored into the PR body
+
+<a id="ledger-p1-philosophy-epic-v2-pr1-admission"></a>
+- [ ] P1: Philosophy Epic V2 PR-1 semantic-cache admission contract
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: #1761 (`codex/philosophy-epic-v2-pr1-admission-contract`)
+  - Status: 🟡 In review / merge-ready stabilization after #1766 main security gate
+  - Area: AI / RAG / philosophy / semantic-cache governance
+  - Finding Type: admission-contract and gate-closed governance
+  - Reason (EN): PR #1742 merged the SC-G5 backend-selection contract as an offline, label-only, non-serving semantic-cache governance layer. Philosophy Epic V2 PR-1 must add the higher-level philosophical admission contract that defines runtime-only, blocked, verification-bundle-required, and future-deferred request classes without opening the semantic-cache gate, duplicating SC-G5 backend-selection ranking, or adding Redis/GPTCache, embeddings, storage, serving, providers, OpenAPI, DB, frontend, or iOS changes.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md`
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`
+    - `docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+  - DoD:
+    - Admission contract keeps semantic-cache gate markers closed and runtime/implementation false
+    - Contract classifies philosophical request surfaces into `runtime_only`, `blocked_from_cache`, `verification_bundle_required`, and `future_cache_candidate_deferred`
+    - Contract references SC-G5 / PR #1742 by SoT and merge evidence without duplicating backend-selection candidate/ranking matrix
+    - Focused validators and tests remain static/read-only and add no runtime cache dependencies
+    - All premortem, architecture, philosophy, security, QA, and bug-hunter findings are dispositioned before readiness claims
+    - PR body mirrors review-thread disposition, deferred/follow-up, and merge-readiness sections after PR open
 
 
 <a id="ledger-p1-recursive-methods"></a>
