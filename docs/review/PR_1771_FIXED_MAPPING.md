@@ -65,6 +65,11 @@ Role-agent dispositions:
   `a3a5a0854` rejects long/modifier authority assignments across comma-split
   clauses, adds persistence verb coverage for `remains`/`stays`, and keeps
   safe list-style blocked policy text and negated authority denials valid.
+- Post-security Codex follow-up batch: Disposition `FIXED`. Evidence: commit
+  `a3f9d0e11` rejects unrelated-negation authority bypasses, permits modal
+  negated-use and modal reversed-authority denials, validates PR16 report
+  identity/provenance fields, and preserves observed unsafe flags in failed
+  validation reports.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -378,6 +383,16 @@ Evidence: `core/food_sources/regional_catalog_identity.py` adds cross-segment as
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859300 -> a3a5a0854
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859305 -> a3a5a0854
 
+Disposition: FIXED
+Commit: a3f9d0e11
+Evidence: `core/food_sources/regional_catalog_identity.py` narrows negation stripping, handles modal negated-use and modal reversed-denial wording, validates PR16 report identity fields, and reports observed unsafe flags on failed validation; `tests/test_food_source_regional_catalog_identity.py` covers the review examples.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016507 -> a3f9d0e11
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016512 -> a3f9d0e11
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016517 -> a3f9d0e11
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016521 -> a3f9d0e11
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016524 -> a3f9d0e11
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -417,7 +432,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 217 tests.
+- Focused PR17 tests: passed, 225 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
