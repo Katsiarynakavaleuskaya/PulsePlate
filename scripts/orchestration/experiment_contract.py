@@ -223,7 +223,7 @@ def validate_oracle_context_surface(paths: list[str] | tuple[str, ...]) -> list[
     if not git_binary:
         raise ValueError("git binary is required to validate oracle-only context paths.")
     tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2026-07-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
-        [git_binary, "ls-files", "--error-unmatch", *normalized_paths],
+        [git_binary, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", *normalized_paths],
         cwd=str(REPO_ROOT),
         env=_git_env_without_parent_state(),
         capture_output=True,

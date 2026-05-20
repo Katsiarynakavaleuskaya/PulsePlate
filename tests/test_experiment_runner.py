@@ -270,6 +270,24 @@ def test_validate_oracle_only_context_ignores_parent_git_index_env(
     assert validated["mutable_candidate_surface"] == ["core/rag/allowed.py"]
 
 
+def test_validate_oracle_only_context_rejects_git_pathspec_magic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Git pathspec magic must not expand oracle-only tracked-context checks."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _base_packet(
+        mutable_path=":(glob)core/rag/*.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    with pytest.raises(ValueError, match="tracked by git"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
 def test_validate_packet_rejects_governance_prompt_surface_in_candidate_mode() -> None:
     """Governance docs can be immutable oracles, not runner-mutable prompt docs."""
 
