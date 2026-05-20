@@ -21,6 +21,10 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886916
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886926
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886933
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006978
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006994
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006997
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275007002
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 Disposition: FIXED
 Commit: see mapping entries below
@@ -30,6 +34,7 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:16` documents w
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` ignore explicitly negated gate-closed safety statements while rejecting unrelated negated text before forbidden claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:323` and `tests/test_ai_verification_registry_closeout.py:225` scope stale PR #1491 wording checks to the Post-Merge Closeout section.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now use claim-local negation patterns, unbounded same-sentence forbidden-claim gaps, and `PR V1` / `PR-V1` spelling coverage.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now restrict negation to the matched claim clause, accept explicit Redis/GPTCache negation, accept `no approval` / `no permission` semantic-cache policy wording, and allow modal/never raw-cache denials while preserving contradictory-claim rejection.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
@@ -38,6 +43,10 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886916 -> 8c6e964ef
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886926 -> 8c6e964ef
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886933 -> 8c6e964ef
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006978 -> dc38749c8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006994 -> dc38749c8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006997 -> dc38749c8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275007002 -> dc38749c8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
 
 ## Post-Open Role-Agent Findings
@@ -111,6 +120,22 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `8c6e964ef`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `PR V1 approves Redis`, `PR V1 permits semantic-cache serving`, and negated `PR V1 does not permit semantic-cache serving`.
+- CodeRabbit finding: earlier negated wording in a contrast clause could exempt a later forbidden semantic-cache opening claim.
+  - Disposition: FIXED
+  - Commit: `dc38749c8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `Semantic-cache is not production-ready but PR-V1 opens semantic-cache serving`.
+- CodeRabbit finding: negated Redis/GPTCache rollout statements could be flagged as positive approval claims.
+  - Disposition: FIXED
+  - Commit: `dc38749c8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Redis is not approved for semantic-cache rollout` and `GPTCache has no permission for semantic-cache rollout`.
+- CodeRabbit finding: `no approval` / `no permission` semantic-cache policy statements were not recognized as negated.
+  - Disposition: FIXED
+  - Commit: `dc38749c8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Semantic-cache has no approval for serving rollout`.
+- CodeRabbit finding: modal/never raw-cache safety statements were false positives.
+  - Disposition: FIXED
+  - Commit: `dc38749c8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Raw prompts cannot be cached` and `Raw responses are never cached`.
 
 ## Local Evidence
 
