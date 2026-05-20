@@ -450,6 +450,8 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Partner access gets a green light for staging.",
         "Regional catalogs have the go ahead for product display.",
         "Seller API is cleared for tests.",
+        "Seller API use is blocked for PR17 governance evidence, legal review, provider terms, license review, identity review, source family review, cache review, attribution review, data quality review, freshness review, locale review, unit normalization review, nutrient schema review, internal routing review, but approved for staging.",
+        "Data portal is not source authority for PR17, but after exact dataset review and country terms mapping it becomes product display.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:

@@ -268,6 +268,7 @@ _USE_TERMS = (
     r"could(?:\W+\w+){0,3}\W+be used|is used|are used|used|queried|"
     r"may call|can call|could call|relied on"
 )
+_EQUIVALENCE_TERMS = r"becomes?|serves as|treated as|equals"
 _BLOCKED_NOTE_TERMS = (
     r"regional catalogs?|data europa eu|api calls?|scraping|scrapers?|downloads?|"
     r"paid source|paid provider|seller apis?|seller api access|seller access|"
@@ -311,7 +312,8 @@ _NEGATED_APPROVAL_RE = re.compile(
     r"\bunapproved\b"
 )
 _AUTHORITY_LANGUAGE_RE = re.compile(
-    rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_APPROVAL_NOUNS})\b|\b(?:{_USE_TERMS})\b"
+    rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_APPROVAL_NOUNS})\b|"
+    rf"\b(?:{_USE_TERMS})\b|\b(?:{_EQUIVALENCE_TERMS})\b"
 )
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
@@ -465,6 +467,11 @@ def _require_safe_notes(value: str, context: str) -> str:
     ]
     for normalized in (segment for segment in segments if segment):
         sanitized = _NEGATED_DIRECT_AUTHORITY_RE.sub(" ", normalized)
+        remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", sanitized)
+        if _BLOCKED_NOTE_RE.search(remaining_authority_text) and _AUTHORITY_LANGUAGE_RE.search(
+            remaining_authority_text
+        ):
+            raise _identity_error(context, "notes must not approve regional catalog source use")
         for pattern in _FORBIDDEN_NOTE_PATTERNS:
             for match in pattern.finditer(sanitized):
                 match_text = match.group(0)
