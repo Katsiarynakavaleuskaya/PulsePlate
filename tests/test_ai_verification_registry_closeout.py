@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_ai_verification_registry_closeout as closeout
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -174,6 +176,27 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
     errors = closeout.validate_closeout(repo_root=tmp_path)
 
     assert any("PR-V1 opens semantic cache" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected"),
+    [
+        ("PR-V1 can cache raw prompts safely.", "raw prompts cacheable"),
+        ("PR-V1 can cache raw responses safely.", "raw responses cacheable"),
+        ("PR-V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
+    ],
+)
+def test_checker_rejects_forbidden_claim_variants(
+    tmp_path: Path, claim: str, expected: str
+) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(_valid_roadmap() + f"\n{claim}\n", encoding="utf-8")
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any(expected in error for error in errors)
 
 
 def test_checker_rejects_stale_pr1491_mapping_readiness_claim(tmp_path: Path) -> None:

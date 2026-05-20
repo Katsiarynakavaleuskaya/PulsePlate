@@ -13,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PR_NUMBER = "1491"
 MERGE_DATE = "2026-04-22"
 MERGE_TIMESTAMP = "2026-04-22T10:38:04Z"
+# Public merge SHA is split to avoid detect-secrets high-entropy false positives.
 MERGE_COMMIT = "ce024e7c" "dca3ec94" "bbffb095" "e050010a" "8198e792"
 ORIGINAL_BRANCH = "codex/ai-verification-registry-v1"
 
@@ -58,27 +59,64 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "semantic cache active/open claim",
         re.compile(
-            r"\bsemantic[- ]cache\b\s+(?:is|has been|now)?\s*"
-            r"(?:active|enabled|open|live|production-ready|approved)\b",
-            re.I,
+            r"\bsemantic[- ]cache\b.{0,80}\b"
+            r"(?:active|enabled|open|live|production[- ]ready|approved)\b",
+            re.I | re.S,
+        ),
+    ),
+    (
+        "PR-V1 makes semantic cache production ready",
+        re.compile(
+            r"\bpr-v1\b.{0,80}\b(?:makes?|marks?)\b.{0,80}"
+            r"\bsemantic[- ]cache\b.{0,80}\bproduction[- ]ready\b",
+            re.I | re.S,
+        ),
+    ),
+    (
+        "PR-V1 approves Redis/GPTCache rollout",
+        re.compile(
+            r"\bpr-v1\b.{0,80}\b"
+            r"(?:approves?|approved|enables?|enabled|selects?|selected)\b.{0,80}"
+            r"\b(?:redis|gptcache)\b",
+            re.I | re.S,
         ),
     ),
     (
         "Redis/GPTCache rollout approval",
         re.compile(
-            r"\b(?:redis|gptcache)\b.{0,80}\b(?:approved|enabled|rollout-ready)\b", re.I | re.S
+            r"\b(?:redis|gptcache)\b.{0,80}"
+            r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|selected)\b",
+            re.I | re.S,
         ),
     ),
     (
         "raw prompts cacheable",
         re.compile(
-            r"\braw\s+(?:model\s+)?prompts?\b.{0,80}\b(?:cache|cached|cacheable)\b", re.I | re.S
+            r"\braw\s+(?:model\s+)?prompts?\b.{0,80}\b(?:cache|cached|cacheable)\b",
+            re.I | re.S,
+        ),
+    ),
+    (
+        "raw prompts cacheable",
+        re.compile(
+            r"\b(?:cache|caches|cached|cacheable|can\s+cache)\b.{0,80}"
+            r"\braw\s+(?:model\s+)?prompts?\b",
+            re.I | re.S,
         ),
     ),
     (
         "raw responses cacheable",
         re.compile(
-            r"\braw\s+(?:model\s+)?responses?\b.{0,80}\b(?:cache|cached|cacheable)\b", re.I | re.S
+            r"\braw\s+(?:model\s+)?responses?\b.{0,80}\b(?:cache|cached|cacheable)\b",
+            re.I | re.S,
+        ),
+    ),
+    (
+        "raw responses cacheable",
+        re.compile(
+            r"\b(?:cache|caches|cached|cacheable|can\s+cache)\b.{0,80}"
+            r"\braw\s+(?:model\s+)?responses?\b",
+            re.I | re.S,
         ),
     ),
 )

@@ -32,7 +32,7 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
   fixed-mapping state, and machine-checkable gate markers agree. Do not accept a
   docs-only closeout when a DEFERRED review item still points at the closing
   ledger anchor without a FIXED or retargeted disposition.
-- When the closed item already merged, regression coverage must reject stale
+- When the closed item has already merged, regression coverage must reject stale
   "active execution" or "still missing" wording and prove the closeout did not
   reintroduce runtime scope, semantic-cache activation, or backend approval.
 
