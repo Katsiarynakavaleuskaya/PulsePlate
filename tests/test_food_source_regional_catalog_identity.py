@@ -486,6 +486,14 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Kroger may serve as nutrition authority after terms review.",
         "Seller API could serve as product display after terms review.",
         "Wildberries could serve as product display after terms review.",
+        "Data portal may be source authority for regional catalogs.",
+        "Data portal could be source authority for regional catalogs.",
+        "Kroger could be nutrition authority after terms review.",
+        "Seller API may be source authority for catalog updates.",
+        "Partner API could be product display after terms review.",
+        "data.europa.eu may be the source authority.",
+        "Regional catalog candidates remain review context only. They may be product display.",
+        "Wildberries might be product display after terms review.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
