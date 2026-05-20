@@ -50,6 +50,7 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admissi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#pullrequestreview-4325972932 -> 09b82d8c7ea1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892110 -> 09b82d8c7ea1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892115 -> 09b82d8c7ea1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#pullrequestreview-4326093891 -> 63b72a0422d9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271979846 -> 63b72a0422d9
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271985775 -> 63b72a0422d9
 
@@ -57,5 +58,6 @@ Disposition: FIXED
 Commit: 782b75cb1614
 Evidence: docs/review/PR_1774_FIXED_MAPPING.md:41
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admission
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#pullrequestreview-4325985150 -> 6d1ea2709198
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892231 -> 782b75cb1614
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892235 -> 782b75cb1614
