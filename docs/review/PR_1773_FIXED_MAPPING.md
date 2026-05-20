@@ -18,6 +18,13 @@ Commit: 783ee256eecb7d8c65852fecbb2f4b8e4f214715
 Evidence: `scripts/orchestration/experiment_contract.py:226` now calls `git --literal-pathspecs ls-files --error-unmatch -- <paths>`, and `tests/test_experiment_runner.py:273` covers `:(glob)` pathspec magic rejection.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#discussion_r3270121817 -> 783ee256eecb7d8c65852fecbb2f4b8e4f214715
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#discussion_r3270168271 -> 783ee256eecb7d8c65852fecbb2f4b8e4f214715
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#pullrequestreview-4323820483 -> 783ee256eecb7d8c65852fecbb2f4b8e4f214715
+
+Disposition: FIXED
+Commit: 8806dd1f2c71ce725fab4b8834c18b2cdd00610f
+Evidence: `scripts/orchestration/experiment_runner.py:268` normalizes invalid packet `runner_mode` values for rejection artifacts, `scripts/orchestration/experiment_runner.py:594` uses the stable oracle-only `candidate_patch` marker for oracle-only candidate-API rejection, and `tests/test_experiment_runner.py:427` plus `tests/test_experiment_runner.py:457` validate both rejection artifacts with `validate_experiment_result`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#discussion_r3271443753 -> 8806dd1f2c71ce725fab4b8834c18b2cdd00610f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#discussion_r3271443760 -> 8806dd1f2c71ce725fab4b8834c18b2cdd00610f
 
 ## Validation
 
@@ -28,6 +35,9 @@ Evidence: `scripts/orchestration/experiment_contract.py:226` now calls `git --li
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_experiment_runner_identity_policy.py`
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_runner.py tests/test_experiment_bootstrap.py tests/test_experiment_promote.py tests/test_experiment_notify.py tests/test_experiment_pipeline.py tests/test_experiment_runner_identity_policy.py` after fixing CodeRabbit/Cubic pathspec findings
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` after fixing CodeRabbit/Cubic pathspec findings
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_runner.py tests/test_experiment_bootstrap.py tests/test_experiment_promote.py tests/test_experiment_notify.py tests/test_experiment_pipeline.py tests/test_experiment_runner_identity_policy.py` after fixing Codex rejection-artifact findings
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m flake8 scripts/orchestration/experiment_runner.py tests/test_experiment_runner.py`
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py`
 - PASS: `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and Docker build test
