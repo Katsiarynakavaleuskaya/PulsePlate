@@ -508,6 +508,14 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Seller API: source authority.",
         "Seller API == source authority.",
         "Source authority -> Seller API.",
+        "Source authority is now after legal review and committee vote Seller API for catalogs.",
+        "Seller API is now after legal review and committee vote source authority for catalogs.",
+        "Source authority should now after legal review and committee vote be Seller API for catalogs.",
+        "Source authority is now, after legal review and committee vote, Seller API for catalogs.",
+        "Seller API is now, after legal review and committee vote, source authority for catalogs.",
+        "Seller API remains source authority.",
+        "Seller API stays source authority.",
+        "Source authority remains Seller API.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -540,6 +548,7 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "API calls are not approved for ingestion, documentation is available in appendix.",
         "Seller API has no approval for testing.",
         "Seller API isn't approved for testing.",
+        "Seller API wasn't approved for testing.",
         "Seller API is not used for testing.",
         "Seller API was not used for testing.",
         "Seller API wasn't used for testing.",

@@ -272,7 +272,7 @@ _EQUIVALENCE_TERMS = r"becomes?|serve(?:s)? as|treated as|equals"
 _AUTHORITY_LINK_TERMS = (
     r"is|are|was|were|can be|may be|could be|might be|will be|would be|should be|must be|"
     r"(?:can|may|could|might)\s+serve as|acts as|act as|"
-    r"becomes?|became|serve(?:s)? as|treated as|equals|belong(?:s|ed)? to"
+    r"becomes?|became|serve(?:s)? as|treated as|equals|belong(?:s|ed)? to|remain(?:s|ed)?|stays?"
 )
 _BLOCKED_NOTE_TERMS = (
     r"regional catalogs?|data europa eu|kroger|walmart|pepesto(?: grocery)?|pricesapi|"
@@ -285,6 +285,14 @@ _BLOCKED_NOTE_TERMS = (
     r"digitalocean postgres(?:ql)? load|postgres(?:ql)? load|database writes?|db writes?|"
     r"data portal|marketplace terms?"
 )
+_BLOCKED_SOURCE_TERMS = (
+    r"data europa eu|kroger|walmart|pepesto(?: grocery)?|pricesapi|prices api|"
+    r"yandex eda|wildberries|ozon|apify|seller apis?|seller api access|"
+    r"seller access|partner apis?|partner access|seller or partner access|"
+    r"apis?|seller account access|partner menu access|provider apis?|"
+    r"provider integration|data portal|marketplace terms?|regional catalog candidates?"
+)
+_AUTHORITY_NOUN_TERMS = r"source authority|nutrition authority|product display"
 _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_TERMS})\b"),
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_NOUNS})\b"),
@@ -312,8 +320,13 @@ _FORBIDDEN_NOTE_PATTERNS = (
     ),
 )
 _BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
+_BLOCKED_SOURCE_RE = re.compile(rf"\b(?:{_BLOCKED_SOURCE_TERMS})\b")
+_AUTHORITY_NOUN_RE = re.compile(rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b")
+_SAFE_REVIEW_CONTEXT_RE = re.compile(r"\b(?:review context only|evidence only|candidate only)\b")
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
+    rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b(?:\W+\w+){{0,12}}\W+\b"
+    r"(?:blocked|rejected|forbidden|disallowed|prohibited)\b|"
     rf"\b(?:has|have|is|are|was|were)\s+(?:no|not|never)\s+"
     rf"(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
     r"\b(?:source authority|nutrition authority|product display)\b"
@@ -361,6 +374,8 @@ _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b"
     r"(?:\s+for\s+(?:source authority|nutrition authority|product display))?|"
+    r"\b(?:no|not|never)\b(?:\W+\w+){0,8}\W+\b"
+    r"(?:source authority|nutrition authority|product display)\b|"
     r"\b(?:is|are|was|were|be|becomes?|became|serve(?:s)? as|treated as|acting as)\s+"
     r"(?:no|not|never)\s+(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b"
@@ -519,14 +534,32 @@ def _require_safe_notes(value: str, context: str) -> str:
         for segment in re.split(r"[;,\n]+|(?<=[.!?])\s+", value.lower())
     ]
     blocked_context_seen = False
+    pending_authority_assignment = False
+    pending_blocked_assignment = False
     for normalized in (segment for segment in segments if segment):
         sanitized = _NEGATED_DIRECT_AUTHORITY_RE.sub(" ", normalized)
         remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", sanitized)
         has_blocked_term = bool(_BLOCKED_NOTE_RE.search(remaining_authority_text))
+        has_blocked_source = bool(_BLOCKED_SOURCE_RE.search(remaining_authority_text))
+        has_authority_noun = bool(_AUTHORITY_NOUN_RE.search(remaining_authority_text))
+        has_assignment_link = bool(
+            re.search(rf"\b(?:{_AUTHORITY_LINK_TERMS})\b", remaining_authority_text)
+        )
+        has_safe_review_context = bool(_SAFE_REVIEW_CONTEXT_RE.search(remaining_authority_text))
         if has_blocked_term:
             blocked_context_seen = True
         if _DIRECT_AUTHORITY_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
+        if has_blocked_source and has_authority_noun:
+            raise _identity_error(context, "notes must not approve regional catalog source use")
+        if (pending_authority_assignment and has_blocked_source) or (
+            pending_blocked_assignment and has_authority_noun
+        ):
+            raise _identity_error(context, "notes must not approve regional catalog source use")
+        if has_authority_noun and has_assignment_link and not has_safe_review_context:
+            pending_authority_assignment = True
+        if has_blocked_source and has_assignment_link and not has_safe_review_context:
+            pending_blocked_assignment = True
         if has_blocked_term and _AUTHORITY_LANGUAGE_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
         if blocked_context_seen and _BARE_CONTEXT_AUTHORITY_RE.search(remaining_authority_text):
