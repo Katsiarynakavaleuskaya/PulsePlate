@@ -18,6 +18,9 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886916
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886926
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886933
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 Disposition: FIXED
 Commit: see mapping entries below
@@ -26,11 +29,15 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:60` and `tests/
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:16` documents why the public merge SHA remains split to avoid a detect-secrets false positive.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` ignore explicitly negated gate-closed safety statements while rejecting unrelated negated text before forbidden claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:323` and `tests/test_ai_verification_registry_closeout.py:225` scope stale PR #1491 wording checks to the Post-Merge Closeout section.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now use claim-local negation patterns, unbounded same-sentence forbidden-claim gaps, and `PR V1` / `PR-V1` spelling coverage.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437 -> 02762fcc5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452 -> c20b185ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886916 -> 8c6e964ef
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886926 -> 8c6e964ef
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274886933 -> 8c6e964ef
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
 
 ## Post-Open Role-Agent Findings
@@ -92,6 +99,18 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `8f6e11329`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `grants permission`, `has PR-V1 permission`, and `has PR-V1 approval` variants.
+- CodeRabbit finding: unrelated negation could suppress a later same-sentence semantic-cache opening claim.
+  - Disposition: FIXED
+  - Commit: `8c6e964ef`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `PR-V1 does not change routes but opens semantic-cache serving`.
+- CodeRabbit finding: fixed-width forbidden-claim gaps could miss long same-sentence raw-prompt cacheability claims.
+  - Disposition: FIXED
+  - Commit: `8c6e964ef`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers a long metadata phrase before `raw prompts`.
+- CodeRabbit finding: checker did not recognize `PR V1` spelling variants.
+  - Disposition: FIXED
+  - Commit: `8c6e964ef`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `PR V1 approves Redis`, `PR V1 permits semantic-cache serving`, and negated `PR V1 does not permit semantic-cache serving`.
 
 ## Local Evidence
 
