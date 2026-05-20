@@ -35,6 +35,10 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057606
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057613
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057620
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217237
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217241
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217246
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217249
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084
 Disposition: FIXED
@@ -48,6 +52,8 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/tes
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now restrict negation to the matched claim clause, accept explicit Redis/GPTCache negation, accept `no approval` / `no permission` semantic-cache policy wording, and allow modal/never raw-cache denials while preserving contradictory-claim rejection.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now normalize Unicode dash variants, catch wrapped forbidden claims across non-bullet line breaks, reject case-varied stale phrases, allow explicit prohibition wording for raw-cache denials, and reject conjunction-based contradictory approvals.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now reject comma/although contradictory approvals, whitespace-wrapped stale phrases, `not only` approval claims, and past-tense `opened` / `enabled` semantic-cache activation claims.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now treat `because`, `while`, `since`, `if`, punctuation separators, and scoped `or` separators as claim boundaries only when they carry a later approval-equivalent clause.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now accept explicit `lacks approval` / `without approval` denials, preserve clause offsets while trimming, recognize spaced `GPT Cache` labels, reject passive `selected/selection`, reject `authorized/authorization`, and reject qualified raw user/LLM prompt/response cacheability claims.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
@@ -70,6 +76,10 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057606 -> 3d95a61f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057613 -> 3d95a61f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057620 -> 3d95a61f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217237 -> f80b0023f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217241 -> f80b0023f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217246 -> f80b0023f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217249 -> f80b0023f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084 -> 3d95a61f8
 
@@ -200,6 +210,38 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `3d95a61f8`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1 opened semantic-cache serving` and `PR-V1 enabled semantic-cache serving`.
+- CodeRabbit finding: negated lead-in clauses joined by `because`, `while`, `since`, or `if` could hide later semantic-cache approval claims.
+  - Disposition: FIXED
+  - Commit: `f80b0023f`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects those joined approval variants.
+- CodeRabbit finding: explicit `lacks approval` / `without approval` gate-closed wording was not accepted as negated.
+  - Disposition: FIXED
+  - Commit: `f80b0023f`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows semantic-cache and Redis/GPTCache `lacks approval` denials.
+- CodeRabbit finding: clause trimming mutated snippets while using stale offsets.
+  - Disposition: FIXED
+  - Commit: `f80b0023f`
+  - Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` now tracks `inner_start` and slices once after boundary iteration.
+- CodeRabbit finding: spaced or hyphenated `GPT Cache` approval wording evaded Redis/GPTCache approval detection.
+  - Disposition: FIXED
+  - Commit: `f80b0023f`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `GPT Cache is approved for semantic-cache rollout` and `GPT-Cache is approved for semantic-cache rollout`.
+- qa-engineer-agent third-pass finding: punctuation-separated negated clauses could hide later semantic-cache approval.
+  - Disposition: FIXED
+  - Commit: `ab1ed10b2`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects semicolon, colon, dash, and parenthetical approval joins.
+- bug-hunter third-pass finding: passive semantic-cache `selected/selection` claims and qualified raw user/LLM prompt/response cacheability claims evaded detection.
+  - Disposition: FIXED
+  - Commit: `ab1ed10b2`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects passive selection and raw user/LLM prompt/response cacheability variants.
+- security-auditor third-pass finding: `authorized/authorization` wording bypassed semantic-cache and backend approval guards.
+  - Disposition: FIXED
+  - Commit: `c2f8cee53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects semantic-cache and Redis/GPTCache authorization variants.
+- security-auditor third-pass finding: `or` could carry a prior negation across a later positive approval claim.
+  - Disposition: FIXED
+  - Commit: `c2f8cee53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `or PR-V1 approves/allows` and `or permits semantic-cache serving` while allowing `PR-V1 does not permit Redis or semantic-cache serving`.
 
 ## Local Evidence
 
@@ -214,6 +256,7 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - Pre-commit: `pre-commit run --all-files` passed.
 - Pre-push: mypy, pip-audit, backend pytest, full-repo Bandit, and docker build test passed.
 - Experiment Runner: oracle-only governance reviewer accepted `artifacts/orchestration/experiments/results/exp-ceddfe3387fc.json`.
+- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/c2f8cee53_20260520T215232Z/report.md` reported no findings.
 
 ## Experiment Runner Evidence
 
