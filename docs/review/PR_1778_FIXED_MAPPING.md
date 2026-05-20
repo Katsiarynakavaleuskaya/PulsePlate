@@ -45,11 +45,11 @@ Reason: CodeRabbit flagged three valid review-governance issues: unverifiable lo
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4328897612 -> 87224a955
 
 Disposition: FIXED
-Commit: 0b3646877
+Commit: cc1fa47d2
 Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
-Reason: CodeRabbit flagged that the default `HEAD` fallback could scan unrelated reachable history and hide missing Experiment Runner trailers. The Phase2 helper now leaves the fallback empty by default and reports commit-message inspection as unverifiable when the primary PR range cannot be read; explicit fallback ranges remain available only for operator-controlled local diagnostics.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274302534 -> 0b3646877
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329061597 -> 0b3646877
+Reason: CodeRabbit flagged that the default `HEAD` fallback could scan unrelated reachable history and hide missing Experiment Runner trailers. The Phase2 helper now leaves the fallback empty by default, scopes unverifiable commit-message warnings to artifacts that actually require co-author verification, and keeps explicit fallback ranges available only for operator-controlled local diagnostics.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274302534 -> cc1fa47d2
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329061597 -> cc1fa47d2
 
 ## Post-Open Review Queue
 
