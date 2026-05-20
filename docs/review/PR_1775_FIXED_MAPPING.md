@@ -37,12 +37,12 @@ Local oracle-only artifact, gitignored and not committed. Runner mode:
 
 ## Discussion Thread Pass
 
-- [x] Initial discussion-thread pass completed before opening.
-- [x] No actionable review comments existed at PR open time.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-- No review-thread fixes are claimed yet.
+- No actionable review comments
 
 ## Deferred / Follow-ups
 
