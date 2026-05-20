@@ -156,13 +156,22 @@ def _extract_section_by_h2(text: str, heading: str) -> str:
 def _valid_experiment_runner_artifact_path(path: str) -> bool:
     """Return True for local Experiment Runner result artifacts only."""
     cleaned = path.strip().strip("`")
+    if "\\" in cleaned:
+        return False
     if not cleaned.endswith(".json"):
         return False
     if cleaned.startswith(("/", "../", "./")):
         return False
     if "/../" in cleaned or cleaned.endswith("/.."):
         return False
-    return cleaned.startswith(EXPERIMENT_RUNNER_ARTIFACT_PREFIX)
+    if not cleaned.startswith(EXPERIMENT_RUNNER_ARTIFACT_PREFIX):
+        return False
+
+    relative_path = cleaned.removeprefix(EXPERIMENT_RUNNER_ARTIFACT_PREFIX)
+    path_parts = relative_path.split("/")
+    if any(part in ("", ".", "..") for part in path_parts):
+        return False
+    return len(path_parts[-1].removesuffix(".json")) > 0
 
 
 def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
@@ -322,14 +331,21 @@ def main() -> int:
             experiment_runner_evidence_seen = True
 
     if body.strip():
-        body_checked = True
-        body_errors.extend(
-            check_pr_body_phase2_gates(
-                body=body,
-                mode=_select_body_validation_mode(artifact_checked=artifact_checked),
-            )
+        cleaned_body = _strip_fenced_code_blocks(body)
+        has_phase2_mirror = bool(
+            DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )
+        if not artifact_checked or has_phase2_mirror:
+            body_checked = True
+            body_errors.extend(
+                check_pr_body_phase2_gates(
+                    body=body,
+                    mode=_select_body_validation_mode(artifact_checked=artifact_checked),
+                )
+            )
         evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
+        if evidence_errors:
+            body_checked = True
         body_errors.extend(evidence_errors)
         evidence_warning_candidates.extend(evidence_warnings)
         if not evidence_errors and not evidence_warnings:

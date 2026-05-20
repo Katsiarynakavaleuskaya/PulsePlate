@@ -55,12 +55,12 @@ Evidence: scripts/ci/check_pr_body_phase2_gates.py routes Experiment Runner advi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273469191 -> 8a4a1922d
 Disposition: FIXED
 Commit: 8a4a1922d
-Evidence: scripts/ci/check_pr_body_phase2_gates.py stops mapping extraction before sibling h3 sections. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md clarifies advisory evidence wording. docs/review/PR_1775_FIXED_MAPPING.md uses portable validation command paths.
+Evidence: scripts/ci/check_pr_body_phase2_gates.py:136 stops mapping extraction before sibling h3 sections; tests/test_pr_body_phase2_gates.py:120 validates that sibling h3 content is not parsed as mapping. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:67 clarifies advisory evidence wording. docs/review/PR_1775_FIXED_MAPPING.md:24 uses portable validation command paths. Validation: `python3 -m pytest -q tests/test_pr_body_phase2_gates.py` -> PASS.
 
 ## Deferred / Follow-ups
 
-- Later PR: hard merge gate requiring Experiment Runner evidence for every non-trivial PR after advisory signal proves stable.
-- Later PR: controlled validator-script mutation access threat model with allowlist, forbidden-surface tests, identity checks, and rollback notes.
+- Later PR: hard merge gate requiring Experiment Runner evidence for every non-trivial PR after advisory signal proves stable. Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-pr-evidence-hard-gate
+- Later PR: controlled validator-script mutation access threat model with allowlist, forbidden-surface tests, identity checks, and rollback notes. Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-validator-mutation-threat-model
 
 ## Merge Readiness
 

@@ -9939,6 +9939,34 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Immutable oracle mutation is rejected fail-closed
     - Runner outputs candidate result artifacts, not autonomous merge-ready commits
 
+<a id="ledger-p2-experiment-runner-pr-evidence-hard-gate"></a>
+- [ ] P2: Promote Experiment Runner PR evidence from advisory to hard gate
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (review-governance hardening after advisory signal proves stable)
+  - Target PR: Future governance PR after PR #1775 advisory rollout
+  - Status: 📋 Deferred from PR #1775
+  - Dependencies:
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): PR #1775 introduces Phase2 advisory Experiment Runner evidence for non-trivial PR lanes. A later PR should promote that evidence to a hard merge gate only after the advisory signal is stable and false-positive behavior is understood.
+  - DoD:
+    - `check_merge_ready.py` blocks non-trivial PRs missing valid Experiment Runner evidence or an explicit not-applicable reason
+    - PR-body and fixed-mapping validators share one parser contract for artifact paths and not-applicable reasons
+    - Rollback notes document how to return the gate to advisory mode if review throughput regresses
+
+<a id="ledger-p2-experiment-runner-validator-mutation-threat-model"></a>
+- [ ] P2: Threat-model controlled Experiment Runner validator-script mutation access
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2 (privileged governance-surface safety)
+  - Target PR: Future security-reviewed governance PR after PR #1775
+  - Status: 📋 Deferred from PR #1775
+  - Dependencies:
+    - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
+  - Reason (EN): PR #1775 keeps `scripts/ci/**` mutation access disabled and fail-closed. Any future mutation access needs a separate threat model, explicit allowlist shape, forbidden-surface regression tests, identity/trailer checks, and rollback notes before the runner can touch validator scripts.
+  - DoD:
+    - Security threat model covers validator-script authority, review-thread authority, merge-gate authority, and rollback
+    - Allowlist defaults to empty/fail-closed and has regression tests for forbidden governance surfaces
+    - Identity checks require `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` when runner artifacts materially shape commits
+
 <a id="ledger-p1-agent-experiment-promotion"></a>
 - [x] P1: PR4 experiment promotion and telemetry integration
   - Owner: @katsiaryna_kavaleuskaya

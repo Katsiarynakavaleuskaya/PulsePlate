@@ -168,6 +168,24 @@ Artifact: artifacts/orchestration/task_packets/packet.json
     assert any("artifacts/orchestration/experiments/results/" in error for error in errors)
 
 
+def test_experiment_runner_evidence_rejects_empty_artifact_basename() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/.json
+""")
+
+    assert warnings == []
+    assert any("artifacts/orchestration/experiments/results/" in error for error in errors)
+
+
+def test_experiment_runner_evidence_rejects_windows_parent_traversal() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence(r"""## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/..\outside.json
+""")
+
+    assert warnings == []
+    assert any("artifacts/orchestration/experiments/results/" in error for error in errors)
+
+
 def test_experiment_runner_evidence_rejects_mixed_artifact_and_not_applicable() -> None:
     errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
 Artifact: artifacts/orchestration/experiments/results/exp.json
@@ -382,9 +400,52 @@ Commit: abc1234
     assert "canonical mapping artifact passed" in result.stdout
 
 
-def test_phase2_rejects_invalid_pr_body_even_when_artifact_is_valid(tmp_path: Path) -> None:
-    """Artifact success must not bypass required body mirror sections."""
+def test_phase2_accepts_non_mirror_body_when_artifact_is_valid(tmp_path: Path) -> None:
+    """Artifact-first mode should not force optional PR body mirrors."""
     event = {"pull_request": {"number": 998, "body": "minimal"}}
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture artifact only checks body mirror failure behavior.
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+    assert result.returncode == 0
+    assert "canonical mapping artifact passed" in result.stdout
+
+
+def test_phase2_rejects_invalid_present_body_mirror_when_artifact_is_valid(
+    tmp_path: Path,
+) -> None:
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": "## Discussion Thread Pass\n- [ ] Discussion-thread pass completed\n",
+        }
+    }
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
 
@@ -417,7 +478,7 @@ Not applicable: fixture artifact only checks body mirror failure behavior.
     )
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
-    assert "Missing required section" in result.stdout
+    assert "Checklist item must be checked" in result.stdout
 
 
 def test_phase2_accepts_pr_number_without_explicit_body_when_artifact_is_valid(
@@ -458,7 +519,12 @@ Artifact: artifacts/orchestration/experiments/results/exp-998.json
 
 def test_phase2_failure_output_only_reports_failing_scope(tmp_path: Path) -> None:
     """Failure summary should mention only the scope that actually failed."""
-    event = {"pull_request": {"number": 998, "body": "minimal"}}
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": "### Fixed in Commit Mapping\n- canonical artifact: docs/review/PR_998_FIXED_MAPPING.md\n",
+        }
+    }
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
 
