@@ -38,6 +38,7 @@ from scripts.orchestration.experiment_contract import (
     ORACLE_BINARY_ALLOWLIST,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
+    validate_runner_mode,
     validate_experiment_packet,
 )
 
@@ -264,17 +265,30 @@ def _safe_result_experiment_id(packet: dict[str, Any]) -> str:
     return raw_experiment_id or "invalid-experiment"
 
 
+def _safe_result_runner_mode(packet: dict[str, Any]) -> str:
+    try:
+        return validate_runner_mode(packet.get("runner_mode", DEFAULT_RUNNER_MODE))
+    except ValueError:
+        return DEFAULT_RUNNER_MODE
+
+
+def _candidate_patch_ref_for_runner_mode(runner_mode: str, candidate_patch_ref: str) -> str:
+    if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        return ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+    return candidate_patch_ref
+
+
 def _invalid_packet_result(
     *,
     packet: dict[str, Any],
     candidate_patch_ref: str,
-    runner_mode: str,
     error: str,
 ) -> dict[str, Any]:
+    runner_mode = _safe_result_runner_mode(packet)
     return _result_payload(
         experiment_id=_safe_result_experiment_id(packet),
         runner_mode=runner_mode,
-        candidate_patch=candidate_patch_ref,
+        candidate_patch=_candidate_patch_ref_for_runner_mode(runner_mode, candidate_patch_ref),
         status="rejected",
         failure_class="policy_violation",
         mutated_paths=[],
@@ -511,7 +525,6 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         return _invalid_packet_result(
             packet=packet,
             candidate_patch_ref=candidate_patch_ref,
-            runner_mode=str(packet.get("runner_mode", DEFAULT_RUNNER_MODE)),
             error=str(exc),
         )
     budget_observations = {
@@ -578,7 +591,10 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
         result = _result_payload(
             experiment_id=packet["experiment_id"],
             runner_mode=packet.get("runner_mode", DEFAULT_RUNNER_MODE),
-            candidate_patch=candidate_patch_ref,
+            candidate_patch=_candidate_patch_ref_for_runner_mode(
+                packet.get("runner_mode", DEFAULT_RUNNER_MODE),
+                candidate_patch_ref,
+            ),
             status="rejected",
             failure_class="policy_violation",
             mutated_paths=[],
@@ -635,7 +651,6 @@ def evaluate_oracle_only_governance_reviewer(packet: dict[str, Any]) -> dict[str
         return _invalid_packet_result(
             packet=packet,
             candidate_patch_ref=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
-            runner_mode=ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
             error=str(exc),
         )
     if packet.get("runner_mode") != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:

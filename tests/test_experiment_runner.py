@@ -414,10 +414,74 @@ def test_evaluate_candidate_rejects_oracle_only_direct_api_patch(
 
     assert result["status"] == "rejected"
     assert result["runner_mode"] == "oracle_only_governance_reviewer"
+    assert result["candidate_patch"] == "oracle_only_governance_reviewer"
     assert result["failure_class"] == "policy_violation"
     assert result["mutated_paths"] == []
     assert result["oracle_results"] == []
     assert "must not evaluate candidate patches" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "oracle_only_governance_reviewer"
+    )
+
+
+def test_evaluate_candidate_invalid_oracle_only_packet_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "oracle-only-invalid-packet.patch",
+    )
+    packet = _base_packet(
+        mutable_path="artifacts/not-tracked.json",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["runner_mode"] == "oracle_only_governance_reviewer"
+    assert result["candidate_patch"] == "oracle_only_governance_reviewer"
+    assert result["failure_class"] == "policy_violation"
+    assert "repo-relative tracked surfaces" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "oracle_only_governance_reviewer"
+    )
+
+
+def test_evaluate_candidate_invalid_runner_mode_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "invalid-runner-mode.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle-only",
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["runner_mode"] == "candidate_patch"
+    assert result["candidate_patch"]
+    assert result["failure_class"] == "policy_violation"
+    assert "runner_mode must be one of" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "candidate_patch"
+    )
 
 
 def test_evaluate_candidate_rejects_traversal_patch_path(
