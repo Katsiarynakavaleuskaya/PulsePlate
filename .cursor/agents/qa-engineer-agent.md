@@ -33,6 +33,10 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
   regenerated oracle fixture before a one-off regex is accepted. Verify that
   mutable policy inputs, generated oracle fixtures, and deterministic checkers
   stay separated, and that no runtime semantic-cache behavior is activated.
+- For AI/RAG/cache closeout PRs, add a small guard proving ledger, roadmap,
+  fixed-mapping state, and machine-checkable gate markers agree. Do not accept a
+  docs-only closeout when a DEFERRED review item still points at the closing
+  ledger anchor without a FIXED or retargeted disposition.
 
 ## When Invoked
 

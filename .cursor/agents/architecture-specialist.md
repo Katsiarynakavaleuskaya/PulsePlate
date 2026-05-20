@@ -41,6 +41,9 @@ When applicable:
 - Ensure proper layer separation (routers → services → core)
 - Validate guard test coverage for architectural rules
 - Prevent business logic leakage into wrong layers
+- For AI/RAG/cache governance, prevent source-of-truth drift between contract
+  prose, machine state, schema, validators, downstream docs, review mapping, and
+  roadmap/ledger status.
 
 ### 3. Pattern Application
 - Apply MVVM + Adapter pattern for iOS features

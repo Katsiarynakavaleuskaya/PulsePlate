@@ -1574,7 +1574,7 @@ class TestPhilosophicalRuntimeFastLane:
     """Keep runtime knowledge-candidate gating covered by the fast lane."""
 
     @staticmethod
-    def _runtime_policy(*, enabled: bool = True, allow_promotion: bool = True):
+    def _runtime_policy(*, enabled: bool = True, allow_promotion: bool = True) -> "KnowledgePolicy":
         from core.knowledge.policy import KnowledgePolicy
 
         return KnowledgePolicy(
@@ -1589,7 +1589,7 @@ class TestPhilosophicalRuntimeFastLane:
         )
 
     @staticmethod
-    def _runtime_candidate():
+    def _runtime_candidate() -> "KnowledgeFactCandidate":
         from core.knowledge.contracts import KnowledgeEvidenceRef, KnowledgeFactCandidate
 
         return KnowledgeFactCandidate(

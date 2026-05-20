@@ -81,6 +81,7 @@ CANONICAL_BOUNDARY_KEYS = frozenset(
         "git_attribution",
         "notification_boundary",
         "slack_identity",
+        "validator_mutation_boundary",
     }
 )
 
@@ -316,6 +317,42 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     if authority_boundary.get("allowed_commit_context") != "repo_local_pr_lane_only":
         raise IdentityPolicyError(
             "authority_boundary.allowed_commit_context must be repo_local_pr_lane_only."
+        )
+
+    validator_boundary = _require_mapping(payload, "validator_mutation_boundary")
+    if validator_boundary.get("status") != "threat_model_only":
+        raise IdentityPolicyError("validator_mutation_boundary.status must be threat_model_only.")
+    _require_bool(validator_boundary, "active_mutation_access", False)
+    _require_bool(validator_boundary, "requires_later_security_pr", True)
+    _require_bool(validator_boundary, "rollback_notes_required", True)
+    _require_bool(validator_boundary, "identity_checks_required", True)
+    allowlisted = validator_boundary.get("allowlisted_validator_scripts")
+    if allowlisted != []:
+        raise IdentityPolicyError(
+            "validator_mutation_boundary.allowlisted_validator_scripts must be empty."
+        )
+    forbidden = validator_boundary.get("forbidden_surface_prefixes")
+    if not isinstance(forbidden, list) or not all(isinstance(item, str) for item in forbidden):
+        raise IdentityPolicyError(
+            "validator_mutation_boundary.forbidden_surface_prefixes must be a list of strings."
+        )
+    required_forbidden = {
+        "AGENTS.md",
+        ".github/workflows/",
+        ".env",
+        ".env.",
+        "docs/orchestration/",
+        "docs/review/",
+        "fixtures/",
+        "scripts/ci/",
+        "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
+        "tests/",
+    }
+    if not required_forbidden.issubset(set(forbidden)):
+        raise IdentityPolicyError(
+            "validator_mutation_boundary.forbidden_surface_prefixes is missing required "
+            "governance surfaces."
         )
 
     cryptographic_boundary = _require_mapping(payload, "cryptographic_boundary")

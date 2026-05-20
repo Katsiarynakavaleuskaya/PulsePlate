@@ -8,13 +8,14 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
 DEFAULT_PLUGINS=(
-    "Browser Use"
-    "Computer Use"
     "GitHub"
+    "CodeRabbit"
+    "Codex Security"
+    "Browser"
+    "Chrome"
+    "Computer Use"
     "Hugging Face"
     "Life Science Research"
-    "Plugin Eval"
-    "CodeRabbit"
 )
 
 usage() {
@@ -38,6 +39,7 @@ Options:
   -h, --help                 Show this help.
 
 The plugin list is a checklist only. Missing host/runtime plugins do not fail repo startup.
+Open the PR non-draft by default so bot review and current-head checks run.
 EOF
 }
 
@@ -258,6 +260,7 @@ echo "Plugin/runtime checklist (operator-confirmed, non-blocking):"
 for plugin in "${PLUGIN_ARGS[@]}"; do
     echo "  - ${plugin}"
 done
+echo "PR open mode: non-draft by default; draft requires explicit operator exception."
 echo ""
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -355,4 +358,4 @@ echo ""
 echo "Next steps:"
 echo "  1. cd ${WORKTREE_REL}"
 echo "  2. Follow the generated task packet before implementation."
-echo "  3. Do not push or open the PR until local validation and PR body/mapping are ready."
+echo "  3. Open the PR non-draft after local validation and initial PR body/mapping are ready."

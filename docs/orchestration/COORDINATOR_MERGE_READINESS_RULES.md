@@ -83,7 +83,8 @@ Before the final checklist above, coordinator should run the full PR lifecycle e
 
 1. **Initialize the PR correctly**
    - Start with preflight and task analysis.
-   - Keep the PR in draft while scope, artifacts, or local gates are still moving.
+   - Open non-draft by default once scope, initial artifacts, and first local gates are coherent so bot review and current-head checks run.
+   - Use draft only with an explicit operator exception when review/check suppression is intentional.
 2. **Control each push cycle**
    - Run the required local checks before pushing.
    - Watch the latest-head CI run after pushing; do not reason from stale job history alone.
@@ -102,6 +103,7 @@ This lifecycle is mandatory operating behavior, not just a recommendation. The f
 
 - `## Discussion Thread Pass` with checkboxes completed.
 - `### Fixed in Commit Mapping` present as a mirror section for human review.
+- `## Experiment Runner Evidence` with either a local result artifact path or an explicit `Not applicable:` reason. Missing evidence is advisory in the first hardening wave; malformed evidence is a Phase2 error.
 - `## Merge Readiness` section.
 
 Canonical review-thread mappings live in `docs/review/PR_<N>_FIXED_MAPPING.md`. The PR body no longer needs late-cycle URL→SHA duplication once the canonical artifact exists.

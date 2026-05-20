@@ -18,6 +18,27 @@
     "can_push_without_human_review": false,
     "allowed_commit_context": "repo_local_pr_lane_only"
   },
+  "validator_mutation_boundary": {
+    "status": "threat_model_only",
+    "active_mutation_access": false,
+    "requires_later_security_pr": true,
+    "allowlisted_validator_scripts": [],
+    "forbidden_surface_prefixes": [
+      "AGENTS.md",
+      ".github/workflows/",
+      ".env",
+      ".env.",
+      "docs/orchestration/",
+      "docs/review/",
+      "fixtures/",
+      "scripts/ci/",
+      "scripts/orchestration/check_merge_ready.py",
+      "scripts/orchestration/check_review_threads_disposition.py",
+      "tests/"
+    ],
+    "rollback_notes_required": true,
+    "identity_checks_required": true
+  },
   "cryptographic_boundary": {
     "status": "operator_managed_external",
     "verified_account_required": true,

@@ -259,6 +259,7 @@ def test_merge_ready_bundle_uses_declared_blocking_policy(
     captured = capsys.readouterr()
     assert "phase2-pr-body-gates: class=hard, lane=pr-governance, blocking=yes" in captured.out
     assert "merge-readiness-gate: class=hard, lane=review-governance, blocking=no" in captured.out
+    assert "Experiment Runner Evidence is advisory in this phase" in captured.out
 
 
 def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(
