@@ -184,9 +184,11 @@ commercial, seller, partner, portal, or scraping sources.
 - [x] Cubic actionable comments mapped or no-actionable.
 - [x] Codex Security diff-scoped scan completed:
   `/tmp/codex-security-scans/food-data-regional-catalog-identity-license-pr17/eb9cdcd8a_20260519T222714Z/report.md`.
-- [ ] Strict review-thread disposition guard pending after latest bug-hunter fix.
+- [x] Strict review-thread disposition guard completed after latest mapping-format fix:
+  `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1771 --require-auth`
+  -> `OK: All 80 resolved review threads have Disposition + proof and commit-after-comment.`
 - [ ] Current-head PR checks pending.
-- [ ] Strict review-governance merge-readiness wrapper pending after latest bug-hunter fix.
+- [ ] Strict review-governance merge-readiness wrapper pending after latest mapping-format fix push.
 
 ## Fixed in Commit Mapping
 
@@ -341,7 +343,7 @@ Commit: 1aaa79f05
 Evidence: `core/food_sources/regional_catalog_identity.py` blocks modal `may/could/might be` authority grants for blocked source terms; `tests/test_food_source_regional_catalog_identity.py` covers the eight eleventh-pass examples reported by post-open `bug-hunter`.
 
 Disposition: FIXED
-Commit: 672540d81
+Commit: see mapping entries below
 Evidence: `core/food_sources/regional_catalog_identity.py` blocks plural approval nouns, future/past/modal/reversed/colon/symbol authority assignment wording, and preserves explicit negated denials; `tests/test_food_source_regional_catalog_identity.py` covers the latest Codex review examples.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672363 -> 672540d81
@@ -357,7 +359,7 @@ Evidence: `core/food_sources/regional_catalog_identity.py` blocks plural approva
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730449 -> 672540d81
 
 Disposition: FIXED
-Commit: a3a5a0854
+Commit: see mapping entries below
 Evidence: `core/food_sources/regional_catalog_identity.py` adds cross-segment assignment tracking and persistence-verb authority matching; `tests/test_food_source_regional_catalog_identity.py` covers the long/modifier, comma-split, `remains`/`stays`, and past-tense negation examples.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270053628 -> a3a5a0854
@@ -394,7 +396,7 @@ Evidence: `core/food_sources/regional_catalog_identity.py` adds cross-segment as
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859305 -> a3a5a0854
 
 Disposition: FIXED
-Commit: a3f9d0e11
+Commit: see mapping entries below
 Evidence: `core/food_sources/regional_catalog_identity.py` narrows negation stripping, handles modal negated-use and modal reversed-denial wording, validates PR16 report identity fields, and reports observed unsafe flags on failed validation; `tests/test_food_source_regional_catalog_identity.py` covers the review examples.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016507 -> a3f9d0e11
