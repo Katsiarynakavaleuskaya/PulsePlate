@@ -91,6 +91,9 @@ Role-agent dispositions:
 - Post-open `bug-hunter` fifth follow-up: Disposition `FIXED`. Evidence:
   commit `f3dab2815` rejects pronoun/candidate-local approval/use prose across
   adjacent sentences.
+- Post-open `bug-hunter` sixth follow-up: Disposition `FIXED`. Evidence:
+  commit `ec46693f2` rejects plural-pronoun/provider adjacent-sentence
+  approval/use prose.
 
 ## Premortem
 
@@ -264,6 +267,10 @@ Disposition: FIXED
 Commit: f3dab2815
 Evidence: `core/food_sources/regional_catalog_identity.py` rejects candidate-local/pronoun authority wording, and `tests/test_food_source_regional_catalog_identity.py` covers the five adjacent-sentence examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: ec46693f2
+Evidence: `core/food_sources/regional_catalog_identity.py` rejects plural candidate/provider pronoun authority wording, and `tests/test_food_source_regional_catalog_identity.py` covers the five plural-pronoun examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -303,7 +310,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 146 tests.
+- Focused PR17 tests: passed, 151 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
