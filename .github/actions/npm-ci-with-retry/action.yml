@@ -1,5 +1,5 @@
 name: npm ci with retry
-description: Install frontend dependencies with bounded retry flags for transient registry failures.
+description: Install npm dependencies with bounded retry flags for transient registry failures.
 
 inputs:
   working-directory:

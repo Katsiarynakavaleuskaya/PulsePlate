@@ -617,6 +617,20 @@ def test_style_dictionary_readiness_rejects_partial_install(tmp_path: Path) -> N
         _require_style_dictionary_toolchain(package_json)
 
 
+def test_style_dictionary_readiness_rejects_entrypoint_traversal(
+    tmp_path: Path,
+) -> None:
+    package_json = tmp_path / "style-dictionary" / "package.json"
+    package_json.parent.mkdir(parents=True)
+    package_json.write_text(
+        json.dumps({"exports": {".": "../evil.js"}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="inside package root"):
+        _style_dictionary_export_entrypoint(package_json)
+
+
 def test_token_build_script_is_deterministic() -> None:
     tracked_paths = [TOKENS_CSS, TOKENS_TS, SWIFT_GENERATED]
     before = {path: _read_text(path) for path in tracked_paths}

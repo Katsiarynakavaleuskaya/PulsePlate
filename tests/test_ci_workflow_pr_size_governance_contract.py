@@ -800,7 +800,10 @@ def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
         frontend_index = step_names.index("Install frontend dependencies")
         clean_index = step_names.index("Clean Python cache")
 
+        root_step = steps[root_index]
         frontend_step = steps[frontend_index]
+        assert root_step["uses"] == "./.github/actions/npm-ci-with-retry"
+        assert root_step["with"]["working-directory"] == "."
         assert frontend_step["uses"] == "./.github/actions/npm-ci-with-retry"
         assert frontend_step["with"]["working-directory"] == "frontend"
         assert root_index < frontend_index < clean_index
