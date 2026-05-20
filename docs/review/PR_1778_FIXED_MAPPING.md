@@ -77,6 +77,12 @@ Evidence: `docs/review/PR_1778_FIXED_MAPPING.md`
 Reason: CodeRabbit's later review was a low-value prose nit about using `co-author` in human-readable mapping text while preserving code field identifiers such as `coauthor_required`. The mapping text now follows that convention; no product or governance behavior change was required.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329507361
 
+Disposition: FIXED
+Commit: 0d8d187ae
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: CodeRabbit flagged that `Path.resolve(strict=True)` can raise `RuntimeError` on symlink loops. Phase2 now treats symlink-loop resolution failures as unverifiable Experiment Runner artifacts and emits the advisory warning instead of crashing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3275018977 -> 0d8d187ae
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
