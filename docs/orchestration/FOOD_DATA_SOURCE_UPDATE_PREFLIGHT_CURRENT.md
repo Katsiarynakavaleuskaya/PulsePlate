@@ -53,6 +53,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md`](./FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md)
 - Current PR16 preference mapping closeout:
   [`FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`](../architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json)
+- Current PR17 regional catalog identity/license review packet:
+  [`FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md`](./FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md)
+- Current PR17 regional catalog identity/license review:
+  [`FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json`](../architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -73,3 +77,5 @@ Update it again when a later accepted packet supersedes PR15 preference recipe
 mapping contract governance.
 Update it again when a later accepted packet supersedes PR16 preference mapping
 closeout governance.
+Update it again when a later accepted packet supersedes PR17 regional catalog
+identity/license review governance.
