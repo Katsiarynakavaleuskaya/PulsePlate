@@ -314,6 +314,10 @@ def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> N
     assert messages.strip()
 
 
+def test_git_commit_messages_does_not_fallback_by_default() -> None:
+    assert gates._git_commit_messages("refs/heads/definitely-missing..HEAD") is None
+
+
 def test_git_commit_messages_returns_none_when_git_unavailable(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

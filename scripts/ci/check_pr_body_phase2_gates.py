@@ -250,7 +250,7 @@ def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
 def _git_commit_messages(
     commit_range: str = "origin/main..HEAD",
     *,
-    fallback_range: str = "HEAD",
+    fallback_range: str = "",
 ) -> str | None:
     """Read branch commit messages, or None when local inspection is unavailable."""
 
@@ -395,10 +395,12 @@ def main() -> int:
     )
     parser.add_argument(
         "--commit-range-fallback",
-        default="HEAD",
+        default="",
         help=(
             "Fallback git commit range for advisory Experiment Runner co-author "
-            "diagnostics when --commit-range is unavailable. Defaults to HEAD."
+            "diagnostics when --commit-range is unavailable. Empty by default so "
+            "detached or shallow checkouts report the trailer check as unverifiable "
+            "instead of scanning unrelated history."
         ),
     )
     args = parser.parse_args()
