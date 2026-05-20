@@ -44,11 +44,11 @@ Full local `make verify` is deferred for this narrow governance/test-only stabil
 ## Post-Open Review
 
 - Post-open bootstrap packet: `artifacts/orchestration/task_packets/4b9a408e9c61.json` (local gitignored artifact).
-- Mandatory post-open QA -> bug-hunter pass: completed. QA found the Phase2 checkbox governance blocker and no code/test blocker. Bug-hunter confirmed the same blocker and found no false-green regression trap in the test-only diff.
+- Mandatory post-open QA -> bug-hunter pass: completed. QA found the Phase 2 checkbox governance blocker and no code/test blocker. Bug-hunter confirmed the same blocker and found no false-green regression trap in the test-only diff.
 - CodeRabbit pass: PASS status; walkthrough/docstring warning is NOT-A-BUG for this pytest-only stabilization because repo policy does not require docstrings on test functions and no production docstring surface changed.
 - Sourcery pass: COMMENTED with no actionable findings.
 - Codex Security diff-scoped pass: PASS. Report path: `/tmp/codex-security-scans/BMI-App_2025_clean/dee257552_20260520T144058Z/report.md`; discovery found no technically plausible candidates in this test-only diff.
-- Current-head checks: pending; Phase2 checkbox fix is in this mapping update.
+- Current-head checks: pending; Phase 2 checkbox fix is in this mapping update.
 - Review-thread disposition guard: pending rerun after this mapping/body update.
 
 ## Experiment Runner
