@@ -38,6 +38,7 @@ from scripts.orchestration.experiment_contract import (
     ORACLE_BINARY_ALLOWLIST,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
+    validate_experiment_id,
     validate_runner_mode,
     validate_experiment_packet,
 )
@@ -264,7 +265,12 @@ def _safe_result_experiment_id(packet: Any) -> str:
     if not isinstance(packet, dict):
         return "invalid-experiment"
     raw_experiment_id = str(packet.get("experiment_id", "")).strip()
-    return raw_experiment_id or "invalid-experiment"
+    if not raw_experiment_id:
+        return "invalid-experiment"
+    try:
+        return str(validate_experiment_id(raw_experiment_id, label="Experiment result"))
+    except ValueError:
+        return "invalid-experiment"
 
 
 def _safe_result_runner_mode(packet: Any) -> str:

@@ -242,7 +242,13 @@ def validate_oracle_context_surface(paths: list[str] | tuple[str, ...]) -> list[
 def validate_runner_mode(value: Any) -> str:
     """Normalize the runner mode while preserving backward compatibility."""
 
-    normalized = str(value or DEFAULT_RUNNER_MODE).strip().lower()
+    if value is None:
+        normalized = DEFAULT_RUNNER_MODE
+    elif not isinstance(value, str):
+        allowed = ", ".join(RUNNER_MODES)
+        raise ValueError(f"Experiment packet runner_mode must be one of: {allowed}")
+    else:
+        normalized = value.strip().lower()
     if normalized not in RUNNER_MODES:
         allowed = ", ".join(RUNNER_MODES)
         raise ValueError(f"Experiment packet runner_mode must be one of: {allowed}")

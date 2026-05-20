@@ -251,6 +251,12 @@ def test_validate_packet_accepts_oracle_only_governance_reviewer_mode() -> None:
     assert validated["mutable_candidate_surface"] == ["scripts/orchestration/experiment_runner.py"]
 
 
+@pytest.mark.parametrize("runner_mode", [False, 0, [], ""])
+def test_validate_runner_mode_rejects_explicit_invalid_values(runner_mode: object) -> None:
+    with pytest.raises(ValueError, match="runner_mode must be one of"):
+        experiment_contract.validate_runner_mode(runner_mode)
+
+
 def test_validate_oracle_only_context_ignores_parent_git_index_env(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -482,6 +488,36 @@ def test_evaluate_candidate_invalid_runner_mode_result_is_schema_valid(
     assert "runner_mode must be one of" in result["budget_observations"]["runner_error"]
     assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
         "candidate_patch"
+    )
+
+
+def test_evaluate_candidate_invalid_experiment_id_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "invalid-experiment-id.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["experiment_id"] = "invalid id"
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["experiment_id"] == "invalid-experiment"
+    assert result["runner_mode"] == "candidate_patch"
+    assert result["failure_class"] == "policy_violation"
+    assert "experiment_id must contain" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["experiment_id"] == (
+        "invalid-experiment"
     )
 
 
