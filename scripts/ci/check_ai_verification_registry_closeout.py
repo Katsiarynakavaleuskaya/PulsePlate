@@ -73,7 +73,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "semantic cache active/open claim",
         re.compile(
             rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
-            r"(?:active|enabled|open|live|production[- ]ready|approved|allowed|permitted)\b",
+            r"(?:active|enabled|open|live|production[- ]ready|approved|approval|"
+            r"allowed|permitted|permission)\b",
             re.I,
         ),
     ),
@@ -90,7 +91,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\bpr-v1\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|allows?|allowed|permits?|permitted|"
-            rf"selects?|selected)\b{CLAIM_GAP}\bsemantic[- ]cache\b",
+            r"selects?|selected|approval|permission|grants?\s+permission)"
+            rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
             re.I,
         ),
     ),
@@ -99,7 +101,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\bpr-v1\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|enables?|enabled|selects?|selected|"
-            rf"allows?|allowed|permits?|permitted)\b{CLAIM_GAP}"
+            r"allows?|allowed|permits?|permitted|approval|permission|"
+            rf"grants?\s+permission)\b{CLAIM_GAP}"
             r"\b(?:redis|gptcache)\b",
             re.I,
         ),
@@ -109,7 +112,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b(?:redis|gptcache)\b{CLAIM_GAP}"
             r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
-            r"selected|allowed|permitted)\b",
+            r"selected|allowed|permitted|approval|permission)\b",
             re.I,
         ),
     ),
@@ -129,6 +132,13 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
+        "raw prompts cacheable",
+        re.compile(
+            rf"\bcaching\b{CLAIM_GAP}\braw\s+(?:model\s+)?prompts?\b",
+            re.I,
+        ),
+    ),
+    (
         "raw responses cacheable",
         re.compile(
             rf"\braw\s+(?:model\s+)?responses?\b{CLAIM_GAP}\b(?:cache|cached|cacheable)\b",
@@ -140,6 +150,13 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b(?:cache|caches|cached|cacheable|can\s+cache)\b{CLAIM_GAP}"
             r"\braw\s+(?:model\s+)?responses?\b",
+            re.I,
+        ),
+    ),
+    (
+        "raw responses cacheable",
+        re.compile(
+            rf"\bcaching\b{CLAIM_GAP}\braw\s+(?:model\s+)?responses?\b",
             re.I,
         ),
     ),
@@ -156,6 +173,13 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b(?:cache|caches|cached|cacheable|can\s+cache)\b{CLAIM_GAP}"
             rf"\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b",
+            re.I,
+        ),
+    ),
+    (
+        "raw sensitive data cacheable",
+        re.compile(
+            rf"\bcaching\b{CLAIM_GAP}\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b",
             re.I,
         ),
     ),
