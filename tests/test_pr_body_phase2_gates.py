@@ -302,6 +302,16 @@ def test_experiment_runner_coauthor_advisory_ignores_missing_artifact_with_trail
     assert warnings == []
 
 
+def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> None:
+    messages = gates._git_commit_messages(
+        "refs/heads/definitely-missing..HEAD",
+        fallback_range="HEAD",
+    )
+
+    assert isinstance(messages, str)
+    assert messages.strip()
+
+
 def test_phase2_guard_rejects_missing_sections() -> None:
     body = "## Summary\nOnly summary.\n"
     errors = gates.check_pr_body_phase2_gates(body=body)

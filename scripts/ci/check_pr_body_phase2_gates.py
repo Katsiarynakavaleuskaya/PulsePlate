@@ -247,26 +247,35 @@ def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
     return errors, []
 
 
-def _git_commit_messages(commit_range: str = "origin/main..HEAD") -> str:
+def _git_commit_messages(
+    commit_range: str = "origin/main..HEAD",
+    *,
+    fallback_range: str = "HEAD",
+) -> str:
     """Read branch commit messages for local advisory attribution diagnostics."""
 
     git_bin = shutil.which("git")
     if git_bin is None:
         return ""
-    try:
-        completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
-            [git_bin, "log", "--format=%B", commit_range],
-            cwd=REPO_ROOT,
-            text=True,
-            capture_output=True,
-            check=False,
-            timeout=15,
-        )
-    except (OSError, subprocess.TimeoutExpired):
-        return ""
-    if completed.returncode != 0:
-        return ""
-    return completed.stdout
+
+    ranges = [commit_range]
+    if fallback_range and fallback_range != commit_range:
+        ranges.append(fallback_range)
+    for resolved_range in ranges:
+        try:
+            completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+                [git_bin, "log", "--format=%B", resolved_range],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if completed.returncode == 0:
+            return completed.stdout
+    return ""
 
 
 def check_experiment_runner_coauthor_advisory(
@@ -384,6 +393,14 @@ def main() -> int:
             "Defaults to origin/main..HEAD."
         ),
     )
+    parser.add_argument(
+        "--commit-range-fallback",
+        default="HEAD",
+        help=(
+            "Fallback git commit range for advisory Experiment Runner co-author "
+            "diagnostics when --commit-range is unavailable. Defaults to HEAD."
+        ),
+    )
     args = parser.parse_args()
 
     body = args.body
@@ -447,7 +464,10 @@ def main() -> int:
     if not experiment_runner_evidence_seen:
         advisory_warnings.extend(dict.fromkeys(evidence_warning_candidates))
     if experiment_runner_evidence_seen:
-        commit_messages = _git_commit_messages(args.commit_range)
+        commit_messages = _git_commit_messages(
+            args.commit_range,
+            fallback_range=args.commit_range_fallback,
+        )
         for evidence_text in evidence_texts:
             advisory_warnings.extend(
                 check_experiment_runner_coauthor_advisory(
