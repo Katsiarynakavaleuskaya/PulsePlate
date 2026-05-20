@@ -2382,6 +2382,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Priority: P1
   - Target PR: PR-K1
   - Status: Closed by PR-K1 docs/review closeout after runtime seam merge via PR `#1483` on `2026-04-20`.
+    Delayed-closeout exception: the docs-only follow-up PR `#1776` was opened on `2026-05-20`, one month after the merge, because the same-day/next-working-day handoff required by `AGENTS.md` was missed during the adjacent AI-runtime, semantic-cache, and philosophy-governance cutover; this closeout records the exception with both dates for auditability.
   - Area: AI runtime / knowledge / retrieval orchestration
   - Finding Type: bounded knowledge-promotion contract gap
   - Reason (EN): Before PR `#1483`, the AI runtime had deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but did not expose a first-class internal fact-promotion contract separated from retrieval artifacts. PR `#1483` closed that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.

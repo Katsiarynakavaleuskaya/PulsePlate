@@ -32,6 +32,10 @@ def test_k1_ledger_closeout_is_not_left_open_or_orphaned() -> None:
     assert "- Status: Closed by PR-K1 docs/review closeout" in item
     assert "PR `#1483`" in item
     assert "2026-04-20" in item
+    assert "Delayed-closeout exception" in item
+    assert "PR `#1776`" in item
+    assert "2026-05-20" in item
+    assert "AGENTS.md" in item
     assert "docs/review/PR_1483_FIXED_MAPPING.md" in item
     assert "closed / false / false / true" in item
     assert "keep the checkbox open" not in item
