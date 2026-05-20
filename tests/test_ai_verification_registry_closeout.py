@@ -242,8 +242,13 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         + "PR-V1 does not permit Redis for semantic-cache rollout.\n"
         + "PR-V1 does not permit semantic-cache serving.\n"
         + "PR V1 does not permit semantic-cache serving.\n"
+        + "Semantic-cache has no approval for serving rollout.\n"
+        + "Redis is not approved for semantic-cache rollout.\n"
+        + "GPTCache has no permission for semantic-cache rollout.\n"
         + "Raw prompts are not cacheable.\n"
         + "PR-V1 does not cache raw prompts.\n"
+        + "Raw prompts cannot be cached.\n"
+        + "Raw responses are never cached.\n"
         + "Raw sensitive data is not cacheable.\n"
         + "Raw account data is not cacheable.\n",
         encoding="utf-8",
@@ -261,6 +266,10 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         ),
         (
             "PR-V1 does not change routes but opens semantic-cache serving.",
+            "PR-V1 opens semantic cache",
+        ),
+        (
+            "Semantic-cache is not production-ready but PR-V1 opens semantic-cache serving.",
             "PR-V1 opens semantic cache",
         ),
         (
