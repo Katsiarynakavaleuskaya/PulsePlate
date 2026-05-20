@@ -80,6 +80,21 @@ Role-agent dispositions:
   network/API/scraping/download, DB/cache/runtime authority, provider
   integration, OpenAPI/runtime behavior, dependency-security scope drift, or
   regex performance concern.
+- Latest license-note `qa-engineer-agent` recheck: Disposition `PASS`.
+  Evidence: agent `019e4040-e44b-7003-b11d-2faef9f3ab45` reviewed the
+  PR17 license-note guard diff, confirmed deterministic test coverage and CLI
+  smoke, and found no runtime/API/DB/provider scope drift.
+- Latest license-note `bug-hunter` loop: Disposition `FIXED` then `PASS`.
+  Evidence: commit `fb3397d0a` hardens source-license approval, coverage,
+  authority, negation, and mixed-denial handling; agent
+  `019e4041-eec7-7971-b90b-6c69dfa62e4e` completed the final targeted
+  `_require_safe_notes` recheck with PASS after the fix.
+- Latest license-note `security-auditor` recheck: Disposition `FIXED` then
+  `PASS`. Evidence: commit `fb3397d0a` preserves blocked-source context before
+  negation scrub so mixed denied-license plus later approval/use prose remains
+  fail-closed; agent `019e4464-5f5b-7982-87e3-fedd6ce06717` confirmed no
+  remaining PR17-scoped security/regression findings, no ReDoS evidence, and
+  no runtime/API/DB/provider/import scope drift.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -405,6 +420,14 @@ Evidence: `core/food_sources/regional_catalog_identity.py` narrows negation stri
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016521 -> a3f9d0e11
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272016524 -> a3f9d0e11
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` preserves blocked-source context before negation scrub and broadens the license-note guard for approval, license, coverage, governed/bound/regulated, and safe-denial variants; `tests/test_food_source_regional_catalog_identity.py` covers the latest Codex review examples plus bug-hunter and security-auditor follow-up repros.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272322782 -> fb3397d0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272322788 -> fb3397d0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272322790 -> fb3397d0a
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -444,7 +467,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 225 tests.
+- Focused PR17 tests: passed, 357 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
