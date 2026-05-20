@@ -29,6 +29,12 @@ Reason: Sourcery flagged duplicated contribution/co-author invariants and a fixe
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274150100 -> f8fae1973
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4328739221 -> f8fae1973
 
+Disposition: FIXED
+Commit: 834539b23
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Codex review flagged that a missing `origin/main..HEAD` range could silently degrade the co-author advisory into false warnings. Phase2 now accepts `--commit-range-fallback` and falls back to `HEAD` when the primary range is unavailable, with a regression test for the fallback path.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274168917 -> 834539b23
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
