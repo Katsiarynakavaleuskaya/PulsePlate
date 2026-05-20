@@ -216,6 +216,7 @@ def test_experiment_runner_coauthor_advisory_warns_when_required_trailer_missing
         json.dumps(
             {
                 "schema_version": "1.0",
+                "contribution_kind": "oracle_review",
                 "coauthor_required": True,
                 "coauthor_reason": "Runner oracle shaped the fixed mapping.",
             }
@@ -245,7 +246,16 @@ def test_experiment_runner_coauthor_advisory_clears_when_trailer_present(
 ) -> None:
     artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
     artifact.parent.mkdir(parents=True)
-    artifact.write_text(json.dumps({"coauthor_required": True}), encoding="utf-8")
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
 
     warnings = gates.check_experiment_runner_coauthor_advisory(
         "## Experiment Runner Evidence\n"
@@ -322,6 +332,62 @@ def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_with_trai
     ]
 
 
+def test_experiment_runner_coauthor_advisory_warns_on_malformed_coauthor_metadata(
+    tmp_path: Path,
+) -> None:
+    artifact = (
+        tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "malformed.json"
+    )
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": "true",
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/malformed.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/malformed.json` has invalid "
+        "co-author metadata, so coauthor_required cannot be verified against branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_warns_on_non_object_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "array.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(json.dumps([]), encoding="utf-8")
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/array.json\n",
+        commit_messages="feat: human-only commit\n",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/array.json` has invalid "
+        "co-author metadata, so coauthor_required cannot be verified against branch commits."
+    ]
+
+
 def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> None:
     messages = gates._git_commit_messages(
         "refs/heads/definitely-missing..HEAD",
@@ -353,6 +419,7 @@ def test_experiment_runner_coauthor_advisory_warns_when_commit_messages_unverifi
         json.dumps(
             {
                 "schema_version": "1.0",
+                "contribution_kind": "oracle_review",
                 "coauthor_required": True,
                 "coauthor_reason": "Runner oracle shaped the fixed mapping.",
             }

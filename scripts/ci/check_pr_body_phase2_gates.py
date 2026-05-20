@@ -18,6 +18,7 @@ from scripts.orchestration.review_mapping_artifact import (
     validate_mapping_artifact_text,
 )
 from scripts.orchestration.check_experiment_runner_identity import EXPECTED_CO_AUTHOR_TRAILER
+from scripts.orchestration.experiment_contract import validate_contribution_attribution
 
 # Phase2 contract: headings and checkbox labels (single source for parser and docs).
 # Changing template wording requires updating these constants and re-running tests.
@@ -72,6 +73,10 @@ MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING = (
 UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING = (
     "Advisory: Experiment Runner artifact `{path}` is referenced but unavailable "
     "locally, so coauthor_required cannot be verified against branch commits."
+)
+INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING = (
+    "Advisory: Experiment Runner artifact `{path}` has invalid co-author metadata, "
+    "so coauthor_required cannot be verified against branch commits."
 )
 
 
@@ -311,11 +316,25 @@ def check_experiment_runner_coauthor_advisory(
                 UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
             )
             continue
-        if (
-            isinstance(payload, dict)
-            and payload.get("coauthor_required") is True
-            and not has_expected_trailer
-        ):
+        if not isinstance(payload, dict):
+            warnings.append(
+                INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING.format(path=artifact_path)
+            )
+            continue
+        status = payload.get("status")
+        try:
+            _, coauthor_required, reason = validate_contribution_attribution(
+                contribution_kind=payload.get("contribution_kind", "none"),
+                coauthor_required=payload.get("coauthor_required", False),
+                coauthor_reason=payload.get("coauthor_reason", ""),
+                status=status if isinstance(status, str) else None,
+            )
+        except ValueError:
+            warnings.append(
+                INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING.format(path=artifact_path)
+            )
+            continue
+        if coauthor_required and not has_expected_trailer:
             if commit_messages is None:
                 warning = (
                     "Advisory: branch commit messages could not be inspected locally, "
@@ -324,7 +343,6 @@ def check_experiment_runner_coauthor_advisory(
                 )
             else:
                 warning = MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING.format(path=artifact_path)
-            reason = str(payload.get("coauthor_reason", "")).strip()
             if reason:
                 warning = f"{warning} Reason: {reason}"
             warnings.append(warning)
