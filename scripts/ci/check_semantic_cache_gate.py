@@ -2238,7 +2238,11 @@ def compile_philosophy_admission_policy_patterns(
     return tuple(patterns)
 
 
-def _philosophy_admission_policy_forbidden_claim_errors(text: str) -> list[str]:
+def _philosophy_admission_policy_forbidden_claim_errors(
+    text: str,
+    *,
+    suppressed_detector_labels: set[str] | None = None,
+) -> list[str]:
     global _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE
     policy, policy_errors = _default_philosophy_admission_policy()
     if policy_errors:
@@ -2258,6 +2262,8 @@ def _philosophy_admission_policy_forbidden_claim_errors(text: str) -> list[str]:
             if _is_negated_philosophy_permission_claim(text, match):
                 continue
             label = detector_label or claim_family
+            if suppressed_detector_labels is not None and label in suppressed_detector_labels:
+                continue
             errors.append(
                 "forbidden philosophy admission policy claim: " f"{claim_family} ({label})"
             )
@@ -2322,6 +2328,7 @@ def _is_negated_philosophy_permission_claim(text: str, match: re.Match[str]) -> 
 
 def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
     errors: list[str] = []
+    legacy_detector_labels: set[str] = set()
     for label, pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS:
         for match in pattern.finditer(text):
             if label in PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS and (
@@ -2341,8 +2348,14 @@ def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
             ):
                 continue
             errors.append(f"forbidden philosophy admission contract claim: {label}")
+            legacy_detector_labels.add(label)
             break
-    errors.extend(_philosophy_admission_policy_forbidden_claim_errors(text))
+    errors.extend(
+        _philosophy_admission_policy_forbidden_claim_errors(
+            text,
+            suppressed_detector_labels=legacy_detector_labels,
+        )
+    )
     return errors
 
 

@@ -155,6 +155,16 @@ def test_negated_prohibition_guidance_does_not_trip_policy_oracle() -> None:
     assert validate_philosophy_semantic_cache_admission_downstream_text(text) == []
 
 
+def test_policy_oracle_does_not_duplicate_legacy_detector_error() -> None:
+    text = "philosophical semantic-cache is live."
+
+    errors = validate_philosophy_semantic_cache_admission_downstream_text(text)
+
+    assert errors == [
+        "forbidden philosophy admission contract claim: philosophical semantic cache live"
+    ]
+
+
 def test_oracle_fixture_drift_is_rejected() -> None:
     fixture = _oracle_fixture()
     cases = fixture["cases"]
