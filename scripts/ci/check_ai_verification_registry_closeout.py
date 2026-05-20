@@ -49,6 +49,7 @@ STALE_ACTIVE_PHRASES = (
 
 SENSITIVE_CACHE_TERMS = (
     r"account\s+data",
+    r"sensitive\s+data",
     r"secrets?",
     r"credentials?",
     r"tokens?",
@@ -81,6 +82,15 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\bpr-v1\b{CLAIM_GAP}\b(?:makes?|marks?)\b{CLAIM_GAP}"
             rf"\bsemantic[- ]cache\b{CLAIM_GAP}\bproduction[- ]ready\b",
+            re.I,
+        ),
+    ),
+    (
+        "PR-V1 approves semantic cache serving",
+        re.compile(
+            rf"\bpr-v1\b{CLAIM_GAP}\b"
+            r"(?:approves?|approved|allows?|allowed|permits?|permitted|"
+            rf"selects?|selected)\b{CLAIM_GAP}\bsemantic[- ]cache\b",
             re.I,
         ),
     ),

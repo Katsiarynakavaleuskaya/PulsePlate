@@ -183,6 +183,8 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
     [
         ("PR-V1 can cache raw prompts safely.", "raw prompts cacheable"),
         ("PR-V1 can cache raw responses safely.", "raw responses cacheable"),
+        ("PR-V1 can cache raw sensitive data safely.", "raw sensitive data cacheable"),
+        ("Raw sensitive data is cacheable under PR-V1.", "raw sensitive data cacheable"),
         ("PR-V1 can cache raw account data safely.", "raw sensitive data cacheable"),
         ("PR-V1 can cache raw secrets safely.", "raw sensitive data cacheable"),
         ("PR-V1 can cache raw credentials safely.", "raw sensitive data cacheable"),
@@ -191,6 +193,10 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 permits Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 allows GPTCache for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("PR-V1 permits semantic-cache serving.", "PR-V1 approves semantic cache"),
+        ("PR-V1 allows semantic-cache serving.", "PR-V1 approves semantic cache"),
+        ("PR-V1 approves semantic-cache serving.", "PR-V1 approves semantic cache"),
+        ("PR-V1 selects semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
         ("Semantic-cache serving is permitted by PR-V1.", "semantic cache"),
     ],
@@ -214,7 +220,9 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         _valid_roadmap()
         + "\nSemantic-cache serving is not production-ready.\n"
         + "PR-V1 does not permit Redis for semantic-cache rollout.\n"
+        + "PR-V1 does not permit semantic-cache serving.\n"
         + "Raw prompts are not cacheable.\n"
+        + "Raw sensitive data is not cacheable.\n"
         + "Raw account data is not cacheable.\n",
         encoding="utf-8",
     )
