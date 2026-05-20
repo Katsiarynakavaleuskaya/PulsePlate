@@ -260,9 +260,23 @@ _REGIONAL_SOURCE_BLOCKING_REASONS = (
 _APPROVAL_TERMS = (
     r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
     r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available|"
+    r"accept|accepts|accepted|endorse|endorses|endorsed|licensed|"
     r"cleared|greenlit|green light|go ahead|ok|okay"
 )
 _APPROVAL_NOUNS = r"approvals?|permissions?|authorizations?|clearance|greenlights?|green light"
+_NOUN_GRANT_TERMS = r"licenses?|licences?|licensing|licensure|acceptance|endorsement"
+_NOUN_GRANT_VERBS = (
+    r"has|have|receives?|gets?|given|gives?|holds?|obtains?|obtained|"
+    r"secures?|secured|issued|awarded|acquires?|acquired|gains?|gained|earns?|earned|"
+    r"assigned|provided|conferred|possesses?|possessed|maintains?|maintained|"
+    r"carries|carry|carried|owns?|owned|belongs?|retains?|retained|keeps?|kept|"
+    r"applies?|covers?|covered"
+)
+_LICENSE_STATUS_TERMS = r"valid|active|in force|applicable|covered"
+_LICENSE_STATUS_LINK_TERMS = r"is|are|was|were|be|been|being|remains?|stays?|continues?|exists?"
+_UNDER_LICENSE_LINK_TERMS = (
+    r"is|are|was|were|be|been|being|operates?|falls?|comes?|is subject to|are subject to"
+)
 _USE_TERMS = (
     r"may(?:\W+\w+){0,3}\W+be used|can(?:\W+\w+){0,3}\W+be used|"
     r"could(?:\W+\w+){0,3}\W+be used|is used|are used|used|queried|"
@@ -297,6 +311,81 @@ _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_TERMS})\b"),
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_NOUNS})\b"),
     re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b"
+        rf"(?:{_NOUN_GRANT_VERBS})\b"
+        rf"(?:\W+\w+){{0,3}}\W+\b(?:{_NOUN_GRANT_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b"
+        rf"(?:is|are|was|were|be|been|being)\s+(?:{_NOUN_GRANT_VERBS})\b"
+        rf"(?:\W+\w+){{0,3}}\W+\b(?:{_NOUN_GRANT_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:is|are|was|were|be|been|being)\s+(?:{_NOUN_GRANT_VERBS})\b"
+        rf"(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_NOUN_GRANT_VERBS})\b"
+        rf"(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_BLOCKED_NOTE_TERMS})\b"
+        rf"(?:\W+\w+){{0,6}}\W+\b(?:is|are|was|were|be|been|being)\s+"
+        rf"(?:{_NOUN_GRANT_VERBS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_NOUN_GRANT_TERMS})\b"
+        rf"(?:\W+\w+){{0,6}}\W+\b(?:is|are|was|were|be|been|being)\s+"
+        rf"(?:{_NOUN_GRANT_VERBS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_NOUN_GRANT_TERMS})\b"
+        rf"(?:\W+\w+){{0,6}}\W+\b(?:{_NOUN_GRANT_VERBS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_NOUN_GRANT_TERMS})\b"
+        rf"(?:\W+\w+){{0,4}}\W+\b(?:{_LICENSE_STATUS_LINK_TERMS})\s+"
+        r"(?:\w+\s+){0,3}"
+        rf"(?:{_LICENSE_STATUS_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_BLOCKED_NOTE_TERMS})\b"
+        rf"(?:\W+\w+){{0,4}}\W+\b(?:{_LICENSE_STATUS_LINK_TERMS})\s+"
+        r"(?:\w+\s+){0,3}"
+        rf"(?:{_LICENSE_STATUS_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,4}}\W+\bexists?\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:(?:{_UNDER_LICENSE_LINK_TERMS})\s+under|(?:is|are|was|were|be|been|being)\s+subject to)\s+"
+        rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:is|are|was|were|be|been|being)\s+"
+        rf"(?:governed|bound|regulated|controlled|constrained)\s+(?:by|under)\s+"
+        rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:governs?|regulates?|controls?|constrains?)\b"
+        rf"(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    ),
+    re.compile(
+        rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+        rf"(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,4}}\W+\bexists?\b"
+    ),
+    re.compile(
         rf"(?<!not )(?<!never )\b(?:{_APPROVAL_TERMS})\b"
         rf"(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
     ),
@@ -326,6 +415,99 @@ _SAFE_REVIEW_CONTEXT_RE = re.compile(r"\b(?:review context only|evidence only|ca
 _MODAL_NEGATED_USE_RE = re.compile(
     r"\b(?:may|might|should|could|would|must|will)\s+not\s+(?:be\s+)?used\b"
 )
+_NEGATED_NOUN_GRANT_RE = re.compile(
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:"
+    rf"(?:{_NOUN_GRANT_VERBS})\s+"
+    rf"(?:no|not|never)\s+(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})|"
+    rf"(?:no|not|never)\s+(?:{_NOUN_GRANT_VERBS})\s+"
+    rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})|"
+    r"(?:does|do|did)\s+not\s+"
+    r"(?:have|receive|get|hold|obtain|secure|acquire|gain|earn)\s+"
+    rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})|"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:is|are|was|were|be|been|being)\s+(?:no|not|never)\s+"
+    rf"(?:{_NOUN_GRANT_VERBS})|"
+    rf"(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_LICENSE_STATUS_LINK_TERMS})\s+(?:\w+\s+){{0,3}}(?:no|not|never)\s+"
+    r"(?:\w+\s+){0,3}"
+    rf"(?:{_NOUN_GRANT_VERBS}|{_LICENSE_STATUS_TERMS})|"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_LICENSE_STATUS_LINK_TERMS})\s+(?:\w+\s+){{0,3}}(?:no|not|never)\s+"
+    r"(?:\w+\s+){0,3}"
+    rf"(?:{_LICENSE_STATUS_TERMS})"
+    r")\b"
+)
+_NEGATED_LICENSE_STATUS_RE = re.compile(
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_LICENSE_STATUS_LINK_TERMS})\s+(?:\w+\s+){{0,3}}"
+    rf"(?:no|not|never)\s+(?:\w+\s+){{0,3}}(?:{_LICENSE_STATUS_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:does|do|did)\s+not\s+(?:{_LICENSE_STATUS_LINK_TERMS})\s+"
+    rf"(?:\w+\s+){{0,3}}(?:{_LICENSE_STATUS_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:doesn'?t|don'?t|didn'?t)\s+(?:{_LICENSE_STATUS_LINK_TERMS})\s+"
+    rf"(?:\w+\s+){{0,3}}(?:{_LICENSE_STATUS_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:isn'?t|aren'?t|wasn'?t|weren'?t)\s+"
+    rf"(?:\w+\s+){{0,3}}(?:{_LICENSE_STATUS_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:is|are|was|were|be|been|being|operates?)\s+(?:no|not|never)\s+under\s+"
+    rf"(?:a\s+|an\s+|any\s+)?(?:{_NOUN_GRANT_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    r"(?:does|do|did)\s+not\s+(?:operate|fall|come)\s+under\s+"
+    rf"(?:a\s+|an\s+|any\s+)?(?:{_NOUN_GRANT_TERMS})\b|"
+    rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_LICENSE_STATUS_LINK_TERMS})\s+(?:\w+\s+){{0,3}}"
+    rf"(?:no|not|never)\s+(?:\w+\s+){{0,3}}(?:{_LICENSE_STATUS_TERMS})\b"
+)
+_NEGATED_LICENSE_EXISTENCE_RE = re.compile(
+    rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,4}}\W+\b"
+    r"(?:(?:does|do|did)\s+not|doesn'?t|don'?t|didn'?t)\s+"
+    rf"(?:governs?|regulates?|controls?|constrains?)\b"
+    rf"(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b|"
+    rf"\bno\s+(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,4}}\W+\b"
+    rf"(?:governs?|regulates?|controls?|constrains?)\b"
+    rf"(?:\W+\w+){{0,8}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:is|are|was|were|be|been|being)\s+(?:no|not|never)\s+covered\s+by\s+"
+    rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    r"(?:(?:does|do|did)\s+not|doesn'?t|don'?t|didn'?t)\s+covers?\b|"
+    rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    r"(?:(?:does|do|did)\s+not|doesn'?t|don'?t|didn'?t)\s+covers?\s+"
+    rf"(?:{_BLOCKED_NOTE_TERMS})\b|"
+    rf"\bno\s+(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,4}}\W+\bcovers?\s+"
+    rf"(?:{_BLOCKED_NOTE_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:is|are|was|were|be|been|being)\s+covered\s+by\s+no\s+"
+    rf"(?:{_NOUN_GRANT_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:is|are|was|were|be|been|being)\s+covered\s+(?:by|under|with)\s+no\s+"
+    rf"(?:{_NOUN_GRANT_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:(?:is|are|was|were|be|been|being)\s+(?:no|not|never)|"
+    r"isn'?t|aren'?t|wasn'?t|weren'?t)\s+"
+    rf"covered\s+(?:by|under|with)\s+(?:a\s+|an\s+|any\s+)?(?:{_NOUN_GRANT_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b\s+(?:{_NOUN_GRANT_TERMS})\s+"
+    rf"(?:is|are|was|were|be|been|being)\s+(?:no|not|never)\s+"
+    rf"(?:{_NOUN_GRANT_VERBS})\b|"
+    rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:does|do|did)\s+not\s+belong\s+(?:to\s+)?(?:{_BLOCKED_NOTE_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    r"(?:does|do|did)\s+not\s+exists?\b|"
+    rf"\bno\s+(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
+    rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,4}}\W+\bexists?\b"
+)
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
     rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b(?:\W+\w+){{0,12}}\W+\b"
@@ -336,6 +518,8 @@ _NEGATED_APPROVAL_RE = re.compile(
     rf"(?:\W+\w+){{0,4}}\W+\b(?:is|are|was|were)\s+(?:not|never)\s+(?:{_APPROVAL_TERMS})\b|"
     rf"\b(?:isn'?t|aren'?t|wasn'?t|weren'?t)\s+(?:{_APPROVAL_TERMS}|{_USE_TERMS})\b|"
     rf"\b(?:can'?t|cannot)\s+(?:be\s+)?used\b|"
+    r"\b(?:is|are|was|were)\s+(?:not|never)\s+(?:\w+\s+){0,3}used\b|"
+    r"\b(?:is|are|was|were)\s+(?:\w+\s+){0,3}(?:not|never)\s+(?:\w+\s+){0,3}used\b|"
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
     r"\bunapproved\b"
 )
@@ -542,11 +726,18 @@ def _require_safe_notes(value: str, context: str) -> str:
     blocked_context_seen = False
     pending_authority_assignment = False
     pending_blocked_assignment = False
+    pending_bare_authority = False
     for normalized in (segment for segment in segments if segment):
         sanitized = _NEGATED_DIRECT_AUTHORITY_RE.sub(" ", normalized)
         sanitized = _MODAL_NEGATED_USE_RE.sub(" ", sanitized)
+        has_blocked_context = bool(_BLOCKED_NOTE_RE.search(sanitized))
+        sanitized = _NEGATED_NOUN_GRANT_RE.sub(" ", sanitized)
+        sanitized = _NEGATED_LICENSE_STATUS_RE.sub(" ", sanitized)
+        sanitized = _NEGATED_LICENSE_EXISTENCE_RE.sub(" ", sanitized)
         remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", sanitized)
-        has_blocked_term = bool(_BLOCKED_NOTE_RE.search(remaining_authority_text))
+        has_blocked_term = (
+            bool(_BLOCKED_NOTE_RE.search(remaining_authority_text)) or has_blocked_context
+        )
         has_blocked_source = bool(_BLOCKED_SOURCE_RE.search(remaining_authority_text))
         has_authority_noun = bool(_AUTHORITY_NOUN_RE.search(remaining_authority_text))
         has_assignment_link = bool(
@@ -555,6 +746,8 @@ def _require_safe_notes(value: str, context: str) -> str:
         has_safe_review_context = bool(_SAFE_REVIEW_CONTEXT_RE.search(remaining_authority_text))
         if has_blocked_term:
             blocked_context_seen = True
+            if pending_bare_authority:
+                raise _identity_error(context, "notes must not approve regional catalog source use")
         if _DIRECT_AUTHORITY_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
         if has_blocked_source and has_authority_noun:
@@ -571,6 +764,12 @@ def _require_safe_notes(value: str, context: str) -> str:
             raise _identity_error(context, "notes must not approve regional catalog source use")
         if blocked_context_seen and _BARE_CONTEXT_AUTHORITY_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
+        if (
+            not has_blocked_term
+            and not has_safe_review_context
+            and _BARE_CONTEXT_AUTHORITY_RE.search(remaining_authority_text)
+        ):
+            pending_bare_authority = True
         if _CANDIDATE_LOCAL_AUTHORITY_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
         for pattern in _FORBIDDEN_NOTE_PATTERNS:
