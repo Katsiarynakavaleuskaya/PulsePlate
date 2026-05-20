@@ -6,54 +6,24 @@
 Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`.
 
-- [ ] Discussion-thread pass completed after current-head review activity
+- [x] Discussion-thread pass completed
 - [x] Initial fixed mapping artifact created after PR number assignment
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: 5215db056
-Evidence: `docs/roadmap/BACKLOG_LEDGER.md:2380`,
-`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:375`,
-`tests/test_rag_llm_karpathy_k1_closeout.py:20`
-Reason: PR-K1 no longer remains an open/orphaned backlog item after the runtime
-knowledge-promotion seam landed via PR `#1483`; the closeout state is now
-machine-checked without widening into semantic-cache runtime work.
-
-Disposition: FIXED
-Commit: d5ee3ba80
-Evidence: `docs/review/PR_1483_FIXED_MAPPING.md:112`,
-`tests/test_rag_llm_karpathy_k1_closeout.py:65`
-Reason: The historical PR `#1483` CodeRabbit wrapper that had remained deferred
-is now dispositioned as `FIXED` with closeout evidence and a section-aware
-regression guard that rejects a stale deferred mapping block.
-
-Disposition: FIXED
-Commit: bb21606d4
-Evidence: `docs/ENGINEERING_LESSONS.md:344`,
-`.cursor/agents/agent-coordinator.md`,
-`.cursor/agents/rag-systems-agent.md`
-Reason: Role-agent guidance and Engineering Lessons now capture the RAG/cache
-source-of-truth, mapping, and semantic-cache wording failures found during this
-closeout review, reducing recurrence in later epic slices.
-
-Disposition: FIXED
-Commit: dc400e272
-Evidence: `docs/review/PR_1483_FIXED_MAPPING.md:118`,
-`docs/roadmap/BACKLOG_LEDGER.md:2388`,
-`docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:388`,
-`tests/test_rag_llm_karpathy_k1_closeout.py:78`
-Reason: Post-diff QA/security/bug-hunter findings were resolved by replacing
-stale merge-readiness text with post-merge closeout state, tightening the
-mapping regression guard, and explicitly documenting that role-agent and
-Engineering Lessons updates are part of the closeout scope.
+Commit: ba5dfee60
+Evidence: `tests/test_rag_llm_karpathy_k1_closeout.py:14`, `tests/test_rag_llm_karpathy_k1_closeout.py:28`, `tests/test_rag_llm_karpathy_k1_closeout.py:42`
+Reason: Sourcery identified brittle exact-text assertions and opaque `str.index` anchor failures; the guard now reports missing anchors explicitly and narrows assertions to the K1 closeout invariants.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1776#issuecomment-4497996799 -> ba5dfee60
 
 ## Post-Open Review Queue
 
-No PR `#1776` discussion threads existed when this artifact was created.
-Post-open `qa-engineer-agent -> bug-hunter -> security-auditor` review, bot
-review, and live thread disposition must update this file before merge
-readiness is claimed.
+Sourcery's actionable feedback is mapped above. Cubic reported no issues on the
+initial review. CodeRabbit was still pending when this artifact was updated; any
+later actionable bot or human review must be fixed or dispositioned here before
+merge readiness is claimed.
 
 ## Merge Readiness
 
