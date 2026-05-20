@@ -99,7 +99,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
             r"(?:active|enabled|open|live|production[- ]ready|approved|approval|"
-            r"allowed|permitted|permission|selected|selection)\b",
+            r"allowed|authorized|authorization|permitted|permission|selected|selection)\b",
             re.I,
         ),
     ),
@@ -116,7 +116,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|allows?|allowed|permits?|permitted|"
-            r"selects?|selected|approval|permission|grants?\s+permission)"
+            r"selects?|selected|authorizes?|authorized|approval|authorization|"
+            r"permission|grants?\s+(?:authorization|permission))"
             rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
             re.I,
         ),
@@ -124,7 +125,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "semantic cache serving approval verb",
         re.compile(
-            r"\b(?:approves?|allows?|permits?|selects?|grants?\s+permission)"
+            r"\b(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))"
             rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
             re.I,
         ),
@@ -134,8 +135,9 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|enables?|enabled|selects?|selected|"
-            r"allows?|allowed|permits?|permitted|approval|permission|"
-            rf"grants?\s+permission)\b{CLAIM_GAP}"
+            r"allows?|allowed|permits?|permitted|authorizes?|authorized|"
+            r"approval|authorization|permission|"
+            rf"grants?\s+(?:authorization|permission))\b{CLAIM_GAP}"
             rf"\b{BACKEND_LABEL_PATTERN}\b",
             re.I,
         ),
@@ -145,7 +147,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{BACKEND_LABEL_PATTERN}\b{CLAIM_GAP}"
             r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
-            r"selected|allowed|permitted|approval|permission)\b",
+            r"selected|allowed|authorized|permitted|approval|authorization|permission)\b",
             re.I,
         ),
     ),
@@ -222,13 +224,13 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
     re.compile(
         rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
-        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
+        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|authorize|permit|select|grant\s+(?:authorization|permission))\b"
         rf"{CLAIM_GAP}\b(?:semantic[- ]cache|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
         r"\b(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
-        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
+        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|authorize|permit|select|grant\s+(?:authorization|permission))\b"
         rf"{CLAIM_GAP}\b(?:semantic[- ]cache|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
@@ -237,7 +239,7 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
         r"lacks?|without|not(?!\s+only))\b"
         rf"{CLAIM_GAP}\b(?:active|enabled|open|live|production[- ]ready|approved|"
-        r"allowed|permitted|approval|permission|selected|selection)\b",
+        r"allowed|authorized|permitted|approval|authorization|permission|selected|selection)\b",
         re.I,
     ),
     re.compile(
@@ -255,7 +257,7 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
         r"lacks?|without|not(?!\s+only)|has\s+no|no)\b"
         rf"{CLAIM_GAP}\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
-        r"selected|allowed|permitted|approval|permission)\b",
+        r"selected|allowed|authorized|permitted|approval|authorization|permission)\b",
         re.I,
     ),
     re.compile(
@@ -355,8 +357,11 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
 
 
 CLAUSE_BOUNDARY_RE = re.compile(
-    r",|;|:|\(|\)|\s+-\s+|\b(?:and|as|because|but|however|if|since|so|then|though|although|unless|"
-    r"when|whereas|while|yet)\b",
+    rf",|;|:|\(|\)|\s+-\s+|"
+    r"\b(?:and|as|because|but|however|if|since|so|then|though|although|unless|"
+    r"when|whereas|while|yet)\b|"
+    rf"\bor\b\s+(?=(?:{PR_V1_PATTERN}\b|"
+    r"(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))\b))",
     re.I,
 )
 

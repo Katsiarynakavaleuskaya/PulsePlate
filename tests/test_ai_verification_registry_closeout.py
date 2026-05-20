@@ -216,8 +216,10 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR V1 permits semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 allows semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 approves semantic-cache serving.", "PR-V1 approves semantic cache"),
+        ("PR-V1 authorizes semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 selects semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 grants permission for semantic-cache serving.", "PR-V1 approves semantic cache"),
+        ("PR-V1 grants authorization for semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
         ("PR-V1 opens\nsemantic-cache serving.", "PR-V1 opens semantic cache"),
         ("PR V1 opens semantic-cache serving.", "PR-V1 opens semantic cache"),
@@ -228,7 +230,12 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("Semantic-cache serving has PR-V1 permission.", "semantic cache"),
         ("Semantic-cache serving is selected by PR-V1.", "semantic cache"),
         ("Semantic-cache serving has PR-V1 selection.", "semantic cache"),
+        ("Semantic-cache serving is authorized by PR-V1.", "semantic cache"),
+        ("Semantic-cache serving has PR-V1 authorization.", "semantic cache"),
         ("Redis is not only approved for semantic-cache rollout.", "Redis/GPTCache"),
+        ("PR-V1 authorizes Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("Redis is authorized for semantic-cache rollout.", "Redis/GPTCache"),
+        ("PR-V1 grants authorization for GPT Cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 can cache raw user prompts safely.", "raw prompts cacheable"),
         ("PR-V1 can cache raw LLM prompts safely.", "raw prompts cacheable"),
         ("PR-V1 can cache raw user responses safely.", "raw responses cacheable"),
@@ -253,7 +260,9 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         _valid_roadmap()
         + "\nSemantic-cache serving is not production-ready.\n"
         + "Semantic-cache serving is not selected by PR-V1.\n"
+        + "Semantic-cache serving is not authorized by PR-V1.\n"
         + "PR-V1 does not permit Redis for semantic-cache rollout.\n"
+        + "PR-V1 does not authorize Redis for semantic-cache rollout.\n"
         + "PR-V1 does not permit semantic-cache serving.\n"
         + "PR V1 does not permit semantic-cache serving.\n"
         + "Semantic-cache has no approval for serving rollout.\n"
@@ -265,6 +274,7 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         + "GPTCache has no permission for semantic-cache rollout.\n"
         + "GPT Cache lacks approval for semantic-cache rollout.\n"
         + "PR-V1 does not permit Redis, and it does not permit semantic-cache serving.\n"
+        + "PR-V1 does not permit Redis or semantic-cache serving.\n"
         + "Raw prompts are not cacheable.\n"
         + "Raw user prompts are not cacheable.\n"
         + "PR-V1 does not cache raw prompts.\n"
@@ -318,6 +328,18 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         (
             "PR-V1 does not permit Redis rollout if PR-V1 approves semantic-cache serving.",
             "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout or PR-V1 approves semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout or PR-V1 allows semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout or permits semantic-cache serving.",
+            "semantic cache serving approval verb",
         ),
         (
             "PR-V1 does not permit Redis rollout; PR-V1 approves semantic-cache serving.",
