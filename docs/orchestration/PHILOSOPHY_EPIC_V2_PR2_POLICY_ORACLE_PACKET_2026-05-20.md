@@ -115,6 +115,20 @@ checker. This PR does not alter Experiment Runner, immutable experiment oracles,
 promotion mechanics, or runtime semantic-cache behavior. Future Experiment Runner
 oracle-manifest work belongs in a separate coordinator-owned lane.
 
+## Review-Loop Root Cause Closure
+
+The current oracle analysis treats PR-1761's repeated review waves as a
+semantic-detection architecture problem, not as an Experiment Runner problem.
+PR-2 closes that failure mode with deterministic governance infrastructure:
+
+| Review-loop root cause | PR-2 countermeasure |
+| --- | --- |
+| Hand-expanded wording regexes produced new gaps for each tense, modality, subject order, or provider phrase. | Claim families now live in canonical policy JSON, and the oracle generator expands modal, temporal, provider, and polarity dimensions from data. |
+| Allowed negative controls could be checked only against the current family and miss false positives from another detector. | Oracle tests now fail any allowed case that triggers any downstream Philosophy admission error. |
+| Policy, schema, and oracle fixtures could drift because only some changed paths reached docs gates. | CI/docs wiring passes the policy JSON, schema, and generated oracle fixture together, and workflow-contract tests guard that routing. |
+| Oracle regeneration could overwrite fixtures even after policy validation had already failed. | Write mode is fail-closed: it writes only after policy/schema/oracle validation has no errors and only under `tests/fixtures/orchestration`. |
+| Review governance could become a separate loop of stale or ambiguous proof. | Findings are fixed in code/tests first, then mapped in `docs/review/PR_1777_FIXED_MAPPING.md`; broader Experiment Runner oracle-manifest and mapping-reachability work stay separate lanes. |
+
 ## Red-Team / Brainstorming Protocol
 
 For each claim family, reviewers should ask:

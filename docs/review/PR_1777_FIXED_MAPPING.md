@@ -10,7 +10,30 @@ oracle.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 92083c466
+Evidence: CI/docs routing now passes the Philosophy admission policy JSON, schema, and generated oracle fixture into Docs Phase1 gates, and `tests/test_ci_workflow_pr_size_governance_contract.py` guards the workflow contract; this closes the Codex/Cubic finding that policy-only diffs could skip the new Phase1 checks.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328165585 -> 92083c466
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273668187 -> 92083c466
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273691727 -> 92083c466
+
+Disposition: FIXED
+Commit: 50de520c7
+Evidence: Bot findings from Sourcery, CodeRabbit, and cubic were closed in code/docs/tests: detector-label mismatch errors include expected/actual sets; oracle drift guidance no longer hard-codes the default policy filename; allowed oracle cases fail on any downstream false positive; merged PR-1 ledger state and PR-2 target PR are synced; Philosophy agent guidance names the exact oracle fixture path; oracle fixture write mode is blocked when validation already failed. Focused local proof: `python3 scripts/ci/check_semantic_cache_gate.py --check-philosophy-admission-oracle-drift`; `.venv/bin/python -m pytest -q tests/test_philosophy_admission_policy_oracle.py tests/test_ci_workflow_pr_size_governance_contract.py`; `git diff --check`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273641024 -> 50de520c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273641038 -> 50de520c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328170555 -> 50de520c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273672603 -> 50de520c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273672626 -> 50de520c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328193097 -> 50de520c7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273691732 -> 50de520c7
+
+Disposition: NOT-A-BUG
+Evidence: Sourcery's review-level extraction comments are advisory refactor feedback, not correctness defects for this PR-2 governance/test-infrastructure scope. The policy/oracle logic intentionally remains in the existing semantic-cache gate entrypoint for this PR so the new guard cannot drift from the existing gate-closed admission checker. The root loop risk is addressed by policy-as-data, generated oracle drift checks, docs/CI wiring, and agent guidance; broader Experiment Runner oracle-manifest or helper-module extraction belongs in a separate coordinator-owned lane.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328132580
 
 ## Role-Agent / Premortem Pass
 
