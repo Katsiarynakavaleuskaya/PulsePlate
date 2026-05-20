@@ -7,14 +7,31 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `docs/orchestration/AGENTS.md`.
 
 - [x] Artifact created after PR open
-- [ ] Discussion-thread pass completed after bot/human review
-- [ ] Fixed in commit mapping completed after all actionable findings are dispositioned
+- [x] Discussion-thread pass completed after Sourcery and post-open QA review
+- [x] Fixed in commit mapping completed after actionable findings were dispositioned
 
-No actionable review threads existed at PR creation time.
+Post-open review findings are mapped below. No GitHub review threads were
+resolved without disposition evidence.
 
 ## Fixed in Commit Mapping
 
-No actionable review threads existed at PR creation time.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 9b79b240b
+Disposition: FIXED
+Commit: 9b79b240b
+Evidence: `.cursor/agents/qa-engineer-agent.md:35` fixes the Sourcery tense issue.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:60` and `tests/test_ai_verification_registry_closeout.py:181` add class-based forbidden-claim regression coverage for raw prompt/response caching, Redis rollout approval, and semantic-cache production-ready wording.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:16` documents why the public merge SHA remains split to avoid a detect-secrets false positive.
+Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
+
+## Post-Open Role-Agent Findings
+
+- qa-engineer-agent finding: checker false-green gaps for `cache raw prompts`, `cache raw responses`, Redis rollout approval, and semantic-cache production-ready wording.
+  - Disposition: FIXED
+  - Commit: `9b79b240b`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py:181`
+- qa-engineer-agent finding: canonical PR #1779 mapping artifact failed Phase2 checkboxes and mapping-line format.
+  - Disposition: FIXED
+  - Evidence: this artifact now uses checked Phase2 boxes and a valid `review-url -> commit-sha` mapping.
 
 ## Local Evidence
 
@@ -29,6 +46,10 @@ No actionable review threads existed at PR creation time.
 - Pre-commit: `pre-commit run --all-files` passed.
 - Pre-push: mypy, pip-audit, backend pytest, full-repo Bandit, and docker build test passed.
 - Experiment Runner: oracle-only governance reviewer accepted `artifacts/orchestration/experiments/results/exp-ceddfe3387fc.json`.
+
+## Experiment Runner Evidence
+
+Artifact: `artifacts/orchestration/experiments/results/exp-ceddfe3387fc.json`
 
 Full local `make verify` was not run per operator-approved machine-budget rule
 for this lane; bounded local gates and current-head CI are the validation path.
