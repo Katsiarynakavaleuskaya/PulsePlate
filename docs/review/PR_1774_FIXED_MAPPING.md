@@ -1,4 +1,4 @@
-# PR #1774 — Fixed in Commit Mapping
+# PR #1774 - Fixed in Commit Mapping
 
 ## Scope
 
@@ -27,24 +27,33 @@ no-actionable state, strict merge-readiness with auth, and the wait-window.
 ## Role Review
 
 - `agent-coordinator`: PASS; locked main-stabilization scope and role order.
-- `cursor-specialist-agent`: FINDING; requested stronger unrelated-roadmap
-  regression. Disposition: FIXED in `4698d28c`.
+- `cursor-specialist-agent`: FINDING; requested stronger unrelated-roadmap regression. Disposition: FIXED in `4698d28c`.
 - `architecture-specialist`: PASS; no runtime/OpenAPI/semantic-cache widening.
 - `philosophy-agent`: PASS; real Philosophy downstream docs remain scanned.
 - `backend-engineer`: PASS; no backend runtime blast radius.
 - `security-auditor`: PASS; no security finding requiring code changes.
-- `qa-engineer-agent`: FINDING; requested positive downstream routing
-  regression. Disposition: FIXED in `4698d28c`.
-- `bug-hunter`: PASS; direct contract validation, `docs/review/**` exclusion,
-  `BACKLOG_LEDGER.md` inclusion, and unrelated roadmap exclusion covered.
+- `qa-engineer-agent`: FINDING; requested positive downstream routing regression. Disposition: FIXED in `4698d28c`.
+- `bug-hunter`: PASS; direct contract validation, `docs/review/**` exclusion, `BACKLOG_LEDGER.md` inclusion, and unrelated roadmap exclusion covered.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: 09b82d8c7ea1
+Evidence: scripts/ci/check_docs_phase1_gates.py:69
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admission
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#pullrequestreview-4325965068 -> 09b82d8c7ea1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#pullrequestreview-4325972932 -> 09b82d8c7ea1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892110 -> 09b82d8c7ea1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892115 -> 09b82d8c7ea1
 
-Evidence: `scripts/ci/check_docs_phase1_gates.py` now restricts Philosophy
-downstream validation to explicit Philosophy-owned docs and `BACKLOG_LEDGER.md`.
-`tests/test_docs_phase1_gates.py` covers both the unrelated-roadmap exclusion
-and the positive `BACKLOG_LEDGER.md` downstream scan.
-
-- Pre-open coordinator/role findings -> `4698d28c`
+Disposition: FIXED
+Commit: MAPPING_COMMIT_TBD
+Evidence: docs/review/PR_1774_FIXED_MAPPING.md:41
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admission
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892231 -> MAPPING_COMMIT_TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892235 -> MAPPING_COMMIT_TBD
