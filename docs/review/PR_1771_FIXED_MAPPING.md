@@ -61,6 +61,10 @@ Role-agent dispositions:
   `672540d81` rejects plural approval nouns, modal/reversed/future/past/
   colon/symbol authority assignments, and preserves safe negated denials for
   reversed authority, past-tense use, and `does not serve as` language.
+- Post-security `bug-hunter` follow-up: Disposition `FIXED`. Evidence: commit
+  `a3a5a0854` rejects long/modifier authority assignments across comma-split
+  clauses, adds persistence verb coverage for `remains`/`stays`, and keeps
+  safe list-style blocked policy text and negated authority denials valid.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -337,6 +341,15 @@ Evidence: `core/food_sources/regional_catalog_identity.py` blocks plural approva
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730444 -> 672540d81
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730449 -> 672540d81
 
+Disposition: FIXED
+Commit: a3a5a0854
+Evidence: `core/food_sources/regional_catalog_identity.py` adds cross-segment assignment tracking and persistence-verb authority matching; `tests/test_food_source_regional_catalog_identity.py` covers the long/modifier, comma-split, `remains`/`stays`, and past-tense negation examples.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859288 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859295 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859300 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859305 -> a3a5a0854
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -376,7 +389,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 208 tests.
+- Focused PR17 tests: passed, 217 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
