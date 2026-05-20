@@ -66,6 +66,26 @@ PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC = (
 PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json"
 )
+PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
+    "docs/orchestration/PHILOSOPHY_",
+    "docs/orchestration/contracts/PHILOSOPHY_",
+    "docs/orchestration/contracts/LOGIC_PHILOSOPHY_",
+)
+PHILOSOPHY_DOWNSTREAM_DOC_NAME_SCOPES: tuple[tuple[str, str], ...] = (
+    ("docs/insights/", "PHILOSOPH"),
+    ("docs/orchestration/", "PHILOSOPH"),
+)
+PHILOSOPHY_DOWNSTREAM_DOCS: frozenset[str] = frozenset(
+    {
+        "docs/roadmap/BACKLOG_LEDGER.md",
+        SEMANTIC_CACHE_GATE_DOC,
+        SEMANTIC_CACHE_ROLLOUT_CONTRACT_DOC,
+        EXACT_FUZZY_CACHE_SCAFFOLD_DOC,
+        SEMANTIC_CACHE_OBSERVABILITY_CONTRACT_DOC,
+        SEMANTIC_CACHE_BOUNDED_INSIGHT_CONTRACT_DOC,
+        SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT_DOC,
+    }
+)
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
@@ -142,9 +162,17 @@ def _is_security_or_audit_path(relpath: str) -> bool:
 
 
 def _is_philosophy_downstream_doc_path(relpath: str) -> bool:
+    basename = Path(relpath).name
     return (
         relpath.endswith(".md")
-        and relpath.startswith("docs/")
+        and (
+            relpath in PHILOSOPHY_DOWNSTREAM_DOCS
+            or relpath.startswith(PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES)
+            or any(
+                relpath.startswith(scope_root) and token in basename
+                for scope_root, token in PHILOSOPHY_DOWNSTREAM_DOC_NAME_SCOPES
+            )
+        )
         and relpath != PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC
         and not relpath.startswith("docs/review/")
     )
