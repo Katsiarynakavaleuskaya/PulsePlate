@@ -338,6 +338,8 @@ For subprocess-based deterministic tests:
 
 ### Use instead
 - helper wrappers that centralize retry + bounded log tail emission
+- clear failure messages with command, exit code, and log tails
+- deterministic assertions remain strict after command succeeds
 
 ## 17) Natural-language AI/RAG/cache governance needs one source of truth
 
@@ -370,12 +372,10 @@ For natural-language policy or claim guards:
 - Parsed/section-aware docs checks for downstream claim validation.
 - Small closeout tests that assert the ledger, roadmap, gate markers, and review
   artifacts agree.
-- clear failure messages with command, exit code, and log tails
-- deterministic assertions remain strict after command succeeds
 
 ---
 
-## 17) Verify merged state before cherry-picking long-lived branches (conflict prevention)
+## 18) Verify merged state before cherry-picking long-lived branches (conflict prevention)
 
 ### Problem
 Cherry-picking older feature branch commits after partial upstream merges can create avoidable
@@ -395,7 +395,7 @@ Before cherry-picking:
 
 ---
 
-## 18) Enforce kcal upper bounds at API response boundaries (property-test hardening)
+## 19) Enforce kcal upper bounds at API response boundaries (property-test hardening)
 
 ### Problem
 Hypothesis can discover extreme valid profiles where generated `plate`/`targets`
