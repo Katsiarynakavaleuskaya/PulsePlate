@@ -122,6 +122,9 @@ Role-agent dispositions:
   instead of free-form policy prose, rejecting passive access/use, `acceptable`,
   prefaced approval, standalone approval, and seller/partner access grant
   wording reported by Codex.
+- Safety-flag diagnostics Codex review: Disposition `FIXED`. Evidence: commit
+  `b71d38276` preserves malformed observed safety flag values in failed report
+  output while keeping validator behavior fail-closed.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -482,6 +485,12 @@ Evidence: `core/food_sources/regional_catalog_identity.py` now treats `budget_fi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862579 -> 874ca868d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862582 -> 874ca868d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862588 -> 874ca868d
+
+Disposition: FIXED
+Commit: see mapping entry below
+Evidence: `core/food_sources/regional_catalog_identity.py` preserves observed safety flag values from malformed PR17 artifacts in failed reports instead of replacing non-bool inputs with safe defaults; `tests/test_food_source_regional_catalog_identity.py` covers malformed string values for `api_calls_allowed` and `file_only`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3274049486 -> b71d38276
 
 ## Role-Agent / CI Findings
 
