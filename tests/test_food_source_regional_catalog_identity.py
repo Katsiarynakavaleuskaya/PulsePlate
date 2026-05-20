@@ -452,6 +452,11 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Seller API is cleared for tests.",
         "Seller API use is blocked for PR17 governance evidence, legal review, provider terms, license review, identity review, source family review, cache review, attribution review, data quality review, freshness review, locale review, unit normalization review, nutrient schema review, internal routing review, but approved for staging.",
         "Data portal is not source authority for PR17, but after exact dataset review and country terms mapping it becomes product display.",
+        "Seller API is blocked for PR17. It is approved for staging.",
+        "Regional catalog candidates remain review context only. This candidate is approved for staging.",
+        "Candidate is approved for staging after manual review.",
+        "This can be used for staging after manual review.",
+        "Seller account access remains unapproved. It is approved for manual tests.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
