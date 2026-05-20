@@ -439,6 +439,13 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Source authority: data portal.",
         "Data portal equals source authority.",
         "data.europa.eu is the source authority.",
+        "Data portal is not source authority but becomes product display.",
+        "Data portal is not source authority and is product display.",
+        "Data portal is not source authority but equals nutrition authority.",
+        "Data portal is not a source authority but serves as product display.",
+        "Partner access allowed for Yandex EDA.",
+        "Seller access approved for Ozon.",
+        "Seller or partner access allowed for tests.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:

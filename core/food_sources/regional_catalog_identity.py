@@ -270,7 +270,8 @@ _USE_TERMS = (
 )
 _BLOCKED_NOTE_TERMS = (
     r"regional catalogs?|data europa eu|api calls?|scraping|scrapers?|downloads?|"
-    r"paid source|paid provider|seller apis?|seller api access|partner apis?|"
+    r"paid source|paid provider|seller apis?|seller api access|seller access|"
+    r"partner apis?|partner access|seller or partner access|"
     r"apis?|seller account access|partner menu access|provider apis?|"
     r"provider integration|cache authority|redistribution|runtime authority|product display|"
     r"nutrition authority|source authority|public dataset claim|automated collection|"
@@ -463,11 +464,10 @@ def _require_safe_notes(value: str, context: str) -> str:
         for segment in re.split(r"[;\n]+|(?<=[.!?])\s+", value.lower())
     ]
     for normalized in (segment for segment in segments if segment):
+        sanitized = _NEGATED_DIRECT_AUTHORITY_RE.sub(" ", normalized)
         for pattern in _FORBIDDEN_NOTE_PATTERNS:
-            for match in pattern.finditer(normalized):
+            for match in pattern.finditer(sanitized):
                 match_text = match.group(0)
-                if _NEGATED_DIRECT_AUTHORITY_RE.search(match_text):
-                    continue
                 if not _AUTHORITY_LANGUAGE_RE.search(match_text):
                     raise _identity_error(
                         context, "notes must not approve regional catalog source use"
