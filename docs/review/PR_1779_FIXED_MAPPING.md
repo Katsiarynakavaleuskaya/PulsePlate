@@ -25,6 +25,12 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006994
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006997
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275007002
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863831
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863839
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863842
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863848
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863850
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863855
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 Disposition: FIXED
 Commit: see mapping entries below
@@ -35,6 +41,7 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/tes
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:323` and `tests/test_ai_verification_registry_closeout.py:225` scope stale PR #1491 wording checks to the Post-Merge Closeout section.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now use claim-local negation patterns, unbounded same-sentence forbidden-claim gaps, and `PR V1` / `PR-V1` spelling coverage.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now restrict negation to the matched claim clause, accept explicit Redis/GPTCache negation, accept `no approval` / `no permission` semantic-cache policy wording, and allow modal/never raw-cache denials while preserving contradictory-claim rejection.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now normalize Unicode dash variants, catch wrapped forbidden claims across non-bullet line breaks, reject case-varied stale phrases, allow explicit prohibition wording for raw-cache denials, and reject conjunction-based contradictory approvals.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
@@ -47,6 +54,12 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006994 -> dc38749c8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275006997 -> dc38749c8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3275007002 -> dc38749c8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863831 -> effa76c5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863839 -> effa76c5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863842 -> effa76c5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863848 -> effa76c5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863850 -> effa76c5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863855 -> effa76c5e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
 
 ## Post-Open Role-Agent Findings
@@ -136,6 +149,30 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `dc38749c8`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Raw prompts cannot be cached` and `Raw responses are never cached`.
+- CodeRabbit finding: conjunction-based negation could hide a later semantic-cache approval claim.
+  - Disposition: FIXED
+  - Commit: `effa76c5e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1 does not permit Redis for semantic-cache rollout and allows semantic-cache serving`.
+- CodeRabbit finding: forbidden claims wrapped across non-bullet line breaks could evade matching.
+  - Disposition: FIXED
+  - Commit: `effa76c5e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1 opens` followed by a line-wrapped `semantic-cache serving`.
+- CodeRabbit finding: Unicode hyphen variants in semantic-cache wording could evade matching.
+  - Disposition: FIXED
+  - Commit: `effa76c5e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `semantic-cache` with a non-breaking hyphen.
+- CodeRabbit finding: Unicode hyphen variants in PR-V1 wording could evade matching.
+  - Disposition: FIXED
+  - Commit: `effa76c5e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1` with a non-breaking hyphen.
+- CodeRabbit finding: stale phrase checks were case-sensitive.
+  - Disposition: FIXED
+  - Commit: `effa76c5e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects capitalized `Current head needs one final current-head CI pass`.
+- CodeRabbit finding: raw-cache prohibition statements were false positives.
+  - Disposition: FIXED
+  - Commit: `effa76c5e`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Raw prompts are prohibited from being cached`.
 
 ## Local Evidence
 
