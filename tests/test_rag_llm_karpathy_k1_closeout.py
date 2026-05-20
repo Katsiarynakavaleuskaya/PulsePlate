@@ -62,9 +62,15 @@ def test_semantic_cache_gate_markers_remain_closed_after_k1_closeout() -> None:
 
 def test_pr1483_deferred_fast_lane_return_annotations_are_resolved() -> None:
     fast_lane = _read("tests/test_remaining_modules.py")
+    mapping = _read("docs/review/PR_1483_FIXED_MAPPING.md")
 
     assert (
         "def _runtime_policy(*, enabled: bool = True, allow_promotion: bool = True) "
         '-> "KnowledgePolicy":'
     ) in fast_lane
     assert 'def _runtime_candidate() -> "KnowledgeFactCandidate":' in fast_lane
+    assert (
+        "https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139572722 -> 5215db056"
+        in mapping
+    )
+    assert "Disposition: FIXED" in mapping
