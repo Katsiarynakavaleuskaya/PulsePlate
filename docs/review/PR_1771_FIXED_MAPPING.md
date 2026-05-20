@@ -345,6 +345,34 @@ Disposition: FIXED
 Commit: a3a5a0854
 Evidence: `core/food_sources/regional_catalog_identity.py` adds cross-segment assignment tracking and persistence-verb authority matching; `tests/test_food_source_regional_catalog_identity.py` covers the long/modifier, comma-split, `remains`/`stays`, and past-tense negation examples.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270053628 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270053634 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270053639 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270053647 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270126216 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270126219 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270126224 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3270126229 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271387011 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271387013 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271387016 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271387019 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271387023 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271476224 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271476227 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512386 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512389 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512394 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512396 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512398 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512401 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271512405 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271550028 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271588310 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271588323 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271588325 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271588329 -> a3a5a0854
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271588335 -> a3a5a0854
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859288 -> a3a5a0854
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859295 -> a3a5a0854
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271859300 -> a3a5a0854
