@@ -75,13 +75,17 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 opens semantic cache",
         re.compile(
-            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\bopens?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\bopen(?:s|ed)?\b"
+            rf"{CLAIM_GAP}\bsemantic[- ]cache\b",
+            re.I,
         ),
     ),
     (
         "PR-V1 enables semantic cache",
         re.compile(
-            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\benables?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\benable(?:s|d)?\b"
+            rf"{CLAIM_GAP}\bsemantic[- ]cache\b",
+            re.I,
         ),
     ),
     (
@@ -211,20 +215,20 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
 NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
     re.compile(
         rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
-        r"(?:does\s+not|doesn't|must\s+not|should\s+not|cannot|can't)\b"
+        r"(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
         rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
         rf"{CLAIM_GAP}\b(?:semantic[- ]cache|redis|gptcache)\b",
         re.I,
     ),
     re.compile(
-        r"\b(?:does\s+not|doesn't|must\s+not|should\s+not|cannot|can't)\b"
+        r"\b(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
         rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
         rf"{CLAIM_GAP}\b(?:semantic[- ]cache|redis|gptcache)\b",
         re.I,
     ),
     re.compile(
         rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
-        r"(?:is\s+not|isn't|has\s+not|hasn't|not)\b"
+        r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|not(?!\s+only))\b"
         rf"{CLAIM_GAP}\b(?:active|enabled|open|live|production[- ]ready|approved|"
         r"allowed|permitted|approval|permission)\b",
         re.I,
@@ -241,14 +245,15 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
     ),
     re.compile(
         rf"\b(?:redis|gptcache)\b{CLAIM_GAP}\b"
-        r"(?:is\s+not|isn't|has\s+not|hasn't|not|has\s+no|no)\b"
+        r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
+        r"not(?!\s+only)|has\s+no|no)\b"
         rf"{CLAIM_GAP}\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
         r"selected|allowed|permitted|approval|permission)\b",
         re.I,
     ),
     re.compile(
         rf"\braw\s+(?:model\s+)?(?:prompts?|responses?|{SENSITIVE_CACHE_TERM_PATTERN})\b"
-        rf"{CLAIM_GAP}\b(?:is|are)?\s*not\b{CLAIM_GAP}\b"
+        rf"{CLAIM_GAP}\b(?:is|are)?\s*not(?!\s+only)\b{CLAIM_GAP}\b"
         r"(?:cache|caching|cached|cacheable)\b",
         re.I,
     ),
@@ -311,7 +316,9 @@ def _require_contains(errors: list[str], label: str, text: str, needle: str) -> 
 
 
 def _reject_contains(errors: list[str], label: str, text: str, needle: str) -> None:
-    if needle.casefold() in text.casefold():
+    normalized_text = re.sub(r"\s+", " ", text).casefold()
+    normalized_needle = re.sub(r"\s+", " ", needle).casefold()
+    if normalized_needle in normalized_text:
         errors.append(f"{label}: stale or forbidden phrase remains `{needle}`")
 
 
@@ -355,7 +362,7 @@ def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
         )
         + 1
     )
-    contrast_re = re.compile(r"\b(?:and|but|however|yet|although|though)\b", re.I)
+    contrast_re = re.compile(r",|\b(?:and|but|however|yet|although|though)\b", re.I)
     for contrast in contrast_re.finditer(text, local_start, match.start()):
         local_start = contrast.end()
     snippet = text[local_start : match.end()]
