@@ -100,6 +100,10 @@ Role-agent dispositions:
 - Post-open `bug-hunter` eighth follow-up: Disposition `FIXED`. Evidence:
   commit `65e5211fa` rejects adjacent-sentence provider/source noun approval
   claims while keeping canonical safe source-identity notes valid.
+- Post-open `bug-hunter` ninth follow-up: Disposition `FIXED`. Evidence:
+  commit `3f318be98` rejects named provider approvals, non-portal direct
+  authority grants, and modal portal authority while preserving safe denial
+  wording.
 
 ## Premortem
 
@@ -285,6 +289,10 @@ Disposition: FIXED
 Commit: 65e5211fa
 Evidence: `core/food_sources/regional_catalog_identity.py` rejects adjacent-sentence provider/source approval claims; `tests/test_food_source_regional_catalog_identity.py` covers the four provider/source noun examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: 3f318be98
+Evidence: `core/food_sources/regional_catalog_identity.py` blocks named provider approval prose and direct authority grants for blocked source terms, while preserving explicit denial wording; `tests/test_food_source_regional_catalog_identity.py` covers the named-provider, direct-authority, and safe-denial examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -324,7 +332,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 160 tests.
+- Focused PR17 tests: passed, 175 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
