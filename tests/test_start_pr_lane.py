@@ -140,6 +140,10 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert ". .venv/bin/activate" in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Experiment Runner evidence" in result.stdout
+    assert "create oracle-only Experiment Runner evidence by default for non-trivial PRs" in (
+        result.stdout
+    )
+    assert "Not applicable: <reason>" in result.stdout
     assert (
         "Default PR review checklist: agent-coordinator, architecture-specialist, "
         "security-auditor, qa-engineer-agent, bug-hunter, dev-operator"

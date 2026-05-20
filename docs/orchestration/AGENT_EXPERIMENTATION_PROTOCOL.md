@@ -112,6 +112,16 @@ Rules:
   advisory evidence: either a local oracle-only result artifact or a documented
   `not applicable` reason in the PR lane notes. This is not a merge-readiness
   gate until a later hardening PR explicitly promotes it.
+- Oracle-only result artifacts may require the canonical co-author trailer when
+  the artifact materially shapes the plan, validation approach, admission
+  decision, fixed mapping, review disposition, or commit decision. The artifact
+  records that with `contribution_kind`, `coauthor_required`, and
+  `coauthor_reason`.
+- `mutated_paths: []` is the oracle-only mutation boundary; it does not mean the
+  runner made no review, experiment-design, or decision contribution.
+- Do not add the Experiment Runner co-author trailer when the runner only
+  launched, the artifact was rejected or unused, or the PR records
+  `Not applicable: <reason>`.
 - PR body mirrors or fixed-mapping artifacts should include
   `## Experiment Runner Evidence` with either:
   `Artifact: artifacts/orchestration/experiments/results/<id>.json` or

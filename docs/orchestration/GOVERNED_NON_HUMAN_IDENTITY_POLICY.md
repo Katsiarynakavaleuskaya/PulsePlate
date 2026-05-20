@@ -54,6 +54,15 @@ For oracle-only PR participation, attribution is evidence-based. Add the
 canonical co-author trailer only when the local Experiment Runner result
 artifact materially shaped the human-reviewed commit. Do not add the trailer to
 unrelated human-only commits merely because the PR lane ran the advisory oracle.
+The runner artifact records this decision with `contribution_kind`,
+`coauthor_required`, and `coauthor_reason`. `mutated_paths: []` is the
+oracle-only safety invariant, not evidence that the runner made no contribution.
+
+If an Experiment Runner artifact is included as evidence and influenced the
+plan, validation approach, admission decision, fixed mapping, review
+disposition, or commit decision, the affected commit uses the canonical
+co-author trailer. If the runner only launched, the artifact was rejected or not
+used, or the PR records `Not applicable: <reason>`, the trailer is not required.
 
 Every non-trivial PR lane should record Experiment Runner participation in an
 `Experiment Runner Evidence` block: either a local oracle-only result artifact

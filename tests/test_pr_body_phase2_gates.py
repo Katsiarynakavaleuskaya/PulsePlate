@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_pr_body_phase2_gates as gates
 
 VALID_BODY_WITH_MAPPING = """## Summary
@@ -152,6 +154,15 @@ Not applicable: docs-only operator exception with no runner signal.
     assert warnings == []
 
 
+def test_experiment_runner_evidence_rejects_short_not_applicable_reason() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Not applicable: no
+""")
+
+    assert warnings == []
+    assert any("not-applicable reason" in error for error in errors)
+
+
 def test_experiment_runner_evidence_missing_is_advisory_warning() -> None:
     errors, warnings = gates.check_experiment_runner_evidence("## Summary\nNo evidence.\n")
 
@@ -194,6 +205,404 @@ Not applicable: this should not be mixed with an artifact.
 
     assert warnings == []
     assert any("not both" in error for error in errors)
+
+
+def test_experiment_runner_coauthor_advisory_warns_when_required_trailer_missing(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    body = """## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/oracle.json
+"""
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        body,
+        commit_messages="feat: human-only commit\n",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/oracle.json` sets "
+        "coauthor_required=true, but branch commits do not include the canonical "
+        "Experiment Runner co-author trailer. Reason: Runner oracle shaped the fixed mapping."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_clears_when_trailer_present(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+
+
+def test_experiment_runner_coauthor_advisory_ignores_body_mentions_of_trailer(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: mention trailer\n\n"
+            "The following text is documentation, not a commit trailer:\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+            "Additional prose after the mention keeps it outside the trailer block.\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/oracle.json` sets "
+        "coauthor_required=true, but branch commits do not include the canonical "
+        "Experiment Runner co-author trailer. Reason: Runner oracle shaped the fixed mapping."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_requires_git_trailer_block(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: mention trailer without trailer block\n"
+            "Some prose\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/oracle.json` sets "
+        "coauthor_required=true, but branch commits do not include the canonical "
+        "Experiment Runner co-author trailer. Reason: Runner oracle shaped the fixed mapping."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_accepts_trailer_after_divider_text(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Body mentions a divider-like line.\n"
+            "---\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+
+
+def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Not applicable: docs-only operator exception with no runner signal.\n",
+        commit_messages=None,
+    )
+
+    assert warnings == []
+
+
+def test_experiment_runner_coauthor_advisory_ignores_artifact_outside_evidence_section() -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Summary\n"
+        "Artifact: artifacts/orchestration/experiments/results/missing.json\n"
+        "\n"
+        "## Experiment Runner Evidence\n"
+        "Not applicable: docs-only operator exception with no runner signal.\n",
+        commit_messages=None,
+    )
+
+    assert warnings == []
+
+
+def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_without_trailer(
+    tmp_path: Path,
+) -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/missing.json\n",
+        commit_messages="feat: human-only commit\n",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/missing.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_with_trailer(
+    tmp_path: Path,
+) -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/missing.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/missing.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_rejects_symlink_escape(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside.json"
+    outside.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "External artifact must not be trusted.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    repo_root = tmp_path / "repo"
+    artifact = repo_root / "artifacts" / "orchestration" / "experiments" / "results" / "link.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.symlink_to(outside)
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/link.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=repo_root,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/link.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_handles_symlink_loop(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    result_dir = repo_root / "artifacts" / "orchestration" / "experiments" / "results"
+    result_dir.mkdir(parents=True)
+    (result_dir / "loop-a.json").symlink_to("loop-b.json")
+    (result_dir / "loop-b.json").symlink_to("loop-a.json")
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/loop-a.json\n",
+        commit_messages="feat: human-only commit\n",
+        repo_root=repo_root,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/loop-a.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_warns_on_malformed_coauthor_metadata(
+    tmp_path: Path,
+) -> None:
+    artifact = (
+        tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "malformed.json"
+    )
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": "true",
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/malformed.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/malformed.json` has invalid "
+        "co-author metadata, so coauthor_required cannot be verified against branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_warns_on_non_object_artifact(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "array.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(json.dumps([]), encoding="utf-8")
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/array.json\n",
+        commit_messages="feat: human-only commit\n",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/array.json` has invalid "
+        "co-author metadata, so coauthor_required cannot be verified against branch commits."
+    ]
+
+
+def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> None:
+    messages = gates._git_commit_messages(
+        "refs/heads/definitely-missing..HEAD",
+        fallback_range="HEAD",
+    )
+
+    assert isinstance(messages, str)
+    assert messages.strip()
+
+
+def test_git_commit_messages_does_not_fallback_by_default() -> None:
+    assert gates._git_commit_messages("refs/heads/definitely-missing..HEAD") is None
+
+
+def test_git_commit_messages_returns_none_when_git_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gates.shutil, "which", lambda _binary: None)
+
+    assert gates._git_commit_messages() is None
+
+
+def test_experiment_runner_coauthor_advisory_warns_when_commit_messages_unverifiable(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=None,
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: branch commit messages could not be inspected locally, "
+        "so the Experiment Runner co-author trailer was not verified for "
+        "`artifacts/orchestration/experiments/results/oracle.json`. "
+        "Reason: Runner oracle shaped the fixed mapping."
+    ]
 
 
 def test_phase2_guard_rejects_missing_sections() -> None:
@@ -332,7 +741,7 @@ def test_extract_pr_body_returns_empty_for_non_object_pull_request(tmp_path: Pat
 
 
 def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
-    """When event has pr_number, Phase2 validates the artifact and body mirror."""
+    """When event has pr_number, Phase2 validates canonical artifact evidence."""
     event = {"pull_request": {"number": 998, "body": VALID_BODY_MIRROR_ONLY}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
@@ -345,6 +754,9 @@ def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
 Disposition: FIXED
 Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: canonical artifact evidence controls artifact-first mode.
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -507,6 +919,8 @@ Artifact: artifacts/orchestration/experiments/results/exp-998.json
             "scripts/ci/check_pr_body_phase2_gates.py",
             "--pr-number",
             "998",
+            "--commit-range",
+            "HEAD",
         ],
         capture_output=True,
         text=True,

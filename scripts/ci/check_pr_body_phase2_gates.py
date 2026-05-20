@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
+import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
 import sys
 from enum import Enum
 from pathlib import Path
@@ -15,6 +17,8 @@ from scripts.orchestration.review_mapping_artifact import (
     read_mapping_artifact,
     validate_mapping_artifact_text,
 )
+from scripts.orchestration.check_experiment_runner_identity import EXPECTED_CO_AUTHOR_TRAILER
+from scripts.orchestration.experiment_contract import validate_contribution_attribution
 
 # Phase2 contract: headings and checkbox labels (single source for parser and docs).
 # Changing template wording requires updating these constants and re-running tests.
@@ -57,10 +61,23 @@ EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
 )
 EXPERIMENT_RUNNER_NA_RE = re.compile(r"(?im)^\s*(?:-\s*)?Not applicable:\s*(?P<reason>\S.+?)\s*$")
 EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results/"
+COMMIT_MESSAGE_SEPARATOR = "\x1e"
 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
     "Advisory: missing `## Experiment Runner Evidence` section with "
     "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
     "or `Not applicable: <reason>`."
+)
+MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING = (
+    "Advisory: Experiment Runner artifact `{path}` sets coauthor_required=true, "
+    "but branch commits do not include the canonical Experiment Runner co-author trailer."
+)
+UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING = (
+    "Advisory: Experiment Runner artifact `{path}` is referenced but unavailable "
+    "locally, so coauthor_required cannot be verified against branch commits."
+)
+INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING = (
+    "Advisory: Experiment Runner artifact `{path}` has invalid co-author metadata, "
+    "so coauthor_required cannot be verified against branch commits."
 )
 
 
@@ -174,6 +191,23 @@ def _valid_experiment_runner_artifact_path(path: str) -> bool:
     return len(path_parts[-1].removesuffix(".json")) > 0
 
 
+def _experiment_runner_artifact_paths(text: str) -> list[str]:
+    """Return valid local Experiment Runner artifact paths referenced by text."""
+
+    section = _extract_section_by_h2(
+        _strip_fenced_code_blocks(text), str(PHASE2_CONFIG["experiment_runner_heading"])
+    )
+    if not section:
+        return []
+
+    paths: list[str] = []
+    for match in EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(section):
+        path = match.group("path").strip().strip("`")
+        if _valid_experiment_runner_artifact_path(path):
+            paths.append(path)
+    return list(dict.fromkeys(paths))
+
+
 def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
     """Validate advisory Experiment Runner evidence.
 
@@ -223,6 +257,134 @@ def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
         )
 
     return errors, []
+
+
+def _git_commit_messages(
+    commit_range: str = "origin/main..HEAD",
+    *,
+    fallback_range: str = "",
+) -> str | None:
+    """Read branch commit messages, or None when local inspection is unavailable."""
+
+    git_bin = shutil.which("git")
+    if git_bin is None:
+        return None
+
+    ranges = [commit_range]
+    if fallback_range and fallback_range != commit_range:
+        ranges.append(fallback_range)
+    for resolved_range in ranges:
+        try:
+            completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+                [git_bin, "log", f"--format=%B{COMMIT_MESSAGE_SEPARATOR}", resolved_range],
+                cwd=REPO_ROOT,
+                text=True,
+                capture_output=True,
+                check=False,
+                timeout=15,
+            )
+        except (OSError, subprocess.TimeoutExpired):
+            continue
+        if completed.returncode == 0:
+            return completed.stdout
+    return None
+
+
+def _commit_message_has_expected_coauthor_trailer(message: str) -> bool:
+    git_bin = shutil.which("git")
+    if git_bin is None:
+        return False
+    try:
+        completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+            [git_bin, "interpret-trailers", "--parse", "--no-divider"],
+            cwd=REPO_ROOT,
+            input=message,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if completed.returncode != 0:
+        return False
+    return any(line.strip() == EXPECTED_CO_AUTHOR_TRAILER for line in completed.stdout.splitlines())
+
+
+def _commit_messages_have_expected_coauthor_trailer(commit_messages: str) -> bool:
+    return any(
+        _commit_message_has_expected_coauthor_trailer(message)
+        for message in commit_messages.split(COMMIT_MESSAGE_SEPARATOR)
+    )
+
+
+def check_experiment_runner_coauthor_advisory(
+    text: str,
+    *,
+    commit_messages: str | None,
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
+    """Warn when a local runner artifact requires co-authoring but commits lack it."""
+
+    has_expected_trailer = commit_messages is not None and (
+        _commit_messages_have_expected_coauthor_trailer(commit_messages)
+    )
+
+    warnings: list[str] = []
+    resolved_repo_root = repo_root.resolve()
+    for artifact_path in _experiment_runner_artifact_paths(text):
+        absolute_path = repo_root / artifact_path
+        try:
+            resolved_path = absolute_path.resolve(strict=True)
+            resolved_path.relative_to(resolved_repo_root)
+        except (OSError, RuntimeError, ValueError):
+            warnings.append(
+                UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
+            )
+            continue
+        if not resolved_path.is_file():
+            warnings.append(
+                UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
+            )
+            continue
+        try:
+            payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            warnings.append(
+                UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
+            )
+            continue
+        if not isinstance(payload, dict):
+            warnings.append(
+                INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING.format(path=artifact_path)
+            )
+            continue
+        status = payload.get("status")
+        try:
+            _, coauthor_required, reason = validate_contribution_attribution(
+                contribution_kind=payload.get("contribution_kind", "none"),
+                coauthor_required=payload.get("coauthor_required", False),
+                coauthor_reason=payload.get("coauthor_reason", ""),
+                status=status if isinstance(status, str) else None,
+            )
+        except ValueError:
+            warnings.append(
+                INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING.format(path=artifact_path)
+            )
+            continue
+        if coauthor_required and not has_expected_trailer:
+            if commit_messages is None:
+                warning = (
+                    "Advisory: branch commit messages could not be inspected locally, "
+                    "so the Experiment Runner co-author trailer was not verified for "
+                    f"`{artifact_path}`."
+                )
+            else:
+                warning = MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING.format(path=artifact_path)
+            if reason:
+                warning = f"{warning} Reason: {reason}"
+            warnings.append(warning)
+    return warnings
 
 
 def _select_body_validation_mode(*, artifact_checked: bool) -> BodyValidationMode:
@@ -297,6 +459,24 @@ def main() -> int:
         type=int,
         help="PR number for artifact lookup (optional, extracted from event-path if not set).",
     )
+    parser.add_argument(
+        "--commit-range",
+        default="origin/main..HEAD",
+        help=(
+            "Git commit range for advisory Experiment Runner co-author diagnostics. "
+            "Defaults to origin/main..HEAD."
+        ),
+    )
+    parser.add_argument(
+        "--commit-range-fallback",
+        default="",
+        help=(
+            "Fallback git commit range for advisory Experiment Runner co-author "
+            "diagnostics when --commit-range is unavailable. Empty by default so "
+            "detached or shallow checkouts report the trailer check as unverifiable "
+            "instead of scanning unrelated history."
+        ),
+    )
     args = parser.parse_args()
 
     body = args.body
@@ -314,6 +494,7 @@ def main() -> int:
     body_errors: list[str] = []
     advisory_warnings: list[str] = []
     evidence_warning_candidates: list[str] = []
+    evidence_texts: list[str] = []
     experiment_runner_evidence_seen = False
 
     if pr_number is not None:
@@ -324,6 +505,7 @@ def main() -> int:
             return 1
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
+        evidence_texts.append(artifact_text)
         evidence_errors, evidence_warnings = check_experiment_runner_evidence(artifact_text)
         artifact_errors.extend(evidence_errors)
         evidence_warning_candidates.extend(evidence_warnings)
@@ -343,19 +525,34 @@ def main() -> int:
                     mode=_select_body_validation_mode(artifact_checked=artifact_checked),
                 )
             )
-        evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
-        if evidence_errors:
-            body_checked = True
-        body_errors.extend(evidence_errors)
-        evidence_warning_candidates.extend(evidence_warnings)
-        if not evidence_errors and not evidence_warnings:
-            experiment_runner_evidence_seen = True
+        if not artifact_checked:
+            evidence_texts.append(body)
+            evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
+            if evidence_errors:
+                body_checked = True
+            body_errors.extend(evidence_errors)
+            evidence_warning_candidates.extend(evidence_warnings)
+            if not evidence_errors and not evidence_warnings:
+                experiment_runner_evidence_seen = True
     elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
 
     if not experiment_runner_evidence_seen:
         advisory_warnings.extend(dict.fromkeys(evidence_warning_candidates))
+    if experiment_runner_evidence_seen:
+        commit_messages = _git_commit_messages(
+            args.commit_range,
+            fallback_range=args.commit_range_fallback,
+        )
+        for evidence_text in evidence_texts:
+            advisory_warnings.extend(
+                check_experiment_runner_coauthor_advisory(
+                    evidence_text,
+                    commit_messages=commit_messages,
+                )
+            )
+        advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]
     if errors:
