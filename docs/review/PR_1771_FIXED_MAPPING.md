@@ -104,6 +104,9 @@ Role-agent dispositions:
   commit `3f318be98` rejects named provider approvals, non-portal direct
   authority grants, and modal portal authority while preserving safe denial
   wording.
+- Post-open `bug-hunter` tenth follow-up: Disposition `FIXED`. Evidence:
+  commit `6483a84a1` rejects modal/base `serve as` authority grants for
+  blocked portals, named providers, seller APIs, and partner-style sources.
 
 ## Premortem
 
@@ -293,6 +296,10 @@ Disposition: FIXED
 Commit: 3f318be98
 Evidence: `core/food_sources/regional_catalog_identity.py` blocks named provider approval prose and direct authority grants for blocked source terms, while preserving explicit denial wording; `tests/test_food_source_regional_catalog_identity.py` covers the named-provider, direct-authority, and safe-denial examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: 6483a84a1
+Evidence: `core/food_sources/regional_catalog_identity.py` blocks modal/base `serve as` authority grants for blocked source terms; `tests/test_food_source_regional_catalog_identity.py` covers the four tenth-pass examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -332,7 +339,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 175 tests.
+- Focused PR17 tests: passed, 179 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
