@@ -453,6 +453,20 @@ Evidence: `core/food_sources/regional_catalog_identity.py` now treats PR17 `note
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273070559 -> 231a8d951
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273070565 -> 231a8d951
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` now treats PR11
+regional domain/source `notes` as controlled handoff text instead of a free-form
+policy surface; exact PR11 canonical notes are required before PR17 accepts the
+regional handoff. `tests/test_food_source_regional_catalog_identity.py` rejects
+the Codex-reported access grants, passive API-call phrasing, bare approval
+clauses, and modal access verbs through direct PR11 handoff drift tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608803 -> 9e4329dc6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608810 -> 9e4329dc6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608818 -> 9e4329dc6
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608825 -> 9e4329dc6
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
