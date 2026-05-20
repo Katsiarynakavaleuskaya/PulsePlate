@@ -82,6 +82,14 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `1036e330e`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `permits`, `allows`, `approves`, and `selects` semantic-cache serving variants plus a negated safety statement.
+- security-auditor second-pass finding: gerund `caching raw ...` cacheability wording false-greened.
+  - Disposition: FIXED
+  - Commit: `8f6e11329`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `allows caching raw` prompts, responses, account data, sensitive data, secrets, credentials, tokens, and PII.
+- security-auditor second-pass finding: approval/permission noun variants false-greened for semantic-cache and Redis/GPTCache rollout.
+  - Disposition: FIXED
+  - Commit: `8f6e11329`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` covers `grants permission`, `has PR-V1 permission`, and `has PR-V1 approval` variants.
 
 ## Local Evidence
 
