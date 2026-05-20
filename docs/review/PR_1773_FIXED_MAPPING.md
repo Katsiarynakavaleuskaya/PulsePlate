@@ -9,11 +9,15 @@
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] Post-open `qa-engineer-agent -> bug-hunter` pass completed
-- [x] CodeRabbit, Sourcery, Cubic, and review-thread no-actionable status verified
+- [ ] CodeRabbit, Sourcery, Cubic, and review-thread no-actionable status verified
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: 783ee256eecb7d8c65852fecbb2f4b8e4f214715
+Evidence: `scripts/orchestration/experiment_contract.py:226` now calls `git --literal-pathspecs ls-files --error-unmatch -- <paths>`, and `tests/test_experiment_runner.py:273` covers `:(glob)` pathspec magic rejection.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#discussion_r3270121817 -> 783ee256eecb7d8c65852fecbb2f4b8e4f214715
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1773#discussion_r3270168271 -> 783ee256eecb7d8c65852fecbb2f4b8e4f214715
 
 ## Validation
 
@@ -22,6 +26,8 @@
 - PASS: `python3 scripts/orchestration/check_experiment_runner_identity.py`
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_runner.py tests/test_experiment_bootstrap.py tests/test_experiment_promote.py tests/test_experiment_notify.py tests/test_experiment_pipeline.py tests/test_experiment_runner_identity_policy.py`
 - PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py tests/test_experiment_runner_identity_policy.py`
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_experiment_runner.py tests/test_experiment_bootstrap.py tests/test_experiment_promote.py tests/test_experiment_notify.py tests/test_experiment_pipeline.py tests/test_experiment_runner_identity_policy.py` after fixing CodeRabbit/Cubic pathspec findings
+- PASS: `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/guards/test_nosec_policy_guard.py tests/guards/test_subprocess_uses_absolute_binaries.py` after fixing CodeRabbit/Cubic pathspec findings
 - PASS: `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`
 - PASS: `pre-commit run --all-files`
 - PASS: pre-push hooks including changed-file mypy, pip-audit, backend tests, full-repo Bandit, and Docker build test
