@@ -963,6 +963,30 @@ def test_regional_catalog_identity_rejects_pr11_domain_authority_drift_directly(
 
 
 @pytest.mark.parametrize(
+    "bad_notes",
+    (
+        "Approved for staging.",
+        "Allowed for testing.",
+        "Can be used for staging.",
+    ),
+)
+def test_regional_catalog_identity_rejects_pr11_domain_note_drift_directly(
+    bad_notes: str,
+) -> None:
+    with pytest.raises(
+        RegionalCatalogIdentityError,
+        match="controlled PR11 handoff text",
+    ):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_replace_regional_coverage_domain(notes=bad_notes),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
     ("key", "value"),
     (
         ("decision", "approved"),
@@ -1030,6 +1054,33 @@ def test_regional_catalog_identity_rejects_pr11_source_authority_drift_directly(
             catalog=_catalog(),
             onboarding=_onboarding(),
             coverage=_replace_regional_source_gap(api_calls_allowed=True),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_notes",
+    (
+        "Seller API has seller access for testing.",
+        "Seller API receives access for testing.",
+        "Seller API called for testing.",
+        "Seller API was called for testing.",
+        "Seller API can access partner API.",
+        "Seller API may access partner API.",
+    ),
+)
+def test_regional_catalog_identity_rejects_pr11_source_note_drift_directly(
+    bad_notes: str,
+) -> None:
+    with pytest.raises(
+        RegionalCatalogIdentityError,
+        match="controlled PR11 handoff text",
+    ):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_replace_regional_source_gap(notes=bad_notes),
             pr16_report=_pr16_report(),
         )
 

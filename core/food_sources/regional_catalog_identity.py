@@ -302,6 +302,11 @@ _REGIONAL_DOMAIN_EXPECTED = {
 _REGIONAL_SOURCE_BLOCKING_REASONS = (
     "Locale-specific source identity, license, language, unit, schema, and redistribution terms are missing.",
 )
+_REGIONAL_DOMAIN_NOTES = (
+    "Regional/local products remain deferred until source identity, license, language, "
+    "unit, nutrient semantics, cache, and redistribution review exists."
+)
+_REGIONAL_SOURCE_NOTES = "Regional catalogs remain deferred/unresolved."
 
 _APPROVAL_TERMS = (
     r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
@@ -991,7 +996,11 @@ def _validate_regional_domain(domain: CoverageDomainDecision, context: str) -> N
             )
     if domain.approved_ingest or domain.approved_runtime_authority:
         raise _identity_error(context, "PR11 regional_local_products must stay unapproved")
-    _require_safe_notes(domain.notes, context)
+    if domain.notes != _REGIONAL_DOMAIN_NOTES:
+        raise _identity_error(
+            context,
+            "PR11 regional_local_products notes must preserve the controlled PR11 handoff text",
+        )
 
 
 def _validate_regional_source(source: SourceGapDecision, context: str) -> None:
@@ -1014,7 +1023,11 @@ def _validate_regional_source(source: SourceGapDecision, context: str) -> None:
         or source.paid_source_use_allowed
     ):
         raise _identity_error(context, "PR11 regional_catalogs must not approve source use")
-    _require_safe_notes(source.notes, context)
+    if source.notes != _REGIONAL_SOURCE_NOTES:
+        raise _identity_error(
+            context,
+            "PR11 regional_catalogs notes must preserve the controlled PR11 handoff text",
+        )
 
 
 def _validate_pr11_handoff(coverage: SourceGapAudit, context: str) -> None:
