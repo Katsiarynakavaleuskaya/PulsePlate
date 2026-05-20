@@ -32,11 +32,17 @@ Reason: CodeRabbit flagged that K1 was closed one month after PR `#1483` merged 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1776#discussion_r3273641023 -> 844d5a190
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1776#pullrequestreview-4328132541 -> 844d5a190
 
+Disposition: FIXED
+Commit: 3ac6f23d6
+Evidence: `tests/test_rag_llm_karpathy_k1_closeout.py:52`, `tests/test_rag_llm_karpathy_k1_closeout.py:59`, `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md:397`
+Reason: Post-open bug-hunter found that the K1 roadmap guard could pass if semantic-cache implementation wording moved into `In scope`; the guard now checks K1 subsections explicitly and the roadmap names Redis/GPTCache/backend approval only under `Out of scope`.
+
 ## Post-Open Review Queue
 
-Sourcery and CodeRabbit actionable feedback is mapped above. Cubic reported no
-issues on the initial review. Any later actionable bot or human review must be
-fixed or dispositioned here before merge readiness is claimed.
+Sourcery, CodeRabbit, and post-open bug-hunter actionable feedback is mapped
+above. Cubic reported no issues on the initial review. Any later actionable bot
+or human review must be fixed or dispositioned here before merge readiness is
+claimed.
 
 ## Merge Readiness
 
