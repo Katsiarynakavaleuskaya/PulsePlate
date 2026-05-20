@@ -225,6 +225,52 @@ _EXPECTED_CANDIDATE_IDENTITY_FIELDS = {
     },
 }
 
+_EXPECTED_CANDIDATE_NOTES = {
+    "data_europa_national_portals": (
+        "Portal-level references are too broad for source authority; exact dataset "
+        "identity and license must be reviewed before any use."
+    ),
+    "kroger": (
+        "Kroger is a price/availability candidate only; it is not nutrition authority "
+        "and needs terms, OAuth, display, and redistribution review."
+    ),
+    "walmart": (
+        "Walmart is a price/availability candidate only; developer terms and "
+        "redistribution/display posture remain unapproved."
+    ),
+    "pepesto_grocery": (
+        "Pepesto Grocery is a commercial EU catalog candidate only; cost, cache, "
+        "display, and redistribution terms remain unapproved."
+    ),
+    "pricesapi": (
+        "PricesAPI is an aggregator candidate only; provenance, terms, display, and "
+        "redistribution remain unapproved."
+    ),
+    "yandex_eda": (
+        "Yandex EDA is a partner menu candidate only and not regional grocery or "
+        "nutrition authority."
+    ),
+    "wildberries": (
+        "Wildberries is seller-terms evidence only; seller account access and "
+        "redistribution rights remain unapproved."
+    ),
+    "ozon": (
+        "Ozon is seller-terms evidence only; seller account access and redistribution "
+        "rights remain unapproved."
+    ),
+    "apify_scraping_providers": (
+        "Scraping-style providers are blocked in PR17 and require a later dedicated "
+        "legal/anti-scraping packet."
+    ),
+}
+
+_EXPECTED_TOP_LEVEL_NOTES = (
+    "PR17 records regional catalog identity/license review candidates as evidence-only. "
+    "It keeps API calls, scraping, downloads, seller or partner access, paid source "
+    "activity, cache authority, redistribution, runtime source authority, product "
+    "display, nutrition authority, database writes, and ingest blocked."
+)
+
 _BLOCKED_STATUS_FIELDS = {
     "provider_identity_status": "not_verified",
     "license_status": "unverified",
@@ -412,8 +458,18 @@ _BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
 _BLOCKED_SOURCE_RE = re.compile(rf"\b(?:{_BLOCKED_SOURCE_TERMS})\b")
 _AUTHORITY_NOUN_RE = re.compile(rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b")
 _SAFE_REVIEW_CONTEXT_RE = re.compile(r"\b(?:review context only|evidence only|candidate only)\b")
+_NEUTRAL_STATUS_RE = re.compile(
+    r"\b(?:unresolved|blocked|unapproved|deferred|denied|rejected|forbidden|"
+    r"prohibited|disallowed|not approved|not authorized|not allowed|"
+    r"review only|evidence only|candidate only)\b"
+)
+_NEUTRAL_STATUS_TERMS = (
+    r"unresolved|blocked|unapproved|deferred|denied|rejected|forbidden|"
+    r"prohibited|disallowed|not approved|not authorized|not allowed|"
+    r"review only|evidence only|candidate only"
+)
 _MODAL_NEGATED_USE_RE = re.compile(
-    r"\b(?:may|might|should|could|would|must|will)\s+not\s+(?:be\s+)?used\b"
+    r"\b(?:may|might|should|could|would|must|will)\s+(?:not|never)\s+(?:be\s+)?used\b"
 )
 _NEGATED_NOUN_GRANT_RE = re.compile(
     rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,8}}\W+\b(?:"
@@ -421,7 +477,7 @@ _NEGATED_NOUN_GRANT_RE = re.compile(
     rf"(?:no|not|never)\s+(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})|"
     rf"(?:no|not|never)\s+(?:{_NOUN_GRANT_VERBS})\s+"
     rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})|"
-    r"(?:does|do|did)\s+not\s+"
+    r"(?:(?:does|do|did)\s+not|doesn'?t|don'?t|didn'?t)\s+"
     r"(?:have|receive|get|hold|obtain|secure|acquire|gain|earn)\s+"
     rf"(?:a\s+|an\s+)?(?:{_NOUN_GRANT_TERMS})|"
     rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
@@ -461,7 +517,8 @@ _NEGATED_LICENSE_STATUS_RE = re.compile(
     rf"(?:is|are|was|were|be|been|being|operates?)\s+(?:no|not|never)\s+under\s+"
     rf"(?:a\s+|an\s+|any\s+)?(?:{_NOUN_GRANT_TERMS})\b|"
     rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
-    r"(?:does|do|did)\s+not\s+(?:operate|fall|come)\s+under\s+"
+    r"(?:(?:does|do|did)\s+not|doesn'?t|don'?t|didn'?t)\s+"
+    r"(?:operate|fall|come)\s+under\s+"
     rf"(?:a\s+|an\s+|any\s+)?(?:{_NOUN_GRANT_TERMS})\b|"
     rf"\b(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
     rf"(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
@@ -504,7 +561,7 @@ _NEGATED_LICENSE_EXISTENCE_RE = re.compile(
     rf"(?:does|do|did)\s+not\s+belong\s+(?:to\s+)?(?:{_BLOCKED_NOTE_TERMS})\b|"
     rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
     rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
-    r"(?:does|do|did)\s+not\s+exists?\b|"
+    r"(?:(?:does|do|did)\s+not|doesn'?t|don'?t|didn'?t)\s+exists?\b|"
     rf"\bno\s+(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,6}}\W+\b"
     rf"(?:{_NOUN_GRANT_TERMS})\b(?:\W+\w+){{0,4}}\W+\bexists?\b"
 )
@@ -512,7 +569,7 @@ _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
     rf"\b(?:{_AUTHORITY_NOUN_TERMS})\b(?:\W+\w+){{0,12}}\W+\b"
     r"(?:blocked|rejected|forbidden|disallowed|prohibited)\b|"
-    rf"\b(?:has|have|is|are|was|were)\s+(?:no|not|never)\s+"
+    rf"\b(?:has|have|is|are|was|were|remains?|stays?)\s+(?:no|not|never)\s+"
     rf"(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
     r"\b(?:source authority|nutrition authority|product display)\b"
     rf"(?:\W+\w+){{0,4}}\W+\b(?:is|are|was|were)\s+(?:not|never)\s+(?:{_APPROVAL_TERMS})\b|"
@@ -526,6 +583,14 @@ _NEGATED_APPROVAL_RE = re.compile(
 _AUTHORITY_LANGUAGE_RE = re.compile(
     rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_APPROVAL_NOUNS})\b|"
     rf"\b(?:{_USE_TERMS})\b|\b(?:{_EQUIVALENCE_TERMS})\b"
+)
+_CONTRASTIVE_ASSIGNMENT_RE = re.compile(
+    rf"\b(?:but|and|still|then|however|yet|though|nevertheless)\b(?:\W+\w+){{0,8}}\W+\b"
+    rf"(?:{_AUTHORITY_LINK_TERMS}|{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b"
+)
+_POST_NEUTRAL_ASSIGNMENT_RE = re.compile(
+    rf"\b(?:{_NEUTRAL_STATUS_TERMS})\b(?:\W+\w+){{0,8}}\W+\b"
+    rf"(?:{_AUTHORITY_LINK_TERMS}|{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b"
 )
 _CANDIDATE_LOCAL_AUTHORITY_RE = re.compile(
     rf"\b(?:it|they|this|this candidate|these|those|(?:the\s+)?providers?|"
@@ -553,16 +618,22 @@ _DIRECT_AUTHORITY_RE = re.compile(
 )
 _BARE_CONTEXT_AUTHORITY_RE = re.compile(
     rf"^(?:but|and|then|still)?\s*(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
+    rf"^(?:but|and|then|still)?\s*(?:is|are|was|were|be|been|being|remains?|stays?)\s+"
+    rf"(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
+    rf"^(?:but|and|then|still)?\s*(?:may|can|could|might|will|would|should|must)\s+"
+    r"(?!(?:\w+\s+){0,8}(?:not|never)\b)"
+    rf"(?:\w+\s+){{0,8}}(?:be\s+)?"
+    rf"(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS}|{_AUTHORITY_NOUN_TERMS})\b|"
     r"^(?:but|and|then|still)?\s*(?:after\b.+\b)?"
     rf"(?:{_AUTHORITY_LINK_TERMS})\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
 )
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
+    r"(?:(?:regional|grocery|source|nutrition|product)\s+){0,3}"
+    r"(?:regional\s+grocery\s+or\s+)?"
     r"(?:source authority|nutrition authority|product display)\b"
     r"(?:\s+for\s+(?:source authority|nutrition authority|product display))?|"
-    r"\b(?:not|never)\b(?:\W+\w+){0,8}\W+\b"
-    r"(?:source authority|nutrition authority|product display)\b|"
     r"\b(?:is|are|was|were|be|becomes?|became|serve(?:s)? as|treated as|acting as)\s+"
     r"(?:no|not|never)\s+(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b"
@@ -659,6 +730,13 @@ def _require_string(data: dict[str, object], key: str, context: str) -> str:
     return value.strip()
 
 
+def _require_exact_string(data: dict[str, object], key: str, context: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise _identity_error(context, f"missing non-empty string '{key}'")
+    return value
+
+
 def _require_int(data: dict[str, object], key: str, context: str) -> int:
     value = data.get(key)
     if not isinstance(value, int) or isinstance(value, bool):
@@ -734,6 +812,9 @@ def _require_safe_notes(value: str, context: str) -> str:
         sanitized = _NEGATED_NOUN_GRANT_RE.sub(" ", sanitized)
         sanitized = _NEGATED_LICENSE_STATUS_RE.sub(" ", sanitized)
         sanitized = _NEGATED_LICENSE_EXISTENCE_RE.sub(" ", sanitized)
+        has_authority_context = bool(_AUTHORITY_NOUN_RE.search(sanitized))
+        has_assignment_context = bool(re.search(rf"\b(?:{_AUTHORITY_LINK_TERMS})\b", sanitized))
+        has_neutral_context = bool(_NEUTRAL_STATUS_RE.search(sanitized))
         remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", sanitized)
         has_blocked_term = (
             bool(_BLOCKED_NOTE_RE.search(remaining_authority_text)) or has_blocked_context
@@ -744,6 +825,12 @@ def _require_safe_notes(value: str, context: str) -> str:
             re.search(rf"\b(?:{_AUTHORITY_LINK_TERMS})\b", remaining_authority_text)
         )
         has_safe_review_context = bool(_SAFE_REVIEW_CONTEXT_RE.search(remaining_authority_text))
+        has_neutral_status = bool(_NEUTRAL_STATUS_RE.search(remaining_authority_text))
+        has_neutral_status_context = has_neutral_status or has_neutral_context
+        has_contrastive_assignment = bool(
+            _CONTRASTIVE_ASSIGNMENT_RE.search(remaining_authority_text)
+            or _POST_NEUTRAL_ASSIGNMENT_RE.search(remaining_authority_text)
+        )
         if has_blocked_term:
             blocked_context_seen = True
             if pending_bare_authority:
@@ -752,11 +839,21 @@ def _require_safe_notes(value: str, context: str) -> str:
             raise _identity_error(context, "notes must not approve regional catalog source use")
         if has_blocked_source and has_authority_noun:
             raise _identity_error(context, "notes must not approve regional catalog source use")
-        if (pending_authority_assignment and has_blocked_source) or (
-            pending_blocked_assignment and has_authority_noun
+        if (
+            pending_authority_assignment
+            and has_blocked_source
+            and (not has_neutral_status_context or has_contrastive_assignment)
+        ) or (
+            pending_blocked_assignment
+            and has_authority_noun
+            and (not has_neutral_status_context or has_contrastive_assignment)
         ):
             raise _identity_error(context, "notes must not approve regional catalog source use")
-        if has_authority_noun and has_assignment_link and not has_safe_review_context:
+        if (
+            (has_authority_noun or (has_authority_context and has_neutral_context))
+            and (has_assignment_link or has_assignment_context)
+            and not has_safe_review_context
+        ):
             pending_authority_assignment = True
         if has_blocked_source and has_assignment_link and not has_safe_review_context:
             pending_blocked_assignment = True
@@ -784,6 +881,16 @@ def _require_safe_notes(value: str, context: str) -> str:
                     continue
                 raise _identity_error(context, "notes must not approve regional catalog source use")
     return value
+
+
+def _require_controlled_notes(value: str, context: str, *, expected: str) -> str:
+    if value != expected:
+        raise _identity_error(
+            context,
+            "notes must use the controlled PR17 governance text; encode policy changes "
+            "in typed status fields instead of free-form prose",
+        )
+    return _require_safe_notes(value, context)
 
 
 def _require_safety_flags(data: dict[str, object], context: str) -> None:
@@ -1029,7 +1136,11 @@ def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogC
         freshness_review_status=_require_string(data, "freshness_review_status", context),
         allowed_role=allowed_role,
         blocking_reasons=blocking_reasons,
-        notes=_require_safe_notes(_require_string(data, "notes", context), context),
+        notes=_require_controlled_notes(
+            _require_exact_string(data, "notes", context),
+            context,
+            expected=_EXPECTED_CANDIDATE_NOTES[candidate_id],
+        ),
     )
 
 
@@ -1124,6 +1235,11 @@ def parse_regional_catalog_identity_governance(
     if _require_string(data, "final_gate_decision", context) != FINAL_GATE_DECISION:
         raise _identity_error(context, f"final_gate_decision must be {FINAL_GATE_DECISION}")
 
+    notes = _require_controlled_notes(
+        _require_exact_string(data, "notes", context),
+        context,
+        expected=_EXPECTED_TOP_LEVEL_NOTES,
+    )
     return RegionalCatalogIdentityGovernance(
         schema_version=schema_version,
         generated_on=_parse_date(_require_string(data, "generated_on", context), context),
@@ -1142,7 +1258,7 @@ def parse_regional_catalog_identity_governance(
         candidate_reviews=candidate_reviews,
         next_recommended_lane=NEXT_RECOMMENDED_LANE,
         final_gate_decision=FINAL_GATE_DECISION,
-        notes=_require_safe_notes(_require_string(data, "notes", context), context),
+        notes=notes,
     )
 
 

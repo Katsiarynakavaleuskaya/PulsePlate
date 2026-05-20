@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Callable
 
 import pytest
 
@@ -597,6 +598,42 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "A license does not govern Seller API but Seller API is approved for staging.",
         "Seller API license is not active and is approved for staging.",
         "Seller API has no license but can be used for staging.",
+        "Not documented and source authority is Seller API.",
+        "Seller API is not blocked and source authority is Seller API.",
+        "Source authority remains unresolved. Can be Seller API.",
+        "Source authority remains blocked. It can be Seller API.",
+        "Source authority remains rejected. It can be Seller API.",
+        "Source authority remains forbidden. It can be Seller API.",
+        "Source authority remains prohibited. It can be Seller API.",
+        "Source authority remains disallowed. It can be Seller API.",
+        "Source authority remains blocked. It is blocked but can be Seller API.",
+        "Source authority remains blocked. It remains blocked but can be Seller API.",
+        "Source authority remains blocked. The candidate is blocked but can be Seller API.",
+        "Source authority remains blocked. It is blocked however can be Seller API.",
+        "Source authority remains blocked. It remains blocked however can be Seller API.",
+        "Source authority remains blocked. The candidate is blocked however can be Seller API.",
+        "Source authority remains blocked. It is blocked yet can be Seller API.",
+        "Source authority remains blocked. It is blocked though can be Seller API.",
+        "Source authority remains blocked. It is blocked nevertheless can be Seller API.",
+        "Source authority remains blocked. It is blocked although can be Seller API.",
+        "Source authority remains blocked. It remains blocked although can be Seller API.",
+        "Source authority remains blocked. The candidate is blocked although can be Seller API.",
+        "Source authority remains blocked. It is blocked while can be Seller API.",
+        "Source authority remains blocked. It is blocked albeit can be Seller API.",
+        "Source authority remains blocked. It is blocked nonetheless can be Seller API.",
+        "Source authority remains blocked. It remains blocked; is approved for use.",
+        "Source authority remains blocked. The candidate remains blocked; is approved for use.",
+        "Source authority remains blocked. It remains blocked; may be approved for use.",
+        "Source authority remains blocked. It remains blocked; could be approved for use.",
+        "Source authority remains blocked. It remains blocked; will be approved for use.",
+        "Source authority remains blocked. It remains blocked; may be allowed for use.",
+        "Source authority remains blocked. It remains blocked; could be authorized for use.",
+        "Source authority remains blocked. It remains blocked; may now be approved for use.",
+        "Source authority remains blocked. It remains blocked; could later be authorized for use.",
+        "Source authority remains blocked. It remains blocked; will eventually be allowed for use.",
+        "Source authority remains blocked. It remains blocked; could later be source authority.",
+        "Source authority remains blocked. It remains blocked; may at a later stage be approved for use.",
+        "Source authority remains blocked. It remains blocked; could after manual legal review be source authority.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -628,10 +665,13 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "API calls are not approved for ingestion; documentation is available in appendix.",
         "API calls are not approved for ingestion, documentation is available in appendix.",
         "Seller API has no approval for testing.",
+        "Seller API remains not approved for PR17.",
+        "Seller API stays not approved for PR17.",
         "Seller API has no license for staging.",
         "Seller API has no endorsement for staging.",
         "Seller API receives no acceptance for staging.",
         "Seller API does not have a license for staging.",
+        "Seller API doesn't have a license for staging.",
         "Seller API never secures acceptance for staging.",
         "Seller API license is not issued for staging.",
         "Acceptance for Seller API is not awarded for staging.",
@@ -642,6 +682,7 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Seller API license does not remain valid for staging.",
         "A license does not belong to Seller API for staging.",
         "Seller API license does not exist for staging.",
+        "Seller API license doesn't exist for PR17.",
         "No Seller API license exists for staging.",
         "Seller API license is not applicable for staging.",
         "Seller API is not covered by a license for staging.",
@@ -668,6 +709,9 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Seller API license wasn't currently covered for staging.",
         "Seller API is not under a license for staging.",
         "Seller API does not operate under a license for staging.",
+        "Seller API doesn't operate under a license for staging.",
+        "Seller API doesn't fall under a license for staging.",
+        "Seller API doesn't come under a license for staging.",
         "A license does not govern Seller API for staging.",
         "Licensing does not govern Seller API for staging.",
         "A license doesn't govern Seller API for staging.",
@@ -692,21 +736,92 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Seller API may not be used for testing.",
         "Seller API should not be used for testing.",
         "Source authority can never be Seller API for PR17.",
+        "Source authority remains unresolved. Seller API remains blocked for PR17.",
+        "Source authority remains blocked. Seller API remains not approved for PR17.",
+        "Source authority remains blocked. Seller API stays not approved for PR17.",
+        "Source authority remains denied. Seller API remains not approved for PR17.",
+        "Source authority remains blocked. It remains blocked; may not be approved for use.",
+        "Source authority remains blocked. It remains blocked; could not be authorized for use.",
+        "Source authority remains blocked. It remains blocked; will not be allowed for use.",
+        "Source authority remains blocked. It remains blocked; could not be source authority.",
+        "Source authority remains blocked. It remains blocked; may never be used for staging.",
+        "Source authority remains blocked. It remains blocked; could never be used for staging.",
     ),
 )
-def test_regional_catalog_identity_allows_negated_authority_prose(safe_notes: str) -> None:
+def test_regional_catalog_identity_rejects_noncanonical_safe_note_prose(
+    safe_notes: str,
+) -> None:
     payload = _identity_payload()
     payload["notes"] = safe_notes
 
-    gate = parse_regional_catalog_identity_governance(
-        payload,
-        catalog=_catalog(),
-        onboarding=_onboarding(),
-        coverage=_coverage(),
-        pr16_report=_pr16_report(),
-    )
+    with pytest.raises(RegionalCatalogIdentityError, match="controlled PR17 governance text"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
 
-    assert gate.notes == safe_notes
+
+def test_regional_catalog_identity_rejects_candidate_note_drift() -> None:
+    payload = _identity_payload()
+    candidates = payload["candidate_reviews"]
+    assert isinstance(candidates, list)
+    candidate = candidates[0]
+    assert isinstance(candidate, dict)
+    candidate["notes"] = "Data portal is not source authority for PR17."
+
+    with pytest.raises(RegionalCatalogIdentityError, match="controlled PR17 governance text"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize("mutator", (lambda note: f" {note}", lambda note: f"{note} "))
+def test_regional_catalog_identity_rejects_top_level_note_whitespace_drift(
+    mutator: Callable[[str], str],
+) -> None:
+    payload = _identity_payload()
+    note = payload["notes"]
+    assert isinstance(note, str)
+    payload["notes"] = mutator(note)
+
+    with pytest.raises(RegionalCatalogIdentityError, match="controlled PR17 governance text"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize("mutator", (lambda note: f" {note}", lambda note: f"{note}\n"))
+def test_regional_catalog_identity_rejects_candidate_note_whitespace_drift(
+    mutator: Callable[[str], str],
+) -> None:
+    payload = _identity_payload()
+    candidates = payload["candidate_reviews"]
+    assert isinstance(candidates, list)
+    candidate = candidates[0]
+    assert isinstance(candidate, dict)
+    note = candidate["notes"]
+    assert isinstance(note, str)
+    candidate["notes"] = mutator(note)
+
+    with pytest.raises(RegionalCatalogIdentityError, match="controlled PR17 governance text"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
 
 
 @pytest.mark.parametrize(
