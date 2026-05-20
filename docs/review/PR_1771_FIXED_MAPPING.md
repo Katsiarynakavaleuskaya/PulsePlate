@@ -107,6 +107,10 @@ Role-agent dispositions:
 - Post-open `bug-hunter` tenth follow-up: Disposition `FIXED`. Evidence:
   commit `6483a84a1` rejects modal/base `serve as` authority grants for
   blocked portals, named providers, seller APIs, and partner-style sources.
+- Post-open `bug-hunter` eleventh follow-up: Disposition `FIXED`. Evidence:
+  commit `1aaa79f05` rejects modal `may/could/might be` authority grants for
+  blocked portals, named providers, seller APIs, partner APIs, and regional
+  catalog candidates.
 
 ## Premortem
 
@@ -300,6 +304,10 @@ Disposition: FIXED
 Commit: 6483a84a1
 Evidence: `core/food_sources/regional_catalog_identity.py` blocks modal/base `serve as` authority grants for blocked source terms; `tests/test_food_source_regional_catalog_identity.py` covers the four tenth-pass examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: 1aaa79f05
+Evidence: `core/food_sources/regional_catalog_identity.py` blocks modal `may/could/might be` authority grants for blocked source terms; `tests/test_food_source_regional_catalog_identity.py` covers the eight eleventh-pass examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -339,7 +347,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 179 tests.
+- Focused PR17 tests: passed, 187 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
