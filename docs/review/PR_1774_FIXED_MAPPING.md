@@ -50,6 +50,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admissi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#pullrequestreview-4325972932 -> 09b82d8c7ea1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892110 -> 09b82d8c7ea1
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892115 -> 09b82d8c7ea1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271979846 -> 63b72a0422d9
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271985775 -> 63b72a0422d9
 
 Disposition: FIXED
 Commit: 782b75cb1614
