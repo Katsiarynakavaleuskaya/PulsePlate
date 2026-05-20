@@ -2887,11 +2887,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/review/PR_<N>_FIXED_MAPPING.md` is added after the PR number exists and mirrored into the PR body
 
 <a id="ledger-p1-philosophy-epic-v2-pr1-admission"></a>
-- [ ] P1: Philosophy Epic V2 PR-1 semantic-cache admission contract
+- [x] P1: Philosophy Epic V2 PR-1 semantic-cache admission contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: #1761 (`codex/philosophy-epic-v2-pr1-admission-contract`)
-  - Status: 🟡 In review / merge-ready stabilization after #1766 main security gate
+  - Status: ✅ Merged PR #1761 on 2026-05-20 (`b837a683914e3439de8a61a3102e1e1b3c9ad006`)
   - Area: AI / RAG / philosophy / semantic-cache governance
   - Finding Type: admission-contract and gate-closed governance
   - Reason (EN): PR #1742 merged the SC-G5 backend-selection contract as an offline, label-only, non-serving semantic-cache governance layer. Philosophy Epic V2 PR-1 must add the higher-level philosophical admission contract that defines runtime-only, blocked, verification-bundle-required, and future-deferred request classes without opening the semantic-cache gate, duplicating SC-G5 backend-selection ranking, or adding Redis/GPTCache, embeddings, storage, serving, providers, OpenAPI, DB, frontend, or iOS changes.
@@ -2908,6 +2908,30 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Focused validators and tests remain static/read-only and add no runtime cache dependencies
     - All premortem, architecture, philosophy, security, QA, and bug-hunter findings are dispositioned before readiness claims
     - PR body mirrors review-thread disposition, deferred/follow-up, and merge-readiness sections after PR open
+
+<a id="ledger-p1-philosophy-epic-v2-pr2-policy-oracle"></a>
+- [ ] P1: Philosophy Epic V2 PR-2 admission policy spec generator / claim-family oracle
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: #1777 (`codex/philosophy-epic-v2-pr2-policy-oracle`)
+  - Status: 🟡 Active in PR-2 branch
+  - Area: AI / RAG / philosophy / semantic-cache governance / test infrastructure
+  - Finding Type: false-green prevention, policy-as-data oracle, temporal/modal claim drift guard
+  - Reason (EN): PR #1761 closed the Philosophy PR-1 admission contract but review loops exposed a systemic failure mode: hand-expanded regexes and test grammars made the same semantic claim family reappear as fresh comments. PR-2 makes the admission claim policy canonical JSON data, generates deterministic oracle fixtures, and checks policy/schema/fixture drift before runtime semantic-cache work resumes.
+  - Links:
+    - `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json`
+    - `tests/fixtures/orchestration/philosophy_admission_claim_oracle.json`
+    - `scripts/ci/check_semantic_cache_gate.py`
+    - `tests/test_philosophy_admission_policy_oracle.py`
+  - DoD:
+    - Canonical JSON policy defines every Philosophy admission forbidden-claim family with detector labels, modal/temporal drift examples, seed regressions, and allowed negative controls
+    - Generated oracle fixture is byte-stable and fails drift checks when policy/spec/test cases diverge
+    - Policy-driven checker preserves gate-closed behavior and does not add Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, or runtime cache wiring
+    - Phase 1 docs gates validate the policy, schema, and oracle fixture, and downstream Philosophy docs still reject forbidden admission claims while allowing explicitly negative examples
+    - PR-2 documents the deterministic oracle boundary: semantic/research input may generate hypotheses, but admission truth is decided by policy/spec/oracle checks and does not mutate Experiment Runner or runtime oracle surfaces
+    - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 
 <a id="ledger-p1-recursive-methods"></a>
