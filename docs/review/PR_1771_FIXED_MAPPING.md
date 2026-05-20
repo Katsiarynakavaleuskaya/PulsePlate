@@ -39,6 +39,12 @@ Coordinator-declared role order:
 Post-open mandatory role lane:
 `qa-engineer-agent -> bug-hunter`
 
+## Experiment Runner Evidence
+
+Not applicable: Experiment Runner did not materially contribute to PR17 code,
+tests, docs, mapping, or review dispositions. No Experiment Runner co-author
+trailer is required for this food-data governance lane.
+
 Role-agent dispositions:
 
 - `agent-coordinator`: Disposition `NOT-A-BUG`. Evidence: manual dispatch was
