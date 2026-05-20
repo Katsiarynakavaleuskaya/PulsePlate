@@ -10,6 +10,13 @@ import pytest
 import scripts.ci.check_docs_phase1_gates as gates
 
 
+def _expected_forbidden_philosophy_claim(path: str, claim: str) -> str:
+    return (
+        f"{path}: forbidden philosophy admission contract claim: "
+        f"{claim.replace('-', ' ').replace(' is live', ' live').rstrip('.')}"
+    )
+
+
 def test_phase1_guard_flags_pr_tbd_in_audit_docs(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -132,7 +139,7 @@ def test_phase1_guard_does_not_run_semantic_cache_gate_for_unrelated_roadmap_doc
 ) -> None:
     roadmap_doc = tmp_path / "docs" / "roadmap" / "UNRELATED.md"
     roadmap_doc.parent.mkdir(parents=True)
-    roadmap_doc.write_text("Semantic cache is active.\n", encoding="utf-8")
+    roadmap_doc.write_text("philosophical semantic-cache is live.\n", encoding="utf-8")
     monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
 
     errors = gates.check_docs_phase1_guards(markdown_files=["docs/roadmap/UNRELATED.md"])
@@ -140,13 +147,103 @@ def test_phase1_guard_does_not_run_semantic_cache_gate_for_unrelated_roadmap_doc
     assert errors == []
 
 
+def test_phase1_guard_still_scans_philosophy_downstream_ledger_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    backlog_doc = tmp_path / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    backlog_doc.parent.mkdir(parents=True)
+    backlog_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=["docs/roadmap/BACKLOG_LEDGER.md"])
+
+    assert errors == [_expected_forbidden_philosophy_claim("docs/roadmap/BACKLOG_LEDGER.md", claim)]
+
+
+def test_phase1_guard_scans_comprehensive_philosophy_insight_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    insight_doc = (
+        tmp_path / "docs" / "insights" / "COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md"
+    )
+    insight_doc.parent.mkdir(parents=True)
+    insight_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=["docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md"]
+    )
+
+    assert errors == [
+        _expected_forbidden_philosophy_claim(
+            "docs/insights/COMPREHENSIVE_PHILOSOPHY_LOGIC_MATH_CBT_ANALYSIS.md",
+            claim,
+        )
+    ]
+
+
+def test_phase1_guard_scans_philosophical_orchestration_packet(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    packet_path = "docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md"
+    packet_doc = tmp_path / packet_path
+    packet_doc.parent.mkdir(parents=True)
+    packet_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[packet_path])
+
+    assert errors == [_expected_forbidden_philosophy_claim(packet_path, claim)]
+
+
+def test_phase1_guard_scans_philosophy_contract_sibling_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    contract_path = "docs/orchestration/contracts/PHILOSOPHY_FUTURE_CONTRACT.md"
+    contract_doc = tmp_path / contract_path
+    contract_doc.parent.mkdir(parents=True)
+    contract_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[contract_path])
+
+    assert errors == [_expected_forbidden_philosophy_claim(contract_path, claim)]
+
+
+def test_phase1_guard_runs_philosophy_checker_for_semantic_cache_gate_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    claim = "philosophical semantic-cache is live"
+    gate_doc = tmp_path / "docs" / "roadmap" / "PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate_doc.parent.mkdir(parents=True)
+    gate_doc.write_text(f"# Gate\n\n{claim}.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=["docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"]
+    )
+
+    assert (
+        _expected_forbidden_philosophy_claim(
+            "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+            claim,
+        )
+        in errors
+    )
+
+
 def test_phase1_guard_runs_semantic_cache_checker_for_rollout_contract(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    claim = "philosophical semantic-cache is live"
     contract = tmp_path / "docs" / "orchestration" / "contracts" / "SEMANTIC_CACHE_ROLLOUT_GATE.md"
     contract.parent.mkdir(parents=True)
     contract.write_text(
-        "# Contract\n\nSemantic cache is now open.\n",
+        f"# Contract\n\nSemantic cache is now open.\n\n{claim}.\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
@@ -157,6 +254,13 @@ def test_phase1_guard_runs_semantic_cache_checker_for_rollout_contract(
 
     assert any("rollout contract missing anchor" in error for error in errors)
     assert any("forbidden semantic-cache claim" in error for error in errors)
+    assert (
+        _expected_forbidden_philosophy_claim(
+            "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+            claim,
+        )
+        in errors
+    )
 
 
 def test_phase1_guard_runs_semantic_cache_checker_for_scaffold_contract(

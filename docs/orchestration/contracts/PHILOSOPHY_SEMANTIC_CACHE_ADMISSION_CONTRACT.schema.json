@@ -1,0 +1,157 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhilosophySemanticCacheAdmissionContractState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "admission_classes",
+    "blocked_surfaces",
+    "default_admission_while_gate_closed",
+    "does_not_duplicate_sc_g5_backend_selection",
+    "forbidden_claims",
+    "gate_status",
+    "implementation_allowed",
+    "references",
+    "rollout_phase",
+    "runtime_allowed",
+    "sc_g5_merge_commit",
+    "runtime_only_surfaces",
+    "verification_bundle_required_surfaces",
+    "future_cache_candidate_deferred_surfaces"
+  ],
+  "properties": {
+    "admission_classes": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "runtime_only",
+          "blocked_from_cache",
+          "verification_bundle_required",
+          "future_cache_candidate_deferred"
+        ]
+      }
+    },
+    "blocked_surfaces": {
+      "type": "array",
+      "minItems": 10,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "billing_auth_entitlement_truth",
+          "auth_session_account_identity_truth",
+          "medical_or_therapy_routing",
+          "compliance_legal_output_cache",
+          "raw_user_free_text_cache_keys",
+          "advisory_wiki_product_truth",
+          "workforce_memory_product_truth",
+          "graphrag_product_truth",
+          "plugin_control_plane_product_truth",
+          "fitchef_cbt_bypassing_validators"
+        ]
+      }
+    },
+    "default_admission_while_gate_closed": {
+      "type": "string",
+      "const": "runtime_only"
+    },
+    "does_not_duplicate_sc_g5_backend_selection": {
+      "type": "boolean",
+      "const": true
+    },
+    "forbidden_claims": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "claim_class_gate_open_equivalence",
+          "claim_class_live_philosophy_cache",
+          "claim_class_provider_rollout_approved",
+          "claim_class_verification_bundle_skipped",
+          "claim_class_production_live_cache_key_behavior",
+          "claim_class_pdf_design_intake_gate_override",
+          "claim_class_runtime_expansion_approved"
+        ]
+      }
+    },
+    "gate_status": {
+      "type": "string",
+      "const": "closed"
+    },
+    "implementation_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "references": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+          "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+          "core/insight/philosophical_runtime.py",
+          "core/verification/"
+        ]
+      }
+    },
+    "rollout_phase": {
+      "type": "string",
+      "const": "PHILOSOPHY-PR1"
+    },
+    "runtime_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "sc_g5_merge_commit": {
+      "type": "string",
+      "const": "cb1db8b40"
+    },
+    "runtime_only_surfaces": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "philosophical_runtime_preview_validate_rewrite",
+          "offline_logic_philosophy_replay",
+          "eval_harness_without_cache_serving"
+        ]
+      }
+    },
+    "verification_bundle_required_surfaces": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": [
+          "knowledge_promotion_decisions",
+          "semantic_cache_admission_decisions",
+          "recursive_retrieval_verification_merges",
+          "philosophical_outputs_presentation_risk_canonical_facts",
+          "write_or_mutate_knowledge_records"
+        ]
+      }
+    },
+    "future_cache_candidate_deferred_surfaces": {
+      "type": "array",
+      "maxItems": 0,
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    }
+  }
+}

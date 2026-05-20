@@ -8,6 +8,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+from typing import Any, cast
 
 import pytest
 
@@ -38,12 +39,41 @@ def _init_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
     (repo / "core" / "rag").mkdir(parents=True)
     (repo / "docs" / "orchestration").mkdir(parents=True)
+    (repo / "docs" / "review").mkdir(parents=True)
+    (repo / "scripts" / "ci").mkdir(parents=True)
+    (repo / "scripts" / "orchestration").mkdir(parents=True)
+    (repo / "tests").mkdir(parents=True)
+    (repo / "AGENTS.md").write_text("# Agent rules\n", encoding="utf-8")
     (repo / "core" / "rag" / "allowed.py").write_text(
         "def candidate_value() -> int:\n" "    return 1\n",
         encoding="utf-8",
     )
     (repo / "docs" / "orchestration" / "workflow.md").write_text(
         "# Workflow\n",
+        encoding="utf-8",
+    )
+    (repo / "docs" / "review" / "PR_1_FIXED_MAPPING.md").write_text(
+        "# Mapping\n",
+        encoding="utf-8",
+    )
+    (repo / "scripts" / "ci" / "check_gate.py").write_text(
+        "raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    (repo / "scripts" / "orchestration" / "check_merge_ready.py").write_text(
+        "raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    (repo / "scripts" / "orchestration" / "experiment_runner.py").write_text(
+        "raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    (repo / "scripts" / "orchestration" / "check_review_threads_disposition.py").write_text(
+        "raise SystemExit(0)\n",
+        encoding="utf-8",
+    )
+    (repo / "tests" / "test_oracle.py").write_text(
+        "def test_oracle() -> None:\n" "    assert True\n",
         encoding="utf-8",
     )
 
@@ -66,11 +96,16 @@ def _write_patch(repo: Path, relative_path: str, new_text: str, patch_path: Path
 
 
 def _base_packet(
-    *, mutable_path: str, oracle_command: str, experiment_id: str = "exp-test"
+    *,
+    mutable_path: str,
+    oracle_command: str,
+    experiment_id: str = "exp-test",
+    runner_mode: str = "candidate_patch",
 ) -> dict[str, object]:
     return {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
+        "runner_mode": runner_mode,
         "decision_question": "Evaluate bounded candidate patch",
         "task_class": "Experimentation",
         "mutable_candidate_surface": [mutable_path],
@@ -201,6 +236,77 @@ def test_validate_packet_rejects_unknown_budget_keys() -> None:
         experiment_contract.validate_experiment_packet(packet)
 
 
+def test_validate_packet_accepts_oracle_only_governance_reviewer_mode() -> None:
+    """Oracle-only PR participation is advisory and does not expand mutable surfaces."""
+
+    packet = _base_packet(
+        mutable_path="scripts/orchestration/experiment_runner.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    validated = experiment_contract.validate_experiment_packet(packet)
+
+    assert validated["runner_mode"] == "oracle_only_governance_reviewer"
+    assert validated["mutable_candidate_surface"] == ["scripts/orchestration/experiment_runner.py"]
+
+
+@pytest.mark.parametrize("runner_mode", [False, 0, [], ""])
+def test_validate_runner_mode_rejects_explicit_invalid_values(runner_mode: object) -> None:
+    with pytest.raises(ValueError, match="runner_mode must be one of"):
+        experiment_contract.validate_runner_mode(runner_mode)
+
+
+def test_validate_oracle_only_context_ignores_parent_git_index_env(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Tracked-context validation must not inherit pre-commit parent git state."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    monkeypatch.setenv("GIT_INDEX_FILE", str(tmp_path / "parent-hook-index"))
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    validated = experiment_contract.validate_experiment_packet(packet)
+
+    assert validated["mutable_candidate_surface"] == ["core/rag/allowed.py"]
+
+
+def test_validate_oracle_only_context_rejects_git_pathspec_magic(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Git pathspec magic must not expand oracle-only tracked-context checks."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _base_packet(
+        mutable_path=":(glob)core/rag/*.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    with pytest.raises(ValueError, match="tracked by git"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
+def test_validate_packet_rejects_governance_prompt_surface_in_candidate_mode() -> None:
+    """Governance docs can be immutable oracles, not runner-mutable prompt docs."""
+
+    packet = _base_packet(
+        mutable_path="docs/orchestration/prompts/governance.program.md",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+
+    with pytest.raises(ValueError, match="Invalid paths|must not include governance"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
 def test_evaluate_candidate_accepts_allowlisted_patch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -258,6 +364,190 @@ def test_evaluate_candidate_rejects_forbidden_patch_target(
     assert result["status"] == "rejected"
     assert result["failure_class"] == "policy_violation"
     assert result["shared_tree_untouched"] is True
+
+
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "AGENTS.md",
+        "docs/review/PR_1_FIXED_MAPPING.md",
+        "scripts/ci/check_gate.py",
+        "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
+        "tests/test_oracle.py",
+    ],
+)
+def test_validate_candidate_packet_rejects_governance_mutation_surfaces(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    relative_path: str,
+) -> None:
+    """Candidate-patch packets must not make governance oracles mutable."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _base_packet(
+        mutable_path=relative_path,
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+
+    with pytest.raises(ValueError, match="Invalid paths|must not include governance"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
+def test_evaluate_candidate_rejects_oracle_only_direct_api_patch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Direct helper calls must preserve the same oracle-only boundary as the CLI."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "oracle-only-direct.patch",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+            runner_mode="oracle_only_governance_reviewer",
+        )
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["runner_mode"] == "oracle_only_governance_reviewer"
+    assert result["candidate_patch"] == "oracle_only_governance_reviewer"
+    assert result["failure_class"] == "policy_violation"
+    assert result["mutated_paths"] == []
+    assert result["oracle_results"] == []
+    assert "must not evaluate candidate patches" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "oracle_only_governance_reviewer"
+    )
+
+
+def test_evaluate_candidate_invalid_oracle_only_packet_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "oracle-only-invalid-packet.patch",
+    )
+    packet = _base_packet(
+        mutable_path="artifacts/not-tracked.json",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["runner_mode"] == "oracle_only_governance_reviewer"
+    assert result["candidate_patch"] == "oracle_only_governance_reviewer"
+    assert result["failure_class"] == "policy_violation"
+    assert "repo-relative tracked surfaces" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "oracle_only_governance_reviewer"
+    )
+
+
+def test_evaluate_candidate_invalid_runner_mode_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "invalid-runner-mode.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle-only",
+    )
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["runner_mode"] == "candidate_patch"
+    assert result["candidate_patch"]
+    assert result["failure_class"] == "policy_violation"
+    assert "runner_mode must be one of" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "candidate_patch"
+    )
+
+
+def test_evaluate_candidate_invalid_experiment_id_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "invalid-experiment-id.patch",
+    )
+    packet = _base_packet(
+        mutable_path="core/rag/allowed.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+    )
+    packet["experiment_id"] = "invalid id"
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["experiment_id"] == "invalid-experiment"
+    assert result["runner_mode"] == "candidate_patch"
+    assert result["failure_class"] == "policy_violation"
+    assert "experiment_id must contain" in result["budget_observations"]["runner_error"]
+    assert experiment_contract.validate_experiment_result(result)["experiment_id"] == (
+        "invalid-experiment"
+    )
+
+
+def test_evaluate_candidate_non_dict_packet_result_is_schema_valid(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "non-dict-packet.patch",
+    )
+    packet = cast(dict[str, Any], ["not", "a", "packet"])
+
+    result = experiment_runner.evaluate_candidate(packet, patch_path)
+
+    assert result["status"] == "rejected"
+    assert result["experiment_id"] == "invalid-experiment"
+    assert result["runner_mode"] == "candidate_patch"
+    assert result["candidate_patch"]
+    assert result["failure_class"] == "policy_violation"
+    assert (
+        "Experiment packet must be a JSON object" in result["budget_observations"]["runner_error"]
+    )
+    assert experiment_contract.validate_experiment_result(result)["runner_mode"] == (
+        "candidate_patch"
+    )
 
 
 def test_evaluate_candidate_rejects_traversal_patch_path(
@@ -906,6 +1196,255 @@ def test_main_writes_result_inside_artifact_dir(
             Path("artifacts/orchestration/experiments/results") / "nested" / "result.json"
         ).as_posix()
     )
+
+
+def test_main_writes_oracle_only_governance_reviewer_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    result_dir = _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "oracle-only-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+                experiment_id="exp-oracle-only",
+                runner_mode="oracle_only_governance_reviewer",
+            ),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--output",
+            "oracle/result.json",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    result_path = result_dir / "oracle" / "result.json"
+    assert exit_code == 0
+    written = json.loads(result_path.read_text(encoding="utf-8"))
+    assert written["experiment_id"] == "exp-oracle-only"
+    assert written["status"] == "accepted"
+    assert written["candidate_patch"] == "oracle_only_governance_reviewer"
+    assert written["mutated_paths"] == []
+    assert written["promotion_ready"] is False
+    assert written["shared_tree_untouched"] is True
+    assert json.loads(captured.out)["status"] == "accepted"
+
+
+def test_oracle_only_governance_reviewer_applies_current_tracked_diff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Oracle-only evidence must cover the current tracked PR diff, not stale HEAD."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    (repo / "core" / "rag" / "allowed.py").write_text(
+        "def candidate_value() -> int:\n" "    return 2\n",
+        encoding="utf-8",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="core/rag/allowed.py",
+            oracle_command=(
+                'python3 -c "from pathlib import Path; import sys; '
+                "sys.exit(0 if 'return 2' in Path('core/rag/allowed.py').read_text() else 1)\""
+            ),
+            runner_mode="oracle_only_governance_reviewer",
+        )
+    )
+
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+
+    assert result["status"] == "accepted"
+    assert result["mutated_paths"] == []
+    assert result["budget_observations"]["source_diff_applied"] is True
+    assert _git(repo, "status", "--short").stdout.strip() == "M core/rag/allowed.py"
+
+
+def test_oracle_only_governance_reviewer_rejects_unowned_tracked_diff(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Oracle-only evidence must not silently include dirty paths outside context."""
+
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    (repo / "core" / "rag" / "allowed.py").write_text(
+        "def candidate_value() -> int:\n" "    return 2\n",
+        encoding="utf-8",
+    )
+    packet = _validate_packet(
+        _base_packet(
+            mutable_path="scripts/orchestration/experiment_runner.py",
+            oracle_command='python3 -c "import sys; sys.exit(0)"',
+            runner_mode="oracle_only_governance_reviewer",
+        )
+    )
+
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+    assert result["mutated_paths"] == []
+    assert result["budget_observations"]["source_diff_paths"] == ["core/rag/allowed.py"]
+    assert (
+        "must stay within packet context surface" in result["budget_observations"]["runner_error"]
+    )
+
+
+def test_oracle_only_context_surface_must_be_tracked(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _base_packet(
+        mutable_path="does/not/exist.py",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    with pytest.raises(ValueError, match="tracked by git"):
+        experiment_contract.validate_experiment_packet(packet)
+
+
+def test_oracle_only_direct_api_validates_raw_packet(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet = _base_packet(
+        mutable_path="artifacts/not-tracked.json",
+        oracle_command='python3 -c "import sys; sys.exit(0)"',
+        runner_mode="oracle_only_governance_reviewer",
+    )
+
+    result = experiment_runner.evaluate_oracle_only_governance_reviewer(packet)
+
+    assert result["status"] == "rejected"
+    assert result["failure_class"] == "policy_violation"
+    assert result["shared_tree_untouched"] is False
+    assert "repo-relative tracked surfaces" in result["budget_observations"]["runner_error"]
+
+
+def test_main_rejects_missing_candidate_patch_for_candidate_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "candidate-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+            ),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(["--packet", str(packet_path)])
+
+    assert exit_code == 1
+    assert "--candidate-patch is required" in capsys.readouterr().out
+
+
+def test_main_rejects_candidate_patch_for_oracle_only_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "oracle-only-packet.json"
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "should-not-apply.patch",
+    )
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+                runner_mode="oracle_only_governance_reviewer",
+            ),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+        ]
+    )
+
+    assert exit_code == 1
+    assert "does not accept --candidate-patch" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "override,match",
+    [
+        ({"mutated_paths": ["core/rag/allowed.py"]}, "must not record mutated_paths"),
+        ({"promotion_ready": True}, "must not be promotion_ready"),
+        ({"candidate_patch": "candidate.patch"}, "stable candidate_patch marker"),
+    ],
+)
+def test_validate_result_rejects_malformed_oracle_only_artifacts(
+    override: dict[str, object],
+    match: str,
+) -> None:
+    result = {
+        "schema_version": "1.0",
+        "experiment_id": "exp-oracle-only",
+        "runner_mode": "oracle_only_governance_reviewer",
+        "candidate_patch": "oracle_only_governance_reviewer",
+        "status": "accepted",
+        "failure_class": None,
+        "mutated_paths": [],
+        "oracle_results": [
+            {
+                "command": 'python3 -c "import sys; sys.exit(0)"',
+                "returncode": 0,
+                "timed_out": False,
+                "truncated": False,
+                "stdout": "",
+                "stderr": "",
+                "cwd": ".",
+            }
+        ],
+        "budget_observations": {"attempts": 1},
+        "shared_tree_untouched": True,
+        "promotion_ready": False,
+        **override,
+    }
+
+    with pytest.raises(ValueError, match=match):
+        experiment_contract.validate_experiment_result(result)
 
 
 def test_resolve_output_path_rejects_default_experiment_id_escape(

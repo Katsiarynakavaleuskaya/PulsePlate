@@ -6,9 +6,12 @@ EN: Shared constants and fail-closed validation helpers for experiment packets.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import re
 import shlex
+import shutil
+import subprocess  # nosec B404: bounded git ls-files validation only (remove-by: 2026-07-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
 from typing import Any
 
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_text, repo_relative_paths
@@ -26,6 +29,12 @@ PROMOTION_TARGETS: tuple[str, ...] = (
     "memory_capsule",
 )
 RESULT_STATUSES: tuple[str, ...] = ("accepted", "rejected")
+DEFAULT_RUNNER_MODE = "candidate_patch"
+ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE = "oracle_only_governance_reviewer"
+RUNNER_MODES: tuple[str, ...] = (
+    DEFAULT_RUNNER_MODE,
+    ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+)
 FAILURE_CLASSES: tuple[str, ...] = (
     "timeout",
     "oom",
@@ -76,6 +85,22 @@ ORACLE_BINARY_ALLOWLIST: tuple[str, ...] = (
     "python3",
     "ruff",
 )
+FORBIDDEN_AUTONOMOUS_MUTATION_PREFIXES: tuple[str, ...] = (
+    ".github/workflows/",
+    "docs/orchestration/",
+    "docs/review/",
+    "scripts/ci/",
+    "tests/",
+)
+FORBIDDEN_AUTONOMOUS_MUTATION_EXACT_PATHS: frozenset[str] = frozenset(
+    {
+        "AGENTS.md",
+        "RUNBOOK_AGENT.md",
+        "scripts/orchestration/check_merge_ready.py",
+        "scripts/orchestration/check_review_threads_disposition.py",
+    }
+)
+FORBIDDEN_AUTONOMOUS_MUTATION_FILENAMES: frozenset[str] = frozenset({"AGENTS.md"})
 EXPERIMENT_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*$")
 CV_EXPERIMENT_HINTS: tuple[str, ...] = (
     "cv",
@@ -126,6 +151,18 @@ def _normalize_mutable_surface_path(raw_path: str) -> str:
         return resolved.as_posix()
 
 
+def _is_forbidden_autonomous_mutation_surface(path: str) -> bool:
+    return (
+        path in FORBIDDEN_AUTONOMOUS_MUTATION_EXACT_PATHS
+        or Path(path).name in FORBIDDEN_AUTONOMOUS_MUTATION_FILENAMES
+        or any(path.startswith(prefix) for prefix in FORBIDDEN_AUTONOMOUS_MUTATION_PREFIXES)
+    )
+
+
+def _git_env_without_parent_state() -> dict[str, str]:
+    return {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+
+
 def validate_mutable_candidate_surface(paths: list[str] | tuple[str, ...]) -> list[str]:
     """Validate mutable surfaces against the PR1 experimentation allowlist."""
 
@@ -153,6 +190,69 @@ def validate_mutable_candidate_surface(paths: list[str] | tuple[str, ...]) -> li
             f"or approved prompt/program docs. Invalid paths: {joined}"
         )
     return normalized_paths
+
+
+def validate_oracle_context_surface(paths: list[str] | tuple[str, ...]) -> list[str]:
+    """Validate PR-owned context paths for oracle-only reviewer evidence."""
+
+    normalized_paths = sorted(
+        {_normalize_mutable_surface_path(path) for path in repo_relative_paths(paths)}
+    )
+    if not normalized_paths:
+        raise ValueError("At least one oracle-only context path is required.")
+
+    invalid_paths = [
+        path
+        for path in normalized_paths
+        if Path(path).is_absolute()
+        or path == "artifacts"
+        or path.startswith("artifacts/")
+        or path == "worktrees"
+        or path.startswith("worktrees/")
+        or path == ".venv"
+        or path.startswith(".venv/")
+    ]
+    if invalid_paths:
+        joined = ", ".join(invalid_paths)
+        raise ValueError(
+            "Oracle-only context paths must be repo-relative tracked surfaces. "
+            f"Invalid paths: {joined}"
+        )
+
+    git_binary = shutil.which("git")
+    if not git_binary:
+        raise ValueError("git binary is required to validate oracle-only context paths.")
+    tracked_process = subprocess.run(  # nosec B603: absolute git binary checks tracked context paths without shell (remove-by: 2026-07-31, ref: ledger-p1-experiment-runner-oracle-only-governance-reviewer)
+        [git_binary, "--literal-pathspecs", "ls-files", "--error-unmatch", "--", *normalized_paths],
+        cwd=str(REPO_ROOT),
+        env=_git_env_without_parent_state(),
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if tracked_process.returncode != 0:
+        diagnostic = tracked_process.stderr.strip() or tracked_process.stdout.strip()
+        raise ValueError(
+            "Oracle-only context paths must already be tracked by git: "
+            f"{diagnostic or ', '.join(normalized_paths)}"
+        )
+    return normalized_paths
+
+
+def validate_runner_mode(value: Any) -> str:
+    """Normalize the runner mode while preserving backward compatibility."""
+
+    if value is None:
+        normalized = DEFAULT_RUNNER_MODE
+    elif not isinstance(value, str):
+        allowed = ", ".join(RUNNER_MODES)
+        raise ValueError(f"Experiment packet runner_mode must be one of: {allowed}")
+    else:
+        normalized = value.strip().lower()
+    if normalized not in RUNNER_MODES:
+        allowed = ", ".join(RUNNER_MODES)
+        raise ValueError(f"Experiment packet runner_mode must be one of: {allowed}")
+    return normalized
 
 
 def validate_immutable_oracles(commands: list[str] | tuple[str, ...]) -> list[dict[str, str]]:
@@ -435,12 +535,25 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     if not task_class:
         raise ValueError("Experiment packet must include a non-empty task_class.")
 
+    runner_mode = validate_runner_mode(packet.get("runner_mode", DEFAULT_RUNNER_MODE))
+
     mutable_surface_raw = packet.get("mutable_candidate_surface")
     if not isinstance(mutable_surface_raw, list):
         raise ValueError("Experiment packet mutable_candidate_surface must be a list.")
-    mutable_surface = validate_mutable_candidate_surface(
-        [str(path) for path in mutable_surface_raw]
-    )
+    if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        mutable_surface = validate_oracle_context_surface(
+            [str(path) for path in mutable_surface_raw]
+        )
+    else:
+        mutable_surface = validate_mutable_candidate_surface(
+            [str(path) for path in mutable_surface_raw]
+        )
+        if any(_is_forbidden_autonomous_mutation_surface(path) for path in mutable_surface):
+            raise ValueError(
+                "Experiment packet mutable_candidate_surface must not include governance, "
+                "review, CI validator, merge-gate, test, fixture, or AGENTS surfaces. "
+                "Use immutable_oracles for governance reviewer evidence instead."
+            )
 
     immutable_oracles_raw = packet.get("immutable_oracles")
     if not isinstance(immutable_oracles_raw, list):
@@ -505,6 +618,7 @@ def validate_experiment_packet(packet: dict[str, Any]) -> dict[str, Any]:
     normalized["experiment_id"] = experiment_id
     normalized["decision_question"] = decision_question
     normalized["task_class"] = task_class
+    normalized["runner_mode"] = runner_mode
     normalized["mutable_candidate_surface"] = mutable_surface
     normalized["immutable_oracles"] = immutable_oracles
     normalized["budgets"] = {
@@ -536,6 +650,8 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
         result.get("experiment_id", ""),
         label="Experiment result",
     )
+
+    runner_mode = validate_runner_mode(result.get("runner_mode", DEFAULT_RUNNER_MODE))
 
     status = str(result.get("status", "")).strip()
     if status not in RESULT_STATUSES:
@@ -601,10 +717,23 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:
         raise ValueError("Experiment result must include a non-empty candidate_patch.")
+    if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        if mutated_paths:
+            raise ValueError(
+                "Oracle-only governance reviewer results must not record mutated_paths."
+            )
+        if promotion_ready:
+            raise ValueError("Oracle-only governance reviewer results must not be promotion_ready.")
+        if candidate_patch != ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ValueError(
+                "Oracle-only governance reviewer results must use the stable "
+                "candidate_patch marker."
+            )
 
     normalized = dict(result)
     normalized["schema_version"] = schema_version
     normalized["experiment_id"] = experiment_id
+    normalized["runner_mode"] = runner_mode
     normalized["status"] = status
     normalized["failure_class"] = failure_class
     normalized["mutated_paths"] = mutated_paths

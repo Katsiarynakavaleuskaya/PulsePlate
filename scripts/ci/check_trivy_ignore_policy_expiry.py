@@ -8,14 +8,21 @@ from pathlib import Path
 
 # Allow trailing content after the date (e.g. "(manual removal)").
 _EXPIRY_RE = re.compile(r"Suppression expires:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
+_REVIEW_BY_RE = re.compile(r"Review-by:\s*(\d{4}-\d{2}-\d{2})(?:\s|$)")
 
 
 def _parse_expiry(path: Path) -> date:
     matches: list[date] = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
         found = _EXPIRY_RE.search(line)
         if found:
-            matches.append(date.fromisoformat(found.group(1)))
+            try:
+                matches.append(date.fromisoformat(found.group(1)))
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid 'Suppression expires' date in {path}:{line_number}: "
+                    f"{found.group(1)} ({exc})"
+                ) from exc
     if not matches:
         raise ValueError(f"Missing 'Suppression expires: YYYY-MM-DD' in {path}")
     if len(matches) > 1:
@@ -24,6 +31,49 @@ def _parse_expiry(path: Path) -> date:
             "expected exactly one expiry per policy file"
         )
     return matches[0]
+
+
+def _parse_review_by_dates(path: Path) -> list[tuple[int, date]]:
+    review_dates: list[tuple[int, date]] = []
+    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        found = _REVIEW_BY_RE.search(line)
+        if found:
+            try:
+                review_dates.append((line_number, date.fromisoformat(found.group(1))))
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid 'Review-by' date in {path}:{line_number}: "
+                    f"{found.group(1)} ({exc})"
+                ) from exc
+    return review_dates
+
+
+def evaluate_policy_file(policy_file: Path, *, today: date) -> list[str]:
+    failures: list[str] = []
+    try:
+        expiry = _parse_expiry(policy_file)
+    except ValueError as exc:
+        failures.append(str(exc))
+        return failures
+
+    if today > expiry:
+        failures.append(
+            f"Expired Trivy ignore policy: {policy_file} (expired {expiry}, today {today})"
+        )
+
+    try:
+        review_by_dates = _parse_review_by_dates(policy_file)
+    except ValueError as exc:
+        failures.append(str(exc))
+        return failures
+
+    for line_number, review_by in review_by_dates:
+        if today > review_by:
+            failures.append(
+                f"Stale Trivy suppression review date: {policy_file}:{line_number} "
+                f"(review-by {review_by}, today {today})"
+            )
+    return failures
 
 
 def _resolve_policy_files(repo_root: Path) -> list[Path]:
@@ -65,16 +115,7 @@ def main() -> int:
     failures: list[str] = []
 
     for policy_file in policy_files:
-        try:
-            expiry = _parse_expiry(policy_file)
-        except ValueError as exc:
-            failures.append(str(exc))
-            continue
-
-        if today > expiry:
-            failures.append(
-                f"Expired Trivy ignore policy: {policy_file} (expired {expiry}, today {today})"
-            )
+        failures.extend(evaluate_policy_file(policy_file, today=today))
 
     if failures:
         print("ERROR: Trivy ignore policy expiry check failed:")

@@ -19,7 +19,10 @@ from typing import Any, Callable
 
 try:
     from scripts.orchestration.context_pack import normalize_repo_path
-    from scripts.orchestration.experiment_contract import validate_experiment_packet
+    from scripts.orchestration.experiment_contract import (
+        ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
+        validate_experiment_packet,
+    )
     from scripts.orchestration import experiment_notify
     from scripts.orchestration import experiment_promote
     from scripts.orchestration import experiment_runner
@@ -155,6 +158,11 @@ def main(argv: list[str] | None = None) -> int:
         packet_path = Path(args.packet).expanduser().resolve()
         candidate_patch_path = Path(args.candidate_patch).expanduser().resolve()
         packet = _read_packet(packet_path)
+        if packet.get("runner_mode") == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+            raise ExperimentPipelineError(
+                "Oracle-only governance reviewer packets are runner-only advisory evidence "
+                "and must not enter promotion pipeline."
+            )
         experiment_id = packet["experiment_id"]
         result_path = _default_result_path(experiment_id)
         promotion_path = _promotion_output_path(args.promotion_output, experiment_id)
