@@ -84,6 +84,13 @@ Reason: CodeRabbit flagged that `Path.resolve(strict=True)` can raise `RuntimeEr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3275018977 -> 0d8d187ae
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329738482 -> 0d8d187ae
 
+Disposition: FIXED
+Commit: fd94d2c25
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Codex flagged two Phase2 advisory false-signal paths: artifact-first mode still inspected non-authoritative PR body Experiment Runner evidence, and co-author trailer checks used raw substring matching. Phase2 now uses the canonical mapping artifact for Experiment Runner evidence when `--pr-number` is present and matches the canonical co-author line only inside commit trailer blocks.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3275163925 -> fd94d2c25
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3275163929 -> fd94d2c25
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
