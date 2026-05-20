@@ -262,7 +262,7 @@ _APPROVAL_TERMS = (
     r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available|"
     r"cleared|greenlit|green light|go ahead|ok|okay"
 )
-_APPROVAL_NOUNS = r"approval|permission|authorization|clearance|greenlight|green light"
+_APPROVAL_NOUNS = r"approvals?|permissions?|authorizations?|clearance|greenlights?|green light"
 _USE_TERMS = (
     r"may(?:\W+\w+){0,3}\W+be used|can(?:\W+\w+){0,3}\W+be used|"
     r"could(?:\W+\w+){0,3}\W+be used|is used|are used|used|queried|"
@@ -270,9 +270,9 @@ _USE_TERMS = (
 )
 _EQUIVALENCE_TERMS = r"becomes?|serve(?:s)? as|treated as|equals"
 _AUTHORITY_LINK_TERMS = (
-    r"is|are|can be|may be|could be|might be|"
+    r"is|are|was|were|can be|may be|could be|might be|will be|would be|should be|must be|"
     r"(?:can|may|could|might)\s+serve as|acts as|act as|"
-    r"becomes?|serve(?:s)? as|treated as|equals"
+    r"becomes?|became|serve(?:s)? as|treated as|equals|belong(?:s|ed)? to"
 )
 _BLOCKED_NOTE_TERMS = (
     r"regional catalogs?|data europa eu|kroger|walmart|pepesto(?: grocery)?|pricesapi|"
@@ -314,8 +314,12 @@ _FORBIDDEN_NOTE_PATTERNS = (
 _BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
-    rf"\b(?:has|have|is|are)\s+(?:no|not|never)\s+(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
-    rf"\b(?:isn'?t|aren'?t)\s+(?:{_APPROVAL_TERMS}|{_USE_TERMS})\b|"
+    rf"\b(?:has|have|is|are|was|were)\s+(?:no|not|never)\s+"
+    rf"(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
+    r"\b(?:source authority|nutrition authority|product display)\b"
+    rf"(?:\W+\w+){{0,4}}\W+\b(?:is|are|was|were)\s+(?:not|never)\s+(?:{_APPROVAL_TERMS})\b|"
+    rf"\b(?:isn'?t|aren'?t|wasn'?t|weren'?t)\s+(?:{_APPROVAL_TERMS}|{_USE_TERMS})\b|"
+    rf"\b(?:can'?t|cannot)\s+(?:be\s+)?used\b|"
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
     r"\bunapproved\b"
 )
@@ -339,8 +343,12 @@ _DIRECT_AUTHORITY_RE = re.compile(
     rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,10}}\W+\b"
     rf"(?:{_AUTHORITY_LINK_TERMS})\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,4}}\W+\b"
+    r"(?:source authority|nutrition authority|product display)\b|"
     r"\b(?:source authority|nutrition authority|product display)\b"
-    r"(?:\W+\w+){0,4}\W+\b(?:is|are)\b"
+    rf"(?:\W+\w+){{0,4}}\W+\b(?:{_AUTHORITY_LINK_TERMS})\b"
+    rf"(?:\W+\w+){{0,4}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    r"|\b(?:source authority|nutrition authority|product display)\b"
     rf"(?:\W+\w+){{0,4}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
 )
 _BARE_CONTEXT_AUTHORITY_RE = re.compile(
@@ -351,9 +359,20 @@ _BARE_CONTEXT_AUTHORITY_RE = re.compile(
 )
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
-    r"(?:source authority|nutrition authority|product display)\b|"
-    r"\b(?:is|are|be|becomes?|serve(?:s)? as|treated as)\s+"
+    r"(?:source authority|nutrition authority|product display)\b"
+    r"(?:\s+for\s+(?:source authority|nutrition authority|product display))?|"
+    r"\b(?:is|are|was|were|be|becomes?|became|serve(?:s)? as|treated as|acting as)\s+"
     r"(?:no|not|never)\s+(?:a\s+|an\s+)?"
+    r"(?:source authority|nutrition authority|product display)\b"
+    r"(?:\s+for\s+(?:source authority|nutrition authority|product display))?|"
+    r"\b(?:source authority|nutrition authority|product display)\b"
+    r"(?:\W+\w+){0,4}\W+\b(?:is|are|was|were|be|can be|may be|could be|might be|will be|would be|should be|must be)\s+"
+    rf"(?:no|not|never)\s+(?:{_BLOCKED_NOTE_TERMS})\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,4}}\W+\b"
+    r"(?:does not|do not|did not|doesn'?t|don'?t|didn'?t)\s+serve as\s+"
+    r"(?:source authority|nutrition authority|product display)\b|"
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,4}}\W+\b"
+    r"(?:is|are|was|were)\s+(?:not|never)\s+acting as\s+"
     r"(?:source authority|nutrition authority|product display)\b"
 )
 
