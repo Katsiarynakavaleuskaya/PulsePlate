@@ -57,6 +57,11 @@ EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
 )
 EXPERIMENT_RUNNER_NA_RE = re.compile(r"(?im)^\s*(?:-\s*)?Not applicable:\s*(?P<reason>\S.+?)\s*$")
 EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results/"
+MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
+    "Advisory: missing `## Experiment Runner Evidence` section with "
+    "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
+    "or `Not applicable: <reason>`."
+)
 
 
 class BodyValidationMode(str, Enum):
@@ -110,29 +115,42 @@ def _extract_pr_body(event_path: Path) -> str:
     return body if isinstance(body, str) else ""
 
 
-def _extract_mapping_section(text: str) -> str:
-    """Return content of the last ### Fixed in Commit Mapping section."""
-    matches = list(MAPPING_SECTION_RE.finditer(text))
+def _extract_markdown_section(
+    text: str,
+    *,
+    level: str,
+    title: str,
+    stop_at_heading_level: int,
+) -> str:
+    """Return content of the last matching markdown section."""
+    matches = list(_section_heading_re(level, title).finditer(text))
     if not matches:
         return ""
     match = matches[-1]
     start = match.end()
-    next_h2 = re.search(r"(?im)^\s*##\s+", text[start:])
-    end = start + next_h2.start() if next_h2 else len(text)
+    next_heading = re.search(rf"(?im)^\s*#{{1,{stop_at_heading_level}}}\s+", text[start:])
+    end = start + next_heading.start() if next_heading else len(text)
     return text[start:end]
+
+
+def _extract_mapping_section(text: str) -> str:
+    """Return content of the last ### Fixed in Commit Mapping section."""
+    return _extract_markdown_section(
+        text,
+        level="###",
+        title=str(PHASE2_CONFIG["mapping_heading"]),
+        stop_at_heading_level=2,
+    )
 
 
 def _extract_section_by_h2(text: str, heading: str) -> str:
     """Return content of the last matching H2 section."""
-    heading_re = _section_heading_re("##", heading)
-    matches = list(heading_re.finditer(text))
-    if not matches:
-        return ""
-    match = matches[-1]
-    start = match.end()
-    next_h2 = re.search(r"(?im)^\s*##\s+", text[start:])
-    end = start + next_h2.start() if next_h2 else len(text)
-    return text[start:end]
+    return _extract_markdown_section(
+        text,
+        level="##",
+        title=heading,
+        stop_at_heading_level=2,
+    )
 
 
 def _valid_experiment_runner_artifact_path(path: str) -> bool:
@@ -158,11 +176,7 @@ def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
     cleaned = _strip_fenced_code_blocks(text)
     section = _extract_section_by_h2(cleaned, str(PHASE2_CONFIG["experiment_runner_heading"]))
     if not section:
-        return [], [
-            "Advisory: missing `## Experiment Runner Evidence` section with "
-            "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
-            "or `Not applicable: <reason>`."
-        ]
+        return [], [MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING]
 
     artifact_matches = list(EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(section))
     na_matches = list(EXPERIMENT_RUNNER_NA_RE.finditer(section))
@@ -290,6 +304,7 @@ def main() -> int:
     artifact_errors: list[str] = []
     body_errors: list[str] = []
     advisory_warnings: list[str] = []
+    evidence_warning_candidates: list[str] = []
     experiment_runner_evidence_seen = False
 
     if pr_number is not None:
@@ -302,6 +317,7 @@ def main() -> int:
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
         evidence_errors, evidence_warnings = check_experiment_runner_evidence(artifact_text)
         artifact_errors.extend(evidence_errors)
+        evidence_warning_candidates.extend(evidence_warnings)
         if not evidence_errors and not evidence_warnings:
             experiment_runner_evidence_seen = True
 
@@ -315,6 +331,7 @@ def main() -> int:
         )
         evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
         body_errors.extend(evidence_errors)
+        evidence_warning_candidates.extend(evidence_warnings)
         if not evidence_errors and not evidence_warnings:
             experiment_runner_evidence_seen = True
     elif not artifact_checked:
@@ -322,11 +339,7 @@ def main() -> int:
         return 1
 
     if not experiment_runner_evidence_seen:
-        advisory_warnings.append(
-            "Advisory: missing `## Experiment Runner Evidence` section with "
-            "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
-            "or `Not applicable: <reason>`."
-        )
+        advisory_warnings.extend(dict.fromkeys(evidence_warning_candidates))
 
     errors = [*artifact_errors, *body_errors]
     if errors:
