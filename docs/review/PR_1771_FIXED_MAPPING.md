@@ -111,6 +111,10 @@ Role-agent dispositions:
   commit `1aaa79f05` rejects modal `may/could/might be` authority grants for
   blocked portals, named providers, seller APIs, partner APIs, and regional
   catalog candidates.
+- Post-open `bug-hunter` final re-review: Disposition `PASS`. Evidence:
+  agent `019e441e-315a-7390-a862-04f6ef70d3cb` reviewed pushed head
+  `cdbf901d6` and found no remaining PR17 validator, CLI, test, or artifact
+  governance logic findings.
 
 ## Premortem
 
@@ -146,7 +150,7 @@ commercial, seller, partner, portal, or scraping sources.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 - [x] PR body mirror updated after latest fixed-mapping artifact change.
-- [ ] Latest post-open role-agent follow-up completed:
+- [x] Latest post-open role-agent follow-up completed:
   `qa-engineer-agent -> bug-hunter`.
 - [x] CodeRabbit actionable comments mapped or no-actionable.
 - [x] Cubic actionable comments mapped or no-actionable.
