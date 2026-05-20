@@ -31,6 +31,10 @@
   gates, review-thread scripts, tests, fixtures, or policy docs is forbidden
   unless a separate threat-model PR explicitly opens a narrow allowlist with
   tests and rollback notes.
+- The current validator-script mutation threat model is fail-closed: no active
+  runner mutation of `scripts/ci/**` is allowed until a later PR promotes a
+  reviewed allowlist, forbidden-surface tests, identity checks, and rollback
+  notes.
 - Result artifacts stay local under `artifacts/orchestration/experiments/results/` and are evidence only, not merge-ready or promotion-ready output.
 - `experiment_notify.py` follows the notification contract in
   `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`: local artifact output

@@ -424,8 +424,9 @@ Use this as the canonical operating loop from branch creation to merge window:
    - Run `python3 scripts/orchestration/check_preflight.py`
    - Read `AGENTS.md`, `RUNBOOK_AGENT.md`, and the nearest scoped `AGENTS.md`
    - Decide scope, risk, and which sub-agents or helpers are needed before edits
-2. **Open / maintain draft**
-   - Keep the PR in draft while scope, artifact strategy, or local gates are still unstable
+2. **Open non-draft by default**
+   - Open the PR ready-for-review once scope, artifact strategy, and initial local gates are coherent so bots and current-head checks run
+   - Use draft only with an explicit operator exception when review/check suppression is intentional
    - Create or confirm the canonical artifact path `docs/review/PR_<N>_FIXED_MAPPING.md`
 3. **Post-open review entry**
    - Once the PR exists, run the mandatory post-open reviewer path declared by the lane packet/runbook before calling the lane stable

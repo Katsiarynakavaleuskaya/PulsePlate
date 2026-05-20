@@ -10,6 +10,14 @@ from pathlib import Path
 from typing import Any, Iterable
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_PR_REVIEW_CHECKLIST = (
+    "agent-coordinator",
+    "architecture-specialist",
+    "security-auditor",
+    "qa-engineer-agent",
+    "bug-hunter",
+    "dev-operator",
+)
 
 
 class PromptError(ValueError):
@@ -142,10 +150,13 @@ def render_packet_prompt(
             f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
             f"Path scope: {_prompt_list(candidate_paths, '<no explicit paths>')}",
             f"Role order: {_prompt_list(role_order, 'agent-coordinator')}",
+            f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
             f"Advisory/no-spawn roles still require closure input: {_prompt_list(advisory_roles, '<none>')}",
             f"Passive skills from packet: {_prompt_list(recommended_skills, '<none>')}",
             "",
+            "Open the PR non-draft by default so GitHub, CodeRabbit, Cubic, Sourcery, and current-head checks can run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
+            "Experiment Runner evidence: run oracle-only mode when useful, then record `## Experiment Runner Evidence` with a local result artifact path or an explicit `Not applicable:` reason.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
             "For local Python gates in the worktree, run: . .venv/bin/activate",
             "Then run only the scoped validation bundle required by the lane before any readiness claim.",
@@ -188,9 +199,12 @@ def render_recipe_prompt(
             f"Worktree: {_prompt_text(worktree, '<worktree unavailable>')}",
             f"Path scope: {_prompt_list(paths, '<no explicit paths>')}",
             f"Requested role order seed: {_prompt_list(agents, 'agent-coordinator')}",
+            f"Default PR review checklist: {_prompt_list(list(DEFAULT_PR_REVIEW_CHECKLIST), 'agent-coordinator')}",
             "",
             "Next required repo command: run task_bootstrap.py with the printed arguments, then follow the generated packet.",
+            "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
+            "After bootstrap, create oracle-only Experiment Runner evidence when useful and record it under `## Experiment Runner Evidence`.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
             "For local Python gates in the worktree, run: . .venv/bin/activate",
         ]
