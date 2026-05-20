@@ -523,15 +523,15 @@ Evidence: Closed the fresh 2026-05-19T21:59:25Z continued/result-state claim-gra
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3269900857 -> 65b99d55cc61cc4aecc2991abc72bfb307b7efcb
 
 Disposition: FIXED
-Commit: 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
+Commit: 393348325ee44d0d255deeb06ef258abb07f8930
 Evidence: Closed the fresh 2026-05-19T22:43:10Z progressive/obligation claim-grammar findings and the bug-hunter systemic same-class misses by extending the bounded PR-1 admission detector to reject obligation/passive-progressive gate-opening, simple-past cache I/O, verification-bundle waiver authorization, passive/progressive/result-state semantic-cache serving authorization, design-intake override past/perfect forms, and Redis/GPTCache connection claims. The fix preserves gate-closed, contract-only scope and broadens deterministic regression generators from 1252 to 1492 gate-open variants and from 1262 to 1700 fresh-review claim variants, with added negative controls for explicit closed/negated wording. Proof: `. .venv/bin/activate && pytest -q tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`, `.venv/bin/python scripts/ci/check_semantic_cache_gate.py`, exact Codex/current-wave plus bug-hunter probe returned `misses []` and `false_hits []`, `.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md docs/roadmap/BACKLOG_LEDGER.md`, `python scripts/orchestration/check_agent_consistency.py`, `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`, `pre-commit run --all-files`, agent-coordinator scope PASS, QA PASS, bug-hunter blocker FIXED, security-auditor PASS, and `pulseplate-premortem-risk-review` decision `proceed with changes` with findings FIXED/NOT-A-BUG in this evidence chain.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099238 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099240 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099243 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099247 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099249 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099252 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099254 -> 39334832556c2bbd21d36c6db1a4cb201cfa0b5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099238 -> 393348325ee44d0d255deeb06ef258abb07f8930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099240 -> 393348325ee44d0d255deeb06ef258abb07f8930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099243 -> 393348325ee44d0d255deeb06ef258abb07f8930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099247 -> 393348325ee44d0d255deeb06ef258abb07f8930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099249 -> 393348325ee44d0d255deeb06ef258abb07f8930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099252 -> 393348325ee44d0d255deeb06ef258abb07f8930
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1761#discussion_r3270099254 -> 393348325ee44d0d255deeb06ef258abb07f8930
 
 ## Merge Readiness
 
