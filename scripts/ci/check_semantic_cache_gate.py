@@ -2022,33 +2022,29 @@ def generate_philosophy_admission_oracle_cases(
                         "source": "policy.assertive_predicates",
                     }
                 )
-        for index, modal in enumerate(modal_operators):
-            subject = subjects[index % len(subjects)] if subjects else "Philosophy admission"
-            predicate = (
-                modal_predicates[index % len(modal_predicates)]
-                if modal_predicates
-                else "open the semantic-cache gate"
-            )
-            cases.append(
-                {
-                    "claim": f"{subject} {modal} {predicate}.",
-                    "claim_family": family_id,
-                    "expected": "forbidden",
-                    "expected_detector_label": expected_detector_label,
-                    "source": "policy.modal_predicates",
-                }
-            )
-        for index, predicate in enumerate(temporal_predicates):
-            subject = subjects[index % len(subjects)] if subjects else "Philosophy admission"
-            cases.append(
-                {
-                    "claim": f"{subject} {predicate}.",
-                    "claim_family": family_id,
-                    "expected": "forbidden",
-                    "expected_detector_label": expected_detector_label,
-                    "source": "policy.temporal_predicates",
-                }
-            )
+        for subject in subjects:
+            for modal in modal_operators:
+                for predicate in modal_predicates:
+                    cases.append(
+                        {
+                            "claim": f"{subject} {modal} {predicate}.",
+                            "claim_family": family_id,
+                            "expected": "forbidden",
+                            "expected_detector_label": expected_detector_label,
+                            "source": "policy.modal_predicates.cross_product",
+                        }
+                    )
+        for subject in subjects:
+            for predicate in temporal_predicates:
+                cases.append(
+                    {
+                        "claim": f"{subject} {predicate}.",
+                        "claim_family": family_id,
+                        "expected": "forbidden",
+                        "expected_detector_label": expected_detector_label,
+                        "source": "policy.temporal_predicates.cross_product",
+                    }
+                )
         for claim in [
             item for item in family_obj.get("seed_regressions", []) if isinstance(item, str)
         ]:

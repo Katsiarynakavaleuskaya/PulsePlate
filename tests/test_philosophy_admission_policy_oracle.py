@@ -132,6 +132,20 @@ def test_oracle_cases_match_downstream_checker_behavior() -> None:
     assert false_hits == []
 
 
+def test_post_open_qa_modal_temporal_false_green_regressions_are_blocked() -> None:
+    claims = [
+        "PR-2 may open the semantic-cache gate.",
+        "The claim-family oracle may enable the global gate.",
+        "The admission policy may write cache entries.",
+        "PR-2 has to authorize backend selection.",
+        "Billing truth became cache eligible for semantic-cache admission.",
+    ]
+
+    for claim in claims:
+        errors = validate_philosophy_semantic_cache_admission_downstream_text(claim)
+        assert errors, claim
+
+
 def test_oracle_fixture_drift_is_rejected() -> None:
     fixture = _oracle_fixture()
     cases = fixture["cases"]
