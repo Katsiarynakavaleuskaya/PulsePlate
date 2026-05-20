@@ -308,7 +308,7 @@ def check_experiment_runner_coauthor_advisory(
         try:
             resolved_path = absolute_path.resolve(strict=True)
             resolved_path.relative_to(resolved_repo_root)
-        except (OSError, ValueError):
+        except (OSError, RuntimeError, ValueError):
             warnings.append(
                 UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
             )

@@ -369,6 +369,30 @@ def test_experiment_runner_coauthor_advisory_rejects_symlink_escape(
     ]
 
 
+def test_experiment_runner_coauthor_advisory_handles_symlink_loop(
+    tmp_path: Path,
+) -> None:
+    repo_root = tmp_path / "repo"
+    result_dir = repo_root / "artifacts" / "orchestration" / "experiments" / "results"
+    result_dir.mkdir(parents=True)
+    (result_dir / "loop-a.json").symlink_to("loop-b.json")
+    (result_dir / "loop-b.json").symlink_to("loop-a.json")
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/loop-a.json\n",
+        commit_messages="feat: human-only commit\n",
+        repo_root=repo_root,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/loop-a.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
 def test_experiment_runner_coauthor_advisory_warns_on_malformed_coauthor_metadata(
     tmp_path: Path,
 ) -> None:
