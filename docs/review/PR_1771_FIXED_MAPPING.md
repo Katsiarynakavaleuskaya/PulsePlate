@@ -78,6 +78,10 @@ Role-agent dispositions:
   `2b3e01373` rejects noun/equivalence authority prose such as
   `receives approval`, `has approval`, `may call`, `can be queried`, and
   broad `data portal` / `data.europa.eu` source-authority equivalence claims.
+- Post-open `bug-hunter` second follow-up: Disposition `FIXED`. Evidence:
+  commit `bb3eade43` rejects mixed negation that masks later positive
+  product-display/nutrition-authority claims and standalone seller/partner
+  access approval prose.
 
 ## Premortem
 
@@ -236,6 +240,10 @@ Disposition: FIXED
 Commit: local role-agent finding fixed in commit `2b3e01373`
 Evidence: `core/food_sources/regional_catalog_identity.py` expands note-guard authority detection to noun approval, queried/call use wording, and data portal/source authority equivalence; `tests/test_food_source_regional_catalog_identity.py` rejects the seven adversarial examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: local role-agent finding fixed in commit `bb3eade43`
+Evidence: `core/food_sources/regional_catalog_identity.py` removes directly negated authority text before testing the rest of the clause and blocks standalone `seller access`, `partner access`, and `seller or partner access`; `tests/test_food_source_regional_catalog_identity.py` rejects the seven second-pass adversarial examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -275,7 +283,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 128 tests.
+- Focused PR17 tests: passed, 135 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
