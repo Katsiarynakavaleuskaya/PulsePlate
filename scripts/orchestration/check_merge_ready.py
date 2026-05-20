@@ -270,6 +270,10 @@ def _print_merge_ready_bundle() -> None:
         )
     print("Advisory / external signals:")
     print("- third-party review bots remain advisory unless GitHub branch protection promotes them")
+    print(
+        "- Experiment Runner Evidence is advisory in this phase; Phase2 reports missing "
+        "oracle-only artifact or not-applicable reason without blocking merge readiness"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

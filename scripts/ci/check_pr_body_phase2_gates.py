@@ -21,6 +21,7 @@ from scripts.orchestration.review_mapping_artifact import (
 PHASE2_CONFIG = {
     "discussion_heading": "Discussion Thread Pass",
     "mapping_heading": "Fixed in Commit Mapping",
+    "experiment_runner_heading": "Experiment Runner Evidence",
     "discussion_checkbox_label": "Discussion-thread pass completed",
     "mapping_checkbox_label": "Fixed in commit mapping completed",
     "mapping_na_alternatives": ("N/A", "No actionable review comments"),
@@ -39,6 +40,9 @@ def _checkbox_re(label: str) -> re.Pattern[str]:
 
 DISCUSSION_SECTION_RE = _section_heading_re("##", str(PHASE2_CONFIG["discussion_heading"]))
 MAPPING_SECTION_RE = _section_heading_re("###", str(PHASE2_CONFIG["mapping_heading"]))
+EXPERIMENT_RUNNER_SECTION_RE = _section_heading_re(
+    "##", str(PHASE2_CONFIG["experiment_runner_heading"])
+)
 DISCUSSION_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["discussion_checkbox_label"]))
 MAPPING_CHECKBOX_RE = _checkbox_re(str(PHASE2_CONFIG["mapping_checkbox_label"]))
 
@@ -48,6 +52,11 @@ MAPPING_ENTRY_RE = re.compile(
 THREAD_ENTRY_RE = re.compile(r"(?im)^\s*-\s*`?(https?://[^\s`]+)`?\s*$")
 _na_alternatives = "|".join(re.escape(a) for a in PHASE2_CONFIG["mapping_na_alternatives"])
 MAPPING_NA_RE = re.compile(rf"(?im)^\s*-\s*(?:{_na_alternatives})\s*$")
+EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
+    r"(?im)^\s*(?:-\s*)?Artifact:\s*`?(?P<path>[^`\s]+)`?\s*$"
+)
+EXPERIMENT_RUNNER_NA_RE = re.compile(r"(?im)^\s*(?:-\s*)?Not applicable:\s*(?P<reason>\S.+?)\s*$")
+EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results/"
 
 
 class BodyValidationMode(str, Enum):
@@ -111,6 +120,86 @@ def _extract_mapping_section(text: str) -> str:
     next_h2 = re.search(r"(?im)^\s*##\s+", text[start:])
     end = start + next_h2.start() if next_h2 else len(text)
     return text[start:end]
+
+
+def _extract_section_by_h2(text: str, heading: str) -> str:
+    """Return content of the last matching H2 section."""
+    heading_re = _section_heading_re("##", heading)
+    matches = list(heading_re.finditer(text))
+    if not matches:
+        return ""
+    match = matches[-1]
+    start = match.end()
+    next_h2 = re.search(r"(?im)^\s*##\s+", text[start:])
+    end = start + next_h2.start() if next_h2 else len(text)
+    return text[start:end]
+
+
+def _valid_experiment_runner_artifact_path(path: str) -> bool:
+    """Return True for local Experiment Runner result artifacts only."""
+    cleaned = path.strip().strip("`")
+    if not cleaned.endswith(".json"):
+        return False
+    if cleaned.startswith(("/", "../", "./")):
+        return False
+    if "/../" in cleaned or cleaned.endswith("/.."):
+        return False
+    return cleaned.startswith(EXPERIMENT_RUNNER_ARTIFACT_PREFIX)
+
+
+def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
+    """Validate advisory Experiment Runner evidence.
+
+    Missing evidence is a warning for this PR series. Malformed evidence is an
+    error because an invalid path or empty N/A reason creates false governance
+    proof.
+    """
+
+    cleaned = _strip_fenced_code_blocks(text)
+    section = _extract_section_by_h2(cleaned, str(PHASE2_CONFIG["experiment_runner_heading"]))
+    if not section:
+        return [], [
+            "Advisory: missing `## Experiment Runner Evidence` section with "
+            "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
+            "or `Not applicable: <reason>`."
+        ]
+
+    artifact_matches = list(EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(section))
+    na_matches = list(EXPERIMENT_RUNNER_NA_RE.finditer(section))
+    errors: list[str] = []
+
+    if artifact_matches and na_matches:
+        errors.append(
+            "Experiment Runner Evidence must use either Artifact or Not applicable, not both."
+        )
+
+    if artifact_matches:
+        invalid_paths = [
+            match.group("path")
+            for match in artifact_matches
+            if not _valid_experiment_runner_artifact_path(match.group("path"))
+        ]
+        if invalid_paths:
+            errors.append(
+                "Experiment Runner artifact path must stay under "
+                f"`{EXPERIMENT_RUNNER_ARTIFACT_PREFIX}` and end with `.json`: "
+                + ", ".join(invalid_paths)
+            )
+
+    if na_matches:
+        empty_reasons = [
+            match.group("reason") for match in na_matches if len(match.group("reason").strip()) < 8
+        ]
+        if empty_reasons:
+            errors.append("Experiment Runner not-applicable reason must be explicit.")
+
+    if not artifact_matches and not na_matches:
+        errors.append(
+            "Experiment Runner Evidence must include `Artifact: ...` or "
+            "`Not applicable: <reason>`."
+        )
+
+    return errors, []
 
 
 def _select_body_validation_mode(*, artifact_checked: bool) -> BodyValidationMode:
@@ -200,6 +289,8 @@ def main() -> int:
     body_checked = False
     artifact_errors: list[str] = []
     body_errors: list[str] = []
+    advisory_warnings: list[str] = []
+    experiment_runner_evidence_seen = False
 
     if pr_number is not None:
         try:
@@ -209,6 +300,10 @@ def main() -> int:
             return 1
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
+        evidence_errors, evidence_warnings = check_experiment_runner_evidence(artifact_text)
+        artifact_errors.extend(evidence_errors)
+        if not evidence_errors and not evidence_warnings:
+            experiment_runner_evidence_seen = True
 
     if body.strip():
         body_checked = True
@@ -218,9 +313,20 @@ def main() -> int:
                 mode=_select_body_validation_mode(artifact_checked=artifact_checked),
             )
         )
+        evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
+        body_errors.extend(evidence_errors)
+        if not evidence_errors and not evidence_warnings:
+            experiment_runner_evidence_seen = True
     elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
+
+    if not experiment_runner_evidence_seen:
+        advisory_warnings.append(
+            "Advisory: missing `## Experiment Runner Evidence` section with "
+            "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
+            "or `Not applicable: <reason>`."
+        )
 
     errors = [*artifact_errors, *body_errors]
     if errors:
@@ -232,6 +338,9 @@ def main() -> int:
         for item in errors:
             print(f"- {item}")
         return 1
+
+    for item in advisory_warnings:
+        print(f"WARNING: {item}")
 
     if artifact_checked and body_checked:
         print("phase2-pr-body-gates: canonical mapping artifact and PR body mirror passed.")

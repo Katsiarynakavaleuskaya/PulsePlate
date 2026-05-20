@@ -138,6 +138,12 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Premortem closure rule: every premortem finding must be fixed" in result.stdout
     assert "No finding may be ignored as advisory." in result.stdout
     assert ". .venv/bin/activate" in result.stdout
+    assert "Open the PR non-draft by default" in result.stdout
+    assert "Experiment Runner evidence" in result.stdout
+    assert (
+        "Default PR review checklist: agent-coordinator, architecture-specialist, "
+        "security-auditor, qa-engineer-agent, bug-hunter, dev-operator"
+    ) in result.stdout
     assert "automatically start" not in result.stdout.lower()
 
 
@@ -231,6 +237,8 @@ esac
     assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in result.stdout
     assert "Passive skills from packet: pulseplate-premortem-risk-review" in result.stdout
     assert ". .venv/bin/activate" in result.stdout
+    assert "Open the PR non-draft by default" in result.stdout
+    assert "Experiment Runner evidence" in result.stdout
     assert "did not run authoritative task_bootstrap.py" not in result.stdout
     assert "auto-start" not in result.stdout.lower()
 
@@ -242,17 +250,19 @@ def test_start_pr_lane_dry_run_uses_default_plugin_checklist() -> None:
 
     assert result.returncode == 0, result.stderr
     default_plugins = (
-        "Browser Use",
-        "Computer Use",
         "GitHub",
+        "CodeRabbit",
+        "Codex Security",
+        "Browser",
+        "Chrome",
+        "Computer Use",
         "Hugging Face",
         "Life Science Research",
-        "Plugin Eval",
-        "CodeRabbit",
     )
     for plugin in default_plugins:
         assert f"  - {plugin}" in result.stdout
-    assert result.stdout.index("  - Browser Use") < result.stdout.index("  - CodeRabbit")
+    assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
+    assert "PR open mode: non-draft by default" in result.stdout
 
 
 def test_start_pr_lane_rejects_local_only_scope_paths() -> None:

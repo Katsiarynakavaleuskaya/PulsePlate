@@ -112,6 +112,12 @@ Rules:
   advisory evidence: either a local oracle-only result artifact or a documented
   `not applicable` reason in the PR lane notes. This is not a merge-readiness
   gate until a later hardening PR explicitly promotes it.
+- PR body mirrors or fixed-mapping artifacts should include
+  `## Experiment Runner Evidence` with either:
+  `Artifact: artifacts/orchestration/experiments/results/<id>.json` or
+  `Not applicable: <reason>`. Phase2 validation reports missing evidence as an
+  advisory diagnostic in the first hardening wave; malformed evidence is a
+  normal gate error because it creates false governance proof.
 - Slack identity is not a cryptographic Git identity. A Slack bot/display
   identity remains a separate security-governed follow-up, not part of this
   experimentation protocol.
@@ -190,6 +196,27 @@ Validator-script mutation access, including any runner mutation of
 `scripts/ci/**`, requires a separate threat-model PR with an explicit allowlist,
 forbidden-surface regression tests, identity/trailer checks, rollback notes, and
 coordinator approval.
+
+### Validator-script mutation threat model (deferred)
+
+This protocol does not grant active Experiment Runner mutation access to
+`scripts/ci/**`. That surface can change the validators that decide whether a
+PR is safe, so it is treated as "rewrite the exam" authority.
+
+A later PR may propose a narrow, disabled-by-default allowlist only if it also
+defines:
+
+- exact validator script paths and purpose;
+- forbidden surfaces that remain immutable, including `AGENTS.md`,
+  `docs/review/**`, merge gates, review-thread scripts, tests, fixtures,
+  policy docs, secrets/config, and CI auth files;
+- deterministic tests proving forbidden surfaces reject candidate patches;
+- identity and co-author trailer checks for any runner-shaped commit;
+- rollback notes and an operator-owned disable path.
+
+Until that later PR lands, candidate-patch mode must continue to reject
+`scripts/ci/**`, and oracle-only mode may evaluate validators only as immutable
+oracles.
 
 ---
 

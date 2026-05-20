@@ -26,6 +26,8 @@ def test_default_policy_validates() -> None:
         == "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>"
     )
     assert policy["slack_identity"]["status"] == "deferred"
+    assert policy["validator_mutation_boundary"]["status"] == "threat_model_only"
+    assert policy["validator_mutation_boundary"]["active_mutation_access"] is False
 
 
 def test_default_co_author_guidance_validates() -> None:
@@ -310,6 +312,44 @@ def test_rejects_authority_drift_outside_main_boundary() -> None:
     }
 
     with pytest.raises(identity_check.IdentityPolicyError, match="must not grant"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_active_validator_mutation_access() -> None:
+    policy = _valid_policy()
+    policy["validator_mutation_boundary"]["active_mutation_access"] = True
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="active_mutation_access"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_validator_mutation_allowlist_in_threat_model_phase() -> None:
+    policy = _valid_policy()
+    policy["validator_mutation_boundary"]["allowlisted_validator_scripts"] = [
+        "scripts/ci/check_pr_body_phase2_gates.py"
+    ]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="allowlisted_validator_scripts"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_validator_mutation_boundary_without_forbidden_surfaces() -> None:
+    policy = _valid_policy()
+    policy["validator_mutation_boundary"]["forbidden_surface_prefixes"] = ["tests/"]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="forbidden_surface_prefixes"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_validator_mutation_boundary_without_scripts_ci() -> None:
+    policy = _valid_policy()
+    policy["validator_mutation_boundary"]["forbidden_surface_prefixes"] = [
+        item
+        for item in policy["validator_mutation_boundary"]["forbidden_surface_prefixes"]
+        if item != "scripts/ci/"
+    ]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="forbidden_surface_prefixes"):
         identity_check.validate_identity_policy(policy)
 
 

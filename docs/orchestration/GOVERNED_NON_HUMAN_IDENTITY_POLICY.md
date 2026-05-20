@@ -44,6 +44,9 @@ Forbidden in this repository:
 - treating a Git email address as proof of machine authorship,
 - granting the Experiment Runner merge rights,
 - allowing the Experiment Runner to resolve review threads or claim merge readiness.
+- allowing the Experiment Runner to mutate `scripts/ci/**` validator scripts
+  without a later threat-model PR that defines a narrow allowlist, forbidden
+  surfaces, tests, identity checks, and rollback notes.
 
 The Experiment Runner may be a co-author or local PR-lane author only when a human/coordinator-owned process keeps normal PR governance in force.
 
@@ -51,6 +54,13 @@ For oracle-only PR participation, attribution is evidence-based. Add the
 canonical co-author trailer only when the local Experiment Runner result
 artifact materially shaped the human-reviewed commit. Do not add the trailer to
 unrelated human-only commits merely because the PR lane ran the advisory oracle.
+
+Every non-trivial PR lane should record Experiment Runner participation in an
+`Experiment Runner Evidence` block: either a local oracle-only result artifact
+under `artifacts/orchestration/experiments/results/` or an explicit
+`Not applicable:` reason. This evidence is advisory until the merge-readiness
+gate is deliberately promoted in a later PR; malformed evidence is still
+rejected because it can misrepresent runner participation.
 
 ## Notification Boundary
 

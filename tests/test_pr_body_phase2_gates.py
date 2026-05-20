@@ -19,6 +19,9 @@ Phase2 PR body gate implementation.
 
 ### Fixed in Commit Mapping
 - https://github.com/org/repo/pull/719#issuecomment-123 -> 28069fd4
+
+## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp-719.json
 """
 
 VALID_BODY_MIRROR_ONLY = """## Summary
@@ -30,6 +33,9 @@ Phase2 PR body gate implementation.
 
 ### Fixed in Commit Mapping
 - canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`
+
+## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp-998.json
 """
 
 
@@ -109,6 +115,50 @@ def test_select_body_validation_mode_prefers_mirror_when_artifact_exists() -> No
         gates._select_body_validation_mode(artifact_checked=False)
         is gates.BodyValidationMode.FULL_MAPPING
     )
+
+
+def test_experiment_runner_evidence_accepts_valid_artifact_path() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/nested/result.json
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_experiment_runner_evidence_accepts_not_applicable_reason() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Not applicable: docs-only operator exception with no runner signal.
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_experiment_runner_evidence_missing_is_advisory_warning() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("## Summary\nNo evidence.\n")
+
+    assert errors == []
+    assert any("missing `## Experiment Runner Evidence`" in warning for warning in warnings)
+
+
+def test_experiment_runner_evidence_rejects_artifact_outside_results() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Artifact: artifacts/orchestration/task_packets/packet.json
+""")
+
+    assert warnings == []
+    assert any("artifacts/orchestration/experiments/results/" in error for error in errors)
+
+
+def test_experiment_runner_evidence_rejects_mixed_artifact_and_not_applicable() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp.json
+Not applicable: this should not be mixed with an artifact.
+""")
+
+    assert warnings == []
+    assert any("not both" in error for error in errors)
 
 
 def test_phase2_guard_rejects_missing_sections() -> None:
@@ -278,6 +328,7 @@ Commit: abc1234
     )
     assert result.returncode == 0
     assert "canonical mapping artifact and PR body mirror passed" in result.stdout
+    assert "WARNING:" not in result.stdout
 
 
 def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> None:
@@ -328,6 +379,9 @@ def test_phase2_rejects_invalid_pr_body_even_when_artifact_is_valid(tmp_path: Pa
 Disposition: FIXED
 Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture artifact only checks body mirror failure behavior.
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -362,6 +416,9 @@ def test_phase2_accepts_pr_number_without_explicit_body_when_artifact_is_valid(
 Disposition: FIXED
 Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp-998.json
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -396,6 +453,9 @@ def test_phase2_failure_output_only_reports_failing_scope(tmp_path: Path) -> Non
 Disposition: FIXED
 Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture artifact only checks body mirror failure behavior.
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
