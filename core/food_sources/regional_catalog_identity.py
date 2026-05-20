@@ -268,7 +268,7 @@ _USE_TERMS = (
     r"could(?:\W+\w+){0,3}\W+be used|is used|are used|used|queried|"
     r"may call|can call|could call|relied on"
 )
-_EQUIVALENCE_TERMS = r"becomes?|serves as|treated as|equals"
+_EQUIVALENCE_TERMS = r"becomes?|serve(?:s)? as|treated as|equals"
 _BLOCKED_NOTE_TERMS = (
     r"regional catalogs?|data europa eu|kroger|walmart|pepesto(?: grocery)?|pricesapi|"
     r"prices api|yandex eda|wildberries|ozon|apify|api calls?|scraping|scrapers?|downloads?|"
@@ -298,7 +298,7 @@ _FORBIDDEN_NOTE_PATTERNS = (
     ),
     re.compile(
         r"\b(?:data portal|data europa eu)\b(?:\W+\w+){0,4}\W+\b"
-        r"(?:is|becomes|serves as|treated as|equals)\b"
+        r"(?:is|becomes|serve(?:s)? as|treated as|equals)\b"
         r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
     ),
     re.compile(
@@ -326,13 +326,13 @@ _CANDIDATE_LOCAL_AUTHORITY_RE = re.compile(
     rf"\b(?:it|they|this|this candidate|these|those|(?:the\s+)?providers?|"
     rf"(?:the\s+)?sources?|candidate|"
     rf"candidates?)\b"
-    rf"(?:\W+\w+){{0,8}}\W+\b(?:is|are|serve as|serves as|act as|acts as)\b"
+    rf"(?:\W+\w+){{0,8}}\W+\b(?:is|are|serve(?:s)? as|act as|acts as)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
     rf"\b(?:this)\b(?:\W+\w+){{0,3}}\W+\b(?:{_USE_TERMS})\b"
 )
 _DIRECT_AUTHORITY_RE = re.compile(
     rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,10}}\W+\b"
-    r"(?:is|are|can be|acts as|act as|becomes?|serves as|treated as|equals)\b"
+    r"(?:is|are|can be|(?:can|may|could)\s+serve as|acts as|act as|becomes?|serve(?:s)? as|treated as|equals)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
     r"\b(?:source authority|nutrition authority|product display)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:is|are)\b"
@@ -341,13 +341,13 @@ _DIRECT_AUTHORITY_RE = re.compile(
 _BARE_CONTEXT_AUTHORITY_RE = re.compile(
     rf"^(?:but|and|then|still)?\s*(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
     r"^(?:but|and|then|still)?\s*(?:after\b.+\b)?"
-    r"(?:can be|acts as|act as|becomes?|serves as|treated as|equals)\b"
+    r"(?:(?:can|may|could)\s+serve as|can be|acts as|act as|becomes?|serve(?:s)? as|treated as|equals)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
 )
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b|"
-    r"\b(?:is|are|be|becomes?|serves as|treated as)\s+"
+    r"\b(?:is|are|be|becomes?|serve(?:s)? as|treated as)\s+"
     r"(?:no|not|never)\s+(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b"
 )

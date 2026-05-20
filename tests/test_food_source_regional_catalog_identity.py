@@ -482,6 +482,10 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Seller API acts as source authority for regional catalogs.",
         "Source authority is Seller API for regional catalog updates.",
         "Data portal is not source authority but can be product display.",
+        "Data portal can serve as source authority for regional catalogs.",
+        "Kroger may serve as nutrition authority after terms review.",
+        "Seller API could serve as product display after terms review.",
+        "Wildberries could serve as product display after terms review.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
