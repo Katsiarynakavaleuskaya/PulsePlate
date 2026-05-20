@@ -102,6 +102,14 @@ def _replace_regional_catalog_entry(**changes: object) -> SourceCatalog:
     return replace(catalog, sources=tuple(sources))
 
 
+def _without_regional_catalog_entry() -> SourceCatalog:
+    catalog = _catalog()
+    return replace(
+        catalog,
+        sources=tuple(source for source in catalog.sources if source.source != "regional_catalogs"),
+    )
+
+
 def _replace_regional_onboarding_entry(**changes: object) -> SourceOnboarding:
     onboarding = _onboarding()
     sources: list[SourceOnboardingEntry] = []
@@ -111,6 +119,16 @@ def _replace_regional_onboarding_entry(**changes: object) -> SourceOnboarding:
         else:
             sources.append(source)
     return replace(onboarding, sources=tuple(sources))
+
+
+def _without_regional_onboarding_entry() -> SourceOnboarding:
+    onboarding = _onboarding()
+    return replace(
+        onboarding,
+        sources=tuple(
+            source for source in onboarding.sources if source.source != "regional_catalogs"
+        ),
+    )
 
 
 def _replace_regional_coverage_domain(**changes: object) -> SourceGapAudit:
@@ -124,6 +142,18 @@ def _replace_regional_coverage_domain(**changes: object) -> SourceGapAudit:
     return replace(coverage, coverage_domains=tuple(domains))
 
 
+def _without_regional_coverage_domain() -> SourceGapAudit:
+    coverage = _coverage()
+    return replace(
+        coverage,
+        coverage_domains=tuple(
+            domain
+            for domain in coverage.coverage_domains
+            if domain.domain != "regional_local_products"
+        ),
+    )
+
+
 def _replace_regional_source_gap(**changes: object) -> SourceGapAudit:
     coverage = _coverage()
     decisions: list[SourceGapDecision] = []
@@ -133,6 +163,18 @@ def _replace_regional_source_gap(**changes: object) -> SourceGapAudit:
         else:
             decisions.append(decision)
     return replace(coverage, source_gap_decisions=tuple(decisions))
+
+
+def _without_regional_source_gap() -> SourceGapAudit:
+    coverage = _coverage()
+    return replace(
+        coverage,
+        source_gap_decisions=tuple(
+            decision
+            for decision in coverage.source_gap_decisions
+            if decision.source != "regional_catalogs"
+        ),
+    )
 
 
 def _pr16_report() -> dict[str, object]:
@@ -340,6 +382,128 @@ def test_regional_catalog_identity_rejects_unexpected_keys() -> None:
     payload["api_use_approved"] = True
 
     with pytest.raises(RegionalCatalogIdentityError, match="unexpected keys"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        [],
+        {1: "bad-key"},
+    ),
+)
+def test_regional_catalog_identity_rejects_non_mapping_payloads(
+    payload: object,
+) -> None:
+    with pytest.raises(RegionalCatalogIdentityError):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    (
+        ("schema_version", "", "non-empty string"),
+        ("pr16_merged_pr", True, "integer"),
+        ("api_calls_allowed", "false", "boolean"),
+        ("blocked_methods", "api_call", "list of strings"),
+        ("blocked_methods", [], "must not be empty"),
+        ("blocked_methods", ["api_call", "api_call"], "duplicate"),
+        ("blocked_methods", ["api_call"], "exactly"),
+        ("generated_on", "2026/05/19", "YYYY-MM-DD"),
+        ("generated_on", "2026-99-19", "YYYY-MM-DD"),
+        ("budget_first_policy", "", "missing non-empty string"),
+    ),
+)
+def test_regional_catalog_identity_rejects_typed_field_malformed_values(
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    payload = _identity_payload()
+    payload[field_name] = bad_value
+
+    with pytest.raises(RegionalCatalogIdentityError, match=match):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    (
+        ("candidate_id", "unknown_provider", "unknown candidate_id"),
+        ("allowed_role", "source_authority", "allowed_role"),
+        ("upstream_evidence_type", "provider_api", "upstream_evidence_type"),
+        ("blocking_reasons", ["identity and license verified"], "blocking_reasons"),
+    ),
+)
+def test_regional_catalog_identity_rejects_candidate_identity_matrix_drift(
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    payload = _identity_payload()
+    _candidate(payload, "kroger")[field_name] = bad_value
+
+    with pytest.raises(RegionalCatalogIdentityError, match=match):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+def test_regional_catalog_identity_rejects_empty_candidate_blocking_reason() -> None:
+    payload = _identity_payload()
+    _candidate(payload, "kroger")["blocking_reasons"] = [""]
+
+    with pytest.raises(RegionalCatalogIdentityError, match="blocking_reasons\\[0\\]"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+def test_regional_catalog_identity_rejects_unexpected_candidate_keys() -> None:
+    payload = _identity_payload()
+    _candidate(payload, "kroger")["runtime_ready"] = True
+
+    with pytest.raises(RegionalCatalogIdentityError, match="unexpected candidate keys"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+def test_regional_catalog_identity_rejects_non_list_candidate_reviews() -> None:
+    payload = _identity_payload()
+    payload["candidate_reviews"] = "not-a-list"
+
+    with pytest.raises(RegionalCatalogIdentityError, match="candidate_reviews must be a list"):
         parse_regional_catalog_identity_governance(
             payload,
             catalog=_catalog(),
@@ -892,6 +1056,17 @@ def test_regional_catalog_identity_rejects_pr3_catalog_policy_drift_directly() -
         )
 
 
+def test_regional_catalog_identity_rejects_missing_pr3_catalog_entry() -> None:
+    with pytest.raises(RegionalCatalogIdentityError, match="catalog must include"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_without_regional_catalog_entry(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     (
@@ -929,6 +1104,17 @@ def test_regional_catalog_identity_rejects_pr5_onboarding_policy_drift_directly(
             _identity_payload(),
             catalog=_catalog(),
             onboarding=_replace_regional_onboarding_entry(cache_decision="legacy_review_only"),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+def test_regional_catalog_identity_rejects_missing_pr5_onboarding_entry() -> None:
+    with pytest.raises(RegionalCatalogIdentityError, match="onboarding must include"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_without_regional_onboarding_entry(),
             coverage=_coverage(),
             pr16_report=_pr16_report(),
         )
@@ -1087,6 +1273,28 @@ def test_regional_catalog_identity_rejects_pr11_source_authority_drift_directly(
         )
 
 
+def test_regional_catalog_identity_rejects_missing_pr11_regional_domain() -> None:
+    with pytest.raises(RegionalCatalogIdentityError, match="regional_local_products"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_without_regional_coverage_domain(),
+            pr16_report=_pr16_report(),
+        )
+
+
+def test_regional_catalog_identity_rejects_missing_pr11_regional_source() -> None:
+    with pytest.raises(RegionalCatalogIdentityError, match="regional_catalogs source"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_without_regional_source_gap(),
+            pr16_report=_pr16_report(),
+        )
+
+
 @pytest.mark.parametrize(
     "bad_notes",
     (
@@ -1119,6 +1327,78 @@ def test_regional_catalog_identity_rejects_pr16_handoff_drift() -> None:
     pr16_report["next_substantive_lane"] = "paid_provider_runtime_review"
 
     with pytest.raises(RegionalCatalogIdentityError, match="PR16 next_substantive_lane"):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=pr16_report,
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("schema_version", "bad.v1"),
+        ("pr16_merged_pr", 0),
+        ("source", "paid_provider_source"),
+        ("source_classification", "runtime_source"),
+        ("source_family", "paid_provider"),
+        ("evidence_policy", "source_authority_allowed"),
+        ("external_research_evidence_role", "source_authority"),
+        ("next_recommended_lane", "provider_runtime"),
+        ("final_gate_decision", "runtime_ready"),
+    ),
+)
+def test_regional_catalog_identity_rejects_top_level_identity_drift(
+    field_name: str,
+    bad_value: object,
+) -> None:
+    payload = _identity_payload()
+    payload[field_name] = bad_value
+
+    with pytest.raises(RegionalCatalogIdentityError):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("expected_kwargs", "match"),
+    (
+        ({"expected_catalog_ref": "docs/architecture/WRONG_CATALOG.json"}, "catalog_ref"),
+        ({"expected_onboarding_ref": "docs/architecture/WRONG_ONBOARDING.json"}, "onboarding_ref"),
+        ({"expected_coverage_ref": "docs/architecture/WRONG_PR11.json"}, "coverage_ref"),
+        (
+            {"expected_pr16_closeout_ref": "docs/architecture/WRONG_PR16.json"},
+            "pr16_closeout_ref",
+        ),
+    ),
+)
+def test_regional_catalog_identity_rejects_expected_reference_mismatch(
+    expected_kwargs: dict[str, str],
+    match: str,
+) -> None:
+    with pytest.raises(RegionalCatalogIdentityError, match=match):
+        parse_regional_catalog_identity_governance(
+            _identity_payload(),
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+            **expected_kwargs,
+        )
+
+
+def test_regional_catalog_identity_rejects_failed_pr16_report() -> None:
+    pr16_report = _pr16_report()
+    pr16_report["success"] = False
+
+    with pytest.raises(RegionalCatalogIdentityError, match="PR16 closeout report"):
         parse_regional_catalog_identity_governance(
             _identity_payload(),
             catalog=_catalog(),
@@ -1306,6 +1586,20 @@ def test_regional_catalog_identity_cli_returns_nonzero_for_invalid_payload(tmp_p
     assert payload["api_calls_allowed"] is True
 
 
+def test_regional_catalog_identity_rejects_malformed_artifact(tmp_path: Path) -> None:
+    malformed_path = tmp_path / "regional_identity.json"
+    malformed_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(RegionalCatalogIdentityError, match="Cannot read"):
+        load_regional_catalog_identity_governance(
+            malformed_path,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
 def test_regional_catalog_identity_report_preserves_malformed_safety_flags(
     tmp_path: Path,
 ) -> None:
@@ -1329,6 +1623,48 @@ def test_regional_catalog_identity_report_preserves_malformed_safety_flags(
     assert report["api_calls_allowed"] == "true"
     assert report["file_only"] == "false"
     assert "api_calls_allowed" in str(report["validation_errors"][0])
+
+
+def test_regional_catalog_identity_report_tolerates_unreadable_safety_flags(
+    tmp_path: Path,
+) -> None:
+    bad_path = tmp_path / "bad_identity.json"
+    bad_path.write_text("{not-json", encoding="utf-8")
+
+    report = build_regional_catalog_identity_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        regional_identity_path=bad_path,
+    )
+
+    assert report["success"] is False
+    assert report["api_calls_allowed"] is False
+    assert report["validation_errors"]
+
+
+def test_regional_catalog_identity_report_ignores_non_mapping_safety_payload(
+    tmp_path: Path,
+) -> None:
+    bad_path = tmp_path / "bad_identity.json"
+    bad_path.write_text("[]", encoding="utf-8")
+
+    report = build_regional_catalog_identity_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        regional_identity_path=bad_path,
+    )
+
+    assert report["success"] is False
+    assert report["seller_api_use_allowed"] is False
+    assert report["validation_errors"]
 
 
 def test_regional_catalog_identity_cli_prints_validation_errors_without_json(
