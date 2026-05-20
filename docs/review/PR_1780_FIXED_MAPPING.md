@@ -12,16 +12,14 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
-Commit: e4dac0c28
+Commit: e4dac0c2840831132cec51f69adcc9b90245f9d1
 Evidence: Added deterministic PR16/PR17 food-source governance tests for malformed payloads, typed field rejection, expected reference drift, source-policy drift, missing regional handoff entries, candidate matrix drift, malformed artifact/report handling, and file-only CLI/report invariants. Local proof: focused pytest passed for `tests/test_food_source_preference_mapping_closeout.py` and `tests/test_food_source_regional_catalog_identity.py`; focused coverage for the two affected modules improved from `83.61%` to `95.32%`; `tests/test_repo_policy_guards.py` passed; CLI JSON smokes passed for both PR16 and PR17 gates.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1780 -> e4dac0c28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1780 -> e4dac0c2840831132cec51f69adcc9b90245f9d1
 
 Disposition: FIXED
-Commit: 0d601a2f0
+Commit: 0d601a2f05fcf148e32ce177a44f72c6d08db374
 Evidence: Replaced `Phase2` with `Phase 2` in the PR #1780 fixed mapping text after CodeRabbit flagged the spacing/readability issue.
-
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1780#discussion_r3274876234 -> 0d601a2f0
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1780#discussion_r3274876234 -> 0d601a2f05fcf148e32ce177a44f72c6d08db374
 
 ## Premortem Disposition
 
