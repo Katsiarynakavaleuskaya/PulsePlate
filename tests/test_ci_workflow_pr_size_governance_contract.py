@@ -75,6 +75,7 @@ CODECOV_ACTION_NODE24_SHA = "".join(
         "3de2",
     )
 )
+PYTHON_TEST_JOB_NAMES = ("test-pr", "test-feature", "test-main")
 OLD_DOWNLOAD_ARTIFACT_SHA = "".join(
     (
         "fa0a",
@@ -793,7 +794,7 @@ def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
     jobs = workflow["jobs"]
     assert isinstance(jobs, dict)
 
-    for job_name in ("test-pr", "test-feature", "test-main"):
+    for job_name in PYTHON_TEST_JOB_NAMES:
         steps = jobs[job_name]["steps"]
         step_names = [step.get("name") for step in steps]
         root_index = step_names.index("Install root Node dependencies")

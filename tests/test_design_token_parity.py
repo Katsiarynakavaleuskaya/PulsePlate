@@ -124,14 +124,14 @@ def _style_dictionary_export_entrypoint(package_json: Path) -> Path:
         main = package_data.get("main")
         if isinstance(main, str):
             entrypoint = main
-    assert entrypoint is not None, (
-        f"{package_json}: style-dictionary package metadata must define an "
-        "exports['.'] or main entrypoint"
-    )
+    if entrypoint is None:
+        pytest.fail(
+            f"{package_json}: style-dictionary package metadata must define an "
+            "exports['.'] or main entrypoint"
+        )
     resolved_entrypoint = (package_root / entrypoint).resolve()
-    assert resolved_entrypoint.is_relative_to(
-        package_root.resolve()
-    ), f"{package_json}: style-dictionary entrypoint must stay inside package root"
+    if not resolved_entrypoint.is_relative_to(package_root.resolve()):
+        pytest.fail(f"{package_json}: style-dictionary entrypoint must stay inside package root")
     return resolved_entrypoint
 
 
@@ -148,11 +148,12 @@ def _require_style_dictionary_toolchain(
         pytest.skip(message)
 
     entrypoint = _style_dictionary_export_entrypoint(package_json)
-    assert entrypoint.is_file(), (
-        f"style-dictionary package entrypoint is missing: {entrypoint}. "
-        "The frontend toolchain install is partial or corrupt; run "
-        "`cd frontend && npm ci`."
-    )
+    if not entrypoint.is_file():
+        pytest.fail(
+            f"style-dictionary package entrypoint is missing: {entrypoint}. "
+            "The frontend toolchain install is partial or corrupt; run "
+            "`cd frontend && npm ci`."
+        )
     return entrypoint
 
 
@@ -613,7 +614,7 @@ def test_style_dictionary_readiness_rejects_partial_install(tmp_path: Path) -> N
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="partial or corrupt"):
+    with pytest.raises(pytest.fail.Exception, match="partial or corrupt"):
         _require_style_dictionary_toolchain(package_json)
 
 
@@ -627,7 +628,7 @@ def test_style_dictionary_readiness_rejects_entrypoint_traversal(
         encoding="utf-8",
     )
 
-    with pytest.raises(AssertionError, match="inside package root"):
+    with pytest.raises(pytest.fail.Exception, match="inside package root"):
         _style_dictionary_export_entrypoint(package_json)
 
 
