@@ -33,6 +33,18 @@ oracle.
   scan is running after PR creation.
 - `bug-hunter` - pre-open pass completed; post-open pass is pending after QA per
   role order.
+- `bug-hunter` post-open provider-approval finding - FIXED in commit
+  `92083c466`. Evidence:
+  `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json`
+  adds Redis/GPTCache/provider-backed approval predicates and seed regressions,
+  the oracle fixture was regenerated, and
+  `tests/test_philosophy_admission_policy_oracle.py` now rejects those examples.
+- `bug-hunter` post-open CI-wiring finding - FIXED in commit `92083c466`.
+  Evidence: `.github/workflows/ci.yml` now passes the policy JSON and generated
+  oracle fixture into Docs Phase1 gates and includes
+  `tests/test_philosophy_admission_policy_oracle.py` in route contract safety
+  suites; `tests/test_ci_workflow_pr_size_governance_contract.py` guards both
+  workflow contracts.
 
 ## Local Validation
 
