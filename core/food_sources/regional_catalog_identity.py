@@ -270,6 +270,13 @@ _EXPECTED_TOP_LEVEL_NOTES = (
     "activity, cache authority, redistribution, runtime source authority, product "
     "display, nutrition authority, database writes, and ingest blocked."
 )
+_EXPECTED_BUDGET_FIRST_POLICY = (
+    "USDA and Open Food Facts remain the budget-first canonical nutrition baseline. "
+    "Regional catalog candidates in attached source reports and charts are review context "
+    "only. PR17 keeps API calls, seller or partner access, scraping, downloads, paid "
+    "source activity, cache authority, redistribution, runtime source authority, product "
+    "display, and nutrition authority blocked."
+)
 
 _BLOCKED_STATUS_FIELDS = {
     "provider_identity_status": "not_verified",
@@ -1237,9 +1244,10 @@ def parse_regional_catalog_identity_governance(
     blocked_methods = _require_string_tuple(
         data, "blocked_methods", context, expected=BLOCKED_METHODS
     )
-    budget_first_policy = _require_safe_notes(
-        _require_string(data, "budget_first_policy", context),
+    budget_first_policy = _require_controlled_notes(
+        _require_exact_string(data, "budget_first_policy", context),
         context,
+        expected=_EXPECTED_BUDGET_FIRST_POLICY,
     )
     _require_safety_flags(data, context)
     candidate_reviews = _candidate_reviews(data, context)

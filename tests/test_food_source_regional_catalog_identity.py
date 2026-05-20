@@ -651,6 +651,35 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
 
 
 @pytest.mark.parametrize(
+    "bad_budget_policy",
+    (
+        "Seller API was accessed for testing.",
+        "Seller API fetched data for testing.",
+        "Seller API is acceptable for testing.",
+        "After legal review approved for staging. Seller API remains blocked for PR17.",
+        "Approved for staging.",
+        "Allowed for testing.",
+        "Seller API has access for testing.",
+        "Seller API may access partner API.",
+    ),
+)
+def test_regional_catalog_identity_rejects_budget_policy_drift(
+    bad_budget_policy: str,
+) -> None:
+    payload = _identity_payload()
+    payload["budget_first_policy"] = bad_budget_policy
+
+    with pytest.raises(RegionalCatalogIdentityError, match="controlled PR17 governance text"):
+        parse_regional_catalog_identity_governance(
+            payload,
+            catalog=_catalog(),
+            onboarding=_onboarding(),
+            coverage=_coverage(),
+            pr16_report=_pr16_report(),
+        )
+
+
+@pytest.mark.parametrize(
     "safe_notes",
     (
         "API calls are not approved for regional catalog checks.",
