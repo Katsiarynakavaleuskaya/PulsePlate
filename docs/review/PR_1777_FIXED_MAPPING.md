@@ -88,9 +88,9 @@ Reason: The review-level helper extraction suggestion is a maintainability idea,
   - PASS.
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md docs/roadmap/BACKLOG_LEDGER.md docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json tests/fixtures/orchestration/philosophy_admission_claim_oracle.json`
   - PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`
+- `.venv/bin/python -m pytest -q tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`
   - PASS.
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed`
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
   - PASS.
 - `pre-commit run --all-files` - PASS.
 - Pre-push hooks - PASS, including mypy, pip-audit, backend tests, full-repo

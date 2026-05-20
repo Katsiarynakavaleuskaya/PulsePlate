@@ -189,9 +189,9 @@ Focused gates:
 
 ```bash
 python3 scripts/ci/check_semantic_cache_gate.py --check-philosophy-admission-oracle-drift
-/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py
+.venv/bin/python -m pytest -q tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py
 python3 scripts/orchestration/check_agent_consistency.py
-DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed
+DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed
 pre-commit run --all-files
 ```
 
