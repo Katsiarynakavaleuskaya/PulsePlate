@@ -205,6 +205,7 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 allows caching raw PII safely.", "raw sensitive data cacheable"),
         ("PR-V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("PR‑V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 permits Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 allows GPTCache for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 grants permission for Redis rollout.", "PR-V1 approves Redis/GPTCache"),
@@ -216,7 +217,9 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 selects semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 grants permission for semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
+        ("PR-V1 opens\nsemantic-cache serving.", "PR-V1 opens semantic cache"),
         ("PR V1 opens semantic-cache serving.", "PR-V1 opens semantic cache"),
+        ("PR-V1 opens semantic‑cache serving.", "PR-V1 opens semantic cache"),
         ("Semantic-cache serving is permitted by PR-V1.", "semantic cache"),
         ("Semantic-cache serving has PR-V1 permission.", "semantic cache"),
     ],
@@ -243,12 +246,14 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         + "PR-V1 does not permit semantic-cache serving.\n"
         + "PR V1 does not permit semantic-cache serving.\n"
         + "Semantic-cache has no approval for serving rollout.\n"
+        + "PR-V1 is not a semantic-cache rollout or backend-selection approval.\n"
         + "Redis is not approved for semantic-cache rollout.\n"
         + "GPTCache has no permission for semantic-cache rollout.\n"
         + "Raw prompts are not cacheable.\n"
         + "PR-V1 does not cache raw prompts.\n"
         + "Raw prompts cannot be cached.\n"
         + "Raw responses are never cached.\n"
+        + "Raw prompts are prohibited from being cached.\n"
         + "Raw sensitive data is not cacheable.\n"
         + "Raw account data is not cacheable.\n",
         encoding="utf-8",
@@ -271,6 +276,10 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         (
             "Semantic-cache is not production-ready but PR-V1 opens semantic-cache serving.",
             "PR-V1 opens semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis for semantic-cache rollout and allows semantic-cache serving.",
+            "semantic cache serving approval verb",
         ),
         (
             "No stale finding left here. PR-V1 can cache raw account data safely.",
@@ -317,6 +326,21 @@ def test_checker_rejects_stale_pr1491_mapping_readiness_claim(tmp_path: Path) ->
     mapping = tmp_path / "docs/review/PR_1491_FIXED_MAPPING.md"
     mapping.write_text(
         _valid_mapping() + "\nEvidence: current head needs one final current-head CI pass.\n",
+        encoding="utf-8",
+    )
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("current head needs one final current-head CI pass" in error for error in errors)
+
+
+def test_checker_rejects_stale_pr1491_mapping_readiness_claim_case_insensitive(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1491_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nEvidence: Current head needs one final current-head CI pass.\n",
         encoding="utf-8",
     )
 

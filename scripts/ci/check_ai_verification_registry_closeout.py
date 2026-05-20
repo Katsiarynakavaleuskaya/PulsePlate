@@ -58,8 +58,18 @@ SENSITIVE_CACHE_TERMS = (
 )
 
 SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
-CLAIM_GAP = r"[^.!?\n]*"
+CLAIM_GAP = r"(?:(?!\n\s*(?:[-*]|#))[^.!?])*"
 PR_V1_PATTERN = r"pr[- ]?v1"
+UNICODE_DASH_TRANSLATION = str.maketrans(
+    {
+        "\u2010": "-",
+        "\u2011": "-",
+        "\u2012": "-",
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2212": "-",
+    }
+)
 
 FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
@@ -97,6 +107,14 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|allows?|allowed|permits?|permitted|"
             r"selects?|selected|approval|permission|grants?\s+permission)"
+            rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
+            re.I,
+        ),
+    ),
+    (
+        "semantic cache serving approval verb",
+        re.compile(
+            r"\b(?:approves?|allows?|permits?|selects?|grants?\s+permission)"
             rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
             re.I,
         ),
@@ -199,6 +217,12 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         re.I,
     ),
     re.compile(
+        r"\b(?:does\s+not|doesn't|must\s+not|should\s+not|cannot|can't)\b"
+        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
+        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|redis|gptcache)\b",
+        re.I,
+    ),
+    re.compile(
         rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
         r"(?:is\s+not|isn't|has\s+not|hasn't|not)\b"
         rf"{CLAIM_GAP}\b(?:active|enabled|open|live|production[- ]ready|approved|"
@@ -208,6 +232,11 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
     re.compile(
         rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b(?:has|requires)?\s*no\b"
         rf"{CLAIM_GAP}\b(?:approval|permission)\b",
+        re.I,
+    ),
+    re.compile(
+        rf"\bnot\s+(?:a\s+)?semantic[- ]cache\b{CLAIM_GAP}\b"
+        r"(?:rollout|activation|approval|permission|backend[- ]selection\s+approval)\b",
         re.I,
     ),
     re.compile(
@@ -231,6 +260,12 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         re.I,
     ),
     re.compile(
+        rf"\braw\s+(?:model\s+)?(?:prompts?|responses?|{SENSITIVE_CACHE_TERM_PATTERN})\b"
+        rf"{CLAIM_GAP}\b(?:prohibited|forbidden|barred|blocked)\b"
+        rf"{CLAIM_GAP}\bfrom\b{CLAIM_GAP}\b(?:being\s+)?(?:cache|caching|cached|cacheable)\b",
+        re.I,
+    ),
+    re.compile(
         r"\b(?:does\s+not|doesn't|must\s+not|should\s+not|cannot|can't|never)\b"
         rf"{CLAIM_GAP}\b(?:cache|caching)\b{CLAIM_GAP}\braw\s+"
         rf"(?:model\s+)?(?:prompts?|responses?|{SENSITIVE_CACHE_TERM_PATTERN})\b",
@@ -244,6 +279,10 @@ def _read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8")
     except FileNotFoundError as exc:
         raise FileNotFoundError(f"missing required file: {path}") from exc
+
+
+def _normalize_claim_text(text: str) -> str:
+    return text.translate(UNICODE_DASH_TRANSLATION)
 
 
 def _section_after_anchor(text: str, *, anchor: str, next_anchor: str = "\n<a id=") -> str:
@@ -272,7 +311,7 @@ def _require_contains(errors: list[str], label: str, text: str, needle: str) -> 
 
 
 def _reject_contains(errors: list[str], label: str, text: str, needle: str) -> None:
-    if needle in text:
+    if needle.casefold() in text.casefold():
         errors.append(f"{label}: stale or forbidden phrase remains `{needle}`")
 
 
@@ -296,6 +335,7 @@ def _validate_semantic_cache_gate_markers(text: str) -> list[str]:
 
 def _validate_forbidden_claims(label: str, text: str) -> list[str]:
     errors: list[str] = []
+    text = _normalize_claim_text(text)
     for claim, pattern in FORBIDDEN_PR_V1_CLAIMS:
         for match in pattern.finditer(text):
             if not _is_negated_forbidden_claim(text, match):
@@ -315,10 +355,12 @@ def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
         )
         + 1
     )
-    contrast_re = re.compile(r"\b(?:but|however|yet|although|though)\b", re.I)
+    contrast_re = re.compile(r"\b(?:and|but|however|yet|although|though)\b", re.I)
     for contrast in contrast_re.finditer(text, local_start, match.start()):
         local_start = contrast.end()
     snippet = text[local_start : match.end()]
+    for contrast in contrast_re.finditer(snippet):
+        snippet = snippet[contrast.end() :]
     return any(pattern.search(snippet) for pattern in NEGATED_FORBIDDEN_CLAIM_PATTERNS)
 
 
