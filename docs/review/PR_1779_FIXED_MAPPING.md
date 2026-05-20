@@ -15,12 +15,16 @@ resolved without disposition evidence.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 9b79b240b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437 -> c20b185ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452 -> c20b185ce
 Disposition: FIXED
-Commit: 9b79b240b
+Commit: 9b79b240b, c20b185ce
 Evidence: `.cursor/agents/qa-engineer-agent.md:35` fixes the Sourcery tense issue.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:60` and `tests/test_ai_verification_registry_closeout.py:181` add class-based forbidden-claim regression coverage for raw prompt/response caching, Redis rollout approval, and semantic-cache production-ready wording.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:16` documents why the public merge SHA remains split to avoid a detect-secrets false positive.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:152` and `tests/test_ai_verification_registry_closeout.py:210` ignore explicitly negated gate-closed safety statements.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:323` and `tests/test_ai_verification_registry_closeout.py:225` scope stale PR #1491 wording checks to the Post-Merge Closeout section.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 ## Post-Open Role-Agent Findings
@@ -39,11 +43,21 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - bug-hunter finding: merge-readiness checklist used impossible `check_pr_body_phase2_gates.py --require-auth` command.
   - Disposition: FIXED
   - Commit: `f799985d3`
-  - Evidence: `docs/review/PR_1779_FIXED_MAPPING.md:64`
+  - Evidence: `docs/review/PR_1779_FIXED_MAPPING.md:76`
 - bug-hunter finding: duplicate `## 12)` section in Engineering Lessons.
   - Disposition: FIXED
   - Commit: `f799985d3`
   - Evidence: `docs/ENGINEERING_LESSONS.md:223`, `docs/ENGINEERING_LESSONS.md:248`, and `docs/ENGINEERING_LESSONS.md:423`
+- security-auditor finding: exact resolved Sourcery discussion was missing from canonical mapping.
+  - Disposition: FIXED
+  - Evidence: this artifact lists `#discussion_r3274300516` in Fixed in Commit Mapping.
+- security-auditor finding: raw account data, secrets, credentials, tokens, and PII cacheability claims false-greened.
+  - Disposition: FIXED
+  - Commit: `c20b185ce`
+  - Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:50` and `tests/test_ai_verification_registry_closeout.py:186`
+- security-auditor finding: mapping evidence pointed at the wrong line for the Phase2 command correction.
+  - Disposition: FIXED
+  - Evidence: this artifact points the Phase2 command correction at the corrected checklist line.
 
 ## Local Evidence
 
