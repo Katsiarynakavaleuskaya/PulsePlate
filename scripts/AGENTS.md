@@ -51,6 +51,10 @@
   identities such as `runner@example.com` are not allowed for new attribution.
   When Experiment Runner materially contributes to a commit, use exactly:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+  Oracle-only results can be material contributions even when
+  `mutated_paths: []`; use the trailer only when the referenced result artifact
+  actually shaped the plan, validation, mapping, review disposition, or commit
+  decision.
 - `scripts/orchestration/check_experiment_runner_identity.py` validates the
   machine-readable identity policy. It must remain offline, deterministic, and
   must not generate, read, or persist signing key material.

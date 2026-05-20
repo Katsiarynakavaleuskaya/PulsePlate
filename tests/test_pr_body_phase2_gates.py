@@ -152,6 +152,15 @@ Not applicable: docs-only operator exception with no runner signal.
     assert warnings == []
 
 
+def test_experiment_runner_evidence_rejects_short_not_applicable_reason() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
+Not applicable: no
+""")
+
+    assert warnings == []
+    assert any("not-applicable reason" in error for error in errors)
+
+
 def test_experiment_runner_evidence_missing_is_advisory_warning() -> None:
     errors, warnings = gates.check_experiment_runner_evidence("## Summary\nNo evidence.\n")
 
@@ -194,6 +203,69 @@ Not applicable: this should not be mixed with an artifact.
 
     assert warnings == []
     assert any("not both" in error for error in errors)
+
+
+def test_experiment_runner_coauthor_advisory_warns_when_required_trailer_missing(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    body = """## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/oracle.json
+"""
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        body,
+        commit_messages="feat: human-only commit\n",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/oracle.json` sets "
+        "coauthor_required=true, but branch commits do not include the canonical "
+        "Experiment Runner co-author trailer. Reason: Runner oracle shaped the fixed mapping."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_clears_when_trailer_present(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(json.dumps({"coauthor_required": True}), encoding="utf-8")
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+
+
+def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Not applicable: docs-only operator exception with no runner signal.\n",
+        commit_messages="feat: human-only commit\n",
+    )
+
+    assert warnings == []
 
 
 def test_phase2_guard_rejects_missing_sections() -> None:

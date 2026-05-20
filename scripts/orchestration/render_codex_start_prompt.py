@@ -156,7 +156,7 @@ def render_packet_prompt(
             "",
             "Open the PR non-draft by default so GitHub, CodeRabbit, Cubic, Sourcery, and current-head checks can run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
-            "Experiment Runner evidence: run oracle-only mode when useful, then record `## Experiment Runner Evidence` with a local result artifact path or an explicit `Not applicable:` reason.",
+            "Experiment Runner evidence: for every non-trivial PR, create oracle-only evidence by default and record `## Experiment Runner Evidence` with a local result artifact path; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
             "For local Python gates in the worktree, run: . .venv/bin/activate",
             "Then run only the scoped validation bundle required by the lane before any readiness claim.",
@@ -204,7 +204,7 @@ def render_recipe_prompt(
             "Next required repo command: run task_bootstrap.py with the printed arguments, then follow the generated packet.",
             "Open the PR non-draft by default so bot review and current-head checks run; draft requires an explicit operator exception.",
             "Skills are passive/discovery-only; they do not replace agent-coordinator, task_bootstrap.py, review governance, or merge-readiness gates.",
-            "After bootstrap, create oracle-only Experiment Runner evidence when useful and record it under `## Experiment Runner Evidence`.",
+            "After bootstrap, create oracle-only Experiment Runner evidence by default for non-trivial PRs and record it under `## Experiment Runner Evidence`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
             "For local Python gates in the worktree, run: . .venv/bin/activate",
         ]

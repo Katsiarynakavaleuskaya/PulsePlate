@@ -139,6 +139,8 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
         in prompt
     )
     assert "Skills are passive/discovery-only" in prompt
+    assert "for every non-trivial PR, create oracle-only evidence by default" in prompt
+    assert "Not applicable: <reason>" in prompt
     assert "Premortem closure rule: every premortem finding must be fixed" in prompt
     assert "No finding may be ignored as advisory." in prompt
     assert ". .venv/bin/activate" in prompt
@@ -165,6 +167,8 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "did not create a task packet" in prompt
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in prompt
     assert "Next required repo command: run task_bootstrap.py" in prompt
+    assert "create oracle-only Experiment Runner evidence by default for non-trivial PRs" in prompt
+    assert "Not applicable: <reason>" in prompt
     assert "No finding may be ignored as advisory." in prompt
 
 

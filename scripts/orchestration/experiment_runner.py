@@ -33,6 +33,7 @@ from app.security import execution_sandbox as sandbox
 from app.security.execution_sandbox import SandboxRequest
 from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
 from scripts.orchestration.experiment_contract import (
+    CONTRIBUTION_KINDS,
     DEFAULT_STOP_CONDITION,
     DEFAULT_RUNNER_MODE,
     ORACLE_BINARY_ALLOWLIST,
@@ -75,8 +76,16 @@ def _result_payload(
     oracle_results: list[dict[str, Any]],
     budget_observations: dict[str, Any],
     shared_tree_untouched: bool,
+    contribution_kind: str = "none",
+    coauthor_required: bool = False,
+    coauthor_reason: str = "",
 ) -> dict[str, Any]:
     """Build the stable result payload returned by the runner."""
+
+    if status != "accepted":
+        contribution_kind = "none"
+        coauthor_required = False
+        coauthor_reason = ""
 
     return {
         "schema_version": RESULT_SCHEMA_VERSION,
@@ -90,6 +99,9 @@ def _result_payload(
         "budget_observations": budget_observations,
         "shared_tree_untouched": shared_tree_untouched,
         "promotion_ready": False,
+        "contribution_kind": contribution_kind,
+        "coauthor_required": coauthor_required,
+        "coauthor_reason": coauthor_reason,
     }
 
 
@@ -652,8 +664,26 @@ def evaluate_candidate(packet: dict[str, Any], candidate_patch_path: Path) -> di
     return result
 
 
-def evaluate_oracle_only_governance_reviewer(packet: dict[str, Any]) -> dict[str, Any]:
+def evaluate_oracle_only_governance_reviewer(
+    packet: dict[str, Any],
+    *,
+    contribution_kind: str = "none",
+    coauthor_required: bool = False,
+    coauthor_reason: str = "",
+) -> dict[str, Any]:
     """Run immutable governance oracles without applying any candidate patch."""
+
+    if contribution_kind not in CONTRIBUTION_KINDS:
+        allowed_kinds = ", ".join(CONTRIBUTION_KINDS)
+        raise PolicyViolationError(f"contribution_kind must be one of: {allowed_kinds}")
+    if coauthor_required and contribution_kind == "none":
+        raise PolicyViolationError("coauthor_required requires a material contribution_kind")
+    if contribution_kind != "none" and not coauthor_required:
+        raise PolicyViolationError("material contribution_kind requires coauthor_required")
+    if coauthor_required and not coauthor_reason.strip():
+        raise PolicyViolationError("coauthor_required requires a non-empty coauthor_reason")
+    if not coauthor_required and coauthor_reason.strip():
+        raise PolicyViolationError("coauthor_reason requires coauthor_required")
 
     try:
         packet = validate_experiment_packet(packet)
@@ -716,6 +746,9 @@ def evaluate_oracle_only_governance_reviewer(packet: dict[str, Any]) -> dict[str
                 oracle_results=oracle_results,
                 budget_observations=budget_observations,
                 shared_tree_untouched=True,
+                contribution_kind=contribution_kind,
+                coauthor_required=coauthor_required,
+                coauthor_reason=coauthor_reason.strip(),
             )
         finally:
             try:
@@ -790,6 +823,25 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Defaults to artifacts/orchestration/experiments/results/<id>.json"
         ),
     )
+    parser.add_argument(
+        "--contribution-kind",
+        default="none",
+        choices=CONTRIBUTION_KINDS,
+        help=(
+            "Material Experiment Runner contribution kind for advisory attribution. "
+            "Use with --coauthor-required only when the oracle result will shape the PR."
+        ),
+    )
+    parser.add_argument(
+        "--coauthor-required",
+        action="store_true",
+        help="Mark the result artifact as requiring the canonical Experiment Runner trailer.",
+    )
+    parser.add_argument(
+        "--coauthor-reason",
+        default="",
+        help="Human-readable reason when --coauthor-required is set.",
+    )
     return parser.parse_args(argv)
 
 
@@ -809,8 +861,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.candidate_patch:
             print("FAIL: oracle-only governance reviewer mode does not accept --candidate-patch")
             return 1
-        result = evaluate_oracle_only_governance_reviewer(packet)
+        try:
+            result = evaluate_oracle_only_governance_reviewer(
+                packet,
+                contribution_kind=args.contribution_kind,
+                coauthor_required=bool(args.coauthor_required),
+                coauthor_reason=args.coauthor_reason,
+            )
+        except PolicyViolationError as exc:
+            print(f"FAIL: {exc}")
+            return 1
     else:
+        if args.coauthor_required or args.contribution_kind != "none" or args.coauthor_reason:
+            print("FAIL: contribution attribution flags are supported only in oracle-only mode")
+            return 1
         if not args.candidate_patch:
             print("FAIL: --candidate-patch is required for candidate_patch runner mode")
             return 1

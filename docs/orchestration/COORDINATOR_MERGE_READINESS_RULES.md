@@ -103,7 +103,7 @@ This lifecycle is mandatory operating behavior, not just a recommendation. The f
 
 - `## Discussion Thread Pass` with checkboxes completed.
 - `### Fixed in Commit Mapping` present as a mirror section for human review.
-- `## Experiment Runner Evidence` with either a local result artifact path or an explicit `Not applicable:` reason. Missing evidence is advisory in the first hardening wave; malformed evidence is a Phase2 error.
+- `## Experiment Runner Evidence` with either a local result artifact path or an explicit `Not applicable:` reason. Non-trivial PRs should create oracle-only evidence by default; `Not applicable` requires a concrete reason. Missing evidence is advisory in the first hardening wave; malformed evidence is a Phase2 error.
 - `## Merge Readiness` section.
 
 Canonical review-thread mappings live in `docs/review/PR_<N>_FIXED_MAPPING.md`. The PR body no longer needs late-cycle URL→SHA duplication once the canonical artifact exists.

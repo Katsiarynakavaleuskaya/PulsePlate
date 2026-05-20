@@ -371,6 +371,11 @@ If adding rate-limit to endpoints, use thin **route wrappers**; do not change ca
 
 - When the Experiment Runner materially contributes to a commit, use exactly this co-author trailer:
   `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
+- Material contribution can be oracle-only review, experiment design, admission/fixed-mapping
+  review, review-disposition input, or commit-decision input; `mutated_paths: []`
+  does not cancel attribution when the artifact shaped the engineering decision.
+- Do not add the trailer when the runner only launched, its artifact was rejected or unused,
+  or the PR records an explicit `Not applicable: <reason>`.
 - Do not use placeholder attribution such as `runner@example.com` for new Experiment Runner work.
 - This trailer is public Git attribution text only; it is not an email delivery channel, a cryptographic signature, review-thread authority, or merge-readiness authority.
 

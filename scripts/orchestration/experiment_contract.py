@@ -35,6 +35,15 @@ RUNNER_MODES: tuple[str, ...] = (
     DEFAULT_RUNNER_MODE,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
 )
+CONTRIBUTION_KINDS: tuple[str, ...] = (
+    "none",
+    "oracle_review",
+    "experiment_design",
+    "admission_review",
+    "fixed_mapping_review",
+    "review_disposition",
+    "commit_decision",
+)
 FAILURE_CLASSES: tuple[str, ...] = (
     "timeout",
     "oom",
@@ -714,6 +723,36 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(promotion_ready, bool):
         raise ValueError("Experiment result promotion_ready must be a boolean.")
 
+    contribution_kind = str(result.get("contribution_kind", "none")).strip()
+    if contribution_kind not in CONTRIBUTION_KINDS:
+        allowed_kinds = ", ".join(CONTRIBUTION_KINDS)
+        raise ValueError(f"Experiment result contribution_kind must be one of: {allowed_kinds}")
+
+    coauthor_required = result.get("coauthor_required", False)
+    if not isinstance(coauthor_required, bool):
+        raise ValueError("Experiment result coauthor_required must be a boolean.")
+
+    raw_coauthor_reason = result.get("coauthor_reason", "")
+    if not isinstance(raw_coauthor_reason, str):
+        raise ValueError("Experiment result coauthor_reason must be a string.")
+    coauthor_reason = raw_coauthor_reason.strip()
+    if coauthor_required and contribution_kind == "none":
+        raise ValueError(
+            "Experiment result coauthor_required requires a material contribution_kind."
+        )
+    if contribution_kind != "none" and not coauthor_required:
+        raise ValueError("Experiment result material contribution_kind requires coauthor_required.")
+    if coauthor_required and not coauthor_reason:
+        raise ValueError(
+            "Experiment result coauthor_reason must be non-empty when coauthor_required."
+        )
+    if not coauthor_required and coauthor_reason:
+        raise ValueError(
+            "Experiment result coauthor_reason must be empty unless coauthor_required."
+        )
+    if status == "rejected" and coauthor_required:
+        raise ValueError("Rejected Experiment Runner artifacts must not require co-authoring.")
+
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:
         raise ValueError("Experiment result must include a non-empty candidate_patch.")
@@ -741,5 +780,8 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     normalized["budget_observations"] = dict(budget_observations)
     normalized["shared_tree_untouched"] = shared_tree_untouched
     normalized["promotion_ready"] = promotion_ready
+    normalized["contribution_kind"] = contribution_kind
+    normalized["coauthor_required"] = coauthor_required
+    normalized["coauthor_reason"] = coauthor_reason
     normalized["candidate_patch"] = candidate_patch
     return normalized

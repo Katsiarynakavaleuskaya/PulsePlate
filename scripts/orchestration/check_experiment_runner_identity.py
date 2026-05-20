@@ -77,6 +77,7 @@ CANONICAL_SENSITIVE_BOOLEAN_PATHS = frozenset(
 CANONICAL_BOUNDARY_KEYS = frozenset(
     {
         "authority_boundary",
+        "contribution_attribution",
         "cryptographic_boundary",
         "git_attribution",
         "notification_boundary",
@@ -317,6 +318,44 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
     if authority_boundary.get("allowed_commit_context") != "repo_local_pr_lane_only":
         raise IdentityPolicyError(
             "authority_boundary.allowed_commit_context must be repo_local_pr_lane_only."
+        )
+
+    contribution_attribution = _require_mapping(payload, "contribution_attribution")
+    if contribution_attribution.get("basis") != "material_evidence_contribution":
+        raise IdentityPolicyError(
+            "contribution_attribution.basis must be material_evidence_contribution."
+        )
+    _require_bool(
+        contribution_attribution,
+        "oracle_only_artifact_can_require_coauthor",
+        True,
+    )
+    _require_bool(
+        contribution_attribution,
+        "mutated_paths_do_not_control_attribution",
+        True,
+    )
+    _require_bool(
+        contribution_attribution,
+        "requires_canonical_trailer_when_coauthor_required",
+        True,
+    )
+    not_required = contribution_attribution.get("coauthor_not_required_when")
+    required_not_required = {
+        "runner_only_launched",
+        "artifact_rejected",
+        "artifact_unused",
+        "not_applicable_recorded",
+    }
+    if not isinstance(not_required, list) or not all(
+        isinstance(item, str) for item in not_required
+    ):
+        raise IdentityPolicyError(
+            "contribution_attribution.coauthor_not_required_when must be a list of strings."
+        )
+    if not required_not_required.issubset(set(not_required)):
+        raise IdentityPolicyError(
+            "contribution_attribution.coauthor_not_required_when is missing required cases."
         )
 
     validator_boundary = _require_mapping(payload, "validator_mutation_boundary")

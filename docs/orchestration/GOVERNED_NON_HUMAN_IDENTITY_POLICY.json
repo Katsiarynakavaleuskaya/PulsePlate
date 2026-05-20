@@ -18,6 +18,18 @@
     "can_push_without_human_review": false,
     "allowed_commit_context": "repo_local_pr_lane_only"
   },
+  "contribution_attribution": {
+    "basis": "material_evidence_contribution",
+    "oracle_only_artifact_can_require_coauthor": true,
+    "mutated_paths_do_not_control_attribution": true,
+    "requires_canonical_trailer_when_coauthor_required": true,
+    "coauthor_not_required_when": [
+      "runner_only_launched",
+      "artifact_rejected",
+      "artifact_unused",
+      "not_applicable_recorded"
+    ]
+  },
   "validator_mutation_boundary": {
     "status": "threat_model_only",
     "active_mutation_access": false,

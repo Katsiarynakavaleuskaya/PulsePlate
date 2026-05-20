@@ -1240,8 +1240,169 @@ def test_main_writes_oracle_only_governance_reviewer_artifact(
     assert written["candidate_patch"] == "oracle_only_governance_reviewer"
     assert written["mutated_paths"] == []
     assert written["promotion_ready"] is False
+    assert written["contribution_kind"] == "none"
+    assert written["coauthor_required"] is False
+    assert written["coauthor_reason"] == ""
     assert written["shared_tree_untouched"] is True
     assert json.loads(captured.out)["status"] == "accepted"
+
+
+def test_main_writes_oracle_only_coauthor_contribution_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    result_dir = _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "oracle-only-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+                experiment_id="exp-oracle-coauthor",
+                runner_mode="oracle_only_governance_reviewer",
+            ),
+            ensure_ascii=False,
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--output",
+            "oracle/coauthor.json",
+            "--contribution-kind",
+            "oracle_review",
+            "--coauthor-required",
+            "--coauthor-reason",
+            "Runner oracle shaped the validation and commit decision.",
+        ]
+    )
+
+    result_path = result_dir / "oracle" / "coauthor.json"
+    assert exit_code == 0
+    written = json.loads(result_path.read_text(encoding="utf-8"))
+    assert written["mutated_paths"] == []
+    assert written["promotion_ready"] is False
+    assert written["contribution_kind"] == "oracle_review"
+    assert written["coauthor_required"] is True
+    assert written["coauthor_reason"] == "Runner oracle shaped the validation and commit decision."
+    assert experiment_contract.validate_experiment_result(written)["coauthor_required"] is True
+
+
+def test_main_rejects_oracle_only_coauthor_without_material_contribution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "oracle-only-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+                runner_mode="oracle_only_governance_reviewer",
+            ),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--coauthor-required",
+            "--coauthor-reason",
+            "Missing material contribution kind.",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "coauthor_required requires a material contribution_kind" in capsys.readouterr().out
+
+
+def test_main_rejects_oracle_only_orphan_coauthor_reason(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "oracle-only-packet.json"
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+                runner_mode="oracle_only_governance_reviewer",
+            ),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--coauthor-reason",
+            "Orphan reason must not survive in a non-attribution artifact.",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "coauthor_reason requires coauthor_required" in capsys.readouterr().out
+
+
+def test_main_rejects_candidate_patch_attribution_flags(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_runner_repo(monkeypatch, repo)
+    packet_path = tmp_path / "candidate-packet.json"
+    patch_path = _write_patch(
+        repo,
+        "core/rag/allowed.py",
+        "def candidate_value() -> int:\n" "    return 2\n",
+        tmp_path / "candidate.patch",
+    )
+    packet_path.write_text(
+        json.dumps(
+            _base_packet(
+                mutable_path="core/rag/allowed.py",
+                oracle_command='python3 -c "import sys; sys.exit(0)"',
+            ),
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+    exit_code = experiment_runner.main(
+        [
+            "--packet",
+            str(packet_path),
+            "--candidate-patch",
+            str(patch_path),
+            "--contribution-kind",
+            "oracle_review",
+            "--coauthor-required",
+            "--coauthor-reason",
+            "Candidate mode must not accept attribution flags.",
+        ]
+    )
+
+    assert exit_code == 1
+    assert "supported only in oracle-only mode" in capsys.readouterr().out
 
 
 def test_oracle_only_governance_reviewer_applies_current_tracked_diff(
@@ -1412,6 +1573,35 @@ def test_main_rejects_candidate_patch_for_oracle_only_mode(
         ({"mutated_paths": ["core/rag/allowed.py"]}, "must not record mutated_paths"),
         ({"promotion_ready": True}, "must not be promotion_ready"),
         ({"candidate_patch": "candidate.patch"}, "stable candidate_patch marker"),
+        ({"contribution_kind": "unknown"}, "contribution_kind"),
+        (
+            {"coauthor_required": True, "contribution_kind": "none"},
+            "material contribution_kind",
+        ),
+        (
+            {"contribution_kind": "oracle_review", "coauthor_required": False},
+            "material contribution_kind requires coauthor_required",
+        ),
+        (
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "",
+            },
+            "coauthor_reason",
+        ),
+        (
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": None,
+            },
+            "coauthor_reason must be a string",
+        ),
+        (
+            {"coauthor_required": False, "coauthor_reason": "orphan reason survives"},
+            "coauthor_reason must be empty",
+        ),
     ],
 )
 def test_validate_result_rejects_malformed_oracle_only_artifacts(
@@ -1440,6 +1630,9 @@ def test_validate_result_rejects_malformed_oracle_only_artifacts(
         "budget_observations": {"attempts": 1},
         "shared_tree_untouched": True,
         "promotion_ready": False,
+        "contribution_kind": "none",
+        "coauthor_required": False,
+        "coauthor_reason": "",
         **override,
     }
 

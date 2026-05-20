@@ -415,6 +415,30 @@ For nutrition response contracts with explicit kcal ranges:
 
 ---
 
+## 20) Experiment Runner attribution follows material evidence contribution, not mutation
+
+### Problem
+Oracle-only Experiment Runner artifacts intentionally report `mutated_paths: []`,
+but agents can misread that safety invariant as proof that the runner made no
+engineering contribution.
+
+### Rule
+For Experiment Runner PR evidence:
+1. treat `mutated_paths: []` as the mutation boundary only
+2. require the canonical co-author trailer when a referenced artifact has
+   `coauthor_required: true` because it shaped the plan, validation, admission,
+   fixed mapping, review disposition, or commit decision
+3. do not add the trailer when the runner only launched, the artifact was
+   rejected or unused, or `Not applicable: <reason>` is recorded
+
+### Use instead
+- explicit `contribution_kind`, `coauthor_required`, and `coauthor_reason` fields
+- advisory diagnostics before hard merge blocking
+- the governed trailer:
+  `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+---
+
 ## Repo Commands Reference
 
 ```bash

@@ -48,7 +48,9 @@ PR body **may mirror** the same review-governance sections for human review and 
 - `### Fixed in Commit Mapping`
 - completed checkboxes matching the artifact
 - full URL→SHA mapping lines are required only in the canonical artifact when `pr_number` is available
-- optional advisory `## Experiment Runner Evidence` in the PR body mirror or canonical artifact
+- advisory `## Experiment Runner Evidence` in the PR body mirror or canonical artifact:
+  non-trivial PRs should include an artifact by default, and `Not applicable`
+  requires an explicit reason
 
 Canonical runtime behavior is artifact-first when `pr_number` is available.
 PR-body parsing is a temporary compatibility seam for local/body-only checks and human-readable review context. When `pr_number` is available, Phase 2 treats the artifact as authoritative and the PR body as an optional mirror-only surface.
@@ -70,7 +72,7 @@ Phase 2 sections and advisory evidence:
 - Checkbox contract (completed / mapping completed)
 - `## Fixed in Commit Mapping` in the canonical artifact
 - `### Fixed in Commit Mapping` in the optional PR-body mirror
-- Advisory `## Experiment Runner Evidence` with `Artifact: artifacts/orchestration/experiments/results/<id>.json` or `Not applicable: <reason>` in either the PR body mirror or canonical artifact; missing evidence is advisory until a later PR promotes it to a hard gate, while malformed evidence is rejected.
+- Advisory `## Experiment Runner Evidence` with `Artifact: artifacts/orchestration/experiments/results/<id>.json` or `Not applicable: <reason>` in either the PR body mirror or canonical artifact. Non-trivial PRs should create oracle-only evidence by default; missing evidence is advisory until a later PR promotes it to a hard gate, while malformed evidence is rejected.
 
 Valid mapping forms in the canonical artifact:
 

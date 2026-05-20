@@ -28,6 +28,9 @@ def test_default_policy_validates() -> None:
     assert policy["slack_identity"]["status"] == "deferred"
     assert policy["validator_mutation_boundary"]["status"] == "threat_model_only"
     assert policy["validator_mutation_boundary"]["active_mutation_access"] is False
+    assert policy["contribution_attribution"]["basis"] == "material_evidence_contribution"
+    assert policy["contribution_attribution"]["oracle_only_artifact_can_require_coauthor"] is True
+    assert policy["contribution_attribution"]["mutated_paths_do_not_control_attribution"] is True
 
 
 def test_default_co_author_guidance_validates() -> None:
@@ -83,6 +86,37 @@ def test_rejects_placeholder_runner_email() -> None:
     policy["git_attribution"]["email"] = "runner@example.com"
 
     with pytest.raises(identity_check.IdentityPolicyError, match="placeholder email"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_missing_contribution_attribution_boundary() -> None:
+    policy = _valid_policy()
+    policy.pop("contribution_attribution")
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="contribution_attribution"):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_contribution_attribution_that_depends_on_mutated_paths() -> None:
+    policy = _valid_policy()
+    policy["contribution_attribution"]["mutated_paths_do_not_control_attribution"] = False
+
+    with pytest.raises(
+        identity_check.IdentityPolicyError,
+        match="mutated_paths_do_not_control_attribution",
+    ):
+        identity_check.validate_identity_policy(policy)
+
+
+def test_rejects_contribution_attribution_missing_not_required_case() -> None:
+    policy = _valid_policy()
+    policy["contribution_attribution"]["coauthor_not_required_when"] = [
+        "runner_only_launched",
+        "artifact_rejected",
+        "artifact_unused",
+    ]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="coauthor_not_required_when"):
         identity_check.validate_identity_policy(policy)
 
 

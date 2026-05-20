@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
+import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
 import sys
 from enum import Enum
 from pathlib import Path
@@ -15,6 +17,7 @@ from scripts.orchestration.review_mapping_artifact import (
     read_mapping_artifact,
     validate_mapping_artifact_text,
 )
+from scripts.orchestration.check_experiment_runner_identity import EXPECTED_CO_AUTHOR_TRAILER
 
 # Phase2 contract: headings and checkbox labels (single source for parser and docs).
 # Changing template wording requires updating these constants and re-running tests.
@@ -61,6 +64,10 @@ MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
     "Advisory: missing `## Experiment Runner Evidence` section with "
     "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
     "or `Not applicable: <reason>`."
+)
+MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING = (
+    "Advisory: Experiment Runner artifact `{path}` sets coauthor_required=true, "
+    "but branch commits do not include the canonical Experiment Runner co-author trailer."
 )
 
 
@@ -174,6 +181,17 @@ def _valid_experiment_runner_artifact_path(path: str) -> bool:
     return len(path_parts[-1].removesuffix(".json")) > 0
 
 
+def _experiment_runner_artifact_paths(text: str) -> list[str]:
+    """Return valid local Experiment Runner artifact paths referenced by text."""
+
+    paths: list[str] = []
+    for match in EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(_strip_fenced_code_blocks(text)):
+        path = match.group("path").strip().strip("`")
+        if _valid_experiment_runner_artifact_path(path):
+            paths.append(path)
+    return list(dict.fromkeys(paths))
+
+
 def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
     """Validate advisory Experiment Runner evidence.
 
@@ -223,6 +241,57 @@ def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
         )
 
     return errors, []
+
+
+def _git_commit_messages(commit_range: str = "origin/main..HEAD") -> str:
+    """Read branch commit messages for local advisory attribution diagnostics."""
+
+    git_bin = shutil.which("git")
+    if git_bin is None:
+        return ""
+    try:
+        completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+            [git_bin, "log", "--format=%B", commit_range],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=15,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    if completed.returncode != 0:
+        return ""
+    return completed.stdout
+
+
+def check_experiment_runner_coauthor_advisory(
+    text: str,
+    *,
+    commit_messages: str,
+    repo_root: Path = REPO_ROOT,
+) -> list[str]:
+    """Warn when a local runner artifact requires co-authoring but commits lack it."""
+
+    if EXPECTED_CO_AUTHOR_TRAILER in commit_messages:
+        return []
+
+    warnings: list[str] = []
+    for artifact_path in _experiment_runner_artifact_paths(text):
+        absolute_path = repo_root / artifact_path
+        if not absolute_path.is_file():
+            continue
+        try:
+            payload = json.loads(absolute_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            continue
+        if isinstance(payload, dict) and payload.get("coauthor_required") is True:
+            warning = MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING.format(path=artifact_path)
+            reason = str(payload.get("coauthor_reason", "")).strip()
+            if reason:
+                warning = f"{warning} Reason: {reason}"
+            warnings.append(warning)
+    return warnings
 
 
 def _select_body_validation_mode(*, artifact_checked: bool) -> BodyValidationMode:
@@ -314,6 +383,7 @@ def main() -> int:
     body_errors: list[str] = []
     advisory_warnings: list[str] = []
     evidence_warning_candidates: list[str] = []
+    evidence_texts: list[str] = []
     experiment_runner_evidence_seen = False
 
     if pr_number is not None:
@@ -324,6 +394,7 @@ def main() -> int:
             return 1
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
+        evidence_texts.append(artifact_text)
         evidence_errors, evidence_warnings = check_experiment_runner_evidence(artifact_text)
         artifact_errors.extend(evidence_errors)
         evidence_warning_candidates.extend(evidence_warnings)
@@ -332,6 +403,7 @@ def main() -> int:
 
     if body.strip():
         cleaned_body = _strip_fenced_code_blocks(body)
+        evidence_texts.append(body)
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )
@@ -356,6 +428,16 @@ def main() -> int:
 
     if not experiment_runner_evidence_seen:
         advisory_warnings.extend(dict.fromkeys(evidence_warning_candidates))
+    if experiment_runner_evidence_seen:
+        commit_messages = _git_commit_messages()
+        for evidence_text in evidence_texts:
+            advisory_warnings.extend(
+                check_experiment_runner_coauthor_advisory(
+                    evidence_text,
+                    commit_messages=commit_messages,
+                )
+            )
+        advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]
     if errors:
