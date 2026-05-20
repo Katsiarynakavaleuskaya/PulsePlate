@@ -267,14 +267,14 @@ def _safe_result_experiment_id(packet: dict[str, Any]) -> str:
 
 def _safe_result_runner_mode(packet: dict[str, Any]) -> str:
     try:
-        return validate_runner_mode(packet.get("runner_mode", DEFAULT_RUNNER_MODE))
+        return str(validate_runner_mode(packet.get("runner_mode", DEFAULT_RUNNER_MODE)))
     except ValueError:
-        return DEFAULT_RUNNER_MODE
+        return str(DEFAULT_RUNNER_MODE)
 
 
 def _candidate_patch_ref_for_runner_mode(runner_mode: str, candidate_patch_ref: str) -> str:
     if runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
-        return ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        return str(ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE)
     return candidate_patch_ref
 
 
