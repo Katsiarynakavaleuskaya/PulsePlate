@@ -82,6 +82,9 @@ Role-agent dispositions:
   commit `bb3eade43` rejects mixed negation that masks later positive
   product-display/nutrition-authority claims and standalone seller/partner
   access approval prose.
+- Post-open `bug-hunter` third follow-up: Disposition `FIXED`. Evidence:
+  commit `34640beb5` rejects `green light`, `go ahead`, and `cleared`
+  approval-synonym prose for blocked seller/partner/regional catalog access.
 
 ## Premortem
 
@@ -123,10 +126,9 @@ commercial, seller, partner, portal, or scraping sources.
 - [x] Cubic actionable comments mapped or no-actionable.
 - [x] Codex Security diff-scoped scan completed:
   `/tmp/codex-security-scans/food-data-regional-catalog-identity-license-pr17/eb9cdcd8a_20260519T222714Z/report.md`.
-- [x] Strict review-thread disposition guard passed:
-  `All 32 resolved review threads have Disposition + proof and commit-after-comment`.
+- [ ] Strict review-thread disposition guard pending after latest bug-hunter fix.
 - [ ] Current-head PR checks pending.
-- [x] Strict review-governance merge-readiness wrapper passed.
+- [ ] Strict review-governance merge-readiness wrapper pending after latest bug-hunter fix.
 
 ## Fixed in Commit Mapping
 
@@ -237,12 +239,16 @@ Reason: Current PR head already rejects `Seller API could be used for tests.` an
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977683
 
 Disposition: FIXED
-Commit: local role-agent finding fixed in commit `2b3e01373`
+Commit: 2b3e01373
 Evidence: `core/food_sources/regional_catalog_identity.py` expands note-guard authority detection to noun approval, queried/call use wording, and data portal/source authority equivalence; `tests/test_food_source_regional_catalog_identity.py` rejects the seven adversarial examples reported by post-open `bug-hunter`.
 
 Disposition: FIXED
-Commit: local role-agent finding fixed in commit `bb3eade43`
+Commit: bb3eade43
 Evidence: `core/food_sources/regional_catalog_identity.py` removes directly negated authority text before testing the rest of the clause and blocks standalone `seller access`, `partner access`, and `seller or partner access`; `tests/test_food_source_regional_catalog_identity.py` rejects the seven second-pass adversarial examples reported by post-open `bug-hunter`.
+
+Disposition: FIXED
+Commit: 34640beb5
+Evidence: `core/food_sources/regional_catalog_identity.py` treats `green light`, `go ahead`, and `cleared` as authority language; `tests/test_food_source_regional_catalog_identity.py` rejects the four third-pass approval-synonym examples reported by post-open `bug-hunter`.
 
 ## Role-Agent / CI Findings
 
@@ -283,7 +289,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 135 tests.
+- Focused PR17 tests: passed, 139 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
