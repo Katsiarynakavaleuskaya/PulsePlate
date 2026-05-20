@@ -60,6 +60,7 @@ SENSITIVE_CACHE_TERMS = (
 SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
 CLAIM_GAP = r"(?:(?!\n\s*(?:[-*]|#))[^.!?])*"
 PR_V1_PATTERN = r"pr[- ]?v1"
+BACKEND_LABEL_PATTERN = r"(?:redis|gpt[-\s]?cache)"
 UNICODE_DASH_TRANSLATION = str.maketrans(
     {
         "\u2010": "-",
@@ -130,14 +131,14 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"(?:approves?|approved|enables?|enabled|selects?|selected|"
             r"allows?|allowed|permits?|permitted|approval|permission|"
             rf"grants?\s+permission)\b{CLAIM_GAP}"
-            r"\b(?:redis|gptcache)\b",
+            rf"\b{BACKEND_LABEL_PATTERN}\b",
             re.I,
         ),
     ),
     (
         "Redis/GPTCache rollout approval",
         re.compile(
-            rf"\b(?:redis|gptcache)\b{CLAIM_GAP}"
+            rf"\b{BACKEND_LABEL_PATTERN}\b{CLAIM_GAP}"
             r"\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
             r"selected|allowed|permitted|approval|permission)\b",
             re.I,
@@ -217,18 +218,19 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
         rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
-        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|redis|gptcache)\b",
+        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
         r"\b(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
         rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
-        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|redis|gptcache)\b",
+        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
         rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
-        r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|not(?!\s+only))\b"
+        r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
+        r"lacks?|without|not(?!\s+only))\b"
         rf"{CLAIM_GAP}\b(?:active|enabled|open|live|production[- ]ready|approved|"
         r"allowed|permitted|approval|permission)\b",
         re.I,
@@ -244,9 +246,9 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         re.I,
     ),
     re.compile(
-        rf"\b(?:redis|gptcache)\b{CLAIM_GAP}\b"
+        rf"\b{BACKEND_LABEL_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
-        r"not(?!\s+only)|has\s+no|no)\b"
+        r"lacks?|without|not(?!\s+only)|has\s+no|no)\b"
         rf"{CLAIM_GAP}\b(?:approved|enabled|rollout[- ]ready|production[- ]ready|"
         r"selected|allowed|permitted|approval|permission)\b",
         re.I,
@@ -351,6 +353,13 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
     return errors
 
 
+CLAUSE_BOUNDARY_RE = re.compile(
+    r",|\b(?:and|as|because|but|however|if|since|so|then|though|although|unless|"
+    r"when|whereas|while|yet)\b",
+    re.I,
+)
+
+
 def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
     local_start = (
         max(
@@ -362,12 +371,13 @@ def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
         )
         + 1
     )
-    contrast_re = re.compile(r",|\b(?:and|but|however|yet|although|though)\b", re.I)
-    for contrast in contrast_re.finditer(text, local_start, match.start()):
-        local_start = contrast.end()
+    for boundary in CLAUSE_BOUNDARY_RE.finditer(text, local_start, match.start()):
+        local_start = boundary.end()
     snippet = text[local_start : match.end()]
-    for contrast in contrast_re.finditer(snippet):
-        snippet = snippet[contrast.end() :]
+    inner_start = 0
+    for boundary in CLAUSE_BOUNDARY_RE.finditer(snippet):
+        inner_start = boundary.end()
+    snippet = snippet[inner_start:]
     return any(pattern.search(snippet) for pattern in NEGATED_FORBIDDEN_CLAIM_PATTERNS)
 
 

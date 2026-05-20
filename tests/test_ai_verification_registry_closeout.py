@@ -208,6 +208,8 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR‑V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 permits Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 allows GPTCache for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("GPT Cache is approved for semantic-cache rollout.", "Redis/GPTCache"),
+        ("GPT-Cache is approved for semantic-cache rollout.", "Redis/GPTCache"),
         ("PR-V1 grants permission for Redis rollout.", "PR-V1 approves Redis/GPTCache"),
         ("Redis has PR-V1 approval for rollout.", "Redis/GPTCache rollout approval"),
         ("PR-V1 permits semantic-cache serving.", "PR-V1 approves semantic cache"),
@@ -249,9 +251,14 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         + "PR-V1 does not permit semantic-cache serving.\n"
         + "PR V1 does not permit semantic-cache serving.\n"
         + "Semantic-cache has no approval for serving rollout.\n"
+        + "Semantic-cache lacks approval for serving rollout.\n"
         + "PR-V1 is not a semantic-cache rollout or backend-selection approval.\n"
         + "Redis is not approved for semantic-cache rollout.\n"
+        + "Redis lacks approval for semantic-cache rollout.\n"
+        + "Semantic-cache is without approval for serving rollout.\n"
         + "GPTCache has no permission for semantic-cache rollout.\n"
+        + "GPT Cache lacks approval for semantic-cache rollout.\n"
+        + "PR-V1 does not permit Redis, and it does not permit semantic-cache serving.\n"
         + "Raw prompts are not cacheable.\n"
         + "PR-V1 does not cache raw prompts.\n"
         + "Raw prompts cannot be cached.\n"
@@ -286,6 +293,22 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         ),
         (
             "Although PR-V1 does not permit Redis rollout, PR-V1 approves semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout because PR-V1 approves semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout while PR-V1 approves semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout since PR-V1 approves semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout if PR-V1 approves semantic-cache serving.",
             "PR-V1 approves semantic cache",
         ),
         (
