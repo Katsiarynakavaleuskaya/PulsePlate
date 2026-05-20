@@ -20,6 +20,7 @@ Disposition: FIXED
 Commit: 0d601a2f05fcf148e32ce177a44f72c6d08db374
 Evidence: Replaced `Phase2` with `Phase 2` in the PR #1780 fixed mapping text after CodeRabbit flagged the spacing/readability issue.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1780#discussion_r3274876234 -> 0d601a2f05fcf148e32ce177a44f72c6d08db374
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1780#pullrequestreview-4329571814 -> 0d601a2f05fcf148e32ce177a44f72c6d08db374
 
 ## Premortem Disposition
 
