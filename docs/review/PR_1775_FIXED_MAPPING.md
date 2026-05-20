@@ -57,6 +57,14 @@ Disposition: FIXED
 Commit: 8a4a1922d
 Evidence: scripts/ci/check_pr_body_phase2_gates.py:136 stops mapping extraction before sibling h3 sections; tests/test_pr_body_phase2_gates.py:120 validates that sibling h3 content is not parsed as mapping. docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:67 clarifies advisory evidence wording. docs/review/PR_1775_FIXED_MAPPING.md:24 uses portable validation command paths. Validation: `python3 -m pytest -q tests/test_pr_body_phase2_gates.py` -> PASS.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#pullrequestreview-4328106978 -> dbf193ce5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273618860 -> dbf193ce5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273557874 -> dbf193ce5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#discussion_r3273557883 -> dbf193ce5
+Disposition: FIXED
+Commit: dbf193ce5
+Evidence: scripts/ci/check_pr_body_phase2_gates.py:156 rejects empty artifact basenames and Windows-style backslash traversal; scripts/ci/check_pr_body_phase2_gates.py:333 skips optional mirror checklist enforcement when artifact-first mode has no Phase2 mirror block. tests/test_pr_body_phase2_gates.py:164 covers empty artifact basenames; tests/test_pr_body_phase2_gates.py:173 covers Windows-style traversal; tests/test_pr_body_phase2_gates.py:403 covers artifact-first PR bodies without mirrors. docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-pr-evidence-hard-gate and docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-validator-mutation-threat-model track deferred follow-ups. Validation: `python3 -m pytest -q tests/test_pr_body_phase2_gates.py` -> PASS.
+
 ## Deferred / Follow-ups
 
 - Later PR: hard merge gate requiring Experiment Runner evidence for every non-trivial PR after advisory signal proves stable. Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p2-experiment-runner-pr-evidence-hard-gate
