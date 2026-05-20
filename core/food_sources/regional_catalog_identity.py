@@ -260,11 +260,17 @@ _REGIONAL_SOURCE_BLOCKING_REASONS = (
 _APPROVAL_TERMS = (
     r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
     r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available|"
-    r"ok|okay"
+    r"greenlit|ok|okay"
 )
-_USE_TERMS = r"may be used|can be used|is used|are used|used|relied on"
+_APPROVAL_NOUNS = r"approval|permission|authorization|greenlight"
+_USE_TERMS = (
+    r"may(?:\W+\w+){0,3}\W+be used|can(?:\W+\w+){0,3}\W+be used|"
+    r"could(?:\W+\w+){0,3}\W+be used|is used|are used|used|queried|"
+    r"may call|can call|could call|relied on"
+)
 _BLOCKED_NOTE_TERMS = (
-    r"api calls?|scraping|scrapers?|downloads?|paid source|paid provider|seller apis?|partner apis?|"
+    r"regional catalogs?|data europa eu|api calls?|scraping|scrapers?|downloads?|"
+    r"paid source|paid provider|seller apis?|seller api access|partner apis?|"
     r"apis?|seller account access|partner menu access|provider apis?|"
     r"provider integration|cache authority|redistribution|runtime authority|product display|"
     r"nutrition authority|source authority|public dataset claim|automated collection|"
@@ -273,15 +279,28 @@ _BLOCKED_NOTE_TERMS = (
 )
 _FORBIDDEN_NOTE_PATTERNS = (
     re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_TERMS})\b"),
-    re.compile(rf"\b(?:{_APPROVAL_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"),
-    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_USE_TERMS})\b"),
+    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_APPROVAL_NOUNS})\b"),
     re.compile(
-        rf"\b(?:will\s+use|use|used|uses|using|relied\s+on)\b"
+        rf"(?<!not )(?<!never )\b(?:{_APPROVAL_TERMS})\b"
         rf"(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
     ),
     re.compile(
-        r"\bdata portal\b(?:\W+\w+){0,4}\W+\b(?:is|becomes|serves as|treated as)\b"
+        rf"(?<!without )(?<!no )(?<!not )(?<!never )\b(?:{_APPROVAL_NOUNS})\b"
+        rf"(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    ),
+    re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,14}}\W+\b(?:{_USE_TERMS})\b"),
+    re.compile(
+        rf"\b(?:will\s+use|use|used|uses|using|queried|may\s+call|can\s+call|could\s+call|relied\s+on)\b"
+        rf"(?:\W+\w+){{0,14}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+    ),
+    re.compile(
+        r"\b(?:data portal|data europa eu)\b(?:\W+\w+){0,4}\W+\b"
+        r"(?:is|becomes|serves as|treated as|equals)\b"
         r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
+    ),
+    re.compile(
+        r"\b(?:source authority|nutrition authority|product display)\b"
+        r"(?:\W+\w+){0,4}\W+\b(?:data portal|data europa eu)\b"
     ),
 )
 _BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
@@ -290,7 +309,9 @@ _NEGATED_APPROVAL_RE = re.compile(
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
     r"\bunapproved\b"
 )
-_AUTHORITY_LANGUAGE_RE = re.compile(rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_USE_TERMS})\b")
+_AUTHORITY_LANGUAGE_RE = re.compile(
+    rf"\b(?:{_APPROVAL_TERMS})\b|\b(?:{_APPROVAL_NOUNS})\b|\b(?:{_USE_TERMS})\b"
+)
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
     r"(?:source authority|nutrition authority|product display)\b|"
@@ -438,8 +459,8 @@ def _relative_repo_path(path: Path | str) -> str:
 
 def _require_safe_notes(value: str, context: str) -> str:
     segments = [
-        re.sub(r"[\s_\-/:,()[\]{}]+", " ", segment).strip()
-        for segment in re.split(r"[.;\n]+", value.lower())
+        re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", segment).strip()
+        for segment in re.split(r"[;\n]+|(?<=[.!?])\s+", value.lower())
     ]
     for normalized in (segment for segment in segments if segment):
         for pattern in _FORBIDDEN_NOTE_PATTERNS:

@@ -432,6 +432,13 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Provider API allowed for testing.",
         "Seller api is used for tests.",
         "Seller API use is blocked for PR17 but okay for manual testing.",
+        "Seller API access receives approval for staging.",
+        "Ozon Seller API can be queried manually.",
+        "Regional catalogs may call provider APIs for license discovery.",
+        "Seller API use has approval for Ozon.",
+        "Source authority: data portal.",
+        "Data portal equals source authority.",
+        "data.europa.eu is the source authority.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
