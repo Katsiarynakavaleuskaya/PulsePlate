@@ -60,6 +60,12 @@ Reason: Codex flagged that Experiment Runner co-author diagnostics were still to
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554222 -> b5f97d430
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554228 -> b5f97d430
 
+Disposition: FIXED
+Commit: f36f266db
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Codex flagged that readable but schema-invalid Experiment Runner artifacts could silently bypass co-author diagnostics. Phase2 now validates artifact contribution/co-author metadata through the shared Experiment Runner contract and emits an advisory warning when the payload is non-object or malformed, including invalid `coauthor_required` values.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274733388 -> f36f266db
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
