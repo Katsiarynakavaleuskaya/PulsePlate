@@ -58,16 +58,21 @@ SENSITIVE_CACHE_TERMS = (
 )
 
 SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
-CLAIM_GAP = r"[^.!?\n]{0,80}"
+CLAIM_GAP = r"[^.!?\n]*"
+PR_V1_PATTERN = r"pr[- ]?v1"
 
 FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 opens semantic cache",
-        re.compile(rf"\bpr-v1\b{CLAIM_GAP}\bopens?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I),
+        re.compile(
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\bopens?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I
+        ),
     ),
     (
         "PR-V1 enables semantic cache",
-        re.compile(rf"\bpr-v1\b{CLAIM_GAP}\benables?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I),
+        re.compile(
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\benables?\b{CLAIM_GAP}\bsemantic[- ]cache\b", re.I
+        ),
     ),
     (
         "semantic cache active/open claim",
@@ -81,7 +86,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 makes semantic cache production ready",
         re.compile(
-            rf"\bpr-v1\b{CLAIM_GAP}\b(?:makes?|marks?)\b{CLAIM_GAP}"
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b(?:makes?|marks?)\b{CLAIM_GAP}"
             rf"\bsemantic[- ]cache\b{CLAIM_GAP}\bproduction[- ]ready\b",
             re.I,
         ),
@@ -89,7 +94,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 approves semantic cache serving",
         re.compile(
-            rf"\bpr-v1\b{CLAIM_GAP}\b"
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|allows?|allowed|permits?|permitted|"
             r"selects?|selected|approval|permission|grants?\s+permission)"
             rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
@@ -99,7 +104,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 approves Redis/GPTCache rollout",
         re.compile(
-            rf"\bpr-v1\b{CLAIM_GAP}\b"
+            rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
             r"(?:approves?|approved|enables?|enabled|selects?|selected|"
             r"allows?|allowed|permits?|permitted|approval|permission|"
             rf"grants?\s+permission)\b{CLAIM_GAP}"
@@ -185,17 +190,33 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
 )
 
-NEGATED_FORBIDDEN_CLAIM_RE = re.compile(
-    r"\b(?:"
-    r"cannot|can't|"
-    r"must\s+not|should\s+not|does\s+not|doesn't|"
-    r"is\s+not|isn't|has\s+not|hasn't|"
-    r"not\s+(?:cache|cached|cacheable|open|opened|enable|enabled|"
-    r"approve|approved|allow|allowed|permit|permitted|production[- ]ready)|"
-    r"without\s+(?:cache|caching|approval|rollout|runtime|activation)|"
-    r"remain(?:s)?\s+closed|gate\s+remain(?:s)?\s+closed"
-    r")\b",
-    re.I,
+NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
+    re.compile(
+        rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
+        r"(?:does\s+not|doesn't|must\s+not|should\s+not|cannot|can't)\b"
+        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|permit|select|grant\s+permission)\b"
+        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|redis|gptcache)\b",
+        re.I,
+    ),
+    re.compile(
+        rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
+        r"(?:is\s+not|isn't|has\s+not|hasn't|not)\b"
+        rf"{CLAIM_GAP}\b(?:active|enabled|open|live|production[- ]ready|approved|"
+        r"allowed|permitted|approval|permission)\b",
+        re.I,
+    ),
+    re.compile(
+        rf"\braw\s+(?:model\s+)?(?:prompts?|responses?|{SENSITIVE_CACHE_TERM_PATTERN})\b"
+        rf"{CLAIM_GAP}\b(?:is|are)?\s*not\b{CLAIM_GAP}\b"
+        r"(?:cache|caching|cached|cacheable)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:does\s+not|doesn't|must\s+not|should\s+not|cannot|can't)\b"
+        rf"{CLAIM_GAP}\b(?:cache|caching)\b{CLAIM_GAP}\braw\s+"
+        rf"(?:model\s+)?(?:prompts?|responses?|{SENSITIVE_CACHE_TERM_PATTERN})\b",
+        re.I,
+    ),
 )
 
 
@@ -272,7 +293,7 @@ def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
         text.rfind("\n", 0, match.start()),
     )
     snippet = text[sentence_start + 1 : match.end()]
-    return bool(NEGATED_FORBIDDEN_CLAIM_RE.search(snippet))
+    return any(pattern.search(snippet) for pattern in NEGATED_FORBIDDEN_CLAIM_PATTERNS)
 
 
 def _validate_core_files(repo_root: Path) -> list[str]:

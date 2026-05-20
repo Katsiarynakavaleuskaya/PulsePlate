@@ -182,6 +182,11 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
     ("claim", "expected"),
     [
         ("PR-V1 can cache raw prompts safely.", "raw prompts cacheable"),
+        (
+            "PR-V1 can cache deterministic, bounded, review-mapped, provenance-only, "
+            "operator-approved, replay-safe, non-runtime metadata around raw prompts safely.",
+            "raw prompts cacheable",
+        ),
         ("PR-V1 allows caching raw prompts safely.", "raw prompts cacheable"),
         ("PR-V1 can cache raw responses safely.", "raw responses cacheable"),
         ("PR-V1 allows caching raw responses safely.", "raw responses cacheable"),
@@ -199,16 +204,19 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 can cache raw PII safely.", "raw sensitive data cacheable"),
         ("PR-V1 allows caching raw PII safely.", "raw sensitive data cacheable"),
         ("PR-V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
+        ("PR V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 permits Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 allows GPTCache for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 grants permission for Redis rollout.", "PR-V1 approves Redis/GPTCache"),
         ("Redis has PR-V1 approval for rollout.", "Redis/GPTCache rollout approval"),
         ("PR-V1 permits semantic-cache serving.", "PR-V1 approves semantic cache"),
+        ("PR V1 permits semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 allows semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 approves semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 selects semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 grants permission for semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
+        ("PR V1 opens semantic-cache serving.", "PR-V1 opens semantic cache"),
         ("Semantic-cache serving is permitted by PR-V1.", "semantic cache"),
         ("Semantic-cache serving has PR-V1 permission.", "semantic cache"),
     ],
@@ -233,7 +241,9 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         + "\nSemantic-cache serving is not production-ready.\n"
         + "PR-V1 does not permit Redis for semantic-cache rollout.\n"
         + "PR-V1 does not permit semantic-cache serving.\n"
+        + "PR V1 does not permit semantic-cache serving.\n"
         + "Raw prompts are not cacheable.\n"
+        + "PR-V1 does not cache raw prompts.\n"
         + "Raw sensitive data is not cacheable.\n"
         + "Raw account data is not cacheable.\n",
         encoding="utf-8",
@@ -247,6 +257,10 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
     [
         (
             "No review item remains. PR-V1 opens semantic-cache serving.",
+            "PR-V1 opens semantic cache",
+        ),
+        (
+            "PR-V1 does not change routes but opens semantic-cache serving.",
             "PR-V1 opens semantic cache",
         ),
         (
