@@ -1650,6 +1650,12 @@ PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE = re.compile(
     r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
     r"(?:\s+(?:currently|yet|formally|actually|explicitly)){0,3}\s*$"
 )
+PHILOSOPHY_NEGATED_ASSERTION_PREFIX_RE = re.compile(
+    r"(?:^|\s)(?:no|not|never|can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
+    r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
+    r"(?:\s+(?:currently|yet|formally|actually|explicitly)){0,3}"
+    r"\s+(?:claim|state|assert|say|write|imply|suggest)(?:\s+that)?\s*$"
+)
 PHILOSOPHY_NEGATED_PERMISSION_DOMAIN_RE = re.compile(
     r"\b(?:pr-1|philosophy admission|semantic[- ]cache gate|global gate|redis|"
     r"gptcache|backend[- ]selection|serving|runtime|providers?|storage|cache|"
@@ -2306,6 +2312,8 @@ def _is_negated_philosophy_duplication_claim(text: str, match: re.Match[str]) ->
 
 def _is_negated_philosophy_permission_claim(text: str, match: re.Match[str]) -> bool:
     prefix = text[max(0, match.start() - 80) : match.start()]
+    if PHILOSOPHY_NEGATED_ASSERTION_PREFIX_RE.search(prefix) is not None:
+        return True
     if PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE.search(prefix) is None:
         return False
     token_count = len(prefix.strip().split())

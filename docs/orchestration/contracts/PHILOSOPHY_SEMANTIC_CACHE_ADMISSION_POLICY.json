@@ -242,6 +242,7 @@
       "allowed_negative_controls": [
         "No semantic-cache admission may omit the verification bundle.",
         "Cache admission requires a passed verification bundle.",
+        "Do not claim that the admission policy may omit the verification bundle.",
         "Future PR may evaluate semantic-cache admission after verification."
       ]
     },

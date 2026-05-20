@@ -149,6 +149,12 @@ def test_post_open_qa_modal_temporal_false_green_regressions_are_blocked() -> No
         assert errors, claim
 
 
+def test_negated_prohibition_guidance_does_not_trip_policy_oracle() -> None:
+    text = "Do not claim that the admission policy may omit the verification bundle."
+
+    assert validate_philosophy_semantic_cache_admission_downstream_text(text) == []
+
+
 def test_oracle_fixture_drift_is_rejected() -> None:
     fixture = _oracle_fixture()
     cases = fixture["cases"]

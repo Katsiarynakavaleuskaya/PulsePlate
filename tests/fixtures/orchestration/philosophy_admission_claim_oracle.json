@@ -16448,7 +16448,7 @@
       "id": "philosophy-admission-oracle-2055"
     },
     {
-      "claim": "Future PR may evaluate semantic-cache admission after verification.",
+      "claim": "Do not claim that the admission policy may omit the verification bundle.",
       "claim_family": "claim_class_verification_bundle_skipped",
       "expected": "allowed",
       "expected_detector_label": "verification bundle optional",
@@ -16456,7 +16456,7 @@
       "id": "philosophy-admission-oracle-2056"
     },
     {
-      "claim": "No semantic-cache admission may omit the verification bundle.",
+      "claim": "Future PR may evaluate semantic-cache admission after verification.",
       "claim_family": "claim_class_verification_bundle_skipped",
       "expected": "allowed",
       "expected_detector_label": "verification bundle optional",
@@ -16464,12 +16464,20 @@
       "id": "philosophy-admission-oracle-2057"
     },
     {
+      "claim": "No semantic-cache admission may omit the verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "allowed",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-2058"
+    },
+    {
       "claim": "Cache admission became exempt from verification bundles.",
       "claim_family": "claim_class_verification_bundle_skipped",
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2058"
+      "id": "philosophy-admission-oracle-2059"
     },
     {
       "claim": "Cache admission bypasses verification bundles.",
@@ -16477,7 +16485,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2059"
+      "id": "philosophy-admission-oracle-2060"
     },
     {
       "claim": "Cache admission can omit the verification bundle.",
@@ -16485,7 +16493,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2060"
+      "id": "philosophy-admission-oracle-2061"
     },
     {
       "claim": "Cache admission can promote knowledge without a verification bundle.",
@@ -16493,7 +16501,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2061"
+      "id": "philosophy-admission-oracle-2062"
     },
     {
       "claim": "Cache admission can skip verification bundles.",
@@ -16501,7 +16509,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2062"
+      "id": "philosophy-admission-oracle-2063"
     },
     {
       "claim": "Cache admission can waive verification bundle requirements.",
@@ -16509,7 +16517,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2063"
+      "id": "philosophy-admission-oracle-2064"
     },
     {
       "claim": "Cache admission could omit the verification bundle.",
@@ -16517,7 +16525,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2064"
+      "id": "philosophy-admission-oracle-2065"
     },
     {
       "claim": "Cache admission could promote knowledge without a verification bundle.",
@@ -16525,7 +16533,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2065"
+      "id": "philosophy-admission-oracle-2066"
     },
     {
       "claim": "Cache admission could skip verification bundles.",
@@ -16533,7 +16541,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2066"
+      "id": "philosophy-admission-oracle-2067"
     },
     {
       "claim": "Cache admission could waive verification bundle requirements.",
@@ -16541,7 +16549,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2067"
+      "id": "philosophy-admission-oracle-2068"
     },
     {
       "claim": "Cache admission does not require a verification bundle.",
@@ -16549,7 +16557,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2068"
+      "id": "philosophy-admission-oracle-2069"
     },
     {
       "claim": "Cache admission has bypassed verification bundles.",
@@ -16557,7 +16565,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2069"
+      "id": "philosophy-admission-oracle-2070"
     },
     {
       "claim": "Cache admission has to omit the verification bundle.",
@@ -16565,7 +16573,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2070"
+      "id": "philosophy-admission-oracle-2071"
     },
     {
       "claim": "Cache admission has to promote knowledge without a verification bundle.",
@@ -16573,7 +16581,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2071"
+      "id": "philosophy-admission-oracle-2072"
     },
     {
       "claim": "Cache admission has to skip verification bundles.",
@@ -16581,7 +16589,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2072"
+      "id": "philosophy-admission-oracle-2073"
     },
     {
       "claim": "Cache admission has to waive verification bundle requirements.",
@@ -16589,7 +16597,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2073"
+      "id": "philosophy-admission-oracle-2074"
     },
     {
       "claim": "Cache admission is now waiving verification bundle requirements.",
@@ -16597,7 +16605,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2074"
+      "id": "philosophy-admission-oracle-2075"
     },
     {
       "claim": "Cache admission is required to omit the verification bundle.",
@@ -16605,7 +16613,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2075"
+      "id": "philosophy-admission-oracle-2076"
     },
     {
       "claim": "Cache admission is required to promote knowledge without a verification bundle.",
@@ -16613,7 +16621,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2076"
+      "id": "philosophy-admission-oracle-2077"
     },
     {
       "claim": "Cache admission is required to skip verification bundles.",
@@ -16621,7 +16629,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2077"
+      "id": "philosophy-admission-oracle-2078"
     },
     {
       "claim": "Cache admission is required to waive verification bundle requirements.",
@@ -16629,7 +16637,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2078"
+      "id": "philosophy-admission-oracle-2079"
     },
     {
       "claim": "Cache admission makes verification bundles optional.",
@@ -16637,7 +16645,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2079"
+      "id": "philosophy-admission-oracle-2080"
     },
     {
       "claim": "Cache admission may omit the verification bundle.",
@@ -16645,7 +16653,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2080"
+      "id": "philosophy-admission-oracle-2081"
     },
     {
       "claim": "Cache admission may promote knowledge without a verification bundle.",
@@ -16653,7 +16661,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2081"
+      "id": "philosophy-admission-oracle-2082"
     },
     {
       "claim": "Cache admission may skip verification bundles.",
@@ -16661,7 +16669,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2082"
+      "id": "philosophy-admission-oracle-2083"
     },
     {
       "claim": "Cache admission may waive verification bundle requirements.",
@@ -16669,7 +16677,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2083"
+      "id": "philosophy-admission-oracle-2084"
     },
     {
       "claim": "Cache admission might omit the verification bundle.",
@@ -16677,7 +16685,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2084"
+      "id": "philosophy-admission-oracle-2085"
     },
     {
       "claim": "Cache admission might promote knowledge without a verification bundle.",
@@ -16685,7 +16693,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2085"
+      "id": "philosophy-admission-oracle-2086"
     },
     {
       "claim": "Cache admission might skip verification bundles.",
@@ -16693,7 +16701,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2086"
+      "id": "philosophy-admission-oracle-2087"
     },
     {
       "claim": "Cache admission might waive verification bundle requirements.",
@@ -16701,7 +16709,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2087"
+      "id": "philosophy-admission-oracle-2088"
     },
     {
       "claim": "Cache admission must omit the verification bundle.",
@@ -16709,7 +16717,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2088"
+      "id": "philosophy-admission-oracle-2089"
     },
     {
       "claim": "Cache admission must promote knowledge without a verification bundle.",
@@ -16717,7 +16725,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2089"
+      "id": "philosophy-admission-oracle-2090"
     },
     {
       "claim": "Cache admission must skip verification bundles.",
@@ -16725,7 +16733,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2090"
+      "id": "philosophy-admission-oracle-2091"
     },
     {
       "claim": "Cache admission must waive verification bundle requirements.",
@@ -16733,7 +16741,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2091"
+      "id": "philosophy-admission-oracle-2092"
     },
     {
       "claim": "Cache admission promotes knowledge without a verification bundle.",
@@ -16741,7 +16749,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2092"
+      "id": "philosophy-admission-oracle-2093"
     },
     {
       "claim": "Cache admission remains optional for verification bundles.",
@@ -16749,7 +16757,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2093"
+      "id": "philosophy-admission-oracle-2094"
     },
     {
       "claim": "Cache admission should omit the verification bundle.",
@@ -16757,7 +16765,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2094"
+      "id": "philosophy-admission-oracle-2095"
     },
     {
       "claim": "Cache admission should promote knowledge without a verification bundle.",
@@ -16765,7 +16773,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2095"
+      "id": "philosophy-admission-oracle-2096"
     },
     {
       "claim": "Cache admission should skip verification bundles.",
@@ -16773,7 +16781,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2096"
+      "id": "philosophy-admission-oracle-2097"
     },
     {
       "claim": "Cache admission should waive verification bundle requirements.",
@@ -16781,7 +16789,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2097"
+      "id": "philosophy-admission-oracle-2098"
     },
     {
       "claim": "Cache admission waives verification bundle requirements.",
@@ -16789,7 +16797,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2098"
+      "id": "philosophy-admission-oracle-2099"
     },
     {
       "claim": "Cache admission will omit the verification bundle.",
@@ -16797,7 +16805,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2099"
+      "id": "philosophy-admission-oracle-2100"
     },
     {
       "claim": "Cache admission will promote knowledge without a verification bundle.",
@@ -16805,7 +16813,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2100"
+      "id": "philosophy-admission-oracle-2101"
     },
     {
       "claim": "Cache admission will skip verification bundles.",
@@ -16813,7 +16821,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2101"
+      "id": "philosophy-admission-oracle-2102"
     },
     {
       "claim": "Cache admission will waive verification bundle requirements.",
@@ -16821,7 +16829,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2102"
+      "id": "philosophy-admission-oracle-2103"
     },
     {
       "claim": "Cache admission would omit the verification bundle.",
@@ -16829,7 +16837,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2103"
+      "id": "philosophy-admission-oracle-2104"
     },
     {
       "claim": "Cache admission would promote knowledge without a verification bundle.",
@@ -16837,7 +16845,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2104"
+      "id": "philosophy-admission-oracle-2105"
     },
     {
       "claim": "Cache admission would skip verification bundles.",
@@ -16845,7 +16853,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2105"
+      "id": "philosophy-admission-oracle-2106"
     },
     {
       "claim": "Cache admission would waive verification bundle requirements.",
@@ -16853,7 +16861,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2106"
+      "id": "philosophy-admission-oracle-2107"
     },
     {
       "claim": "Knowledge promotion became exempt from verification bundles.",
@@ -16861,7 +16869,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2107"
+      "id": "philosophy-admission-oracle-2108"
     },
     {
       "claim": "Knowledge promotion bypasses verification bundles.",
@@ -16869,7 +16877,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2108"
+      "id": "philosophy-admission-oracle-2109"
     },
     {
       "claim": "Knowledge promotion can omit the verification bundle.",
@@ -16877,7 +16885,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2109"
+      "id": "philosophy-admission-oracle-2110"
     },
     {
       "claim": "Knowledge promotion can promote knowledge without a verification bundle.",
@@ -16885,7 +16893,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2110"
+      "id": "philosophy-admission-oracle-2111"
     },
     {
       "claim": "Knowledge promotion can skip verification bundles.",
@@ -16893,7 +16901,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2111"
+      "id": "philosophy-admission-oracle-2112"
     },
     {
       "claim": "Knowledge promotion can waive verification bundle requirements.",
@@ -16901,7 +16909,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2112"
+      "id": "philosophy-admission-oracle-2113"
     },
     {
       "claim": "Knowledge promotion could omit the verification bundle.",
@@ -16909,7 +16917,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2113"
+      "id": "philosophy-admission-oracle-2114"
     },
     {
       "claim": "Knowledge promotion could promote knowledge without a verification bundle.",
@@ -16917,7 +16925,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2114"
+      "id": "philosophy-admission-oracle-2115"
     },
     {
       "claim": "Knowledge promotion could skip verification bundles.",
@@ -16925,7 +16933,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2115"
+      "id": "philosophy-admission-oracle-2116"
     },
     {
       "claim": "Knowledge promotion could waive verification bundle requirements.",
@@ -16933,7 +16941,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2116"
+      "id": "philosophy-admission-oracle-2117"
     },
     {
       "claim": "Knowledge promotion does not require a verification bundle.",
@@ -16941,7 +16949,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2117"
+      "id": "philosophy-admission-oracle-2118"
     },
     {
       "claim": "Knowledge promotion has bypassed verification bundles.",
@@ -16949,7 +16957,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2118"
+      "id": "philosophy-admission-oracle-2119"
     },
     {
       "claim": "Knowledge promotion has to omit the verification bundle.",
@@ -16957,7 +16965,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2119"
+      "id": "philosophy-admission-oracle-2120"
     },
     {
       "claim": "Knowledge promotion has to promote knowledge without a verification bundle.",
@@ -16965,7 +16973,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2120"
+      "id": "philosophy-admission-oracle-2121"
     },
     {
       "claim": "Knowledge promotion has to skip verification bundles.",
@@ -16973,7 +16981,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2121"
+      "id": "philosophy-admission-oracle-2122"
     },
     {
       "claim": "Knowledge promotion has to waive verification bundle requirements.",
@@ -16981,7 +16989,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2122"
+      "id": "philosophy-admission-oracle-2123"
     },
     {
       "claim": "Knowledge promotion is now waiving verification bundle requirements.",
@@ -16989,7 +16997,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2123"
+      "id": "philosophy-admission-oracle-2124"
     },
     {
       "claim": "Knowledge promotion is required to omit the verification bundle.",
@@ -16997,7 +17005,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2124"
+      "id": "philosophy-admission-oracle-2125"
     },
     {
       "claim": "Knowledge promotion is required to promote knowledge without a verification bundle.",
@@ -17005,7 +17013,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2125"
+      "id": "philosophy-admission-oracle-2126"
     },
     {
       "claim": "Knowledge promotion is required to skip verification bundles.",
@@ -17013,7 +17021,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2126"
+      "id": "philosophy-admission-oracle-2127"
     },
     {
       "claim": "Knowledge promotion is required to waive verification bundle requirements.",
@@ -17021,7 +17029,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2127"
+      "id": "philosophy-admission-oracle-2128"
     },
     {
       "claim": "Knowledge promotion makes verification bundles optional.",
@@ -17029,7 +17037,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2128"
+      "id": "philosophy-admission-oracle-2129"
     },
     {
       "claim": "Knowledge promotion may omit the verification bundle.",
@@ -17037,7 +17045,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2129"
+      "id": "philosophy-admission-oracle-2130"
     },
     {
       "claim": "Knowledge promotion may promote knowledge without a verification bundle.",
@@ -17045,7 +17053,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2130"
+      "id": "philosophy-admission-oracle-2131"
     },
     {
       "claim": "Knowledge promotion may skip verification bundles.",
@@ -17053,7 +17061,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2131"
+      "id": "philosophy-admission-oracle-2132"
     },
     {
       "claim": "Knowledge promotion may waive verification bundle requirements.",
@@ -17061,7 +17069,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2132"
+      "id": "philosophy-admission-oracle-2133"
     },
     {
       "claim": "Knowledge promotion might omit the verification bundle.",
@@ -17069,7 +17077,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2133"
+      "id": "philosophy-admission-oracle-2134"
     },
     {
       "claim": "Knowledge promotion might promote knowledge without a verification bundle.",
@@ -17077,7 +17085,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2134"
+      "id": "philosophy-admission-oracle-2135"
     },
     {
       "claim": "Knowledge promotion might skip verification bundles.",
@@ -17085,7 +17093,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2135"
+      "id": "philosophy-admission-oracle-2136"
     },
     {
       "claim": "Knowledge promotion might waive verification bundle requirements.",
@@ -17093,7 +17101,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2136"
+      "id": "philosophy-admission-oracle-2137"
     },
     {
       "claim": "Knowledge promotion must omit the verification bundle.",
@@ -17101,7 +17109,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2137"
+      "id": "philosophy-admission-oracle-2138"
     },
     {
       "claim": "Knowledge promotion must promote knowledge without a verification bundle.",
@@ -17109,7 +17117,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2138"
+      "id": "philosophy-admission-oracle-2139"
     },
     {
       "claim": "Knowledge promotion must skip verification bundles.",
@@ -17117,7 +17125,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2139"
+      "id": "philosophy-admission-oracle-2140"
     },
     {
       "claim": "Knowledge promotion must waive verification bundle requirements.",
@@ -17125,7 +17133,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2140"
+      "id": "philosophy-admission-oracle-2141"
     },
     {
       "claim": "Knowledge promotion promotes knowledge without a verification bundle.",
@@ -17133,7 +17141,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2141"
+      "id": "philosophy-admission-oracle-2142"
     },
     {
       "claim": "Knowledge promotion remains optional for verification bundles.",
@@ -17141,7 +17149,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2142"
+      "id": "philosophy-admission-oracle-2143"
     },
     {
       "claim": "Knowledge promotion should omit the verification bundle.",
@@ -17149,7 +17157,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2143"
+      "id": "philosophy-admission-oracle-2144"
     },
     {
       "claim": "Knowledge promotion should promote knowledge without a verification bundle.",
@@ -17157,7 +17165,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2144"
+      "id": "philosophy-admission-oracle-2145"
     },
     {
       "claim": "Knowledge promotion should skip verification bundles.",
@@ -17165,7 +17173,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2145"
+      "id": "philosophy-admission-oracle-2146"
     },
     {
       "claim": "Knowledge promotion should waive verification bundle requirements.",
@@ -17173,7 +17181,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2146"
+      "id": "philosophy-admission-oracle-2147"
     },
     {
       "claim": "Knowledge promotion waives verification bundle requirements.",
@@ -17181,7 +17189,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2147"
+      "id": "philosophy-admission-oracle-2148"
     },
     {
       "claim": "Knowledge promotion will omit the verification bundle.",
@@ -17189,7 +17197,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2148"
+      "id": "philosophy-admission-oracle-2149"
     },
     {
       "claim": "Knowledge promotion will promote knowledge without a verification bundle.",
@@ -17197,7 +17205,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2149"
+      "id": "philosophy-admission-oracle-2150"
     },
     {
       "claim": "Knowledge promotion will skip verification bundles.",
@@ -17205,7 +17213,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2150"
+      "id": "philosophy-admission-oracle-2151"
     },
     {
       "claim": "Knowledge promotion will waive verification bundle requirements.",
@@ -17213,7 +17221,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2151"
+      "id": "philosophy-admission-oracle-2152"
     },
     {
       "claim": "Knowledge promotion would omit the verification bundle.",
@@ -17221,7 +17229,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2152"
+      "id": "philosophy-admission-oracle-2153"
     },
     {
       "claim": "Knowledge promotion would promote knowledge without a verification bundle.",
@@ -17229,7 +17237,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2153"
+      "id": "philosophy-admission-oracle-2154"
     },
     {
       "claim": "Knowledge promotion would skip verification bundles.",
@@ -17237,7 +17245,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2154"
+      "id": "philosophy-admission-oracle-2155"
     },
     {
       "claim": "Knowledge promotion would waive verification bundle requirements.",
@@ -17245,7 +17253,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2155"
+      "id": "philosophy-admission-oracle-2156"
     },
     {
       "claim": "PR-2 is promoting knowledge without a verification bundle.",
@@ -17253,7 +17261,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.seed_regressions",
-      "id": "philosophy-admission-oracle-2156"
+      "id": "philosophy-admission-oracle-2157"
     },
     {
       "claim": "Philosophy admission became exempt from verification bundles.",
@@ -17261,7 +17269,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2157"
+      "id": "philosophy-admission-oracle-2158"
     },
     {
       "claim": "Philosophy admission bypasses verification bundles.",
@@ -17269,7 +17277,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2158"
+      "id": "philosophy-admission-oracle-2159"
     },
     {
       "claim": "Philosophy admission can omit the verification bundle.",
@@ -17277,7 +17285,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2159"
+      "id": "philosophy-admission-oracle-2160"
     },
     {
       "claim": "Philosophy admission can promote knowledge without a verification bundle.",
@@ -17285,7 +17293,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2160"
+      "id": "philosophy-admission-oracle-2161"
     },
     {
       "claim": "Philosophy admission can skip verification bundles.",
@@ -17293,7 +17301,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2161"
+      "id": "philosophy-admission-oracle-2162"
     },
     {
       "claim": "Philosophy admission can waive verification bundle requirements.",
@@ -17301,7 +17309,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2162"
+      "id": "philosophy-admission-oracle-2163"
     },
     {
       "claim": "Philosophy admission could omit the verification bundle.",
@@ -17309,7 +17317,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2163"
+      "id": "philosophy-admission-oracle-2164"
     },
     {
       "claim": "Philosophy admission could promote knowledge without a verification bundle.",
@@ -17317,7 +17325,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2164"
+      "id": "philosophy-admission-oracle-2165"
     },
     {
       "claim": "Philosophy admission could skip verification bundles.",
@@ -17325,7 +17333,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2165"
+      "id": "philosophy-admission-oracle-2166"
     },
     {
       "claim": "Philosophy admission could waive verification bundle requirements.",
@@ -17333,7 +17341,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2166"
+      "id": "philosophy-admission-oracle-2167"
     },
     {
       "claim": "Philosophy admission does not require a verification bundle.",
@@ -17341,7 +17349,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2167"
+      "id": "philosophy-admission-oracle-2168"
     },
     {
       "claim": "Philosophy admission has bypassed verification bundles.",
@@ -17349,7 +17357,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2168"
+      "id": "philosophy-admission-oracle-2169"
     },
     {
       "claim": "Philosophy admission has to omit the verification bundle.",
@@ -17357,7 +17365,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2169"
+      "id": "philosophy-admission-oracle-2170"
     },
     {
       "claim": "Philosophy admission has to promote knowledge without a verification bundle.",
@@ -17365,7 +17373,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2170"
+      "id": "philosophy-admission-oracle-2171"
     },
     {
       "claim": "Philosophy admission has to skip verification bundles.",
@@ -17373,7 +17381,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2171"
+      "id": "philosophy-admission-oracle-2172"
     },
     {
       "claim": "Philosophy admission has to waive verification bundle requirements.",
@@ -17381,7 +17389,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2172"
+      "id": "philosophy-admission-oracle-2173"
     },
     {
       "claim": "Philosophy admission is now waiving verification bundle requirements.",
@@ -17389,7 +17397,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2173"
+      "id": "philosophy-admission-oracle-2174"
     },
     {
       "claim": "Philosophy admission is required to omit the verification bundle.",
@@ -17397,7 +17405,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2174"
+      "id": "philosophy-admission-oracle-2175"
     },
     {
       "claim": "Philosophy admission is required to promote knowledge without a verification bundle.",
@@ -17405,7 +17413,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2175"
+      "id": "philosophy-admission-oracle-2176"
     },
     {
       "claim": "Philosophy admission is required to skip verification bundles.",
@@ -17413,7 +17421,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2176"
+      "id": "philosophy-admission-oracle-2177"
     },
     {
       "claim": "Philosophy admission is required to waive verification bundle requirements.",
@@ -17421,7 +17429,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2177"
+      "id": "philosophy-admission-oracle-2178"
     },
     {
       "claim": "Philosophy admission makes verification bundles optional.",
@@ -17429,7 +17437,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2178"
+      "id": "philosophy-admission-oracle-2179"
     },
     {
       "claim": "Philosophy admission may omit the verification bundle.",
@@ -17437,7 +17445,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2179"
+      "id": "philosophy-admission-oracle-2180"
     },
     {
       "claim": "Philosophy admission may promote knowledge without a verification bundle.",
@@ -17445,7 +17453,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2180"
+      "id": "philosophy-admission-oracle-2181"
     },
     {
       "claim": "Philosophy admission may skip verification bundles.",
@@ -17453,7 +17461,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2181"
+      "id": "philosophy-admission-oracle-2182"
     },
     {
       "claim": "Philosophy admission may waive verification bundle requirements.",
@@ -17461,7 +17469,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2182"
+      "id": "philosophy-admission-oracle-2183"
     },
     {
       "claim": "Philosophy admission might omit the verification bundle.",
@@ -17469,7 +17477,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2183"
+      "id": "philosophy-admission-oracle-2184"
     },
     {
       "claim": "Philosophy admission might promote knowledge without a verification bundle.",
@@ -17477,7 +17485,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2184"
+      "id": "philosophy-admission-oracle-2185"
     },
     {
       "claim": "Philosophy admission might skip verification bundles.",
@@ -17485,7 +17493,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2185"
+      "id": "philosophy-admission-oracle-2186"
     },
     {
       "claim": "Philosophy admission might waive verification bundle requirements.",
@@ -17493,7 +17501,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2186"
+      "id": "philosophy-admission-oracle-2187"
     },
     {
       "claim": "Philosophy admission must omit the verification bundle.",
@@ -17501,7 +17509,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2187"
+      "id": "philosophy-admission-oracle-2188"
     },
     {
       "claim": "Philosophy admission must promote knowledge without a verification bundle.",
@@ -17509,7 +17517,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2188"
+      "id": "philosophy-admission-oracle-2189"
     },
     {
       "claim": "Philosophy admission must skip verification bundles.",
@@ -17517,7 +17525,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2189"
+      "id": "philosophy-admission-oracle-2190"
     },
     {
       "claim": "Philosophy admission must waive verification bundle requirements.",
@@ -17525,7 +17533,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2190"
+      "id": "philosophy-admission-oracle-2191"
     },
     {
       "claim": "Philosophy admission promotes knowledge without a verification bundle.",
@@ -17533,7 +17541,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2191"
+      "id": "philosophy-admission-oracle-2192"
     },
     {
       "claim": "Philosophy admission remains optional for verification bundles.",
@@ -17541,7 +17549,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2192"
+      "id": "philosophy-admission-oracle-2193"
     },
     {
       "claim": "Philosophy admission should omit the verification bundle.",
@@ -17549,7 +17557,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2193"
+      "id": "philosophy-admission-oracle-2194"
     },
     {
       "claim": "Philosophy admission should promote knowledge without a verification bundle.",
@@ -17557,7 +17565,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2194"
+      "id": "philosophy-admission-oracle-2195"
     },
     {
       "claim": "Philosophy admission should skip verification bundles.",
@@ -17565,7 +17573,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2195"
+      "id": "philosophy-admission-oracle-2196"
     },
     {
       "claim": "Philosophy admission should waive verification bundle requirements.",
@@ -17573,7 +17581,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2196"
+      "id": "philosophy-admission-oracle-2197"
     },
     {
       "claim": "Philosophy admission waives verification bundle requirements.",
@@ -17581,7 +17589,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2197"
+      "id": "philosophy-admission-oracle-2198"
     },
     {
       "claim": "Philosophy admission will omit the verification bundle.",
@@ -17589,7 +17597,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2198"
+      "id": "philosophy-admission-oracle-2199"
     },
     {
       "claim": "Philosophy admission will promote knowledge without a verification bundle.",
@@ -17597,7 +17605,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2199"
+      "id": "philosophy-admission-oracle-2200"
     },
     {
       "claim": "Philosophy admission will skip verification bundles.",
@@ -17605,7 +17613,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2200"
+      "id": "philosophy-admission-oracle-2201"
     },
     {
       "claim": "Philosophy admission will waive verification bundle requirements.",
@@ -17613,7 +17621,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2201"
+      "id": "philosophy-admission-oracle-2202"
     },
     {
       "claim": "Philosophy admission would omit the verification bundle.",
@@ -17621,7 +17629,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2202"
+      "id": "philosophy-admission-oracle-2203"
     },
     {
       "claim": "Philosophy admission would promote knowledge without a verification bundle.",
@@ -17629,7 +17637,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2203"
+      "id": "philosophy-admission-oracle-2204"
     },
     {
       "claim": "Philosophy admission would skip verification bundles.",
@@ -17637,7 +17645,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2204"
+      "id": "philosophy-admission-oracle-2205"
     },
     {
       "claim": "Philosophy admission would waive verification bundle requirements.",
@@ -17645,7 +17653,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2205"
+      "id": "philosophy-admission-oracle-2206"
     },
     {
       "claim": "Semantic-cache admission became exempt from verification bundles.",
@@ -17653,7 +17661,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2206"
+      "id": "philosophy-admission-oracle-2207"
     },
     {
       "claim": "Semantic-cache admission bypasses verification bundles.",
@@ -17661,7 +17669,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2207"
+      "id": "philosophy-admission-oracle-2208"
     },
     {
       "claim": "Semantic-cache admission can omit the verification bundle.",
@@ -17669,7 +17677,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2208"
+      "id": "philosophy-admission-oracle-2209"
     },
     {
       "claim": "Semantic-cache admission can promote knowledge without a verification bundle.",
@@ -17677,7 +17685,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2209"
+      "id": "philosophy-admission-oracle-2210"
     },
     {
       "claim": "Semantic-cache admission can skip verification bundles.",
@@ -17685,7 +17693,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2210"
+      "id": "philosophy-admission-oracle-2211"
     },
     {
       "claim": "Semantic-cache admission can waive verification bundle requirements.",
@@ -17693,7 +17701,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2211"
+      "id": "philosophy-admission-oracle-2212"
     },
     {
       "claim": "Semantic-cache admission could omit the verification bundle.",
@@ -17701,7 +17709,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2212"
+      "id": "philosophy-admission-oracle-2213"
     },
     {
       "claim": "Semantic-cache admission could promote knowledge without a verification bundle.",
@@ -17709,7 +17717,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2213"
+      "id": "philosophy-admission-oracle-2214"
     },
     {
       "claim": "Semantic-cache admission could skip verification bundles.",
@@ -17717,7 +17725,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2214"
+      "id": "philosophy-admission-oracle-2215"
     },
     {
       "claim": "Semantic-cache admission could waive verification bundle requirements.",
@@ -17725,7 +17733,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2215"
+      "id": "philosophy-admission-oracle-2216"
     },
     {
       "claim": "Semantic-cache admission does not require a verification bundle.",
@@ -17733,7 +17741,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2216"
+      "id": "philosophy-admission-oracle-2217"
     },
     {
       "claim": "Semantic-cache admission has bypassed verification bundles.",
@@ -17741,7 +17749,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2217"
+      "id": "philosophy-admission-oracle-2218"
     },
     {
       "claim": "Semantic-cache admission has to omit the verification bundle.",
@@ -17749,7 +17757,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2218"
+      "id": "philosophy-admission-oracle-2219"
     },
     {
       "claim": "Semantic-cache admission has to promote knowledge without a verification bundle.",
@@ -17757,7 +17765,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2219"
+      "id": "philosophy-admission-oracle-2220"
     },
     {
       "claim": "Semantic-cache admission has to skip verification bundles.",
@@ -17765,7 +17773,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2220"
+      "id": "philosophy-admission-oracle-2221"
     },
     {
       "claim": "Semantic-cache admission has to waive verification bundle requirements.",
@@ -17773,7 +17781,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2221"
+      "id": "philosophy-admission-oracle-2222"
     },
     {
       "claim": "Semantic-cache admission is now waiving verification bundle requirements.",
@@ -17781,7 +17789,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2222"
+      "id": "philosophy-admission-oracle-2223"
     },
     {
       "claim": "Semantic-cache admission is required to omit the verification bundle.",
@@ -17789,7 +17797,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2223"
+      "id": "philosophy-admission-oracle-2224"
     },
     {
       "claim": "Semantic-cache admission is required to promote knowledge without a verification bundle.",
@@ -17797,7 +17805,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2224"
+      "id": "philosophy-admission-oracle-2225"
     },
     {
       "claim": "Semantic-cache admission is required to skip verification bundles.",
@@ -17805,7 +17813,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2225"
+      "id": "philosophy-admission-oracle-2226"
     },
     {
       "claim": "Semantic-cache admission is required to waive verification bundle requirements.",
@@ -17813,7 +17821,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2226"
+      "id": "philosophy-admission-oracle-2227"
     },
     {
       "claim": "Semantic-cache admission makes verification bundles optional.",
@@ -17821,7 +17829,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2227"
+      "id": "philosophy-admission-oracle-2228"
     },
     {
       "claim": "Semantic-cache admission may omit the verification bundle.",
@@ -17829,7 +17837,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2228"
+      "id": "philosophy-admission-oracle-2229"
     },
     {
       "claim": "Semantic-cache admission may promote knowledge without a verification bundle.",
@@ -17837,7 +17845,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2229"
+      "id": "philosophy-admission-oracle-2230"
     },
     {
       "claim": "Semantic-cache admission may skip verification bundles.",
@@ -17845,7 +17853,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2230"
+      "id": "philosophy-admission-oracle-2231"
     },
     {
       "claim": "Semantic-cache admission may waive verification bundle requirements.",
@@ -17853,7 +17861,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2231"
+      "id": "philosophy-admission-oracle-2232"
     },
     {
       "claim": "Semantic-cache admission might omit the verification bundle.",
@@ -17861,7 +17869,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2232"
+      "id": "philosophy-admission-oracle-2233"
     },
     {
       "claim": "Semantic-cache admission might promote knowledge without a verification bundle.",
@@ -17869,7 +17877,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2233"
+      "id": "philosophy-admission-oracle-2234"
     },
     {
       "claim": "Semantic-cache admission might skip verification bundles.",
@@ -17877,7 +17885,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2234"
+      "id": "philosophy-admission-oracle-2235"
     },
     {
       "claim": "Semantic-cache admission might waive verification bundle requirements.",
@@ -17885,7 +17893,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2235"
+      "id": "philosophy-admission-oracle-2236"
     },
     {
       "claim": "Semantic-cache admission must omit the verification bundle.",
@@ -17893,7 +17901,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2236"
+      "id": "philosophy-admission-oracle-2237"
     },
     {
       "claim": "Semantic-cache admission must promote knowledge without a verification bundle.",
@@ -17901,7 +17909,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2237"
+      "id": "philosophy-admission-oracle-2238"
     },
     {
       "claim": "Semantic-cache admission must skip verification bundles.",
@@ -17909,7 +17917,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2238"
+      "id": "philosophy-admission-oracle-2239"
     },
     {
       "claim": "Semantic-cache admission must waive verification bundle requirements.",
@@ -17917,7 +17925,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2239"
+      "id": "philosophy-admission-oracle-2240"
     },
     {
       "claim": "Semantic-cache admission promotes knowledge without a verification bundle.",
@@ -17925,7 +17933,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2240"
+      "id": "philosophy-admission-oracle-2241"
     },
     {
       "claim": "Semantic-cache admission remains optional for verification bundles.",
@@ -17933,7 +17941,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2241"
+      "id": "philosophy-admission-oracle-2242"
     },
     {
       "claim": "Semantic-cache admission should omit the verification bundle.",
@@ -17941,7 +17949,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2242"
+      "id": "philosophy-admission-oracle-2243"
     },
     {
       "claim": "Semantic-cache admission should promote knowledge without a verification bundle.",
@@ -17949,7 +17957,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2243"
+      "id": "philosophy-admission-oracle-2244"
     },
     {
       "claim": "Semantic-cache admission should skip verification bundles.",
@@ -17957,7 +17965,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2244"
+      "id": "philosophy-admission-oracle-2245"
     },
     {
       "claim": "Semantic-cache admission should waive verification bundle requirements.",
@@ -17965,7 +17973,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2245"
+      "id": "philosophy-admission-oracle-2246"
     },
     {
       "claim": "Semantic-cache admission waives verification bundle requirements.",
@@ -17973,7 +17981,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2246"
+      "id": "philosophy-admission-oracle-2247"
     },
     {
       "claim": "Semantic-cache admission will omit the verification bundle.",
@@ -17981,7 +17989,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2247"
+      "id": "philosophy-admission-oracle-2248"
     },
     {
       "claim": "Semantic-cache admission will promote knowledge without a verification bundle.",
@@ -17989,7 +17997,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2248"
+      "id": "philosophy-admission-oracle-2249"
     },
     {
       "claim": "Semantic-cache admission will skip verification bundles.",
@@ -17997,7 +18005,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2249"
+      "id": "philosophy-admission-oracle-2250"
     },
     {
       "claim": "Semantic-cache admission will waive verification bundle requirements.",
@@ -18005,7 +18013,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2250"
+      "id": "philosophy-admission-oracle-2251"
     },
     {
       "claim": "Semantic-cache admission would omit the verification bundle.",
@@ -18013,7 +18021,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2251"
+      "id": "philosophy-admission-oracle-2252"
     },
     {
       "claim": "Semantic-cache admission would promote knowledge without a verification bundle.",
@@ -18021,7 +18029,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2252"
+      "id": "philosophy-admission-oracle-2253"
     },
     {
       "claim": "Semantic-cache admission would skip verification bundles.",
@@ -18029,7 +18037,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2253"
+      "id": "philosophy-admission-oracle-2254"
     },
     {
       "claim": "Semantic-cache admission would waive verification bundle requirements.",
@@ -18037,7 +18045,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2254"
+      "id": "philosophy-admission-oracle-2255"
     },
     {
       "claim": "The admission policy became exempt from verification bundles.",
@@ -18045,7 +18053,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2255"
+      "id": "philosophy-admission-oracle-2256"
     },
     {
       "claim": "The admission policy bypasses verification bundles.",
@@ -18053,7 +18061,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2256"
+      "id": "philosophy-admission-oracle-2257"
     },
     {
       "claim": "The admission policy can omit the verification bundle.",
@@ -18061,7 +18069,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2257"
+      "id": "philosophy-admission-oracle-2258"
     },
     {
       "claim": "The admission policy can promote knowledge without a verification bundle.",
@@ -18069,7 +18077,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2258"
+      "id": "philosophy-admission-oracle-2259"
     },
     {
       "claim": "The admission policy can skip verification bundles.",
@@ -18077,7 +18085,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2259"
+      "id": "philosophy-admission-oracle-2260"
     },
     {
       "claim": "The admission policy can waive verification bundle requirements.",
@@ -18085,7 +18093,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2260"
+      "id": "philosophy-admission-oracle-2261"
     },
     {
       "claim": "The admission policy could omit the verification bundle.",
@@ -18093,7 +18101,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2261"
+      "id": "philosophy-admission-oracle-2262"
     },
     {
       "claim": "The admission policy could promote knowledge without a verification bundle.",
@@ -18101,7 +18109,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2262"
+      "id": "philosophy-admission-oracle-2263"
     },
     {
       "claim": "The admission policy could skip verification bundles.",
@@ -18109,7 +18117,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2263"
+      "id": "philosophy-admission-oracle-2264"
     },
     {
       "claim": "The admission policy could waive verification bundle requirements.",
@@ -18117,7 +18125,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2264"
+      "id": "philosophy-admission-oracle-2265"
     },
     {
       "claim": "The admission policy does not require a verification bundle.",
@@ -18125,7 +18133,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2265"
+      "id": "philosophy-admission-oracle-2266"
     },
     {
       "claim": "The admission policy has bypassed verification bundles.",
@@ -18133,7 +18141,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2266"
+      "id": "philosophy-admission-oracle-2267"
     },
     {
       "claim": "The admission policy has to omit the verification bundle.",
@@ -18141,7 +18149,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2267"
+      "id": "philosophy-admission-oracle-2268"
     },
     {
       "claim": "The admission policy has to promote knowledge without a verification bundle.",
@@ -18149,7 +18157,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2268"
+      "id": "philosophy-admission-oracle-2269"
     },
     {
       "claim": "The admission policy has to skip verification bundles.",
@@ -18157,7 +18165,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2269"
+      "id": "philosophy-admission-oracle-2270"
     },
     {
       "claim": "The admission policy has to waive verification bundle requirements.",
@@ -18165,7 +18173,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2270"
+      "id": "philosophy-admission-oracle-2271"
     },
     {
       "claim": "The admission policy is now waiving verification bundle requirements.",
@@ -18173,7 +18181,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2271"
+      "id": "philosophy-admission-oracle-2272"
     },
     {
       "claim": "The admission policy is required to omit the verification bundle.",
@@ -18181,7 +18189,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2272"
+      "id": "philosophy-admission-oracle-2273"
     },
     {
       "claim": "The admission policy is required to promote knowledge without a verification bundle.",
@@ -18189,7 +18197,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2273"
+      "id": "philosophy-admission-oracle-2274"
     },
     {
       "claim": "The admission policy is required to skip verification bundles.",
@@ -18197,7 +18205,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2274"
+      "id": "philosophy-admission-oracle-2275"
     },
     {
       "claim": "The admission policy is required to waive verification bundle requirements.",
@@ -18205,7 +18213,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2275"
+      "id": "philosophy-admission-oracle-2276"
     },
     {
       "claim": "The admission policy makes verification bundles optional.",
@@ -18213,7 +18221,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2276"
+      "id": "philosophy-admission-oracle-2277"
     },
     {
       "claim": "The admission policy may omit the verification bundle.",
@@ -18221,7 +18229,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2277"
+      "id": "philosophy-admission-oracle-2278"
     },
     {
       "claim": "The admission policy may promote knowledge without a verification bundle.",
@@ -18229,7 +18237,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2278"
+      "id": "philosophy-admission-oracle-2279"
     },
     {
       "claim": "The admission policy may skip verification bundles.",
@@ -18237,7 +18245,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2279"
+      "id": "philosophy-admission-oracle-2280"
     },
     {
       "claim": "The admission policy may waive verification bundle requirements.",
@@ -18245,7 +18253,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2280"
+      "id": "philosophy-admission-oracle-2281"
     },
     {
       "claim": "The admission policy might omit the verification bundle.",
@@ -18253,7 +18261,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2281"
+      "id": "philosophy-admission-oracle-2282"
     },
     {
       "claim": "The admission policy might promote knowledge without a verification bundle.",
@@ -18261,7 +18269,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2282"
+      "id": "philosophy-admission-oracle-2283"
     },
     {
       "claim": "The admission policy might skip verification bundles.",
@@ -18269,7 +18277,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2283"
+      "id": "philosophy-admission-oracle-2284"
     },
     {
       "claim": "The admission policy might waive verification bundle requirements.",
@@ -18277,7 +18285,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2284"
+      "id": "philosophy-admission-oracle-2285"
     },
     {
       "claim": "The admission policy must omit the verification bundle.",
@@ -18285,7 +18293,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2285"
+      "id": "philosophy-admission-oracle-2286"
     },
     {
       "claim": "The admission policy must promote knowledge without a verification bundle.",
@@ -18293,7 +18301,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2286"
+      "id": "philosophy-admission-oracle-2287"
     },
     {
       "claim": "The admission policy must skip verification bundles.",
@@ -18301,7 +18309,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2287"
+      "id": "philosophy-admission-oracle-2288"
     },
     {
       "claim": "The admission policy must waive verification bundle requirements.",
@@ -18309,7 +18317,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2288"
+      "id": "philosophy-admission-oracle-2289"
     },
     {
       "claim": "The admission policy promotes knowledge without a verification bundle.",
@@ -18317,7 +18325,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2289"
+      "id": "philosophy-admission-oracle-2290"
     },
     {
       "claim": "The admission policy remains optional for verification bundles.",
@@ -18325,7 +18333,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.temporal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2290"
+      "id": "philosophy-admission-oracle-2291"
     },
     {
       "claim": "The admission policy should omit the verification bundle.",
@@ -18333,7 +18341,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2291"
+      "id": "philosophy-admission-oracle-2292"
     },
     {
       "claim": "The admission policy should promote knowledge without a verification bundle.",
@@ -18341,7 +18349,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2292"
+      "id": "philosophy-admission-oracle-2293"
     },
     {
       "claim": "The admission policy should skip verification bundles.",
@@ -18349,7 +18357,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2293"
+      "id": "philosophy-admission-oracle-2294"
     },
     {
       "claim": "The admission policy should waive verification bundle requirements.",
@@ -18357,7 +18365,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2294"
+      "id": "philosophy-admission-oracle-2295"
     },
     {
       "claim": "The admission policy waives verification bundle requirements.",
@@ -18365,7 +18373,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.assertive_predicates",
-      "id": "philosophy-admission-oracle-2295"
+      "id": "philosophy-admission-oracle-2296"
     },
     {
       "claim": "The admission policy will omit the verification bundle.",
@@ -18373,7 +18381,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2296"
+      "id": "philosophy-admission-oracle-2297"
     },
     {
       "claim": "The admission policy will promote knowledge without a verification bundle.",
@@ -18381,7 +18389,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2297"
+      "id": "philosophy-admission-oracle-2298"
     },
     {
       "claim": "The admission policy will skip verification bundles.",
@@ -18389,7 +18397,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2298"
+      "id": "philosophy-admission-oracle-2299"
     },
     {
       "claim": "The admission policy will waive verification bundle requirements.",
@@ -18397,7 +18405,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2299"
+      "id": "philosophy-admission-oracle-2300"
     },
     {
       "claim": "The admission policy would omit the verification bundle.",
@@ -18405,7 +18413,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2300"
+      "id": "philosophy-admission-oracle-2301"
     },
     {
       "claim": "The admission policy would promote knowledge without a verification bundle.",
@@ -18413,7 +18421,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2301"
+      "id": "philosophy-admission-oracle-2302"
     },
     {
       "claim": "The admission policy would skip verification bundles.",
@@ -18421,7 +18429,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2302"
+      "id": "philosophy-admission-oracle-2303"
     },
     {
       "claim": "The admission policy would waive verification bundle requirements.",
@@ -18429,7 +18437,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.modal_predicates.cross_product",
-      "id": "philosophy-admission-oracle-2303"
+      "id": "philosophy-admission-oracle-2304"
     },
     {
       "claim": "Verification bundle requirements remain optional for semantic-cache admission.",
@@ -18437,7 +18445,7 @@
       "expected": "forbidden",
       "expected_detector_label": "verification bundle optional",
       "source": "policy.seed_regressions",
-      "id": "philosophy-admission-oracle-2304"
+      "id": "philosophy-admission-oracle-2305"
     }
   ]
 }
