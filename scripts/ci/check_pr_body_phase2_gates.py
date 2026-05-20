@@ -62,7 +62,6 @@ EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
 EXPERIMENT_RUNNER_NA_RE = re.compile(r"(?im)^\s*(?:-\s*)?Not applicable:\s*(?P<reason>\S.+?)\s*$")
 EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results/"
 COMMIT_MESSAGE_SEPARATOR = "\x1e"
-TRAILER_LINE_RE = re.compile(r"^[A-Za-z0-9-]+:\s+\S.*$")
 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
     "Advisory: missing `## Experiment Runner Evidence` section with "
     "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
@@ -292,22 +291,24 @@ def _git_commit_messages(
 
 
 def _commit_message_has_expected_coauthor_trailer(message: str) -> bool:
-    lines = [line.rstrip() for line in message.splitlines()]
-    index = len(lines) - 1
-    while index >= 0 and not lines[index].strip():
-        index -= 1
-
-    trailer_lines: list[str] = []
-    while index >= 0:
-        line = lines[index].strip()
-        if not line:
-            break
-        if not TRAILER_LINE_RE.fullmatch(line):
-            break
-        trailer_lines.append(line)
-        index -= 1
-
-    return EXPECTED_CO_AUTHOR_TRAILER in trailer_lines
+    git_bin = shutil.which("git")
+    if git_bin is None:
+        return False
+    try:
+        completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
+            [git_bin, "interpret-trailers", "--parse"],
+            cwd=REPO_ROOT,
+            input=message,
+            text=True,
+            capture_output=True,
+            check=False,
+            timeout=5,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    if completed.returncode != 0:
+        return False
+    return any(line.strip() == EXPECTED_CO_AUTHOR_TRAILER for line in completed.stdout.splitlines())
 
 
 def _commit_messages_have_expected_coauthor_trailer(commit_messages: str) -> bool:

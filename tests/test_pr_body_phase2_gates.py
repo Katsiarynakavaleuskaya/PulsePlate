@@ -306,6 +306,41 @@ def test_experiment_runner_coauthor_advisory_ignores_body_mentions_of_trailer(
     ]
 
 
+def test_experiment_runner_coauthor_advisory_requires_git_trailer_block(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: mention trailer without trailer block\n"
+            "Some prose\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/oracle.json` sets "
+        "coauthor_required=true, but branch commits do not include the canonical "
+        "Experiment Runner co-author trailer. Reason: Runner oracle shaped the fixed mapping."
+    ]
+
+
 def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
     warnings = gates.check_experiment_runner_coauthor_advisory(
         "## Experiment Runner Evidence\n"
