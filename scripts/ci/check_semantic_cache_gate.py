@@ -1943,8 +1943,12 @@ def validate_philosophy_semantic_cache_admission_policy(
         if isinstance(detector_labels, list) and all(
             isinstance(item, str) for item in detector_labels
         ):
-            if set(detector_labels) != expected_labels:
-                errors.append(f"{prefix} detector_labels set mismatch")
+            actual_labels = set(detector_labels)
+            if actual_labels != expected_labels:
+                errors.append(
+                    f"{prefix} detector_labels set mismatch: "
+                    f"expected={sorted(expected_labels)}, actual={sorted(actual_labels)}"
+                )
             for label in detector_labels:
                 if label not in active_pattern_labels:
                     errors.append(f"{prefix} detector label lacks active detector: {label}")
@@ -2138,8 +2142,8 @@ def validate_philosophy_admission_oracle_fixture(
     errors: list[str] = []
     if fixture != expected:
         errors.append(
-            "philosophy admission oracle fixture drift: regenerate from "
-            "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json"
+            "philosophy admission oracle fixture drift: regenerate from the policy JSON "
+            "used in this check"
         )
     cases = fixture.get("cases")
     if not isinstance(cases, list) or not cases:
@@ -3693,9 +3697,15 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     if args.write_philosophy_admission_oracle:
-        rendered, render_errors = render_philosophy_admission_oracle_fixture(philosophy_policy_text)
-        errors.extend(render_errors)
-        if not render_errors:
+        if not errors:
+            rendered, render_errors = render_philosophy_admission_oracle_fixture(
+                philosophy_policy_text
+            )
+            errors.extend(render_errors)
+        else:
+            rendered = ""
+            render_errors = []
+        if not errors and not render_errors:
             oracle_path = philosophy_admission_oracle.resolve()
             allowed_root = (REPO_ROOT / "tests" / "fixtures" / "orchestration").resolve()
             if not oracle_path.is_relative_to(allowed_root):

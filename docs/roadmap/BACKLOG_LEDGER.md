@@ -2878,7 +2878,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/review/PR_<N>_FIXED_MAPPING.md` is added after the PR number exists and mirrored into the PR body
 
 <a id="ledger-p1-philosophy-epic-v2-pr1-admission"></a>
-- [ ] P1: Philosophy Epic V2 PR-1 semantic-cache admission contract
+- [x] P1: Philosophy Epic V2 PR-1 semantic-cache admission contract
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: #1761 (`codex/philosophy-epic-v2-pr1-admission-contract`)
@@ -2904,7 +2904,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Philosophy Epic V2 PR-2 admission policy spec generator / claim-family oracle
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: `codex/philosophy-epic-v2-pr2-policy-oracle`
+  - Target PR: #1777 (`codex/philosophy-epic-v2-pr2-policy-oracle`)
   - Status: 🟡 Active in PR-2 branch
   - Area: AI / RAG / philosophy / semantic-cache governance / test infrastructure
   - Finding Type: false-green prevention, policy-as-data oracle, temporal/modal claim drift guard

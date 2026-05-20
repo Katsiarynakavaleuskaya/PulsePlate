@@ -125,7 +125,7 @@ def test_oracle_cases_match_downstream_checker_behavior() -> None:
             if not any(detector_label in error or family in error for error in errors):
                 misses.append((claim, detector_label, errors))
         else:
-            if any(detector_label in error or family in error for error in errors):
+            if errors:
                 false_hits.append((claim, detector_label, errors))
 
     assert misses == []
@@ -162,7 +162,7 @@ def test_oracle_fixture_drift_is_rejected() -> None:
 
     assert (
         "philosophy admission oracle fixture drift: regenerate from "
-        "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json"
+        "the policy JSON used in this check"
     ) in errors
 
 
@@ -198,6 +198,38 @@ def test_oracle_write_rejects_paths_outside_fixture_root(
     assert exit_code == 1
     assert not outside_fixture_root.exists()
     assert "philosophy admission oracle write path must stay" in captured.err
+
+
+def test_oracle_write_is_blocked_when_policy_validation_fails(
+    tmp_path: Path, capsys: CaptureFixture[str]
+) -> None:
+    invalid_policy = tmp_path / "invalid_policy.json"
+    invalid_policy.write_text(
+        _policy_text().replace('"gate_status": "closed"', '"gate_status": "open"', 1),
+        encoding="utf-8",
+    )
+    oracle_target = (
+        REPO_ROOT / "tests" / "fixtures" / "orchestration" / "__tmp_invalid_policy_oracle.json"
+    )
+    oracle_target.unlink(missing_ok=True)
+
+    try:
+        exit_code = semantic_cache_gate_main(
+            [
+                "--write-philosophy-admission-oracle",
+                "--philosophy-admission-policy",
+                str(invalid_policy),
+                "--philosophy-admission-oracle",
+                str(oracle_target),
+            ]
+        )
+        captured = capsys.readouterr()
+
+        assert exit_code == 1
+        assert not oracle_target.exists()
+        assert "philosophy admission policy gate_status" in captured.err
+    finally:
+        oracle_target.unlink(missing_ok=True)
 
 
 def test_phase1_docs_gate_wires_policy_schema_and_oracle() -> None:
