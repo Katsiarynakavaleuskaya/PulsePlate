@@ -57,6 +57,10 @@ Role-agent dispositions:
   `bfbd734ab` and found no security, source-authority, network/API/scraping,
   download, DB/cache/runtime authority, provider integration, OpenAPI/runtime,
   or dependency-security scope drift.
+- Post-security Codex review batch: Disposition `FIXED`. Evidence: commit
+  `672540d81` rejects plural approval nouns, modal/reversed/future/past/
+  colon/symbol authority assignments, and preserves safe negated denials for
+  reversed authority, past-tense use, and `does not serve as` language.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -317,6 +321,22 @@ Disposition: FIXED
 Commit: 1aaa79f05
 Evidence: `core/food_sources/regional_catalog_identity.py` blocks modal `may/could/might be` authority grants for blocked source terms; `tests/test_food_source_regional_catalog_identity.py` covers the eight eleventh-pass examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: 672540d81
+Evidence: `core/food_sources/regional_catalog_identity.py` blocks plural approval nouns, future/past/modal/reversed/colon/symbol authority assignment wording, and preserves explicit negated denials; `tests/test_food_source_regional_catalog_identity.py` covers the latest Codex review examples.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672363 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672370 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672377 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672379 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672382 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271672388 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730429 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730431 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730436 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730444 -> 672540d81
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3271730449 -> 672540d81
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -356,7 +376,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 187 tests.
+- Focused PR17 tests: passed, 208 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
