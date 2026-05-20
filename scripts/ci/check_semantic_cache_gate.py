@@ -49,6 +49,19 @@ DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT = (
 DEFAULT_PHILOSOPHY_ADMISSION_SCHEMA = DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT.with_suffix(
     ".schema.json"
 )
+DEFAULT_PHILOSOPHY_ADMISSION_POLICY = (
+    REPO_ROOT
+    / "docs"
+    / "orchestration"
+    / "contracts"
+    / "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json"
+)
+DEFAULT_PHILOSOPHY_ADMISSION_POLICY_SCHEMA = DEFAULT_PHILOSOPHY_ADMISSION_POLICY.with_suffix(
+    ".schema.json"
+)
+DEFAULT_PHILOSOPHY_ADMISSION_ORACLE = (
+    REPO_ROOT / "tests" / "fixtures" / "orchestration" / "philosophy_admission_claim_oracle.json"
+)
 
 REQUIRED_MARKERS = {
     "SEMANTIC_CACHE_GATE_STATUS": "closed",
@@ -1637,6 +1650,12 @@ PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE = re.compile(
     r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
     r"(?:\s+(?:currently|yet|formally|actually|explicitly)){0,3}\s*$"
 )
+PHILOSOPHY_NEGATED_ASSERTION_PREFIX_RE = re.compile(
+    r"(?:^|\s)(?:no|not|never|can't|cannot|won't|shouldn't|mustn't|doesn't|don't|"
+    r"should\s+not|must\s+not|does\s+not|do\s+not)\b"
+    r"(?:\s+(?:currently|yet|formally|actually|explicitly)){0,3}"
+    r"\s+(?:claim|state|assert|say|write|imply|suggest)(?:\s+that)?\s*$"
+)
 PHILOSOPHY_NEGATED_PERMISSION_DOMAIN_RE = re.compile(
     r"\b(?:pr-1|philosophy admission|semantic[- ]cache gate|global gate|redis|"
     r"gptcache|backend[- ]selection|serving|runtime|providers?|storage|cache|"
@@ -1673,6 +1692,584 @@ PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS = {
     ),
     "claim_class_pdf_design_intake_gate_override": ("design intake overrides gate markers",),
 }
+
+PHILOSOPHY_ADMISSION_POLICY_ID = "philosophy_semantic_cache_admission_policy"
+PHILOSOPHY_ADMISSION_POLICY_VERSION = "2026-05-20"
+PHILOSOPHY_ADMISSION_POLICY_PHASE = "PHILOSOPHY-PR2"
+PHILOSOPHY_ADMISSION_POLICY_REQUIRED_TOP_LEVEL_KEYS = {
+    "$schema",
+    "claim_families",
+    "gate_status",
+    "implementation_allowed",
+    "modal_operators",
+    "policy_id",
+    "policy_version",
+    "research_basis",
+    "rollout_phase",
+    "runtime_allowed",
+    "source_contract",
+    "temporal_operators",
+}
+PHILOSOPHY_ADMISSION_POLICY_REQUIRED_FAMILY_KEYS = {
+    "allowed_negative_controls",
+    "assertive_predicates",
+    "canonical_meaning",
+    "detector_labels",
+    "forbidden_polarity",
+    "id",
+    "modal_predicates",
+    "risk_rail",
+    "seed_regressions",
+    "subjects",
+    "temporal_predicates",
+}
+PHILOSOPHY_ADMISSION_POLICY_STRING_LIST_KEYS = {
+    "allowed_negative_controls",
+    "assertive_predicates",
+    "detector_labels",
+    "modal_predicates",
+    "seed_regressions",
+    "subjects",
+    "temporal_predicates",
+}
+
+_DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE: tuple[float, object, list[str]] | None = None
+_DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE: (
+    tuple[float, tuple[tuple[str, str, re.Pattern[str]], ...]] | None
+) = None
+
+
+def _load_json_no_duplicate_keys(
+    text: str,
+    *,
+    invalid_prefix: str,
+    duplicate_prefix: str,
+) -> tuple[object, list[str]]:
+    duplicate_keys: list[str] = []
+
+    def reject_duplicate_keys(pairs: list[tuple[str, object]]) -> dict[str, object]:
+        parsed: dict[str, object] = {}
+        for key, value in pairs:
+            if key in parsed and key not in duplicate_keys:
+                duplicate_keys.append(key)
+            parsed[key] = value
+        return parsed
+
+    try:
+        payload = json.loads(text, object_pairs_hook=reject_duplicate_keys)
+    except json.JSONDecodeError as exc:
+        return None, [f"{invalid_prefix}: {exc.msg}"]
+    if duplicate_keys:
+        return payload, [f"{duplicate_prefix}: {key}" for key in sorted(duplicate_keys)]
+    return payload, []
+
+
+def _require_string_list(
+    payload: dict[str, object],
+    key: str,
+    *,
+    prefix: str,
+    allow_empty: bool = False,
+) -> list[str]:
+    value = payload.get(key)
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        return [f"{prefix} {key} must be a string list"]
+    if not allow_empty and not value:
+        return [f"{prefix} {key} must not be empty"]
+    if len(value) != len(set(value)):
+        return [f"{prefix} {key} contains duplicates"]
+    return []
+
+
+def _validate_philosophy_admission_policy_schema(
+    *,
+    schema: object,
+    policy: dict[str, object],
+) -> list[str]:
+    if not isinstance(schema, dict):
+        return ["philosophy admission policy schema must be an object"]
+    errors: list[str] = []
+    if schema.get("type") != "object":
+        errors.append("philosophy admission policy schema root type must be object")
+    if schema.get("additionalProperties") is not False:
+        errors.append("philosophy admission policy schema must set additionalProperties false")
+
+    required = schema.get("required")
+    properties = schema.get("properties")
+    if not isinstance(required, list) or not all(isinstance(item, str) for item in required):
+        errors.append("philosophy admission policy schema required must be a string list")
+        required = []
+    elif len(required) != len(set(required)):
+        errors.append("philosophy admission policy schema required contains duplicates")
+    if not isinstance(properties, dict):
+        errors.append("philosophy admission policy schema properties must be an object")
+        properties = {}
+
+    required_set = set(required)
+    policy_keys = set(policy)
+    property_keys = set(properties)
+    for key in sorted(policy_keys - required_set):
+        errors.append(f"philosophy admission policy key missing from schema required: {key}")
+    for key in sorted(required_set - policy_keys):
+        errors.append(f"philosophy admission policy schema required key missing from policy: {key}")
+    for key in sorted(policy_keys - property_keys):
+        errors.append(f"philosophy admission policy key missing from schema properties: {key}")
+    for key in sorted(property_keys - policy_keys):
+        errors.append(f"philosophy admission policy schema property missing from policy: {key}")
+
+    root_const_keys = {
+        "gate_status",
+        "implementation_allowed",
+        "policy_id",
+        "policy_version",
+        "rollout_phase",
+        "runtime_allowed",
+        "source_contract",
+    }
+    for key in root_const_keys:
+        spec = properties.get(key)
+        if not isinstance(spec, dict):
+            errors.append(f"philosophy admission policy schema property must be object for {key}")
+            continue
+        if "const" not in spec:
+            errors.append(f"philosophy admission policy schema const missing for {key}")
+            continue
+        if spec["const"] != policy.get(key):
+            errors.append(
+                f"philosophy admission policy schema const mismatch for {key}: "
+                f"expected {spec['const']!r}, got {policy.get(key)!r}"
+            )
+    families_spec = properties.get("claim_families")
+    if isinstance(families_spec, dict):
+        min_items = families_spec.get("minItems")
+        max_items = families_spec.get("maxItems")
+        policy_families = policy.get("claim_families", [])
+        family_count = len(policy_families) if isinstance(policy_families, list) else 0
+        if min_items != family_count:
+            errors.append(
+                "philosophy admission policy schema minItems mismatch for "
+                f"claim_families: expected {family_count}"
+            )
+        if max_items != family_count:
+            errors.append(
+                "philosophy admission policy schema maxItems mismatch for "
+                f"claim_families: expected {family_count}"
+            )
+        if families_spec.get("uniqueItems") is not True:
+            errors.append(
+                "philosophy admission policy schema uniqueItems missing for claim_families"
+            )
+    else:
+        errors.append("philosophy admission policy schema claim_families property must be object")
+    return errors
+
+
+def validate_philosophy_semantic_cache_admission_policy(
+    *,
+    policy_text: str,
+    schema_text: str,
+) -> list[str]:
+    """Validate the canonical Philosophy PR-2 claim-family policy spec."""
+    policy_obj, policy_parse_errors = _load_json_no_duplicate_keys(
+        policy_text,
+        invalid_prefix="philosophy admission policy invalid JSON",
+        duplicate_prefix="philosophy admission policy duplicate key",
+    )
+    if policy_parse_errors:
+        return policy_parse_errors
+    schema_obj, schema_parse_errors = _load_json_no_duplicate_keys(
+        schema_text,
+        invalid_prefix="philosophy admission policy schema invalid JSON",
+        duplicate_prefix="philosophy admission policy schema duplicate key",
+    )
+    if schema_parse_errors:
+        return schema_parse_errors
+    if not isinstance(policy_obj, dict):
+        return ["philosophy admission policy must be an object"]
+
+    errors: list[str] = []
+    actual_keys = set(policy_obj)
+    for key in sorted(PHILOSOPHY_ADMISSION_POLICY_REQUIRED_TOP_LEVEL_KEYS - actual_keys):
+        errors.append(f"philosophy admission policy missing required key: {key}")
+    for key in sorted(actual_keys - PHILOSOPHY_ADMISSION_POLICY_REQUIRED_TOP_LEVEL_KEYS):
+        errors.append(f"philosophy admission policy unexpected key: {key}")
+
+    expected_scalars = {
+        "gate_status": "closed",
+        "implementation_allowed": False,
+        "policy_id": PHILOSOPHY_ADMISSION_POLICY_ID,
+        "policy_version": PHILOSOPHY_ADMISSION_POLICY_VERSION,
+        "rollout_phase": PHILOSOPHY_ADMISSION_POLICY_PHASE,
+        "runtime_allowed": False,
+        "source_contract": str(DEFAULT_PHILOSOPHY_ADMISSION_CONTRACT.relative_to(REPO_ROOT)),
+    }
+    for key, expected in expected_scalars.items():
+        if policy_obj.get(key) != expected:
+            errors.append(
+                f"philosophy admission policy {key}: expected {expected!r}, "
+                f"got {policy_obj.get(key)!r}"
+            )
+
+    for key in ("modal_operators", "temporal_operators", "research_basis"):
+        errors.extend(_require_string_list(policy_obj, key, prefix="philosophy admission policy"))
+
+    families = policy_obj.get("claim_families")
+    if not isinstance(families, list) or not all(isinstance(item, dict) for item in families):
+        errors.append("philosophy admission policy claim_families must be an object list")
+        families = []
+    elif not families:
+        errors.append("philosophy admission policy claim_families must not be empty")
+
+    family_ids: list[str] = []
+    active_pattern_labels = {label for label, _pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS}
+    mapped_family_ids = set(PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS)
+    for index, family_obj in enumerate(families):
+        family: dict[str, object] = dict(family_obj)
+        prefix = f"philosophy admission policy claim_families[{index}]"
+        actual_family_keys = set(family)
+        for key in sorted(PHILOSOPHY_ADMISSION_POLICY_REQUIRED_FAMILY_KEYS - actual_family_keys):
+            errors.append(f"{prefix} missing required key: {key}")
+        for key in sorted(actual_family_keys - PHILOSOPHY_ADMISSION_POLICY_REQUIRED_FAMILY_KEYS):
+            errors.append(f"{prefix} unexpected key: {key}")
+        family_id = family.get("id")
+        if not isinstance(family_id, str) or not family_id:
+            errors.append(f"{prefix} id must be a non-empty string")
+            continue
+        family_ids.append(family_id)
+        if family_id not in mapped_family_ids:
+            errors.append(f"{prefix} id is not a governed forbidden claim class: {family_id}")
+        for key in ("canonical_meaning", "forbidden_polarity", "risk_rail"):
+            if not isinstance(family.get(key), str) or not family.get(key):
+                errors.append(f"{prefix} {key} must be a non-empty string")
+        for key in PHILOSOPHY_ADMISSION_POLICY_STRING_LIST_KEYS:
+            errors.extend(_require_string_list(family, key, prefix=prefix))
+
+        detector_labels = family.get("detector_labels")
+        expected_labels = set(PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS.get(family_id, ()))
+        if isinstance(detector_labels, list) and all(
+            isinstance(item, str) for item in detector_labels
+        ):
+            actual_labels = set(detector_labels)
+            if actual_labels != expected_labels:
+                errors.append(
+                    f"{prefix} detector_labels set mismatch: "
+                    f"expected={sorted(expected_labels)}, actual={sorted(actual_labels)}"
+                )
+            for label in detector_labels:
+                if label not in active_pattern_labels:
+                    errors.append(f"{prefix} detector label lacks active detector: {label}")
+    if len(family_ids) != len(set(family_ids)):
+        errors.append("philosophy admission policy claim_families contains duplicate ids")
+    if set(family_ids) != mapped_family_ids:
+        for missing in sorted(mapped_family_ids - set(family_ids)):
+            errors.append(f"philosophy admission policy missing claim family: {missing}")
+        for unexpected in sorted(set(family_ids) - mapped_family_ids):
+            errors.append(f"philosophy admission policy unexpected claim family: {unexpected}")
+
+    if isinstance(schema_obj, dict):
+        errors.extend(
+            _validate_philosophy_admission_policy_schema(schema=schema_obj, policy=policy_obj)
+        )
+    else:
+        errors.append("philosophy admission policy schema must be an object")
+    return errors
+
+
+def _load_philosophy_admission_policy_object(
+    policy_text: str,
+) -> tuple[dict[str, object], list[str]]:
+    policy_obj, parse_errors = _load_json_no_duplicate_keys(
+        policy_text,
+        invalid_prefix="philosophy admission policy invalid JSON",
+        duplicate_prefix="philosophy admission policy duplicate key",
+    )
+    if parse_errors:
+        return {}, parse_errors
+    if not isinstance(policy_obj, dict):
+        return {}, ["philosophy admission policy must be an object"]
+    return policy_obj, []
+
+
+def generate_philosophy_admission_oracle_cases(
+    policy: dict[str, object],
+) -> dict[str, object]:
+    """Generate deterministic claim-family oracle cases from the policy spec."""
+    generated_at = "static-2026-05-20"
+    cases: list[dict[str, object]] = []
+    families = policy.get("claim_families")
+    if not isinstance(families, list):
+        families = []
+    for family_obj in families:
+        if not isinstance(family_obj, dict):
+            continue
+        family_id = str(family_obj.get("id", "unknown"))
+        detector_labels = [
+            item for item in family_obj.get("detector_labels", []) if isinstance(item, str)
+        ]
+        expected_detector_label = detector_labels[0] if detector_labels else ""
+        subjects = [item for item in family_obj.get("subjects", []) if isinstance(item, str)]
+        assertive_predicates = [
+            item for item in family_obj.get("assertive_predicates", []) if isinstance(item, str)
+        ]
+        modal_predicates = [
+            item for item in family_obj.get("modal_predicates", []) if isinstance(item, str)
+        ]
+        temporal_predicates = [
+            item for item in family_obj.get("temporal_predicates", []) if isinstance(item, str)
+        ]
+        modal_operator_values = policy.get("modal_operators", [])
+        if not isinstance(modal_operator_values, list):
+            modal_operator_values = []
+        modal_operators = [item for item in modal_operator_values if isinstance(item, str)]
+        for subject in subjects:
+            for predicate in assertive_predicates:
+                cases.append(
+                    {
+                        "claim": f"{subject} {predicate}.",
+                        "claim_family": family_id,
+                        "expected": "forbidden",
+                        "expected_detector_label": expected_detector_label,
+                        "source": "policy.assertive_predicates",
+                    }
+                )
+        for subject in subjects:
+            for modal in modal_operators:
+                for predicate in modal_predicates:
+                    cases.append(
+                        {
+                            "claim": f"{subject} {modal} {predicate}.",
+                            "claim_family": family_id,
+                            "expected": "forbidden",
+                            "expected_detector_label": expected_detector_label,
+                            "source": "policy.modal_predicates.cross_product",
+                        }
+                    )
+        for subject in subjects:
+            for predicate in temporal_predicates:
+                cases.append(
+                    {
+                        "claim": f"{subject} {predicate}.",
+                        "claim_family": family_id,
+                        "expected": "forbidden",
+                        "expected_detector_label": expected_detector_label,
+                        "source": "policy.temporal_predicates.cross_product",
+                    }
+                )
+        for claim in [
+            item for item in family_obj.get("seed_regressions", []) if isinstance(item, str)
+        ]:
+            cases.append(
+                {
+                    "claim": claim,
+                    "claim_family": family_id,
+                    "expected": "forbidden",
+                    "expected_detector_label": expected_detector_label,
+                    "source": "policy.seed_regressions",
+                }
+            )
+        for claim in [
+            item
+            for item in family_obj.get("allowed_negative_controls", [])
+            if isinstance(item, str)
+        ]:
+            cases.append(
+                {
+                    "claim": claim,
+                    "claim_family": family_id,
+                    "expected": "allowed",
+                    "expected_detector_label": expected_detector_label,
+                    "source": "policy.allowed_negative_controls",
+                }
+            )
+
+    deduped_cases: list[dict[str, object]] = []
+    seen: set[tuple[object, object, object]] = set()
+    for case in cases:
+        dedupe_key = (case["claim_family"], case["expected"], case["claim"])
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        deduped_cases.append(case)
+    deduped_cases.sort(
+        key=lambda item: (str(item["claim_family"]), str(item["expected"]), str(item["claim"]))
+    )
+    for index, case in enumerate(deduped_cases, start=1):
+        case["id"] = f"philosophy-admission-oracle-{index:04d}"
+    return {
+        "generated_at": generated_at,
+        "gate_status": policy.get("gate_status"),
+        "implementation_allowed": policy.get("implementation_allowed"),
+        "oracle_id": "philosophy_admission_claim_family_oracle",
+        "policy_id": policy.get("policy_id"),
+        "policy_version": policy.get("policy_version"),
+        "runtime_allowed": policy.get("runtime_allowed"),
+        "cases": deduped_cases,
+    }
+
+
+def render_philosophy_admission_oracle_fixture(policy_text: str) -> tuple[str, list[str]]:
+    policy, errors = _load_philosophy_admission_policy_object(policy_text)
+    if errors:
+        return "", errors
+    fixture = generate_philosophy_admission_oracle_cases(policy)
+    return json.dumps(fixture, indent=2, ensure_ascii=False) + "\n", []
+
+
+def _load_philosophy_admission_oracle_fixture(
+    fixture_text: str,
+) -> tuple[dict[str, object], list[str]]:
+    fixture_obj, parse_errors = _load_json_no_duplicate_keys(
+        fixture_text,
+        invalid_prefix="philosophy admission oracle fixture invalid JSON",
+        duplicate_prefix="philosophy admission oracle fixture duplicate key",
+    )
+    if parse_errors:
+        return {}, parse_errors
+    if not isinstance(fixture_obj, dict):
+        return {}, ["philosophy admission oracle fixture must be an object"]
+    return fixture_obj, []
+
+
+def validate_philosophy_admission_oracle_fixture(
+    *,
+    policy_text: str,
+    fixture_text: str,
+) -> list[str]:
+    """Fail when the tracked claim-family oracle drifts from the policy spec."""
+    expected_text, render_errors = render_philosophy_admission_oracle_fixture(policy_text)
+    if render_errors:
+        return render_errors
+    fixture, fixture_errors = _load_philosophy_admission_oracle_fixture(fixture_text)
+    if fixture_errors:
+        return fixture_errors
+    expected, expected_errors = _load_philosophy_admission_oracle_fixture(expected_text)
+    if expected_errors:
+        return expected_errors
+    errors: list[str] = []
+    if fixture != expected:
+        errors.append(
+            "philosophy admission oracle fixture drift: regenerate from the policy JSON "
+            "used in this check"
+        )
+    cases = fixture.get("cases")
+    if not isinstance(cases, list) or not cases:
+        errors.append("philosophy admission oracle fixture cases must be a non-empty list")
+        return errors
+    case_ids: list[str] = []
+    by_family: dict[str, set[str]] = {}
+    for index, case_obj in enumerate(cases):
+        if not isinstance(case_obj, dict):
+            errors.append(f"philosophy admission oracle fixture cases[{index}] must be an object")
+            continue
+        case_id = case_obj.get("id")
+        if not isinstance(case_id, str) or not case_id:
+            errors.append(f"philosophy admission oracle fixture cases[{index}] id missing")
+        else:
+            case_ids.append(case_id)
+        family = case_obj.get("claim_family")
+        expected_result = case_obj.get("expected")
+        claim = case_obj.get("claim")
+        if not isinstance(family, str) or family not in PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS:
+            errors.append(f"philosophy admission oracle fixture cases[{index}] invalid family")
+            continue
+        if expected_result not in {"forbidden", "allowed"}:
+            errors.append(f"philosophy admission oracle fixture cases[{index}] invalid expected")
+            continue
+        if not isinstance(claim, str) or not claim.strip():
+            errors.append(f"philosophy admission oracle fixture cases[{index}] claim missing")
+        by_family.setdefault(family, set()).add(str(expected_result))
+    if len(case_ids) != len(set(case_ids)):
+        errors.append("philosophy admission oracle fixture case ids contain duplicates")
+    for family in PHILOSOPHY_FORBIDDEN_CLAIM_PATTERN_LABELS:
+        outcomes = by_family.get(family, set())
+        if "forbidden" not in outcomes:
+            errors.append(
+                f"philosophy admission oracle fixture missing forbidden case for {family}"
+            )
+        if "allowed" not in outcomes:
+            errors.append(f"philosophy admission oracle fixture missing allowed case for {family}")
+    return errors
+
+
+def _default_philosophy_admission_policy() -> tuple[dict[str, object], list[str]]:
+    global _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE
+    try:
+        stat = DEFAULT_PHILOSOPHY_ADMISSION_POLICY.stat()
+    except FileNotFoundError:
+        return {}, [f"philosophy admission policy missing: {DEFAULT_PHILOSOPHY_ADMISSION_POLICY}"]
+    if (
+        _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE is not None
+        and _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE[0] == stat.st_mtime
+    ):
+        cached_policy = _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE[1]
+        cached_errors = _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE[2]
+        if isinstance(cached_policy, dict):
+            return cached_policy, list(cached_errors)
+        return {}, list(cached_errors)
+
+    policy, errors = _load_philosophy_admission_policy_object(
+        DEFAULT_PHILOSOPHY_ADMISSION_POLICY.read_text(encoding="utf-8")
+    )
+    _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_CACHE = (stat.st_mtime, policy, errors)
+    return policy, list(errors)
+
+
+def compile_philosophy_admission_policy_patterns(
+    policy: dict[str, object],
+) -> tuple[tuple[str, str, re.Pattern[str]], ...]:
+    """Compile exact deterministic policy-oracle patterns from data, not JSON regex."""
+    patterns: list[tuple[str, str, re.Pattern[str]]] = []
+    fixture = generate_philosophy_admission_oracle_cases(policy)
+    cases = fixture.get("cases", [])
+    if not isinstance(cases, list):
+        return ()
+    for case_obj in cases:
+        if not isinstance(case_obj, dict) or case_obj.get("expected") != "forbidden":
+            continue
+        claim = case_obj.get("claim")
+        family = case_obj.get("claim_family")
+        if not isinstance(claim, str) or not isinstance(family, str):
+            continue
+        normalized_claim = _normalize_text(claim).rstrip(".")
+        if not normalized_claim:
+            continue
+        pattern = re.compile(r"(?<![\w-])" + re.escape(normalized_claim) + r"\.?(?![\w-])")
+        patterns.append((family, str(case_obj.get("expected_detector_label", "")), pattern))
+    return tuple(patterns)
+
+
+def _philosophy_admission_policy_forbidden_claim_errors(
+    text: str,
+    *,
+    suppressed_detector_labels: set[str] | None = None,
+) -> list[str]:
+    global _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE
+    policy, policy_errors = _default_philosophy_admission_policy()
+    if policy_errors:
+        return policy_errors
+    stat = DEFAULT_PHILOSOPHY_ADMISSION_POLICY.stat()
+    if (
+        _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE is not None
+        and _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE[0] == stat.st_mtime
+    ):
+        patterns = _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE[1]
+    else:
+        patterns = compile_philosophy_admission_policy_patterns(policy)
+        _DEFAULT_PHILOSOPHY_ADMISSION_POLICY_PATTERNS_CACHE = (stat.st_mtime, patterns)
+    errors: list[str] = []
+    for claim_family, detector_label, pattern in patterns:
+        for match in pattern.finditer(text):
+            if _is_negated_philosophy_permission_claim(text, match):
+                continue
+            label = detector_label or claim_family
+            if suppressed_detector_labels is not None and label in suppressed_detector_labels:
+                continue
+            errors.append(
+                "forbidden philosophy admission policy claim: " f"{claim_family} ({label})"
+            )
+            break
+    return errors
+
 
 MARKER_RE = re.compile(r"<!--\s*(?P<key>SEMANTIC_CACHE_[A-Z_]+):\s*(?P<value>.*?)\s*-->")
 MACHINE_JSON_RE = re.compile(r"```json\s*(?P<payload>\{.*?\})\s*```", re.DOTALL)
@@ -1721,6 +2318,8 @@ def _is_negated_philosophy_duplication_claim(text: str, match: re.Match[str]) ->
 
 def _is_negated_philosophy_permission_claim(text: str, match: re.Match[str]) -> bool:
     prefix = text[max(0, match.start() - 80) : match.start()]
+    if PHILOSOPHY_NEGATED_ASSERTION_PREFIX_RE.search(prefix) is not None:
+        return True
     if PHILOSOPHY_NEGATED_PERMISSION_PREFIX_RE.search(prefix) is None:
         return False
     token_count = len(prefix.strip().split())
@@ -1729,6 +2328,7 @@ def _is_negated_philosophy_permission_claim(text: str, match: re.Match[str]) -> 
 
 def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
     errors: list[str] = []
+    legacy_detector_labels: set[str] = set()
     for label, pattern in PHILOSOPHY_ADMISSION_FORBIDDEN_PATTERNS:
         for match in pattern.finditer(text):
             if label in PHILOSOPHY_SC_G5_LABEL_DUPLICATION_PATTERN_LABELS and (
@@ -1748,7 +2348,14 @@ def _philosophy_admission_forbidden_claim_errors(text: str) -> list[str]:
             ):
                 continue
             errors.append(f"forbidden philosophy admission contract claim: {label}")
+            legacy_detector_labels.add(label)
             break
+    errors.extend(
+        _philosophy_admission_policy_forbidden_claim_errors(
+            text,
+            suppressed_detector_labels=legacy_detector_labels,
+        )
+    )
     return errors
 
 
@@ -2956,6 +3563,34 @@ def main(argv: list[str] | None = None) -> int:
         default=DEFAULT_PHILOSOPHY_ADMISSION_SCHEMA,
         help="Philosophy PR-1 admission JSON schema to validate.",
     )
+    parser.add_argument(
+        "--philosophy-admission-policy",
+        type=Path,
+        default=DEFAULT_PHILOSOPHY_ADMISSION_POLICY,
+        help="Philosophy PR-2 admission claim-family policy JSON to validate.",
+    )
+    parser.add_argument(
+        "--philosophy-admission-policy-schema",
+        type=Path,
+        default=DEFAULT_PHILOSOPHY_ADMISSION_POLICY_SCHEMA,
+        help="Philosophy PR-2 admission claim-family policy JSON schema to validate.",
+    )
+    parser.add_argument(
+        "--philosophy-admission-oracle",
+        type=Path,
+        default=DEFAULT_PHILOSOPHY_ADMISSION_ORACLE,
+        help="Generated Philosophy PR-2 admission claim-family oracle fixture.",
+    )
+    parser.add_argument(
+        "--check-philosophy-admission-oracle-drift",
+        action="store_true",
+        help="Fail if the tracked Philosophy admission oracle fixture drifts from policy JSON.",
+    )
+    parser.add_argument(
+        "--write-philosophy-admission-oracle",
+        action="store_true",
+        help="Rewrite the tracked Philosophy admission oracle fixture from policy JSON.",
+    )
     args = parser.parse_args(argv)
 
     doc = args.doc
@@ -3021,6 +3656,28 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
+    philosophy_admission_policy = args.philosophy_admission_policy
+    if not philosophy_admission_policy.exists():
+        print(
+            f"ERROR: philosophy admission policy missing: {philosophy_admission_policy}",
+            file=sys.stderr,
+        )
+        return 1
+    philosophy_admission_policy_schema = args.philosophy_admission_policy_schema
+    if not philosophy_admission_policy_schema.exists():
+        print(
+            "ERROR: philosophy admission policy schema missing: "
+            f"{philosophy_admission_policy_schema}",
+            file=sys.stderr,
+        )
+        return 1
+    philosophy_admission_oracle = args.philosophy_admission_oracle
+    if not philosophy_admission_oracle.exists() and not args.write_philosophy_admission_oracle:
+        print(
+            f"ERROR: philosophy admission oracle fixture missing: {philosophy_admission_oracle}",
+            file=sys.stderr,
+        )
+        return 1
 
     errors = validate_semantic_cache_gate(doc.read_text(encoding="utf-8"))
     errors.extend(validate_semantic_cache_rollout_contract(contract.read_text(encoding="utf-8")))
@@ -3053,6 +3710,41 @@ def main(argv: list[str] | None = None) -> int:
             contract_text=philosophy_admission_text,
         )
     )
+    philosophy_policy_text = philosophy_admission_policy.read_text(encoding="utf-8")
+    errors.extend(
+        validate_philosophy_semantic_cache_admission_policy(
+            policy_text=philosophy_policy_text,
+            schema_text=philosophy_admission_policy_schema.read_text(encoding="utf-8"),
+        )
+    )
+    if args.write_philosophy_admission_oracle:
+        if not errors:
+            rendered, render_errors = render_philosophy_admission_oracle_fixture(
+                philosophy_policy_text
+            )
+            errors.extend(render_errors)
+        else:
+            rendered = ""
+            render_errors = []
+        if not errors and not render_errors:
+            oracle_path = philosophy_admission_oracle.resolve()
+            allowed_root = (REPO_ROOT / "tests" / "fixtures" / "orchestration").resolve()
+            if not oracle_path.is_relative_to(allowed_root):
+                errors.append(
+                    "philosophy admission oracle write path must stay under "
+                    "tests/fixtures/orchestration"
+                )
+            else:
+                oracle_path.parent.mkdir(parents=True, exist_ok=True)
+                oracle_path.write_text(rendered, encoding="utf-8")
+    if args.check_philosophy_admission_oracle_drift or not args.write_philosophy_admission_oracle:
+        if philosophy_admission_oracle.exists():
+            errors.extend(
+                validate_philosophy_admission_oracle_fixture(
+                    policy_text=philosophy_policy_text,
+                    fixture_text=philosophy_admission_oracle.read_text(encoding="utf-8"),
+                )
+            )
     if errors:
         for error in errors:
             print(f"ERROR: {error}", file=sys.stderr)
@@ -3065,6 +3757,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"bounded insight experiment contract closed: {bounded_insight_contract}")
     print(f"backend selection contract closed: {backend_selection_contract}")
     print(f"philosophy admission contract closed: {philosophy_admission_contract}")
+    print(f"philosophy admission policy closed: {philosophy_admission_policy}")
+    print(f"philosophy admission oracle fixture current: {philosophy_admission_oracle}")
     return 0
 
 

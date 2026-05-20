@@ -472,6 +472,70 @@ def test_preference_mapping_closeout_rejects_file_only_false() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "payload",
+    (
+        [],
+        {1: "bad-key"},
+    ),
+)
+def test_preference_mapping_closeout_rejects_non_mapping_payloads(
+    payload: object,
+) -> None:
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "bad_value", "match"),
+    (
+        ("schema_version", "", "non-empty string"),
+        ("pr15_merged_pr", True, "integer"),
+        ("api_calls_allowed", "false", "boolean"),
+        ("blocked_methods", "api_call", "list of strings"),
+        ("blocked_methods", ["api_call"], "exactly"),
+        ("generated_on", "2026/05/19", "YYYY-MM-DD"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_typed_field_malformed_values(
+    field_name: str,
+    bad_value: object,
+    match: str,
+) -> None:
+    payload = _closeout_payload()
+    payload[field_name] = bad_value
+
+    with pytest.raises(PreferenceMappingCloseoutError, match=match):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+def test_preference_mapping_closeout_report_rejects_external_catalog_ref_mismatch(
+    tmp_path: Path,
+) -> None:
+    outside_catalog = tmp_path / "catalog.json"
+    outside_catalog.write_text(_CATALOG_PATH.read_text(encoding="utf-8"), encoding="utf-8")
+
+    report = build_preference_mapping_closeout_report(
+        catalog_path=outside_catalog,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        closeout_path=_CLOSEOUT_PATH,
+    )
+
+    assert report["success"] is False
+    assert str(outside_catalog.resolve()) in str(report["validation_errors"][0])
+
+
 def test_preference_mapping_closeout_rejects_invalid_calendar_date() -> None:
     payload = _closeout_payload()
     payload["generated_on"] = "2026-99-19"
@@ -509,6 +573,55 @@ def test_preference_mapping_closeout_rejects_handoff_or_lane_drift(
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "bad_value"),
+    (
+        ("schema_version", "bad.v1"),
+        ("source", "paid_provider_source"),
+        ("source_classification", "runtime_source"),
+        ("source_family", "paid_provider"),
+        ("evidence_policy", "source_authority_allowed"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_top_level_identity_drift(
+    field_name: str,
+    bad_value: str,
+) -> None:
+    payload = _closeout_payload()
+    payload[field_name] = bad_value
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    ("expected_kwargs", "match"),
+    (
+        ({"expected_pr15_ref": "docs/architecture/WRONG_PR15.json"}, "pr15_ref"),
+        ({"expected_coverage_ref": "docs/architecture/WRONG_PR11.json"}, "coverage_ref"),
+        (
+            {"expected_recipe_dish_corpus_ref": "docs/architecture/WRONG_PR14.json"},
+            "recipe_dish_corpus_ref",
+        ),
+    ),
+)
+def test_preference_mapping_closeout_rejects_expected_reference_mismatch(
+    expected_kwargs: dict[str, str],
+    match: str,
+) -> None:
+    with pytest.raises(PreferenceMappingCloseoutError, match=match):
+        parse_preference_mapping_closeout_governance(
+            _closeout_payload(),
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+            **expected_kwargs,
+        )
+
+
 def test_preference_mapping_closeout_rejects_pr15_handoff_drift() -> None:
     payload = _closeout_payload()
     preference_mapping = replace(_preference_mapping(), next_recommended_lane="provider_runtime")
@@ -531,6 +644,29 @@ def test_preference_mapping_closeout_rejects_pr15_handoff_drift() -> None:
     ),
 )
 def test_preference_mapping_closeout_rejects_pr15_identity_handoff_drift(
+    preference_mapping: PreferenceRecipeMappingGovernance,
+) -> None:
+    payload = _closeout_payload()
+
+    with pytest.raises(PreferenceMappingCloseoutError):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=preference_mapping,
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    "preference_mapping",
+    (
+        replace(_preference_mapping(), source="provider_runtime"),
+        replace(_preference_mapping(), source_classification="runtime_source"),
+        replace(_preference_mapping(), source_family="paid_provider"),
+        replace(_preference_mapping(), blocked_methods=("api_call",)),
+        replace(_preference_mapping(), final_gate_decision="mapping_contract_allows_ingest"),
+    ),
+)
+def test_preference_mapping_closeout_rejects_pr15_source_policy_drift(
     preference_mapping: PreferenceRecipeMappingGovernance,
 ) -> None:
     payload = _closeout_payload()
@@ -991,6 +1127,26 @@ def test_preference_mapping_closeout_rejects_malformed_artifact(tmp_path: Path) 
             preference_mapping=_preference_mapping(),
             coverage=_coverage(),
         )
+
+
+def test_preference_mapping_closeout_report_returns_validation_errors_for_bad_closeout(
+    tmp_path: Path,
+) -> None:
+    payload = _closeout_payload()
+    payload["schema_version"] = "bad.v1"
+    bad_path = _write_payload(tmp_path / "bad-closeout.json", payload)
+
+    report = build_preference_mapping_closeout_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        closeout_path=bad_path,
+    )
+
+    assert report["success"] is False
+    assert report["validation_errors"]
 
 
 def test_preference_mapping_closeout_cli_success_json() -> None:

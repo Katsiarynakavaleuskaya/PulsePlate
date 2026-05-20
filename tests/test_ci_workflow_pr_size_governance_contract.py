@@ -247,6 +247,14 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     assert "PHASE1_CHANGED_FILES=()" in docs_phase1_section
     assert "'docs/orchestration/contracts/*.schema.json'" in docs_phase1_section
     assert (
+        "'docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json'"
+        in docs_phase1_section
+    )
+    assert (
+        "'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json'"
+        in docs_phase1_section
+    )
+    assert (
         "No changed markdown or Phase1 schema files; skipping docs Phase1 gates."
         in docs_phase1_section
     )
@@ -266,6 +274,13 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         'python scripts/ci/check_docs_phase1_gates.py --files "${CHANGED_DOCS[@]}"'
         not in docs_phase1_section
     )
+
+
+def test_semantic_cache_contract_suites_include_philosophy_policy_oracle() -> None:
+    """Current-head CI must execute the Philosophy policy/oracle drift regressions."""
+
+    workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert workflow_text.count("tests/test_philosophy_admission_policy_oracle.py \\") >= 2
 
 
 def test_changes_job_uses_node24_paths_filter_pin_and_keeps_ios_filters() -> None:
