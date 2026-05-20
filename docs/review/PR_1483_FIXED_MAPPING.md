@@ -109,27 +109,24 @@ Evidence: `core/insight/philosophical_runtime.py:85-96`, `tests/test_philosophic
 Reason: The latest cubic wrapper is fully covered by the same current-head cache-removal fix mapped above; no separate unresolved defect remains beyond those inline comments.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139408489 -> 7eec5d903
 
-Disposition: DEFERRED
-Backlog: `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-knowledge-promotion-from-validated-rag`
-Reason: The latest CodeRabbit wrapper only asks for explicit return annotations on two test helper methods in `tests/test_remaining_modules.py`. That change is low-risk and test-only, but landing it in PR-K1 would widen this merge lane into a whole-file `black` reformat of an already-touched test module, so it is intentionally deferred to the documented PR-K1 closeout follow-up after merge.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139572722
+Disposition: FIXED
+Commit: 5215db056
+Evidence: `tests/test_remaining_modules.py:1577`, `tests/test_remaining_modules.py:1592`, `tests/test_rag_llm_karpathy_k1_closeout.py:63`, `docs/roadmap/BACKLOG_LEDGER.md:2380`
+Reason: The PR-K1 closeout lane resolves the deferred CodeRabbit wrapper request by adding explicit return annotations to `TestPhilosophicalRuntimeFastLane._runtime_policy` and `_runtime_candidate`, then closes the K1 ledger anchor with a focused regression guard so the review-governance follow-up is no longer orphaned.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483#pullrequestreview-4139572722 -> 5215db056
 
-## Merge Readiness
+## Post-Merge Closeout
 
-Merge-readiness contract:
-`AGENTS.md:38-45`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
-`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
+PR `#1483` is merged:
+`https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1483`.
 
-- [ ] Current-head CI is green for PR branch head
-  Evidence: GitHub checks for PR #1483 current head.
-- [ ] Required checks complete (no pending jobs)
-  Evidence: GitHub checks for PR #1483 current head.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: Current known review-thread URLs are dispositioned above; re-check GitHub thread state on current head before merge.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: Current known bot review URLs are mapped above; re-check current head before merge for any new activity.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: local pre-push hooks passed before `origin/codex/pr-k1-knowledge-promotion` push.
-- [ ] `make verify` green on latest pushed head
-  Evidence: local `make verify` / `make diff-cov` did not complete in this environment because repeated runs were terminated externally with `make: *** [diff-cov] Terminated: 15`; GitHub current-head CI remains the heavy gate for this draft PR.
+- State: `MERGED`
+- Merged at: `2026-04-20T12:09:36Z`
+- Merge commit: `ba42a25a6c8d2c6d030e313ab14e1173492a9e06`
+- Historical branch: `codex/pr-k1-knowledge-promotion`
+
+This artifact now records historical review-thread dispositions for PR `#1483`
+and the post-merge K1 closeout fix for the deferred CodeRabbit wrapper review.
+Current readiness evidence for this closeout belongs to the new closeout PR's
+own PR body and `docs/review/PR_<N>_FIXED_MAPPING.md` after that PR is opened.
 <!-- markdownlint-enable MD034 -->

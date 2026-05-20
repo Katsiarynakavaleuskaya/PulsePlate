@@ -2377,15 +2377,21 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Existing PASS/NO-GO logic remains unchanged
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
 <a id="ledger-p1-knowledge-promotion-from-validated-rag"></a>
-- [ ] P1: Knowledge contracts and promotion from validated RAG evidence
+- [x] P1: Knowledge contracts and promotion from validated RAG evidence
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-K1
-  - Status: ✅ Runtime seam merged via PR `#1483` on `2026-04-20`; keep the checkbox open only until the docs-only closeout lands per ledger policy.
+  - Status: Closed by PR-K1 docs/review closeout after runtime seam merge via PR `#1483` on `2026-04-20`.
+    Delayed-closeout exception: the docs-only follow-up PR `#1776` was opened on `2026-05-20`, one month after the merge, because the same-day/next-working-day handoff required by `AGENTS.md` was missed during the adjacent AI-runtime, semantic-cache, and philosophy-governance cutover; this closeout records the exception with both dates for auditability.
   - Area: AI runtime / knowledge / retrieval orchestration
   - Finding Type: bounded knowledge-promotion contract gap
-  - Reason (EN): The current AI runtime already has deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but it does not yet expose a first-class internal fact-promotion contract separated from retrieval artifacts. Without that seam, later runtime work risks promoting raw provider output, route-layer behavior, or request-local caches into canonical knowledge. `PR-K1` closes that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
-  - Deferred follow-up (PR #1483 merge closeout): add explicit return annotations to `TestPhilosophicalRuntimeFastLane._runtime_policy` and `_runtime_candidate` in `tests/test_remaining_modules.py`; keep it out of PR-K1 because touching that file here would pull a full-file `black` reformat into the merge lane for a low-risk test-only nitpick.
+  - Reason (EN): Before PR `#1483`, the AI runtime had deterministic retrieval diagnostics, bounded `core/ai/*` ownership, and request-local recursive optimization caches, but did not expose a first-class internal fact-promotion contract separated from retrieval artifacts. PR `#1483` closed that gap as a bounded post-A5 follow-up without widening into semantic cache or DB/storage rollout.
+  - Closeout evidence:
+    - Runtime seam merged: PR `#1483`, `2026-04-20`
+    - Deferred PR `#1483` test-helper return annotations resolved in `tests/test_remaining_modules.py`
+    - Review-governance reconciliation remains recorded in `docs/review/PR_1483_FIXED_MAPPING.md`
+    - Role-agent and engineering lessons were updated for AI/RAG/cache governance closeout failures
+    - Semantic-cache gate markers remain `closed / false / false / true`
   - Links:
     - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`
     - `docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md`

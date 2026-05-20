@@ -25,6 +25,9 @@ Turn “we think it’s better” into measurable outcomes:
 - No medical outcomes claims; wellness-only.
 - No runtime changes unless coordinator requests it.
 - No PII in outputs (aggregate or anonymize); prefer reproducible queries + caveats over “narrative answers”.
+- Research, brainstorming, literature, and Experiment Runner outputs are
+  evidence/advisory until promoted through repo contracts; do not cite them as
+  proof that a RAG, semantic-cache, or runtime gate is active.
 
 ## When invoked
 
