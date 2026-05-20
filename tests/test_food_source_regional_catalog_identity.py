@@ -462,6 +462,11 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Ozon and Wildberries remain seller terms evidence. They can be used for staging.",
         "The providers remain unapproved. They have approval for manual tests.",
         "Those providers can be used for staging.",
+        "Ozon and Wildberries remain seller terms evidence. They are source authority.",
+        "Regional catalog candidates remain review context only. They are product display.",
+        "Regional catalog candidates remain review context only. They serve as nutrition authority.",
+        "Regional catalog candidates remain review context only. This candidate is source authority.",
+        "Ozon and Wildberries remain seller terms evidence. They act as product display.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:

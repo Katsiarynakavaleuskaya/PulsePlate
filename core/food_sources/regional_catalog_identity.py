@@ -317,8 +317,12 @@ _AUTHORITY_LANGUAGE_RE = re.compile(
 )
 _CANDIDATE_LOCAL_AUTHORITY_RE = re.compile(
     rf"\b(?:it|they|this|this candidate|these|those|those providers?|candidate|"
-    rf"candidates?|source|provider|providers?|portal|dataset)\b"
+    rf"candidates?)\b"
     rf"(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
+    rf"\b(?:it|they|this|this candidate|these|those|those providers?|candidate|"
+    rf"candidates?)\b"
+    rf"(?:\W+\w+){{0,8}}\W+\b(?:is|are|serve as|serves as|act as|acts as)\b"
+    r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
     rf"\b(?:this)\b(?:\W+\w+){{0,3}}\W+\b(?:{_USE_TERMS})\b"
 )
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
