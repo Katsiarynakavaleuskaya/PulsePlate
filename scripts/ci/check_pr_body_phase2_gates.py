@@ -188,8 +188,14 @@ def _valid_experiment_runner_artifact_path(path: str) -> bool:
 def _experiment_runner_artifact_paths(text: str) -> list[str]:
     """Return valid local Experiment Runner artifact paths referenced by text."""
 
+    section = _extract_section_by_h2(
+        _strip_fenced_code_blocks(text), str(PHASE2_CONFIG["experiment_runner_heading"])
+    )
+    if not section:
+        return []
+
     paths: list[str] = []
-    for match in EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(_strip_fenced_code_blocks(text)):
+    for match in EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(section):
         path = match.group("path").strip().strip("`")
         if _valid_experiment_runner_artifact_path(path):
             paths.append(path)
@@ -286,8 +292,9 @@ def check_experiment_runner_coauthor_advisory(
 ) -> list[str]:
     """Warn when a local runner artifact requires co-authoring but commits lack it."""
 
-    if commit_messages is not None and EXPECTED_CO_AUTHOR_TRAILER in commit_messages:
-        return []
+    has_expected_trailer = (
+        commit_messages is not None and EXPECTED_CO_AUTHOR_TRAILER in commit_messages
+    )
 
     warnings: list[str] = []
     for artifact_path in _experiment_runner_artifact_paths(text):
@@ -304,7 +311,11 @@ def check_experiment_runner_coauthor_advisory(
                 UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
             )
             continue
-        if isinstance(payload, dict) and payload.get("coauthor_required") is True:
+        if (
+            isinstance(payload, dict)
+            and payload.get("coauthor_required") is True
+            and not has_expected_trailer
+        ):
             if commit_messages is None:
                 warning = (
                     "Advisory: branch commit messages could not be inspected locally, "

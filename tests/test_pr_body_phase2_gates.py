@@ -264,7 +264,20 @@ def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
     warnings = gates.check_experiment_runner_coauthor_advisory(
         "## Experiment Runner Evidence\n"
         "Not applicable: docs-only operator exception with no runner signal.\n",
-        commit_messages="feat: human-only commit\n",
+        commit_messages=None,
+    )
+
+    assert warnings == []
+
+
+def test_experiment_runner_coauthor_advisory_ignores_artifact_outside_evidence_section() -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Summary\n"
+        "Artifact: artifacts/orchestration/experiments/results/missing.json\n"
+        "\n"
+        "## Experiment Runner Evidence\n"
+        "Not applicable: docs-only operator exception with no runner signal.\n",
+        commit_messages=None,
     )
 
     assert warnings == []
@@ -288,7 +301,7 @@ def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_without_t
     ]
 
 
-def test_experiment_runner_coauthor_advisory_ignores_missing_artifact_with_trailer(
+def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_with_trailer(
     tmp_path: Path,
 ) -> None:
     warnings = gates.check_experiment_runner_coauthor_advisory(
@@ -301,7 +314,12 @@ def test_experiment_runner_coauthor_advisory_ignores_missing_artifact_with_trail
         repo_root=tmp_path,
     )
 
-    assert warnings == []
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/missing.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
 
 
 def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> None:
@@ -524,7 +542,8 @@ Commit: abc1234
     )
     assert result.returncode == 0
     assert "canonical mapping artifact and PR body mirror passed" in result.stdout
-    assert "WARNING:" not in result.stdout
+    assert "WARNING:" in result.stdout
+    assert "exp-998.json" in result.stdout
 
 
 def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> None:
