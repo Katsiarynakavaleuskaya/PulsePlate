@@ -95,6 +95,22 @@ Role-agent dispositions:
   fail-closed; agent `019e4464-5f5b-7982-87e3-fedd6ce06717` confirmed no
   remaining PR17-scoped security/regression findings, no ReDoS evidence, and
   no runtime/API/DB/provider/import scope drift.
+- Controlled-note `qa-engineer-agent` recheck: Disposition `PASS`. Evidence:
+  agent `019e4040-e44b-7003-b11d-2faef9f3ab45` confirmed the PR17 note guard
+  change is narrow, file-only, deterministic, and covered by focused tests and
+  CLI smoke.
+- Controlled-note `bug-hunter` loop: Disposition `FIXED` then `PASS`.
+  Evidence: commit `231a8d951` stops treating arbitrary `notes` prose as the
+  policy surface, requires exact canonical PR17 note strings, rejects top-level
+  and candidate note drift including whitespace/newline drift, and records the
+  PR #1761 regex-accretion lesson by keeping policy changes in typed status
+  fields; agent `019e4041-eec7-7971-b90b-6c69dfa62e4e` completed the final
+  controlled-note posture recheck with PASS.
+- Controlled-note `security-auditor` recheck: Disposition `PASS`. Evidence:
+  agent `019e4464-5f5b-7982-87e3-fedd6ce06717` confirmed fail-closed
+  controlled notes, no runtime/API/DB/provider/dependency scope drift, no
+  hidden source authority, and no ReDoS concern from the remaining canonical
+  note sanity-check path.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -428,6 +444,15 @@ Evidence: `core/food_sources/regional_catalog_identity.py` preserves blocked-sou
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272322788 -> fb3397d0a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3272322790 -> fb3397d0a
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` now treats PR17 `notes` as controlled governance text instead of a free-form semantic policy surface; exact canonical top-level and candidate notes are required with raw whitespace preserved, and typed status/flag fields remain the authority for policy changes. `tests/test_food_source_regional_catalog_identity.py` rejects noncanonical safe prose, unsafe authority prose, candidate note drift, and note whitespace/newline drift while preserving canonical artifact load.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273070543 -> 231a8d951
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273070550 -> 231a8d951
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273070559 -> 231a8d951
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273070565 -> 231a8d951
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -467,7 +492,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 357 tests.
+- Focused PR17 tests: passed.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
