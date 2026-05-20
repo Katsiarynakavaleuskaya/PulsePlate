@@ -28,6 +28,12 @@ Evidence: Bot findings from Sourcery, CodeRabbit, and cubic were closed in code/
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328193097 -> 50de520c7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273691732 -> 50de520c7
 
+Disposition: FIXED
+Commit: c220482fd
+Evidence: Negated prohibition guidance such as `Do not claim that the admission policy may omit the verification bundle.` is now handled before policy-oracle claim matches. Evidence: `PHILOSOPHY_NEGATED_ASSERTION_PREFIX_RE` in `scripts/ci/check_semantic_cache_gate.py`, the policy allowed negative control, regenerated oracle fixture, and `tests/test_philosophy_admission_policy_oracle.py::test_negated_prohibition_guidance_does_not_trip_policy_oracle`; focused pytest and oracle drift check passed locally.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328397344 -> c220482fd
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273859141 -> c220482fd
+
 Disposition: NOT-A-BUG
 Evidence: Sourcery's review-level extraction comments are advisory refactor feedback, not correctness defects for this PR-2 governance/test-infrastructure scope. The policy/oracle logic intentionally remains in the existing semantic-cache gate entrypoint for this PR so the new guard cannot drift from the existing gate-closed admission checker. The root loop risk is addressed by policy-as-data, generated oracle drift checks, docs/CI wiring, and agent guidance; broader Experiment Runner oracle-manifest or helper-module extraction belongs in a separate coordinator-owned lane.
 Reason: The review-level helper extraction suggestion is a maintainability idea, while the concrete actionable Sourcery inline suggestions were fixed in `50de520c7`; extracting modules here would widen the PR beyond the approved governance/test-infrastructure scope.
