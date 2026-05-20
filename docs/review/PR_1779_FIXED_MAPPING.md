@@ -15,17 +15,21 @@ resolved without disposition evidence.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437 -> c20b185ce
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452 -> c20b185ce
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `.cursor/agents/qa-engineer-agent.md:35` fixes the Sourcery tense issue.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:60` and `tests/test_ai_verification_registry_closeout.py:181` add class-based forbidden-claim regression coverage for raw prompt/response caching, Redis rollout approval, and semantic-cache production-ready wording.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:16` documents why the public merge SHA remains split to avoid a detect-secrets false positive.
-Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:152` and `tests/test_ai_verification_registry_closeout.py:210` ignore explicitly negated gate-closed safety statements.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` ignore explicitly negated gate-closed safety statements while rejecting unrelated negated text before forbidden claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:323` and `tests/test_ai_verification_registry_closeout.py:225` scope stale PR #1491 wording checks to the Post-Merge Closeout section.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440437 -> 02762fcc5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274440452 -> c20b185ce
 
 ## Post-Open Role-Agent Findings
 
@@ -58,6 +62,18 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - security-auditor finding: mapping evidence pointed at the wrong line for the Phase2 command correction.
   - Disposition: FIXED
   - Evidence: this artifact points the Phase2 command correction at the corrected checklist line.
+- qa-engineer-agent second-pass finding: canonical mapping used a multi-SHA `Commit:` line that strict disposition parsing rejects.
+  - Disposition: FIXED
+  - Commit: `02762fcc5`
+  - Evidence: `Commit: see mapping entries below` is used with per-thread SHA mappings above.
+- qa-engineer-agent second-pass finding: negation guard accepted forbidden claims after unrelated negated sentences.
+  - Disposition: FIXED
+  - Commit: `02762fcc5`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` includes unrelated-negation false-negative regressions.
+- qa-engineer-agent second-pass finding: Phase2 command-correction evidence was still line-fragile.
+  - Disposition: FIXED
+  - Commit: `02762fcc5`
+  - Evidence: the bug-hunter mapping now uses command evidence instead of a stale line number.
 
 ## Local Evidence
 
