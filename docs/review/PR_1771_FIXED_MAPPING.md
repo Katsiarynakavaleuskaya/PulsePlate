@@ -88,6 +88,9 @@ Role-agent dispositions:
 - Post-open `bug-hunter` fourth follow-up: Disposition `FIXED`. Evidence:
   commit `005cf4ce0` rejects long-distance masked authority prose in the same
   clause after stripping directly negated authority phrases.
+- Post-open `bug-hunter` fifth follow-up: Disposition `FIXED`. Evidence:
+  commit `f3dab2815` rejects pronoun/candidate-local approval/use prose across
+  adjacent sentences.
 
 ## Premortem
 
@@ -257,6 +260,10 @@ Disposition: FIXED
 Commit: 005cf4ce0
 Evidence: `core/food_sources/regional_catalog_identity.py` now rejects any remaining same-clause blocked source term plus non-negated authority/equivalence language after stripping direct negations; `tests/test_food_source_regional_catalog_identity.py` rejects the two long-distance masked approval examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: f3dab2815
+Evidence: `core/food_sources/regional_catalog_identity.py` rejects candidate-local/pronoun authority wording, and `tests/test_food_source_regional_catalog_identity.py` covers the five adjacent-sentence examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -296,7 +303,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 141 tests.
+- Focused PR17 tests: passed, 146 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
