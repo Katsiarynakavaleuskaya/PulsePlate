@@ -260,9 +260,9 @@ _REGIONAL_SOURCE_BLOCKING_REASONS = (
 _APPROVAL_TERMS = (
     r"approve|approves|approved|allow|allows|allowed|authorize|authorizes|authorized|"
     r"permit|permits|permitted|grant|grants|granted|enable|enables|enabled|usable|available|"
-    r"greenlit|ok|okay"
+    r"cleared|greenlit|green light|go ahead|ok|okay"
 )
-_APPROVAL_NOUNS = r"approval|permission|authorization|greenlight"
+_APPROVAL_NOUNS = r"approval|permission|authorization|clearance|greenlight|green light"
 _USE_TERMS = (
     r"may(?:\W+\w+){0,3}\W+be used|can(?:\W+\w+){0,3}\W+be used|"
     r"could(?:\W+\w+){0,3}\W+be used|is used|are used|used|queried|"

@@ -446,6 +446,10 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Partner access allowed for Yandex EDA.",
         "Seller access approved for Ozon.",
         "Seller or partner access allowed for tests.",
+        "Seller API has the green light for testing.",
+        "Partner access gets a green light for staging.",
+        "Regional catalogs have the go ahead for product display.",
+        "Seller API is cleared for tests.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
