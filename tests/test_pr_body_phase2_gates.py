@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 import scripts.ci.check_pr_body_phase2_gates as gates
 
 VALID_BODY_WITH_MAPPING = """## Summary
@@ -310,6 +312,34 @@ def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> N
 
     assert isinstance(messages, str)
     assert messages.strip()
+
+
+def test_git_commit_messages_returns_none_when_git_unavailable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(gates.shutil, "which", lambda _binary: None)
+
+    assert gates._git_commit_messages() is None
+
+
+def test_phase2_main_warns_when_commit_messages_unverifiable(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(gates, "_git_commit_messages", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "check_pr_body_phase2_gates.py",
+            "--body",
+            VALID_BODY_WITH_MAPPING,
+        ],
+    )
+
+    result = gates.main()
+
+    assert result == 0
+    assert "could not be inspected locally" in capsys.readouterr().out
 
 
 def test_phase2_guard_rejects_missing_sections() -> None:

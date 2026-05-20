@@ -120,6 +120,20 @@ def test_rejects_contribution_attribution_missing_not_required_case() -> None:
         identity_check.validate_identity_policy(policy)
 
 
+def test_rejects_contribution_attribution_unexpected_not_required_case() -> None:
+    policy = _valid_policy()
+    policy["contribution_attribution"]["coauthor_not_required_when"] = [
+        "runner_only_launched",
+        "artifact_rejected",
+        "artifact_unused",
+        "not_applicable_recorded",
+        "unreviewed_extra_exemption",
+    ]
+
+    with pytest.raises(identity_check.IdentityPolicyError, match="unexpected"):
+        identity_check.validate_identity_policy(policy)
+
+
 def test_rejects_non_allowlisted_git_email() -> None:
     policy = _valid_policy()
     policy["git_attribution"]["email"] = "ops@pulseplate.app"

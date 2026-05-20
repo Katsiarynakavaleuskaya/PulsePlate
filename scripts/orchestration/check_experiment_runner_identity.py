@@ -353,9 +353,14 @@ def validate_identity_policy(payload: dict[str, Any]) -> dict[str, Any]:
         raise IdentityPolicyError(
             "contribution_attribution.coauthor_not_required_when must be a list of strings."
         )
-    if not required_not_required.issubset(set(not_required)):
+    actual_not_required = set(not_required)
+    if actual_not_required != required_not_required:
+        missing = sorted(required_not_required - actual_not_required)
+        unexpected = sorted(actual_not_required - required_not_required)
         raise IdentityPolicyError(
-            "contribution_attribution.coauthor_not_required_when is missing required cases."
+            "contribution_attribution.coauthor_not_required_when must exactly match "
+            "required cases. "
+            f"Missing: {missing or ['none']}; unexpected: {unexpected or ['none']}."
         )
 
     validator_boundary = _require_mapping(payload, "validator_mutation_boundary")

@@ -251,12 +251,12 @@ def _git_commit_messages(
     commit_range: str = "origin/main..HEAD",
     *,
     fallback_range: str = "HEAD",
-) -> str:
-    """Read branch commit messages for local advisory attribution diagnostics."""
+) -> str | None:
+    """Read branch commit messages, or None when local inspection is unavailable."""
 
     git_bin = shutil.which("git")
     if git_bin is None:
-        return ""
+        return None
 
     ranges = [commit_range]
     if fallback_range and fallback_range != commit_range:
@@ -275,7 +275,7 @@ def _git_commit_messages(
             continue
         if completed.returncode == 0:
             return completed.stdout
-    return ""
+    return None
 
 
 def check_experiment_runner_coauthor_advisory(
@@ -468,13 +468,19 @@ def main() -> int:
             args.commit_range,
             fallback_range=args.commit_range_fallback,
         )
-        for evidence_text in evidence_texts:
-            advisory_warnings.extend(
-                check_experiment_runner_coauthor_advisory(
-                    evidence_text,
-                    commit_messages=commit_messages,
-                )
+        if commit_messages is None:
+            advisory_warnings.append(
+                "Advisory: branch commit messages could not be inspected locally, "
+                "so Experiment Runner co-author trailers were not verified."
             )
+        else:
+            for evidence_text in evidence_texts:
+                advisory_warnings.extend(
+                    check_experiment_runner_coauthor_advisory(
+                        evidence_text,
+                        commit_messages=commit_messages,
+                    )
+                )
         advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]
