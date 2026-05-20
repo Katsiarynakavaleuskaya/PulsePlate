@@ -31,7 +31,12 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863848
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863850
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863855
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057598
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057606
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057613
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057620
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084
 Disposition: FIXED
 Commit: see mapping entries below
 Evidence: `.cursor/agents/qa-engineer-agent.md:35` fixes the Sourcery tense issue.
@@ -42,6 +47,7 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:323` and `tests
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now use claim-local negation patterns, unbounded same-sentence forbidden-claim gaps, and `PR V1` / `PR-V1` spelling coverage.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now restrict negation to the matched claim clause, accept explicit Redis/GPTCache negation, accept `no approval` / `no permission` semantic-cache policy wording, and allow modal/never raw-cache denials while preserving contradictory-claim rejection.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now normalize Unicode dash variants, catch wrapped forbidden claims across non-bullet line breaks, reject case-varied stale phrases, allow explicit prohibition wording for raw-cache denials, and reject conjunction-based contradictory approvals.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now reject comma/although contradictory approvals, whitespace-wrapped stale phrases, `not only` approval claims, and past-tense `opened` / `enabled` semantic-cache activation claims.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
@@ -60,7 +66,12 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863848 -> effa76c5e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863850 -> effa76c5e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3276863855 -> effa76c5e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057598 -> 3d95a61f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057606 -> 3d95a61f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057613 -> 3d95a61f8
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277057620 -> 3d95a61f8
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084 -> 3d95a61f8
 
 ## Post-Open Role-Agent Findings
 
@@ -173,6 +184,22 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `effa76c5e`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Raw prompts are prohibited from being cached`.
+- CodeRabbit finding: comma/although negated lead-in clauses could hide later semantic-cache approval.
+  - Disposition: FIXED
+  - Commit: `3d95a61f8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `Although PR-V1 does not permit Redis rollout, PR-V1 approves semantic-cache serving`.
+- CodeRabbit finding: stale phrases could bypass rejection when wrapped across whitespace.
+  - Disposition: FIXED
+  - Commit: `3d95a61f8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `current head needs one final` followed by wrapped `current-head CI pass`.
+- CodeRabbit finding: `not only` approval statements were incorrectly treated as negated denials.
+  - Disposition: FIXED
+  - Commit: `3d95a61f8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `Redis is not only approved for semantic-cache rollout`.
+- CodeRabbit finding: past-tense `opened` / `enabled` semantic-cache activation claims evaded matching.
+  - Disposition: FIXED
+  - Commit: `3d95a61f8`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1 opened semantic-cache serving` and `PR-V1 enabled semantic-cache serving`.
 
 ## Local Evidence
 
