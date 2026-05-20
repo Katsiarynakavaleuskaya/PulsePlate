@@ -94,6 +94,9 @@ Role-agent dispositions:
 - Post-open `bug-hunter` sixth follow-up: Disposition `FIXED`. Evidence:
   commit `ec46693f2` rejects plural-pronoun/provider adjacent-sentence
   approval/use prose.
+- Post-open `bug-hunter` seventh follow-up: Disposition `FIXED`. Evidence:
+  commit `70fe6fdc5` rejects adjacent-sentence pronoun/candidate authority
+  noun claims while keeping safe canonical portal-role notes valid.
 
 ## Premortem
 
@@ -271,6 +274,10 @@ Disposition: FIXED
 Commit: ec46693f2
 Evidence: `core/food_sources/regional_catalog_identity.py` rejects plural candidate/provider pronoun authority wording, and `tests/test_food_source_regional_catalog_identity.py` covers the five plural-pronoun examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: 70fe6fdc5
+Evidence: `core/food_sources/regional_catalog_identity.py` rejects pronoun/candidate authority noun claims such as `They are source authority` and `They act as product display`; `tests/test_food_source_regional_catalog_identity.py` covers the five seventh-pass examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -310,7 +317,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 151 tests.
+- Focused PR17 tests: passed, 156 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
