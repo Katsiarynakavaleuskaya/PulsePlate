@@ -3,13 +3,31 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 
 import pytest
 
 import scripts.orchestration.context_pack as context_pack
 import scripts.orchestration.experiment_contract as experiment_contract
 import scripts.orchestration.experiment_promote as experiment_promote
+
+
+def _git(repo: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    git_binary = shutil.which("git")
+    if not git_binary:
+        raise AssertionError("git binary is required for experiment promotion tests.")
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    return subprocess.run(
+        [git_binary, *args],
+        cwd=str(repo),
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
 
 
 def _init_repo(tmp_path: Path) -> Path:
@@ -35,6 +53,11 @@ def _init_repo(tmp_path: Path) -> Path:
         "# Experiment Protocol\n",
         encoding="utf-8",
     )
+    _git(tmp_path, "init", "--quiet", str(repo))
+    _git(repo, "config", "user.email", "pulseplate@pm.me")
+    _git(repo, "config", "user.name", "PulsePlate Experiment Runner")
+    _git(repo, "add", ".")
+    _git(repo, "commit", "--quiet", "-m", "init")
     return repo
 
 
@@ -107,10 +130,12 @@ def _result(
     status: str = "accepted",
     failure_class: str | None = None,
     shared_tree_untouched: bool = True,
+    runner_mode: str = "candidate_patch",
 ) -> dict[str, object]:
     return {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
+        "runner_mode": runner_mode,
         "candidate_patch": "candidate.patch",
         "status": status,
         "failure_class": failure_class,
@@ -257,6 +282,45 @@ def test_rejected_result_with_non_backlog_target_fails(
     )
 
     with pytest.raises(experiment_promote.ExperimentPromotionError, match="backlog_entry"):
+        experiment_promote.build_promotion_decision(packet, result)
+
+
+def test_oracle_only_governance_reviewer_result_never_promotes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = {
+        **_packet(promotion_target="audit_artifact"),
+        "runner_mode": "oracle_only_governance_reviewer",
+    }
+    result = experiment_contract.validate_experiment_result(
+        {
+            **_result(runner_mode="oracle_only_governance_reviewer"),
+            "candidate_patch": "oracle_only_governance_reviewer",
+            "mutated_paths": [],
+            "promotion_ready": False,
+        }
+    )
+
+    with pytest.raises(experiment_promote.ExperimentPromotionError, match="advisory"):
+        experiment_promote.build_promotion_decision(packet, result)
+
+
+def test_oracle_only_packet_cannot_pair_with_legacy_result_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repo = _init_repo(tmp_path)
+    _configure_repo(monkeypatch, repo)
+    packet = {
+        **_packet(promotion_target="audit_artifact"),
+        "runner_mode": "oracle_only_governance_reviewer",
+    }
+    result = experiment_contract.validate_experiment_result(_result())
+
+    with pytest.raises(experiment_promote.ExperimentPromotionError, match="runner_mode"):
         experiment_promote.build_promotion_decision(packet, result)
 
 

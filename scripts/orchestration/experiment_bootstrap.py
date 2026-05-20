@@ -13,7 +13,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 EXPERIMENT_BOOTSTRAP_REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(EXPERIMENT_BOOTSTRAP_REPO_ROOT) not in sys.path:
@@ -30,18 +30,24 @@ from scripts.orchestration.experiment_contract import (
     DEFAULT_BUDGETS,
     DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
     DEFAULT_METRIC_BASELINE_REF,
+    DEFAULT_RUNNER_MODE,
     DEFAULT_STOP_CONDITION,
+    ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     PRIMARY_AGENT,
     REVIEWER,
+    RUNNER_MODES,
     SCHEMA_VERSION,
     is_cv_experiment,
     validate_budget_payload,
     validate_cv_context,
+    validate_experiment_packet,
     validate_immutable_oracles,
     validate_metrics,
     validate_mutable_candidate_surface,
     validate_negative_controls,
+    validate_oracle_context_surface,
     validate_promotion_target,
+    validate_runner_mode,
 )
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import load_routing_graph
@@ -186,6 +192,7 @@ def compute_experiment_id(
     promotion_target: str,
     budgets: dict[str, int],
     stop_condition: str,
+    runner_mode: str = DEFAULT_RUNNER_MODE,
     cv_context: dict[str, Any] | None = None,
 ) -> str:
     """Return deterministic short experiment id."""
@@ -201,6 +208,8 @@ def compute_experiment_id(
         "budgets": budgets,
         "stop_condition": stop_condition.strip() or DEFAULT_STOP_CONDITION,
     }
+    if runner_mode != DEFAULT_RUNNER_MODE:
+        payload_data["runner_mode"] = runner_mode
     if cv_context is not None:
         payload_data["cv_context"] = cv_context
 
@@ -226,11 +235,16 @@ def build_experiment_packet(
     stop_condition: str = DEFAULT_STOP_CONDITION,
     metric_baseline_reference: str = DEFAULT_METRIC_BASELINE_REF,
     metric_acceptance_threshold: str = DEFAULT_METRIC_ACCEPTANCE_THRESHOLD,
+    runner_mode: str = DEFAULT_RUNNER_MODE,
     cv_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build a deterministic experiment packet for PR2 bootstrap tooling."""
 
-    validated_paths = validate_mutable_candidate_surface(mutable_paths)
+    validated_runner_mode = validate_runner_mode(runner_mode)
+    if validated_runner_mode == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE:
+        validated_paths = validate_oracle_context_surface(mutable_paths)
+    else:
+        validated_paths = validate_mutable_candidate_surface(mutable_paths)
     immutable_oracles = validate_immutable_oracles(oracle_commands)
     metric_payload = validate_metrics(
         metrics,
@@ -276,6 +290,7 @@ def build_experiment_packet(
         promotion_target=validated_promotion_target,
         budgets=budget_payload,
         stop_condition=stop_condition,
+        runner_mode=validated_runner_mode,
         cv_context=validated_cv_context,
     )
 
@@ -295,6 +310,7 @@ def build_experiment_packet(
     packet = {
         "schema_version": SCHEMA_VERSION,
         "experiment_id": experiment_id,
+        "runner_mode": validated_runner_mode,
         "decision_question": decision_question.strip(),
         "task_class": task_class.strip(),
         "domain": domain,
@@ -323,7 +339,7 @@ def build_experiment_packet(
     }
     if validated_cv_context is not None:
         packet["cv_context"] = validated_cv_context
-    return packet
+    return cast(dict[str, Any], validate_experiment_packet(packet))
 
 
 def _resolve_output_path(raw_output: str | None, experiment_id: str) -> Path:
@@ -352,6 +368,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--decision-question", required=True)
     parser.add_argument("--task-class", default="Experimentation")
+    parser.add_argument(
+        "--runner-mode",
+        choices=RUNNER_MODES,
+        default=DEFAULT_RUNNER_MODE,
+        help="Runner behavior mode for this experiment packet.",
+    )
     parser.add_argument("--mutable-path", action="append", default=[])
     parser.add_argument("--oracle-command", action="append", default=[])
     parser.add_argument("--metric", action="append", default=[])
@@ -434,6 +456,7 @@ def main(argv: list[str] | None = None) -> int:
             stop_condition=args.stop_condition,
             metric_baseline_reference=args.metric_baseline_ref,
             metric_acceptance_threshold=args.metric_acceptance_threshold,
+            runner_mode=args.runner_mode,
             cv_context=_build_cv_context_from_args(args),
         )
         out_path = _resolve_output_path(args.output, packet["experiment_id"])
@@ -458,6 +481,7 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(
             {
                 "experiment_id": packet["experiment_id"],
+                "runner_mode": packet["runner_mode"],
                 "domain": packet["domain"],
                 "primary_agent": packet["primary_agent"],
                 "reviewer": packet["reviewer"],

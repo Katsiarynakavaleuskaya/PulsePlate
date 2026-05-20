@@ -17,6 +17,7 @@ from typing import Any
 try:
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
     from scripts.orchestration.experiment_contract import (
+        ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
         SCHEMA_VERSION,
         validate_experiment_id,
         validate_experiment_packet,
@@ -30,6 +31,7 @@ except ImportError:  # pragma: no cover - CLI fallback for direct script executi
         sys.path.insert(0, str(experiment_promote_repo_root))
     from scripts.orchestration.context_pack import REPO_ROOT, normalize_repo_path
     from scripts.orchestration.experiment_contract import (
+        ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
         SCHEMA_VERSION,
         validate_experiment_id,
         validate_experiment_packet,
@@ -88,11 +90,23 @@ def _require_matching_experiment(packet: dict[str, Any], result: dict[str, Any])
         raise ExperimentPromotionError(
             "Experiment packet and result must reference the same experiment_id."
         )
+    if packet.get("runner_mode") != result.get("runner_mode"):
+        raise ExperimentPromotionError(
+            "Experiment packet and result must reference the same runner_mode."
+        )
 
 
 def _result_policy(packet: dict[str, Any], result: dict[str, Any]) -> str:
     target = packet["promotion_target"]
     status = result["status"]
+    if (
+        packet.get("runner_mode") == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+        or result.get("runner_mode") == ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE
+    ):
+        raise ExperimentPromotionError(
+            "Oracle-only governance reviewer results are advisory local evidence "
+            "and must not be promoted."
+        )
     if status == "accepted":
         if not result["shared_tree_untouched"]:
             raise ExperimentPromotionError(

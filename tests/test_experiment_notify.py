@@ -39,10 +39,12 @@ def _packet(
     *,
     experiment_id: str = "exp-notify",
     promotion_target: str = "audit_artifact",
+    runner_mode: str = "candidate_patch",
 ) -> dict[str, object]:
     return {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
+        "runner_mode": runner_mode,
         "decision_question": "Notify about governed experiment result",
         "task_class": "Experimentation",
         "domain": "ml",
@@ -79,10 +81,12 @@ def _result(
     status: str = "accepted",
     failure_class: str | None = None,
     command: str = 'python3 -c "import sys; sys.exit(0)"',
+    runner_mode: str = "candidate_patch",
 ) -> dict[str, object]:
     return {
         "schema_version": "1.0",
         "experiment_id": experiment_id,
+        "runner_mode": runner_mode,
         "candidate_patch": "candidate.patch",
         "status": status,
         "failure_class": failure_class,
@@ -283,7 +287,6 @@ def test_main_writes_deterministic_notification(
         "github_step_summary": False,
         "output": "artifacts/orchestration/experiments/notifications/exp-notify.md",
     }
-
     second_exit_code = experiment_notify.main(
         ["--packet", str(packet_path), "--result", str(result_path)]
     )
@@ -291,6 +294,17 @@ def test_main_writes_deterministic_notification(
 
     assert second_exit_code == 0
     assert output.read_text(encoding="utf-8") == EXPECTED_NOTIFICATION
+
+
+def test_render_rejects_packet_result_runner_mode_mismatch() -> None:
+    packet = {
+        **_packet(runner_mode="oracle_only_governance_reviewer"),
+        "mutable_candidate_surface": ["scripts/orchestration/experiment_runner.py"],
+    }
+    result = _promotion_ready_result()
+
+    with pytest.raises(experiment_notify.ExperimentNotificationError, match="runner_mode"):
+        experiment_notify.render_notification_markdown(packet, result, None)
 
 
 def test_default_notification_does_not_send_email(
