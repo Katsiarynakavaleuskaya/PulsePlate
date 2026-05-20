@@ -888,17 +888,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL: unable to write experiment result: {exc}")
         return 1
 
-    try:
-        output_ref = str(output_path.relative_to(REPO_ROOT))
-    except ValueError:
-        output_ref = str(output_path)
     print(
         json.dumps(
             {
-                "experiment_id": result["experiment_id"],
-                "status": result["status"],
-                "failure_class": result["failure_class"],
-                "output": output_ref,
+                "result_artifact_written": True,
             },
             ensure_ascii=False,
             indent=2,

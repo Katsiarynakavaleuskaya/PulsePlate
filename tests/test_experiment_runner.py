@@ -1190,12 +1190,10 @@ def test_main_writes_result_inside_artifact_dir(
     assert result_path.exists()
     written = json.loads(result_path.read_text(encoding="utf-8"))
     assert written["experiment_id"] == "exp-cli"
-    assert (
-        json.loads(captured.out)["output"]
-        == (
-            Path("artifacts/orchestration/experiments/results") / "nested" / "result.json"
-        ).as_posix()
-    )
+    stdout_payload = json.loads(captured.out)
+    assert stdout_payload == {"result_artifact_written": True}
+    assert "nested/result.json" not in captured.out
+    assert "exp-cli" not in captured.out
 
 
 def test_main_writes_oracle_only_governance_reviewer_artifact(
@@ -1244,7 +1242,7 @@ def test_main_writes_oracle_only_governance_reviewer_artifact(
     assert written["coauthor_required"] is False
     assert written["coauthor_reason"] == ""
     assert written["shared_tree_untouched"] is True
-    assert json.loads(captured.out)["status"] == "accepted"
+    assert json.loads(captured.out) == {"result_artifact_written": True}
 
 
 def test_main_writes_oracle_only_coauthor_contribution_artifact(
