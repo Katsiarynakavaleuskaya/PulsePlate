@@ -91,6 +91,12 @@ Reason: Codex flagged two Phase2 advisory false-signal paths: artifact-first mod
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3275163925 -> fd94d2c25
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3275163929 -> fd94d2c25
 
+Disposition: FIXED
+Commit: 50836edcd
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Codex flagged that a local footer scan still accepted prose ending in a trailer-looking line. Phase2 now delegates trailer parsing to `git interpret-trailers --parse`, so only real Git trailer blocks satisfy the Experiment Runner co-author diagnostic.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3276881473 -> 50836edcd
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
