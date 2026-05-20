@@ -19,12 +19,14 @@ Evidence: Added locked frontend dependency setup before `test-pr`, `test-feature
 Disposition: FIXED
 Commit: 56a71b68e
 Evidence: Addressed Sourcery/QA feedback by routing root Node installs through the same bounded retry composite action as frontend installs, generalizing the composite action description, adding workflow assertions for root retry usage, and adding a negative traversal test for `style-dictionary` package entrypoints. Local proof: focused review tests passed (`4 passed`), full design-token parity passed (`16 passed`), workflow/supply-chain pack passed (`19 passed`), and `make validate-changed` passed (`34 passed`).
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1781#pullrequestreview-4329707686 -> 56a71b68e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1781#pullrequestreview-4332081193 -> 56a71b68e
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1781#discussion_r3277027875 -> 56a71b68e
 
 Disposition: FIXED
 Commit: 0ea50e696
 Evidence: Closed Sourcery high-level helper/test maintainability feedback by replacing CI-readiness `assert` paths with explicit `pytest.fail(...)` diagnostics and centralizing the Python test job list used by the workflow regression guard. Local proof: focused review tests passed (`4 passed`), full design-token parity passed (`16 passed`), workflow/supply-chain pack passed (`19 passed`), and `make validate-changed` passed (`34 passed`).
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1781#pullrequestreview-4329707686 -> 0ea50e696
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1781#pullrequestreview-4332081193 -> 0ea50e696
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1781#discussion_r3277027880 -> 0ea50e696
 
 ## Premortem Disposition
 
@@ -57,7 +59,7 @@ Full local `make verify` is deferred for this narrow CI/tooling stabilization pe
 - Mandatory post-open QA -> bug-hunter pass: completed. QA found two Sourcery-aligned actionables; bug-hunter found no code bugs after the fixes and blocked readiness only on stale mapping/body/current-head evidence.
 - Security/Codex Security diff-scoped pass: PASS. Security-auditor found no blockers: npm workflow changes use local bounded retry action without permission expansion, composite action callers stay within `.`/`frontend`, style-dictionary parsing reads metadata only and keeps entrypoints inside the package root, and `.secrets.baseline` changes are line-number/generated timestamp drift only.
 - CodeRabbit: no actionables reported on the mapping-only update; current-head review after latest push pending.
-- Sourcery: actionables from the first review are fixed in `56a71b68e` and `0ea50e696`; current-head review after latest push pending.
+- Sourcery: actionables from review `pullrequestreview-4332081193` and resolved threads `discussion_r3277027875` / `discussion_r3277027880` are fixed in `56a71b68e` and `0ea50e696`; current-head review after latest push pending.
 - Cubic: neutral/no actionable signal observed before latest push; current-head activity pending.
 - Current-head checks: pending.
 - Review-thread disposition guard: pending.
