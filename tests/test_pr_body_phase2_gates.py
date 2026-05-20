@@ -332,6 +332,43 @@ def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_with_trai
     ]
 
 
+def test_experiment_runner_coauthor_advisory_rejects_symlink_escape(
+    tmp_path: Path,
+) -> None:
+    outside = tmp_path / "outside.json"
+    outside.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "External artifact must not be trusted.",
+            }
+        ),
+        encoding="utf-8",
+    )
+    repo_root = tmp_path / "repo"
+    artifact = repo_root / "artifacts" / "orchestration" / "experiments" / "results" / "link.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.symlink_to(outside)
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/link.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=repo_root,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/link.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
 def test_experiment_runner_coauthor_advisory_warns_on_malformed_coauthor_metadata(
     tmp_path: Path,
 ) -> None:

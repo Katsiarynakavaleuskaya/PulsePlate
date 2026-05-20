@@ -302,15 +302,24 @@ def check_experiment_runner_coauthor_advisory(
     )
 
     warnings: list[str] = []
+    resolved_repo_root = repo_root.resolve()
     for artifact_path in _experiment_runner_artifact_paths(text):
         absolute_path = repo_root / artifact_path
-        if not absolute_path.is_file():
+        try:
+            resolved_path = absolute_path.resolve(strict=True)
+            resolved_path.relative_to(resolved_repo_root)
+        except (OSError, ValueError):
+            warnings.append(
+                UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
+            )
+            continue
+        if not resolved_path.is_file():
             warnings.append(
                 UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
             )
             continue
         try:
-            payload = json.loads(absolute_path.read_text(encoding="utf-8"))
+            payload = json.loads(resolved_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
             warnings.append(
                 UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
