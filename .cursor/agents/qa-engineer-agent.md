@@ -28,6 +28,11 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
   coverage. Exact reviewer phrases are seed examples only; acceptance must include
   deterministic generated cases across subject/action/object, tense/aspect, modality,
   polarity, voice, and state/status wording, plus explicit negative controls.
+- For Philosophy semantic-cache admission validators, require policy-spec-first
+  QA. New reviewer wording should update the canonical policy family and
+  regenerated oracle fixture before a one-off regex is accepted. Verify that
+  mutable policy inputs, generated oracle fixtures, and deterministic checkers
+  stay separated, and that no runtime semantic-cache behavior is activated.
 
 ## When Invoked
 
@@ -42,5 +47,6 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
 - Regression matrix
 - Generated/equivalence-class matrix for claim validators when the changed behavior
   protects semantics rather than a single literal string
+- Policy/oracle drift check for Philosophy semantic-cache admission work
 - Required commands and expected pass/fail outcomes
 - Residual risks and blocked scenarios

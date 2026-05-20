@@ -1,0 +1,382 @@
+{
+  "$schema": "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json",
+  "policy_id": "philosophy_semantic_cache_admission_policy",
+  "policy_version": "2026-05-20",
+  "rollout_phase": "PHILOSOPHY-PR2",
+  "gate_status": "closed",
+  "runtime_allowed": false,
+  "implementation_allowed": false,
+  "source_contract": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+  "modal_operators": [
+    "can",
+    "may",
+    "must",
+    "should",
+    "could",
+    "would",
+    "might",
+    "will",
+    "is required to",
+    "has to"
+  ],
+  "temporal_operators": [
+    "now",
+    "still",
+    "remains",
+    "became",
+    "has been",
+    "will",
+    "future"
+  ],
+  "research_basis": [
+    "Kuhn 2014 controlled natural language: restrict vocabulary and grammar to reduce ambiguity",
+    "QuickCheck property testing: generated cases exercise property classes instead of hand examples only",
+    "metamorphic testing: oracle-gap coverage through paired forbidden and allowed transformations",
+    "OPA/Rego policy-as-data: structured JSON-like data keeps policy inputs auditable",
+    "NIST AI RMF red-teaming: adversarial role-play and chaos testing surface failure modes before rollout",
+    "temporal/modal logic: tense and modality change claim force even when terms are reused"
+  ],
+  "claim_families": [
+    {
+      "id": "claim_class_gate_open_equivalence",
+      "risk_rail": "semantic_cache_gate_integrity",
+      "canonical_meaning": "Philosophy admission, PR-1, PR-2, or the claim-family oracle is equivalent to opening, unlocking, enabling, or keeping open the semantic-cache gate.",
+      "forbidden_polarity": "affirmative permission, activation, equivalence, double-negative, or temporal drift that makes the gate open now, still open, or open in this PR",
+      "detector_labels": [
+        "philosophy admission opens gate"
+      ],
+      "subjects": [
+        "PR-1",
+        "PR-2",
+        "Philosophy admission",
+        "The admission contract",
+        "The admission policy",
+        "The claim-family oracle",
+        "The semantic-cache gate",
+        "The global gate"
+      ],
+      "assertive_predicates": [
+        "opens the semantic-cache gate",
+        "unlocks the semantic-cache gate",
+        "enables the global gate",
+        "is equivalent to opening the semantic-cache gate",
+        "keeps the semantic-cache gate open"
+      ],
+      "modal_predicates": [
+        "open the semantic-cache gate",
+        "unlock the semantic-cache gate",
+        "enable the global gate",
+        "be equivalent to opening the semantic-cache gate"
+      ],
+      "temporal_predicates": [
+        "has opened the semantic-cache gate",
+        "became sufficient to open the semantic-cache gate",
+        "remains enough to open the global gate",
+        "is now opening the semantic-cache gate",
+        "still keeps the semantic-cache gate open"
+      ],
+      "seed_regressions": [
+        "The claim-family oracle became sufficient to open the semantic-cache gate.",
+        "PR-2 does not only open the semantic-cache gate.",
+        "The semantic-cache gate is now being opened for PR-2."
+      ],
+      "allowed_negative_controls": [
+        "This policy does not open the semantic-cache gate.",
+        "No semantic-cache gate is opened by PR-2.",
+        "The future gate-open PR must review semantic-cache admission before runtime use."
+      ]
+    },
+    {
+      "id": "claim_class_live_philosophy_cache",
+      "risk_rail": "runtime_serving_integrity",
+      "canonical_meaning": "Philosophical semantic-cache serving, cache reads, or live cache status is present before the global semantic-cache gate opens.",
+      "forbidden_polarity": "affirmative live, serving, active, ready, open, or still-live runtime cache status",
+      "detector_labels": [
+        "philosophical semantic cache live"
+      ],
+      "subjects": [
+        "Philosophical semantic-cache",
+        "Philosophy cache",
+        "Philosophy admission cache",
+        "PR-2 cache path",
+        "The policy oracle"
+      ],
+      "assertive_predicates": [
+        "is live",
+        "is active",
+        "serves cached responses",
+        "serves philosophy cache hits",
+        "keeps semantic-cache serving live"
+      ],
+      "modal_predicates": [
+        "serve cached responses",
+        "keep semantic-cache serving live",
+        "return philosophy cache hits",
+        "run as a live cache"
+      ],
+      "temporal_predicates": [
+        "has been live",
+        "became live",
+        "remains live",
+        "is still serving cached responses",
+        "will serve cached responses"
+      ],
+      "seed_regressions": [
+        "The admission policy still keeps semantic-cache serving live.",
+        "Philosophy admission has been live since PR-1.",
+        "Future philosophy PRs may now serve cached responses."
+      ],
+      "allowed_negative_controls": [
+        "Philosophical semantic-cache is not live.",
+        "The policy oracle does not serve cached responses.",
+        "Future PR may evaluate cache serving only after the gate opens."
+      ]
+    },
+    {
+      "id": "claim_class_provider_rollout_approved",
+      "risk_rail": "provider_and_dependency_integrity",
+      "canonical_meaning": "PR-1 or PR-2 approves Redis, GPTCache, embeddings, vector search, connection strings, cache adapters, or provider-backed cache runtime.",
+      "forbidden_polarity": "affirmative permission, support, import, wiring, connection, provider call, or temporal provider rollout approval",
+      "detector_labels": [
+        "redis philosophical cache approved",
+        "gptcache philosophical cache approved",
+        "redis imports allowed in pr-1",
+        "gptcache imports allowed in pr-1",
+        "embeddings allowed in pr-1",
+        "insight cache wiring allowed in pr-1",
+        "vector search allowed in pr-1",
+        "connection strings allowed in pr-1",
+        "cache adapters allowed in pr-1"
+      ],
+      "subjects": [
+        "PR-1",
+        "PR-2",
+        "Philosophy admission",
+        "The admission policy",
+        "The claim-family oracle"
+      ],
+      "assertive_predicates": [
+        "allows Redis imports",
+        "allows GPTCache imports",
+        "enables embeddings for philosophy admission",
+        "wires /insight cache behavior",
+        "opens Redis connection strings"
+      ],
+      "modal_predicates": [
+        "use Redis clients",
+        "use GPTCache clients",
+        "wire embeddings",
+        "open Redis connections",
+        "enable provider-backed cache"
+      ],
+      "temporal_predicates": [
+        "has used Redis imports for philosophy admission",
+        "became approved for GPTCache imports",
+        "still allows embeddings",
+        "will wire /insight cache behavior",
+        "has been opening Redis connections"
+      ],
+      "seed_regressions": [
+        "Future philosophy PRs may now serve GPTCache responses.",
+        "Philosophy admission has been required to enable Redis cache I/O.",
+        "PR-2 has GPTCache import for philosophy admission."
+      ],
+      "allowed_negative_controls": [
+        "No Redis imports are allowed in PR-2.",
+        "GPTCache imports remain blocked for philosophy admission.",
+        "The policy oracle does not enable provider-backed cache."
+      ]
+    },
+    {
+      "id": "claim_class_verification_bundle_skipped",
+      "risk_rail": "verification_bundle_integrity",
+      "canonical_meaning": "Semantic-cache admission or knowledge promotion may skip, waive, omit, or make optional the required verification bundle.",
+      "forbidden_polarity": "affirmative waiver, optionality, omission, bypass, not-required, or temporal loosening of verification-bundle requirements",
+      "detector_labels": [
+        "verification bundle optional",
+        "cache admission without verification bundle"
+      ],
+      "subjects": [
+        "Semantic-cache admission",
+        "Cache admission",
+        "Knowledge promotion",
+        "Philosophy admission",
+        "The admission policy"
+      ],
+      "assertive_predicates": [
+        "does not require a verification bundle",
+        "bypasses verification bundles",
+        "waives verification bundle requirements",
+        "makes verification bundles optional",
+        "promotes knowledge without a verification bundle"
+      ],
+      "modal_predicates": [
+        "skip verification bundles",
+        "omit the verification bundle",
+        "waive verification bundle requirements",
+        "promote knowledge without a verification bundle"
+      ],
+      "temporal_predicates": [
+        "has bypassed verification bundles",
+        "became exempt from verification bundles",
+        "remains optional for verification bundles",
+        "is now waiving verification bundle requirements",
+        "will promote knowledge without a verification bundle"
+      ],
+      "seed_regressions": [
+        "Semantic-cache admission may omit the verification bundle.",
+        "Verification bundle requirements remain optional for semantic-cache admission.",
+        "PR-2 is promoting knowledge without a verification bundle."
+      ],
+      "allowed_negative_controls": [
+        "No semantic-cache admission may omit the verification bundle.",
+        "Cache admission requires a passed verification bundle.",
+        "Future PR may evaluate semantic-cache admission after verification."
+      ]
+    },
+    {
+      "id": "claim_class_production_live_cache_key_behavior",
+      "risk_rail": "production_cache_key_integrity",
+      "canonical_meaning": "Philosophy admission ships production-live cache-key behavior or raw prompt/response cache persistence.",
+      "forbidden_polarity": "affirmative production-live cache keys, raw prompt cache keys, raw responses, persistence, or temporal shipping language",
+      "detector_labels": [
+        "production-live philosophical cache-key behavior"
+      ],
+      "subjects": [
+        "PR-1",
+        "PR-2",
+        "Philosophy admission",
+        "The admission policy",
+        "The claim-family oracle"
+      ],
+      "assertive_predicates": [
+        "ships production cache keys",
+        "stores raw prompts as cache keys",
+        "caches raw model responses",
+        "enables live cache-key behavior",
+        "persists philosophy cache keys"
+      ],
+      "modal_predicates": [
+        "ship production cache keys",
+        "store raw prompts as cache keys",
+        "cache raw model responses",
+        "enable live cache-key behavior"
+      ],
+      "temporal_predicates": [
+        "has shipped production cache keys",
+        "became live for cache-key behavior",
+        "still stores raw prompts as cache keys",
+        "will cache raw model responses",
+        "is now persisting philosophy cache keys"
+      ],
+      "seed_regressions": [
+        "PR-2 stores raw prompts as cache keys.",
+        "Philosophy admission has shipped production cache-key behavior.",
+        "The admission policy will cache raw model responses."
+      ],
+      "allowed_negative_controls": [
+        "PR-2 does not ship production cache keys.",
+        "No raw prompts are stored as cache keys.",
+        "Philosophy admission blocks live cache-key behavior."
+      ]
+    },
+    {
+      "id": "claim_class_pdf_design_intake_gate_override",
+      "risk_rail": "repo_truth_integrity",
+      "canonical_meaning": "PDF, design, browser, Drive, or research intake overrides repository gate markers, merge truth, or contract truth.",
+      "forbidden_polarity": "affirmative override, bypass, replacement, supersession, or temporal dominance over repo-reviewed gate markers",
+      "detector_labels": [
+        "design intake overrides gate markers"
+      ],
+      "subjects": [
+        "PDF intake",
+        "Design intake",
+        "Drive research",
+        "Browser evidence",
+        "The admission policy"
+      ],
+      "assertive_predicates": [
+        "overrides repo gate markers",
+        "bypasses repo-reviewed contracts",
+        "replaces merge truth",
+        "supersedes semantic-cache gate markers",
+        "authorizes runtime behavior over repo truth"
+      ],
+      "modal_predicates": [
+        "override repo gate markers",
+        "bypass repo-reviewed contracts",
+        "replace merge truth",
+        "supersede semantic-cache gate markers"
+      ],
+      "temporal_predicates": [
+        "has overridden repo gate markers",
+        "became the source of runtime truth",
+        "still overrides semantic-cache gate markers",
+        "will bypass repo-reviewed contracts",
+        "is now replacing merge truth"
+      ],
+      "seed_regressions": [
+        "Design/PDF intake can override repo gate markers.",
+        "PDF intake has overridden semantic-cache gate markers.",
+        "Browser evidence became the source of runtime truth."
+      ],
+      "allowed_negative_controls": [
+        "Design/PDF intake cannot override repo gate markers.",
+        "Research intake remains evidence-only.",
+        "Repo-reviewed contracts remain the source of gate truth."
+      ]
+    },
+    {
+      "id": "claim_class_runtime_expansion_approved",
+      "risk_rail": "runtime_scope_integrity",
+      "canonical_meaning": "Philosophy admission or PR-2 authorizes runtime expansion, backend selection, blocked-surface admission, cache I/O, or cache-adjacent writes.",
+      "forbidden_polarity": "affirmative runtime approval, backend authorization, blocked-surface eligibility, cache read/write, or temporal runtime expansion",
+      "detector_labels": [
+        "runtime allowed in pr-1",
+        "backend selection authorized by philosophy admission",
+        "cache IO allowed in pr-1",
+        "blocked surface cache admission allowed"
+      ],
+      "subjects": [
+        "PR-1",
+        "PR-2",
+        "Philosophy admission",
+        "The admission policy",
+        "The claim-family oracle",
+        "Billing truth",
+        "Therapy routing"
+      ],
+      "assertive_predicates": [
+        "authorizes backend selection",
+        "enables runtime expansion",
+        "writes cache entries",
+        "reads semantic-cache entries",
+        "becomes cache eligible for semantic-cache admission"
+      ],
+      "modal_predicates": [
+        "authorize backend selection",
+        "enable runtime expansion",
+        "write cache entries",
+        "read semantic-cache entries",
+        "be cache eligible for semantic-cache admission"
+      ],
+      "temporal_predicates": [
+        "has authorized backend selection",
+        "became cache eligible for semantic-cache admission",
+        "remains cache eligible for semantic-cache admission",
+        "is now writing cache entries",
+        "will enable runtime expansion"
+      ],
+      "seed_regressions": [
+        "The policy spec authorizes backend selection without SC-G5.",
+        "Billing truth remained cache eligible for semantic-cache admission.",
+        "PR-2 must write cache entries."
+      ],
+      "allowed_negative_controls": [
+        "The policy spec does not authorize backend selection.",
+        "Billing truth remains blocked_from_cache.",
+        "PR-2 must not write cache entries."
+      ]
+    }
+  ]
+}

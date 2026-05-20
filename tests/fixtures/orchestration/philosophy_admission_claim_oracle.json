@@ -1,0 +1,2771 @@
+{
+  "generated_at": "static-2026-05-20",
+  "gate_status": "closed",
+  "implementation_allowed": false,
+  "oracle_id": "philosophy_admission_claim_family_oracle",
+  "policy_id": "philosophy_semantic_cache_admission_policy",
+  "policy_version": "2026-05-20",
+  "runtime_allowed": false,
+  "cases": [
+    {
+      "claim": "No semantic-cache gate is opened by PR-2.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "allowed",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0001"
+    },
+    {
+      "claim": "The future gate-open PR must review semantic-cache admission before runtime use.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "allowed",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0002"
+    },
+    {
+      "claim": "This policy does not open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "allowed",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0003"
+    },
+    {
+      "claim": "PR-1 can open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0004"
+    },
+    {
+      "claim": "PR-1 enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0005"
+    },
+    {
+      "claim": "PR-1 has opened the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0006"
+    },
+    {
+      "claim": "PR-1 is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0007"
+    },
+    {
+      "claim": "PR-1 is required to open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0008"
+    },
+    {
+      "claim": "PR-1 keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0009"
+    },
+    {
+      "claim": "PR-1 opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0010"
+    },
+    {
+      "claim": "PR-1 unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0011"
+    },
+    {
+      "claim": "PR-2 became sufficient to open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0012"
+    },
+    {
+      "claim": "PR-2 does not only open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0013"
+    },
+    {
+      "claim": "PR-2 enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0014"
+    },
+    {
+      "claim": "PR-2 has to unlock the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0015"
+    },
+    {
+      "claim": "PR-2 is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0016"
+    },
+    {
+      "claim": "PR-2 keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0017"
+    },
+    {
+      "claim": "PR-2 may unlock the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0018"
+    },
+    {
+      "claim": "PR-2 opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0019"
+    },
+    {
+      "claim": "PR-2 unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0020"
+    },
+    {
+      "claim": "Philosophy admission enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0021"
+    },
+    {
+      "claim": "Philosophy admission is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0022"
+    },
+    {
+      "claim": "Philosophy admission keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0023"
+    },
+    {
+      "claim": "Philosophy admission must enable the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0024"
+    },
+    {
+      "claim": "Philosophy admission opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0025"
+    },
+    {
+      "claim": "Philosophy admission remains enough to open the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0026"
+    },
+    {
+      "claim": "Philosophy admission unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0027"
+    },
+    {
+      "claim": "The admission contract enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0028"
+    },
+    {
+      "claim": "The admission contract is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0029"
+    },
+    {
+      "claim": "The admission contract is now opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0030"
+    },
+    {
+      "claim": "The admission contract keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0031"
+    },
+    {
+      "claim": "The admission contract opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0032"
+    },
+    {
+      "claim": "The admission contract should be equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0033"
+    },
+    {
+      "claim": "The admission contract unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0034"
+    },
+    {
+      "claim": "The admission policy could open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0035"
+    },
+    {
+      "claim": "The admission policy enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0036"
+    },
+    {
+      "claim": "The admission policy is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0037"
+    },
+    {
+      "claim": "The admission policy keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0038"
+    },
+    {
+      "claim": "The admission policy opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0039"
+    },
+    {
+      "claim": "The admission policy still keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0040"
+    },
+    {
+      "claim": "The admission policy unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0041"
+    },
+    {
+      "claim": "The claim-family oracle became sufficient to open the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0042"
+    },
+    {
+      "claim": "The claim-family oracle enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0043"
+    },
+    {
+      "claim": "The claim-family oracle is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0044"
+    },
+    {
+      "claim": "The claim-family oracle keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0045"
+    },
+    {
+      "claim": "The claim-family oracle opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0046"
+    },
+    {
+      "claim": "The claim-family oracle unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0047"
+    },
+    {
+      "claim": "The claim-family oracle would unlock the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0048"
+    },
+    {
+      "claim": "The global gate enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0049"
+    },
+    {
+      "claim": "The global gate is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0050"
+    },
+    {
+      "claim": "The global gate keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0051"
+    },
+    {
+      "claim": "The global gate opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0052"
+    },
+    {
+      "claim": "The global gate unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0053"
+    },
+    {
+      "claim": "The global gate will be equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0054"
+    },
+    {
+      "claim": "The semantic-cache gate enables the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0055"
+    },
+    {
+      "claim": "The semantic-cache gate is equivalent to opening the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0056"
+    },
+    {
+      "claim": "The semantic-cache gate is now being opened for PR-2.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0057"
+    },
+    {
+      "claim": "The semantic-cache gate keeps the semantic-cache gate open.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0058"
+    },
+    {
+      "claim": "The semantic-cache gate might enable the global gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0059"
+    },
+    {
+      "claim": "The semantic-cache gate opens the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0060"
+    },
+    {
+      "claim": "The semantic-cache gate unlocks the semantic-cache gate.",
+      "claim_family": "claim_class_gate_open_equivalence",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophy admission opens gate",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0061"
+    },
+    {
+      "claim": "Future PR may evaluate cache serving only after the gate opens.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "allowed",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0062"
+    },
+    {
+      "claim": "Philosophical semantic-cache is not live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "allowed",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0063"
+    },
+    {
+      "claim": "The policy oracle does not serve cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "allowed",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0064"
+    },
+    {
+      "claim": "Future philosophy PRs may now serve cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0065"
+    },
+    {
+      "claim": "PR-2 cache path is active.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0066"
+    },
+    {
+      "claim": "PR-2 cache path is live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0067"
+    },
+    {
+      "claim": "PR-2 cache path is required to serve cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0068"
+    },
+    {
+      "claim": "PR-2 cache path is still serving cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0069"
+    },
+    {
+      "claim": "PR-2 cache path keeps semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0070"
+    },
+    {
+      "claim": "PR-2 cache path serves cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0071"
+    },
+    {
+      "claim": "PR-2 cache path serves philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0072"
+    },
+    {
+      "claim": "PR-2 cache path should run as a live cache.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0073"
+    },
+    {
+      "claim": "Philosophical semantic-cache can serve cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0074"
+    },
+    {
+      "claim": "Philosophical semantic-cache has been live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0075"
+    },
+    {
+      "claim": "Philosophical semantic-cache is active.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0076"
+    },
+    {
+      "claim": "Philosophical semantic-cache is live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0077"
+    },
+    {
+      "claim": "Philosophical semantic-cache keeps semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0078"
+    },
+    {
+      "claim": "Philosophical semantic-cache serves cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0079"
+    },
+    {
+      "claim": "Philosophical semantic-cache serves philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0080"
+    },
+    {
+      "claim": "Philosophical semantic-cache would keep semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0081"
+    },
+    {
+      "claim": "Philosophy admission cache is active.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0082"
+    },
+    {
+      "claim": "Philosophy admission cache is live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0083"
+    },
+    {
+      "claim": "Philosophy admission cache keeps semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0084"
+    },
+    {
+      "claim": "Philosophy admission cache must return philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0085"
+    },
+    {
+      "claim": "Philosophy admission cache remains live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0086"
+    },
+    {
+      "claim": "Philosophy admission cache serves cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0087"
+    },
+    {
+      "claim": "Philosophy admission cache serves philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0088"
+    },
+    {
+      "claim": "Philosophy admission cache will run as a live cache.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0089"
+    },
+    {
+      "claim": "Philosophy admission has been live since PR-1.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0090"
+    },
+    {
+      "claim": "Philosophy cache became live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0091"
+    },
+    {
+      "claim": "Philosophy cache is active.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0092"
+    },
+    {
+      "claim": "Philosophy cache is live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0093"
+    },
+    {
+      "claim": "Philosophy cache keeps semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0094"
+    },
+    {
+      "claim": "Philosophy cache may keep semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0095"
+    },
+    {
+      "claim": "Philosophy cache might return philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0096"
+    },
+    {
+      "claim": "Philosophy cache serves cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0097"
+    },
+    {
+      "claim": "Philosophy cache serves philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0098"
+    },
+    {
+      "claim": "The admission policy still keeps semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0099"
+    },
+    {
+      "claim": "The policy oracle could serve cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0100"
+    },
+    {
+      "claim": "The policy oracle has to keep semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0101"
+    },
+    {
+      "claim": "The policy oracle is active.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0102"
+    },
+    {
+      "claim": "The policy oracle is live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0103"
+    },
+    {
+      "claim": "The policy oracle keeps semantic-cache serving live.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0104"
+    },
+    {
+      "claim": "The policy oracle serves cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0105"
+    },
+    {
+      "claim": "The policy oracle serves philosophy cache hits.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0106"
+    },
+    {
+      "claim": "The policy oracle will serve cached responses.",
+      "claim_family": "claim_class_live_philosophy_cache",
+      "expected": "forbidden",
+      "expected_detector_label": "philosophical semantic cache live",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0107"
+    },
+    {
+      "claim": "Design/PDF intake cannot override repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "allowed",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0108"
+    },
+    {
+      "claim": "Repo-reviewed contracts remain the source of gate truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "allowed",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0109"
+    },
+    {
+      "claim": "Research intake remains evidence-only.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "allowed",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0110"
+    },
+    {
+      "claim": "Browser evidence authorizes runtime behavior over repo truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0111"
+    },
+    {
+      "claim": "Browser evidence became the source of runtime truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0112"
+    },
+    {
+      "claim": "Browser evidence bypasses repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0113"
+    },
+    {
+      "claim": "Browser evidence is required to override repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0114"
+    },
+    {
+      "claim": "Browser evidence overrides repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0115"
+    },
+    {
+      "claim": "Browser evidence replaces merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0116"
+    },
+    {
+      "claim": "Browser evidence should supersede semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0117"
+    },
+    {
+      "claim": "Browser evidence supersedes semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0118"
+    },
+    {
+      "claim": "Browser evidence will bypass repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0119"
+    },
+    {
+      "claim": "Design intake authorizes runtime behavior over repo truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0120"
+    },
+    {
+      "claim": "Design intake became the source of runtime truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0121"
+    },
+    {
+      "claim": "Design intake bypasses repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0122"
+    },
+    {
+      "claim": "Design intake may bypass repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0123"
+    },
+    {
+      "claim": "Design intake might replace merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0124"
+    },
+    {
+      "claim": "Design intake overrides repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0125"
+    },
+    {
+      "claim": "Design intake replaces merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0126"
+    },
+    {
+      "claim": "Design intake supersedes semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0127"
+    },
+    {
+      "claim": "Design/PDF intake can override repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0128"
+    },
+    {
+      "claim": "Drive research authorizes runtime behavior over repo truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0129"
+    },
+    {
+      "claim": "Drive research bypasses repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0130"
+    },
+    {
+      "claim": "Drive research must replace merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0131"
+    },
+    {
+      "claim": "Drive research overrides repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0132"
+    },
+    {
+      "claim": "Drive research replaces merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0133"
+    },
+    {
+      "claim": "Drive research still overrides semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0134"
+    },
+    {
+      "claim": "Drive research supersedes semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0135"
+    },
+    {
+      "claim": "Drive research will supersede semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0136"
+    },
+    {
+      "claim": "PDF intake authorizes runtime behavior over repo truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0137"
+    },
+    {
+      "claim": "PDF intake bypasses repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0138"
+    },
+    {
+      "claim": "PDF intake can override repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0139"
+    },
+    {
+      "claim": "PDF intake has overridden repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0140"
+    },
+    {
+      "claim": "PDF intake has overridden semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0141"
+    },
+    {
+      "claim": "PDF intake overrides repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0142"
+    },
+    {
+      "claim": "PDF intake replaces merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0143"
+    },
+    {
+      "claim": "PDF intake supersedes semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0144"
+    },
+    {
+      "claim": "PDF intake would bypass repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0145"
+    },
+    {
+      "claim": "The admission policy authorizes runtime behavior over repo truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0146"
+    },
+    {
+      "claim": "The admission policy bypasses repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0147"
+    },
+    {
+      "claim": "The admission policy could override repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0148"
+    },
+    {
+      "claim": "The admission policy has to bypass repo-reviewed contracts.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0149"
+    },
+    {
+      "claim": "The admission policy is now replacing merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0150"
+    },
+    {
+      "claim": "The admission policy overrides repo gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0151"
+    },
+    {
+      "claim": "The admission policy replaces merge truth.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0152"
+    },
+    {
+      "claim": "The admission policy supersedes semantic-cache gate markers.",
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "expected": "forbidden",
+      "expected_detector_label": "design intake overrides gate markers",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0153"
+    },
+    {
+      "claim": "No raw prompts are stored as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "allowed",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0154"
+    },
+    {
+      "claim": "PR-2 does not ship production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "allowed",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0155"
+    },
+    {
+      "claim": "Philosophy admission blocks live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "allowed",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0156"
+    },
+    {
+      "claim": "PR-1 caches raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0157"
+    },
+    {
+      "claim": "PR-1 can ship production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0158"
+    },
+    {
+      "claim": "PR-1 enables live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0159"
+    },
+    {
+      "claim": "PR-1 has shipped production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0160"
+    },
+    {
+      "claim": "PR-1 persists philosophy cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0161"
+    },
+    {
+      "claim": "PR-1 ships production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0162"
+    },
+    {
+      "claim": "PR-1 stores raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0163"
+    },
+    {
+      "claim": "PR-1 would store raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0164"
+    },
+    {
+      "claim": "PR-2 became live for cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0165"
+    },
+    {
+      "claim": "PR-2 caches raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0166"
+    },
+    {
+      "claim": "PR-2 enables live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0167"
+    },
+    {
+      "claim": "PR-2 may store raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0168"
+    },
+    {
+      "claim": "PR-2 might cache raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0169"
+    },
+    {
+      "claim": "PR-2 persists philosophy cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0170"
+    },
+    {
+      "claim": "PR-2 ships production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0171"
+    },
+    {
+      "claim": "PR-2 stores raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0172"
+    },
+    {
+      "claim": "Philosophy admission caches raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0173"
+    },
+    {
+      "claim": "Philosophy admission enables live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0174"
+    },
+    {
+      "claim": "Philosophy admission has shipped production cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0175"
+    },
+    {
+      "claim": "Philosophy admission must cache raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0176"
+    },
+    {
+      "claim": "Philosophy admission persists philosophy cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0177"
+    },
+    {
+      "claim": "Philosophy admission ships production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0178"
+    },
+    {
+      "claim": "Philosophy admission still stores raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0179"
+    },
+    {
+      "claim": "Philosophy admission stores raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0180"
+    },
+    {
+      "claim": "Philosophy admission will enable live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0181"
+    },
+    {
+      "claim": "The admission policy caches raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0182"
+    },
+    {
+      "claim": "The admission policy enables live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0183"
+    },
+    {
+      "claim": "The admission policy is required to ship production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0184"
+    },
+    {
+      "claim": "The admission policy persists philosophy cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0185"
+    },
+    {
+      "claim": "The admission policy ships production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0186"
+    },
+    {
+      "claim": "The admission policy should enable live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0187"
+    },
+    {
+      "claim": "The admission policy stores raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0188"
+    },
+    {
+      "claim": "The admission policy will cache raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0189"
+    },
+    {
+      "claim": "The claim-family oracle caches raw model responses.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0190"
+    },
+    {
+      "claim": "The claim-family oracle could ship production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0191"
+    },
+    {
+      "claim": "The claim-family oracle enables live cache-key behavior.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0192"
+    },
+    {
+      "claim": "The claim-family oracle has to store raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0193"
+    },
+    {
+      "claim": "The claim-family oracle is now persisting philosophy cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0194"
+    },
+    {
+      "claim": "The claim-family oracle persists philosophy cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0195"
+    },
+    {
+      "claim": "The claim-family oracle ships production cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0196"
+    },
+    {
+      "claim": "The claim-family oracle stores raw prompts as cache keys.",
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "expected": "forbidden",
+      "expected_detector_label": "production-live philosophical cache-key behavior",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0197"
+    },
+    {
+      "claim": "GPTCache imports remain blocked for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "allowed",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0198"
+    },
+    {
+      "claim": "No Redis imports are allowed in PR-2.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "allowed",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0199"
+    },
+    {
+      "claim": "The policy oracle does not enable provider-backed cache.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "allowed",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0200"
+    },
+    {
+      "claim": "Future philosophy PRs may now serve GPTCache responses.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0201"
+    },
+    {
+      "claim": "PR-1 allows GPTCache imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0202"
+    },
+    {
+      "claim": "PR-1 allows Redis imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0203"
+    },
+    {
+      "claim": "PR-1 can use Redis clients.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0204"
+    },
+    {
+      "claim": "PR-1 enables embeddings for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0205"
+    },
+    {
+      "claim": "PR-1 has used Redis imports for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0206"
+    },
+    {
+      "claim": "PR-1 opens Redis connection strings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0207"
+    },
+    {
+      "claim": "PR-1 wires /insight cache behavior.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0208"
+    },
+    {
+      "claim": "PR-1 would use Redis clients.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0209"
+    },
+    {
+      "claim": "PR-2 allows GPTCache imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0210"
+    },
+    {
+      "claim": "PR-2 allows Redis imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0211"
+    },
+    {
+      "claim": "PR-2 became approved for GPTCache imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0212"
+    },
+    {
+      "claim": "PR-2 enables embeddings for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0213"
+    },
+    {
+      "claim": "PR-2 has GPTCache import for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0214"
+    },
+    {
+      "claim": "PR-2 may use GPTCache clients.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0215"
+    },
+    {
+      "claim": "PR-2 might use GPTCache clients.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0216"
+    },
+    {
+      "claim": "PR-2 opens Redis connection strings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0217"
+    },
+    {
+      "claim": "PR-2 wires /insight cache behavior.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0218"
+    },
+    {
+      "claim": "Philosophy admission allows GPTCache imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0219"
+    },
+    {
+      "claim": "Philosophy admission allows Redis imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0220"
+    },
+    {
+      "claim": "Philosophy admission enables embeddings for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0221"
+    },
+    {
+      "claim": "Philosophy admission has been required to enable Redis cache I/O.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0222"
+    },
+    {
+      "claim": "Philosophy admission must wire embeddings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0223"
+    },
+    {
+      "claim": "Philosophy admission opens Redis connection strings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0224"
+    },
+    {
+      "claim": "Philosophy admission still allows embeddings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0225"
+    },
+    {
+      "claim": "Philosophy admission will wire embeddings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0226"
+    },
+    {
+      "claim": "Philosophy admission wires /insight cache behavior.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0227"
+    },
+    {
+      "claim": "The admission policy allows GPTCache imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0228"
+    },
+    {
+      "claim": "The admission policy allows Redis imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0229"
+    },
+    {
+      "claim": "The admission policy enables embeddings for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0230"
+    },
+    {
+      "claim": "The admission policy is required to open Redis connections.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0231"
+    },
+    {
+      "claim": "The admission policy opens Redis connection strings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0232"
+    },
+    {
+      "claim": "The admission policy should open Redis connections.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0233"
+    },
+    {
+      "claim": "The admission policy will wire /insight cache behavior.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0234"
+    },
+    {
+      "claim": "The admission policy wires /insight cache behavior.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0235"
+    },
+    {
+      "claim": "The claim-family oracle allows GPTCache imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0236"
+    },
+    {
+      "claim": "The claim-family oracle allows Redis imports.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0237"
+    },
+    {
+      "claim": "The claim-family oracle could enable provider-backed cache.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0238"
+    },
+    {
+      "claim": "The claim-family oracle enables embeddings for philosophy admission.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0239"
+    },
+    {
+      "claim": "The claim-family oracle has been opening Redis connections.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0240"
+    },
+    {
+      "claim": "The claim-family oracle has to enable provider-backed cache.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0241"
+    },
+    {
+      "claim": "The claim-family oracle opens Redis connection strings.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0242"
+    },
+    {
+      "claim": "The claim-family oracle wires /insight cache behavior.",
+      "claim_family": "claim_class_provider_rollout_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "redis philosophical cache approved",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0243"
+    },
+    {
+      "claim": "Billing truth remains blocked_from_cache.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "allowed",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0244"
+    },
+    {
+      "claim": "PR-2 must not write cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "allowed",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0245"
+    },
+    {
+      "claim": "The policy spec does not authorize backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "allowed",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0246"
+    },
+    {
+      "claim": "Billing truth authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0247"
+    },
+    {
+      "claim": "Billing truth becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0248"
+    },
+    {
+      "claim": "Billing truth enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0249"
+    },
+    {
+      "claim": "Billing truth reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0250"
+    },
+    {
+      "claim": "Billing truth remained cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0251"
+    },
+    {
+      "claim": "Billing truth would authorize backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0252"
+    },
+    {
+      "claim": "Billing truth writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0253"
+    },
+    {
+      "claim": "PR-1 authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0254"
+    },
+    {
+      "claim": "PR-1 becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0255"
+    },
+    {
+      "claim": "PR-1 can authorize backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0256"
+    },
+    {
+      "claim": "PR-1 enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0257"
+    },
+    {
+      "claim": "PR-1 has authorized backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0258"
+    },
+    {
+      "claim": "PR-1 reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0259"
+    },
+    {
+      "claim": "PR-1 will write cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0260"
+    },
+    {
+      "claim": "PR-1 writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0261"
+    },
+    {
+      "claim": "PR-2 authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0262"
+    },
+    {
+      "claim": "PR-2 became cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0263"
+    },
+    {
+      "claim": "PR-2 becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0264"
+    },
+    {
+      "claim": "PR-2 enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0265"
+    },
+    {
+      "claim": "PR-2 is required to read semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0266"
+    },
+    {
+      "claim": "PR-2 may enable runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0267"
+    },
+    {
+      "claim": "PR-2 must write cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0268"
+    },
+    {
+      "claim": "PR-2 reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0269"
+    },
+    {
+      "claim": "PR-2 writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0270"
+    },
+    {
+      "claim": "Philosophy admission authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0271"
+    },
+    {
+      "claim": "Philosophy admission becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0272"
+    },
+    {
+      "claim": "Philosophy admission enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0273"
+    },
+    {
+      "claim": "Philosophy admission has to be cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0274"
+    },
+    {
+      "claim": "Philosophy admission must write cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0275"
+    },
+    {
+      "claim": "Philosophy admission reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0276"
+    },
+    {
+      "claim": "Philosophy admission remains cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0277"
+    },
+    {
+      "claim": "Philosophy admission writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0278"
+    },
+    {
+      "claim": "The admission policy authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0279"
+    },
+    {
+      "claim": "The admission policy becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0280"
+    },
+    {
+      "claim": "The admission policy enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0281"
+    },
+    {
+      "claim": "The admission policy is now writing cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0282"
+    },
+    {
+      "claim": "The admission policy reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0283"
+    },
+    {
+      "claim": "The admission policy should read semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0284"
+    },
+    {
+      "claim": "The admission policy writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0285"
+    },
+    {
+      "claim": "The claim-family oracle authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0286"
+    },
+    {
+      "claim": "The claim-family oracle becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0287"
+    },
+    {
+      "claim": "The claim-family oracle could be cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0288"
+    },
+    {
+      "claim": "The claim-family oracle enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0289"
+    },
+    {
+      "claim": "The claim-family oracle reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0290"
+    },
+    {
+      "claim": "The claim-family oracle will enable runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0291"
+    },
+    {
+      "claim": "The claim-family oracle writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0292"
+    },
+    {
+      "claim": "The policy spec authorizes backend selection without SC-G5.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0293"
+    },
+    {
+      "claim": "Therapy routing authorizes backend selection.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0294"
+    },
+    {
+      "claim": "Therapy routing becomes cache eligible for semantic-cache admission.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0295"
+    },
+    {
+      "claim": "Therapy routing enables runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0296"
+    },
+    {
+      "claim": "Therapy routing might enable runtime expansion.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0297"
+    },
+    {
+      "claim": "Therapy routing reads semantic-cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0298"
+    },
+    {
+      "claim": "Therapy routing writes cache entries.",
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "expected": "forbidden",
+      "expected_detector_label": "runtime allowed in pr-1",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0299"
+    },
+    {
+      "claim": "Cache admission requires a passed verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "allowed",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0300"
+    },
+    {
+      "claim": "Future PR may evaluate semantic-cache admission after verification.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "allowed",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0301"
+    },
+    {
+      "claim": "No semantic-cache admission may omit the verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "allowed",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.allowed_negative_controls",
+      "id": "philosophy-admission-oracle-0302"
+    },
+    {
+      "claim": "Cache admission became exempt from verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0303"
+    },
+    {
+      "claim": "Cache admission bypasses verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0304"
+    },
+    {
+      "claim": "Cache admission does not require a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0305"
+    },
+    {
+      "claim": "Cache admission makes verification bundles optional.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0306"
+    },
+    {
+      "claim": "Cache admission may omit the verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0307"
+    },
+    {
+      "claim": "Cache admission might waive verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0308"
+    },
+    {
+      "claim": "Cache admission promotes knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0309"
+    },
+    {
+      "claim": "Cache admission waives verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0310"
+    },
+    {
+      "claim": "Knowledge promotion bypasses verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0311"
+    },
+    {
+      "claim": "Knowledge promotion does not require a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0312"
+    },
+    {
+      "claim": "Knowledge promotion makes verification bundles optional.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0313"
+    },
+    {
+      "claim": "Knowledge promotion must waive verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0314"
+    },
+    {
+      "claim": "Knowledge promotion promotes knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0315"
+    },
+    {
+      "claim": "Knowledge promotion remains optional for verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0316"
+    },
+    {
+      "claim": "Knowledge promotion waives verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0317"
+    },
+    {
+      "claim": "Knowledge promotion will promote knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0318"
+    },
+    {
+      "claim": "PR-2 is promoting knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0319"
+    },
+    {
+      "claim": "Philosophy admission bypasses verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0320"
+    },
+    {
+      "claim": "Philosophy admission does not require a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0321"
+    },
+    {
+      "claim": "Philosophy admission is now waiving verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0322"
+    },
+    {
+      "claim": "Philosophy admission is required to skip verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0323"
+    },
+    {
+      "claim": "Philosophy admission makes verification bundles optional.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0324"
+    },
+    {
+      "claim": "Philosophy admission promotes knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0325"
+    },
+    {
+      "claim": "Philosophy admission should promote knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0326"
+    },
+    {
+      "claim": "Philosophy admission waives verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0327"
+    },
+    {
+      "claim": "Semantic-cache admission bypasses verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0328"
+    },
+    {
+      "claim": "Semantic-cache admission can skip verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0329"
+    },
+    {
+      "claim": "Semantic-cache admission does not require a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0330"
+    },
+    {
+      "claim": "Semantic-cache admission has bypassed verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0331"
+    },
+    {
+      "claim": "Semantic-cache admission makes verification bundles optional.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0332"
+    },
+    {
+      "claim": "Semantic-cache admission may omit the verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0333"
+    },
+    {
+      "claim": "Semantic-cache admission promotes knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0334"
+    },
+    {
+      "claim": "Semantic-cache admission waives verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0335"
+    },
+    {
+      "claim": "Semantic-cache admission would omit the verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0336"
+    },
+    {
+      "claim": "The admission policy bypasses verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0337"
+    },
+    {
+      "claim": "The admission policy could skip verification bundles.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0338"
+    },
+    {
+      "claim": "The admission policy does not require a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0339"
+    },
+    {
+      "claim": "The admission policy has to omit the verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.modal_predicates",
+      "id": "philosophy-admission-oracle-0340"
+    },
+    {
+      "claim": "The admission policy makes verification bundles optional.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0341"
+    },
+    {
+      "claim": "The admission policy promotes knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0342"
+    },
+    {
+      "claim": "The admission policy waives verification bundle requirements.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.assertive_predicates",
+      "id": "philosophy-admission-oracle-0343"
+    },
+    {
+      "claim": "The admission policy will promote knowledge without a verification bundle.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.temporal_predicates",
+      "id": "philosophy-admission-oracle-0344"
+    },
+    {
+      "claim": "Verification bundle requirements remain optional for semantic-cache admission.",
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "expected": "forbidden",
+      "expected_detector_label": "verification bundle optional",
+      "source": "policy.seed_regressions",
+      "id": "philosophy-admission-oracle-0345"
+    }
+  ]
+}

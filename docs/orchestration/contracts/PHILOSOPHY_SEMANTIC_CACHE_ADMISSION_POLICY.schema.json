@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PhilosophySemanticCacheAdmissionPolicy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "claim_families",
+    "gate_status",
+    "implementation_allowed",
+    "modal_operators",
+    "policy_id",
+    "policy_version",
+    "research_basis",
+    "rollout_phase",
+    "runtime_allowed",
+    "source_contract",
+    "temporal_operators"
+  ],
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "const": "PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json"
+    },
+    "policy_id": {
+      "type": "string",
+      "const": "philosophy_semantic_cache_admission_policy"
+    },
+    "policy_version": {
+      "type": "string",
+      "const": "2026-05-20"
+    },
+    "rollout_phase": {
+      "type": "string",
+      "const": "PHILOSOPHY-PR2"
+    },
+    "gate_status": {
+      "type": "string",
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "implementation_allowed": {
+      "type": "boolean",
+      "const": false
+    },
+    "source_contract": {
+      "type": "string",
+      "const": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
+    },
+    "modal_operators": {
+      "type": "array",
+      "minItems": 10,
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    },
+    "temporal_operators": {
+      "type": "array",
+      "minItems": 7,
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    },
+    "research_basis": {
+      "type": "array",
+      "minItems": 6,
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    },
+    "claim_families": {
+      "type": "array",
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "allowed_negative_controls",
+          "assertive_predicates",
+          "canonical_meaning",
+          "detector_labels",
+          "forbidden_polarity",
+          "id",
+          "modal_predicates",
+          "risk_rail",
+          "seed_regressions",
+          "subjects",
+          "temporal_predicates"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "claim_class_gate_open_equivalence",
+              "claim_class_live_philosophy_cache",
+              "claim_class_provider_rollout_approved",
+              "claim_class_verification_bundle_skipped",
+              "claim_class_production_live_cache_key_behavior",
+              "claim_class_pdf_design_intake_gate_override",
+              "claim_class_runtime_expansion_approved"
+            ]
+          },
+          "risk_rail": { "type": "string" },
+          "canonical_meaning": { "type": "string" },
+          "forbidden_polarity": { "type": "string" },
+          "detector_labels": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "subjects": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "assertive_predicates": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "modal_predicates": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "temporal_predicates": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "seed_regressions": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          },
+          "allowed_negative_controls": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

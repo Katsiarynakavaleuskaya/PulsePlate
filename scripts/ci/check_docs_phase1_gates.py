@@ -23,6 +23,8 @@ try:
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
         validate_philosophy_semantic_cache_admission_contract as _validate_philosophy_admission_contract,
         validate_philosophy_semantic_cache_admission_downstream_text as _validate_philosophy_admission_downstream_text,
+        validate_philosophy_semantic_cache_admission_policy as _validate_philosophy_admission_policy,
+        validate_philosophy_admission_oracle_fixture as _validate_philosophy_admission_oracle_fixture,
         validate_philosophy_semantic_cache_admission_schema as _validate_philosophy_admission_schema,
         validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
         validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
@@ -36,6 +38,8 @@ except ModuleNotFoundError:
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
         validate_philosophy_semantic_cache_admission_contract as _validate_philosophy_admission_contract,
         validate_philosophy_semantic_cache_admission_downstream_text as _validate_philosophy_admission_downstream_text,
+        validate_philosophy_semantic_cache_admission_policy as _validate_philosophy_admission_policy,
+        validate_philosophy_admission_oracle_fixture as _validate_philosophy_admission_oracle_fixture,
         validate_philosophy_semantic_cache_admission_schema as _validate_philosophy_admission_schema,
         validate_semantic_cache_backend_selection_contract as _validate_backend_selection_contract,
         validate_semantic_cache_backend_selection_schema as _validate_backend_selection_schema,
@@ -66,6 +70,15 @@ PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC = (
 PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json"
 )
+PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY = (
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json"
+)
+PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA = (
+    "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json"
+)
+PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE = (
+    "tests/fixtures/orchestration/philosophy_admission_claim_oracle.json"
+)
 PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/PHILOSOPHY_",
     "docs/orchestration/contracts/PHILOSOPHY_",
@@ -91,6 +104,10 @@ SemanticCacheGateValidator = Callable[[str], list[str]]
 
 class ContractSchemaValidator(Protocol):
     def __call__(self, *, schema_text: str, contract_text: str) -> list[str]: ...
+
+
+class PolicySchemaValidator(Protocol):
+    def __call__(self, *, policy_text: str, schema_text: str) -> list[str]: ...
 
 
 def _as_semantic_cache_gate_validator(validator: Any) -> SemanticCacheGateValidator:
@@ -145,6 +162,18 @@ def _load_philosophy_admission_schema_validator() -> ContractSchemaValidator:
     return _as_contract_schema_validator(
         _validate_philosophy_admission_schema,
     )
+
+
+def _load_philosophy_admission_policy_validator() -> PolicySchemaValidator:
+    return cast(PolicySchemaValidator, _validate_philosophy_admission_policy)
+
+
+class OracleFixtureValidator(Protocol):
+    def __call__(self, *, policy_text: str, fixture_text: str) -> list[str]: ...
+
+
+def _load_philosophy_admission_oracle_fixture_validator() -> OracleFixtureValidator:
+    return cast(OracleFixtureValidator, _validate_philosophy_admission_oracle_fixture)
 
 
 def _read_text(relpath: str) -> str:
@@ -311,6 +340,76 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                     for error in validate_philosophy_admission_schema(
                         schema_text=content,
                         contract_text=contract_text,
+                    )
+                )
+
+        if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY:
+            validate_philosophy_admission_policy = _load_philosophy_admission_policy_validator()
+            try:
+                schema_text = _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_philosophy_admission_policy(
+                        schema_text=schema_text,
+                        policy_text=content,
+                    )
+                )
+            validate_oracle_fixture = _load_philosophy_admission_oracle_fixture_validator()
+            try:
+                fixture_text = _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_oracle_fixture(
+                        policy_text=content,
+                        fixture_text=fixture_text,
+                    )
+                )
+
+        if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA:
+            validate_philosophy_admission_policy = _load_philosophy_admission_policy_validator()
+            try:
+                policy_text = _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_philosophy_admission_policy(
+                        schema_text=content,
+                        policy_text=policy_text,
+                    )
+                )
+
+        if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE:
+            validate_oracle_fixture = _load_philosophy_admission_oracle_fixture_validator()
+            try:
+                policy_text = _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY)
+            except FileNotFoundError:
+                errors.append(
+                    f"{relpath}: missing companion file "
+                    f"{PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY}"
+                )
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_oracle_fixture(
+                        policy_text=policy_text,
+                        fixture_text=content,
                     )
                 )
 
