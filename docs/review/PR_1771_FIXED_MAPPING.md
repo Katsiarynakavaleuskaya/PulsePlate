@@ -85,6 +85,9 @@ Role-agent dispositions:
 - Post-open `bug-hunter` third follow-up: Disposition `FIXED`. Evidence:
   commit `34640beb5` rejects `green light`, `go ahead`, and `cleared`
   approval-synonym prose for blocked seller/partner/regional catalog access.
+- Post-open `bug-hunter` fourth follow-up: Disposition `FIXED`. Evidence:
+  commit `005cf4ce0` rejects long-distance masked authority prose in the same
+  clause after stripping directly negated authority phrases.
 
 ## Premortem
 
@@ -250,6 +253,10 @@ Disposition: FIXED
 Commit: 34640beb5
 Evidence: `core/food_sources/regional_catalog_identity.py` treats `green light`, `go ahead`, and `cleared` as authority language; `tests/test_food_source_regional_catalog_identity.py` rejects the four third-pass approval-synonym examples reported by post-open `bug-hunter`.
 
+Disposition: FIXED
+Commit: 005cf4ce0
+Evidence: `core/food_sources/regional_catalog_identity.py` now rejects any remaining same-clause blocked source term plus non-negated authority/equivalence language after stripping direct negations; `tests/test_food_source_regional_catalog_identity.py` rejects the two long-distance masked approval examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -289,7 +296,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 139 tests.
+- Focused PR17 tests: passed, 141 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
