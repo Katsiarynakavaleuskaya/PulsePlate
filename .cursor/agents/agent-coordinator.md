@@ -100,6 +100,11 @@ may mark a checkbox complete only when deferred review items pointing at the sam
 anchor are fixed or retargeted with evidence, and gate-closed markers still read
 as closed in both machine state and prose.
 
+If GitHub/repo evidence proves an AI/RAG item already merged while the ledger
+still says active, convert the lane to closeout/reconciliation. Do not route a
+second implementation of the landed subsystem; require backlog, roadmap,
+review-mapping, and guard updates that preserve semantic-cache gate closure.
+
 ## Core Responsibilities
 
 ### 1. Agent Orchestration

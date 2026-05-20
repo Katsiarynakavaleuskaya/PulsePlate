@@ -2412,14 +2412,15 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Deterministic tests cover promotion allow/deny behavior, supersession rules, and the invariant that request-local recursive caches never become persistent knowledge
 
 <a id="ledger-p1-verification-registry-admission"></a>
-- [ ] P1: Verification registry and verify-before-write admission invariant
+- [x] P1: Verification registry and verify-before-write admission invariant
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR-V1
-  - Status: Active execution packet on branch `codex/ai-verification-registry-v1`
+  - Status: Closed via PR #1491 on 2026-04-22; merged commit `ce024e7cdca3ec94bbffb095e050010a8198e792` from `codex/ai-verification-registry-v1`. Closeout reconciliation is tracked in `codex/ai-verification-registry-v1-closeout`.
   - Area: AI runtime / verification / knowledge admission
-  - Finding Type: verification-bundle admission gap
-  - Reason (EN): `main` now has the bounded K1 knowledge seam, deterministic recursive verification diagnostics, and philosophical runtime verification/falsification logic, but write admission still lacks one first-class verification bundle. Without that bundle, knowledge promotion remains fail-closed by policy/confidence/degraded-path only and later cache/action gates would have to reinvent admission truth. `PR-V1` adds a canonical registry and enables verify-before-write without widening into semantic cache, DB persistence, or public contract changes.
+  - Finding Type: verification-bundle admission closeout
+  - Reason (EN): `main` now has the bounded K1 knowledge seam, deterministic recursive verification diagnostics, philosophical runtime verification/falsification logic, and a canonical `core/verification/` registry/bundle path. PR-V1 landed verify-before-write admission for knowledge promotion without widening into semantic cache, DB persistence, or public contract changes. Later cache/action gates must reuse this admission truth only after their dedicated gates open.
+  - Delayed closeout: PR #1491 merged on 2026-04-22 before this ledger item was reconciled. This closeout records repo/GitHub truth, updates stale review/roadmap state, and does not duplicate the already-landed `core/verification/*` implementation.
   - Links:
     - `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md`
     - `docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md`

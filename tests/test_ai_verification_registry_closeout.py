@@ -1,0 +1,198 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import scripts.ci.check_ai_verification_registry_closeout as closeout
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _write(path: Path, text: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+
+
+def _valid_ledger() -> str:
+    return f"""# Backlog
+
+<a id="ledger-p1-verification-registry-admission"></a>
+- [x] P1: Verification registry and verify-before-write admission invariant
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-V1
+  - Status: Closed via PR #{closeout.PR_NUMBER} on {closeout.MERGE_DATE}; merged commit `{closeout.MERGE_COMMIT}` from `{closeout.ORIGINAL_BRANCH}`.
+  - Area: AI runtime / verification / knowledge admission
+  - Finding Type: verification-bundle admission closeout
+  - Reason (EN): PR-V1 is landed and reconciled. `main` has the bounded K1 knowledge seam, deterministic recursive verification diagnostics, philosophical runtime verification/falsification signals, and one canonical verification bundle for verify-before-write admission.
+  - Delayed closeout: PR #{closeout.PR_NUMBER} merged before this ledger block was reconciled; this follow-up records repo/GitHub truth and does not duplicate implementation.
+  - Links:
+    - `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `core/verification/`
+  - DoD:
+    - `core/verification/*` exists as the canonical internal artifact/bundle registry
+    - Existing recursive and philosophical verification signals are reused
+    - Knowledge writes require an admissible verification bundle
+    - Public routes, OpenAPI, response DTOs, and storage rollout remain unchanged
+    - semantic cache, Redis/GPTCache, GraphRAG, and ContextManifest remain out of scope
+
+<a id="next"></a>
+- [ ] Next item
+"""
+
+
+def _valid_roadmap() -> str:
+    return f"""# RAG roadmap
+
+## PR-V1 — verification registry and verify-before-write admission
+#### Title
+`feat(ai-quality): add verification registry and verify-before-write admission invariant`
+
+#### Status
+Landed via PR #{closeout.PR_NUMBER} on {closeout.MERGE_DATE} with merge commit `{closeout.MERGE_COMMIT}`. This closeout reconciles stale roadmap/backlog/review truth.
+No `core/verification/*` reimplementation is in scope.
+
+#### Backlog target
+`ledger-p1-verification-registry-admission`
+
+#### Goal
+Record the landed K1 knowledge seam hardening and keep later runtime/cache work pointed at the merged verification bundle.
+
+#### In scope
+- landed `core/verification/*` internal contracts, policy, and registry assembly evidence
+- reuse of existing recursive verification diagnostics and philosophical runtime verification/falsification signals
+- internal-only verification bundle threading through RAG/runtime/application seams
+- verify-before-write admission for knowledge promotion only
+
+#### Out of scope
+- semantic cache implementation or gate opening
+- cache/action runtime enablement
+- DB persistence for verification artifacts
+- route / OpenAPI / public response shape changes
+- GraphRAG, Redis/GPTCache, or ContextManifest work
+
+#### DoD
+- write admission requires a passed canonical verification bundle
+- degraded paths remain safe
+
+---
+"""
+
+
+def _valid_mapping() -> str:
+    return f"""# PR #{closeout.PR_NUMBER} mapping
+
+## Fixed in Commit Mapping
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1491#discussion_r3120227129 -> bc3f17550
+Disposition: FIXED
+
+## Post-Merge Closeout
+
+- State: `MERGED`
+- PR #{closeout.PR_NUMBER} merged at `{closeout.MERGE_TIMESTAMP}`
+- Merge commit: `{closeout.MERGE_COMMIT}`
+- Original branch: `{closeout.ORIGINAL_BRANCH}`
+- Closeout scope: PR-V1 is not re-opened and implementation is not duplicated.
+- Boundary: semantic-cache gate remained closed.
+"""
+
+
+def _valid_gate() -> str:
+    return """# PulsePlate Semantic Cache Gate and Plan
+
+<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->
+<!-- SEMANTIC_CACHE_ALLOWED_RUNTIME: false -->
+<!-- SEMANTIC_CACHE_IMPLEMENTATION_ALLOWED: false -->
+<!-- SEMANTIC_CACHE_REQUIRES_DEDICATED_GATE: true -->
+"""
+
+
+def _write_valid_repo(tmp_path: Path) -> None:
+    for relpath in closeout.REQUIRED_CORE_FILES:
+        _write(tmp_path / relpath, "# exists\n")
+    _write(tmp_path / "docs/roadmap/BACKLOG_LEDGER.md", _valid_ledger())
+    _write(
+        tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md",
+        _valid_roadmap(),
+    )
+    _write(tmp_path / "docs/review/PR_1491_FIXED_MAPPING.md", _valid_mapping())
+    _write(
+        tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        _valid_gate(),
+    )
+
+
+def test_checker_passes_on_current_repository() -> None:
+    assert closeout.validate_closeout(repo_root=REPO_ROOT) == []
+
+
+def test_checker_passes_on_valid_minimal_fixture(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+
+    assert closeout.validate_closeout(repo_root=tmp_path) == []
+
+
+def test_checker_rejects_stale_active_ledger_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "PR-V1 is landed and reconciled.",
+            "PR-V1 is landed and reconciled. write admission still lacks one first-class verification bundle.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("still lacks one first-class verification bundle" in error for error in errors)
+
+
+def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate.write_text(
+        _valid_gate().replace(
+            "SEMANTIC_CACHE_GATE_STATUS: closed", "SEMANTIC_CACHE_GATE_STATUS: open"
+        ),
+        encoding="utf-8",
+    )
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("SEMANTIC_CACHE_GATE_STATUS" in error for error in errors)
+
+
+def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap() + "\nPR-V1 opens semantic-cache serving.\n", encoding="utf-8"
+    )
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("PR-V1 opens semantic cache" in error for error in errors)
+
+
+def test_checker_rejects_stale_pr1491_mapping_readiness_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1491_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nEvidence: current head needs one final current-head CI pass.\n",
+        encoding="utf-8",
+    )
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("current head needs one final current-head CI pass" in error for error in errors)
+
+
+def test_checker_rejects_missing_verification_registry_file(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    (tmp_path / "core/verification/registry.py").unlink()
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("core/verification/registry.py" in error for error in errors)

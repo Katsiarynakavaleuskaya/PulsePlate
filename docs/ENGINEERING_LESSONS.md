@@ -220,6 +220,31 @@ Also replace `os.environ` mutation in `setup_method()` with an autouse
 
 ---
 
+## 12) Merged AI/RAG ledger items need closeout, not duplicate implementation
+
+### Problem
+
+AI/RAG roadmap and ledger entries can stay open after the actual runtime PR has
+already merged. If agents follow the stale open checkbox instead of live
+GitHub/repo evidence, they can re-add an already-landed subsystem or widen a
+closeout task into a new implementation PR.
+
+### Real incident (PR-V1 closeout)
+
+The verification registry landed via PR #1491 on 2026-04-22, but the ledger and
+roadmap still described PR-V1 as active work. The correct follow-up was a
+docs/checker/review reconciliation lane, not another `core/verification/*`
+implementation.
+
+### Rule
+
+When a RAG/LLM/semantic-cache ledger item appears open but repo/GitHub evidence
+proves it already merged, convert the task into a closeout/reconciliation PR.
+Update backlog, roadmap, review mapping, and regression guards; do not duplicate
+landed code.
+
+---
+
 ## 12) Feature-flag backend routing must have explicit priority + lock-safe lazy init
 
 ### Problem

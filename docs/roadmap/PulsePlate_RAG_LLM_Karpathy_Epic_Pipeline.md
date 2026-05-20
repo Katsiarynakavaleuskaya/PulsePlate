@@ -417,21 +417,32 @@ authority.
 #### Title
 `feat(ai-quality): add verification registry and verify-before-write admission invariant`
 
+#### Status
+Landed via PR #1491 on 2026-04-22 with merge commit
+`ce024e7cdca3ec94bbffb095e050010a8198e792`. This closeout reconciles stale
+ledger/roadmap/review governance truth and keeps PR-V1 as already-implemented
+repo evidence, not as an active implementation lane. No `core/verification/*` reimplementation is in scope.
+
 #### Backlog target
 `ledger-p1-verification-registry-admission`
 
 #### Goal
-Strengthen the landed K1 knowledge seam with one first-class verification
-registry/bundle so knowledge writes require canonical admission truth rather
-than policy/confidence/degraded-path checks alone.
+Record that the landed K1 knowledge seam is now strengthened by one first-class
+verification registry/bundle, so future knowledge-promotion, cache, or action
+lanes point at the merged verification truth instead of treating PR-V1 as
+missing work.
 
 #### In scope
-- `core/verification/*` internal contracts, policy, and registry assembly
-- reuse of existing recursive verification diagnostics and philosophical runtime
-  verification/falsification signals
-- internal-only verification bundle threading through RAG/runtime/application
-  seams
+- landed `core/verification/*` internal contracts, policy, and registry assembly
+  evidence
+- landed reuse of existing recursive verification diagnostics and philosophical
+  runtime verification/falsification signals
+- landed internal-only verification bundle threading through
+  RAG/runtime/application seams
 - verify-before-write admission for knowledge promotion only
+- ledger, roadmap, role-agent, engineering-lesson, and review-mapping
+  reconciliation so stale active-lane wording does not trigger duplicate
+  implementation
 
 #### Out of scope
 - semantic cache implementation or gate opening
@@ -445,6 +456,8 @@ than policy/confidence/degraded-path checks alone.
 - recursive and philosophical verification signals converge into one registry
 - route/app layers stay thin and do not author verification truth
 - degraded response paths remain safe and do not break user-visible answers
+- PR-V1 stays a closeout/reconciliation truth source, not a semantic-cache
+  rollout or backend-selection approval
 
 ---
 

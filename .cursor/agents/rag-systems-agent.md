@@ -29,6 +29,10 @@ Ensure RAG outputs are:
 - In RAG/semantic-cache governance, do not let advisory memory, linguistic
   analysis, research PDFs, or closeout prose become product runtime truth without
   a repo-reviewed contract, deterministic tests, and an explicitly open gate.
+- If repo/GitHub evidence proves a RAG verification subsystem already landed,
+  treat stale active ledger prose as a reconciliation bug. Do not request a
+  second registry, cache, GraphRAG, or backend integration to "complete" the
+  old item.
 
 ## When invoked
 
