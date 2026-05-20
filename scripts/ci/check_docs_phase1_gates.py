@@ -66,6 +66,12 @@ PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC = (
 PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.schema.json"
 )
+PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES = (
+    "docs/insights/PHILOSOPH",
+    "docs/orchestration/PHILOSOPHY_",
+    "docs/orchestration/contracts/LOGIC_PHILOSOPHY_",
+)
+PHILOSOPHY_DOWNSTREAM_DOCS = frozenset({"docs/roadmap/BACKLOG_LEDGER.md"})
 SemanticCacheGateValidator = Callable[[str], list[str]]
 
 
@@ -144,7 +150,10 @@ def _is_security_or_audit_path(relpath: str) -> bool:
 def _is_philosophy_downstream_doc_path(relpath: str) -> bool:
     return (
         relpath.endswith(".md")
-        and relpath.startswith("docs/")
+        and (
+            relpath in PHILOSOPHY_DOWNSTREAM_DOCS
+            or relpath.startswith(PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES)
+        )
         and relpath != PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT_DOC
         and not relpath.startswith("docs/review/")
     )

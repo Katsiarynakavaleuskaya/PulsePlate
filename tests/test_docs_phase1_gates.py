@@ -132,12 +132,28 @@ def test_phase1_guard_does_not_run_semantic_cache_gate_for_unrelated_roadmap_doc
 ) -> None:
     roadmap_doc = tmp_path / "docs" / "roadmap" / "UNRELATED.md"
     roadmap_doc.parent.mkdir(parents=True)
-    roadmap_doc.write_text("Semantic cache is active.\n", encoding="utf-8")
+    roadmap_doc.write_text("philosophical semantic-cache is live.\n", encoding="utf-8")
     monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
 
     errors = gates.check_docs_phase1_guards(markdown_files=["docs/roadmap/UNRELATED.md"])
 
     assert errors == []
+
+
+def test_phase1_guard_still_scans_philosophy_downstream_ledger_doc(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    backlog_doc = tmp_path / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
+    backlog_doc.parent.mkdir(parents=True)
+    backlog_doc.write_text("philosophical semantic-cache is live.\n", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=["docs/roadmap/BACKLOG_LEDGER.md"])
+
+    assert errors == [
+        "docs/roadmap/BACKLOG_LEDGER.md: forbidden philosophy admission contract claim: "
+        "philosophical semantic cache live"
+    ]
 
 
 def test_phase1_guard_runs_semantic_cache_checker_for_rollout_contract(
