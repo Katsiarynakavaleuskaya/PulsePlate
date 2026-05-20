@@ -35,6 +35,15 @@ Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2
 Reason: Codex review flagged that a missing `origin/main..HEAD` range could silently degrade the co-author advisory into false warnings. Phase2 now accepts `--commit-range-fallback` and falls back to `HEAD` when the primary range is unavailable, with a regression test for the fallback path.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274168917 -> 834539b23
 
+Disposition: FIXED
+Commit: 87224a955
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `scripts/orchestration/check_experiment_runner_identity.py`, `scripts/orchestration/render_codex_start_prompt.py`, `tests/test_pr_body_phase2_gates.py`, `tests/test_experiment_runner_identity_policy.py`, `tests/test_render_codex_start_prompt.py`
+Reason: CodeRabbit flagged three valid review-governance issues: unverifiable local commit inspection was indistinguishable from a missing trailer, identity-policy exemptions allowed unexpected no-trailer cases, and starter prompts did not spell out the exact accepted `Artifact:` line. The guard now returns `None` when branch commits cannot be inspected and emits an unverifiable advisory, the identity checker requires an exact exemption set, and starter prompts require `Artifact: artifacts/orchestration/experiments/results/<id>.json`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274283459 -> 87224a955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274283479 -> 87224a955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274283491 -> 87224a955
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4328897612 -> 87224a955
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
