@@ -52,8 +52,8 @@ Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admissi
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892115 -> 09b82d8c7ea1
 
 Disposition: FIXED
-Commit: MAPPING_COMMIT_TBD
+Commit: 782b75cb1614
 Evidence: docs/review/PR_1774_FIXED_MAPPING.md:41
 Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-pr1-admission
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892231 -> MAPPING_COMMIT_TBD
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892235 -> MAPPING_COMMIT_TBD
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892231 -> 782b75cb1614
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1774#discussion_r3271892235 -> 782b75cb1614
