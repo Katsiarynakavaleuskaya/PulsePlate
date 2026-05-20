@@ -346,6 +346,8 @@ def test_preference_mapping_closeout_report_is_deterministic_json_contract() -> 
             "api_call",
             "download",
             "paid_api_use",
+            "seller_api_use",
+            "partner_api_use",
             "cache_authority",
             "redistribution",
             "runtime_authority",
@@ -370,6 +372,8 @@ def test_preference_mapping_closeout_report_is_deterministic_json_contract() -> 
         "source_download_allowed": False,
         "scraping_allowed": False,
         "paid_source_use_allowed": False,
+        "seller_api_use_allowed": False,
+        "partner_api_use_allowed": False,
         "cache_authority_allowed": False,
         "redistribution_allowed": False,
         "public_dataset_claim_allowed": False,
@@ -407,6 +411,8 @@ def test_preference_mapping_closeout_report_is_deterministic_json_contract() -> 
         "source_download_allowed",
         "scraping_allowed",
         "paid_source_use_allowed",
+        "seller_api_use_allowed",
+        "partner_api_use_allowed",
         "cache_authority_allowed",
         "redistribution_allowed",
         "public_dataset_claim_allowed",
@@ -423,6 +429,30 @@ def test_preference_mapping_closeout_rejects_top_level_unsafe_flags(
     payload[flag_name] = True
 
     with pytest.raises(PreferenceMappingCloseoutError, match="flags must be false"):
+        parse_preference_mapping_closeout_governance(
+            payload,
+            preference_mapping=_preference_mapping(),
+            coverage=_coverage(),
+        )
+
+
+@pytest.mark.parametrize(
+    "bad_notes",
+    (
+        "Seller API use approved for PR16 closeout.",
+        "Partner API use allowed for PR16 closeout.",
+        "Provider API approved for PR16 closeout.",
+        "Seller account access allowed for PR16 closeout.",
+        "Partner menu access allowed for PR16 closeout.",
+    ),
+)
+def test_preference_mapping_closeout_rejects_seller_partner_api_notes(
+    bad_notes: str,
+) -> None:
+    payload = _closeout_payload()
+    payload["notes"] = bad_notes
+
+    with pytest.raises(PreferenceMappingCloseoutError, match="notes"):
         parse_preference_mapping_closeout_governance(
             payload,
             preference_mapping=_preference_mapping(),
