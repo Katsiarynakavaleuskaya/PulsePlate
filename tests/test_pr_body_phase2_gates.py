@@ -341,6 +341,37 @@ def test_experiment_runner_coauthor_advisory_requires_git_trailer_block(
     ]
 
 
+def test_experiment_runner_coauthor_advisory_accepts_trailer_after_divider_text(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Body mentions a divider-like line.\n"
+            "---\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+
+
 def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
     warnings = gates.check_experiment_runner_coauthor_advisory(
         "## Experiment Runner Evidence\n"

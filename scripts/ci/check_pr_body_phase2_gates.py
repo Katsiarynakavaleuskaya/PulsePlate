@@ -296,7 +296,7 @@ def _commit_message_has_expected_coauthor_trailer(message: str) -> bool:
         return False
     try:
         completed = subprocess.run(  # nosec B603: absolute git binary parses local commit-message text without shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
-            [git_bin, "interpret-trailers", "--parse"],
+            [git_bin, "interpret-trailers", "--parse", "--no-divider"],
             cwd=REPO_ROOT,
             input=message,
             text=True,
