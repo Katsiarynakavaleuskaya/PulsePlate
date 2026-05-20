@@ -74,6 +74,10 @@ Role-agent dispositions:
   this artifact and the PR body mirror no longer leave stale pending
   checklist items for already-completed mapping, CodeRabbit/Cubic, Codex
   Security scan, and review-thread disposition checks.
+- Post-open `bug-hunter` follow-up: Disposition `FIXED`. Evidence: commit
+  `2b3e01373` rejects noun/equivalence authority prose such as
+  `receives approval`, `has approval`, `may call`, `can be queried`, and
+  broad `data portal` / `data.europa.eu` source-authority equivalence claims.
 
 ## Premortem
 
@@ -228,6 +232,10 @@ Evidence: `core/food_sources/regional_catalog_identity.py` includes modal/adverb
 Reason: Current PR head already rejects `Seller API could be used for tests.` and `Seller API may still be used for tests.`
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3269977683
 
+Disposition: FIXED
+Commit: local role-agent finding fixed in commit `2b3e01373`
+Evidence: `core/food_sources/regional_catalog_identity.py` expands note-guard authority detection to noun approval, queried/call use wording, and data portal/source authority equivalence; `tests/test_food_source_regional_catalog_identity.py` rejects the seven adversarial examples reported by post-open `bug-hunter`.
+
 ## Role-Agent / CI Findings
 
 - Post-open QA finding: missing `## Split Justification`.
@@ -267,7 +275,7 @@ Observed:
 
 - `check_preflight.py`: passed.
 - `check_agent_consistency.py`: passed.
-- Focused PR17 tests: passed, 121 tests.
+- Focused PR17 tests: passed, 128 tests.
 - Adjacent food-source regression bundle: passed.
 - Repo policy guards: passed.
 - CLI JSON smoke: `success: true`.
