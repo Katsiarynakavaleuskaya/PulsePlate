@@ -28,6 +28,10 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
   coverage. Exact reviewer phrases are seed examples only; acceptance must include
   deterministic generated cases across subject/action/object, tense/aspect, modality,
   polarity, voice, and state/status wording, plus explicit negative controls.
+- For AI/RAG/cache closeout PRs, add a small guard proving ledger, roadmap,
+  fixed-mapping state, and machine-checkable gate markers agree. Do not accept a
+  docs-only closeout when a DEFERRED review item still points at the closing
+  ledger anchor without a FIXED or retargeted disposition.
 
 ## When Invoked
 

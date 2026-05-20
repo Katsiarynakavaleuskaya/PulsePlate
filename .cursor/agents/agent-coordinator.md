@@ -90,6 +90,16 @@ If the task requires reliable parsing of agent outputs across models/providers:
 
 Canonical protocol: `docs/orchestration/AGENT_MESSAGE_PROTOCOL.md`.
 
+## AI/RAG/Cache Governance Closeout Rule
+
+For AI, RAG, linguistics, philosophy, or semantic-cache governance PRs, the
+coordinator must identify the single repo source of truth before closing a
+ledger item. Do not let prose, schema, validator, downstream-doc scanner,
+fixed-mapping artifact, and PR body drift into separate authorities. A closeout
+may mark a checkbox complete only when deferred review items pointing at the same
+anchor are fixed or retargeted with evidence, and gate-closed markers still read
+as closed in both machine state and prose.
+
 ## Core Responsibilities
 
 ### 1. Agent Orchestration

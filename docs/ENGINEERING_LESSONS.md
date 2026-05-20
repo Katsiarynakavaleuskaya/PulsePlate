@@ -338,6 +338,38 @@ For subprocess-based deterministic tests:
 
 ### Use instead
 - helper wrappers that centralize retry + bounded log tail emission
+
+## 17) Natural-language AI/RAG/cache governance needs one source of truth
+
+### Problem
+Governance PRs for AI, RAG, linguistics, philosophy admission, and semantic-cache
+boundaries can drift when the same policy is expressed independently in prose,
+machine state, schemas, validator regexes, downstream docs, and fixed-mapping
+artifacts. Review waves then find semantically equivalent bypasses, stale
+ledger status, orphaned deferred review comments, or wording that implies a
+closed gate is active.
+
+### Rule
+For natural-language policy or claim guards:
+
+1. Choose one canonical contract or ledger item as the source of truth.
+2. Treat regexes as a generated or bounded enforcement layer, not as the policy
+   model itself.
+3. Add equivalence-class regression tests for actor/action/object, modality,
+   tense, polarity, and negative controls when claim wording matters.
+4. Keep ledger status, roadmap prose, schemas, validators, downstream docs, and
+   fixed-mapping artifacts aligned in the same PR.
+5. Do not close a backlog checkbox while a DEFERRED review item still points at
+   that same anchor unless the deferred item is fixed or retargeted with evidence.
+6. Never let closeout wording imply semantic-cache activation, backend approval,
+   serving readiness, or runtime truth when machine-checkable gate markers remain
+   closed.
+
+### Use instead
+- Structured policy state plus schema validation when a contract has machine state.
+- Parsed/section-aware docs checks for downstream claim validation.
+- Small closeout tests that assert the ledger, roadmap, gate markers, and review
+  artifacts agree.
 - clear failure messages with command, exit code, and log tails
 - deterministic assertions remain strict after command succeeds
 

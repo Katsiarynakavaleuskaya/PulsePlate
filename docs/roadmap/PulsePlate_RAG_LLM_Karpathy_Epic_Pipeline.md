@@ -372,31 +372,39 @@ Make AI quality drift detectable before merge/release.
 #### Title
 `feat(knowledge): add knowledge contracts and promotion from validated RAG evidence`
 
+#### Status
+Landed via PR `#1483` on `2026-04-20`; this closeout reconciles ledger,
+roadmap, and review-governance state without reopening runtime scope.
+
 #### Backlog target
 `ledger-p1-knowledge-promotion-from-validated-rag`
 
 #### Goal
-Add a bounded internal knowledge seam after `A5` so that later runtime work can
-promote validated RAG evidence without treating retrieval artifacts, raw model
-output, or request-local recursive caches as canonical facts.
+Record the landed bounded internal knowledge seam after `A5` so later runtime
+work can rely on PR `#1483` without treating retrieval artifacts, raw model
+output, request-local recursive caches, or this closeout PR as semantic-cache
+authority.
 
 #### In scope
-- `core/knowledge/*` contracts, policy, promotion, and store protocol
-- runtime knowledge policy via `prepare_insight_runtime(...)`
-- internal-only promotion candidates threaded through runtime seams
-- deterministic promotion allow/deny and supersession tests
+- landed PR `#1483` evidence for `core/knowledge/*` contracts, policy,
+  promotion, and store protocol
+- landed runtime knowledge policy via `prepare_insight_runtime(...)`
+- landed internal-only promotion candidate seams and deterministic tests
+- docs/backlog/review reconciliation for the K1 closeout state
 
 #### Out of scope
 - semantic cache implementation
 - DB migrations or persistent knowledge storage rollout
 - route / OpenAPI / public response shape changes
 - promotion from `DEEP_REASONING` or from raw provider output
+- philosophy semantic-cache admission work owned by the separate philosophy epic
 
 #### DoD
-- promotion is derived only from validated RAG evidence that survives orchestration
-- degraded paths fail closed
-- route layer remains thin and unchanged
-- semantic cache stays deferred and out of scope
+- PR `#1483` is the runtime evidence for promotion derived only from validated
+  RAG evidence that survives orchestration
+- degraded paths fail closed, route layer remains thin, and public contracts are unchanged
+- ledger and roadmap no longer present K1 as open implementation work
+- semantic cache stays gate-closed, deferred, and out of scope
 
 ---
 
