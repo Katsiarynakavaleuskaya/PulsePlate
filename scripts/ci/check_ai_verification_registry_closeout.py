@@ -47,6 +47,17 @@ STALE_ACTIVE_PHRASES = (
     "current head is still waiting on the post-fix CI rerun",
 )
 
+SENSITIVE_CACHE_TERMS = (
+    r"account\s+data",
+    r"secrets?",
+    r"credentials?",
+    r"tokens?",
+    r"pii",
+    r"personal(?:ly)?\s+identifiable\s+information",
+)
+
+SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
+
 FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-V1 opens semantic cache",
@@ -121,6 +132,31 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
             re.I | re.S,
         ),
     ),
+    (
+        "raw sensitive data cacheable",
+        re.compile(
+            rf"\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b.{0,80}" r"\b(?:cache|cached|cacheable)\b",
+            re.I | re.S,
+        ),
+    ),
+    (
+        "raw sensitive data cacheable",
+        re.compile(
+            r"\b(?:cache|caches|cached|cacheable|can\s+cache)\b.{0,80}"
+            rf"\braw\s+{SENSITIVE_CACHE_TERM_PATTERN}\b",
+            re.I | re.S,
+        ),
+    ),
+)
+
+NEGATED_FORBIDDEN_CLAIM_RE = re.compile(
+    r"\b(?:"
+    r"not|never|no|without|cannot|can't|"
+    r"must\s+not|should\s+not|does\s+not|doesn't|"
+    r"is\s+not|isn't|has\s+not|hasn't|"
+    r"remain(?:s)?\s+closed|gate\s+remain(?:s)?\s+closed"
+    r")\b",
+    re.I,
 )
 
 
@@ -183,9 +219,15 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
     errors: list[str] = []
     for claim, pattern in FORBIDDEN_PR_V1_CLAIMS:
         match = pattern.search(text)
-        if match:
+        if match and not _is_negated_forbidden_claim(text, match):
             errors.append(f"{label}: forbidden PR-V1 closeout claim: {claim}")
     return errors
+
+
+def _is_negated_forbidden_claim(text: str, match: re.Match[str]) -> bool:
+    start = max(0, match.start() - 40)
+    snippet = text[start : match.end()]
+    return bool(NEGATED_FORBIDDEN_CLAIM_RE.search(snippet))
 
 
 def _validate_core_files(repo_root: Path) -> list[str]:
@@ -280,8 +322,11 @@ def _validate_roadmap(text: str) -> list[str]:
 
 def _validate_pr1491_mapping(text: str) -> list[str]:
     errors: list[str] = []
+    closeout_block = _section_between_headings(text, heading="## Post-Merge Closeout")
+    if not closeout_block:
+        return ["PR_1491_FIXED_MAPPING.md: missing Post-Merge Closeout section"]
+
     for needle in (
-        "## Post-Merge Closeout",
         "State: `MERGED`",
         f"PR #{PR_NUMBER}",
         MERGE_TIMESTAMP,
@@ -290,11 +335,11 @@ def _validate_pr1491_mapping(text: str) -> list[str]:
         "not re-opened",
         "semantic-cache gate remained closed",
     ):
-        _require_contains(errors, "PR_1491_FIXED_MAPPING.md", text, needle)
+        _require_contains(errors, "PR_1491_FIXED_MAPPING.md closeout block", closeout_block, needle)
 
     for stale in STALE_ACTIVE_PHRASES:
-        _reject_contains(errors, "PR_1491_FIXED_MAPPING.md", text, stale)
-    errors.extend(_validate_forbidden_claims("PR_1491_FIXED_MAPPING.md", text))
+        _reject_contains(errors, "PR_1491_FIXED_MAPPING.md closeout block", closeout_block, stale)
+    errors.extend(_validate_forbidden_claims("PR_1491_FIXED_MAPPING.md", closeout_block))
     return errors
 
 

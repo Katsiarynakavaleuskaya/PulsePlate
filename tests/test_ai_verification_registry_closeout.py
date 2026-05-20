@@ -183,6 +183,11 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
     [
         ("PR-V1 can cache raw prompts safely.", "raw prompts cacheable"),
         ("PR-V1 can cache raw responses safely.", "raw responses cacheable"),
+        ("PR-V1 can cache raw account data safely.", "raw sensitive data cacheable"),
+        ("PR-V1 can cache raw secrets safely.", "raw sensitive data cacheable"),
+        ("PR-V1 can cache raw credentials safely.", "raw sensitive data cacheable"),
+        ("PR-V1 can cache raw tokens safely.", "raw sensitive data cacheable"),
+        ("PR-V1 can cache raw PII safely.", "raw sensitive data cacheable"),
         ("PR-V1 approves Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 permits Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("PR-V1 allows GPTCache for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
@@ -200,6 +205,39 @@ def test_checker_rejects_forbidden_claim_variants(
     errors = closeout.validate_closeout(repo_root=tmp_path)
 
     assert any(expected in error for error in errors)
+
+
+def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap()
+        + "\nSemantic-cache serving is not production-ready.\n"
+        + "PR-V1 does not permit Redis for semantic-cache rollout.\n"
+        + "Raw prompts are not cacheable.\n"
+        + "Raw account data is not cacheable.\n",
+        encoding="utf-8",
+    )
+
+    assert closeout.validate_closeout(repo_root=tmp_path) == []
+
+
+def test_checker_allows_historical_stale_pr1491_text_outside_closeout(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1491_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping().replace(
+            "## Post-Merge Closeout",
+            "## Historical Review Evidence\n"
+            "Evidence: current head needs one final current-head CI pass.\n\n"
+            "## Post-Merge Closeout",
+        ),
+        encoding="utf-8",
+    )
+
+    assert closeout.validate_closeout(repo_root=tmp_path) == []
 
 
 def test_checker_rejects_stale_pr1491_mapping_readiness_claim(tmp_path: Path) -> None:
