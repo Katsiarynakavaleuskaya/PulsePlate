@@ -139,6 +139,9 @@ def test_post_open_qa_modal_temporal_false_green_regressions_are_blocked() -> No
         "The admission policy may write cache entries.",
         "PR-2 has to authorize backend selection.",
         "Billing truth became cache eligible for semantic-cache admission.",
+        "PR-2 approves Redis rollout for philosophy admission.",
+        "PR-2 approves GPTCache rollout for philosophy admission.",
+        "The admission policy approves provider-backed cache runtime.",
     ]
 
     for claim in claims:

@@ -156,6 +156,9 @@
         "The claim-family oracle"
       ],
       "assertive_predicates": [
+        "approves Redis rollout for philosophy admission",
+        "approves GPTCache rollout for philosophy admission",
+        "approves provider-backed cache runtime",
         "allows Redis imports",
         "allows GPTCache imports",
         "enables embeddings for philosophy admission",
@@ -163,6 +166,9 @@
         "opens Redis connection strings"
       ],
       "modal_predicates": [
+        "approve Redis rollout for philosophy admission",
+        "approve GPTCache rollout for philosophy admission",
+        "approve provider-backed cache runtime",
         "use Redis clients",
         "use GPTCache clients",
         "wire embeddings",
@@ -170,6 +176,8 @@
         "enable provider-backed cache"
       ],
       "temporal_predicates": [
+        "has approved Redis rollout for philosophy admission",
+        "became approved for provider-backed cache runtime",
         "has used Redis imports for philosophy admission",
         "became approved for GPTCache imports",
         "still allows embeddings",
@@ -177,6 +185,9 @@
         "has been opening Redis connections"
       ],
       "seed_regressions": [
+        "PR-2 approves Redis rollout for philosophy admission.",
+        "PR-2 approves GPTCache rollout for philosophy admission.",
+        "The admission policy approves provider-backed cache runtime.",
         "Future philosophy PRs may now serve GPTCache responses.",
         "Philosophy admission has been required to enable Redis cache I/O.",
         "PR-2 has GPTCache import for philosophy admission."
