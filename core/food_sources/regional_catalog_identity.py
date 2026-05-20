@@ -316,10 +316,12 @@ _AUTHORITY_LANGUAGE_RE = re.compile(
     rf"\b(?:{_USE_TERMS})\b|\b(?:{_EQUIVALENCE_TERMS})\b"
 )
 _CANDIDATE_LOCAL_AUTHORITY_RE = re.compile(
-    rf"\b(?:it|they|this|this candidate|these|those|those providers?|candidate|"
+    rf"\b(?:it|they|this|this candidate|these|those|(?:the\s+)?providers?|"
+    rf"(?:the\s+)?sources?|candidate|"
     rf"candidates?)\b"
     rf"(?:\W+\w+){{0,8}}\W+\b(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
-    rf"\b(?:it|they|this|this candidate|these|those|those providers?|candidate|"
+    rf"\b(?:it|they|this|this candidate|these|those|(?:the\s+)?providers?|"
+    rf"(?:the\s+)?sources?|candidate|"
     rf"candidates?)\b"
     rf"(?:\W+\w+){{0,8}}\W+\b(?:is|are|serve as|serves as|act as|acts as)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
