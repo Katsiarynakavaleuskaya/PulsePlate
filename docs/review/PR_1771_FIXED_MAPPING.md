@@ -70,6 +70,10 @@ Role-agent dispositions:
   negated-use and modal reversed-authority denials, validates PR16 report
   identity/provenance fields, and preserves observed unsafe flags in failed
   validation reports.
+- Latest `bug-hunter` re-review: Disposition `PASS`. Evidence: agent
+  `019e445d-dae2-71e1-a00f-8351f2de5985` reviewed live/local head
+  `78a330b5e`, verified the latest Codex findings and mapping entries, and
+  found no remaining PR17 file-only logic findings.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
