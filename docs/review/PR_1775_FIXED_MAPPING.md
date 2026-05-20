@@ -42,7 +42,10 @@ Local oracle-only artifact, gitignored and not committed. Runner mode:
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1775#pullrequestreview-4327750134 -> 1b2db1285
+Disposition: FIXED
+Commit: 1b2db1285
+Evidence: scripts/ci/check_pr_body_phase2_gates.py routes Experiment Runner advisory warnings through checker results and reuses a shared markdown section extractor.
 
 ## Deferred / Follow-ups
 
