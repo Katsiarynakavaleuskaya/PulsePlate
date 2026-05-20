@@ -51,6 +51,15 @@ Reason: CodeRabbit flagged that the default `HEAD` fallback could scan unrelated
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274302534 -> cc1fa47d2
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#pullrequestreview-4329061597 -> cc1fa47d2
 
+Disposition: FIXED
+Commit: b5f97d430
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py`, `tests/test_pr_body_phase2_gates.py`
+Reason: Codex flagged that Experiment Runner co-author diagnostics were still too broad around `Not applicable` evidence, artifact mentions outside the canonical evidence section, co-author-required artifacts, and missing local artifacts. Phase2 now scopes artifact scanning to `## Experiment Runner Evidence`, emits no broad warning when no artifact is referenced, checks commit messages only for artifacts with `coauthor_required: true`, and still warns when a referenced artifact is unavailable even if a canonical trailer is present.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554204 -> b5f97d430
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554211 -> b5f97d430
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554222 -> b5f97d430
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1778#discussion_r3274554228 -> b5f97d430
+
 ## Post-Open Review Queue
 
 Initial coordinator, architecture, cursor-specialist, security-auditor,
