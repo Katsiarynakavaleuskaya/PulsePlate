@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -19,6 +20,9 @@ TOKENS_CORE_COLOR = REPO_ROOT / "tokens" / "00_core" / "color.json"
 TOKENS_SEMANTIC_COLOR = REPO_ROOT / "tokens" / "10_semantic" / "color.json"
 TOKENS_PRODUCT_COLOR = REPO_ROOT / "tokens" / "20_product" / "color.json"
 TOKENS_IOS_PLATFORM = REPO_ROOT / "tokens" / "30_platform" / "ios.json"
+STYLE_DICTIONARY_PACKAGE_JSON = (
+    REPO_ROOT / "frontend" / "node_modules" / "style-dictionary" / "package.json"
+)
 
 CSS_VAR_RE = re.compile(r"--(?P<name>[a-z0-9-]+):\s*(?P<value>[^;]+);", re.IGNORECASE)
 CSS_VAR_REF_RE = re.compile(r"var\(--(?P<name>[a-z0-9-]+)\)", re.IGNORECASE)
@@ -99,6 +103,57 @@ def _deep_merge(left: dict, right: dict) -> dict:
 
 def _read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def _style_dictionary_export_entrypoint(package_json: Path) -> Path:
+    package_data = json.loads(package_json.read_text(encoding="utf-8"))
+    package_root = package_json.parent
+    exports = package_data.get("exports")
+    entrypoint: str | None = None
+    if isinstance(exports, dict):
+        root_export = exports.get(".")
+        if isinstance(root_export, str):
+            entrypoint = root_export
+        elif isinstance(root_export, dict):
+            for key in ("node", "import", "default"):
+                candidate = root_export.get(key)
+                if isinstance(candidate, str):
+                    entrypoint = candidate
+                    break
+    if entrypoint is None:
+        main = package_data.get("main")
+        if isinstance(main, str):
+            entrypoint = main
+    assert entrypoint is not None, (
+        f"{package_json}: style-dictionary package metadata must define an "
+        "exports['.'] or main entrypoint"
+    )
+    resolved_entrypoint = (package_root / entrypoint).resolve()
+    assert resolved_entrypoint.is_relative_to(
+        package_root.resolve()
+    ), f"{package_json}: style-dictionary entrypoint must stay inside package root"
+    return resolved_entrypoint
+
+
+def _require_style_dictionary_toolchain(
+    package_json: Path = STYLE_DICTIONARY_PACKAGE_JSON,
+) -> Path:
+    if not package_json.is_file():
+        message = (
+            "Token parity determinism test requires frontend/style-dictionary "
+            "toolchain; run `cd frontend && npm ci`."
+        )
+        if os.environ.get("CI") == "true":
+            pytest.fail(message)
+        pytest.skip(message)
+
+    entrypoint = _style_dictionary_export_entrypoint(package_json)
+    assert entrypoint.is_file(), (
+        f"style-dictionary package entrypoint is missing: {entrypoint}. "
+        "The frontend toolchain install is partial or corrupt; run "
+        "`cd frontend && npm ci`."
+    )
+    return entrypoint
 
 
 def _normalize_hex(value: str) -> str:
@@ -537,14 +592,38 @@ def test_swift_asset_extension_routes_heart_to_brand_red() -> None:
     assert "static let heart = PPDesignTokens.Brand.red" in extension_text
 
 
+def test_style_dictionary_readiness_uses_package_export_target(tmp_path: Path) -> None:
+    package_json = tmp_path / "style-dictionary" / "package.json"
+    entrypoint = package_json.parent / "lib" / "StyleDictionary.js"
+    entrypoint.parent.mkdir(parents=True)
+    entrypoint.write_text("export default class StyleDictionary {}\n", encoding="utf-8")
+    package_json.write_text(
+        json.dumps({"exports": {".": "./lib/StyleDictionary.js"}}),
+        encoding="utf-8",
+    )
+
+    assert _style_dictionary_export_entrypoint(package_json) == entrypoint.resolve()
+
+
+def test_style_dictionary_readiness_rejects_partial_install(tmp_path: Path) -> None:
+    package_json = tmp_path / "style-dictionary" / "package.json"
+    package_json.parent.mkdir(parents=True)
+    package_json.write_text(
+        json.dumps({"exports": {".": "./lib/StyleDictionary.js"}}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(AssertionError, match="partial or corrupt"):
+        _require_style_dictionary_toolchain(package_json)
+
+
 def test_token_build_script_is_deterministic() -> None:
     tracked_paths = [TOKENS_CSS, TOKENS_TS, SWIFT_GENERATED]
     before = {path: _read_text(path) for path in tracked_paths}
     node_path = shutil.which("node")
     if node_path is None:
         pytest.skip("Node.js is required for token parity checks")
-    if not (REPO_ROOT / "frontend" / "node_modules" / "style-dictionary").exists():
-        pytest.skip("Token parity determinism test requires frontend/style-dictionary toolchain")
+    _require_style_dictionary_toolchain()
 
     snapshots: list[dict[Path, str]] = []
     for _ in range(2):

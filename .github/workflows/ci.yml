@@ -557,6 +557,11 @@ jobs:
       - name: Install root Node dependencies
         run: npm ci
 
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
+
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
 
@@ -805,6 +810,11 @@ jobs:
 
       - name: Install root Node dependencies
         run: npm ci
+
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -1104,6 +1114,11 @@ jobs:
 
       - name: Install root Node dependencies
         run: npm ci
+
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache

@@ -786,3 +786,21 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in default_block
+
+
+def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    for job_name in ("test-pr", "test-feature", "test-main"):
+        steps = jobs[job_name]["steps"]
+        step_names = [step.get("name") for step in steps]
+        root_index = step_names.index("Install root Node dependencies")
+        frontend_index = step_names.index("Install frontend dependencies")
+        clean_index = step_names.index("Clean Python cache")
+
+        frontend_step = steps[frontend_index]
+        assert frontend_step["uses"] == "./.github/actions/npm-ci-with-retry"
+        assert frontend_step["with"]["working-directory"] == "frontend"
+        assert root_index < frontend_index < clean_index
