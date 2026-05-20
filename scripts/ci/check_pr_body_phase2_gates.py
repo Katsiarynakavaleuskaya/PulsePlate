@@ -61,6 +61,8 @@ EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
 )
 EXPERIMENT_RUNNER_NA_RE = re.compile(r"(?im)^\s*(?:-\s*)?Not applicable:\s*(?P<reason>\S.+?)\s*$")
 EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results/"
+COMMIT_MESSAGE_SEPARATOR = "\x1e"
+TRAILER_LINE_RE = re.compile(r"^[A-Za-z0-9-]+:\s+\S.*$")
 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
     "Advisory: missing `## Experiment Runner Evidence` section with "
     "`Artifact: artifacts/orchestration/experiments/results/<id>.json` "
@@ -275,7 +277,7 @@ def _git_commit_messages(
     for resolved_range in ranges:
         try:
             completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
-                [git_bin, "log", "--format=%B", resolved_range],
+                [git_bin, "log", f"--format=%B{COMMIT_MESSAGE_SEPARATOR}", resolved_range],
                 cwd=REPO_ROOT,
                 text=True,
                 capture_output=True,
@@ -289,6 +291,32 @@ def _git_commit_messages(
     return None
 
 
+def _commit_message_has_expected_coauthor_trailer(message: str) -> bool:
+    lines = [line.rstrip() for line in message.splitlines()]
+    index = len(lines) - 1
+    while index >= 0 and not lines[index].strip():
+        index -= 1
+
+    trailer_lines: list[str] = []
+    while index >= 0:
+        line = lines[index].strip()
+        if not line:
+            break
+        if not TRAILER_LINE_RE.fullmatch(line):
+            break
+        trailer_lines.append(line)
+        index -= 1
+
+    return EXPECTED_CO_AUTHOR_TRAILER in trailer_lines
+
+
+def _commit_messages_have_expected_coauthor_trailer(commit_messages: str) -> bool:
+    return any(
+        _commit_message_has_expected_coauthor_trailer(message)
+        for message in commit_messages.split(COMMIT_MESSAGE_SEPARATOR)
+    )
+
+
 def check_experiment_runner_coauthor_advisory(
     text: str,
     *,
@@ -297,8 +325,8 @@ def check_experiment_runner_coauthor_advisory(
 ) -> list[str]:
     """Warn when a local runner artifact requires co-authoring but commits lack it."""
 
-    has_expected_trailer = (
-        commit_messages is not None and EXPECTED_CO_AUTHOR_TRAILER in commit_messages
+    has_expected_trailer = commit_messages is not None and (
+        _commit_messages_have_expected_coauthor_trailer(commit_messages)
     )
 
     warnings: list[str] = []
@@ -485,7 +513,6 @@ def main() -> int:
 
     if body.strip():
         cleaned_body = _strip_fenced_code_blocks(body)
-        evidence_texts.append(body)
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
         )
@@ -497,13 +524,15 @@ def main() -> int:
                     mode=_select_body_validation_mode(artifact_checked=artifact_checked),
                 )
             )
-        evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
-        if evidence_errors:
-            body_checked = True
-        body_errors.extend(evidence_errors)
-        evidence_warning_candidates.extend(evidence_warnings)
-        if not evidence_errors and not evidence_warnings:
-            experiment_runner_evidence_seen = True
+        if not artifact_checked:
+            evidence_texts.append(body)
+            evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
+            if evidence_errors:
+                body_checked = True
+            body_errors.extend(evidence_errors)
+            evidence_warning_candidates.extend(evidence_warnings)
+            if not evidence_errors and not evidence_warnings:
+                experiment_runner_evidence_seen = True
     elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1

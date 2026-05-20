@@ -270,6 +270,42 @@ def test_experiment_runner_coauthor_advisory_clears_when_trailer_present(
     assert warnings == []
 
 
+def test_experiment_runner_coauthor_advisory_ignores_body_mentions_of_trailer(
+    tmp_path: Path,
+) -> None:
+    artifact = tmp_path / "artifacts" / "orchestration" / "experiments" / "results" / "oracle.json"
+    artifact.parent.mkdir(parents=True)
+    artifact.write_text(
+        json.dumps(
+            {
+                "contribution_kind": "oracle_review",
+                "coauthor_required": True,
+                "coauthor_reason": "Runner oracle shaped the fixed mapping.",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/oracle.json\n",
+        commit_messages=(
+            "feat: mention trailer\n\n"
+            "The following text is documentation, not a commit trailer:\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+            "Additional prose after the mention keeps it outside the trailer block.\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/oracle.json` sets "
+        "coauthor_required=true, but branch commits do not include the canonical "
+        "Experiment Runner co-author trailer. Reason: Runner oracle shaped the fixed mapping."
+    ]
+
+
 def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
     warnings = gates.check_experiment_runner_coauthor_advisory(
         "## Experiment Runner Evidence\n"
@@ -639,7 +675,7 @@ def test_extract_pr_body_returns_empty_for_non_object_pull_request(tmp_path: Pat
 
 
 def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
-    """When event has pr_number, Phase2 validates the artifact and body mirror."""
+    """When event has pr_number, Phase2 validates canonical artifact evidence."""
     event = {"pull_request": {"number": 998, "body": VALID_BODY_MIRROR_ONLY}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
@@ -652,6 +688,9 @@ def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
 Disposition: FIXED
 Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: canonical artifact evidence controls artifact-first mode.
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -670,8 +709,7 @@ Commit: abc1234
     )
     assert result.returncode == 0
     assert "canonical mapping artifact and PR body mirror passed" in result.stdout
-    assert "WARNING:" in result.stdout
-    assert "exp-998.json" in result.stdout
+    assert "WARNING:" not in result.stdout
 
 
 def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> None:
