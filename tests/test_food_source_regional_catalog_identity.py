@@ -1306,6 +1306,31 @@ def test_regional_catalog_identity_cli_returns_nonzero_for_invalid_payload(tmp_p
     assert payload["api_calls_allowed"] is True
 
 
+def test_regional_catalog_identity_report_preserves_malformed_safety_flags(
+    tmp_path: Path,
+) -> None:
+    bad_path = tmp_path / "bad_identity.json"
+    payload = _identity_payload()
+    payload["api_calls_allowed"] = "true"
+    payload["file_only"] = "false"
+    bad_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = build_regional_catalog_identity_report(
+        catalog_path=_CATALOG_PATH,
+        onboarding_path=_ONBOARDING_PATH,
+        coverage_path=_COVERAGE_PATH,
+        recipe_dish_corpus_path=_RECIPE_DISH_CORPUS_PATH,
+        preference_mapping_path=_PREFERENCE_MAPPING_PATH,
+        pr16_closeout_path=_PR16_CLOSEOUT_PATH,
+        regional_identity_path=bad_path,
+    )
+
+    assert report["success"] is False
+    assert report["api_calls_allowed"] == "true"
+    assert report["file_only"] == "false"
+    assert "api_calls_allowed" in str(report["validation_errors"][0])
+
+
 def test_regional_catalog_identity_cli_prints_validation_errors_without_json(
     tmp_path: Path,
 ) -> None:

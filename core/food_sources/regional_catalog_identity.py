@@ -1097,8 +1097,8 @@ def _validate_pr16_report(report: dict[str, object], context: str) -> None:
             raise _identity_error(context, f"PR16 report {flag_name} must remain {expected_value}")
 
 
-def _observed_safety_flags(path: Path | str) -> dict[str, bool]:
-    """Return literal bool safety flags from a candidate artifact for failure diagnostics."""
+def _observed_safety_flags(path: Path | str) -> dict[str, object]:
+    """Return observed safety flags from a candidate artifact for failure diagnostics."""
 
     try:
         with Path(path).open("r", encoding="utf-8") as file_obj:
@@ -1107,9 +1107,7 @@ def _observed_safety_flags(path: Path | str) -> dict[str, bool]:
         return {}
     if not isinstance(payload, dict):
         return {}
-    return {
-        key: value for key in _SAFETY_FLAG_TEMPLATE if isinstance((value := payload.get(key)), bool)
-    }
+    return {key: payload[key] for key in _SAFETY_FLAG_TEMPLATE if key in payload}
 
 
 def _candidate_review(data: dict[str, object], context: str) -> RegionalCatalogCandidateReview:
