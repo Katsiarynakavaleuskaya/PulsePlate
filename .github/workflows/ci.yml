@@ -160,6 +160,26 @@ jobs:
         env:
           TRIVY_IGNORE_POLICY_PATH: trivy/ignore-policy.rego
 
+  jwt_fastlane_unblock_guard:
+    name: Ruby jwt/Fastlane unblock guard
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@4eb9f110bac952a8b68ecf92e3b5c7a987594ba6 # v1
+        with:
+          ruby-version: "3.1"
+          working-directory: ios
+
+      - name: Check Ruby jwt/Fastlane unblock state
+        run: python3 scripts/ci/check_jwt_fastlane_unblock.py
+
   pygments_exception_guard:
     name: Pygments exception seam guard
     if: github.event_name == 'pull_request'

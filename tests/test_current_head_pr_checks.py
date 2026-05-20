@@ -12,6 +12,7 @@ CANONICAL_FALLBACK_JOB_IDS = {
     "changes",
     "pr_scope_guard",
     "trivy_ignore_policy_expiry",
+    "jwt_fastlane_unblock_guard",
     "pygments_exception_guard",
     "docs_phase1_gates",
     "pr_body_phase2_gates",
@@ -46,12 +47,14 @@ def _job_display_names(job_id: str, definition: dict[str, object]) -> set[str]:
         return {f"{name} (3.13)"}
     matrix_include = matrix.get("include")
     if job_id == "test-main" and isinstance(matrix_include, list):
-        versions = {
-            str(entry.get("python-version"))
+        check_names = {
+            f"{name} ({entry.get('python-version')}, {entry.get('timeout-minutes')})"
             for entry in matrix_include
-            if isinstance(entry, dict) and entry.get("python-version")
+            if isinstance(entry, dict)
+            and entry.get("python-version")
+            and entry.get("timeout-minutes")
         }
-        return {f"{name} ({version})" for version in sorted(versions)}
+        return set(sorted(check_names))
     return {name}
 
 
@@ -252,7 +255,7 @@ def test_fallback_ci_allowlist_matches_canonical_pr_workflow_jobs() -> None:
         ),
         (
             current_head_checks.CheckEntry(
-                name="test-main (3.11)",
+                name="test-main (3.11, 60)",
                 source_kind="check_run",
                 state="failed",
                 timestamp="2026-03-12T08:36:42Z",
