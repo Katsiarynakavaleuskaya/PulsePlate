@@ -471,6 +471,17 @@ def test_regional_catalog_identity_rejects_duplicate_candidate_ids() -> None:
         "Ozon and Wildberries remain seller terms evidence. The providers are approved for staging.",
         "Ozon and Wildberries remain seller terms evidence. Sources are approved for staging.",
         "Ozon and Wildberries remain seller terms evidence. The source is approved for staging.",
+        "Ozon is approved for staging.",
+        "Kroger can be used for price lookup.",
+        "Wildberries has approval for staging.",
+        "PricesAPI is cleared for catalog enrichment.",
+        "Data portal can be source authority for regional catalogs.",
+        "Seller API is source authority for catalog updates.",
+        "Partner API is nutrition authority for products.",
+        "Data portal acts as source authority for regional catalogs.",
+        "Seller API acts as source authority for regional catalogs.",
+        "Source authority is Seller API for regional catalog updates.",
+        "Data portal is not source authority but can be product display.",
     ),
 )
 def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> None:
@@ -500,6 +511,10 @@ def test_regional_catalog_identity_rejects_authority_prose(bad_notes: str) -> No
         "Data portal is not source authority for product display.",
         "Nutrition authority for regional catalogs is not approved.",
         "API calls are not approved for ingestion; documentation is available in appendix.",
+        "API calls are not approved for ingestion, documentation is available in appendix.",
+        "Seller API has no approval for testing.",
+        "Seller API isn't approved for testing.",
+        "Seller API is not used for testing.",
     ),
 )
 def test_regional_catalog_identity_allows_negated_authority_prose(safe_notes: str) -> None:

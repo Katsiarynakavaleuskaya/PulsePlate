@@ -270,7 +270,8 @@ _USE_TERMS = (
 )
 _EQUIVALENCE_TERMS = r"becomes?|serves as|treated as|equals"
 _BLOCKED_NOTE_TERMS = (
-    r"regional catalogs?|data europa eu|api calls?|scraping|scrapers?|downloads?|"
+    r"regional catalogs?|data europa eu|kroger|walmart|pepesto(?: grocery)?|pricesapi|"
+    r"prices api|yandex eda|wildberries|ozon|apify|api calls?|scraping|scrapers?|downloads?|"
     r"paid source|paid provider|seller apis?|seller api access|seller access|"
     r"partner apis?|partner access|seller or partner access|"
     r"apis?|seller account access|partner menu access|provider apis?|"
@@ -308,6 +309,8 @@ _FORBIDDEN_NOTE_PATTERNS = (
 _BLOCKED_NOTE_RE = re.compile(rf"\b(?:{_BLOCKED_NOTE_TERMS})\b")
 _NEGATED_APPROVAL_RE = re.compile(
     rf"\b(?:no|not|never)\s+(?:{_APPROVAL_TERMS})\b|"
+    rf"\b(?:has|have|is|are)\s+(?:no|not|never)\s+(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
+    rf"\b(?:isn'?t|aren'?t)\s+(?:{_APPROVAL_TERMS}|{_USE_TERMS})\b|"
     r"\bwithout\s+(?:approval|authorization|permission)\b|"
     r"\bunapproved\b"
 )
@@ -326,6 +329,20 @@ _CANDIDATE_LOCAL_AUTHORITY_RE = re.compile(
     rf"(?:\W+\w+){{0,8}}\W+\b(?:is|are|serve as|serves as|act as|acts as)\b"
     r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
     rf"\b(?:this)\b(?:\W+\w+){{0,3}}\W+\b(?:{_USE_TERMS})\b"
+)
+_DIRECT_AUTHORITY_RE = re.compile(
+    rf"\b(?:{_BLOCKED_NOTE_TERMS})\b(?:\W+\w+){{0,10}}\W+\b"
+    r"(?:is|are|can be|acts as|act as|becomes?|serves as|treated as|equals)\b"
+    r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b|"
+    r"\b(?:source authority|nutrition authority|product display)\b"
+    r"(?:\W+\w+){0,4}\W+\b(?:is|are)\b"
+    rf"(?:\W+\w+){{0,4}}\W+\b(?:{_BLOCKED_NOTE_TERMS})\b"
+)
+_BARE_CONTEXT_AUTHORITY_RE = re.compile(
+    rf"^(?:but|and|then|still)?\s*(?:{_APPROVAL_TERMS}|{_APPROVAL_NOUNS}|{_USE_TERMS})\b|"
+    r"^(?:but|and|then|still)?\s*(?:after\b.+\b)?"
+    r"(?:can be|acts as|act as|becomes?|serves as|treated as|equals)\b"
+    r"(?:\W+\w+){0,4}\W+\b(?:source authority|nutrition authority|product display)\b"
 )
 _NEGATED_DIRECT_AUTHORITY_RE = re.compile(
     r"\b(?:no|not|never)\s+(?:become\s+)?(?:a\s+|an\s+)?"
@@ -475,14 +492,20 @@ def _relative_repo_path(path: Path | str) -> str:
 def _require_safe_notes(value: str, context: str) -> str:
     segments = [
         re.sub(r"[\s_\-/;:,.()[\]{}]+", " ", segment).strip()
-        for segment in re.split(r"[;\n]+|(?<=[.!?])\s+", value.lower())
+        for segment in re.split(r"[;,\n]+|(?<=[.!?])\s+", value.lower())
     ]
+    blocked_context_seen = False
     for normalized in (segment for segment in segments if segment):
         sanitized = _NEGATED_DIRECT_AUTHORITY_RE.sub(" ", normalized)
         remaining_authority_text = _NEGATED_APPROVAL_RE.sub(" ", sanitized)
-        if _BLOCKED_NOTE_RE.search(remaining_authority_text) and _AUTHORITY_LANGUAGE_RE.search(
-            remaining_authority_text
-        ):
+        has_blocked_term = bool(_BLOCKED_NOTE_RE.search(remaining_authority_text))
+        if has_blocked_term:
+            blocked_context_seen = True
+        if _DIRECT_AUTHORITY_RE.search(remaining_authority_text):
+            raise _identity_error(context, "notes must not approve regional catalog source use")
+        if has_blocked_term and _AUTHORITY_LANGUAGE_RE.search(remaining_authority_text):
+            raise _identity_error(context, "notes must not approve regional catalog source use")
+        if blocked_context_seen and _BARE_CONTEXT_AUTHORITY_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
         if _CANDIDATE_LOCAL_AUTHORITY_RE.search(remaining_authority_text):
             raise _identity_error(context, "notes must not approve regional catalog source use")
