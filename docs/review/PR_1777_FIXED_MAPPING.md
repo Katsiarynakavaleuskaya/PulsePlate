@@ -34,6 +34,10 @@ Evidence: Negated prohibition guidance such as `Do not claim that the admission 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#pullrequestreview-4328397344 -> c220482fd
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1777#discussion_r3273859141 -> c220482fd
 
+Disposition: FIXED
+Commit: 954a788ba
+Evidence: Current-head `test-main` failed because Phase 1 downstream docs tests saw duplicate errors for the same legacy and policy-oracle claim. The fix keeps the legacy detector message and suppresses policy-oracle duplicates only when the detector label is already reported, with regression coverage in `tests/test_philosophy_admission_policy_oracle.py::test_policy_oracle_does_not_duplicate_legacy_detector_error`. Focused local proof: `python3 scripts/ci/check_semantic_cache_gate.py --check-philosophy-admission-oracle-drift`; `.venv/bin/python -m pytest -q tests/test_docs_phase1_gates.py tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`.
+
 Disposition: NOT-A-BUG
 Evidence: Sourcery's review-level extraction comments are advisory refactor feedback, not correctness defects for this PR-2 governance/test-infrastructure scope. The policy/oracle logic intentionally remains in the existing semantic-cache gate entrypoint for this PR so the new guard cannot drift from the existing gate-closed admission checker. The root loop risk is addressed by policy-as-data, generated oracle drift checks, docs/CI wiring, and agent guidance; broader Experiment Runner oracle-manifest or helper-module extraction belongs in a separate coordinator-owned lane.
 Reason: The review-level helper extraction suggestion is a maintainability idea, while the concrete actionable Sourcery inline suggestions were fixed in `50de520c7`; extracting modules here would widen the PR beyond the approved governance/test-infrastructure scope.
@@ -90,6 +94,8 @@ Reason: The review-level helper extraction suggestion is a maintainability idea,
   - PASS.
 - `.venv/bin/python -m pytest -q tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`
   - PASS.
+- `.venv/bin/python -m pytest -q tests/test_docs_phase1_gates.py tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_semantic_cache_admission_contract.py tests/test_semantic_cache_gate.py`
+  - PASS after fixing duplicate legacy/policy-oracle downstream errors.
 - `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed`
   - PASS.
 - `pre-commit run --all-files` - PASS.
@@ -98,12 +104,9 @@ Reason: The review-level helper extraction suggestion is a maintainability idea,
 
 ## Current CI / Review State
 
-- Initial PR #1777 current-head CI is not merge-ready. `PR Body Phase2 gates`
-  failed before this canonical mapping artifact existed.
-- `pr_scope_guard` failed through PR size governance because this governance/test
-  infrastructure PR is above 800 changed lines and needs an explicit PR-body
-  `## Split Justification`.
-- Bot review is still in progress. This artifact must be updated if CodeRabbit,
+- Current-head CI after merge-from-main exposed duplicate legacy/policy-oracle
+  downstream errors in `test-main`; fixed in `954a788ba`.
+- Bot review is still monitored. This artifact must be updated if CodeRabbit,
   Sourcery, Cubic, Codex, or human review adds actionable comments.
 
 ## Machine-Heavy Gate Note
