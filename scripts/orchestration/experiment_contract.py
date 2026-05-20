@@ -264,6 +264,47 @@ def validate_runner_mode(value: Any) -> str:
     return normalized
 
 
+def validate_contribution_attribution(
+    *,
+    contribution_kind: Any = "none",
+    coauthor_required: Any = False,
+    coauthor_reason: Any = "",
+    status: str | None = None,
+) -> tuple[str, bool, str]:
+    """Validate Experiment Runner contribution/co-author attribution metadata."""
+
+    normalized_kind = str(contribution_kind).strip()
+    if normalized_kind not in CONTRIBUTION_KINDS:
+        allowed_kinds = ", ".join(CONTRIBUTION_KINDS)
+        raise ValueError(f"Experiment result contribution_kind must be one of: {allowed_kinds}")
+
+    if not isinstance(coauthor_required, bool):
+        raise ValueError("Experiment result coauthor_required must be a boolean.")
+
+    if not isinstance(coauthor_reason, str):
+        raise ValueError("Experiment result coauthor_reason must be a string.")
+    normalized_reason = coauthor_reason.strip()
+
+    if coauthor_required and normalized_kind == "none":
+        raise ValueError(
+            "Experiment result coauthor_required requires a material contribution_kind."
+        )
+    if normalized_kind != "none" and not coauthor_required:
+        raise ValueError("Experiment result material contribution_kind requires coauthor_required.")
+    if coauthor_required and not normalized_reason:
+        raise ValueError(
+            "Experiment result coauthor_reason must be non-empty when coauthor_required."
+        )
+    if not coauthor_required and normalized_reason:
+        raise ValueError(
+            "Experiment result coauthor_reason must be empty unless coauthor_required."
+        )
+    if status == "rejected" and coauthor_required:
+        raise ValueError("Rejected Experiment Runner artifacts must not require co-authoring.")
+
+    return normalized_kind, coauthor_required, normalized_reason
+
+
 def validate_immutable_oracles(commands: list[str] | tuple[str, ...]) -> list[dict[str, str]]:
     """Validate oracle commands and normalize them into the packet shape."""
 
@@ -723,35 +764,12 @@ def validate_experiment_result(result: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(promotion_ready, bool):
         raise ValueError("Experiment result promotion_ready must be a boolean.")
 
-    contribution_kind = str(result.get("contribution_kind", "none")).strip()
-    if contribution_kind not in CONTRIBUTION_KINDS:
-        allowed_kinds = ", ".join(CONTRIBUTION_KINDS)
-        raise ValueError(f"Experiment result contribution_kind must be one of: {allowed_kinds}")
-
-    coauthor_required = result.get("coauthor_required", False)
-    if not isinstance(coauthor_required, bool):
-        raise ValueError("Experiment result coauthor_required must be a boolean.")
-
-    raw_coauthor_reason = result.get("coauthor_reason", "")
-    if not isinstance(raw_coauthor_reason, str):
-        raise ValueError("Experiment result coauthor_reason must be a string.")
-    coauthor_reason = raw_coauthor_reason.strip()
-    if coauthor_required and contribution_kind == "none":
-        raise ValueError(
-            "Experiment result coauthor_required requires a material contribution_kind."
-        )
-    if contribution_kind != "none" and not coauthor_required:
-        raise ValueError("Experiment result material contribution_kind requires coauthor_required.")
-    if coauthor_required and not coauthor_reason:
-        raise ValueError(
-            "Experiment result coauthor_reason must be non-empty when coauthor_required."
-        )
-    if not coauthor_required and coauthor_reason:
-        raise ValueError(
-            "Experiment result coauthor_reason must be empty unless coauthor_required."
-        )
-    if status == "rejected" and coauthor_required:
-        raise ValueError("Rejected Experiment Runner artifacts must not require co-authoring.")
+    contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
+        contribution_kind=result.get("contribution_kind", "none"),
+        coauthor_required=result.get("coauthor_required", False),
+        coauthor_reason=result.get("coauthor_reason", ""),
+        status=status,
+    )
 
     candidate_patch = str(result.get("candidate_patch", "")).strip()
     if not candidate_patch:

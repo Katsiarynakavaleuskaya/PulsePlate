@@ -69,6 +69,10 @@ MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING = (
     "Advisory: Experiment Runner artifact `{path}` sets coauthor_required=true, "
     "but branch commits do not include the canonical Experiment Runner co-author trailer."
 )
+UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING = (
+    "Advisory: Experiment Runner artifact `{path}` is referenced but unavailable "
+    "locally, so coauthor_required cannot be verified against branch commits."
+)
 
 
 class BodyValidationMode(str, Enum):
@@ -280,10 +284,16 @@ def check_experiment_runner_coauthor_advisory(
     for artifact_path in _experiment_runner_artifact_paths(text):
         absolute_path = repo_root / artifact_path
         if not absolute_path.is_file():
+            warnings.append(
+                UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
+            )
             continue
         try:
             payload = json.loads(absolute_path.read_text(encoding="utf-8"))
         except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            warnings.append(
+                UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING.format(path=artifact_path)
+            )
             continue
         if isinstance(payload, dict) and payload.get("coauthor_required") is True:
             warning = MISSING_EXPERIMENT_RUNNER_COAUTHOR_WARNING.format(path=artifact_path)
@@ -366,6 +376,14 @@ def main() -> int:
         type=int,
         help="PR number for artifact lookup (optional, extracted from event-path if not set).",
     )
+    parser.add_argument(
+        "--commit-range",
+        default="origin/main..HEAD",
+        help=(
+            "Git commit range for advisory Experiment Runner co-author diagnostics. "
+            "Defaults to origin/main..HEAD."
+        ),
+    )
     args = parser.parse_args()
 
     body = args.body
@@ -429,7 +447,7 @@ def main() -> int:
     if not experiment_runner_evidence_seen:
         advisory_warnings.extend(dict.fromkeys(evidence_warning_candidates))
     if experiment_runner_evidence_seen:
-        commit_messages = _git_commit_messages()
+        commit_messages = _git_commit_messages(args.commit_range)
         for evidence_text in evidence_texts:
             advisory_warnings.extend(
                 check_experiment_runner_coauthor_advisory(

@@ -39,6 +39,7 @@ from scripts.orchestration.experiment_contract import (
     ORACLE_BINARY_ALLOWLIST,
     ORACLE_ONLY_GOVERNANCE_REVIEWER_MODE,
     SCHEMA_VERSION,
+    validate_contribution_attribution,
     validate_experiment_id,
     validate_runner_mode,
     validate_experiment_packet,
@@ -673,17 +674,14 @@ def evaluate_oracle_only_governance_reviewer(
 ) -> dict[str, Any]:
     """Run immutable governance oracles without applying any candidate patch."""
 
-    if contribution_kind not in CONTRIBUTION_KINDS:
-        allowed_kinds = ", ".join(CONTRIBUTION_KINDS)
-        raise PolicyViolationError(f"contribution_kind must be one of: {allowed_kinds}")
-    if coauthor_required and contribution_kind == "none":
-        raise PolicyViolationError("coauthor_required requires a material contribution_kind")
-    if contribution_kind != "none" and not coauthor_required:
-        raise PolicyViolationError("material contribution_kind requires coauthor_required")
-    if coauthor_required and not coauthor_reason.strip():
-        raise PolicyViolationError("coauthor_required requires a non-empty coauthor_reason")
-    if not coauthor_required and coauthor_reason.strip():
-        raise PolicyViolationError("coauthor_reason requires coauthor_required")
+    try:
+        contribution_kind, coauthor_required, coauthor_reason = validate_contribution_attribution(
+            contribution_kind=contribution_kind,
+            coauthor_required=coauthor_required,
+            coauthor_reason=coauthor_reason,
+        )
+    except ValueError as exc:
+        raise PolicyViolationError(str(exc)) from exc
 
     try:
         packet = validate_experiment_packet(packet)

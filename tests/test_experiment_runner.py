@@ -1359,7 +1359,7 @@ def test_main_rejects_oracle_only_orphan_coauthor_reason(
     )
 
     assert exit_code == 1
-    assert "coauthor_reason requires coauthor_required" in capsys.readouterr().out
+    assert "coauthor_reason must be empty unless coauthor_required" in capsys.readouterr().out
 
 
 def test_main_rejects_candidate_patch_attribution_flags(

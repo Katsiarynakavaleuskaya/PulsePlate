@@ -268,6 +268,40 @@ def test_experiment_runner_coauthor_advisory_ignores_not_applicable() -> None:
     assert warnings == []
 
 
+def test_experiment_runner_coauthor_advisory_warns_on_missing_artifact_without_trailer(
+    tmp_path: Path,
+) -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/missing.json\n",
+        commit_messages="feat: human-only commit\n",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == [
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/missing.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    ]
+
+
+def test_experiment_runner_coauthor_advisory_ignores_missing_artifact_with_trailer(
+    tmp_path: Path,
+) -> None:
+    warnings = gates.check_experiment_runner_coauthor_advisory(
+        "## Experiment Runner Evidence\n"
+        "Artifact: artifacts/orchestration/experiments/results/missing.json\n",
+        commit_messages=(
+            "feat: governed contribution\n\n"
+            "Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>\n"
+        ),
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+
+
 def test_phase2_guard_rejects_missing_sections() -> None:
     body = "## Summary\nOnly summary.\n"
     errors = gates.check_pr_body_phase2_gates(body=body)
@@ -579,6 +613,8 @@ Artifact: artifacts/orchestration/experiments/results/exp-998.json
             "scripts/ci/check_pr_body_phase2_gates.py",
             "--pr-number",
             "998",
+            "--commit-range",
+            "HEAD",
         ],
         capture_output=True,
         text=True,
