@@ -111,6 +111,11 @@ Role-agent dispositions:
   controlled notes, no runtime/API/DB/provider/dependency scope drift, no
   hidden source authority, and no ReDoS concern from the remaining canonical
   note sanity-check path.
+- Budget-policy Codex review batch: Disposition `FIXED`. Evidence: commit
+  `874ca868d` makes `budget_first_policy` controlled PR17 governance text
+  instead of free-form policy prose, rejecting passive access/use, `acceptable`,
+  prefaced approval, standalone approval, and seller/partner access grant
+  wording reported by Codex.
 - `data-scientist-agent`: Disposition `PASS`. Evidence: candidate decisions
   were supplied as review-only: data.europa/national portals, Kroger, Walmart,
   Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and
@@ -461,6 +466,16 @@ Evidence: `core/food_sources/regional_catalog_identity.py` now treats PR11 regio
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608810 -> 9e4329dc6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608818 -> 9e4329dc6
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273608825 -> 9e4329dc6
+
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `core/food_sources/regional_catalog_identity.py` now treats `budget_first_policy` as exact controlled PR17 governance text instead of free-form policy prose; `tests/test_food_source_regional_catalog_identity.py` rejects passive access/use, `acceptable`, prefaced approval, standalone approval, and seller/partner access grant drift through direct `budget_first_policy` tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862564 -> 874ca868d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862574 -> 874ca868d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862579 -> 874ca868d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862582 -> 874ca868d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1771#discussion_r3273862588 -> 874ca868d
 
 ## Role-Agent / CI Findings
 
