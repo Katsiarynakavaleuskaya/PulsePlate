@@ -19,6 +19,10 @@ def _between(text: str, start: str, end: str, *, label: str) -> str:
     return text[start_index:end_index]
 
 
+def _roadmap_subsection(section: str, heading: str, next_heading: str) -> str:
+    return _between(section, heading, next_heading, label=f"K1 roadmap {heading}")
+
+
 def test_k1_ledger_closeout_is_not_left_open_or_orphaned() -> None:
     ledger = _read("docs/roadmap/BACKLOG_LEDGER.md")
     item = _between(
@@ -45,11 +49,26 @@ def test_k1_ledger_closeout_is_not_left_open_or_orphaned() -> None:
 def test_k1_roadmap_marks_landed_without_semantic_cache_rollout_claims() -> None:
     roadmap = _read("docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md")
     section = _between(roadmap, "## PR-K1 ", "## PR-V1 ", label="K1 roadmap section")
+    in_scope = _roadmap_subsection(section, "#### In scope", "#### Out of scope")
+    out_of_scope = _roadmap_subsection(section, "#### Out of scope", "#### DoD")
+    dod = _roadmap_subsection(section, "#### DoD", "\n---")
 
     assert "Landed via PR `#1483` on `2026-04-20`" in section
     assert "docs/backlog/review reconciliation" in section
-    assert "semantic cache stays gate-closed, deferred, and out of scope" in section
-    assert "semantic cache implementation" in section
+    assert "semantic cache stays gate-closed, deferred, and out of scope" in dod
+    assert "semantic cache implementation" in out_of_scope
+    assert "Redis/GPTCache/backend approval or serving selection" in out_of_scope
+    assert "DB migrations or persistent knowledge storage rollout" in out_of_scope
+    for forbidden in (
+        "semantic cache implementation",
+        "Redis/GPTCache",
+        "backend approval",
+        "serving selection",
+        "enabled",
+        "live",
+        "approved",
+    ):
+        assert forbidden not in in_scope
     assert "approve Redis/GPTCache rollout" not in section
     assert "opens the semantic-cache gate" not in section.lower()
 

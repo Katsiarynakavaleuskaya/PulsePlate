@@ -396,6 +396,7 @@ authority.
 
 #### Out of scope
 - semantic cache implementation
+- Redis/GPTCache/backend approval or serving selection
 - DB migrations or persistent knowledge storage rollout
 - route / OpenAPI / public response shape changes
 - promotion from `DEEP_REASONING` or from raw provider output
