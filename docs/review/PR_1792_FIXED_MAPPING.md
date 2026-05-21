@@ -31,6 +31,9 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - Post-review artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-review.json`
 - Post-review status: `accepted`
 - Post-review contribution: validation-only (`coauthor_required: false`, no content changes shaped)
+- Post-bug-hunter artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-bughunter.json`
+- Post-bug-hunter status: `accepted`
+- Post-bug-hunter contribution: validation-only (`coauthor_required: false`, no content changes shaped)
 
 ## Fixed in Commit Mapping
 
