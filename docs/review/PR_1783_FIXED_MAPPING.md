@@ -151,38 +151,33 @@ parity and strict review-governance checks before any readiness claim.
 
 Disposition: FIXED
 Commit: 23b2cc7bb
-Evidence: typed `pr17_gate` as `RegionalCatalogIdentityGovernance`, narrowed
-test JSON helper return type, and reran focused mypy successfully.
+Evidence: typed `pr17_gate` as `RegionalCatalogIdentityGovernance`, narrowed test JSON helper return type, and reran focused mypy successfully.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279338059 -> 23b2cc7bb
 
 Disposition: FIXED
-Commit: PENDING
+Commit: 0a102a39d
 Evidence: removed machine-specific validation paths from this artifact.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352599 -> PENDING
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352599 -> 0a102a39d
 
 Disposition: FIXED
-Commit: PENDING
-Evidence: added the required artifact-level `## Discussion Thread Pass` section
-and exact checked boxes.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352627 -> PENDING
+Commit: 0a102a39d
+Evidence: added the required artifact-level `## Discussion Thread Pass` section and exact checked boxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352627 -> 0a102a39d
 
 Disposition: FIXED
-Commit: PENDING
-Evidence: wrapped the long packet pytest command and preserved the PR18 type
-fix evidence.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334774106 -> PENDING
+Commit: 0a102a39d
+Evidence: wrapped the long packet pytest command and preserved the PR18 type fix evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334774106 -> 0a102a39d
 
 Disposition: FIXED
-Commit: PENDING
-Evidence: fixed the PR body/mapping artifact contract issues reported in the
-review summary.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334791252 -> PENDING
+Commit: 0a102a39d
+Evidence: fixed the PR body/mapping artifact contract issues reported in the review summary.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334791252 -> 0a102a39d
 
 Disposition: FIXED
-Commit: PENDING
-Evidence: left post-open merge-readiness checklist items unchecked until final
-merge cycle.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334834799 -> PENDING
+Commit: 0a102a39d
+Evidence: left post-open merge-readiness checklist items unchecked until final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334834799 -> 0a102a39d
 
 ## Post-Open Governance Checklist
 
