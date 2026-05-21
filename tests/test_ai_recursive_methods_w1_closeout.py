@@ -240,9 +240,13 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("Semantic-cache serving is enabled by PR-A7.", "semantic cache enabled"),
         ("Semantic-cache opened.", "semantic cache direct activation"),
         ("Semantic-cache enabled.", "semantic cache direct activation"),
+        ("Semantic-cache is approved.", "semantic cache direct activation"),
+        ("Semantic-cache gate is approved.", "semantic cache direct activation"),
+        ("Semantic-cache serving is selected.", "semantic cache direct activation"),
         ("Semantic-cache is production-ready.", "semantic cache active status"),
         ("Semantic-cache has been opened.", "semantic cache active status"),
         ("PR-A7 approves Redis for semantic-cache rollout.", "PR-A7 approves Redis"),
+        ("PR-A7 chooses Redis for semantic-cache.", "PR-A7 approves Redis"),
         ("GPTCache is rollout-ready for semantic-cache serving.", "Redis/GPTCache"),
         ("PR-A7 authorizes GraphRAG rollout.", "forbidden runtime surface"),
         (
@@ -256,6 +260,8 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("PR-A7 approves vector database rollout.", "forbidden runtime surface"),
         ("PR-A7 approves OpenAPI route changes.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved.", "forbidden runtime surface"),
+        ("GraphRAG is implemented.", "forbidden runtime surface"),
+        ("Context Manifest is supported.", "forbidden runtime surface"),
         ("Context Manifest is live.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved by PR-A7.", "forbidden runtime surface"),
         ("Context Manifest rollout is authorized by PR-A7.", "forbidden runtime surface"),
@@ -268,6 +274,7 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("PR-A7 can cache\nraw secret data.", "raw prompt/response"),
         ("PR #1499 allows caching raw responses.", "raw prompt/response"),
         ("PR-A7 can cache raw answers.", "raw prompt/response"),
+        ("Semantic cache stores raw prompts.", "raw prompt/response"),
         ("PR-A7 permits raw account data caching.", "raw prompt/response"),
         ("PR-A7 allows raw HealthKit data caching.", "raw prompt/response"),
         ("PR-A7 authorizes raw secret data caching.", "raw prompt/response"),
@@ -351,6 +358,19 @@ def test_checker_rejects_stale_pr1499_mapping_readiness_claim(tmp_path: Path) ->
     assert any("pending final merge-cycle claim" in error for error in errors)
 
 
+def test_checker_rejects_required_checks_still_pending_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1499_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping() + "\nrequired checks are still pending.\n",
+        encoding="utf-8",
+    )
+
+    errors = _run_checker(tmp_path)
+
+    assert any("required-checks pending claim" in error for error in errors)
+
+
 def test_checker_rejects_broader_stale_a7_active_closeout_claim(
     tmp_path: Path,
 ) -> None:
@@ -402,6 +422,24 @@ def test_checker_rejects_checked_historical_readiness_assertions(
     errors = _run_checker(tmp_path)
 
     assert any("checked current-head CI assertion" in error for error in errors)
+    assert any("checked required-checks assertion" in error for error in errors)
+
+
+def test_checker_rejects_checked_generic_ci_and_all_required_checks(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1499_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping()
+        + "\n- [x] CI green on latest pushed head\n"
+        + "- [x] All required checks complete (no pending jobs)\n",
+        encoding="utf-8",
+    )
+
+    errors = _run_checker(tmp_path)
+
+    assert any("checked CI-green assertion" in error for error in errors)
     assert any("checked required-checks assertion" in error for error in errors)
 
 

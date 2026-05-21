@@ -71,16 +71,20 @@ RAW_CACHEABLE_PATTERN = (
 POSITIVE_ACTION_PATTERN = (
     r"(?:opens?|opened|enables?|enabled|implements?|implemented|approves?|approved|"
     r"allows?|allowed|permits?|permitted|authorizes?|authorized|selects?|selected|"
-    r"activates?|activated|rolls?\s+out|caches?|cached|caching|cacheable|can\s+cache|"
+    r"chooses?|chosen|activates?|activated|rolls?\s+out|caches?|cached|caching|"
+    r"cacheable|can\s+cache|stores?|stored|storing|"
     r"production[-\s]+ready|rollout[-\s]+ready)"
 )
 DIRECT_SEMANTIC_CACHE_ACTION_PATTERN = (
-    r"(?:opened|enabled|activated|approved|selected|cached|cacheable|"
-    r"production[-\s]+ready|rollout[-\s]+ready)"
+    r"(?:opened|enabled|activated|approved|authorized|selected|chosen|cached|"
+    r"cacheable|available|supported|production[-\s]+ready|rollout[-\s]+ready)"
 )
 DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN = (
     r"(?:approved|enabled|authorized|selected|activated|"
     r"active|open|opened|live|production[-\s]+ready|rollout[-\s]+ready)"
+)
+DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN = (
+    rf"(?:{DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN}|implemented|available|supported)"
 )
 NEGATION_PATTERN = (
     r"(?:no|not|never|does\s+not|doesn't|must\s+not|cannot|can't|"
@@ -103,6 +107,10 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "pending current-head merge-cycle claim",
         re.compile(r"\bcurrent[-\s]+head\b.*\bstill\s+pending\b", re.I),
+    ),
+    (
+        "required-checks pending claim",
+        re.compile(r"\brequired\s+checks\s+(?:are\s+)?still\s+pending\b", re.I),
     ),
     (
         "PR-A7 stale active/pending closeout claim",
@@ -131,7 +139,11 @@ CHECKED_READINESS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ),
     (
         "checked required-checks assertion",
-        re.compile(r"^\s*-\s*\[x\]\s+required\s+checks\b", re.I | re.M),
+        re.compile(r"^\s*-\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
+    ),
+    (
+        "checked CI-green assertion",
+        re.compile(r"^\s*-\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M),
     ),
     (
         "checked review-thread assertion",
@@ -177,6 +189,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b"
             r"(?:\s+(?:serving|runtime|gate))?\s+"
+            r"(?:(?:is|has\s+been|now)\s+)?"
             rf"\b{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN}\b",
             re.I,
         ),
@@ -237,7 +250,15 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{FORBIDDEN_SURFACE_PATTERN}\b{CLAIM_GAP}\b"
             r"(?:is|has\s+been|now)\s+"
-            r"(?:active|enabled|open|opened|live|production[-\s]+ready|rollout[-\s]+ready)\b",
+            rf"{DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN}\b",
+            re.I,
+        ),
+    ),
+    (
+        "semantic cache stores raw prompt/response/data",
+        re.compile(
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
+            rf"{CLAIM_GAP}\b{RAW_CACHEABLE_PATTERN}\b",
             re.I,
         ),
     ),
