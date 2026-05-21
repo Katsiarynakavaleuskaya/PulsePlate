@@ -412,16 +412,15 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         if slug and (not ordered or ordered[-1] != slug):
             ordered.append(slug)
 
-    add_slug(bridge.get("primary"))
+    primary = bridge.get("primary")
+    if not binding_is_spawnable(primary, default_when_unspecified=True):
+        return []
+    add_slug(primary)
     secondary_items = bridge.get("secondary")
     if isinstance(secondary_items, list):
         for item in secondary_items:
             add_slug(item)
     add_slug(bridge.get("reviewer"))
-    advisory_items = bridge.get("advisory")
-    if isinstance(advisory_items, list):
-        for item in advisory_items:
-            add_slug(item, default_when_unspecified=False)
     if not ordered:
         return []
     if ordered[0] != "agent-coordinator":

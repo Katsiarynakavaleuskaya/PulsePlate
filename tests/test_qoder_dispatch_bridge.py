@@ -278,6 +278,79 @@ def test_parse_task_bootstrap_json_packet_all_no_spawn_returns_no_roles(
     assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
 
 
+def test_parse_task_bootstrap_json_packet_missing_primary_returns_no_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Secondary/reviewer roles cannot replace the required spawnable primary binding."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "secondary": [{"repo_agent_slug": "architecture-specialist"}],
+            "reviewer": {"repo_agent_slug": "security-auditor"},
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
+
+
+def test_parse_task_bootstrap_json_packet_no_spawn_primary_returns_no_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A non-spawnable primary makes the JSON bridge malformed."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {
+                "repo_agent_slug": "agent-coordinator",
+                "dispatch_contract": {
+                    "advisory_only": True,
+                    "spawn_with_native_subagent": False,
+                },
+            },
+            "secondary": [{"repo_agent_slug": "architecture-specialist"}],
+            "reviewer": {"repo_agent_slug": "security-auditor"},
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
+
+
+def test_parse_task_bootstrap_json_packet_never_runs_advisory_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Advisory bridge entries are context-only even if hand-edited as spawnable."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [],
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+            "advisory": [
+                {
+                    "repo_agent_slug": "qa-engineer-agent",
+                    "dispatch_contract": {
+                        "advisory_only": False,
+                        "spawn_with_native_subagent": True,
+                    },
+                }
+            ],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "architecture-specialist",
+    ]
+
+
 def test_parse_packet_roles_rejects_symlink_escape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

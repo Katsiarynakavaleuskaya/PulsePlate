@@ -66,7 +66,8 @@ LANE_START_PACKET_RE = re.compile(r"(?im)^\s*(?:-\s*)?Packet:\s*`?(?P<path>[^`\s
 LANE_STARTER_RE = re.compile(r"(?im)^\s*(?:-\s*)?Starter:\s*`?(?P<path>[^`\s]+)`?\s*$")
 LANE_START_EXCEPTION_RE = re.compile(r"(?im)^\s*(?:-\s*)?Exception:\s*(?P<reason>\S.+?)\s*$")
 FORBIDDEN_PREFLIGHT_AUTHORITY_RE = re.compile(
-    r"(?im)^\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s*:"
+    r"(?im)^\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\b"
+    r"(?![^\n]*(?:is\s+not|not\s+authoritative|must\s+not|cannot|can't))"
 )
 LANE_START_PACKET_PREFIX = "artifacts/orchestration/task_packets/"
 LANE_START_REPO_PACKET_PREFIX = "docs/orchestration/"
