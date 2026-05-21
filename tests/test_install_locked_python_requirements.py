@@ -373,7 +373,7 @@ def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
         artifact["filename"]: (artifact["url"], artifact["sha256"])
         for artifact in installer.emergency_artifacts_requested_by_surfaces(
             requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
-            constraints_file=None,
+            constraints_file=REPO_ROOT / "constraints.txt",
             manifest_path=_repo_emergency_manifest_path(),
         )
     }
