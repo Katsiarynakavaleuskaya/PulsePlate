@@ -1,0 +1,68 @@
+# PR #1792 - Fixed in Commit Mapping (canonical)
+
+## Discussion Thread Pass
+
+Canonical review-governance artifact and PR-body mirror requirements:
+`AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
+`docs/orchestration/AGENTS.md`.
+
+- [ ] Discussion-thread pass completed after CodeRabbit/Sourcery/Cubic and human/bot review.
+- [ ] Fixed in commit mapping completed after all actionable comments are dispositioned.
+
+## Lane Start Provenance
+
+- Packet: `artifacts/orchestration/task_packets/a9d4e8cabcf7.json`
+- Starter: `scripts/orchestration/start_pr_lane.sh`
+- Branch: `codex/ai-recursive-speed-optimization-a8-closeout`
+- Worktree: `worktrees/ai-recursive-speed-optimization-a8-closeout`
+- Coordinator order: `agent-coordinator -> architecture-specialist -> data-scientist-agent -> backend-engineer -> security-auditor -> qa-engineer-agent -> bug-hunter`
+
+## Experiment Runner Evidence
+
+- Artifact: `artifacts/orchestration/experiments/results/exp-f50c8cffdc87.json`
+- Status: `accepted`
+- Oracles:
+  - `python scripts/ci/check_ai_recursive_speed_a8_closeout.py`
+  - `python scripts/ci/check_semantic_cache_gate.py`
+  - focused pytest set
+- Contribution: `oracle_review`
+- Co-author required: yes
+- Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+
+## Fixed in Commit Mapping
+
+No human or bot review threads have been resolved yet.
+
+## Local Validation
+
+- `python3 scripts/orchestration/check_preflight.py` -> passed
+- `python3 scripts/orchestration/check_agent_consistency.py` -> passed
+- `python scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
+- `python scripts/ci/check_semantic_cache_gate.py` -> passed
+- `python scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
+- `python -m pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
+- `python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
+- `make validate-changed` -> passed after the implementation commit
+- `pre-commit run --all-files` -> passed
+
+Full local `make verify` is intentionally deferred per operator-approved machine budget; this PR uses the bounded local bundle plus current-head CI and strict merge-readiness governance.
+
+## Premortem Closure
+
+- Duplicate runtime implementation risk: FIXED by closeout-only docs and guard.
+- Stale A8 active/pending wording risk: FIXED by roadmap/backlog reconciliation and stale-wording regressions.
+- Semantic-cache/runtime wording creep risk: FIXED by forbidden-claim checker and regressions.
+- Benchmark overclaim risk: FIXED by hypothesis/benchmark validation guard.
+- Hook false-positive risk: FIXED by splitting SHA literals instead of adding detect-secrets allowlist comments.
+
+## Merge Readiness
+
+- [ ] Current-head CI is green for latest PR head.
+- [ ] Required checks complete with no pending jobs.
+- [ ] All review threads resolved on GitHub after disposition updates.
+- [ ] No actionable CodeRabbit/Sourcery/Cubic comments remain.
+- [ ] Codex Security threat-model, security-scan, and validation completed after PR open and after the last substantive change.
+- [ ] `check_pr_body_phase2_gates.py` passes.
+- [ ] `check_review_threads_disposition.py --require-auth` passes.
+- [ ] Strict merge-readiness wrapper with auth passes.
+- [ ] Final wait-window completed.
