@@ -8,6 +8,7 @@ parity for coordinator-owned PR lanes.
 ## Implementation Commits
 
 - `190577d0e` - `feat(orchestration): gate experiment runner evidence mode`
+- `10668b0a` - `fix(orchestration): close evidence mode review findings`
 
 ## Discussion Thread Pass
 
@@ -25,12 +26,34 @@ Artifact: artifacts/orchestration/experiments/results/evidence-hard-gate-switch.
 
 Local oracle-only result, gitignored and not committed. Runner mode:
 `oracle_only_governance_reviewer`; `mutated_paths: []`; `promotion_ready: false`;
-`contribution_kind: commit_decision`; `coauthor_required: true`. Commit
-`190577d0e` includes the canonical Experiment Runner co-author trailer.
+`contribution_kind: commit_decision`; `coauthor_required: true`. Commits
+`190577d0e` and `10668b0a` include the canonical Experiment Runner co-author
+trailer.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340694578 -> `10668b0a`
+  - Disposition: FIXED
+  - Commit: `10668b0a`
+  - Evidence: post-open Sourcery review actionables are mapped to the
+    discussion-level fixes below.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313517 -> `10668b0a`
+  - Disposition: FIXED
+  - Commit: `10668b0a`
+  - Evidence: `scripts/ci/check_pr_body_phase2_gates.py` and
+    `scripts/orchestration/check_merge_ready.py` no longer double-normalize
+    `--experiment-runner-evidence-mode` through `argparse type=...` and
+    post-parse validation.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313523 -> `10668b0a`
+  - Disposition: FIXED
+  - Commit: `10668b0a`
+  - Evidence: `tests/test_start_pr_lane.py` stubs now delegate to
+    `sys.executable` instead of hard-coded `/usr/bin/python3`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313533 -> `10668b0a`
+  - Disposition: FIXED
+  - Commit: `10668b0a`
+  - Evidence: `tests/test_local_session_bootstrap.py` covers absolute
+    `VENV_PYTHON` acceptance and confirms `$VENV_PYTHON -m pytest` guidance.
 
 ## Pre-Open Role-Agent Findings
 
