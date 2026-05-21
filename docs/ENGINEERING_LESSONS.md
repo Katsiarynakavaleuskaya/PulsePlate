@@ -220,7 +220,32 @@ Also replace `os.environ` mutation in `setup_method()` with an autouse
 
 ---
 
-## 12) Feature-flag backend routing must have explicit priority + lock-safe lazy init
+## 12) Merged AI/RAG ledger items need closeout, not duplicate implementation
+
+### Problem
+
+AI/RAG roadmap and ledger entries can stay open after the actual runtime PR has
+already merged. If agents follow the stale open checkbox instead of live
+GitHub/repo evidence, they can re-add an already-landed subsystem or widen a
+closeout task into a new implementation PR.
+
+### Real incident (PR-V1 closeout)
+
+The verification registry landed via PR #1491 on 2026-04-22, but the ledger and
+roadmap still described PR-V1 as active work. The correct follow-up was a
+docs/checker/review reconciliation lane, not another `core/verification/*`
+implementation.
+
+### Rule
+
+When a RAG/LLM/semantic-cache ledger item appears open but repo/GitHub evidence
+proves it already merged, convert the task into a closeout/reconciliation PR.
+Update backlog, roadmap, review mapping, and regression guards; do not duplicate
+landed code.
+
+---
+
+## 13) Feature-flag backend routing must have explicit priority + lock-safe lazy init
 
 ### Problem
 
@@ -259,7 +284,7 @@ git grep -n '@patch("app.services.food_store' -- tests/
 
 If any matches remain, convert them to `monkeypatch.setattr()`.
 
-## 13) API schema types must match persisted row types (barcode hit contract)
+## 14) API schema types must match persisted row types (barcode hit contract)
 
 ### Problem
 Endpoint handlers that construct `FoodItem(**row)` can fail at runtime if DB columns store
@@ -287,7 +312,7 @@ Before exposing DB rows directly through strict Pydantic models:
 - Keep migration/seed contracts aligned with API schema types
 - Verify with endpoint-level tests, not only unit repository tests
 
-## 14) After merge, never continue work on the same PR branch
+## 15) After merge, never continue work on the same PR branch
 
 ### Problem
 Continuing commits on a branch after PR merge creates ambiguity:
@@ -305,7 +330,7 @@ Once PR state is `MERGED`:
 - `gh pr view <N> --json state,mergeCommit,mergedAt`
 - if `state=MERGED`, do not push further commits to that branch
 
-## 15) Local-first ingest scripts must fail-closed on empty normalized payload
+## 16) Local-first ingest scripts must fail-closed on empty normalized payload
 
 ### Problem
 CSV ingestion can report "success" even when alias mapping drops required fields,
@@ -318,7 +343,7 @@ For operational import scripts (MenuStat-style and similar):
 3. fail with non-zero exit code when no valid rows remain after normalization
 4. keep a deterministic sample CSV + end-to-end script test in-repo
 
-## 16) Subprocess-backed determinism tests must expose failure diagnostics
+## 17) Subprocess-backed determinism tests must expose failure diagnostics
 
 ### Problem
 When tests call shell pipelines (for example `make openapi`) and fully suppress
@@ -341,7 +366,7 @@ For subprocess-based deterministic tests:
 - clear failure messages with command, exit code, and log tails
 - deterministic assertions remain strict after command succeeds
 
-## 17) Natural-language AI/RAG/cache governance needs one source of truth
+## 18) Natural-language AI/RAG/cache governance needs one source of truth
 
 ### Problem
 Governance PRs for AI, RAG, linguistics, philosophy admission, and semantic-cache
@@ -375,7 +400,7 @@ For natural-language policy or claim guards:
 
 ---
 
-## 18) Verify merged state before cherry-picking long-lived branches (conflict prevention)
+## 19) Verify merged state before cherry-picking long-lived branches (conflict prevention)
 
 ### Problem
 Cherry-picking older feature branch commits after partial upstream merges can create avoidable
@@ -395,7 +420,7 @@ Before cherry-picking:
 
 ---
 
-## 19) Enforce kcal upper bounds at API response boundaries (property-test hardening)
+## 20) Enforce kcal upper bounds at API response boundaries (property-test hardening)
 
 ### Problem
 Hypothesis can discover extreme valid profiles where generated `plate`/`targets`

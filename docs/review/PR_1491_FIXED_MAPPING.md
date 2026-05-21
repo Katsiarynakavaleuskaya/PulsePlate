@@ -49,21 +49,17 @@ Disposition: NOT-A-BUG
 Evidence: `AGENTS.md:317-323` and `docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md:21-32` define this lane as fail-closed knowledge admission from validated RAG evidence only; `core/verification/registry.py:248-255` intentionally marks recursive execution as non-canonical for `write` admission in PR-V1, so the review's recursive hard-deny concern is expected behavior, not a regression. The duplicated test helper note is advisory cleanup, not a correctness blocker for this bounded lane.
 Reason: PR-V1 deliberately keeps recursive paths non-canonical and does not widen the lane into cross-suite test-helper refactors.
 
-## Merge Readiness
+## Post-Merge Closeout
 
-Merge-readiness contract:
-`AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
-`docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
-
-- [ ] Current-head CI is green for PR branch head
-  Evidence: current head needs one final current-head CI pass after the latest CodeRabbit follow-up remediation and mapping refresh commits.
-- [ ] Required checks complete (no pending jobs)
-  Evidence: current head is still waiting on the post-fix CI rerun and review refresh.
-- [ ] All review threads resolved on GitHub after disposition updates
-  Evidence: latest CodeRabbit threads were resolved on GitHub after the remediation pushes; re-check on current head remains mandatory before merge.
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-  Evidence: current actionable CodeRabbit and Sourcery review URLs are mapped above; re-check after bot re-review for any newly posted findings.
-- [ ] Pre-commit green on latest pushed head
-  Evidence: `pre-commit run --all-files` passed on the remediation head before this mapping update.
-- [ ] `make verify` green on latest pushed head
-  Evidence: full uninterrupted local `make verify` remains constrained by external session termination during coverage sweep; branch-scoped changed-line diff-cover proof passed at 100%, and GitHub current-head CI remains the heavy gate for this draft PR.
+- State: `MERGED`
+- PR #1491 merged at `2026-04-22T10:38:04Z`
+- Merge commit: `ce024e7cdca3ec94bbffb095e050010a8198e792`
+- Original branch: `codex/ai-verification-registry-v1`
+- Closeout scope: PR-V1 is not re-opened and `core/verification/*`
+  implementation is not duplicated.
+- Boundary: semantic-cache gate remained closed; Redis/GPTCache, GraphRAG,
+  ContextManifest, DB persistence, route/OpenAPI/DTO changes, and cache/action
+  runtime enablement were not part of PR #1491.
+- Reconciliation: the current closeout PR replaces the stale unchecked
+  pre-merge readiness notes above with merged-state evidence while preserving
+  the original review-thread dispositions.
