@@ -413,6 +413,8 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
             ordered.append(slug)
 
     primary = bridge.get("primary")
+    if not isinstance(primary, dict):
+        return []
     if not binding_is_spawnable(primary, default_when_unspecified=True):
         return []
     if not str(primary.get("repo_agent_slug", "")).strip():
