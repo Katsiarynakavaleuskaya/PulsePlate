@@ -34,6 +34,9 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - Post-bug-hunter artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-bughunter.json`
 - Post-bug-hunter status: `accepted`
 - Post-bug-hunter contribution: validation-only (`coauthor_required: false`, no content changes shaped)
+- Post-security artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-security.json`
+- Post-security status: `accepted`
+- Post-security contribution: validation-only (`coauthor_required: false`, no content changes shaped)
 
 ## Fixed in Commit Mapping
 
@@ -132,6 +135,20 @@ Post-open bug-hunter found wrapped-claim and activation-phrase checker gaps.
 Disposition: FIXED
 Commit: a581ea60b
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py` now covers wrapped stale wording, wrapped runtime expansion, wrapped benchmark overclaim, progressive activation phrases, public API wording, and negated active-lane wording; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_repo_policy_guards.py` passed.
+
+Post-open security-auditor found review-governance proof, section-local A8 wording, active-docs evidence, and landed-symbol proof gaps.
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py` now validates active docs separately, uses AST symbols for landed proof, and applies PR-A8 section context to stale/runtime/benchmark checks; `tests/test_ai_recursive_speed_a8_closeout.py` includes the corresponding regressions.
+
+Post-open security-auditor required explicit bare-A8 runtime wording coverage.
+Disposition: FIXED
+Commit: f85f1ea22
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_bare_a8_runtime_expansion_claim` covers `A8 enables semantic cache by default`.
+
+Codex Security diff-scoped scan after the last substantive change.
+Disposition: FIXED
+Evidence: `/tmp/codex-security-scans/ai-recursive-speed-optimization-a8-closeout/1dd4b2eba_20260521T220121Z/report.md` records threat-model, finding-discovery, validation, and attack-path phases with no reportable security finding after fixes.
 
 ## Local Validation
 
