@@ -2133,9 +2133,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`) -> PR #1743 (PR14: `feat(food-data): add recipe dish corpus governance gate`) -> PR #1747 (PR15: `feat(food-data): add preference recipe mapping contract`) -> PR #1768 (PR16: `feat(food-data): close preference recipe mapping review`) -> PR #1771 (PR17: `feat(food-data): add regional catalog identity license gate`)
-  - Status: 🚧 Active PR17 regional catalog identity/license review lane
-    - Merged: PR1 planning baseline (`#1513`), PR2 tooling baseline (`#1517`), PR3 lineage hardening (`#1532`), PR4 collision policy (`#1531`), PR5 source-onboarding gate (`#1559`), PR6 USDA manifest preflight (`#1563`), PR7 Open Food Facts manifest preflight (`#1572`), PR8 JPTN identity/license gate (`#1577`), PR9 MenuStat replacement gate (`#1590`), PR10 MenuStat source decision (`#1597`), PR11 coverage/source-gap audit (`#1601`), PR12 chain public nutrition governance (`#1609`), PR13 per-chain legal / anti-scraping review (`#1613`), PR14 recipe/dish corpus governance (`#1743`), PR15 preference recipe mapping contract (`#1747`), and PR16 preference recipe mapping closeout (`#1768`)
+  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`) -> PR #1743 (PR14: `feat(food-data): add recipe dish corpus governance gate`) -> PR #1747 (PR15: `feat(food-data): add preference recipe mapping contract`) -> PR #1768 (PR16: `feat(food-data): close preference recipe mapping review`) -> PR #1771 (PR17: `feat(food-data): add regional catalog identity license gate`) -> PR18 (regional catalog provider terms matrix)
+  - Status: 🚧 Active PR18 regional catalog provider terms matrix lane
+    - Merged: PR1 planning baseline (`#1513`), PR2 tooling baseline (`#1517`), PR3 lineage hardening (`#1532`), PR4 collision policy (`#1531`), PR5 source-onboarding gate (`#1559`), PR6 USDA manifest preflight (`#1563`), PR7 Open Food Facts manifest preflight (`#1572`), PR8 JPTN identity/license gate (`#1577`), PR9 MenuStat replacement gate (`#1590`), PR10 MenuStat source decision (`#1597`), PR11 coverage/source-gap audit (`#1601`), PR12 chain public nutrition governance (`#1609`), PR13 per-chain legal / anti-scraping review (`#1613`), PR14 recipe/dish corpus governance (`#1743`), PR15 preference recipe mapping contract (`#1747`), PR16 preference recipe mapping closeout (`#1768`), and PR17 regional catalog identity/license review (`#1771`)
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -2156,6 +2156,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
     - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md`
     - `docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md`
+    - `docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
@@ -2169,6 +2170,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json`
     - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`
     - `docs/architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json`
+    - `docs/architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -2199,6 +2201,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR15 records preference-to-recipe mapping contract governance while keeping preference labels, recipe text, user preference text, LLM output, public chain evidence, Edamam, Spoonacular, and public menu pages non-authoritative; source use, API calls, paid plans, downloads, scraping, caching, redistribution, ingest, DB writes, DigitalOcean Postgres, runtime authority, product display, and nutrition authority remain unapproved
     - PR16 closes out the PR15 preference-to-recipe mapping contract lane, records operator-provided food-source research artifacts as review context only, preserves USDA + Open Food Facts as the budget-first canonical nutrition baseline, keeps paid/API/scraper/provider work deferred, and selects `regional_catalog_identity_license_review` as the next substantive food-data source governance lane
     - PR17 records regional catalog identity/license review candidates for data.europa.eu / national open-data portals, Kroger, Walmart, Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and scraping-style providers as evidence-only; source use, API calls, seller or partner API use, paid plans, downloads, scraping, caching, redistribution, ingest, DB writes, DigitalOcean Postgres, runtime authority, product display, and nutrition authority remain unapproved, with next lane set by the PR17 artifact
+    - PR18 records the PR17 regional catalog candidate set as a provider terms matrix while keeping every candidate review-only; provider use, API calls, seller or partner API access, paid plans, downloads, scraping, cache authority, redistribution, ingest, DB writes, DigitalOcean Postgres, runtime authority, product display, and nutrition authority remain unapproved, with the next lane set to source-specific regional catalog terms review
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
