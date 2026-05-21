@@ -17,23 +17,21 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
 - No GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO,
   provider-side chain/tree-of-thought, or recursive-learning rollout.
 
-## Fixed In Commit Mapping
+## Fixed in Commit Mapping
+
+- No actionable review comments
+
+## Commit Evidence
 
 - Initial implementation: `384f26d7f`
-  - Disposition: FIXED
-  - Evidence:
-    - `docs/roadmap/BACKLOG_LEDGER.md` records PR #1499 W1 landed evidence while
-      keeping the parent P1 checkbox open.
-    - `docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md` records PR-A7
-      W1 landed scope and out-of-scope boundaries.
-    - `docs/review/PR_1499_FIXED_MAPPING.md` adds post-merge closeout evidence
-      and removes stale active readiness wording.
-    - `scripts/ci/check_ai_recursive_methods_w1_closeout.py` adds the
-      stdlib-only fail-closed guard.
-    - `tests/test_ai_recursive_methods_w1_closeout.py` adds regression coverage
-      for stale active truth, parent checkbox closure, semantic-cache marker
-      drift, passive-voice runtime approvals, raw cache-data claims, and
-      historical readiness false-greens.
+  - Evidence: ledger/roadmap/PR #1499 mapping reconciliation plus the
+    stdlib-only checker and regression tests.
+- Post-open governance mapping: `ffa6269a6`
+  - Evidence: adds this PR-numbered mapping artifact.
+- QA Phase 2 mirror and size-governance fix: pending commit in this PR.
+  - Evidence: this update changes the canonical heading to
+    `## Fixed in Commit Mapping`, adds required discussion-thread checkboxes,
+    and the PR body includes `## Split Justification`.
 
 ## Premortem Findings
 
@@ -76,9 +74,12 @@ machine-budget policy; this is not a merge-readiness claim.
 
 ## Discussion Thread Pass
 
-No post-open review threads processed yet. Any CodeRabbit, Sourcery, Cubic,
-Codex Security, QA, bug-hunter, or security-auditor finding will be mapped here
-as FIXED, NOT-A-BUG, or DEFERRED with evidence before resolution.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+Post-open QA findings are mapped in this artifact as FIXED. Any CodeRabbit,
+Sourcery, Cubic, Codex Security, bug-hunter, or security-auditor finding will be
+mapped here as FIXED, NOT-A-BUG, or DEFERRED with evidence before resolution.
 
 ## Merge Readiness
 
