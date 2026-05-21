@@ -41,8 +41,8 @@ Evidence: Closed post-open QA/bug/security findings by moving the PR-4 workflow 
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `python3 tools/graphmap/build_graph.py --out docs/graph/graph.json` plus repeated temp-build SHA match - PASS
 - `python -m pytest -q -p no:cacheprovider tests/test_philosophy_admission_policy_oracle.py tests/test_philosophy_admission_dry_run_report.py tests/test_philosophy_gate_open_preconditions.py tests/test_docs_phase1_gates.py tests/test_ci_workflow_pr_size_governance_contract.py` - PASS
-- `DEV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files` - PASS
+- `DEV_PYTHON=.venv/bin/python VENV_PYTHON=.venv/bin/python make validate-changed` - PASS
+- `PATH=.venv/bin:$PATH pre-commit run --all-files` - PASS
 - Pre-push hooks on branch push - PASS, including mypy, pip-audit, backend tests, full-repo Bandit, and docker build test.
 
 ## Post-Open Review
