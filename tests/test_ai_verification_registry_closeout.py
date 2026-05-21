@@ -226,12 +226,16 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 opened semantic-cache serving.", "PR-V1 opens semantic cache"),
         ("PR-V1 enabled semantic-cache serving.", "PR-V1 enables semantic cache"),
         ("PR-V1 opens semantic‑cache serving.", "PR-V1 opens semantic cache"),
+        ("PR-V1 opens semantic\ncache serving.", "PR-V1 opens semantic cache"),
+        ("PR-\nV1 opens semantic-cache serving.", "PR-V1 opens semantic cache"),
+        ("PR-V1 opens semantic\xa0cache serving.", "PR-V1 opens semantic cache"),
         ("Semantic-cache serving is permitted by PR-V1.", "semantic cache"),
         ("Semantic-cache serving has PR-V1 permission.", "semantic cache"),
         ("Semantic-cache serving is selected by PR-V1.", "semantic cache"),
         ("Semantic-cache serving has PR-V1 selection.", "semantic cache"),
         ("Semantic-cache serving is authorized by PR-V1.", "semantic cache"),
         ("Semantic-cache serving has PR-V1 authorization.", "semantic cache"),
+        ("Semantic-cache serving was opened by PR-V1.", "semantic cache"),
         ("Redis is not only approved for semantic-cache rollout.", "Redis/GPTCache"),
         ("PR-V1 authorizes Redis for semantic-cache rollout.", "PR-V1 approves Redis/GPTCache"),
         ("Redis is authorized for semantic-cache rollout.", "Redis/GPTCache"),
@@ -330,6 +334,10 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
             "PR-V1 approves semantic cache",
         ),
         (
+            "PR-V1 does not permit Redis rollout despite PR-V1 approves semantic-cache serving.",
+            "PR-V1 approves semantic cache",
+        ),
+        (
             "PR-V1 does not permit Redis rollout or PR-V1 approves semantic-cache serving.",
             "PR-V1 approves semantic cache",
         ),
@@ -355,6 +363,10 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         ),
         (
             "PR-V1 does not permit Redis rollout (PR-V1 approves semantic-cache serving).",
+            "PR-V1 approves semantic cache",
+        ),
+        (
+            "PR-V1 does not permit Redis rollout—PR-V1 approves semantic-cache serving.",
             "PR-V1 approves semantic cache",
         ),
         (

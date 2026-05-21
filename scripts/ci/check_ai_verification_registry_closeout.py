@@ -59,7 +59,8 @@ SENSITIVE_CACHE_TERMS = (
 
 SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
 CLAIM_GAP = r"(?:(?!\n\s*(?:[-*]|#))[^.!?])*"
-PR_V1_PATTERN = r"pr[- ]?v1"
+PR_V1_PATTERN = r"pr(?:[-\s]+)?v1"
+SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
 BACKEND_LABEL_PATTERN = r"(?:redis|gpt[-\s]?cache)"
 RAW_PROMPT_PATTERN = r"raw\s+(?:(?:assistant|agent|llm|model|provider|user)\s+)?prompts?"
 RAW_RESPONSE_PATTERN = r"raw\s+(?:(?:assistant|agent|llm|model|provider|user)\s+)?responses?"
@@ -74,6 +75,9 @@ UNICODE_DASH_TRANSLATION = str.maketrans(
         "\u2013": "-",
         "\u2014": "-",
         "\u2212": "-",
+        "\u00a0": " ",
+        "\u2007": " ",
+        "\u202f": " ",
     }
 )
 
@@ -82,7 +86,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "PR-V1 opens semantic cache",
         re.compile(
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\bopen(?:s|ed)?\b"
-            rf"{CLAIM_GAP}\bsemantic[- ]cache\b",
+            rf"{CLAIM_GAP}\b{SEMANTIC_CACHE_PATTERN}\b",
             re.I,
         ),
     ),
@@ -90,15 +94,15 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "PR-V1 enables semantic cache",
         re.compile(
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\benable(?:s|d)?\b"
-            rf"{CLAIM_GAP}\bsemantic[- ]cache\b",
+            rf"{CLAIM_GAP}\b{SEMANTIC_CACHE_PATTERN}\b",
             re.I,
         ),
     ),
     (
         "semantic cache active/open claim",
         re.compile(
-            rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
-            r"(?:active|enabled|open|live|production[- ]ready|approved|approval|"
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
+            r"(?:active|enabled|open|opened|live|production[- ]ready|approved|approval|"
             r"allowed|authorized|authorization|permitted|permission|selected|selection)\b",
             re.I,
         ),
@@ -107,7 +111,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "PR-V1 makes semantic cache production ready",
         re.compile(
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b(?:makes?|marks?)\b{CLAIM_GAP}"
-            rf"\bsemantic[- ]cache\b{CLAIM_GAP}\bproduction[- ]ready\b",
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\bproduction[- ]ready\b",
             re.I,
         ),
     ),
@@ -118,7 +122,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
             r"(?:approves?|approved|allows?|allowed|permits?|permitted|"
             r"selects?|selected|authorizes?|authorized|approval|authorization|"
             r"permission|grants?\s+(?:authorization|permission))"
-            rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
+            rf"\b{CLAIM_GAP}\b{SEMANTIC_CACHE_PATTERN}\b",
             re.I,
         ),
     ),
@@ -126,7 +130,7 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "semantic cache serving approval verb",
         re.compile(
             r"\b(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))"
-            rf"\b{CLAIM_GAP}\bsemantic[- ]cache\b",
+            rf"\b{CLAIM_GAP}\b{SEMANTIC_CACHE_PATTERN}\b",
             re.I,
         ),
     ),
@@ -225,30 +229,30 @@ NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
         rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
         rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|authorize|permit|select|grant\s+(?:authorization|permission))\b"
-        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|{BACKEND_LABEL_PATTERN})\b",
+        rf"{CLAIM_GAP}\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
         r"\b(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
         rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|authorize|permit|select|grant\s+(?:authorization|permission))\b"
-        rf"{CLAIM_GAP}\b(?:semantic[- ]cache|{BACKEND_LABEL_PATTERN})\b",
+        rf"{CLAIM_GAP}\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
-        rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b"
+        rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
         r"lacks?|without|not(?!\s+only))\b"
-        rf"{CLAIM_GAP}\b(?:active|enabled|open|live|production[- ]ready|approved|"
+        rf"{CLAIM_GAP}\b(?:active|enabled|open|opened|live|production[- ]ready|approved|"
         r"allowed|authorized|permitted|approval|authorization|permission|selected|selection)\b",
         re.I,
     ),
     re.compile(
-        rf"\bsemantic[- ]cache\b{CLAIM_GAP}\b(?:has|requires)?\s*no\b"
+        rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b(?:has|requires)?\s*no\b"
         rf"{CLAIM_GAP}\b(?:approval|permission)\b",
         re.I,
     ),
     re.compile(
-        rf"\bnot\s+(?:a\s+)?semantic[- ]cache\b{CLAIM_GAP}\b"
+        rf"\bnot\s+(?:a\s+)?{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:rollout|activation|approval|permission|backend[- ]selection\s+approval)\b",
         re.I,
     ),
@@ -357,8 +361,9 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
 
 
 CLAUSE_BOUNDARY_RE = re.compile(
-    rf",|;|:|\(|\)|\s+-\s+|"
-    r"\b(?:and|as|because|but|however|if|since|so|then|though|although|unless|"
+    rf",|;|:|\(|\)|-\s*(?=(?:{PR_V1_PATTERN}\b|"
+    r"(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))\b))|\b"
+    r"(?:and|as|because|but|despite|however|if|since|so|then|though|although|unless|"
     r"when|whereas|while|yet)\b|"
     rf"\bor\b\s+(?=(?:{PR_V1_PATTERN}\b|"
     r"(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))\b))",
