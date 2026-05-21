@@ -2306,6 +2306,39 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests prove sidecar generation and no threshold/decision drift
     - Docs explain sidecar semantics and limitations
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
+<a id="ledger-p2-mlflow-required-check-integration"></a>
+- [ ] P2: MLflow-backed eval identity integration without required-check drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD (`evals/mlflow-identity-integration`)
+  - Status: Deferred
+  - Area: evals / RAG / release gates / ML identity
+  - Finding Type: external eval-source integration risk
+  - Reason (EN): The RAG release-gates runner already emits canonical
+    `metrics_summary.json`, `threshold_results`, `release_decision`, and
+    `rag_gate_result.json`. Promoting an external MLflow tracking run directly
+    into a required PR check would introduce secret, network, run-selection, and
+    source-of-truth risk before the repo has an approved tracking URI, retention
+    policy, and deterministic local fallback.
+  - Links:
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `tests/test_rag_release_gates_runner.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+  - DoD:
+    - MLflow integration is optional identity metadata over repo-native
+      `rag_gate_result.json`, not a replacement for `threshold_results` or
+      `release_decision`
+    - An approved tracking URI, secret policy, network/SLA posture, and artifact
+      retention policy are documented before any CI integration
+    - Deterministic local fallback exists and tests prove missing/unreachable
+      MLflow does not block ordinary repo-native eval validation
+    - Required-check status is not enabled until reliability is proven in a
+      non-required lane and branch-protection impact is reviewed
+    - The integration does not open the semantic-cache gate, add runtime
+      `/insight` wiring, require provider calls, or persist raw prompts,
+      responses, user context, secrets, or local paths
 <a id="ledger-p1-judgment-validity-sidecar"></a>
 - [ ] P1: Judgment replay validity sidecar integration
   - Owner: @katsiaryna_kavaleuskaya

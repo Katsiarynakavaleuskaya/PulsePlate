@@ -1601,6 +1601,89 @@ def test_rag_gate_result_schema_declares_all_emitted_fields(tmp_path: Path) -> N
     assert set(schema["required"]).issubset(payload)
 
 
+def test_rag_gate_result_export_keeps_mlflow_identity_optional(tmp_path: Path) -> None:
+    """MLflow identity must not be required for repo-native gate evidence."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "mlflow_optional"
+    run_dir.mkdir(parents=True)
+    metrics_path = run_dir / "metrics_summary.json"
+    metrics_path.write_text("{}", encoding="utf-8")
+    state = _make_release_gate_state(tmp_path, experiment_id="mlflow_optional")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+
+    payload = runner.build_rag_gate_result_export(
+        {**metrics_summary, "mlflow_run_id": "", "model_version": ""},
+        {"metrics_summary": str(metrics_path)},
+        run_dir=run_dir,
+    )
+    schema = json.loads(
+        Path("docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json").read_text(encoding="utf-8")
+    )
+
+    assert "mlflow_run_id" not in schema["required"]
+    assert "model_version" not in schema["required"]
+    assert "mlflow_run_id" not in payload
+    assert "model_version" not in payload
+    assert payload["release_decision"] == metrics_summary["release_decision"]
+    assert payload["threshold_results"] == metrics_summary["threshold_results"]
+
+
+def test_rag_gate_result_export_emits_supplied_mlflow_identity(tmp_path: Path) -> None:
+    """Non-empty MLflow identity is copied as metadata without changing gates."""
+
+    run_dir = tmp_path / "artifacts" / "rag_eval" / "mlflow_identity"
+    run_dir.mkdir(parents=True)
+    metrics_path = run_dir / "metrics_summary.json"
+    metrics_path.write_text("{}", encoding="utf-8")
+    state = _make_release_gate_state(tmp_path, experiment_id="mlflow_identity")
+    metrics_summary, _, _ = runner.build_metrics_summary(
+        state,
+        _passing_release_gate_traces(),
+        {"ece": 0.05},
+        dataset_fallback_used=False,
+        dataset_path_used="data/evals/pulseplate_rag_eval_sample.jsonl",
+    )
+    identity_summary = {
+        **metrics_summary,
+        "mlflow_run_id": "mlflow-run-scg4-control",
+        "model_version": "rag-gate-v1",
+    }
+
+    baseline_payload = runner.build_rag_gate_result_export(
+        metrics_summary,
+        {"metrics_summary": str(metrics_path)},
+        run_dir=run_dir,
+    )
+    payload = runner.build_rag_gate_result_export(
+        identity_summary,
+        {"metrics_summary": str(metrics_path)},
+        run_dir=run_dir,
+    )
+    schema = json.loads(
+        Path("docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json").read_text(encoding="utf-8")
+    )
+
+    assert schema["properties"]["mlflow_run_id"]["type"] == "string"
+    assert schema["properties"]["mlflow_run_id"]["minLength"] == 1
+    assert schema["properties"]["model_version"]["type"] == "string"
+    assert schema["properties"]["model_version"]["minLength"] == 1
+    assert set(payload).issubset(schema["properties"])
+    assert set(schema["required"]).issubset(payload)
+    assert payload["mlflow_run_id"] == "mlflow-run-scg4-control"
+    assert payload["model_version"] == "rag-gate-v1"
+    assert payload["rag_gate_result_hash"] != baseline_payload["rag_gate_result_hash"]
+    assert payload["eval_artifact_hash"] == baseline_payload["eval_artifact_hash"]
+    assert payload["release_decision"] == metrics_summary["release_decision"]
+    assert payload["threshold_results"] == metrics_summary["threshold_results"]
+    assert payload["gate_checks"] == metrics_summary["gate_checks"]
+
+
 def test_rag_gate_result_hash_changes_when_gate_result_changes(tmp_path: Path) -> None:
     """The self-hash must bind the exported gate result, not just artifacts."""
 
