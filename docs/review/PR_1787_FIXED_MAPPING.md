@@ -21,7 +21,7 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, and historical-readiness checkbox checks; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
+Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, historical-readiness checkbox checks, last-action negation binding, trailing blocker phrases, direct forbidden-surface approvals, and terse semantic-cache activation claims; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280833326 -> b4809f7e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856839 -> a8f18ade4
@@ -32,6 +32,17 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919743 -> 2d1f43929
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919750 -> 2d1f43929
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919753 -> 2d1f43929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993841 -> fd5da8b1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993848 -> fd5da8b1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993856 -> fd5da8b1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993862 -> fd5da8b1f
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_ai_recursive_methods_w1_closeout.py` already normalized raw-cache action line breaks and rejected checked historical `pre-commit` / `make verify` boxes on the current branch before the stale review comment was emitted; `tests/test_ai_recursive_methods_w1_closeout.py` covers `PR-A7 allows\nraw responses.`, `- [x] Pre-commit green on latest pushed head`, and `- [x] make verify green on latest pushed head`.
+Reason: These two Codex review comments were generated against stale reviewed commit `4fc72f007c`; the current head already contained the requested guard/test behavior via `2d1f43929`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993866
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993873
 
 ## Commit Evidence
 
@@ -50,6 +61,10 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - Security-auditor guard false-negative fix: `2d1f43929`
   - Evidence: closes raw-cache newline, `without` negation, stale active-state,
     broader forbidden-surface, and checked local-readiness false negatives.
+- Codex review guard false-negative/false-positive fix: `fd5da8b1f`
+  - Evidence: closes last-action negation binding, direct forbidden-surface
+    approval claims, terse semantic-cache activation claims, and trailing
+    blocker phrases such as raw prompt/response caching remains blocked.
 
 ## Premortem Findings
 
