@@ -84,13 +84,11 @@ SENSITIVE_CACHE_TERMS = (
 )
 
 SENSITIVE_CACHE_TERM_PATTERN = r"(?:{})".format("|".join(SENSITIVE_CACHE_TERMS))
-CLAIM_GAP = r"(?:(?!\n\s*(?:[-*]|#))[^.!?])*"
+CLAIM_GAP = r"[^.!?\n]*"
 PR_V1_PATTERN = r"pr(?:[-\s]+)?v1"
 SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
 BACKEND_LABEL_PATTERN = r"(?:redis|gpt[-\s]?cache)"
-SEMANTIC_CACHE_CONTEXT_PATTERN = (
-    r"(?:serving|runtime|rollout|activation|gate|backend|backend[-\s]+selection|" r"implementation)"
-)
+SEMANTIC_CACHE_CONTEXT_PATTERN = r"(?:serving|runtime|rollout|activation|gate|implementation)"
 SEMANTIC_CACHE_STATUS_PATTERN = r"(?:active|enabled|live|production[-\s]+ready|rollout[-\s]+ready)"
 SEMANTIC_CACHE_APPROVAL_STATUS_PATTERN = (
     r"(?:approved|approval|allowed|authorized|authorization|permitted|permission|"
@@ -115,6 +113,9 @@ RAW_PROMPT_PATTERN = r"raw\s+(?:(?:assistant|agent|llm|model|provider|user)\s+)?
 RAW_RESPONSE_PATTERN = r"raw\s+(?:(?:assistant|agent|llm|model|provider|user)\s+)?responses?"
 RAW_CACHEABLE_PATTERN = (
     rf"(?:{RAW_PROMPT_PATTERN}|{RAW_RESPONSE_PATTERN}|raw\s+{SENSITIVE_CACHE_TERM_PATTERN})"
+)
+SEMANTIC_CACHE_LINE_WRAP_TARGET_PATTERN = (
+    rf"(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_LABEL_PATTERN}|{RAW_CACHEABLE_PATTERN})"
 )
 UNICODE_DASH_TRANSLATION = str.maketrans(
     {
@@ -363,7 +364,21 @@ def _read_text(path: Path) -> str:
 
 
 def _normalize_claim_text(text: str) -> str:
-    return text.translate(UNICODE_DASH_TRANSLATION)
+    text = text.translate(UNICODE_DASH_TRANSLATION)
+    text = re.sub(r"\bpr\s*-\s*\n\s*v1\b", "PR-V1", text, flags=re.I)
+    text = re.sub(r"\bsemantic\s*\n\s*cache\b", "semantic-cache", text, flags=re.I)
+    soft_wrap_actions = (
+        r"open(?:s|ed)?|enable(?:s|d)?|approve(?:s|d)?|allow(?:s|ed)?|"
+        r"permit(?:s|ted)?|authorize(?:s|d)?|select(?:s|ed)?|"
+        r"grant(?:s|ed)?\s+(?:authorization|permission)|makes?|marks?|"
+        r"cache(?:s|d)?|cacheable|can\s+cache|caching"
+    )
+    return re.sub(
+        rf"\b({soft_wrap_actions})\b[ \t]*\n[ \t]*(?=\b{SEMANTIC_CACHE_LINE_WRAP_TARGET_PATTERN}\b)",
+        r"\1 ",
+        text,
+        flags=re.I,
+    )
 
 
 def _section_after_anchor(text: str, *, anchor: str, next_anchor: str = "\n<a id=") -> str:
@@ -440,9 +455,9 @@ APPROVAL_FOLLOWUP_LOOKAHEAD = (
 )
 
 CLAUSE_BOUNDARY_RE = re.compile(
-    rf",|;|:|\(|\)|-\s*(?=(?:{PR_V1_PATTERN}\b|{APPROVAL_BOUNDARY_PATTERN}\b))|\b"
+    rf",|;|:|/|\||\(|\)|-\s*(?=(?:{PR_V1_PATTERN}\b|{APPROVAL_BOUNDARY_PATTERN}\b))|\b"
     rf"(?:and|as|because|but|despite|however|if|since|so|then|though|although|"
-    rf"unless|when|whereas|while|yet)\b\s*{APPROVAL_FOLLOWUP_LOOKAHEAD}|"
+    rf"therefore|thus|hence|unless|when|whereas|while|yet)\b\s*{APPROVAL_FOLLOWUP_LOOKAHEAD}|"
     rf"\bor\b\s+{APPROVAL_FOLLOWUP_LOOKAHEAD}",
     re.I,
 )
