@@ -75,6 +75,7 @@ CODECOV_ACTION_NODE24_SHA = "".join(
         "3de2",
     )
 )
+PYTHON_TEST_JOB_NAMES = ("test-pr", "test-feature", "test-main")
 OLD_DOWNLOAD_ARTIFACT_SHA = "".join(
     (
         "fa0a",
@@ -786,3 +787,24 @@ def test_main_branch_python_sharded_runner_preserves_required_check_policy() -> 
     assert "PYTEST_XDIST_ARGS=(-n 4 --dist=loadscope)" in default_block
     assert "PYTEST_XDIST_ARGS=(-p no:xdist)" not in default_block
     assert "PYTEST_XDIST_ARGS=(-n 2 --dist=loadscope)" not in default_block
+
+
+def test_python_test_jobs_install_frontend_dependencies_before_pytest() -> None:
+    workflow = _load_ci_workflow()
+    jobs = workflow["jobs"]
+    assert isinstance(jobs, dict)
+
+    for job_name in PYTHON_TEST_JOB_NAMES:
+        steps = jobs[job_name]["steps"]
+        step_names = [step.get("name") for step in steps]
+        root_index = step_names.index("Install root Node dependencies")
+        frontend_index = step_names.index("Install frontend dependencies")
+        clean_index = step_names.index("Clean Python cache")
+
+        root_step = steps[root_index]
+        frontend_step = steps[frontend_index]
+        assert root_step["uses"] == "./.github/actions/npm-ci-with-retry"
+        assert root_step["with"]["working-directory"] == "."
+        assert frontend_step["uses"] == "./.github/actions/npm-ci-with-retry"
+        assert frontend_step["with"]["working-directory"] == "frontend"
+        assert root_index < frontend_index < clean_index

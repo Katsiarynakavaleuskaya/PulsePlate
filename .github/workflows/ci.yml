@@ -555,7 +555,14 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install root Node dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: .
+
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -804,7 +811,14 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install root Node dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: .
+
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
@@ -1103,7 +1117,14 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install root Node dependencies
-        run: npm ci
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: .
+
+      - name: Install frontend dependencies
+        uses: ./.github/actions/npm-ci-with-retry
+        with:
+          working-directory: frontend
 
       - name: Clean Python cache
         uses: ./.github/actions/clean-python-cache
