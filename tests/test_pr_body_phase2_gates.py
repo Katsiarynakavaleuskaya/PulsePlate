@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import subprocess
@@ -564,6 +565,30 @@ def test_git_commit_messages_falls_back_when_primary_range_is_unavailable() -> N
 def test_git_commit_messages_does_not_fallback_by_default() -> None:
     assert gates._git_commit_messages("refs/heads/definitely-missing..HEAD") is None
 
+
+
+
+def test_git_commit_messages_passes_end_of_options_separator(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: list[str] = []
+
+    class _Completed:
+        returncode = 0
+        stdout = "ok"
+
+    def _fake_run(argv, **_kwargs):
+        captured.extend(argv)
+        return _Completed()
+
+    monkeypatch.setattr(gates.shutil, "which", lambda _binary: "/usr/bin/git")
+    monkeypatch.setattr(gates.subprocess, "run", _fake_run)
+
+    assert gates._git_commit_messages("HEAD") == "ok"
+    assert "--" in captured
+
+
+def test_commit_range_arg_rejects_git_option_like_input() -> None:
+    with pytest.raises(argparse.ArgumentTypeError):
+        gates._validate_git_commit_range_arg("--output=/tmp/pwned", arg_name="--commit-range")
 
 def test_git_commit_messages_returns_none_when_git_unavailable(
     monkeypatch: pytest.MonkeyPatch,
