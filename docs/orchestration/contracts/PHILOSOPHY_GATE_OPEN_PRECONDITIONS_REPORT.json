@@ -144,6 +144,7 @@
     "core/ai/**",
     "core/insight/**",
     "core/knowledge/**",
+    "core/rag/**",
     "core/verification/**",
     "core/evidence/**",
     "legacy_app.py",

@@ -30,6 +30,8 @@ def _copy_gate_open_precondition_companions(
         if relpath in skipped:
             continue
         source = REPO_ROOT / relpath
+        if not source.exists():
+            continue
         destination = tmp_path / relpath
         destination.parent.mkdir(parents=True, exist_ok=True)
         destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
@@ -530,3 +532,41 @@ def test_phase1_guard_validates_philosophy_gate_open_preconditions_schema_only_e
         "gate-open preconditions schema const missing for runtime_allowed" in error
         for error in errors
     )
+
+
+def test_phase1_guard_validates_philosophy_gate_open_preconditions_for_alignment_schema(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_report = gates.REPO_ROOT / gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT
+    source_schema = gates.REPO_ROOT / gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA
+    source_policy = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY
+    source_policy_schema = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA
+    source_oracle = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE
+    source_dry_run = gates.REPO_ROOT / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT
+    source_dry_run_schema = gates.REPO_ROOT / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA
+    source_roadmap = gates.REPO_ROOT / gates.SEMANTIC_CACHE_GATE_DOC
+    source_ledger = gates.REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
+    targets = {
+        gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT: source_report,
+        gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA: source_schema,
+        gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY: source_policy,
+        gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA: source_policy_schema,
+        gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE: source_oracle,
+        gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT: source_dry_run,
+        gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA: source_dry_run_schema,
+        gates.SEMANTIC_CACHE_GATE_DOC: source_roadmap,
+        "docs/roadmap/BACKLOG_LEDGER.md": source_ledger,
+    }
+    for relpath, source in targets.items():
+        destination = tmp_path / relpath
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+    alignment_schema = tmp_path / gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA
+    alignment_schema.parent.mkdir(parents=True, exist_ok=True)
+    alignment_schema.write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA])
+
+    assert any("gate-open preconditions report drift" in error for error in errors)

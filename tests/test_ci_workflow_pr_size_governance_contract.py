@@ -260,6 +260,9 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json" in docs_phase1_section
+    )
+    assert (
         "'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json'"
         in docs_phase1_section
     )
@@ -268,7 +271,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
-        'if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
+        'if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
         in docs_phase1_section
     )
     assert (

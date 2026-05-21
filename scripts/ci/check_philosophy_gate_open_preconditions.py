@@ -6,6 +6,8 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
+import posixpath
 import re
 import sys
 
@@ -125,6 +127,13 @@ RUNTIME_PREREQUISITES: tuple[tuple[str, str, str], ...] = (
         "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates",
     ),
 )
+RUNTIME_PREREQUISITE_ANCHORS = tuple(anchor for _id, _label, anchor in RUNTIME_PREREQUISITES)
+REQUIRED_REASON_CODES = (
+    "semantic_cache_gate_closed",
+    "runtime_prerequisites_not_verified",
+    "dedicated_gate_open_pr_absent",
+    "alignment_rule_schema_predecessor_pending",
+)
 EXPECTED_STATUS_BY_ID = {
     "pr2_policy_oracle_current": "source_current",
     "pr3_dry_run_current": "source_current",
@@ -141,6 +150,7 @@ FORBIDDEN_RUNTIME_PATHS = (
     "core/ai/**",
     "core/insight/**",
     "core/knowledge/**",
+    "core/rag/**",
     "core/verification/**",
     "core/evidence/**",
     "legacy_app.py",
@@ -150,6 +160,22 @@ FORBIDDEN_RUNTIME_PATHS = (
     "ios/**",
     "alembic/**",
     "openapi/**",
+)
+
+ALIGNMENT_SCHEMA_CONSTRAINT_KEYS = (
+    "$ref",
+    "allOf",
+    "anyOf",
+    "const",
+    "enum",
+    "format",
+    "items",
+    "maximum",
+    "minimum",
+    "oneOf",
+    "pattern",
+    "properties",
+    "type",
 )
 
 
@@ -204,6 +230,29 @@ def _matches_forbidden_runtime_path(path: str) -> str | None:
         elif path == pattern:
             return pattern
     return None
+
+
+def _normalize_touched_path(raw_path: str) -> tuple[str | None, str | None]:
+    path = raw_path.strip().replace("\\", "/")
+    if not path:
+        return None, "empty changed path is not allowed"
+    candidate = Path(path)
+    if candidate.is_absolute():
+        try:
+            repo_relative = candidate.resolve(strict=False).relative_to(
+                REPO_ROOT.resolve(strict=False)
+            )
+        except ValueError:
+            return None, f"changed path is outside repo: {raw_path}"
+        path = repo_relative.as_posix()
+
+    normalized = PurePosixPath(posixpath.normpath(path))
+    normalized_path = normalized.as_posix()
+    if normalized_path == ".":
+        return None, f"changed path does not identify a file: {raw_path}"
+    if normalized_path.startswith("../") or normalized_path == "..":
+        return None, f"changed path escapes repo root: {raw_path}"
+    return normalized_path, None
 
 
 def _roadmap_markers(roadmap_text: str) -> dict[str, str]:
@@ -290,17 +339,39 @@ def _alignment_schema_errors(alignment_rule_schema: Path) -> list[str]:
     if not property_errors:
         for key in sorted(required_keys - set(properties)):
             errors.append(f"alignment rule schema property missing: {key}")
+        for key in sorted(required_keys & set(properties)):
+            property_schema = properties.get(key)
+            if not isinstance(property_schema, dict):
+                errors.append(f"alignment rule schema property {key} must be an object")
+                continue
+            if not property_schema:
+                errors.append(f"alignment rule schema property {key} must not be empty")
+                continue
+            if not any(
+                schema_key in property_schema for schema_key in ALIGNMENT_SCHEMA_CONSTRAINT_KEYS
+            ):
+                errors.append(
+                    f"alignment rule schema property {key} must declare a schema constraint"
+                )
     return errors
 
 
 def validate_touched_paths(paths: list[str]) -> list[str]:
     errors: list[str] = []
-    for path in paths:
+    for raw_path in paths:
+        path, normalize_error = _normalize_touched_path(raw_path)
+        if normalize_error:
+            errors.append(
+                f"philosophy gate-open preconditions invalid changed path: {normalize_error}"
+            )
+            continue
+        if path is None:
+            continue
         matched = _matches_forbidden_runtime_path(path)
         if matched:
             errors.append(
-                f"philosophy gate-open preconditions forbids runtime path {path} "
-                f"(matches {matched})"
+                f"philosophy gate-open preconditions forbids runtime path {raw_path} "
+                f"(normalized {path}, matches {matched})"
             )
     return errors
 
@@ -405,11 +476,7 @@ def generate_philosophy_gate_open_preconditions_report(
     ledger_anchor_present = {
         anchor: anchor in ledger_text for _precondition_id, _label, anchor in RUNTIME_PREREQUISITES
     }
-    reason_codes = [
-        "semantic_cache_gate_closed",
-        "runtime_prerequisites_not_verified",
-        "dedicated_gate_open_pr_absent",
-    ]
+    reason_codes = list(REQUIRED_REASON_CODES[:3])
     if any(item["id"] == "pr1789_alignment_rule_schema_landed" for item in blocking):
         reason_codes.append("alignment_rule_schema_predecessor_pending")
     return {
@@ -582,6 +649,62 @@ def _validate_report_schema(*, schema: object, report: dict[str, object]) -> lis
                 "philosophy gate-open preconditions schema const missing for "
                 "preconditions.required_for_gate_open"
             )
+    if not isinstance(preconditions_spec, dict):
+        errors.append("philosophy gate-open preconditions schema missing preconditions spec")
+    else:
+        if preconditions_spec.get("minItems") != len(PREREQUISITE_IDS):
+            errors.append("philosophy gate-open preconditions schema minItems mismatch")
+        if preconditions_spec.get("maxItems") != len(PREREQUISITE_IDS):
+            errors.append("philosophy gate-open preconditions schema maxItems mismatch")
+        prefix_items = preconditions_spec.get("prefixItems")
+        if not isinstance(prefix_items, list) or len(prefix_items) != len(PREREQUISITE_IDS):
+            errors.append("philosophy gate-open preconditions schema prefixItems id count mismatch")
+        else:
+            for expected_id, prefix_spec in zip(PREREQUISITE_IDS, prefix_items, strict=True):
+                if not isinstance(prefix_spec, dict):
+                    errors.append(
+                        "philosophy gate-open preconditions schema prefixItems entry "
+                        f"missing for {expected_id}"
+                    )
+                    continue
+                prefix_properties = prefix_spec.get("properties")
+                if not isinstance(prefix_properties, dict):
+                    errors.append(
+                        "philosophy gate-open preconditions schema prefixItems properties "
+                        f"missing for {expected_id}"
+                    )
+                    continue
+                id_spec = prefix_properties.get("id")
+                if not isinstance(id_spec, dict) or id_spec.get("const") != expected_id:
+                    errors.append(
+                        "philosophy gate-open preconditions schema prefixItems id const "
+                        f"missing for {expected_id}"
+                    )
+
+    ledger_anchor_spec = properties.get("ledger_anchor_present")
+    if not isinstance(ledger_anchor_spec, dict):
+        errors.append("philosophy gate-open preconditions schema missing ledger anchor spec")
+    else:
+        if ledger_anchor_spec.get("additionalProperties") is not False:
+            errors.append(
+                "philosophy gate-open preconditions schema ledger anchors must reject extras"
+            )
+        ledger_required = ledger_anchor_spec.get("required")
+        if not isinstance(ledger_required, list) or set(ledger_required) != set(
+            RUNTIME_PREREQUISITE_ANCHORS
+        ):
+            errors.append("philosophy gate-open preconditions schema ledger required mismatch")
+        ledger_properties = ledger_anchor_spec.get("properties")
+        if not isinstance(ledger_properties, dict) or set(ledger_properties) != set(
+            RUNTIME_PREREQUISITE_ANCHORS
+        ):
+            errors.append("philosophy gate-open preconditions schema ledger properties mismatch")
+        elif not all(
+            isinstance(ledger_properties.get(anchor), dict)
+            and ledger_properties[anchor].get("const") is True
+            for anchor in RUNTIME_PREREQUISITE_ANCHORS
+        ):
+            errors.append("philosophy gate-open preconditions schema ledger const mismatch")
     decision = properties.get("handoff_decision")
     decision_properties = decision.get("properties") if isinstance(decision, dict) else None
     if not isinstance(decision_properties, dict):
@@ -600,6 +723,34 @@ def _validate_report_schema(*, schema: object, report: dict[str, object]) -> lis
                 errors.append(
                     "philosophy gate-open preconditions schema const missing for "
                     f"handoff_decision.{key}"
+                )
+        reason_codes = decision_properties.get("reason_codes")
+        if not isinstance(reason_codes, dict):
+            errors.append("philosophy gate-open preconditions schema missing reason_codes spec")
+        else:
+            if reason_codes.get("minItems") != len(REQUIRED_REASON_CODES):
+                errors.append(
+                    "philosophy gate-open preconditions schema reason code minItems mismatch"
+                )
+            if reason_codes.get("uniqueItems") is not True:
+                errors.append(
+                    "philosophy gate-open preconditions schema reason codes must be unique"
+                )
+            reason_all_of = reason_codes.get("allOf")
+            observed_required_codes: set[str] = set()
+            if isinstance(reason_all_of, list):
+                for entry in reason_all_of:
+                    if not isinstance(entry, dict):
+                        continue
+                    contains = entry.get("contains")
+                    if not isinstance(contains, dict):
+                        continue
+                    code = contains.get("const")
+                    if isinstance(code, str):
+                        observed_required_codes.add(code)
+            if observed_required_codes != set(REQUIRED_REASON_CODES):
+                errors.append(
+                    "philosophy gate-open preconditions schema reason code coverage mismatch"
                 )
     return errors
 

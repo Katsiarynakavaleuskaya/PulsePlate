@@ -103,6 +103,9 @@ PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT = (
 PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.schema.json"
 )
+PHILOSOPHY_ALIGNMENT_RULE_SCHEMA = (
+    "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json"
+)
 PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA,
@@ -118,6 +121,7 @@ PHILOSOPHY_GATE_OPEN_PRECONDITIONS_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA,
     PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT,
     PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA,
+    PHILOSOPHY_ALIGNMENT_RULE_SCHEMA,
     SEMANTIC_CACHE_GATE_DOC,
     "docs/roadmap/BACKLOG_LEDGER.md",
 )
@@ -247,6 +251,7 @@ class GateOpenPreconditionsValidator(Protocol):
         dry_run_schema_text: str,
         roadmap_text: str,
         ledger_text: str,
+        alignment_rule_schema: Path,
     ) -> list[str]: ...
 
 
@@ -599,6 +604,7 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                         dry_run_schema_text=dry_run_schema_text,
                         roadmap_text=roadmap_text,
                         ledger_text=ledger_text,
+                        alignment_rule_schema=REPO_ROOT / PHILOSOPHY_ALIGNMENT_RULE_SCHEMA,
                     )
                 )
 

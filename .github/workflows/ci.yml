@@ -252,6 +252,7 @@ jobs:
             case "$path" in
               docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json|\
               docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.schema.json|\
+              docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json|\
               scripts/ci/check_philosophy_gate_open_preconditions.py|\
               tests/test_philosophy_gate_open_preconditions.py)
                 PR4_PRECONDITION_CHANGED=1
@@ -283,7 +284,7 @@ jobs:
             'docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json' \
             'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json')
 
-          if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then
+          if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then
             echo "No changed markdown or Phase1 schema files; skipping docs Phase1 gates."
             exit 0
           fi

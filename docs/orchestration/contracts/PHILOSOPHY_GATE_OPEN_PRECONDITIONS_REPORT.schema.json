@@ -171,8 +171,30 @@
     },
     "ledger_anchor_present": {
       "type": "object",
-      "additionalProperties": {
-        "type": "boolean"
+      "additionalProperties": false,
+      "required": [
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction",
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates"
+      ],
+      "properties": {
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation": {
+          "const": true
+        },
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough": {
+          "const": true
+        },
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet": {
+          "const": true
+        },
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction": {
+          "const": true
+        },
+        "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates": {
+          "const": true
+        }
       }
     },
     "ledger_anchor_presence_does_not_verify_closure": {
@@ -218,7 +240,73 @@
           }
         }
       },
-      "minItems": 1
+      "prefixItems": [
+        {
+          "properties": {
+            "id": {
+              "const": "pr2_policy_oracle_current"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr3_dry_run_current"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr1789_alignment_rule_schema_landed"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr_a1b_reconciled"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr_a2_rag_hardening_closed"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr_a3_bounded_context_packet_closed"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr_a4_bounded_context_extraction_closed"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "pr_a5_llm_reliability_security_closed"
+            }
+          }
+        },
+        {
+          "properties": {
+            "id": {
+              "const": "dedicated_gate_open_pr_changes_markers"
+            }
+          }
+        }
+      ],
+      "minItems": 9,
+      "maxItems": 9
     },
     "handoff_decision": {
       "type": "object",
@@ -246,7 +334,30 @@
               "alignment_rule_schema_predecessor_pending"
             ]
           },
-          "minItems": 1
+          "allOf": [
+            {
+              "contains": {
+                "const": "semantic_cache_gate_closed"
+              }
+            },
+            {
+              "contains": {
+                "const": "runtime_prerequisites_not_verified"
+              }
+            },
+            {
+              "contains": {
+                "const": "dedicated_gate_open_pr_absent"
+              }
+            },
+            {
+              "contains": {
+                "const": "alignment_rule_schema_predecessor_pending"
+              }
+            }
+          ],
+          "minItems": 4,
+          "uniqueItems": true
         },
         "blocking_precondition_count": {
           "type": "integer",

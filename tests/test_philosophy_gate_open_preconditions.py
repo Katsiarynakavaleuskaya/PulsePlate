@@ -182,6 +182,37 @@ def test_gate_open_preconditions_reject_filename_only_alignment_schema(
     )
 
 
+def test_gate_open_preconditions_reject_empty_alignment_property_schemas(
+    tmp_path: Path,
+) -> None:
+    alignment_schema = tmp_path / "PHILOSOPHY_ALIGNMENT_RULE.schema.json"
+    schema = _valid_alignment_rule_schema()
+    schema["properties"] = {key: {} for key in schema["required"]}
+    alignment_schema.write_text(
+        json.dumps(schema, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+    rendered, errors = render_philosophy_gate_open_preconditions_report(
+        policy_text=_read(POLICY),
+        dry_run_text=_read(DRY_RUN_REPORT),
+        roadmap_text=_read(ROADMAP),
+        ledger_text=_read(LEDGER),
+        alignment_rule_schema=alignment_schema,
+    )
+
+    assert errors == []
+    report = json.loads(rendered)
+    alignment = next(
+        item
+        for item in report["preconditions"]
+        if item["id"] == "pr1789_alignment_rule_schema_landed"
+    )
+    assert alignment["status"] == "pending_external_predecessor"
+    assert "property rule_id must not be empty" in alignment["evidence"]
+    assert report["runtime_handoff_allowed"] is False
+
+
 def test_gate_open_preconditions_allow_valid_alignment_schema_without_opening_gate(
     tmp_path: Path,
 ) -> None:
@@ -321,12 +352,36 @@ def test_gate_open_preconditions_reject_runtime_touched_paths() -> None:
         [
             "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
             "core/ai/semantic_cache_backend_selection.py",
+            "core/rag/retriever.py",
             "legacy_app.py",
         ]
     )
 
     assert any("core/ai/semantic_cache_backend_selection.py" in error for error in errors)
+    assert any("core/rag/retriever.py" in error for error in errors)
     assert any("legacy_app.py" in error for error in errors)
+
+
+def test_gate_open_preconditions_normalizes_touched_paths() -> None:
+    errors = validate_touched_paths(
+        [
+            "./app/main.py",
+            "docs/../core/rag/retriever.py",
+            str(REPO_ROOT / "providers" / "pico.py"),
+            "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+        ]
+    )
+
+    assert any("normalized app/main.py" in error for error in errors)
+    assert any("normalized core/rag/retriever.py" in error for error in errors)
+    assert any("normalized providers/pico.py" in error for error in errors)
+    assert not any("PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json" in error for error in errors)
+
+
+def test_gate_open_preconditions_rejects_paths_outside_repo() -> None:
+    errors = validate_touched_paths(["/tmp/app/main.py"])
+
+    assert any("outside repo" in error for error in errors)
 
 
 def test_gate_open_preconditions_cli_rejects_runtime_touched_paths(
@@ -363,6 +418,41 @@ def test_gate_open_preconditions_schema_requires_closed_gate_consts() -> None:
         "philosophy gate-open preconditions schema const missing for requires_dedicated_gate"
         in errors
     )
+
+
+def test_gate_open_preconditions_schema_requires_exact_ledger_anchors() -> None:
+    schema = json.loads(_read(REPORT_SCHEMA))
+    ledger = schema["properties"]["ledger_anchor_present"]
+    ledger["additionalProperties"] = {"type": "boolean"}
+    ledger["required"].pop()
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert "philosophy gate-open preconditions schema ledger anchors must reject extras" in errors
+    assert "philosophy gate-open preconditions schema ledger required mismatch" in errors
+
+
+def test_gate_open_preconditions_schema_requires_precondition_order() -> None:
+    schema = json.loads(_read(REPORT_SCHEMA))
+    schema["properties"]["preconditions"]["prefixItems"][0]["properties"]["id"]["const"] = "wrong"
+    schema["properties"]["preconditions"]["maxItems"] = 99
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert "philosophy gate-open preconditions schema maxItems mismatch" in errors
+    assert any("schema prefixItems id const missing" in error for error in errors)
+
+
+def test_gate_open_preconditions_schema_requires_reason_code_coverage() -> None:
+    schema = json.loads(_read(REPORT_SCHEMA))
+    reason_codes = schema["properties"]["handoff_decision"]["properties"]["reason_codes"]
+    reason_codes["allOf"].pop()
+    reason_codes["uniqueItems"] = False
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert "philosophy gate-open preconditions schema reason codes must be unique" in errors
+    assert "philosophy gate-open preconditions schema reason code coverage mismatch" in errors
 
 
 def test_gate_open_preconditions_cli_check_passes(capsys: CaptureFixture[str]) -> None:
