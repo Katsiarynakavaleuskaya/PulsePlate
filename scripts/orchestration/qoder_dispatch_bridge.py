@@ -398,8 +398,10 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
         if not isinstance(value, dict):
             return False
         dispatch_contract = value.get("dispatch_contract")
-        if not isinstance(dispatch_contract, dict):
+        if dispatch_contract is None:
             return default_when_unspecified
+        if not isinstance(dispatch_contract, dict):
+            return False
         return not (
             dispatch_contract.get("advisory_only")
             or dispatch_contract.get("spawn_with_native_subagent") is False

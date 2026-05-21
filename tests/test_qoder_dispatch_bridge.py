@@ -362,6 +362,28 @@ def test_parse_task_bootstrap_json_packet_no_spawn_primary_returns_no_roles(
     assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
 
 
+def test_parse_task_bootstrap_json_packet_malformed_dispatch_contract_returns_no_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed dispatch_contract metadata should fail closed."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {
+                "repo_agent_slug": "agent-coordinator",
+                "dispatch_contract": "spawnable",
+            },
+            "secondary": [{"repo_agent_slug": "architecture-specialist"}],
+            "reviewer": {"repo_agent_slug": "security-auditor"},
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
+
+
 def test_parse_task_bootstrap_json_packet_never_runs_advisory_roles(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

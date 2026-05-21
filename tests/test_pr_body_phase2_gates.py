@@ -244,6 +244,10 @@ Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-2
 def test_lane_start_provenance_accepts_mixed_case_repo_packet_reference(
     tmp_path: Path,
 ) -> None:
+    packet = tmp_path / "docs" / "orchestration" / "Philosophy_Epic_V2_Packet_2026-05-20.md"
+    packet.parent.mkdir(parents=True)
+    packet.write_text("# Packet\n", encoding="utf-8")
+
     errors, warnings = gates.check_lane_start_provenance(
         """## Lane Start Provenance
 Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
@@ -252,7 +256,7 @@ Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
     )
 
     assert errors == []
-    assert any("not available locally" in warning for warning in warnings)
+    assert warnings == []
 
 
 def test_lane_start_provenance_accepts_narrow_exception() -> None:
@@ -309,6 +313,16 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert any("starter is supplemental" in error for error in errors)
 
 
+def test_lane_start_provenance_allows_exception_with_supplemental_starter() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Exception: trivial docs cleanup
+Starter: scripts/orchestration/start_pr_lane.sh
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
 def test_lane_start_provenance_warns_on_unavailable_local_packet() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
 Packet: artifacts/orchestration/task_packets/fake.json
@@ -317,6 +331,19 @@ Starter: scripts/orchestration/start_pr_lane.sh
 
     assert errors == []
     assert any("not available locally" in warning for warning in warnings)
+
+
+def test_lane_start_provenance_rejects_unavailable_repo_packet(tmp_path: Path) -> None:
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: docs/orchestration/MISSING_PACKET_2099-01-01.md
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("repo packet is referenced but not available" in error for error in errors)
 
 
 def test_lane_start_provenance_warns_on_symlink_loop_packet(
@@ -402,6 +429,17 @@ def test_lane_start_provenance_allows_negated_host_preflight_context() -> None:
 Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
 Starter: scripts/orchestration/start_pr_lane.sh
 Host/Codex preflight is not authoritative lane provenance.
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_allows_negated_host_preflight_explanation() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
+Host/Codex preflight is not authoritative lane provenance; use repo bootstrap evidence.
 """)
 
     assert errors == []

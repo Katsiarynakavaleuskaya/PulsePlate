@@ -68,7 +68,8 @@ LANE_START_EXCEPTION_RE = re.compile(r"(?im)^\s*(?:-\s*)?Exception:\s*(?P<reason
 FORBIDDEN_PREFLIGHT_AUTHORITY_RE = re.compile(
     r"(?im)^"
     r"(?!\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s+"
-    r"(?:is\s+not|isn't)\s+authoritative(?:\s+lane\s+provenance)?\.?\s*$)"
+    r"(?:is\s+not|isn't)\s+authoritative(?:\s+lane\s+provenance)?"
+    r"(?![^\n]*(?:\bbut\b|\balready\b|\bran\b|\bcompleted\b))[^\n]*$)"
     r"(?!\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s+"
     r"must\s+not\s+(?:be\s+)?(?:used|treated|cited)\s+as\s+authority\.?\s*$)"
     r"[^\n]*\b(?:host/codex|host|codex|cursor|raw|local)\s+preflight\b"
@@ -281,6 +282,11 @@ def _lane_start_packet_available(path: str, *, repo_root: Path) -> bool:
     return candidate.is_file()
 
 
+def _is_repo_tracked_lane_start_packet(path: str) -> bool:
+    cleaned = path.strip().strip("`")
+    return cleaned.startswith(LANE_START_REPO_PACKET_PREFIX)
+
+
 def check_lane_start_provenance(
     text: str,
     *,
@@ -303,7 +309,7 @@ def check_lane_start_provenance(
     errors: list[str] = []
     warnings: list[str] = []
 
-    if exception_matches and (packet_matches or starter_matches):
+    if exception_matches and packet_matches:
         errors.append(
             "Lane Start Provenance must use repo bootstrap evidence or Exception, not both."
         )
@@ -324,7 +330,13 @@ def check_lane_start_provenance(
         if path not in invalid_packets and not _lane_start_packet_available(
             path, repo_root=repo_root
         ):
-            warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
+            if _is_repo_tracked_lane_start_packet(path):
+                errors.append(
+                    "Lane Start Provenance repo packet is referenced but not available "
+                    f"locally: {path}"
+                )
+            else:
+                warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
 
     if starter_matches and not packet_matches and not exception_matches:
         errors.append("Lane Start Provenance starter is supplemental and cannot be used alone.")
