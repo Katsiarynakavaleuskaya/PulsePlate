@@ -39,39 +39,83 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434507 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py` now removes the unused `_contains_negation` helper and routes negation handling through `_claim_is_locally_negated` / `_surface_claim_is_negated`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` passed.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434510 -> 6884773c2
-Disposition: FIXED
-Evidence: `A8_REF_RE` no longer accepts a bare `a8` token; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_does_not_treat_bare_a8_as_lane_reference` proves the false-positive guard.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434510
+Disposition: NOT-A-BUG
+Reason: Later review established that bare `A8` must be a lane marker for this closeout guard; the false-positive risk is bounded by the guard's active roadmap/backlog/review scope.
+Evidence: Later Codex review `https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581075` identified bare `A8` as a P1 bypass for this closeout checker. The guard is scoped to A8 closeout roadmap/backlog/review truth, so bare `A8` is intentionally treated as the lane marker here.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434514 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_runtime_expansion_action_verbs` is parametrized and includes semantic-caching, database-persistence, and public-endpoint aliases.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434520 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_mixed_negation_stale_a8_wording` is parametrized.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471268 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: `validate_closeout(...)` resolves default docs/mapping paths through `_default_repo_path(repo_root, ...)`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_resolves_default_docs_relative_to_repo_root` covers the false-green case.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471270 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: forbidden A8 runtime-expansion checks now scan full roadmap/backlog/review text; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_forbidden_runtime_claim_outside_a8_sections` covers the bypass.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471272 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: `_validate_pr_evidence(...)` now requires PR number, title, merge timestamp/date, merge commit, and original branch in each corresponding mapping file, not only in combined docs.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471277 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: `_surface_claim_is_negated(...)` accepts post-surface negation such as `Semantic cache is not active for live traffic`; covered by `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_allows_negated_semantic_cache_status`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471279 -> 6884773c2
 Disposition: FIXED
+Commit: 6884773c2
 Evidence: benchmark overclaim checks now distinguish negated A8 benchmark disclaimers from positive claims; covered by `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_allows_negated_a8_benchmark_disclaimer`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581075 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: `A8_REF_RE` treats bare `A8` as a lane reference again after the later Codex P1 review; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_bare_a8_benchmark_overclaim` covers the benchmark path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581076 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: `_validate_pr_evidence(...)` now checks active roadmap/backlog docs separately from mapping files; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_requires_pr_evidence_in_active_docs_not_only_mapping` covers the false-green case.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581079 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: landed-symbol proof now parses Python AST symbols instead of raw text; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_comment_only_landed_symbol` covers the comment-only false-green.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581081 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: forbidden-claim validation now applies PR-A8 section context; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_section_local_runtime_expansion_claim` covers omitted lane-token wording.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581086 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: benchmark validation now applies PR-A8 section context; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_section_local_benchmark_overclaim` covers unqualified section-local latency/quality claims.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581088 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: PR-A8 section-context forbidden-claim validation catches direct semantic-cache activation without repeated A8 token; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_section_local_semantic_cache_activation` covers the case.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284581089 -> fd3982fe9
+Disposition: FIXED
+Commit: fd3982fe9
+Evidence: stale-wording validation now applies PR-A8 section context; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_section_local_stale_a8_wording` covers omitted lane-token active wording.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#issuecomment-4512882485
 Disposition: NOT-A-BUG
