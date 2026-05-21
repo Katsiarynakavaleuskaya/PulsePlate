@@ -13,6 +13,7 @@ parity for coordinator-owned PR lanes.
 - `b50ab6e` - `docs(review): normalize pr 1790 mapping format`
 - `a978b76` - `fix(ci): forward experiment evidence mode directly`
 - `9acd01a` - `fix(orchestration): avoid false evidence and startup blocks`
+- `a9fb14a` - `fix(orchestration): tighten worktree python fallback`
 
 ## Discussion Thread Pass
 
@@ -31,8 +32,8 @@ Artifact: artifacts/orchestration/experiments/results/evidence-hard-gate-switch.
 Local oracle-only result, gitignored and not committed. Runner mode:
 `oracle_only_governance_reviewer`; `mutated_paths: []`; `promotion_ready: false`;
 `contribution_kind: commit_decision`; `coauthor_required: true`. Commits
-`190577d0e`, `10668b0a`, `b5133c5`, `b50ab6e`, `a978b76`, and `9acd01a`
-include the canonical Experiment Runner co-author trailer.
+`190577d0e`, `10668b0a`, `b5133c5`, `b50ab6e`, `a978b76`, `9acd01a`, and
+`a9fb14a` include the canonical Experiment Runner co-author trailer.
 
 ## Fixed in Commit Mapping
 
@@ -74,6 +75,12 @@ Evidence: fixed Codex review findings by combining body/artifact evidence before
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340959547 -> 9acd01a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284523232 -> 9acd01a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284523235 -> 9acd01a
+
+Disposition: FIXED
+Commit: a9fb14a
+Evidence: fixed latest Codex review findings by ignoring dirty override on clean checkouts and requiring real git-worktree detection before parent venv fallback.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284615864 -> a9fb14a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284615866 -> a9fb14a
 
 ## Pre-Open Role-Agent Findings
 
