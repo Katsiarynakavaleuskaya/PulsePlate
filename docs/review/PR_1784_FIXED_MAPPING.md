@@ -120,3 +120,13 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5d7a4fca1a4c.json`
   - Evidence: `scripts/ci/check_philosophy_admission_dry_run.py` now avoids those
     patterns, and `tests/test_philosophy_admission_dry_run_report.py` covers the
     forbidden-pattern regression.
+- CI current-head finding: `test-main (3.11, 60)` and `test-main (3.12, 90)`
+  failed because the regression test embedded the forbidden `sys.path.insert`
+  token and tripped the repo-wide import hygiene guard.
+  - Disposition: FIXED
+  - Commit: `f2eaf91c1`
+  - Evidence: `tests/test_philosophy_admission_dry_run_report.py` now constructs
+    the token for checker-source validation without embedding the forbidden
+    contiguous source text; local
+    `tests/test_repo_policy_guards.py::test_tests_have_no_sys_path_insert_except_whitelist`
+    and the dry-run report test module pass.
