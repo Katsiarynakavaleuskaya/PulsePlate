@@ -547,6 +547,19 @@ def test_checker_rejects_forbidden_runtime_claim_outside_a8_sections(tmp_path: P
     assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
 
 
+def test_checker_rejects_bare_a8_runtime_expansion_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap() + "\n## Other Roadmap Item\n\nA8 enables semantic cache by default.\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
 def test_checker_rejects_section_local_runtime_expansion_claim(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
