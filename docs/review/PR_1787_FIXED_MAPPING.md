@@ -21,7 +21,7 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, historical-readiness checkbox checks, last-action negation binding, trailing blocker phrases, direct forbidden-surface approvals, terse semantic-cache activation claims, passive activation/approval verbs, compact `semanticcache`, hyphenated `Graph-RAG`, and mixed landed-scope lines; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
+Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, historical-readiness checkbox checks, last-action negation binding, trailing blocker phrases, direct forbidden-surface approvals, terse semantic-cache activation claims, passive activation/approval verbs, compact `semanticcache`, hyphenated `Graph-RAG`, mixed landed-scope lines, broader clause-break negation reset, terse `semantic-cache open`, expanded active-status auxiliaries, and contraction negations; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280833326 -> b4809f7e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856839 -> a8f18ade4
@@ -61,6 +61,11 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400363 -> 376a74961
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400368 -> 376a74961
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400385 -> 376a74961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281580895 -> 8e1c0a98d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281580902 -> 8e1c0a98d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281580909 -> 8e1c0a98d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281580915 -> 8e1c0a98d
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281580920 -> 8e1c0a98d
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336528102 -> 6b80e07e7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336697950 -> 6b80e07e7
 
@@ -124,6 +129,11 @@ Reason: These CodeRabbit comments were generated from stale reviewed context aft
     splits, passive semantic-cache activation claims, passive forbidden-surface
     approval claims, hyphenated `Graph-RAG`, and compact `semanticcache`
     activation phrasing.
+- Clause guard-probe fix: `8e1c0a98d`
+  - Evidence: closes comma/and/or clause-break negation bypasses, terse
+    `semantic-cache open` claims, `stays` / `became` active-status phrasing,
+    contraction negation false positives, and rewrites the historical PR #1499
+    boundary wording into parser-safe out-of-scope language.
 
 ## Premortem Findings
 
@@ -150,6 +160,10 @@ Reason: These CodeRabbit comments were generated from stale reviewed context aft
   every forbidden token in landed-scope lines and rejects passive activation,
   passive approval, hyphenated `Graph-RAG`, and compact `semanticcache`
   gate-opening wording.
+- FIXED: post-open clause/auxiliary guard probes. Evidence: `8e1c0a98d`
+  resets negation across comma, `and`, `or`, and related clause breaks; rejects
+  terse `semantic-cache open`, `stays open`, and `became approved` wording; and
+  allows negative contractions such as `isn't approved`.
 
 ## Experiment Runner Evidence
 
