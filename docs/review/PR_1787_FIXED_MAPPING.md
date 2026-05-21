@@ -19,7 +19,13 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280833326 -> b4809f7e3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856839 -> a8f18ade4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856849 -> a8f18ade4
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856855 -> a8f18ade4
+Disposition: FIXED
+Commit: b4809f7e3, a8f18ade4
+Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces and comma negation breaks; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
 
 ## Commit Evidence
 
@@ -28,10 +34,13 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
     stdlib-only checker and regression tests.
 - Post-open governance mapping: `ffa6269a6`
   - Evidence: adds this PR-numbered mapping artifact.
-- QA Phase 2 mirror and size-governance fix: pending commit in this PR.
+- QA Phase 2 mirror and size-governance fix: `b4809f7e3`
   - Evidence: this update changes the canonical heading to
     `## Fixed in Commit Mapping`, adds required discussion-thread checkboxes,
     and the PR body includes `## Split Justification`.
+- Bug-hunter guard false-negative fix: `a8f18ade4`
+  - Evidence: expands landed-scope forbidden surfaces and rejects comma-separated
+    non-binding negation before forbidden positive claims.
 
 ## Premortem Findings
 
@@ -77,9 +86,10 @@ machine-budget policy; this is not a merge-readiness claim.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Post-open QA findings are mapped in this artifact as FIXED. Any CodeRabbit,
-Sourcery, Cubic, Codex Security, bug-hunter, or security-auditor finding will be
-mapped here as FIXED, NOT-A-BUG, or DEFERRED with evidence before resolution.
+Post-open QA, bug-hunter, and CodeRabbit/Codex connector findings are mapped in
+this artifact as FIXED. Any Sourcery, Cubic, Codex Security, or
+security-auditor finding will be mapped here as FIXED, NOT-A-BUG, or DEFERRED
+with evidence before resolution.
 
 ## Merge Readiness
 
