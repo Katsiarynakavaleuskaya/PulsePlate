@@ -2938,8 +2938,8 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Philosophy Epic V2 PR-3 admission oracle dry-run / verification-bundle adapter
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: pending PR (`codex/philosophy-epic-v2-pr3-admission-dry-run`)
-  - Status: 🟡 Active in PR-3 branch
+  - Target PR: PR #1784 (`codex/philosophy-epic-v2-pr3-admission-dry-run`)
+  - Status: 🟡 Active in PR #1784
   - Area: AI / RAG / philosophy / semantic-cache governance / verification-bundle adapter
   - Finding Type: false-green prevention, provenance/report drift, gate-closed verification-bundle dry-run
   - Reason (EN): PR #1777 made philosophical admission claims deterministic through policy JSON and a generated oracle fixture. PR-3 adds the next governance guard: a deterministic dry-run report that connects the PR-2 oracle to synthetic verification-bundle states and proves that missing, failed, warning, and passed bundles still do not permit cache read, cache write, or serving while the semantic-cache gate remains closed.
