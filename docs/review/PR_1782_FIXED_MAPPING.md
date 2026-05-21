@@ -8,6 +8,31 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: 45fa74af9
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279280679 -> 45fa74af9
+
+Disposition: FIXED
+Commit: 45fa74af9
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279280688 -> 45fa74af9
+
+Disposition: FIXED
+Commit: 45fa74af9
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279280693 -> 45fa74af9
+
+Disposition: FIXED
+Commit: 45fa74af9
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279280698 -> 45fa74af9
+
+Disposition: NOT-A-BUG
+Evidence: Current HEAD places JSON reviewer roles after executable secondary roles in scripts/orchestration/qoder_dispatch_bridge.py and covers that behavior in tests/test_qoder_dispatch_bridge.py.
+Reason: This Codex thread is outdated after commit 79ea81243; the current parser already preserves the reviewer tail semantics.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279280691
+
+Disposition: FIXED
 Commit: 79ea81243
 Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279238724 -> 79ea81243
@@ -24,6 +49,9 @@ Reason: Sourcery suggested a maintainability refactor/centralization. The curren
 
 ## Implementation Commits
 
+- `45fa74af9` — fixes follow-up Codex parser findings for repeated JSON roles,
+  mixed-case repo packet names, symlink-loop packet resolution, and negated
+  host-preflight context.
 - `79ea81243` — fixes the Codex review finding by placing task-bootstrap JSON
   reviewer roles in the tail reviewer slot so reviewer-capable slugs keep
   `CodeReview` semantics.
