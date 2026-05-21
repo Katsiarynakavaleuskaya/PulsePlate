@@ -72,10 +72,16 @@ resolve_repo_python() {
     fi
 
     local candidate
-    for candidate in \
-        "${REPO_ROOT}/.venv/bin/python" \
-        "${REPO_ROOT}/../../.venv/bin/python"
-    do
+    local parent_dir
+    local root_dir
+    local candidates=("${REPO_ROOT}/.venv/bin/python")
+    parent_dir="$(dirname "${REPO_ROOT}")"
+    if [[ "$(basename "${parent_dir}")" == "worktrees" ]]; then
+        root_dir="$(dirname "${parent_dir}")"
+        candidates+=("${root_dir}/.venv/bin/python")
+    fi
+
+    for candidate in "${candidates[@]}"; do
         if [[ -x "${candidate}" ]]; then
             printf "%s" "${candidate}"
             return
@@ -262,6 +268,10 @@ fi
 
 WORKTREE_ABS="${REPO_ROOT}/${WORKTREE_REL}"
 
+if [[ "${ALLOW_DIRTY_LAUNCHER}" -eq 1 && "${BASE_REF}" != "origin/main" ]]; then
+    die "--allow-dirty-launcher is only allowed with --base origin/main"
+fi
+
 if [[ "${DRY_RUN}" -eq 0 ]]; then
     if [[ -e "${WORKTREE_ABS}" ]]; then
         die "worktree path already exists: ${WORKTREE_REL}"
@@ -284,8 +294,6 @@ if [[ "${DRY_RUN}" -eq 0 ]]; then
         if [[ -n "$(git status --porcelain)" && "${ALLOW_DIRTY_LAUNCHER}" -ne 1 ]]; then
             die "current checkout must be clean before starting a PR lane, or pass --allow-dirty-launcher for an isolated origin/main lane"
         fi
-    elif [[ "${ALLOW_DIRTY_LAUNCHER}" -eq 1 ]]; then
-        die "--allow-dirty-launcher is only allowed with --base origin/main"
     elif [[ -n "$(git status --porcelain)" ]]; then
         die "current checkout must be clean before starting a non-origin/main PR lane"
     fi

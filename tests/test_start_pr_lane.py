@@ -139,6 +139,7 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "No finding may be ignored as advisory." in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Lane authority: check_preflight.py -> task_bootstrap.py -> agent-coordinator." in (
         result.stdout
@@ -255,6 +256,7 @@ esac
     assert "Passive skills from packet: pulseplate-premortem-risk-review" in result.stdout
     assert "VENV_PYTHON" in result.stdout
     assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Experiment Runner evidence" in result.stdout
     assert "Experiment Runner joins after coordinator bootstrap" in result.stdout
@@ -452,6 +454,21 @@ esac
         "origin/release",
         "--allow-dirty-launcher",
         env=env,
+    )
+
+    assert result.returncode == 1
+    assert "--allow-dirty-launcher is only allowed with --base origin/main" in result.stderr
+
+
+def test_start_pr_lane_rejects_dirty_launcher_exception_for_non_origin_main_dry_run() -> None:
+    """Dry-run must reject dirty-launcher options that real execution rejects."""
+
+    result = run_start(
+        *_required_args(),
+        "--dry-run",
+        "--base",
+        "origin/release",
+        "--allow-dirty-launcher",
     )
 
     assert result.returncode == 1

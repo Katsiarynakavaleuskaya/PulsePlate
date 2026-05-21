@@ -154,7 +154,10 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "No finding may be ignored as advisory." in prompt
     assert "VENV_PYTHON" in prompt
     assert "$VENV_PYTHON -m pytest" in prompt
-    assert "do not use bare `python3 -m pytest` when the repo `.venv` exists" in prompt
+    assert "$PWD/.venv/bin/python" in prompt
+    assert "relative `.venv/bin/python`" in prompt
+    assert "do not use bare `python3 -m pytest` or relative `.venv/bin/python`" in prompt
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in prompt
     assert "automatically start" not in prompt.lower()
     assert "auto-start" not in prompt.lower()
 
@@ -189,6 +192,8 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "No finding may be ignored as advisory." in prompt
     assert "VENV_PYTHON" in prompt
     assert "$VENV_PYTHON -m pytest" in prompt
+    assert "$PWD/.venv/bin/python" in prompt
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in prompt
 
 
 def test_recipe_prompt_can_say_preflight_did_not_run() -> None:

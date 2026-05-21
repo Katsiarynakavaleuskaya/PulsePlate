@@ -19,10 +19,11 @@ DEFAULT_PR_REVIEW_CHECKLIST = (
     "dev-operator",
 )
 PYTHON_ENV_GUIDANCE = (
-    "For local Python gates in the worktree, set "
-    "`VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` and run Make targets or "
-    "`$VENV_PYTHON -m pytest ...`; do not use bare `python3 -m pytest` when "
-    "the repo `.venv` exists, because it can miss FastAPI and other locked deps."
+    "For local Python gates in the worktree, set `VENV_PYTHON` to an absolute "
+    "interpreter path, normally `$PWD/.venv/bin/python` after `cd` into the "
+    "worktree, and run Make targets or `$VENV_PYTHON -m pytest ...`; do not "
+    "use bare `python3 -m pytest` or relative `.venv/bin/python` when the repo "
+    "`.venv` exists, because it can miss FastAPI and other locked deps."
 )
 
 

@@ -23,7 +23,9 @@ def _ok_result(name: str, argv: list[str]) -> merge_ready.GateResult:
 def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[tuple[str, list[str]]] = []
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 
@@ -70,7 +72,9 @@ def test_local_mode_uses_artifact_first_phase2_args_when_body_not_provided(
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 
@@ -92,7 +96,9 @@ def test_required_experiment_runner_evidence_mode_forwards_to_phase2(
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 
@@ -121,7 +127,9 @@ def test_required_experiment_runner_evidence_mode_can_come_from_env(
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 
@@ -172,7 +180,9 @@ def test_local_mode_does_not_fetch_pr_body_when_body_not_provided(
 ) -> None:
     calls: list[tuple[str, list[str]]] = []
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 
@@ -201,7 +211,9 @@ def test_event_mode_passes_require_auth_only_to_disposition(
     event_path = tmp_path / "event.json"
     event_path.write_text(json.dumps({"pull_request": {"number": 1007}}), encoding="utf-8")
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 
@@ -239,7 +251,9 @@ def test_event_mode_forwards_required_experiment_runner_evidence_mode(
     event_path = tmp_path / "event.json"
     event_path.write_text(json.dumps({"pull_request": {"number": 1007}}), encoding="utf-8")
 
-    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+    def fake_run_gate(
+        name: str, script_path: Path, extra_args: list[str]
+    ) -> merge_ready.GateResult:
         calls.append((name, extra_args))
         return _ok_result(name, [str(script_path), *extra_args])
 

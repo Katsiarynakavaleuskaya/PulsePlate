@@ -52,10 +52,16 @@ resolve_repo_python() {
     fi
 
     local candidate
-    for candidate in \
-        "${REPO_ROOT}/.venv/bin/python" \
-        "${REPO_ROOT}/../../.venv/bin/python"
-    do
+    local parent_dir
+    local root_dir
+    local candidates=("${REPO_ROOT}/.venv/bin/python")
+    parent_dir="$(dirname "${REPO_ROOT}")"
+    if [[ "$(basename "${parent_dir}")" == "worktrees" ]]; then
+        root_dir="$(dirname "${parent_dir}")"
+        candidates+=("${root_dir}/.venv/bin/python")
+    fi
+
+    for candidate in "${candidates[@]}"; do
         if [[ -x "${candidate}" ]]; then
             printf "%s" "${candidate}"
             return
