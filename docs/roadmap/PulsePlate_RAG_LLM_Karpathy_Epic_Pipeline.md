@@ -487,11 +487,33 @@ Must remain behind bounded runtime surfaces and existing safety/eval gates.
 #### Title
 `feat(ai-runtime): rollout recursive RAG and bounded recursive verification`
 
+#### Status
+Landed via PR #1499 on 2026-04-23 with merge commit
+`1e7166e55c54448c0d6475338e1b9984efd0caf1` from branch
+`codex/ai-recursive-methods-w1`. This closeout reconciles stale
+backlog/roadmap/review truth and does not duplicate runtime implementation.
+The parent recursive-methods P1 item remains open until the full recursive
+framework DoD is separately proven.
+
 #### Backlog target
 `ledger-p1-recursive-methods`
 
 #### Goal
 Promote recursive methods as a bounded runtime improvement, not as an uncontrolled cost explosion.
+
+#### Landed W1 scope
+- bounded recursive RAG and bounded recursive verification on existing product-AI insight seams
+- recursive budgets, deterministic depth control, degraded/fail-safe behavior, and thin app/service handoff
+- existing `VerificationBundle` truth preserved through the recursive/RAG path
+- review-governed closeout evidence through PR #1499 and `docs/review/PR_1499_FIXED_MAPPING.md`
+
+#### Out of scope
+- semantic cache implementation or gate opening
+- Redis/GPTCache rollout or backend approval
+- GraphRAG, ContextManifest, embeddings, or vector database rollout
+- DB persistence, public route, OpenAPI, DTO, or response-shape changes
+- provider-side tree-of-thought / chain-of-thought expansion
+- recursive learning or user-feedback adaptation
 
 #### Recommended order
 1. recursive retrieval

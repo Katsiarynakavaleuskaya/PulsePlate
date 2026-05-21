@@ -23,7 +23,7 @@ Evidence: `app/services/insight_application_service.py:166-171` now resolves `re
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `app/services/insight_runtime.py:81-96` now derives the base `rag` snapshot from `recursive_rollout_policy.use_rag` when a prepared policy is injected and `use_rag` is omitted, `tests/test_remaining_modules.py:1345-1365` guards both recursive env readers while proving the prepared policy owns the exported RAG snapshot, `docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md:24-49` now attaches file:line anchors to every current-head truth bullet, `docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md:57-70` now cites concrete runtime-scope evidence, `docs/roadmap/BACKLOG_LEDGER.md:2101-2102` names concrete `PR #1499`, and this artifact keeps merge-readiness boxes unchecked until the actual final merge cycle.
+Evidence: `app/services/insight_runtime.py:81-96` now derives the base `rag` snapshot from `recursive_rollout_policy.use_rag` when a prepared policy is injected and `use_rag` is omitted, `tests/test_remaining_modules.py:1345-1365` guards both recursive env readers while proving the prepared policy owns the exported RAG snapshot, `docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md:24-49` now attaches file:line anchors to every current-head truth bullet, `docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md:57-70` now cites concrete runtime-scope evidence, and `docs/roadmap/BACKLOG_LEDGER.md:2101-2102` names concrete `PR #1499`.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158211717 -> d60326ac5
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#discussion_r3127177474 -> 8152a92b6
@@ -55,18 +55,27 @@ Evidence: `tests/test_remaining_modules.py:1223-1232` now guards both recursive 
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1499#pullrequestreview-4158717729 -> b7d6b8f5e
 
-## Merge Readiness
+## Post-Merge Closeout
+
+- State: `MERGED`
+- PR #1499 merged at `2026-04-23T01:37:29Z`
+- Merge commit: `1e7166e55c54448c0d6475338e1b9984efd0caf1`
+- Original branch: `codex/ai-recursive-methods-w1`
+- Closeout scope: PR-A7 W1 is not re-opened and implementation is not duplicated.
+- Parent scope: the broader recursive-methods P1 item remains open until the full recursive-framework DoD is separately proven.
+- Boundary: semantic-cache gate remained closed. Redis/GPTCache rollout,
+  GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, and
+  response-shape changes remained out of scope for this closeout.
+
+## Historical Merge Readiness
 
 Merge-readiness contract:
 `AGENTS.md:42-52`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:93-112`;
 `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:153-216`.
 
-- [ ] Current-head CI is green for PR branch head
-- [ ] Required checks complete (no pending jobs)
-- [ ] All review threads resolved on GitHub after disposition updates
-- [ ] No actionable bot comments remain unmapped in `Fixed in Commit Mapping`
-- [ ] After latest bot/review activity, perform a final check and wait at least one review cycle before merging
-- [ ] Pre-commit green on latest pushed head
-  Most recent local proof: `pre-commit run --all-files` passed before pushing head `894dd6e9b8066fb5e8522931cae69233f9f39f8d`; final merge-cycle reconfirmation is still pending.
-- [ ] `make verify` green on latest pushed head
-  Most recent local proof: `make verify` passed earlier on branch head `3aa83b33779863e1c07d896e5398ee2a15388b49`; final merge-cycle reconfirmation is still pending.
+This section is historical evidence only. PR #1499 is already merged, so this
+closeout does not re-run or reassert the original readiness checklist. The
+current closeout PR owns fresh validation and merge-readiness evidence.
+
+- Historical local proof: `pre-commit run --all-files` passed before pushing head `894dd6e9b8066fb5e8522931cae69233f9f39f8d`.
+- Historical local proof: `make verify` passed earlier on branch head `3aa83b33779863e1c07d896e5398ee2a15388b49`.
