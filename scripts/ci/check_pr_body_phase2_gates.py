@@ -676,7 +676,7 @@ def main() -> int:
         "--commit-range-fallback",
         type=lambda value: (
             _validate_git_commit_range_arg(value, arg_name="--commit-range-fallback")
-            if value
+            if value != ""
             else value
         ),
         default="",
