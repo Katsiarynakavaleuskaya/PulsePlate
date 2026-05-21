@@ -65,6 +65,11 @@ Reason: These two Codex review comments were generated against stale reviewed co
   - Evidence: closes last-action negation binding, direct forbidden-surface
     approval claims, terse semantic-cache activation claims, and trailing
     blocker phrases such as raw prompt/response caching remains blocked.
+- Bug-hunter rerun guard-gap fix: `1aef1038a`
+  - Evidence: closes semantic-cache `is approved` / `is selected` wording,
+    `chooses Redis`, direct `GraphRAG is implemented`, semantic-cache raw-prompt
+    storage claims, generic checked CI-green boxes, all-required-checks boxes,
+    and `required checks are still pending` stale-readiness wording.
 
 ## Premortem Findings
 
@@ -79,6 +84,10 @@ Reason: These two Codex review comments were generated against stale reviewed co
 - FIXED: false-green guard bypasses found pre-open. Evidence: tests cover mixed
   negation, passive voice, database/vector database variants, raw data cache
   permissions, and dynamic-import policy compliance.
+- FIXED: post-open bug-hunter rerun findings. Evidence: `1aef1038a` expands
+  approval/status vocab and adds deterministic tests for semantic-cache approval
+  phrasing, backend choice phrasing, direct forbidden-surface implementation,
+  raw-prompt storage claims, and stale readiness wording.
 
 ## Experiment Runner Evidence
 
