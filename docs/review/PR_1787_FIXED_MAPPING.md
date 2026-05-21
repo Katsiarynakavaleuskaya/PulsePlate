@@ -36,6 +36,19 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993848 -> fd5da8b1f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993856 -> fd5da8b1f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993862 -> fd5da8b1f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281116997 -> 4891c5813
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117007 -> 4891c5813
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117013 -> 4891c5813
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117019 -> 4891c5813
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117037 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190456 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190458 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190460 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190464 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190475 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190479 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336528102 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336697950 -> 6b80e07e7
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_ai_recursive_methods_w1_closeout.py` already normalized raw-cache action line breaks and rejected checked historical `pre-commit` / `make verify` boxes on the current branch before the stale review comment was emitted; `tests/test_ai_recursive_methods_w1_closeout.py` covers `PR-A7 allows\nraw responses.`, `- [x] Pre-commit green on latest pushed head`, and `- [x] make verify green on latest pushed head`.
@@ -43,6 +56,14 @@ Reason: These two Codex review comments were generated against stale reviewed co
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993866
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993873
+
+Disposition: NOT-A-BUG
+Evidence: `scripts/ci/check_ai_recursive_methods_w1_closeout.py` and `tests/test_ai_recursive_methods_w1_closeout.py` already rejected direct forbidden-surface approvals and terse semantic-cache activation claims before these stale duplicate review comments were emitted; the same current head also rejects `#1499 opens semantic-cache serving`.
+Reason: These CodeRabbit comments were generated from stale reviewed context after the branch already contained the requested behavior, so no additional code change was needed for these duplicate findings.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117025
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117033
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190469
 
 ## Commit Evidence
 
@@ -75,6 +96,11 @@ Reason: These two Codex review comments were generated against stale reviewed co
     clause breaks such as `GraphRAG is out of scope, but approved by PR-A7`,
     target-to-action raw-cache line wraps such as `Raw responses\nare cacheable`,
     and checked historical readiness bullets using `* [x]`.
+- Late review guard-probe fix: `6b80e07e7`
+  - Evidence: closes `Semantic-cache remains open`, `GraphRAG rollout remains
+    open`, `Semantic-cache\nis open`, `Raw prompt/response caching remains
+    blocked by policy`, checked `+ [x]` readiness bullets, and negated landed
+    scope wording such as `no DB persistence changes`.
 
 ## Premortem Findings
 
