@@ -15,9 +15,13 @@ tracked below.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1784#pullrequestreview-4334999498 -> 78d2cffe4
+Disposition: FIXED
+Commit: 78d2cffe4
+Evidence: the CodeRabbit review summary reported one actionable inline finding, which is the import-hygiene discussion mapped below; the checker fix and regression landed in `78d2cffe4`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1784#discussion_r3279524313 -> 78d2cffe4
 Disposition: FIXED
-Commit: `78d2cffe4`
+Commit: 78d2cffe4
 Evidence: `scripts/ci/check_philosophy_admission_dry_run.py` no longer uses `sys.path.insert`, dynamic module execution, or `sys.modules` mutation; it reads `core/verification/contracts.py` with AST for the `VerificationStatus` literal.
 Evidence: `tests/test_philosophy_admission_dry_run_report.py` adds a regression that rejects those forbidden import/path mutation patterns in the checker.
 
