@@ -238,6 +238,8 @@ def test_checker_rejects_pr_v1_semantic_cache_open_claim(tmp_path: Path) -> None
         ("PR-V1 grants permission for semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 grants authorization for semantic-cache serving.", "PR-V1 approves semantic cache"),
         ("PR-V1 makes semantic-cache production ready.", "semantic cache"),
+        ("Semantic-cache is rollout-ready.", "semantic cache"),
+        ("PR-V1 marks semantic-cache rollout-ready.", "semantic cache"),
         ("PR-V1 opens\nsemantic-cache serving.", "PR-V1 opens semantic cache"),
         ("PR V1 opens semantic-cache serving.", "PR-V1 opens semantic cache"),
         ("PR-V1 opened semantic-cache serving.", "PR-V1 opens semantic cache"),
@@ -283,11 +285,18 @@ def test_checker_allows_negated_gate_closed_policy_claims(tmp_path: Path) -> Non
         + "Semantic-cache serving is not selected by PR-V1.\n"
         + "Semantic-cache serving is not authorized by PR-V1.\n"
         + "PR-V1 does not permit Redis for semantic-cache rollout.\n"
+        + "PR-V1 does not allow Redis because semantic-cache gate is closed.\n"
         + "PR-V1 does not authorize Redis for semantic-cache rollout.\n"
         + "PR-V1 does not permit semantic-cache serving.\n"
+        + "PR-V1 never allows semantic-cache serving.\n"
+        + "PR-V1 never allows Redis rollout.\n"
         + "PR V1 does not permit semantic-cache serving.\n"
         + "Semantic-cache has no approval for serving rollout.\n"
+        + "Semantic-cache has no active serving runtime.\n"
+        + "Semantic-cache has no production-ready rollout.\n"
         + "Semantic-cache lacks approval for serving rollout.\n"
+        + "Semantic-cache has an open issue.\n"
+        + "Semantic-cache authorization header is required by tests.\n"
         + "PR-V1 is not a semantic-cache rollout or backend-selection approval.\n"
         + "Redis is not approved for semantic-cache rollout.\n"
         + "Redis lacks approval for semantic-cache rollout.\n"

@@ -88,6 +88,29 @@ CLAIM_GAP = r"(?:(?!\n\s*(?:[-*]|#))[^.!?])*"
 PR_V1_PATTERN = r"pr(?:[-\s]+)?v1"
 SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
 BACKEND_LABEL_PATTERN = r"(?:redis|gpt[-\s]?cache)"
+SEMANTIC_CACHE_CONTEXT_PATTERN = (
+    r"(?:serving|runtime|rollout|activation|gate|backend|backend[-\s]+selection|" r"implementation)"
+)
+SEMANTIC_CACHE_STATUS_PATTERN = r"(?:active|enabled|live|production[-\s]+ready|rollout[-\s]+ready)"
+SEMANTIC_CACHE_APPROVAL_STATUS_PATTERN = (
+    r"(?:approved|approval|allowed|authorized|authorization|permitted|permission|"
+    r"selected|selection)"
+)
+APPROVAL_BOUNDARY_PATTERN = (
+    r"(?:approves?|approved|allows?|allowed|permits?|permitted|selects?|selected|"
+    r"authorizes?|authorized|approval|authorization|permission|"
+    r"grants?\s+(?:authorization|permission)|open(?:s|ed)?|enable(?:s|d)?|"
+    r"rollout[-\s]+ready|production[-\s]+ready)"
+)
+APPROVAL_VERB_BOUNDARY_PATTERN = (
+    r"(?:approves?|allows?|permits?|selects?|authorizes?|"
+    r"grants?\s+(?:authorization|permission)|open(?:s|ed)?|enable(?:s|d)?)"
+)
+NEGATED_APPROVAL_ACTION_PATTERN = (
+    r"(?:open(?:s|ed)?|enable(?:s|d)?|approve(?:s|d)?|allow(?:s|ed)?|"
+    r"authorize(?:s|d)?|permit(?:s|ted)?|select(?:s|ed)?|"
+    r"grant(?:s|ed)?\s+(?:authorization|permission))"
+)
 RAW_PROMPT_PATTERN = r"raw\s+(?:(?:assistant|agent|llm|model|provider|user)\s+)?prompts?"
 RAW_RESPONSE_PATTERN = r"raw\s+(?:(?:assistant|agent|llm|model|provider|user)\s+)?responses?"
 RAW_CACHEABLE_PATTERN = (
@@ -125,11 +148,27 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
-        "semantic cache active/open claim",
+        "semantic cache active status claim",
+        re.compile(
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b" rf"{SEMANTIC_CACHE_STATUS_PATTERN}\b",
+            re.I,
+        ),
+    ),
+    (
+        "semantic cache contextual open/approval claim",
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
-            r"(?:active|enabled|open|opened|live|production[- ]ready|approved|approval|"
-            r"allowed|authorized|authorization|permitted|permission|selected|selection)\b",
+            rf"{SEMANTIC_CACHE_CONTEXT_PATTERN}\b{CLAIM_GAP}\b"
+            rf"(?:open(?:ed)?|{SEMANTIC_CACHE_APPROVAL_STATUS_PATTERN})\b",
+            re.I,
+        ),
+    ),
+    (
+        "semantic cache open/approval contextual claim",
+        re.compile(
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
+            rf"(?:open(?:ed)?|{SEMANTIC_CACHE_APPROVAL_STATUS_PATTERN})\b"
+            rf"{CLAIM_GAP}\b{SEMANTIC_CACHE_CONTEXT_PATTERN}\b",
             re.I,
         ),
     ),
@@ -137,7 +176,8 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "PR-V1 makes semantic cache production ready",
         re.compile(
             rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b(?:makes?|marks?)\b{CLAIM_GAP}"
-            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\bproduction[- ]ready\b",
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
+            r"(?:production[-\s]+ready|rollout[-\s]+ready)\b",
             re.I,
         ),
     ),
@@ -253,22 +293,23 @@ FORBIDDEN_PR_V1_CLAIMS: tuple[tuple[str, re.Pattern[str]], ...] = (
 NEGATED_FORBIDDEN_CLAIM_PATTERNS = (
     re.compile(
         rf"\b{PR_V1_PATTERN}\b{CLAIM_GAP}\b"
-        r"(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
-        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|authorize|permit|select|grant\s+(?:authorization|permission))\b"
+        r"(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't|never)\b"
+        rf"{CLAIM_GAP}\b{NEGATED_APPROVAL_ACTION_PATTERN}\b"
         rf"{CLAIM_GAP}\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
-        r"\b(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't)\b"
-        rf"{CLAIM_GAP}\b(?:open|enable|approve|allow|authorize|permit|select|grant\s+(?:authorization|permission))\b"
+        r"\b(?:does\s+not(?!\s+only)|doesn't|must\s+not|should\s+not|cannot|can't|never)\b"
+        rf"{CLAIM_GAP}\b{NEGATED_APPROVAL_ACTION_PATTERN}\b"
         rf"{CLAIM_GAP}\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_LABEL_PATTERN})\b",
         re.I,
     ),
     re.compile(
         rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
         r"(?:is\s+not(?!\s+only)|isn't|has\s+not(?!\s+only)|hasn't|"
-        r"lacks?|without|not(?!\s+only))\b"
-        rf"{CLAIM_GAP}\b(?:active|enabled|open|opened|live|production[- ]ready|approved|"
+        r"has\s+no|no|lacks?|without|not(?!\s+only))\b"
+        rf"{CLAIM_GAP}\b(?:active|enabled|open|opened|live|production[-\s]+ready|"
+        r"rollout[-\s]+ready|approved|"
         r"allowed|authorized|permitted|approval|authorization|permission|selected|selection)\b",
         re.I,
     ),
@@ -390,13 +431,19 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
     return errors
 
 
+APPROVAL_FOLLOWUP_LOOKAHEAD = (
+    rf"(?={CLAIM_GAP}\b(?:{PR_V1_PATTERN}\b{CLAIM_GAP}\b{APPROVAL_BOUNDARY_PATTERN}|"
+    rf"{APPROVAL_VERB_BOUNDARY_PATTERN}|{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
+    rf"{SEMANTIC_CACHE_CONTEXT_PATTERN}\b{CLAIM_GAP}\b"
+    rf"(?:open(?:ed)?|{SEMANTIC_CACHE_STATUS_PATTERN}|"
+    rf"{SEMANTIC_CACHE_APPROVAL_STATUS_PATTERN}))\b)"
+)
+
 CLAUSE_BOUNDARY_RE = re.compile(
-    rf",|;|:|\(|\)|-\s*(?=(?:{PR_V1_PATTERN}\b|"
-    r"(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))\b))|\b"
-    r"(?:and|as|because|but|despite|however|if|since|so|then|though|although|unless|"
-    r"when|whereas|while|yet)\b|"
-    rf"\bor\b\s+(?=(?:{PR_V1_PATTERN}\b|"
-    r"(?:approves?|allows?|permits?|selects?|authorizes?|grants?\s+(?:authorization|permission))\b))",
+    rf",|;|:|\(|\)|-\s*(?=(?:{PR_V1_PATTERN}\b|{APPROVAL_BOUNDARY_PATTERN}\b))|\b"
+    rf"(?:and|as|because|but|despite|however|if|since|so|then|though|although|"
+    rf"unless|when|whereas|while|yet)\b\s*{APPROVAL_FOLLOWUP_LOOKAHEAD}|"
+    rf"\bor\b\s+{APPROVAL_FOLLOWUP_LOOKAHEAD}",
     re.I,
 )
 
