@@ -249,6 +249,7 @@ esac
         worktree_rel,
         "--path",
         "docs/dev/CODEX_SKILLS.md",
+        "--allow-dirty-launcher",
         env=env,
     )
     shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)

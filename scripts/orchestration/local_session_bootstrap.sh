@@ -52,13 +52,16 @@ resolve_repo_python() {
     fi
 
     local candidate
+    local git_common_dir
     local parent_dir
     local root_dir
     local candidates=("${REPO_ROOT}/.venv/bin/python")
     parent_dir="$(dirname "${REPO_ROOT}")"
-    if [[ "$(basename "${parent_dir}")" == "worktrees" ]]; then
+    if [[ "$(basename "${parent_dir}")" == "worktrees" ]] && git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
         root_dir="$(dirname "${parent_dir}")"
-        candidates+=("${root_dir}/.venv/bin/python")
+        if [[ "${git_common_dir}" == "${root_dir}/.git"* ]]; then
+            candidates+=("${root_dir}/.venv/bin/python")
+        fi
     fi
 
     for candidate in "${candidates[@]}"; do

@@ -72,13 +72,16 @@ resolve_repo_python() {
     fi
 
     local candidate
+    local git_common_dir
     local parent_dir
     local root_dir
     local candidates=("${REPO_ROOT}/.venv/bin/python")
     parent_dir="$(dirname "${REPO_ROOT}")"
-    if [[ "$(basename "${parent_dir}")" == "worktrees" ]]; then
+    if [[ "$(basename "${parent_dir}")" == "worktrees" ]] && git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
         root_dir="$(dirname "${parent_dir}")"
-        candidates+=("${root_dir}/.venv/bin/python")
+        if [[ "${git_common_dir}" == "${root_dir}/.git"* ]]; then
+            candidates+=("${root_dir}/.venv/bin/python")
+        fi
     fi
 
     for candidate in "${candidates[@]}"; do
@@ -288,7 +291,7 @@ if [[ "${DRY_RUN}" -eq 0 ]]; then
         if [[ -n "${launcher_status}" && "${ALLOW_DIRTY_LAUNCHER}" -ne 1 ]]; then
             die "current checkout must be clean before starting a PR lane, or pass --allow-dirty-launcher for an isolated origin/main lane"
         fi
-        if [[ -n "${launcher_status}" || "${ALLOW_DIRTY_LAUNCHER}" -eq 1 ]]; then
+        if [[ -n "${launcher_status}" ]]; then
             if ! git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
                 die "local main ref not found; cannot prove origin/main dirty-lane parity"
             fi
