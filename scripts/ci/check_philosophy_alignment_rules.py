@@ -73,7 +73,7 @@ def _load_json_no_duplicate_keys(
     try:
         return json.loads(text, object_pairs_hook=_hook), []
     except json.JSONDecodeError as exc:
-        return None, [f"{invalid_prefix}: {exc.msg}"]
+        return None, [f"{invalid_prefix}: {exc}"]
     except ValueError as exc:
         return None, [str(exc)]
 
@@ -303,7 +303,6 @@ def validate_alignment_rule_schema(schema_text: str) -> list[str]:
 def validate_alignment_rule(
     *,
     rule_text: str,
-    schema: object,
     expected_schema_hash: str,
     label: str,
 ) -> tuple[str | None, list[str]]:
@@ -405,9 +404,6 @@ def validate_alignment_rule(
     if "notes" in rule_obj and not isinstance(rule_obj["notes"], str):
         errors.append(f"{label}: notes must be a string")
 
-    if not isinstance(schema, dict):
-        errors.append(f"{label}: companion schema must be an object")
-
     return rule_id if isinstance(rule_id, str) else None, errors
 
 
@@ -433,7 +429,6 @@ def validate_alignment_rules(
     for label, rule_text in sorted(rule_texts.items()):
         rule_id, rule_errors = validate_alignment_rule(
             rule_text=rule_text,
-            schema=schema,
             expected_schema_hash=expected_hash,
             label=label,
         )

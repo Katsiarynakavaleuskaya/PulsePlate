@@ -83,6 +83,21 @@ def test_alignment_rule_rejects_invalid_regex() -> None:
     assert any("invalid regex '['" in error for error in errors)
 
 
+def test_alignment_rule_invalid_json_reports_location() -> None:
+    errors = validate_alignment_rules(
+        schema_text=_schema_text(),
+        rule_texts={"rule.json": "{\n"},
+    )
+
+    assert any(
+        error.startswith(
+            "rule.json: invalid JSON: Expecting property name enclosed in double quotes"
+        )
+        and "line 2 column 1" in error
+        for error in errors
+    )
+
+
 def test_alignment_rule_rejects_invalid_created_at() -> None:
     errors = _validate(_rule(created_at="not-a-date"))
 
