@@ -4,6 +4,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKER = REPO_ROOT / "scripts/ci/check_ai_recursive_speed_a8_closeout.py"
 
@@ -160,6 +162,19 @@ def _errors(repo_root: Path) -> list[str]:
     return [line for line in f"{result.stderr}\n{result.stdout}".splitlines() if line.strip()]
 
 
+def _errors_with_repo_root_only(repo_root: Path) -> list[str]:
+    result = subprocess.run(
+        [sys.executable, str(CHECKER), "--repo-root", str(repo_root)],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode == 0:
+        return []
+    return [line for line in f"{result.stderr}\n{result.stdout}".splitlines() if line.strip()]
+
+
 def test_checker_passes_on_current_repository() -> None:
     assert _errors(REPO_ROOT) == []
 
@@ -183,6 +198,21 @@ def test_checker_rejects_missing_pr1578_evidence(tmp_path: Path) -> None:
     errors = _errors(tmp_path)
 
     assert any("PR #1578 original branch" in error for error in errors)
+
+
+def test_checker_resolves_default_docs_relative_to_repo_root(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1506_FIXED_MAPPING.md"
+    mapping.write_text(
+        mapping.read_text(encoding="utf-8").replace(
+            "codex/ai-recursive-speed-optimization-w1", "codex/stale-branch"
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors_with_repo_root_only(tmp_path)
+
+    assert any("PR #1506 original branch" in error for error in errors)
 
 
 def test_checker_rejects_missing_landed_symbol(tmp_path: Path) -> None:
@@ -309,28 +339,33 @@ def test_checker_rejects_and_joined_mixed_negation_runtime_expansion_claim(tmp_p
     assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
 
 
-def test_checker_rejects_runtime_expansion_action_verbs(tmp_path: Path) -> None:
-    claims = (
+@pytest.mark.parametrize(
+    "claim",
+    (
         "PR-A8 authorizes GraphRAG rollout.",
         "PR-A8 permits ContextManifest runtime use.",
         "PR-A8 ships public route changes.",
+        "PR-A8 ships public endpoint changes.",
         "PR-A8 adds DB persistence.",
+        "PR-A8 adds database persistence.",
         "PR-A8 allows provider chain-of-thought.",
+        "PR-A8 enables semantic caching.",
+    ),
+)
+def test_checker_rejects_runtime_expansion_action_verbs(tmp_path: Path, claim: str) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            claim,
+        ),
+        encoding="utf-8",
     )
-    for claim in claims:
-        _write_valid_repo(tmp_path)
-        roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
-        roadmap.write_text(
-            _valid_roadmap().replace(
-                "This closeout reconciles stale roadmap/backlog/review truth.",
-                claim,
-            ),
-            encoding="utf-8",
-        )
 
-        errors = _errors(tmp_path)
+    errors = _errors(tmp_path)
 
-        assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors), claim
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors), claim
 
 
 def test_checker_rejects_stale_a8_wording_in_ledger(tmp_path: Path) -> None:
@@ -345,25 +380,27 @@ def test_checker_rejects_stale_a8_wording_in_ledger(tmp_path: Path) -> None:
     assert any("stale PR-A8 active/pending wording" in error for error in errors)
 
 
-def test_checker_rejects_mixed_negation_stale_a8_wording(tmp_path: Path) -> None:
-    claims = (
+@pytest.mark.parametrize(
+    "claim",
+    (
         "PR-A8 is not pending but remains an active implementation lane.",
         "PR-A8 is not pending and is an active implementation lane.",
+    ),
+)
+def test_checker_rejects_mixed_negation_stale_a8_wording(tmp_path: Path, claim: str) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            claim,
+        ),
+        encoding="utf-8",
     )
-    for claim in claims:
-        _write_valid_repo(tmp_path)
-        roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
-        roadmap.write_text(
-            _valid_roadmap().replace(
-                "This closeout reconciles stale roadmap/backlog/review truth.",
-                claim,
-            ),
-            encoding="utf-8",
-        )
 
-        errors = _errors(tmp_path)
+    errors = _errors(tmp_path)
 
-        assert any("stale PR-A8 active/pending wording" in error for error in errors), claim
+    assert any("stale PR-A8 active/pending wording" in error for error in errors), claim
 
 
 def test_checker_rejects_stale_a8_wording_outside_a8_sections(tmp_path: Path) -> None:
@@ -376,6 +413,19 @@ def test_checker_rejects_stale_a8_wording_outside_a8_sections(tmp_path: Path) ->
     errors = _errors(tmp_path)
 
     assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_rejects_forbidden_runtime_claim_outside_a8_sections(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap() + "\n## Other Roadmap Item\n\nPR-A8 enables semantic cache by default.\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
 
 
 def test_checker_rejects_unvalidated_benchmark_claim(tmp_path: Path) -> None:
@@ -426,7 +476,7 @@ def test_checker_rejects_qualified_a8_benchmark_overclaim(tmp_path: Path) -> Non
     assert any("unvalidated benchmark claim" in error for error in errors)
 
 
-def test_checker_rejects_bare_a8_benchmark_overclaim(tmp_path: Path) -> None:
+def test_checker_does_not_treat_bare_a8_as_lane_reference(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
     ledger.write_text(
@@ -437,9 +487,32 @@ def test_checker_rejects_bare_a8_benchmark_overclaim(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    errors = _errors(tmp_path)
+    assert _errors(tmp_path) == []
 
-    assert any("unvalidated benchmark claim" in error for error in errors)
+
+def test_checker_allows_negated_semantic_cache_status(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap() + "\n## Safety Notes\n\nSemantic cache is not active for live traffic.\n",
+        encoding="utf-8",
+    )
+
+    assert _errors(tmp_path) == []
+
+
+def test_checker_allows_negated_a8_benchmark_disclaimer(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained >=95%.",
+            "PR-A8 does not guarantee latency reduction 50-60%.",
+        ),
+        encoding="utf-8",
+    )
+
+    assert _errors(tmp_path) == []
 
 
 def test_checker_allows_explicit_out_of_scope_claims(tmp_path: Path) -> None:

@@ -76,15 +76,21 @@ NEGATION_RE = re.compile(
     r"gate[-\s]+closed|without|no\s+default)\b",
     re.I,
 )
+FORBIDDEN_SURFACE_PATTERN = (
+    r"semantic[-\s]?(?:cache|caching)|semanticcache|redis|gpt[-\s]?cache|"
+    r"graph[-\s]?rag|context[-\s]?manifest|contextmanifest|"
+    r"(?:db|database)\s+persistence|public\s+(?:routes?|endpoints?)(?:\s+changes?)?|"
+    r"openapi|dtos?|recursive\s+learning|chain[-\s]?of[-\s]?thought|"
+    r"tree[-\s]?of[-\s]?thought|default\s+activation|default[-\s]?on|"
+    r"production[-\s]?ready|rollout[-\s]?ready"
+)
+
 LOCAL_NEGATED_CLAIM_RE = re.compile(
     r"\b(no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|"
     r"out\s+of\s+scope|deferred|remains?\s+closed|remained\s+closed|"
     r"gate[-\s]+closed|without|no\s+default)\b"
     r"[^,;.]{0,140}"
-    r"\b(semantic[-\s]?cache|semanticcache|redis|gpt[-\s]?cache|graph[-\s]?rag|"
-    r"context[-\s]?manifest|contextmanifest|db\s+persistence|public\s+routes?|"
-    r"openapi|dtos?|recursive\s+learning|chain[-\s]?of[-\s]?thought|"
-    r"tree[-\s]?of[-\s]?thought|default\s+activation|default[-\s]?on)\b",
+    rf"\b({FORBIDDEN_SURFACE_PATTERN})\b",
     re.I,
 )
 BENCHMARK_CLAIM_RE = re.compile(
@@ -92,14 +98,7 @@ BENCHMARK_CLAIM_RE = re.compile(
     r"(?=.*(?:\d+(?:-\d+)?%|>=?\s*\d+%|<=?\s*\d+%)).+",
     re.I,
 )
-FORBIDDEN_SURFACE_RE = re.compile(
-    r"\b(semantic[-\s]?cache|semanticcache|redis|gpt[-\s]?cache|graph[-\s]?rag|"
-    r"context[-\s]?manifest|contextmanifest|db\s+persistence|public\s+routes?|"
-    r"openapi|dtos?|recursive\s+learning|chain[-\s]?of[-\s]?thought|"
-    r"tree[-\s]?of[-\s]?thought|default\s+activation|default[-\s]?on|"
-    r"production[-\s]?ready|rollout[-\s]?ready)\b",
-    re.I,
-)
+FORBIDDEN_SURFACE_RE = re.compile(rf"\b({FORBIDDEN_SURFACE_PATTERN})\b", re.I)
 POSITIVE_ACTION_RE = re.compile(
     r"\b(opens?|opened|enables?|enabled|implements?|implemented|approves?|approved|"
     r"authorizes?|authorized|permits?|permitted|allows?|allowed|adds?|added|"
@@ -109,7 +108,7 @@ POSITIVE_ACTION_RE = re.compile(
     r"default\s+activation|active|live)\b",
     re.I,
 )
-A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
+A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
 STALE_A8_RE = re.compile(
     r"\b(pr[-\s]?a8|#1506|#1578)\b.*\b(pending|in\s+progress|active|"
     r"next\s+logical|will\s+implement|implementation\s+lane|open\s+runtime)\b",
@@ -120,7 +119,7 @@ STALE_A8_REVERSED_RE = re.compile(
     r"implementation\s+lane|open\s+runtime)\b.*\b(pr[-\s]?a8|#1506|#1578)\b",
     re.I,
 )
-CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet)\b|[;]", re.I)
+CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and)\b|[;]", re.I)
 OVERCLAIM_RE = re.compile(
     r"\b(proves?|proved|scientifically\s+validated|validated|guarantees?|"
     r"guaranteed|maintains?|maintained|achieves?|achieved|delivers?|delivered)\b",
@@ -146,12 +145,30 @@ def _sentences(text: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
-def _contains_negation(text: str) -> bool:
-    return NEGATION_RE.search(_normalize(text)) is not None
-
-
 def _claim_is_locally_negated(text: str) -> bool:
     return LOCAL_NEGATED_CLAIM_RE.search(_normalize(text)) is not None
+
+
+def _surface_claim_is_negated(text: str) -> bool:
+    normalized = _normalize(text)
+    if _claim_is_locally_negated(normalized):
+        return True
+    return (
+        re.search(
+            rf"\b({FORBIDDEN_SURFACE_PATTERN})\b[^,;.]{{0,100}}"
+            r"\b(?:is|are|was|were|remains?|remained)?\s*"
+            r"(?:not|never)\s+"
+            r"(?:active|live|enabled|opened|allowed|approved|selected|"
+            r"production[-\s]?ready|rollout[-\s]?ready)\b",
+            normalized,
+            re.I,
+        )
+        is not None
+    )
+
+
+def _default_repo_path(repo_root: Path, default_path: Path) -> Path:
+    return repo_root / default_path.relative_to(REPO_ROOT)
 
 
 def _find_pr_a8_section(roadmap_text: str) -> str:
@@ -179,6 +196,7 @@ def _validate_pr_evidence(
     *, combined_text: str, mapping_text: str, evidence: dict[str, str], errors: list[str]
 ) -> None:
     number = evidence["number"]
+    _require_contains(combined_text, f"#{number}", f"PR #{number} active evidence", errors)
     for needle, label in (
         (f"#{number}", f"PR #{number} number"),
         (TITLE, f"PR #{number} title"),
@@ -187,8 +205,7 @@ def _validate_pr_evidence(
         (evidence["merge_commit"], f"PR #{number} merge commit"),
         (evidence["branch"], f"PR #{number} original branch"),
     ):
-        source = mapping_text if label.endswith("original branch") else combined_text
-        _require_contains(source, needle, label, errors)
+        _require_contains(mapping_text, needle, label, errors)
 
 
 def _validate_required_symbols(repo_root: Path, errors: list[str]) -> None:
@@ -266,14 +283,16 @@ def _validate_mapping_closeout(mapping_text: str, number: str, errors: list[str]
 
 def _validate_forbidden_claims(active_text: str, errors: list[str]) -> None:
     for sentence in _sentences(active_text):
+        sentence_has_a8 = A8_REF_RE.search(sentence) is not None
         for clause in CONTRAST_SPLIT_RE.split(sentence):
             residual_clause = LOCAL_NEGATED_CLAIM_RE.sub(" ", clause)
+            if _surface_claim_is_negated(residual_clause):
+                continue
             if not FORBIDDEN_SURFACE_RE.search(residual_clause):
                 continue
-            has_a8_ref = (
-                A8_REF_RE.search(residual_clause) is not None
-                or A8_REF_RE.search(sentence) is not None
-            )
+            has_a8_ref = A8_REF_RE.search(residual_clause) is not None or sentence_has_a8
+            if not has_a8_ref:
+                continue
             has_direct_forbidden_status = POSITIVE_ACTION_RE.search(residual_clause) is not None
             if has_a8_ref and has_direct_forbidden_status:
                 errors.append(f"forbidden PR-A8 runtime expansion claim: {sentence}")
@@ -295,6 +314,8 @@ def _validate_forbidden_claims(active_text: str, errors: list[str]) -> None:
 
 def _validate_benchmark_claims(active_text: str, errors: list[str]) -> None:
     for sentence in _sentences(active_text):
+        if A8_REF_RE.search(sentence) is None:
+            continue
         if not BENCHMARK_CLAIM_RE.search(sentence):
             continue
         claim_clauses = [
@@ -310,6 +331,8 @@ def _validate_benchmark_claims(active_text: str, errors: list[str]) -> None:
 
 
 def _benchmark_claim_is_qualified(text: str) -> bool:
+    if _benchmark_clause_is_negated_disclaimer(text):
+        return True
     lowered = text.lower()
     has_hypothesis = (
         "hypothesis target" in lowered
@@ -329,11 +352,47 @@ def _benchmark_claim_is_qualified(text: str) -> bool:
 
 
 def _benchmark_clause_is_overclaim(text: str) -> bool:
-    if not OVERCLAIM_RE.search(text):
+    if not _has_unnegated_overclaim(text):
         return False
     if A8_REF_RE.search(text):
         return True
     return not _benchmark_claim_is_qualified(text)
+
+
+def _benchmark_clause_is_negated_disclaimer(text: str) -> bool:
+    return (
+        A8_REF_RE.search(text) is not None
+        and _has_negated_overclaim(text)
+        and not _has_unnegated_overclaim(text)
+    )
+
+
+def _has_negated_overclaim(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(
+        _overclaim_match_is_negated(normalized, match)
+        for match in OVERCLAIM_RE.finditer(normalized)
+    )
+
+
+def _has_unnegated_overclaim(text: str) -> bool:
+    normalized = _normalize(text)
+    return any(
+        not _overclaim_match_is_negated(normalized, match)
+        for match in OVERCLAIM_RE.finditer(normalized)
+    )
+
+
+def _overclaim_match_is_negated(text: str, match: re.Match[str]) -> bool:
+    prefix = text[max(0, match.start() - 100) : match.start()]
+    return (
+        re.search(
+            r"\b(?:does\s+not|do\s+not|not|never|cannot|can't|doesn't)\b[^,;.]*$",
+            prefix,
+            re.I,
+        )
+        is not None
+    )
 
 
 def validate_closeout(
@@ -348,11 +407,18 @@ def validate_closeout(
     """Return closeout contract errors; empty means pass."""
 
     errors: list[str] = []
-    ledger = _read_text(ledger_path or DEFAULT_LEDGER, errors)
-    roadmap = _read_text(roadmap_path or DEFAULT_ROADMAP, errors)
-    mapping1506 = _read_text(mapping1506_path or DEFAULT_PR1506_MAPPING, errors)
-    mapping1578 = _read_text(mapping1578_path or DEFAULT_PR1578_MAPPING, errors)
-    gate = _read_text(semantic_cache_gate_path or DEFAULT_SEMANTIC_CACHE_GATE, errors)
+    ledger = _read_text(ledger_path or _default_repo_path(repo_root, DEFAULT_LEDGER), errors)
+    roadmap = _read_text(roadmap_path or _default_repo_path(repo_root, DEFAULT_ROADMAP), errors)
+    mapping1506 = _read_text(
+        mapping1506_path or _default_repo_path(repo_root, DEFAULT_PR1506_MAPPING), errors
+    )
+    mapping1578 = _read_text(
+        mapping1578_path or _default_repo_path(repo_root, DEFAULT_PR1578_MAPPING), errors
+    )
+    gate = _read_text(
+        semantic_cache_gate_path or _default_repo_path(repo_root, DEFAULT_SEMANTIC_CACHE_GATE),
+        errors,
+    )
 
     normalized_ledger = _normalize(ledger)
     normalized_roadmap = _normalize(roadmap)
@@ -382,13 +448,7 @@ def validate_closeout(
         )
     )
     claim_scan_text = "\n".join(
-        (
-            roadmap_a8_section,
-            recursive_ledger_section,
-            philosophy_ledger_section,
-            normalized_mapping1506,
-            normalized_mapping1578,
-        )
+        (normalized_roadmap, normalized_ledger, normalized_mapping1506, normalized_mapping1578)
     )
 
     _validate_pr_evidence(
