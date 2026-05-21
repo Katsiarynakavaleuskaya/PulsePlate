@@ -81,14 +81,14 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5d7a4fca1a4c.json`
   governance because the canonical checkboxes were not checked and the mapping
   section used prose instead of the canonical no-actionables marker.
   - Disposition: FIXED
-  - Commit: pending
+  - Commit: `2f9a034ef`
   - Evidence: `docs/review/PR_1784_FIXED_MAPPING.md` uses checked Phase2 boxes
     and the canonical `- No actionable review comments` marker.
 - qa-engineer-agent finding: PR size governance requires a split justification
   because the generated report/schema/checker/test bundle is over 800 changed
   lines.
   - Disposition: FIXED
-  - Commit: pending
+  - Commit: `2f9a034ef`
   - Evidence: PR body includes `## Split Justification` explaining why PR-3 is
     one governance/test-only slice.
 
