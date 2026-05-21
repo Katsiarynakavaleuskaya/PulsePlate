@@ -422,3 +422,83 @@ def test_phase1_guard_validates_philosophy_admission_dry_run_schema_only_edits(
     )
 
     assert any("dry-run schema const missing for gate_status" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_alignment_rule_schema_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_alignment_rule_validator",
+        lambda: lambda **_kwargs: ["alignment validator called"],
+    )
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA])
+
+    assert any("alignment validator called" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_alignment_rule_record_edits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema_path = tmp_path / gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA
+    schema_path.parent.mkdir(parents=True, exist_ok=True)
+    schema_path.write_text("{}", encoding="utf-8")
+    record_relpath = f"{gates.PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX}sample.json"
+    record_path = tmp_path / record_relpath
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text('{"rule_id": "sample"}', encoding="utf-8")
+    calls: list[dict[str, object]] = []
+
+    def _fake_validator(**kwargs: object) -> list[str]:
+        calls.append(kwargs)
+        return ["record validator called"]
+
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_alignment_rule_validator",
+        lambda: _fake_validator,
+    )
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[record_relpath])
+
+    assert any("record validator called" in error for error in errors)
+    assert calls
+    assert calls[0]["schema_text"] == "{}"
+    assert calls[0]["rule_texts"] == {record_relpath: '{"rule_id": "sample"}'}
+
+
+def test_phase1_guard_collects_nested_philosophy_alignment_rule_records(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema_path = tmp_path / gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA
+    schema_path.parent.mkdir(parents=True, exist_ok=True)
+    schema_path.write_text("{}", encoding="utf-8")
+    root_record_relpath = f"{gates.PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX}sample.json"
+    nested_record_relpath = f"{gates.PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX}wellness/scope.json"
+    root_record_path = tmp_path / root_record_relpath
+    nested_record_path = tmp_path / nested_record_relpath
+    root_record_path.parent.mkdir(parents=True, exist_ok=True)
+    nested_record_path.parent.mkdir(parents=True, exist_ok=True)
+    root_record_path.write_text('{"rule_id": "sample"}', encoding="utf-8")
+    nested_record_path.write_text('{"rule_id": "scope"}', encoding="utf-8")
+    calls: list[dict[str, object]] = []
+
+    def _fake_validator(**kwargs: object) -> list[str]:
+        calls.append(kwargs)
+        return ["record validator called"]
+
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(gates, "_load_philosophy_alignment_rule_validator", lambda: _fake_validator)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[nested_record_relpath])
+
+    assert any("record validator called" in error for error in errors)
+    assert calls
+    assert calls[0]["rule_texts"] == {
+        root_record_relpath: '{"rule_id": "sample"}',
+        nested_record_relpath: '{"rule_id": "scope"}',
+    }

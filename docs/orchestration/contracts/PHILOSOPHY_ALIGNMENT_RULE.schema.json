@@ -1,0 +1,129 @@
+{
+  "$id": "https://pulseplate.app/schemas/philosophy-alignment-rule.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "assertion_hints": {
+      "additionalProperties": false,
+      "properties": {
+        "boolean_checks": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "regexes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "type": "object"
+    },
+    "created_at": {
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:Z|[+-]\\d{2}:\\d{2})$",
+      "type": "string"
+    },
+    "created_by": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "provenance": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor_hash": {
+          "minLength": 8,
+          "type": "string"
+        },
+        "source_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_type": {
+          "enum": [
+            "repo",
+            "policy_doc",
+            "legal",
+            "spec"
+          ],
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_type",
+        "version",
+        "anchor_hash"
+      ],
+      "type": "object"
+    },
+    "rule_id": {
+      "minLength": 1,
+      "pattern": "^[a-z0-9][a-z0-9_.-]*$",
+      "type": "string"
+    },
+    "rule_text": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "rule_type": {
+      "enum": [
+        "privacy",
+        "harm",
+        "misinfo",
+        "wellness_scope",
+        "copyright",
+        "safety_other"
+      ],
+      "type": "string"
+    },
+    "schema_hash": {
+      "pattern": "^[a-f0-9]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "v1.0.0",
+      "type": "string"
+    },
+    "severity": {
+      "enum": [
+        "block",
+        "warn",
+        "note"
+      ],
+      "type": "string"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "rule_id",
+    "rule_text",
+    "rule_type",
+    "severity",
+    "provenance",
+    "assertion_hints",
+    "created_by",
+    "created_at",
+    "schema_version",
+    "schema_hash"
+  ],
+  "title": "PhilosophyAlignmentRule",
+  "type": "object"
+}

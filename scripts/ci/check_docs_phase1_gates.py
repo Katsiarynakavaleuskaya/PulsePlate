@@ -36,6 +36,9 @@ try:
     from scripts.ci.check_philosophy_admission_dry_run import (
         validate_philosophy_admission_dry_run_report as _validate_philosophy_admission_dry_run_report,
     )
+    from scripts.ci.check_philosophy_alignment_rules import (
+        validate_alignment_rules as _validate_alignment_rules,
+    )
 except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
@@ -53,6 +56,9 @@ except ModuleNotFoundError:
     )
     from check_philosophy_admission_dry_run import (  # noqa: E402
         validate_philosophy_admission_dry_run_report as _validate_philosophy_admission_dry_run_report,
+    )
+    from check_philosophy_alignment_rules import (  # noqa: E402
+        validate_alignment_rules as _validate_alignment_rules,
     )
 
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -91,6 +97,10 @@ PHILOSOPHY_ADMISSION_DRY_RUN_REPORT = (
 PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.schema.json"
 )
+PHILOSOPHY_ALIGNMENT_RULE_SCHEMA = (
+    "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json"
+)
+PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX = "docs/orchestration/contracts/philosophy_alignment_rules/"
 PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA,
@@ -209,6 +219,39 @@ class DryRunReportValidator(Protocol):
 
 def _load_philosophy_admission_dry_run_report_validator() -> DryRunReportValidator:
     return cast(DryRunReportValidator, _validate_philosophy_admission_dry_run_report)
+
+
+class AlignmentRuleValidator(Protocol):
+    def __call__(
+        self,
+        *,
+        schema_text: str,
+        rule_texts: dict[str, str],
+    ) -> list[str]: ...
+
+
+def _load_philosophy_alignment_rule_validator() -> AlignmentRuleValidator:
+    return cast(AlignmentRuleValidator, _validate_alignment_rules)
+
+
+def _is_philosophy_alignment_rule_record(path: str) -> bool:
+    return path.startswith(PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX) and path.endswith(".json")
+
+
+def _read_philosophy_alignment_rule_records(
+    *,
+    changed_relpath: str,
+    changed_content: str,
+) -> dict[str, str]:
+    records: dict[str, str] = {}
+    records_dir = REPO_ROOT / PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX
+    if records_dir.is_dir():
+        for path in sorted(records_dir.rglob("*.json")):
+            relpath = path.relative_to(REPO_ROOT).as_posix()
+            records[relpath] = path.read_text(encoding="utf-8")
+    if _is_philosophy_alignment_rule_record(changed_relpath):
+        records[changed_relpath] = changed_content
+    return records
 
 
 def _read_text(relpath: str) -> str:
@@ -489,6 +532,26 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                         oracle_text=oracle_text,
                     )
                 )
+
+        if relpath == PHILOSOPHY_ALIGNMENT_RULE_SCHEMA or _is_philosophy_alignment_rule_record(
+            relpath
+        ):
+            validate_alignment_rules = _load_philosophy_alignment_rule_validator()
+            schema_text = (
+                content
+                if relpath == PHILOSOPHY_ALIGNMENT_RULE_SCHEMA
+                else _read_text(PHILOSOPHY_ALIGNMENT_RULE_SCHEMA)
+            )
+            rule_texts = _read_philosophy_alignment_rule_records(
+                changed_relpath=relpath,
+                changed_content=content,
+            )
+            errors.extend(
+                f"{relpath}: {error}"
+                for error in validate_alignment_rules(
+                    schema_text=schema_text, rule_texts=rule_texts
+                )
+            )
 
     return errors
 
