@@ -53,6 +53,17 @@ Disposition: FIXED
 Commit: 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
 Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now preserves JSON decode line/column context by reporting the full `JSONDecodeError`, and `tests/test_philosophy_alignment_rules.py` covers the location-bearing invalid JSON message. The same commit removes the unused `schema` parameter from `validate_alignment_rule` and updates the only call site, eliminating the confusing no-op companion-schema check.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3283651385 -> c670951654e82f6bd926cb65617f1fe9c2150987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284031378 -> c670951654e82f6bd926cb65617f1fe9c2150987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284031382 -> c670951654e82f6bd926cb65617f1fe9c2150987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284104233 -> c670951654e82f6bd926cb65617f1fe9c2150987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284104236 -> c670951654e82f6bd926cb65617f1fe9c2150987
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284104242 -> c670951654e82f6bd926cb65617f1fe9c2150987
+Disposition: FIXED
+Commit: c670951654e82f6bd926cb65617f1fe9c2150987
+Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now fails closed on nested `provenance`/`assertion_hints` object type drift, unexpected root/property JSON Schema keywords, and `assertion_hints.required` drift; `tests/test_philosophy_alignment_rules.py` covers each false-green path.
+Evidence: `scripts/ci/check_docs_phase1_gates.py` now routes future `docs/orchestration/contracts/philosophy_alignment_rules/*.json` record edits through `validate_alignment_rules(...)` with the schema plus rule texts; `tests/test_docs_phase1_gates.py` covers the Phase1 rule-record route.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
