@@ -57,6 +57,22 @@ philosophical request classes may enter a future semantic-cache path after gate
 open and references merged SC-G5 (`cb1db8b40`) without duplicating the backend
 selection matrix.
 
+The Philosophy Epic V2 PR-2 policy oracle is defined by
+[`PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json`](../orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json)
+and the generated oracle fixture
+[`philosophy_admission_claim_oracle.json`](../../tests/fixtures/orchestration/philosophy_admission_claim_oracle.json).
+Those artifacts make forbidden and allowed philosophical admission claim
+families deterministic; they do not approve cache serving or runtime behavior.
+
+The Philosophy Epic V2 PR-3 admission dry-run report is defined by
+[`PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json`](../orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json).
+That report is governance-only and non-serving. It connects the PR-2
+policy/oracle to synthetic verification-bundle states and keeps every dry-run
+decision at `cache_read_allowed=false`, `cache_write_allowed=false`, and
+`serving_allowed=false`. A passed verification bundle is necessary for future
+consideration, but never sufficient while the semantic-cache gate remains
+closed.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
@@ -103,6 +119,7 @@ If the gate opens later, the rollout order is fixed:
 4. SC-G4 bounded `/insight` semantic-cache experiment
 5. SC-G5 backend selection
 6. Philosophy admission contract reconciliation for philosophical request classes
+7. Philosophy admission policy oracle and dry-run verification-bundle adapter
 
 ## First-Pass Safety Limits
 

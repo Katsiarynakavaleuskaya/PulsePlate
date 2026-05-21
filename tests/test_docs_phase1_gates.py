@@ -339,3 +339,86 @@ def test_phase1_guard_validates_semantic_cache_backend_selection_schema_for_cont
     )
 
     assert any("schema validator called" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_admission_dry_run_report_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_admission_dry_run_report_validator",
+        lambda: lambda **_kwargs: ["dry-run validator called"],
+    )
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT]
+    )
+
+    assert any("dry-run validator called" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_admission_dry_run_for_policy_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_admission_dry_run_report_validator",
+        lambda: lambda **_kwargs: ["dry-run validator called for policy"],
+    )
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY]
+    )
+
+    assert any("dry-run validator called for policy" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_admission_dry_run_for_oracle_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_admission_dry_run_report_validator",
+        lambda: lambda **_kwargs: ["dry-run validator called for oracle"],
+    )
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE]
+    )
+
+    assert any("dry-run validator called for oracle" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_admission_dry_run_schema_only_edits(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source_report = gates.REPO_ROOT / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT
+    source_schema = gates.REPO_ROOT / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA
+    source_policy = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY
+    source_policy_schema = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA
+    source_oracle = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE
+    report = tmp_path / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT
+    schema_path = tmp_path / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA
+    policy = tmp_path / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY
+    policy_schema = tmp_path / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA
+    oracle = tmp_path / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE
+    for path in (report, schema_path, policy, policy_schema, oracle):
+        path.parent.mkdir(parents=True, exist_ok=True)
+
+    report.write_text(source_report.read_text(encoding="utf-8"), encoding="utf-8")
+    policy.write_text(source_policy.read_text(encoding="utf-8"), encoding="utf-8")
+    policy_schema.write_text(
+        source_policy_schema.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    oracle.write_text(source_oracle.read_text(encoding="utf-8"), encoding="utf-8")
+    schema = json.loads(source_schema.read_text(encoding="utf-8"))
+    del schema["properties"]["gate_status"]["const"]
+    schema_path.write_text(json.dumps(schema, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA]
+    )
+
+    assert any("dry-run schema const missing for gate_status" in error for error in errors)

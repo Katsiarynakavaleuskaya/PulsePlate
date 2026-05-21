@@ -2947,11 +2947,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR body mirrors review-thread disposition, deferred/follow-up, and merge-readiness sections after PR open
 
 <a id="ledger-p1-philosophy-epic-v2-pr2-policy-oracle"></a>
-- [ ] P1: Philosophy Epic V2 PR-2 admission policy spec generator / claim-family oracle
+- [x] P1: Philosophy Epic V2 PR-2 admission policy spec generator / claim-family oracle
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: #1777 (`codex/philosophy-epic-v2-pr2-policy-oracle`)
-  - Status: 🟡 Active in PR-2 branch
+  - Status: ✅ Merged PR #1777 on 2026-05-21 (`101a6d2e6461cb86f23ff79458b9f0b36c4032ff`)
   - Area: AI / RAG / philosophy / semantic-cache governance / test infrastructure
   - Finding Type: false-green prevention, policy-as-data oracle, temporal/modal claim drift guard
   - Reason (EN): PR #1761 closed the Philosophy PR-1 admission contract but review loops exposed a systemic failure mode: hand-expanded regexes and test grammars made the same semantic claim family reappear as fresh comments. PR-2 makes the admission claim policy canonical JSON data, generates deterministic oracle fixtures, and checks policy/schema/fixture drift before runtime semantic-cache work resumes.
@@ -2968,6 +2968,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Policy-driven checker preserves gate-closed behavior and does not add Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, or runtime cache wiring
     - Phase 1 docs gates validate the policy, schema, and oracle fixture, and downstream Philosophy docs still reject forbidden admission claims while allowing explicitly negative examples
     - PR-2 documents the deterministic oracle boundary: semantic/research input may generate hypotheses, but admission truth is decided by policy/spec/oracle checks and does not mutate Experiment Runner or runtime oracle surfaces
+    - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
+
+<a id="ledger-p1-philosophy-epic-v2-pr3-admission-dry-run"></a>
+- [ ] P1: Philosophy Epic V2 PR-3 admission oracle dry-run / verification-bundle adapter
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1784 (`codex/philosophy-epic-v2-pr3-admission-dry-run`)
+  - Status: 🟡 Active in PR #1784
+  - Area: AI / RAG / philosophy / semantic-cache governance / verification-bundle adapter
+  - Finding Type: false-green prevention, provenance/report drift, gate-closed verification-bundle dry-run
+  - Reason (EN): PR #1777 made philosophical admission claims deterministic through policy JSON and a generated oracle fixture. PR-3 adds the next governance guard: a deterministic dry-run report that connects the PR-2 oracle to synthetic verification-bundle states and proves that missing, failed, warning, and passed bundles still do not permit cache read, cache write, or serving while the semantic-cache gate remains closed.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR3_ADMISSION_DRY_RUN_PACKET_2026-05-21.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.schema.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json`
+    - `tests/fixtures/orchestration/philosophy_admission_claim_oracle.json`
+    - `scripts/ci/check_philosophy_admission_dry_run.py`
+    - `tests/test_philosophy_admission_dry_run_report.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+  - DoD:
+    - Canonical dry-run report is generated from PR-2 policy/oracle truth and guarded by a closed JSON schema
+    - Checker validates policy, policy schema, oracle fixture, dry-run report schema, and generated report together
+    - Report records missing, failed, warning, and passed verification-bundle states with deterministic decisions
+    - Passed verification bundle stays `gate_closed_deferred`; every decision keeps `cache_read_allowed=false`, `cache_write_allowed=false`, and `serving_allowed=false`
+    - Phase 1 docs gates and CI workflow tests cover report/schema drift
+    - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 

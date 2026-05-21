@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.schema.json",
+  "title": "Philosophy Admission Dry-Run Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "report_version",
+    "generated_at",
+    "rollout_phase",
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "source_policy",
+    "source_oracle",
+    "verification_bundle_adapter",
+    "summary",
+    "claim_family_summaries",
+    "dry_run_decisions",
+    "research_basis",
+    "out_of_scope_paths"
+  ],
+  "properties": {
+    "report_id": {
+      "const": "philosophy_admission_dry_run_report"
+    },
+    "report_version": {
+      "const": "2026-05-21"
+    },
+    "generated_at": {
+      "const": "static-2026-05-21"
+    },
+    "rollout_phase": {
+      "const": "PHILOSOPHY-PR3"
+    },
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "source_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "policy_version",
+        "rollout_phase",
+        "source_contract"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "rollout_phase": {
+          "const": "PHILOSOPHY-PR2"
+        },
+        "source_contract": {
+          "const": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
+        }
+      }
+    },
+    "source_oracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "oracle_id",
+        "policy_id",
+        "policy_version",
+        "case_count"
+      ],
+      "properties": {
+        "oracle_id": {
+          "const": "philosophy_admission_claim_family_oracle"
+        },
+        "policy_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "case_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "verification_bundle_adapter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adapter_mode",
+        "source_contract",
+        "bundle_required",
+        "accepted_overall_statuses",
+        "admission_allowed_required",
+        "required_reason_codes",
+        "decision_rule"
+      ],
+      "properties": {
+        "adapter_mode": {
+          "const": "governance_dry_run_only"
+        },
+        "source_contract": {
+          "const": "core/verification/contracts.py"
+        },
+        "bundle_required": {
+          "const": true
+        },
+        "accepted_overall_statuses": {
+          "type": "array",
+          "items": {
+            "const": "pass"
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "admission_allowed_required": {
+          "const": true
+        },
+        "required_reason_codes": {
+          "type": "array",
+          "items": {
+            "const": "verification_checks_pass"
+          },
+          "minItems": 1,
+          "maxItems": 1
+        },
+        "decision_rule": {
+          "type": "string"
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claim_family_count",
+        "oracle_case_count",
+        "forbidden_case_count",
+        "allowed_case_count",
+        "dry_run_decision_count",
+        "all_cache_permissions_false"
+      ],
+      "properties": {
+        "claim_family_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "oracle_case_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "forbidden_case_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allowed_case_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "dry_run_decision_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "all_cache_permissions_false": {
+          "const": true
+        }
+      }
+    },
+    "claim_family_summaries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "claim_family",
+          "risk_rail",
+          "forbidden_case_count",
+          "allowed_case_count",
+          "verification_bundle_required"
+        ],
+        "properties": {
+          "claim_family": {
+            "type": "string"
+          },
+          "risk_rail": {
+            "type": "string"
+          },
+          "forbidden_case_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "allowed_case_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "verification_bundle_required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "dry_run_decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "admission_class",
+          "verification_bundle_state",
+          "bundle_present",
+          "overall_status",
+          "admission_allowed",
+          "reason_codes",
+          "dry_run_decision",
+          "cache_read_allowed",
+          "cache_write_allowed",
+          "serving_allowed"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "admission_class": {
+            "enum": [
+              "runtime_only",
+              "blocked_from_cache",
+              "verification_bundle_required",
+              "future_cache_candidate_deferred"
+            ]
+          },
+          "verification_bundle_state": {
+            "enum": [
+              "missing_verification_bundle",
+              "failed_verification_bundle",
+              "warn_verification_bundle",
+              "passed_verification_bundle",
+              "not_applicable"
+            ]
+          },
+          "bundle_present": {
+            "type": "boolean"
+          },
+          "overall_status": {
+            "enum": [
+              "pass",
+              "warn",
+              "fail",
+              null
+            ]
+          },
+          "admission_allowed": {
+            "type": "boolean"
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "verification_bundle_missing",
+                "verification_failed",
+                "verification_warn_not_accepted",
+                "verification_checks_pass",
+                "semantic_cache_gate_closed"
+              ]
+            },
+            "minItems": 1,
+            "maxItems": 1
+          },
+          "dry_run_decision": {
+            "enum": [
+              "verification_bundle_missing",
+              "verification_bundle_denied",
+              "gate_closed_deferred",
+              "gate_closed_runtime_only",
+              "blocked_from_cache"
+            ]
+          },
+          "cache_read_allowed": {
+            "const": false
+          },
+          "cache_write_allowed": {
+            "const": false
+          },
+          "serving_allowed": {
+            "const": false
+          }
+        }
+      },
+      "minItems": 7,
+      "maxItems": 7
+    },
+    "research_basis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "out_of_scope_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}

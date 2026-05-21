@@ -33,6 +33,12 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
   regenerated oracle fixture before a one-off regex is accepted. Verify that
   mutable policy inputs, generated oracle fixtures, and deterministic checkers
   stay separated, and that no runtime semantic-cache behavior is activated.
+- For future Philosophy semantic-cache runtime PRs, require the PR-3 dry-run
+  report and verification-bundle adapter as a precondition. QA must verify that
+  `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json`
+  remains generated from the PR-2 policy/oracle, that passed verification bundles
+  stay `gate_closed_deferred`, and that every dry-run decision keeps cache read,
+  cache write, and serving permissions false.
 - For AI/RAG/cache closeout PRs, add a small guard proving ledger, roadmap,
   fixed-mapping state, and machine-checkable gate markers agree. Do not accept a
   docs-only closeout when a DEFERRED review item still points at the closing
@@ -55,5 +61,6 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
 - Generated/equivalence-class matrix for claim validators when the changed behavior
   protects semantics rather than a single literal string
 - Policy/oracle drift check for Philosophy semantic-cache admission work
+- Dry-run report drift check for Philosophy semantic-cache admission/runtime handoff work
 - Required commands and expected pass/fail outcomes
 - Residual risks and blocked scenarios
