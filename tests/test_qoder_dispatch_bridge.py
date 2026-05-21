@@ -233,6 +233,51 @@ def test_parse_task_bootstrap_json_packet_skips_no_spawn_secondary(
     ]
 
 
+def test_parse_task_bootstrap_json_packet_empty_bridge_returns_no_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Malformed JSON packets must not be auto-repaired into coordinator-only lanes."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(
+        json.dumps({"native_subagent_bridge": {}}),
+        encoding="utf-8",
+    )
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
+
+
+def test_parse_task_bootstrap_json_packet_all_no_spawn_returns_no_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A fully no-spawn bridge should fail fast instead of dispatching coordinator only."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {
+                "repo_agent_slug": "agent-coordinator",
+                "dispatch_contract": {
+                    "advisory_only": True,
+                    "spawn_with_native_subagent": False,
+                },
+            },
+            "reviewer": {
+                "repo_agent_slug": "architecture-specialist",
+                "dispatch_contract": {
+                    "advisory_only": True,
+                    "spawn_with_native_subagent": False,
+                },
+            },
+            "secondary": [],
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == []
+
+
 def test_parse_packet_roles_rejects_symlink_escape(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
