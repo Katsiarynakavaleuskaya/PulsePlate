@@ -53,6 +53,7 @@ UNICODE_DASH_TRANSLATION = str.maketrans(
 )
 
 PR_A7_PATTERN = r"(?:pr(?:[-\s]+)?a7|pr\s*#?\s*1499|#1499)"
+PR_A7_TOKEN_PATTERN = rf"(?<!\w){PR_A7_PATTERN}(?!\w)"
 CLAIM_GAP = r"[^.!?\n]*"
 SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
 BACKEND_PATTERN = r"(?:redis|gpt[-\s]?cache)"
@@ -115,7 +116,7 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-A7 stale active/pending closeout claim",
         re.compile(
-            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}"
+            rf"{PR_A7_TOKEN_PATTERN}{CLAIM_GAP}"
             r"\b(?:lane|closeout|closure|implementation|status)\b"
             rf"{CLAIM_GAP}\b(?:active|pending|in\s+progress|open)\b",
             re.I,
@@ -124,7 +125,7 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-A7 stale active/pending closeout claim",
         re.compile(
-            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}"
+            rf"{PR_A7_TOKEN_PATTERN}{CLAIM_GAP}"
             r"\b(?:active|pending|in\s+progress|open)\b"
             rf"{CLAIM_GAP}\b(?:lane|closeout|closure|implementation|tasks?)\b",
             re.I,
@@ -135,35 +136,35 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 CHECKED_READINESS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "checked current-head CI assertion",
-        re.compile(r"^\s*-\s*\[x\]\s+current[-\s]+head\s+ci\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+current[-\s]+head\s+ci\b", re.I | re.M),
     ),
     (
         "checked required-checks assertion",
-        re.compile(r"^\s*-\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
     ),
     (
         "checked CI-green assertion",
-        re.compile(r"^\s*-\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M),
     ),
     (
         "checked review-thread assertion",
-        re.compile(r"^\s*-\s*\[x\]\s+(?:all\s+)?review[-\s]+threads?\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+(?:all\s+)?review[-\s]+threads?\b", re.I | re.M),
     ),
     (
         "checked bot-comments assertion",
-        re.compile(r"^\s*-\s*\[x\]\s+no\s+actionable\s+bot\s+comments\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+no\s+actionable\s+bot\s+comments\b", re.I | re.M),
     ),
     (
         "checked wait-window assertion",
-        re.compile(r"^\s*-\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
     ),
     (
         "checked pre-commit assertion",
-        re.compile(r"^\s*-\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
     ),
     (
         "checked make verify assertion",
-        re.compile(r"^\s*-\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*])\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
     ),
 )
 
@@ -171,7 +172,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-A7 opens semantic cache",
         re.compile(
-            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
+            rf"{PR_A7_TOKEN_PATTERN}{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
             rf"{CLAIM_GAP}\b{SEMANTIC_CACHE_PATTERN}\b",
             re.I,
         ),
@@ -180,7 +181,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "semantic cache enabled by PR-A7",
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
-            rf"{CLAIM_GAP}\b(?:by|via|from)\b{CLAIM_GAP}\b{PR_A7_PATTERN}\b",
+            rf"{CLAIM_GAP}\b(?:by|via|from)\b{CLAIM_GAP}{PR_A7_TOKEN_PATTERN}",
             re.I,
         ),
     ),
@@ -206,7 +207,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-A7 approves Redis/GPTCache",
         re.compile(
-            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
+            rf"{PR_A7_TOKEN_PATTERN}{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
             rf"{CLAIM_GAP}\b{BACKEND_PATTERN}\b",
             re.I,
         ),
@@ -222,7 +223,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "PR-A7 approves forbidden runtime surface",
         re.compile(
-            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
+            rf"{PR_A7_TOKEN_PATTERN}{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
             rf"{CLAIM_GAP}\b{FORBIDDEN_SURFACE_PATTERN}\b",
             re.I,
         ),
@@ -231,7 +232,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "forbidden runtime surface approved by PR-A7",
         re.compile(
             rf"\b{FORBIDDEN_SURFACE_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
-            rf"{CLAIM_GAP}\b(?:by|via|from)\b{CLAIM_GAP}\b{PR_A7_PATTERN}\b",
+            rf"{CLAIM_GAP}\b(?:by|via|from)\b{CLAIM_GAP}{PR_A7_TOKEN_PATTERN}",
             re.I,
         ),
     ),
@@ -265,7 +266,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "raw prompt/response/data cache permission",
         re.compile(
-            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
+            rf"{PR_A7_TOKEN_PATTERN}{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
             rf"{CLAIM_GAP}\b{RAW_CACHEABLE_PATTERN}\b",
             re.I,
         ),
@@ -281,6 +282,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 
 NEGATABLE_ACTION_PATTERN = rf"(?:{POSITIVE_ACTION_PATTERN}|active|open|live)"
 NEGATION_BINDING_BREAK_PATTERN = re.compile(r"\b(?:and|but|however|then)\b|[.,;:]", re.I)
+ADVERSATIVE_BREAK_PATTERN = re.compile(r"\b(?:but|however|then)\b|[;:]", re.I)
 NON_BINDING_NOT_PATTERN = re.compile(r"\b(?:not|does\s+not|doesn't)\b", re.I)
 TRAILING_BLOCKER_PATTERN = re.compile(
     r"^\s*(?:remains?\s+)?"
@@ -302,12 +304,18 @@ def _normalize_text(text: str) -> str:
     text = re.sub(r"\bpr\s*-\s*\n\s*a7\b", "PR-A7", text, flags=re.I)
     text = re.sub(r"\bpr\s*\n\s*a7\b", "PR-A7", text, flags=re.I)
     text = re.sub(
-        rf"\b({PR_A7_PATTERN})\b[ \t]*\n[ \t]*(?=\b{POSITIVE_ACTION_PATTERN}\b)",
+        rf"({PR_A7_TOKEN_PATTERN})[ \t]*\n[ \t]*(?=\b{POSITIVE_ACTION_PATTERN}\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(r"\bsemantic\s*\n\s*cache\b", "semantic-cache", text, flags=re.I)
+    text = re.sub(
+        rf"\b({RAW_CACHEABLE_PATTERN})\b[ \t]*\n[ \t]*(?=\b(?:{POSITIVE_ACTION_PATTERN}|are\s+{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN})\b)",
+        r"\1 ",
+        text,
+        flags=re.I,
+    )
     text = re.sub(
         rf"\b({POSITIVE_ACTION_PATTERN})\b[ \t]*\n[ \t]*"
         rf"(?=\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN}|{RAW_CACHEABLE_PATTERN})\b)",
@@ -399,9 +407,11 @@ def _is_negated_claim(text: str, match: re.Match[str]) -> bool:
 
     negation = negations[-1]
     between = prefix[negation.end() :]
-    if NON_BINDING_NOT_PATTERN.fullmatch(
-        negation.group(0)
-    ) and NEGATION_BINDING_BREAK_PATTERN.search(between):
+    if re.fullmatch(r"no", negation.group(0), re.I) and not ADVERSATIVE_BREAK_PATTERN.search(
+        between
+    ):
+        return True
+    if NEGATION_BINDING_BREAK_PATTERN.search(between):
         return False
     return True
 
