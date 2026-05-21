@@ -81,6 +81,11 @@ Disposition: FIXED
 Commit: 906b89b75
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` loads the checker namespace without forbidden dynamic-import tokens and calls `validate_closeout(...)` directly.
 
+Post-open bug-hunter found wrapped-claim and activation-phrase checker gaps.
+Disposition: FIXED
+Commit: a581ea60b
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py` now covers wrapped stale wording, wrapped runtime expansion, wrapped benchmark overclaim, progressive activation phrases, public API wording, and negated active-lane wording; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_repo_policy_guards.py` passed.
+
 ## Local Validation
 
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_preflight.py` -> passed
