@@ -244,6 +244,8 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("Semantic-cache is approved.", "semantic cache direct activation"),
         ("Semantic-cache gate is approved.", "semantic cache direct activation"),
         ("Semantic-cache serving is selected.", "semantic cache direct activation"),
+        ("Semantic-cache remains open.", "semantic cache active status"),
+        ("Semantic-cache\nis open.", "semantic cache active status"),
         ("Semantic-cache is production-ready.", "semantic cache active status"),
         ("Semantic-cache has been opened.", "semantic cache active status"),
         ("PR-A7 approves Redis for semantic-cache rollout.", "PR-A7 approves Redis"),
@@ -266,6 +268,7 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("PR-A7 approves OpenAPI route changes.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved.", "forbidden runtime surface"),
         ("GraphRAG is implemented.", "forbidden runtime surface"),
+        ("GraphRAG rollout remains open.", "forbidden runtime surface"),
         ("Context Manifest is supported.", "forbidden runtime surface"),
         ("Context Manifest is live.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved by PR-A7.", "forbidden runtime surface"),
@@ -310,7 +313,8 @@ def test_checker_allows_explicit_out_of_scope_negative_claims(tmp_path: Path) ->
         + "Redis is not approved for semantic-cache rollout.\n"
         + "GraphRAG is out of scope for PR-A7.\n"
         + "Semantic-cache gate remained closed.\n"
-        + "Raw prompt/response caching remains blocked.\n",
+        + "Raw prompt/response caching remains blocked.\n"
+        + "Raw prompt/response caching remains blocked by policy.\n",
         encoding="utf-8",
     )
 
@@ -349,6 +353,20 @@ def test_checker_rejects_forbidden_landed_scope_items(
     errors = _run_checker(tmp_path)
 
     assert any("landed scope includes forbidden surface" in error for error in errors)
+
+
+def test_checker_allows_negated_forbidden_landed_scope_items(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "- existing `VerificationBundle` truth preserved",
+            "- existing `VerificationBundle` truth preserved\n- no DB persistence changes\n- no GraphRAG rollout",
+        ),
+        encoding="utf-8",
+    )
+
+    assert _run_checker(tmp_path) == []
 
 
 def test_checker_rejects_stale_pr1499_mapping_readiness_claim(tmp_path: Path) -> None:
@@ -422,6 +440,7 @@ def test_checker_rejects_checked_historical_readiness_assertions(
         _valid_mapping()
         + "\n- [x] Current-head CI is green for PR branch head\n"
         + "* [x] Current-head CI is green for PR branch head\n"
+        + "+ [x] Current-head CI is green for PR branch head\n"
         + "- [x] Required checks complete (no pending jobs)\n",
         encoding="utf-8",
     )

@@ -136,35 +136,35 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 CHECKED_READINESS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "checked current-head CI assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+current[-\s]+head\s+ci\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+current[-\s]+head\s+ci\b", re.I | re.M),
     ),
     (
         "checked required-checks assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
     ),
     (
         "checked CI-green assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M),
     ),
     (
         "checked review-thread assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+(?:all\s+)?review[-\s]+threads?\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+(?:all\s+)?review[-\s]+threads?\b", re.I | re.M),
     ),
     (
         "checked bot-comments assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\]\s+no\s+actionable\s+bot\s+comments\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+no\s+actionable\s+bot\s+comments\b", re.I | re.M),
     ),
     (
         "checked wait-window assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
     ),
     (
         "checked pre-commit assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
     ),
     (
         "checked make verify assertion",
-        re.compile(r"^\s*(?:[-*])\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+])\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
     ),
 )
 
@@ -190,7 +190,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b"
             r"(?:\s+(?:serving|runtime|gate))?\s+"
-            r"(?:(?:is|has\s+been|now)\s+)?"
+            r"(?:(?:is|has\s+been|now|remains?)\s+)?"
             rf"\b{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN}\b",
             re.I,
         ),
@@ -199,7 +199,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "semantic cache active status",
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
-            r"(?:is|has\s+been|now)\s+"
+            r"(?:is|has\s+been|now|remains?)\s+"
             r"(?:active|enabled|open|opened|live|production[-\s]+ready|rollout[-\s]+ready)\b",
             re.I,
         ),
@@ -250,7 +250,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "forbidden runtime surface active status",
         re.compile(
             rf"\b{FORBIDDEN_SURFACE_PATTERN}\b{CLAIM_GAP}\b"
-            r"(?:is|has\s+been|now)\s+"
+            r"(?:is|has\s+been|now|remains?)\s+"
             rf"{DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN}\b",
             re.I,
         ),
@@ -287,7 +287,8 @@ NON_BINDING_NOT_PATTERN = re.compile(r"\b(?:not|does\s+not|doesn't)\b", re.I)
 TRAILING_BLOCKER_PATTERN = re.compile(
     r"^\s*(?:remains?\s+)?"
     r"(?:blocked|closed|deferred|out\s+of\s+scope|forbidden|disallowed|"
-    r"not\s+(?:allowed|approved|enabled|open|opened|active|live))\s*$",
+    r"not\s+(?:allowed|approved|enabled|open|opened|active|live))"
+    r"(?:\s+(?:by|under|per|because|until|unless|for|via)\b.*)?\s*$",
     re.I,
 )
 
@@ -310,6 +311,12 @@ def _normalize_text(text: str) -> str:
         flags=re.I,
     )
     text = re.sub(r"\bsemantic\s*\n\s*cache\b", "semantic-cache", text, flags=re.I)
+    text = re.sub(
+        rf"\b({SEMANTIC_CACHE_PATTERN})\b[ \t]*\n[ \t]*(?=\b(?:is|has\s+been|now|remains?)\b)",
+        r"\1 ",
+        text,
+        flags=re.I,
+    )
     text = re.sub(
         rf"\b({RAW_CACHEABLE_PATTERN})\b[ \t]*\n[ \t]*(?=\b(?:{POSITIVE_ACTION_PATTERN}|are\s+{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN})\b)",
         r"\1 ",
@@ -440,6 +447,22 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
     return errors
 
 
+def _has_forbidden_landed_scope_item(text: str) -> bool:
+    for line in _normalize_text(text).splitlines():
+        match = re.search(
+            rf"\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN})\b",
+            line,
+            re.I,
+        )
+        if not match:
+            continue
+        prefix = line[: match.start()]
+        if re.search(rf"\b{NEGATION_PATTERN}\b", prefix, re.I):
+            continue
+        return True
+    return False
+
+
 def _validate_runtime_files(repo_root: Path) -> list[str]:
     errors: list[str] = []
     for relpath in REQUIRED_RUNTIME_FILES:
@@ -541,11 +564,7 @@ def _validate_roadmap(text: str) -> list[str]:
         )
 
     in_scope = _subsection_between(block, heading="#### Landed W1 scope")
-    if re.search(
-        rf"\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN})\b",
-        _normalize_text(in_scope),
-        re.I,
-    ):
+    if _has_forbidden_landed_scope_item(in_scope):
         errors.append(
             "PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md PR-A7 block: landed scope includes forbidden surface"
         )
