@@ -78,7 +78,7 @@ POSITIVE_ACTION_PATTERN = (
     r"production[-\s]+ready|rollout[-\s]+ready)"
 )
 DIRECT_SEMANTIC_CACHE_ACTION_PATTERN = (
-    r"(?:opened|enabled|activated|approved|authorized|selected|chosen|cached|"
+    r"(?:open|opened|enabled|activated|approved|authorized|selected|chosen|cached|"
     r"cacheable|available|supported|production[-\s]+ready|rollout[-\s]+ready)"
 )
 DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN = (
@@ -88,9 +88,13 @@ DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN = (
 DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN = (
     rf"(?:{DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN}|implemented|available|supported)"
 )
-STATUS_AUX_PATTERN = r"(?:is|was|were|has\s+been|had\s+been|got|gets|now|remains?)"
+STATUS_AUX_PATTERN = (
+    r"(?:is|was|were|has\s+been|had\s+been|got|gets|now|remains?|stays?|" r"became|becomes|become)"
+)
 NEGATION_PATTERN = (
-    r"(?:no|not|never|does\s+not|doesn't|must\s+not|cannot|can't|"
+    r"(?:no|not|never|does\s+not|doesn't|isn't|isnt|aren't|arent|wasn't|"
+    r"wasnt|weren't|werent|hasn't|hasnt|haven't|havent|hadn't|hadnt|won't|"
+    r"wont|must\s+not|cannot|can't|"
     r"out\s+of\s+scope|blocked|deferred|remains\s+closed|remained\s+closed)"
 )
 
@@ -287,8 +291,10 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 NEGATABLE_ACTION_PATTERN = rf"(?:{POSITIVE_ACTION_PATTERN}|active|open|live)"
-NEGATION_BINDING_BREAK_PATTERN = re.compile(r"\b(?:and|but|however|then)\b|[.,;:]", re.I)
-ADVERSATIVE_BREAK_PATTERN = re.compile(r"\b(?:but|however|then)\b|[;:]", re.I)
+NEGATION_BINDING_BREAK_PATTERN = re.compile(
+    r"\b(?:and|or|nor|but|however|then|yet|although|while|whereas)\b|[.,;:]",
+    re.I,
+)
 NON_BINDING_NOT_PATTERN = re.compile(r"\b(?:not|does\s+not|doesn't)\b", re.I)
 TRAILING_BLOCKER_PATTERN = re.compile(
     r"^\s*(?:remains?\s+)?"
@@ -420,12 +426,8 @@ def _is_negated_claim(text: str, match: re.Match[str]) -> bool:
 
     negation = negations[-1]
     between = prefix[negation.end() :]
-    if re.fullmatch(r"no", negation.group(0), re.I) and not ADVERSATIVE_BREAK_PATTERN.search(
-        between
-    ):
-        if re.match(r"\s*,", between):
-            return False
-        return True
+    if re.fullmatch(r"no", negation.group(0), re.I):
+        return NEGATION_BINDING_BREAK_PATTERN.search(between) is None
     if NEGATION_BINDING_BREAK_PATTERN.search(between):
         return False
     return True

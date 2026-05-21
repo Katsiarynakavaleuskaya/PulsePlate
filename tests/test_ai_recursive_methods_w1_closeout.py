@@ -128,7 +128,9 @@ Disposition: FIXED
 - Original branch: `{ORIGINAL_BRANCH}`
 - Closeout scope: PR-A7 W1 is not re-opened and implementation is not duplicated.
 - Parent scope: the broader recursive-methods P1 item remains open.
-- Boundary: semantic-cache gate remained closed; no Redis/GPTCache rollout, GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, or response-shape change was approved by this closeout.
+- Boundary: semantic-cache gate remained closed. Redis/GPTCache rollout,
+  GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, and
+  response-shape changes remained out of scope for this closeout.
 
 ## Historical Merge Readiness
 
@@ -238,6 +240,10 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
             "PR-A7 opens semantic cache",
         ),
         (
+            "No GraphRAG rollout and semantic-cache serving is enabled.",
+            "semantic cache direct activation",
+        ),
+        (
             "Without extra approvals PR-A7 opens semantic-cache serving.",
             "PR-A7 opens semantic cache",
         ),
@@ -248,9 +254,11 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("Semantic-cache was enabled.", "semantic cache direct activation"),
         ("Semantic-cache was approved.", "semantic cache direct activation"),
         ("Semanticcache enabled.", "semantic cache direct activation"),
+        ("Semantic-cache open.", "semantic cache direct activation"),
         ("Semantic-cache gate is approved.", "semantic cache direct activation"),
         ("Semantic-cache serving is selected.", "semantic cache direct activation"),
         ("Semantic-cache remains open.", "semantic cache active status"),
+        ("Semantic-cache stays open.", "semantic cache active status"),
         ("Semantic-cache\nis open.", "semantic cache active status"),
         ("Semantic-cache is production-ready.", "semantic cache active status"),
         ("Semantic-cache has been opened.", "semantic cache active status"),
@@ -278,12 +286,26 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("GraphRAG rollout is approved.", "forbidden runtime surface"),
         ("GraphRAG rollout was approved.", "forbidden runtime surface"),
         ("GraphRAG rollout got approved.", "forbidden runtime surface"),
+        ("GraphRAG rollout became approved.", "forbidden runtime surface"),
+        ("GraphRAG rollout stays open.", "forbidden runtime surface"),
         ("Graph-RAG rollout is approved.", "forbidden runtime surface"),
         ("GraphRAG is implemented.", "forbidden runtime surface"),
         ("GraphRAG rollout remains open.", "forbidden runtime surface"),
         ("Context Manifest is supported.", "forbidden runtime surface"),
         ("Context Manifest is live.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved by PR-A7.", "forbidden runtime surface"),
+        (
+            "No GraphRAG rollout, GraphRAG rollout is approved by PR-A7.",
+            "forbidden runtime surface",
+        ),
+        (
+            "GraphRAG is out of scope or approved by PR-A7.",
+            "forbidden runtime surface",
+        ),
+        (
+            "No GraphRAG rollout or GraphRAG rollout is approved by PR-A7.",
+            "forbidden runtime surface",
+        ),
         ("PR-A7 approves Graph-RAG rollout.", "forbidden runtime surface"),
         ("Context Manifest rollout is authorized by PR-A7.", "forbidden runtime surface"),
         ("Database rollout is approved by PR-A7.", "forbidden runtime surface"),
@@ -328,7 +350,8 @@ def test_checker_allows_explicit_out_of_scope_negative_claims(tmp_path: Path) ->
         + "GraphRAG is out of scope for PR-A7.\n"
         + "Semantic-cache gate remained closed.\n"
         + "Raw prompt/response caching remains blocked.\n"
-        + "Raw prompt/response caching remains blocked by policy.\n",
+        + "Raw prompt/response caching remains blocked by policy.\n"
+        + "GraphRAG isn't approved by PR-A7.\n",
         encoding="utf-8",
     )
 

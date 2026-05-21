@@ -63,7 +63,9 @@ Evidence: `tests/test_remaining_modules.py:1223-1232` now guards both recursive 
 - Original branch: `codex/ai-recursive-methods-w1`
 - Closeout scope: PR-A7 W1 is not re-opened and implementation is not duplicated.
 - Parent scope: the broader recursive-methods P1 item remains open until the full recursive-framework DoD is separately proven.
-- Boundary: semantic-cache gate remained closed; no Redis/GPTCache rollout, GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, or response-shape change was approved by this closeout.
+- Boundary: semantic-cache gate remained closed. Redis/GPTCache rollout,
+  GraphRAG, ContextManifest, DB persistence, public route, OpenAPI, DTO, and
+  response-shape changes remained out of scope for this closeout.
 
 ## Historical Merge Readiness
 
