@@ -42,11 +42,14 @@ OpenAPI/frontend/iOS changes, and no release-manifest mutation.
 - [x] Fixed in commit mapping completed
 - Pre-open role review completed in order: `agent-coordinator -> architecture-specialist -> philosophy-agent -> security-auditor -> qa-engineer-agent -> bug-hunter`.
 - Post-open bootstrap completed with packet `artifacts/orchestration/task_packets/0cd5f8098592.json`.
-- No actionable GitHub review threads existed when this artifact was created. Future bot or human actionables must be mapped here before resolution.
+- Sourcery review actionables were fixed before thread resolution and mapped below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#pullrequestreview-4339796645 -> 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
+  - Disposition: FIXED
+  - Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now preserves JSON decode line/column context by reporting the full `JSONDecodeError`, and `tests/test_philosophy_alignment_rules.py` covers the location-bearing invalid JSON message.
+  - Evidence: `scripts/ci/check_philosophy_alignment_rules.py` removes the unused `schema` parameter from `validate_alignment_rule` and updates the only call site, eliminating the confusing no-op companion-schema check.
 
 ## Local Validation Evidence
 
@@ -55,7 +58,7 @@ OpenAPI/frontend/iOS changes, and no release-manifest mutation.
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` - PASS, packet `artifacts/orchestration/task_packets/d2e36e91b405.json`
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` - PASS, packet `artifacts/orchestration/task_packets/0cd5f8098592.json`
 - `.venv/bin/python scripts/ci/check_philosophy_alignment_rules.py` - PASS, `schema_hash=31d165ca54e37c0255c8103c52d9fbe29c70084398d665b1ada5f98532453f50`
-- `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`28 passed`)
+- `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`29 passed`)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json docs/roadmap/BACKLOG_LEDGER.md` - PASS
 - `python3 scripts/ci/check_semantic_cache_gate.py` - PASS; semantic-cache gates remain closed
 - `make validate-changed` - PASS (`41 passed`)
