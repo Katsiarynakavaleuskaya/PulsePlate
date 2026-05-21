@@ -59,12 +59,27 @@ Role-agent dispositions:
 - `qa-engineer-agent`: Disposition `FIXED`. Evidence: initial false-green
   finding that `make validate-changed` was non-evidentiary was closed after
   commit `bd3fff7e4`; rerun selected the PR19 Python files and passed.
+- Post-open `qa-engineer-agent`: Disposition `PASS`. Evidence: after commit
+  `d37c50dc1`, Phase2 body/mapping, PR-size split justification, Experiment
+  Runner evidence, lane-start provenance, and file-only scope all passed. The
+  only remaining QA blocker was pending current-head CI, not a PR19 code or
+  artifact fix.
 - `bug-hunter`: Disposition `FIXED`. Evidence: `BH-PR19-001` was closed after
   commit `bd3fff7e4`; branch diff now includes the PR19 Python files and
   `make validate-changed` selected them.
+- Post-open `bug-hunter`: Disposition `PASS`. Evidence: after commit
+  `d37c50dc1`, no remaining false-green validator path, unsafe authority gap,
+  PR18 handoff drift, evidence-posture issue, or mapping/body governance bug was
+  found.
 - `dev-operator`: Disposition `PASS`. Evidence: required explicit push, no
   plain `git push` to `origin/main`, pre-commit before commit, branch-diff
   validation after commit, and non-draft PR creation.
+- Post-open `security-auditor`: Disposition `PASS`. Evidence: reviewed the
+  current PR19 diff and local Codex Security report at
+  `/tmp/codex-security-scans/BMI-App_2025_clean/d37c50dc122a_20260521T215647Z/report.md`;
+  found no hidden network, API, provider, scraping, download, account, DB,
+  cache, runtime, OpenAPI, product, nutrition-authority, source-authority,
+  dependency-security, or Experiment Runner attribution issue.
 
 ## Experiment Runner Evidence
 
@@ -138,6 +153,15 @@ catalog providers.
 - `PREPUSH_DEBUG=1 PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`: PASS; selected `core/food_sources/regional_catalog_source_specific_terms.py`, `scripts/food_source_regional_catalog_source_specific_terms.py`, and `tests/test_food_source_regional_catalog_source_specific_terms.py`.
 - Pre-push hooks: PASS for mypy changed files, pip-audit, backend pre-push
   tests, full-repo Bandit, and docker build test.
+- `python3 scripts/ci/check_pr_body_phase2_gates.py --pr-number 1793 --body "$(cat /tmp/pr1793_live_body.md)"`: PASS after commit `d37c50dc1` and PR body update.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha "$BASE_SHA" --head-sha "$HEAD_SHA" --body "$(cat /tmp/pr1793_live_body.md)"`: PASS; PR size bucket required split justification and the PR body provides it.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1793 --require-auth`: PASS; no resolved review threads found.
+- Codex Security diff-scoped scan: PASS / no reportable findings. Evidence:
+  local report
+  `/tmp/codex-security-scans/BMI-App_2025_clean/d37c50dc122a_20260521T215647Z/report.md`.
+- CodeRabbit status: PASS. Evidence: PR status context `CodeRabbit` returned
+  `SUCCESS`; visible bot comment was rate-limit/advisory only, with no
+  actionable code finding.
 
 Full local `make verify` is intentionally deferred by operator instruction for
 this governance-only lane. Merge readiness still requires PR current-head CI
@@ -156,12 +180,12 @@ parity and strict review-governance checks before any readiness claim.
 
 - [x] Non-draft PR opened.
 - [x] Fixed mapping artifact created.
-- [ ] PR body mirror refreshed after fixed mapping commit.
+- [x] PR body mirror refreshed after fixed mapping commit.
 - [x] Post-open `task_bootstrap.py --pr-phase post_open_review` packet recorded.
-- [ ] Mandatory `qa-engineer-agent -> bug-hunter` post-open pass recorded.
-- [ ] CodeRabbit review inspected and dispositioned.
-- [ ] Codex Security diff-scoped scan inspected and dispositioned.
-- [ ] Security-auditor post-open pass recorded.
+- [x] Mandatory `qa-engineer-agent -> bug-hunter` post-open pass recorded.
+- [x] CodeRabbit review inspected and dispositioned.
+- [x] Codex Security diff-scoped scan inspected and dispositioned.
+- [x] Security-auditor post-open pass recorded.
 - [ ] Current-head checks inspected.
-- [ ] Review-thread disposition guard run with auth.
+- [x] Review-thread disposition guard run with auth.
 - [ ] Strict merge-readiness gate run with auth.
