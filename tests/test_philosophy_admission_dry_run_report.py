@@ -115,6 +115,22 @@ def test_dry_run_adapter_statuses_track_verification_contract() -> None:
     assert observed_statuses == {"pass", "warn", "fail"}
 
 
+def test_dry_run_checker_avoids_dynamic_import_path_mutation() -> None:
+    checker_source = Path(dry_run.__file__).read_text(encoding="utf-8")
+
+    forbidden_patterns = (
+        "sys.path.insert",
+        "spec_from_file_location",
+        "module_from_spec",
+        "exec_module",
+        "sys.modules[",
+        "sys.modules.pop",
+    )
+
+    for pattern in forbidden_patterns:
+        assert pattern not in checker_source
+
+
 def test_all_dry_run_decisions_keep_cache_permissions_false() -> None:
     decisions = _report()["dry_run_decisions"]
     assert isinstance(decisions, list)

@@ -4,22 +4,25 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import Counter
 from collections.abc import Iterable
-import importlib.util
 import json
 from pathlib import Path
 import sys
-from typing import get_args
+
+try:
+    from scripts.ci.check_semantic_cache_gate import (
+        validate_philosophy_admission_oracle_fixture,
+        validate_philosophy_semantic_cache_admission_policy,
+    )
+except ModuleNotFoundError:  # pragma: no cover - file-mode CLI fallback
+    from check_semantic_cache_gate import (  # type: ignore[no-redef]
+        validate_philosophy_admission_oracle_fixture,
+        validate_philosophy_semantic_cache_admission_policy,
+    )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.ci.check_semantic_cache_gate import (
-    validate_philosophy_admission_oracle_fixture,
-    validate_philosophy_semantic_cache_admission_policy,
-)
 
 DEFAULT_POLICY = (
     REPO_ROOT
@@ -122,21 +125,39 @@ DRY_RUN_DECISION_ENUMS: dict[str, tuple[object, ...]] = {
 
 def _load_verification_status_values() -> tuple[str, ...]:
     contract_path = REPO_ROOT / "core" / "verification" / "contracts.py"
-    module_name = "_pulseplate_verification_contracts_for_dry_run"
-    spec = importlib.util.spec_from_file_location(module_name, contract_path)
-    if spec is None or spec.loader is None:
-        raise RuntimeError(f"Unable to load verification contract: {contract_path}")
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[module_name] = module
-    try:
-        spec.loader.exec_module(module)
-        status_type = getattr(module, "VerificationStatus", None)
-        values = tuple(str(value) for value in get_args(status_type))
-    finally:
-        sys.modules.pop(module_name, None)
+    tree = ast.parse(contract_path.read_text(encoding="utf-8"), filename=str(contract_path))
+    values: tuple[str, ...] = ()
+    for node in tree.body:
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "VerificationStatus"
+            for target in node.targets
+        ):
+            continue
+        values = _literal_string_values(node.value)
+        break
     if not values:
         raise RuntimeError("VerificationStatus must define at least one status")
     return values
+
+
+def _literal_string_values(node: ast.AST) -> tuple[str, ...]:
+    if not isinstance(node, ast.Subscript):
+        return ()
+    if not isinstance(node.value, ast.Name) or node.value.id != "Literal":
+        return ()
+    literal_slice = node.slice
+    if isinstance(literal_slice, ast.Tuple):
+        candidates = literal_slice.elts
+    else:
+        candidates = [literal_slice]
+    values: list[str] = []
+    for candidate in candidates:
+        if not isinstance(candidate, ast.Constant) or not isinstance(candidate.value, str):
+            return ()
+        values.append(candidate.value)
+    return tuple(values)
 
 
 VERIFICATION_STATUS_VALUES = _load_verification_status_values()
