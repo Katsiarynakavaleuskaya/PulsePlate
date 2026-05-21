@@ -12,6 +12,7 @@ parity for coordinator-owned PR lanes.
 - `b5133c5` - `fix(orchestration): harden bootstrap python parity`
 - `b50ab6e` - `docs(review): normalize pr 1790 mapping format`
 - `a978b76` - `fix(ci): forward experiment evidence mode directly`
+- `9acd01a` - `fix(orchestration): avoid false evidence and startup blocks`
 
 ## Discussion Thread Pass
 
@@ -30,8 +31,8 @@ Artifact: artifacts/orchestration/experiments/results/evidence-hard-gate-switch.
 Local oracle-only result, gitignored and not committed. Runner mode:
 `oracle_only_governance_reviewer`; `mutated_paths: []`; `promotion_ready: false`;
 `contribution_kind: commit_decision`; `coauthor_required: true`. Commits
-`190577d0e`, `10668b0a`, `b5133c5`, `b50ab6e`, and `a978b76` include the
-canonical Experiment Runner co-author trailer.
+`190577d0e`, `10668b0a`, `b5133c5`, `b50ab6e`, `a978b76`, and `9acd01a`
+include the canonical Experiment Runner co-author trailer.
 
 ## Fixed in Commit Mapping
 
@@ -66,6 +67,13 @@ Disposition: FIXED
 Commit: a978b76
 Evidence: forwarded the configured Experiment Runner evidence mode directly into artifact/body evidence validation instead of relying on diagnostic post-processing.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340867011 -> a978b76
+
+Disposition: FIXED
+Commit: 9acd01a
+Evidence: fixed Codex review findings by combining body/artifact evidence before required-mode failure and by allowing clean origin/main starts without a local main branch.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340959547 -> 9acd01a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284523232 -> 9acd01a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284523235 -> 9acd01a
 
 ## Pre-Open Role-Agent Findings
 
