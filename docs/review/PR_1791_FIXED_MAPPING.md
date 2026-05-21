@@ -21,6 +21,21 @@ Commit: 9542dbff6
 Evidence: Closed post-open QA/bug/security findings by moving the PR-4 workflow guard before docs-phase early exit, adding `core/rag/**` to the no-runtime boundary, normalizing touched paths before matching forbidden runtime paths, requiring constrained PR #1789 alignment schema properties, tightening report schema ledger/precondition/reason-code constraints, and adding focused regressions for each gap. Covered local post-open findings: workflow PR-4 guard early-exit bypass; missing `core/rag/**` runtime boundary; weak PR #1789 alignment schema shape acceptance; arbitrary ledger anchor/precondition/reason-code schema acceptance; touched-path normalization bypass; alignment schema missing from explicit Phase1 inputs; and premature mapping completion before post-open findings were closed.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791 -> 9542dbff6
 
+Disposition: FIXED
+Commit: b415c0105
+Evidence: Completed the artifact-level discussion-thread and fixed-mapping checkboxes after post-open findings were closed so the review-mapping guard can treat the mapping artifact as complete.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284394017 -> b415c0105
+
+Disposition: FIXED
+Commit: e68d2b17d
+Evidence: Expanded PR-4 workflow trigger detection to all gate-open companion inputs from PR-2 policy/oracle, PR-3 dry-run, PR-4 precondition report/schema, PR #1789 alignment schema, roadmap, ledger, packet, checker, and guard tests. Added regression coverage in `tests/test_ci_workflow_pr_size_governance_contract.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284394007 -> e68d2b17d
+
+Disposition: FIXED
+Commit: 189168456
+Evidence: Replaced machine-specific absolute validation commands in this mapping artifact with repo-relative `.venv/bin` evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284394020 -> 189168456
+
 ## Premortem Disposition
 
 - FIXED: Closed roadmap markers and false runtime/cache permissions are enforced by report, schema, checker, docs-phase wiring, workflow regression coverage, and tests.
@@ -49,7 +64,8 @@ Evidence: Closed post-open QA/bug/security findings by moving the PR-4 workflow 
 
 - Post-open bootstrap packet: `artifacts/orchestration/task_packets/e3ff837cf33d.json` (local gitignored artifact).
 - Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass: completed locally; all actionable findings are fixed in `9542dbff6`.
-- CodeRabbit/Cubic/Codex-security-style review: pending.
+- Initial CodeRabbit review comments: fixed in `b415c0105`, `e68d2b17d`, and `189168456`.
+- CodeRabbit/Cubic/Codex-security-style final review: pending.
 - Current-head checks: pending.
 - Review-thread disposition guard: pending.
 
