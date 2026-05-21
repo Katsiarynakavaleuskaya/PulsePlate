@@ -10,7 +10,18 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338682892 -> 4736bd3bf
+  - Disposition: FIXED
+  - Commit: `4736bd3bf`
+  - Evidence: `tests/test_install_locked_python_requirements.py` derives
+    protobuf and wrapt wheel expectations from the active emergency manifest
+    instead of duplicating filename, URL, or SHA256 literals.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282690538 -> 4736bd3bf
+  - Disposition: FIXED
+  - Commit: `4736bd3bf`
+  - Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected`
+    now compares staged downloads to the manifest-derived expected artifact set
+    and asserts no unexpected emergency wheels are staged.
 
 ## Lane Start Provenance
 
@@ -28,7 +39,18 @@ fallback choice and validation plan, so commit `749560148` includes
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338682892 -> 4736bd3bf
+  - Disposition: FIXED
+  - Commit: `4736bd3bf`
+  - Evidence: `tests/test_install_locked_python_requirements.py` derives
+    protobuf and wrapt wheel expectations from the active emergency manifest
+    instead of duplicating filename, URL, or SHA256 literals.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282690538 -> 4736bd3bf
+  - Disposition: FIXED
+  - Commit: `4736bd3bf`
+  - Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected`
+    now compares staged downloads to the manifest-derived expected artifact set
+    and asserts no unexpected emergency wheels are staged.
 
 ## Pre-Open Role-Agent Findings
 
@@ -84,6 +106,7 @@ fallback choice and validation plan, so commit `749560148` includes
 - `python3 scripts/orchestration/check_preflight.py --path scripts/ci/emergency_python_wheels.json --path tests/test_install_locked_python_requirements.py --path docs/roadmap/BACKLOG_LEDGER.md` - PASS
 - `python3 scripts/orchestration/check_agent_consistency.py` - PASS
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_install_locked_python_requirements.py tests/test_python_supply_chain_controls.py -q` - PASS
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest tests/test_install_locked_python_requirements.py::test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected tests/test_install_locked_python_requirements.py::test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt -q` - PASS
 - `python3 scripts/orchestration/check_experiment_runner_identity.py` - PASS
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python make validate-changed` - PASS
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH VIRTUAL_ENV=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv pre-commit run --all-files` - PASS
