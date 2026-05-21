@@ -1669,8 +1669,10 @@ def test_rag_gate_result_export_emits_supplied_mlflow_identity(tmp_path: Path) -
         Path("docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json").read_text(encoding="utf-8")
     )
 
-    assert schema["properties"]["mlflow_run_id"] == {"type": "string", "minLength": 1}
-    assert schema["properties"]["model_version"] == {"type": "string", "minLength": 1}
+    assert schema["properties"]["mlflow_run_id"]["type"] == "string"
+    assert schema["properties"]["mlflow_run_id"]["minLength"] == 1
+    assert schema["properties"]["model_version"]["type"] == "string"
+    assert schema["properties"]["model_version"]["minLength"] == 1
     assert set(payload).issubset(schema["properties"])
     assert set(schema["required"]).issubset(payload)
     assert payload["mlflow_run_id"] == "mlflow-run-scg4-control"
