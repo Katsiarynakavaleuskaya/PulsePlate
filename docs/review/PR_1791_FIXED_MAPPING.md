@@ -41,6 +41,13 @@ Commit: ace34b97d
 Evidence: Mapped the aggregate CodeRabbit review after all individual actionable review comments were fixed and mapped through `b415c0105`, `e68d2b17d`, and `189168456`.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#pullrequestreview-4340811506 -> ace34b97d
 
+Disposition: FIXED
+Commit: f1470724a
+Evidence: Hardened PR-4 workflow diff routing to parse `git diff --name-status -z --diff-filter=ACDMRT`, include deleted paths, include both old and new rename/copy paths in `ALL_CHANGED_FILES`, and remove global `BACKLOG_LEDGER.md` from the runtime-boundary trigger so unrelated ledger+runtime PRs do not inherit PR-4 no-runtime enforcement. Added workflow regression assertions in `tests/test_ci_workflow_pr_size_governance_contract.py`.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284568555 -> f1470724a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284568559 -> f1470724a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284568560 -> f1470724a
+
 ## Premortem Disposition
 
 - FIXED: Closed roadmap markers and false runtime/cache permissions are enforced by report, schema, checker, docs-phase wiring, workflow regression coverage, and tests.
@@ -69,7 +76,7 @@ Evidence: Mapped the aggregate CodeRabbit review after all individual actionable
 
 - Post-open bootstrap packet: `artifacts/orchestration/task_packets/e3ff837cf33d.json` (local gitignored artifact).
 - Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass: completed locally; all actionable findings are fixed in `9542dbff6`.
-- Initial CodeRabbit review comments: fixed in `b415c0105`, `e68d2b17d`, and `189168456`.
+- Initial CodeRabbit review comments: fixed in `b415c0105`, `e68d2b17d`, `189168456`, `ace34b97d`, and `f1470724a`.
 - CodeRabbit/Cubic/Codex-security-style final review: pending.
 - Current-head checks: pending.
 - Review-thread disposition guard: pending.
