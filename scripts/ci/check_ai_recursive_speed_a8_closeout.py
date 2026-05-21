@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from pathlib import Path
 import re
 import sys
@@ -109,7 +110,7 @@ POSITIVE_ACTION_RE = re.compile(
     r"default\s+activation|active|live)\b",
     re.I,
 )
-A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
+A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
 STALE_A8_RE = re.compile(
     r"\b(pr[-\s]?a8|#1506|#1578)\b.*\b(pending|in\s+progress|active|"
     r"next\s+logical|will\s+implement|implementation\s+lane|open\s+runtime)\b",
@@ -155,6 +156,8 @@ def _claim_is_locally_negated(text: str) -> bool:
 
 def _surface_claim_is_negated(text: str) -> bool:
     normalized = _normalize(text)
+    if NEGATION_RE.search(normalized):
+        return True
     if _claim_is_locally_negated(normalized):
         return True
     return (
@@ -197,10 +200,14 @@ def _require_contains(text: str, needle: str, label: str, errors: list[str]) -> 
 
 
 def _validate_pr_evidence(
-    *, combined_text: str, mapping_text: str, evidence: dict[str, str], errors: list[str]
+    *,
+    active_text: str,
+    mapping_text: str,
+    evidence: dict[str, str],
+    errors: list[str],
 ) -> None:
     number = evidence["number"]
-    _require_contains(combined_text, f"#{number}", f"PR #{number} active evidence", errors)
+    _require_contains(active_text, f"#{number}", f"PR #{number} active docs evidence", errors)
     for needle, label in (
         (f"#{number}", f"PR #{number} number"),
         (TITLE, f"PR #{number} title"),
@@ -216,8 +223,34 @@ def _validate_required_symbols(repo_root: Path, errors: list[str]) -> None:
     for relpath, symbols in REQUIRED_SYMBOLS.items():
         path = repo_root / relpath
         text = _read_text(path, errors)
+        discovered_symbols = _python_ast_symbols(text, relpath, errors)
         for symbol in symbols:
-            _require_contains(text, symbol, f"{relpath} landed symbol", errors)
+            if symbol not in discovered_symbols:
+                errors.append(f"missing {relpath} landed symbol declaration/reference: {symbol}")
+
+
+def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        errors.append(f"{relpath}: unable to parse Python for landed symbols: {exc}")
+        return set()
+
+    symbols: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+            symbols.add(node.name)
+        elif isinstance(node, ast.Name):
+            symbols.add(node.id)
+        elif isinstance(node, ast.Attribute):
+            symbols.add(node.attr)
+        elif isinstance(node, ast.arg):
+            symbols.add(node.arg)
+        elif isinstance(node, ast.keyword) and node.arg is not None:
+            symbols.add(node.arg)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            symbols.add(node.value)
+    return symbols
 
 
 def _validate_semantic_cache_gate(gate_text: str, errors: list[str]) -> None:
@@ -252,12 +285,14 @@ def _validate_roadmap_section(roadmap_text: str, errors: list[str]) -> None:
             errors.append(f"PR-A8 roadmap section missing heading: {heading}")
     if "#### In scope" in section:
         errors.append("PR-A8 roadmap section still uses implementation in-scope wording")
-    _validate_stale_a8_wording(section, errors)
+    _validate_stale_a8_wording(section, errors, assume_a8_context=True)
 
 
-def _validate_stale_a8_wording(active_text: str, errors: list[str]) -> None:
+def _validate_stale_a8_wording(
+    active_text: str, errors: list[str], *, assume_a8_context: bool = False
+) -> None:
     for sentence in _sentences(active_text):
-        sentence_has_a8 = A8_REF_RE.search(sentence) is not None
+        sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for clause in CONTRAST_SPLIT_RE.split(sentence):
             residual_clause = re.sub(
                 r"\b(?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't)\b"
@@ -286,9 +321,11 @@ def _validate_mapping_closeout(mapping_text: str, number: str, errors: list[str]
         errors.append(f"PR #{number} mapping must mark old readiness checklist as historical")
 
 
-def _validate_forbidden_claims(active_text: str, errors: list[str]) -> None:
+def _validate_forbidden_claims(
+    active_text: str, errors: list[str], *, assume_a8_context: bool = False
+) -> None:
     for sentence in _sentences(active_text):
-        sentence_has_a8 = A8_REF_RE.search(sentence) is not None
+        sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for clause in CONTRAST_SPLIT_RE.split(sentence):
             residual_clause = LOCAL_NEGATED_CLAIM_RE.sub(" ", clause)
             if _surface_claim_is_negated(residual_clause):
@@ -317,9 +354,11 @@ def _validate_forbidden_claims(active_text: str, errors: list[str]) -> None:
                 break
 
 
-def _validate_benchmark_claims(active_text: str, errors: list[str]) -> None:
+def _validate_benchmark_claims(
+    active_text: str, errors: list[str], *, assume_a8_context: bool = False
+) -> None:
     for sentence in _sentences(active_text):
-        if A8_REF_RE.search(sentence) is None:
+        if not assume_a8_context and A8_REF_RE.search(sentence) is None:
             continue
         if not BENCHMARK_CLAIM_RE.search(sentence):
             continue
@@ -328,7 +367,10 @@ def _validate_benchmark_claims(active_text: str, errors: list[str]) -> None:
             for clause in CONTRAST_SPLIT_RE.split(sentence)
             if BENCHMARK_CLAIM_RE.search(clause)
         ]
-        if any(_benchmark_clause_is_overclaim(clause) for clause in claim_clauses):
+        if any(
+            _benchmark_clause_is_overclaim(clause, assume_a8_context=assume_a8_context)
+            for clause in claim_clauses
+        ):
             errors.append(f"unvalidated benchmark claim: {sentence}")
             continue
         if not all(_benchmark_claim_is_qualified(clause) for clause in claim_clauses):
@@ -356,10 +398,10 @@ def _benchmark_claim_is_qualified(text: str) -> bool:
     return has_hypothesis and has_validation
 
 
-def _benchmark_clause_is_overclaim(text: str) -> bool:
+def _benchmark_clause_is_overclaim(text: str, *, assume_a8_context: bool = False) -> bool:
     if not _has_unnegated_overclaim(text):
         return False
-    if A8_REF_RE.search(text):
+    if assume_a8_context or A8_REF_RE.search(text):
         return True
     return not _benchmark_claim_is_qualified(text)
 
@@ -429,21 +471,8 @@ def validate_closeout(
     normalized_roadmap = _normalize(roadmap)
     normalized_mapping1506 = _normalize(mapping1506)
     normalized_mapping1578 = _normalize(mapping1578)
-    combined = "\n".join(
-        (
-            normalized_ledger,
-            normalized_roadmap,
-            normalized_mapping1506,
-            normalized_mapping1578,
-        )
-    )
+    active_docs = "\n".join((normalized_ledger, normalized_roadmap))
     roadmap_a8_section = _find_pr_a8_section(normalized_roadmap)
-    recursive_ledger_section = _find_anchor_section(
-        normalized_ledger, "ledger-p1-recursive-methods"
-    )
-    philosophy_ledger_section = _find_anchor_section(
-        normalized_ledger, "ledger-p1-philosophical-logic"
-    )
     stale_scan_text = "\n".join(
         (
             normalized_roadmap,
@@ -457,13 +486,13 @@ def validate_closeout(
     )
 
     _validate_pr_evidence(
-        combined_text=combined,
+        active_text=active_docs,
         mapping_text=normalized_mapping1506,
         evidence=PR_1506,
         errors=errors,
     )
     _validate_pr_evidence(
-        combined_text=combined,
+        active_text=active_docs,
         mapping_text=normalized_mapping1578,
         evidence=PR_1578,
         errors=errors,
@@ -476,7 +505,9 @@ def validate_closeout(
     _validate_mapping_closeout(normalized_mapping1506, "1506", errors)
     _validate_mapping_closeout(normalized_mapping1578, "1578", errors)
     _validate_forbidden_claims(claim_scan_text, errors)
+    _validate_forbidden_claims(roadmap_a8_section, errors, assume_a8_context=True)
     _validate_benchmark_claims(claim_scan_text, errors)
+    _validate_benchmark_claims(roadmap_a8_section, errors, assume_a8_context=True)
 
     return errors
 
