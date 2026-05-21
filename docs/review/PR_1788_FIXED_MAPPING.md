@@ -28,13 +28,25 @@ fallback choice and validation plan, so commit `749560148` includes
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338682892 -> 4736bd3bf
 Disposition: FIXED
 Commit: 4736bd3bf
 Evidence: `tests/test_install_locked_python_requirements.py` derives protobuf/wrapt wheel expectations from the active emergency manifest instead of duplicating filename, URL, or SHA256 literals.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282690538 -> 4736bd3bf
+Disposition: FIXED
+Commit: 4736bd3bf
 Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected` compares staged downloads to the manifest-derived expected artifact set and asserts no unexpected emergency wheels are staged.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338682892 -> 4736bd3bf
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282690538 -> 4736bd3bf
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338813972 -> fa50bb2c1
+Disposition: FIXED
+Commit: fa50bb2c1
+Evidence: CodeRabbit asked the manifest-derived expected artifact selection to use the same `constraints.txt` surface as `stage_emergency_wheels(...)`; `tests/test_install_locked_python_requirements.py` now uses the same constraints path in both places.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282796927 -> fa50bb2c1
+Disposition: FIXED
+Commit: fa50bb2c1
+Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected` now passes `constraints_file=REPO_ROOT / "constraints.txt"` to the expected-artifact helper path, matching the staging call.
 
 ## Pre-Open Role-Agent Findings
 
