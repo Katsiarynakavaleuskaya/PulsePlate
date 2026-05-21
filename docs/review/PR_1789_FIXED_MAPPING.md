@@ -47,9 +47,9 @@ OpenAPI/frontend/iOS changes, and no release-manifest mutation.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#pullrequestreview-4339796645 -> 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
-  - Disposition: FIXED
-  - Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now preserves JSON decode line/column context by reporting the full `JSONDecodeError`, and `tests/test_philosophy_alignment_rules.py` covers the location-bearing invalid JSON message.
-  - Evidence: `scripts/ci/check_philosophy_alignment_rules.py` removes the unused `schema` parameter from `validate_alignment_rule` and updates the only call site, eliminating the confusing no-op companion-schema check.
+Disposition: FIXED
+Commit: 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
+Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now preserves JSON decode line/column context by reporting the full `JSONDecodeError`, and `tests/test_philosophy_alignment_rules.py` covers the location-bearing invalid JSON message. The same commit removes the unused `schema` parameter from `validate_alignment_rule` and updates the only call site, eliminating the confusing no-op companion-schema check.
 
 ## Local Validation Evidence
 
@@ -61,7 +61,7 @@ OpenAPI/frontend/iOS changes, and no release-manifest mutation.
 - `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`29 passed`)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json docs/roadmap/BACKLOG_LEDGER.md` - PASS
 - `python3 scripts/ci/check_semantic_cache_gate.py` - PASS; semantic-cache gates remain closed
-- `make validate-changed` - PASS (`41 passed`)
+- `make validate-changed` - PASS (`42 passed`)
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
 
