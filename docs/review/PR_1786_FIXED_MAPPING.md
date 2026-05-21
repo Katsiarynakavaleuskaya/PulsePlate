@@ -25,6 +25,11 @@ Disposition: FIXED
 Commit: 1f25e18a5
 Evidence: `scripts/ci/check_pr_body_phase2_gates.py` uses `--end-of-options` before the revision/range, and `tests/test_pr_body_phase2_gates.py` asserts exact argv ordering plus direct and argparse validator coverage.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1786#pullrequestreview-4338675568 -> 98edbad68
+Disposition: FIXED
+Commit: 98edbad68
+Evidence: `scripts/ci/check_pr_body_phase2_gates.py` uses an explicit `value != ""` check for `--commit-range-fallback` validation clarity.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1786#pullrequestreview-4335150463
 Disposition: NOT-A-BUG
 Evidence: Sourcery reported a weekly rate-limit notice only and did not provide actionable code findings for this PR.
@@ -70,6 +75,8 @@ The accepted oracle-only governance reviewer result records `mutated_paths: []`,
 - `.venv/bin/python -m pytest -q tests/test_pr_body_phase2_gates.py`
 - `.venv/bin/flake8 scripts/ci/check_pr_body_phase2_gates.py tests/test_pr_body_phase2_gates.py`
 - `git diff --check`
+- `make validate-changed`
+- `pre-commit run --all-files`
 - Experiment Runner oracle-only result:
   `artifacts/orchestration/experiments/results/exp-da9fceb8f915.json`
 
