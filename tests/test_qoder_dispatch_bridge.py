@@ -851,6 +851,9 @@ def test_fenced_code_blocks_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     if not known:
         pytest.skip("No agent definitions found")
     sample_slug = known[0]
+    tmp_agents_dir = tmp_path / ".cursor" / "agents"
+    tmp_agents_dir.mkdir(parents=True)
+    (tmp_agents_dir / f"{sample_slug}.md").write_text(f"---\nslug: {sample_slug}\n---\n")
 
     packet_content = (
         "# Test\n\n"
