@@ -169,17 +169,25 @@ def _claim_is_locally_negated(text: str) -> bool:
 
 def _surface_claim_is_negated(text: str) -> bool:
     normalized = _normalize(text)
-    if NEGATION_RE.search(normalized):
-        return True
     if _claim_is_locally_negated(normalized):
         return True
-    return (
+    if (
         re.search(
             rf"\b({FORBIDDEN_SURFACE_PATTERN})\b[^,;.]{{0,100}}"
             r"\b(?:is|are|was|were|remains?|remained)?\s*"
             r"(?:not|never)\s+"
             r"(?:active|live|enabled|opened|allowed|approved|selected|"
             r"production[-\s]?ready|rollout[-\s]?ready)\b",
+            normalized,
+            re.I,
+        )
+        is not None
+    ):
+        return True
+    return (
+        re.search(
+            rf"\b({FORBIDDEN_SURFACE_PATTERN})\b[^,;.]{{0,140}}"
+            r"\b(?:remain|remains|remained)\s+(?:out\s+of\s+scope|closed)\b",
             normalized,
             re.I,
         )
@@ -261,10 +269,6 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
             symbols.add(node.arg)
         elif isinstance(node, ast.keyword) and node.arg is not None:
             symbols.add(node.arg)
-        elif isinstance(node, ast.Dict):
-            for key in node.keys:
-                if isinstance(key, ast.Constant) and isinstance(key.value, str):
-                    symbols.add(key.value)
     return symbols
 
 

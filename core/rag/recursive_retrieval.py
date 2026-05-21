@@ -34,6 +34,8 @@ logger = logging.getLogger(__name__)
 _TOKEN_RE = re.compile(r"[\w\-]+", re.UNICODE)
 _AGGRESSIVE_SHORT_CIRCUIT_CONFIDENCE = 0.85
 _PRAGMATIC_EARLY_STOP_CONFIDENCE = 0.7
+early_stop_aggressive_short_circuit = "early_stop_aggressive_short_circuit"
+early_stop_pragmatic_usefulness = "early_stop_pragmatic_usefulness"
 _STOPWORDS = {
     "the",
     "and",
@@ -96,8 +98,8 @@ def _make_optimization_stats() -> OptimizationStats:
         "early_stop_no_new_chunks": False,
         "early_stop_low_confidence_gain": False,
         "early_stop_latency_budget": False,
-        "early_stop_aggressive_short_circuit": False,
-        "early_stop_pragmatic_usefulness": False,
+        early_stop_aggressive_short_circuit: False,
+        early_stop_pragmatic_usefulness: False,
     }
 
 
@@ -230,7 +232,7 @@ def _should_short_circuit_from_hints(
     ):
         return (
             OptimizationStopReason.AGGRESSIVE_SHORT_CIRCUIT,
-            "early_stop_aggressive_short_circuit",
+            early_stop_aggressive_short_circuit,
         )
 
     if confidence >= _PRAGMATIC_EARLY_STOP_CONFIDENCE and _pragmatic_evidence_is_sufficient(
@@ -238,7 +240,7 @@ def _should_short_circuit_from_hints(
         chunks=chunks,
         hints=hints,
     ):
-        return OptimizationStopReason.COMPLETED, "early_stop_pragmatic_usefulness"
+        return OptimizationStopReason.COMPLETED, early_stop_pragmatic_usefulness
 
     return None, None
 
