@@ -7,10 +7,21 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+Disposition: FIXED
+Commit: e49746305
+Evidence: tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#pullrequestreview-4334608995 -> e49746305
+
+Disposition: NOT-A-BUG
+Evidence: scripts/ci/check_pr_body_phase2_gates.py keeps lane-start provenance validation constants co-located with the Phase2 parser; prompt and docs wording is covered by tests/test_render_codex_start_prompt.py and tests/test_start_pr_lane.py.
+Reason: Sourcery suggested a maintainability refactor/centralization. The current dry-run PR intentionally keeps the policy in the Phase2 gate and tests the generated user-facing wording for drift; extracting a shared config module is not required before this advisory signal stabilizes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#pullrequestreview-4334601980
 
 ## Implementation Commits
 
+- `e49746305` — fixes the CodeRabbit test-fixture finding by creating the
+  patched `REPO_ROOT` agent definition used by the fenced-code packet parser
+  test.
 - `5e17e4d372b57e1f53bbf6c011b2cbfc54e2013f` — adds lane-start provenance
   dry-run diagnostics, coordinator-first startup wording, task-bootstrap JSON
   packet dispatch parsing, and focused regression tests.
