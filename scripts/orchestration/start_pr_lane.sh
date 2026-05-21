@@ -284,15 +284,23 @@ if [[ "${DRY_RUN}" -eq 0 ]]; then
         die "base ref not found: ${BASE_REF}"
     fi
     if [[ "${BASE_REF}" == "origin/main" ]]; then
-        if ! git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
-            die "local main ref not found; cannot prove origin/main lane-start parity"
-        fi
-        ahead_behind="$(git rev-list --left-right --count main...origin/main)"
-        if [[ "${ahead_behind}" != "0	0" ]]; then
-            die "local main must be synced with origin/main before lane start; got ${ahead_behind}"
-        fi
-        if [[ -n "$(git status --porcelain)" && "${ALLOW_DIRTY_LAUNCHER}" -ne 1 ]]; then
+        launcher_status="$(git status --porcelain)"
+        if [[ -n "${launcher_status}" && "${ALLOW_DIRTY_LAUNCHER}" -ne 1 ]]; then
             die "current checkout must be clean before starting a PR lane, or pass --allow-dirty-launcher for an isolated origin/main lane"
+        fi
+        if [[ -n "${launcher_status}" || "${ALLOW_DIRTY_LAUNCHER}" -eq 1 ]]; then
+            if ! git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
+                die "local main ref not found; cannot prove origin/main dirty-lane parity"
+            fi
+            ahead_behind="$(git rev-list --left-right --count main...origin/main)"
+            if [[ "${ahead_behind}" != "0	0" ]]; then
+                die "local main must be synced with origin/main before dirty lane start; got ${ahead_behind}"
+            fi
+        elif git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
+            ahead_behind="$(git rev-list --left-right --count main...origin/main)"
+            if [[ "${ahead_behind}" != "0	0" ]]; then
+                die "local main must be synced with origin/main before lane start; got ${ahead_behind}"
+            fi
         fi
     elif [[ -n "$(git status --porcelain)" ]]; then
         die "current checkout must be clean before starting a non-origin/main PR lane"

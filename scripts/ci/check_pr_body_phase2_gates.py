@@ -424,6 +424,7 @@ def check_experiment_runner_evidence(
     text: str,
     *,
     mode: ExperimentRunnerEvidenceMode = ExperimentRunnerEvidenceMode.ADVISORY,
+    missing_section_is_warning: bool = False,
 ) -> tuple[list[str], list[str]]:
     """Validate Experiment Runner evidence.
 
@@ -435,6 +436,8 @@ def check_experiment_runner_evidence(
     cleaned = _strip_fenced_code_blocks(text)
     section = _extract_section_by_h2(cleaned, str(PHASE2_CONFIG["experiment_runner_heading"]))
     if not section:
+        if missing_section_is_warning:
+            return [], [MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING]
         if mode is ExperimentRunnerEvidenceMode.REQUIRED:
             return [
                 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING.replace("Advisory:", "Required:")
@@ -769,7 +772,9 @@ def main() -> int:
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
         evidence_texts.append(artifact_text)
         evidence_errors, evidence_warnings = check_experiment_runner_evidence(
-            artifact_text, mode=args.experiment_runner_evidence_mode
+            artifact_text,
+            mode=args.experiment_runner_evidence_mode,
+            missing_section_is_warning=True,
         )
         artifact_errors.extend(evidence_errors)
         evidence_warning_candidates.extend(evidence_warnings)
@@ -803,7 +808,9 @@ def main() -> int:
         if not artifact_checked or has_experiment_runner_evidence:
             evidence_texts.append(body)
             evidence_errors, evidence_warnings = check_experiment_runner_evidence(
-                body, mode=args.experiment_runner_evidence_mode
+                body,
+                mode=args.experiment_runner_evidence_mode,
+                missing_section_is_warning=True,
             )
             if evidence_errors:
                 body_checked = True
@@ -825,7 +832,11 @@ def main() -> int:
 
     if not experiment_runner_evidence_seen:
         missing_evidence = list(dict.fromkeys(evidence_warning_candidates))
-        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.ADVISORY:
+        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.REQUIRED:
+            artifact_errors.extend(
+                warning.replace("Advisory:", "Required:") for warning in missing_evidence
+            )
+        else:
             advisory_warnings.extend(missing_evidence)
     if experiment_runner_evidence_seen:
         commit_messages = _git_commit_messages(

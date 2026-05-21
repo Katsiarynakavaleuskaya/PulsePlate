@@ -195,7 +195,11 @@ case "$1" in
   show-ref) exit 1 ;;
   status) exit 0 ;;
   fetch) exit 0 ;;
-  rev-parse) echo abcdef1234567890; exit 0 ;;
+  rev-parse)
+    if [[ "${3:-}" == "main^{commit}" ]]; then exit 1; fi
+    echo abcdef1234567890
+    exit 0
+    ;;
   rev-list) printf '0\\t0\\n'; exit 0 ;;
   worktree) mkdir -p "$5"; exit 0 ;;
   *) exit 0 ;;
