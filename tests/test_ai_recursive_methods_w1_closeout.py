@@ -226,6 +226,7 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("PR\nA7 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
         ("PR #1499 enables semantic cache.", "PR-A7 opens semantic cache"),
         ("#1499 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
+        ("PR-1499 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
         (
             "PR-A7 is not merely documentation and opens semantic-cache serving.",
             "PR-A7 opens semantic cache",
@@ -260,11 +261,14 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
             "GraphRAG is out of scope, but approved by PR-A7.",
             "forbidden runtime surface",
         ),
+        ("No, GraphRAG rollout is approved by PR-A7.", "forbidden runtime surface"),
         ("PR-A7 authorizes Context Manifest rollout.", "forbidden runtime surface"),
+        ("PR-A7 approves context-manifest rollout.", "forbidden runtime surface"),
         ("PR-A7 approved database persistence.", "forbidden runtime surface"),
         ("PR-A7 approves DB rollout.", "forbidden runtime surface"),
         ("PR-A7 approves database rollout.", "forbidden runtime surface"),
         ("PR-A7 approves vector database rollout.", "forbidden runtime surface"),
+        ("PR-A7 approves vector-search rollout.", "forbidden runtime surface"),
         ("PR-A7 approves OpenAPI route changes.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved.", "forbidden runtime surface"),
         ("GraphRAG is implemented.", "forbidden runtime surface"),
@@ -277,6 +281,7 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("OpenAPI route changes are approved by PR-A7.", "forbidden runtime surface"),
         ("PR-A7 permits raw prompt and raw response caching.", "raw prompt/response"),
         ("PR-A7 allows\nraw responses.", "raw prompt/response"),
+        ("PR-A7 allows\n\nraw responses.", "raw prompt/response"),
         ("Raw responses\nare cacheable.", "raw prompt/response"),
         ("PR-A7 permits\nraw account data caching.", "raw prompt/response"),
         ("PR-A7 authorizes\nraw HealthKit data caching.", "raw prompt/response"),
@@ -441,6 +446,7 @@ def test_checker_rejects_checked_historical_readiness_assertions(
         + "\n- [x] Current-head CI is green for PR branch head\n"
         + "* [x] Current-head CI is green for PR branch head\n"
         + "+ [x] Current-head CI is green for PR branch head\n"
+        + "1. [x] Current-head CI is green for PR branch head\n"
         + "- [x] Required checks complete (no pending jobs)\n",
         encoding="utf-8",
     )

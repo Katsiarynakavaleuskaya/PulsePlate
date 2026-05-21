@@ -52,13 +52,14 @@ UNICODE_DASH_TRANSLATION = str.maketrans(
     }
 )
 
-PR_A7_PATTERN = r"(?:pr(?:[-\s]+)?a7|pr\s*#?\s*1499|#1499)"
+PR_A7_PATTERN = r"(?:pr(?:[-\s]+)?a7|pr\s*(?:#|-)?\s*1499|#1499)"
 PR_A7_TOKEN_PATTERN = rf"(?<!\w){PR_A7_PATTERN}(?!\w)"
 CLAIM_GAP = r"[^.!?\n]*"
 SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
 BACKEND_PATTERN = r"(?:redis|gpt[-\s]?cache)"
 FORBIDDEN_SURFACE_PATTERN = (
-    r"(?:graphrag|context\s*manifest|contextmanifest|embeddings?|vector\s+(?:db|database|search)|"
+    r"(?:graphrag|context[-\s]*manifest|contextmanifest|embeddings?|"
+    r"vector[-\s]+(?:db|database|search)|"
     r"openapi|dto|(?:public\s+)?routes?(?:\s+changes?)?|response[-\s]+shape|"
     r"db\s+(?:persistence|rollout)|(?:vector\s+)?database\s+(?:persistence|rollout)|"
     r"provider[-\s]+side\s+(?:chain|tree)[-\s]+of[-\s]+thought|"
@@ -136,35 +137,39 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 CHECKED_READINESS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "checked current-head CI assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+current[-\s]+head\s+ci\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+]|\d+\.)\s*\[x\]\s+current[-\s]+head\s+ci\b", re.I | re.M),
     ),
     (
         "checked required-checks assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+]|\d+\.)\s*\[x\]\s+(?:all\s+)?required\s+checks\b", re.I | re.M),
     ),
     (
         "checked CI-green assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M),
+        re.compile(
+            r"^\s*(?:[-*+]|\d+\.)\s*\[x\]\s+(?:current[-\s]+head\s+)?ci\s+green\b", re.I | re.M
+        ),
     ),
     (
         "checked review-thread assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+(?:all\s+)?review[-\s]+threads?\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+]|\d+\.)\s*\[x\]\s+(?:all\s+)?review[-\s]+threads?\b", re.I | re.M),
     ),
     (
         "checked bot-comments assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\]\s+no\s+actionable\s+bot\s+comments\b", re.I | re.M),
+        re.compile(
+            r"^\s*(?:[-*+]|\d+\.)\s*\[x\]\s+no\s+actionable\s+bot\s+comments\b", re.I | re.M
+        ),
     ),
     (
         "checked wait-window assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+]|\d+\.)\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
     ),
     (
         "checked pre-commit assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+]|\d+\.)\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
     ),
     (
         "checked make verify assertion",
-        re.compile(r"^\s*(?:[-*+])\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
+        re.compile(r"^\s*(?:[-*+]|\d+\.)\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
     ),
 )
 
@@ -305,26 +310,26 @@ def _normalize_text(text: str) -> str:
     text = re.sub(r"\bpr\s*-\s*\n\s*a7\b", "PR-A7", text, flags=re.I)
     text = re.sub(r"\bpr\s*\n\s*a7\b", "PR-A7", text, flags=re.I)
     text = re.sub(
-        rf"({PR_A7_TOKEN_PATTERN})[ \t]*\n[ \t]*(?=\b{POSITIVE_ACTION_PATTERN}\b)",
+        rf"({PR_A7_TOKEN_PATTERN})[ \t]*(?:\n[ \t]*)+(?=\b{POSITIVE_ACTION_PATTERN}\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(r"\bsemantic\s*\n\s*cache\b", "semantic-cache", text, flags=re.I)
     text = re.sub(
-        rf"\b({SEMANTIC_CACHE_PATTERN})\b[ \t]*\n[ \t]*(?=\b(?:is|has\s+been|now|remains?)\b)",
+        rf"\b({SEMANTIC_CACHE_PATTERN})\b[ \t]*(?:\n[ \t]*)+(?=\b(?:is|has\s+been|now|remains?)\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(
-        rf"\b({RAW_CACHEABLE_PATTERN})\b[ \t]*\n[ \t]*(?=\b(?:{POSITIVE_ACTION_PATTERN}|are\s+{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN})\b)",
+        rf"\b({RAW_CACHEABLE_PATTERN})\b[ \t]*(?:\n[ \t]*)+(?=\b(?:{POSITIVE_ACTION_PATTERN}|are\s+{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN})\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(
-        rf"\b({POSITIVE_ACTION_PATTERN})\b[ \t]*\n[ \t]*"
+        rf"\b({POSITIVE_ACTION_PATTERN})\b[ \t]*(?:\n[ \t]*)+"
         rf"(?=\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN}|{RAW_CACHEABLE_PATTERN})\b)",
         r"\1 ",
         text,
@@ -417,6 +422,8 @@ def _is_negated_claim(text: str, match: re.Match[str]) -> bool:
     if re.fullmatch(r"no", negation.group(0), re.I) and not ADVERSATIVE_BREAK_PATTERN.search(
         between
     ):
+        if re.match(r"\s*,", between):
+            return False
         return True
     if NEGATION_BINDING_BREAK_PATTERN.search(between):
         return False
