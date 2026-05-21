@@ -89,7 +89,8 @@ DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN = (
     rf"(?:{DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN}|implemented|available|supported)"
 )
 STATUS_AUX_PATTERN = (
-    r"(?:is|was|were|has\s+been|had\s+been|got|gets|now|remains?|stays?|" r"became|becomes|become)"
+    r"(?:is|was|were|will\s+be|has\s+been|had\s+been|has\s+gone|had\s+gone|"
+    r"got|gets|now|remains?|stays?|became|becomes|become)"
 )
 NEGATION_PATTERN = (
     r"(?:no|not|never|does\s+not|doesn't|isn't|isnt|aren't|arent|wasn't|"
