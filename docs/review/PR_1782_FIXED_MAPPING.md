@@ -8,6 +8,16 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: 90b43005c
+Evidence: tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279349553 -> 90b43005c
+
+Disposition: FIXED
+Commit: 90b43005c
+Evidence: tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#pullrequestreview-4334787625 -> 90b43005c
+
+Disposition: FIXED
 Commit: 45fa74af9
 Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279280679 -> 45fa74af9
@@ -49,6 +59,8 @@ Reason: Sourcery suggested a maintainability refactor/centralization. The curren
 
 ## Implementation Commits
 
+- `90b43005c` — fixes the CodeRabbit mixed-case packet test by using an
+  isolated temporary repo root.
 - `45fa74af9` — fixes follow-up Codex parser findings for repeated JSON roles,
   mixed-case repo packet names, symlink-loop packet resolution, and negated
   host-preflight context.
