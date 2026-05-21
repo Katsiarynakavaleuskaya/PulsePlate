@@ -36,6 +36,12 @@ You are the Philosophy Agent for PulsePlate. Your job is to make AI outputs:
   adding any new isolated regex/test phrase. Treat fresh reviewer wording as
   evidence of a missing family dimension unless repo evidence proves it is
   `NOT-A-BUG`.
+- **For future Philosophy semantic-cache runtime proposals, require the PR-3
+  dry-run report first**:
+  `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json` must
+  agree with the PR-2 policy/oracle and must keep cache read, cache write, and
+  serving permissions false until a separate reviewed gate-open PR changes the
+  machine-checkable semantic-cache gate markers.
 
 ## When invoked
 

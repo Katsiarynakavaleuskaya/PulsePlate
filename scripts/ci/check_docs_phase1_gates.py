@@ -33,6 +33,9 @@ try:
         validate_semantic_cache_observability_contract as _validate_observability_contract,
         validate_semantic_cache_rollout_contract as _validate_rollout_contract,
     )
+    from scripts.ci.check_philosophy_admission_dry_run import (
+        validate_philosophy_admission_dry_run_report as _validate_philosophy_admission_dry_run_report,
+    )
 except ModuleNotFoundError:
     from check_semantic_cache_gate import (  # noqa: E402
         validate_exact_fuzzy_scaffold_contract as _validate_exact_fuzzy_scaffold_contract,
@@ -47,6 +50,9 @@ except ModuleNotFoundError:
         validate_semantic_cache_gate as _validate_semantic_cache_gate,
         validate_semantic_cache_observability_contract as _validate_observability_contract,
         validate_semantic_cache_rollout_contract as _validate_rollout_contract,
+    )
+    from check_philosophy_admission_dry_run import (  # noqa: E402
+        validate_philosophy_admission_dry_run_report as _validate_philosophy_admission_dry_run_report,
     )
 
 SEMANTIC_CACHE_GATE_DOC = "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
@@ -78,6 +84,19 @@ PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA = (
 )
 PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE = (
     "tests/fixtures/orchestration/philosophy_admission_claim_oracle.json"
+)
+PHILOSOPHY_ADMISSION_DRY_RUN_REPORT = (
+    "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json"
+)
+PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA = (
+    "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.schema.json"
+)
+PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
+    PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
+    PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA,
+    PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE,
+    PHILOSOPHY_ADMISSION_DRY_RUN_REPORT,
+    PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA,
 )
 PHILOSOPHY_DOWNSTREAM_DOC_PREFIXES: tuple[str, ...] = (
     "docs/orchestration/PHILOSOPHY_",
@@ -174,6 +193,22 @@ class OracleFixtureValidator(Protocol):
 
 def _load_philosophy_admission_oracle_fixture_validator() -> OracleFixtureValidator:
     return cast(OracleFixtureValidator, _validate_philosophy_admission_oracle_fixture)
+
+
+class DryRunReportValidator(Protocol):
+    def __call__(
+        self,
+        *,
+        report_text: str,
+        schema_text: str,
+        policy_text: str,
+        policy_schema_text: str,
+        oracle_text: str,
+    ) -> list[str]: ...
+
+
+def _load_philosophy_admission_dry_run_report_validator() -> DryRunReportValidator:
+    return cast(DryRunReportValidator, _validate_philosophy_admission_dry_run_report)
 
 
 def _read_text(relpath: str) -> str:
@@ -410,6 +445,48 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                     for error in validate_oracle_fixture(
                         policy_text=policy_text,
                         fixture_text=content,
+                    )
+                )
+
+        if relpath in PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS:
+            validate_dry_run_report = _load_philosophy_admission_dry_run_report_validator()
+            try:
+                report_text = (
+                    content
+                    if relpath == PHILOSOPHY_ADMISSION_DRY_RUN_REPORT
+                    else _read_text(PHILOSOPHY_ADMISSION_DRY_RUN_REPORT)
+                )
+                schema_text = (
+                    content
+                    if relpath == PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA
+                    else _read_text(PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA)
+                )
+                policy_text = (
+                    content
+                    if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY
+                    else _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY)
+                )
+                policy_schema_text = (
+                    content
+                    if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA
+                    else _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA)
+                )
+                oracle_text = (
+                    content
+                    if relpath == PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE
+                    else _read_text(PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE)
+                )
+            except FileNotFoundError as exc:
+                errors.append(f"{relpath}: missing companion file {exc.filename}")
+            else:
+                errors.extend(
+                    f"{relpath}: {error}"
+                    for error in validate_dry_run_report(
+                        report_text=report_text,
+                        schema_text=schema_text,
+                        policy_text=policy_text,
+                        policy_schema_text=policy_schema_text,
+                        oracle_text=oracle_text,
                     )
                 )
 

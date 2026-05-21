@@ -1,0 +1,217 @@
+{
+  "report_id": "philosophy_admission_dry_run_report",
+  "report_version": "2026-05-21",
+  "generated_at": "static-2026-05-21",
+  "rollout_phase": "PHILOSOPHY-PR3",
+  "gate_status": "closed",
+  "runtime_allowed": false,
+  "implementation_allowed": false,
+  "source_policy": {
+    "policy_id": "philosophy_semantic_cache_admission_policy",
+    "policy_version": "2026-05-20",
+    "rollout_phase": "PHILOSOPHY-PR2",
+    "source_contract": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md"
+  },
+  "source_oracle": {
+    "oracle_id": "philosophy_admission_claim_family_oracle",
+    "policy_id": "philosophy_semantic_cache_admission_policy",
+    "policy_version": "2026-05-20",
+    "case_count": 2305
+  },
+  "verification_bundle_adapter": {
+    "adapter_mode": "governance_dry_run_only",
+    "source_contract": "core/verification/contracts.py",
+    "bundle_required": true,
+    "accepted_overall_statuses": [
+      "pass"
+    ],
+    "admission_allowed_required": true,
+    "required_reason_codes": [
+      "verification_checks_pass"
+    ],
+    "decision_rule": "A passed canonical VerificationBundle is necessary for future semantic-cache consideration, but never sufficient while the semantic-cache gate is closed."
+  },
+  "summary": {
+    "claim_family_count": 7,
+    "oracle_case_count": 2305,
+    "forbidden_case_count": 2283,
+    "allowed_case_count": 22,
+    "dry_run_decision_count": 7,
+    "all_cache_permissions_false": true
+  },
+  "claim_family_summaries": [
+    {
+      "claim_family": "claim_class_gate_open_equivalence",
+      "risk_rail": "semantic_cache_gate_integrity",
+      "forbidden_case_count": 402,
+      "allowed_case_count": 3,
+      "verification_bundle_required": false
+    },
+    {
+      "claim_family": "claim_class_live_philosophy_cache",
+      "risk_rail": "runtime_serving_integrity",
+      "forbidden_case_count": 248,
+      "allowed_case_count": 3,
+      "verification_bundle_required": false
+    },
+    {
+      "claim_family": "claim_class_pdf_design_intake_gate_override",
+      "risk_rail": "repo_truth_integrity",
+      "forbidden_case_count": 247,
+      "allowed_case_count": 3,
+      "verification_bundle_required": false
+    },
+    {
+      "claim_family": "claim_class_production_live_cache_key_behavior",
+      "risk_rail": "production_cache_key_integrity",
+      "forbidden_case_count": 246,
+      "allowed_case_count": 3,
+      "verification_bundle_required": false
+    },
+    {
+      "claim_family": "claim_class_provider_rollout_approved",
+      "risk_rail": "provider_and_dependency_integrity",
+      "forbidden_case_count": 478,
+      "allowed_case_count": 3,
+      "verification_bundle_required": false
+    },
+    {
+      "claim_family": "claim_class_runtime_expansion_approved",
+      "risk_rail": "runtime_scope_integrity",
+      "forbidden_case_count": 415,
+      "allowed_case_count": 3,
+      "verification_bundle_required": false
+    },
+    {
+      "claim_family": "claim_class_verification_bundle_skipped",
+      "risk_rail": "verification_bundle_integrity",
+      "forbidden_case_count": 247,
+      "allowed_case_count": 4,
+      "verification_bundle_required": true
+    }
+  ],
+  "dry_run_decisions": [
+    {
+      "id": "verification-bundle-missing_verification_bundle",
+      "admission_class": "verification_bundle_required",
+      "verification_bundle_state": "missing_verification_bundle",
+      "bundle_present": false,
+      "overall_status": null,
+      "admission_allowed": false,
+      "reason_codes": [
+        "verification_bundle_missing"
+      ],
+      "dry_run_decision": "verification_bundle_missing",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    },
+    {
+      "id": "verification-bundle-failed_verification_bundle",
+      "admission_class": "verification_bundle_required",
+      "verification_bundle_state": "failed_verification_bundle",
+      "bundle_present": true,
+      "overall_status": "fail",
+      "admission_allowed": false,
+      "reason_codes": [
+        "verification_failed"
+      ],
+      "dry_run_decision": "verification_bundle_denied",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    },
+    {
+      "id": "verification-bundle-warn_verification_bundle",
+      "admission_class": "verification_bundle_required",
+      "verification_bundle_state": "warn_verification_bundle",
+      "bundle_present": true,
+      "overall_status": "warn",
+      "admission_allowed": false,
+      "reason_codes": [
+        "verification_warn_not_accepted"
+      ],
+      "dry_run_decision": "verification_bundle_denied",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    },
+    {
+      "id": "verification-bundle-passed_verification_bundle",
+      "admission_class": "verification_bundle_required",
+      "verification_bundle_state": "passed_verification_bundle",
+      "bundle_present": true,
+      "overall_status": "pass",
+      "admission_allowed": true,
+      "reason_codes": [
+        "verification_checks_pass"
+      ],
+      "dry_run_decision": "gate_closed_deferred",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    },
+    {
+      "id": "runtime_only-gate-closed",
+      "admission_class": "runtime_only",
+      "verification_bundle_state": "not_applicable",
+      "bundle_present": false,
+      "overall_status": null,
+      "admission_allowed": false,
+      "reason_codes": [
+        "semantic_cache_gate_closed"
+      ],
+      "dry_run_decision": "gate_closed_runtime_only",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    },
+    {
+      "id": "blocked_from_cache-gate-closed",
+      "admission_class": "blocked_from_cache",
+      "verification_bundle_state": "not_applicable",
+      "bundle_present": false,
+      "overall_status": null,
+      "admission_allowed": false,
+      "reason_codes": [
+        "semantic_cache_gate_closed"
+      ],
+      "dry_run_decision": "blocked_from_cache",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    },
+    {
+      "id": "future_cache_candidate_deferred-gate-closed",
+      "admission_class": "future_cache_candidate_deferred",
+      "verification_bundle_state": "not_applicable",
+      "bundle_present": false,
+      "overall_status": null,
+      "admission_allowed": false,
+      "reason_codes": [
+        "semantic_cache_gate_closed"
+      ],
+      "dry_run_decision": "gate_closed_runtime_only",
+      "cache_read_allowed": false,
+      "cache_write_allowed": false,
+      "serving_allowed": false
+    }
+  ],
+  "research_basis": [
+    "W3C PROV-DM: provenance entities and activity lineage inform report traceability.",
+    "OPA policy-as-data: decisions are derived from auditable structured inputs.",
+    "NIST AI 600-1: red-team framing remains governance evidence, not runtime authority.",
+    "Metamorphic testing: missing, denied, and passed bundle states are paired controls."
+  ],
+  "out_of_scope_paths": [
+    "app/**",
+    "core/insight/**",
+    "core/knowledge/**",
+    "core/verification/**",
+    "core/evidence/**",
+    "providers/**",
+    "frontend/**",
+    "ios/**",
+    "alembic/**"
+  ]
+}

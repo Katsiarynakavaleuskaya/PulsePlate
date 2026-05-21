@@ -252,6 +252,10 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "'docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json'"
+        in docs_phase1_section
+    )
+    assert (
         "'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json'"
         in docs_phase1_section
     )
@@ -281,6 +285,7 @@ def test_semantic_cache_contract_suites_include_philosophy_policy_oracle() -> No
     """Current-head CI must execute the Philosophy policy/oracle drift regressions."""
 
     workflow_text = CI_WORKFLOW_PATH.read_text(encoding="utf-8")
+    assert workflow_text.count("tests/test_philosophy_admission_dry_run_report.py \\") >= 2
     assert workflow_text.count("tests/test_philosophy_admission_policy_oracle.py \\") >= 2
 
 
