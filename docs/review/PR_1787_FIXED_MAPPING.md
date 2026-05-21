@@ -21,7 +21,7 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
 
 Disposition: FIXED
 Commit: see mapping entries below
-Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, historical-readiness checkbox checks, last-action negation binding, trailing blocker phrases, direct forbidden-surface approvals, and terse semantic-cache activation claims; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
+Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, historical-readiness checkbox checks, last-action negation binding, trailing blocker phrases, direct forbidden-surface approvals, terse semantic-cache activation claims, passive activation/approval verbs, compact `semanticcache`, hyphenated `Graph-RAG`, and mixed landed-scope lines; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280833326 -> b4809f7e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856839 -> a8f18ade4
@@ -55,6 +55,12 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316210 -> b4d2bad28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316216 -> b4d2bad28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316221 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400326 -> 376a74961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400346 -> 376a74961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400352 -> 376a74961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400363 -> 376a74961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400368 -> 376a74961
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281400385 -> 376a74961
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336528102 -> 6b80e07e7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336697950 -> 6b80e07e7
 
@@ -115,6 +121,11 @@ Reason: These CodeRabbit comments were generated from stale reviewed context aft
     blocked raw-cache statements with rationale, blank-line semantic-cache
     splits, and hyphenated `context-manifest` / `vector-search` forbidden
     surface variants.
+- Passive guard-probe fix: `376a74961`
+  - Evidence: closes all-match landed-scope scanning, blank-line PR-A7 action
+    splits, passive semantic-cache activation claims, passive forbidden-surface
+    approval claims, hyphenated `Graph-RAG`, and compact `semanticcache`
+    activation phrasing.
 
 ## Premortem Findings
 
@@ -137,6 +148,10 @@ Reason: These CodeRabbit comments were generated from stale reviewed context aft
   token matching work for `#1499`, normalizes target-to-action raw-cache line
   wraps, prevents non-`not` negators from spanning adversative clauses, and
   catches checked readiness bullets that use `* [x]`.
+- FIXED: post-open passive/compact guard probes. Evidence: `376a74961` scans
+  every forbidden token in landed-scope lines and rejects passive activation,
+  passive approval, hyphenated `Graph-RAG`, and compact `semanticcache`
+  gate-opening wording.
 
 ## Experiment Runner Evidence
 
