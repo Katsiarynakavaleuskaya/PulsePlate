@@ -229,6 +229,10 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
             "PR-A7 is not merely documentation and opens semantic-cache serving.",
             "PR-A7 opens semantic cache",
         ),
+        (
+            "PR-A7 is not merely documentation, opens semantic-cache serving.",
+            "PR-A7 opens semantic cache",
+        ),
         ("Semantic-cache serving is enabled by PR-A7.", "semantic cache enabled"),
         ("Semantic-cache is production-ready.", "semantic cache active status"),
         ("Semantic-cache has been opened.", "semantic cache active status"),
@@ -281,6 +285,40 @@ def test_checker_allows_explicit_out_of_scope_negative_claims(tmp_path: Path) ->
     )
 
     assert _run_checker(tmp_path) == []
+
+
+@pytest.mark.parametrize(
+    "landed_scope_claim",
+    [
+        "DB persistence for recursive evidence writes",
+        "public route changes for recursive methods",
+        "Context Manifest rollout",
+        "provider-side tree-of-thought expansion",
+        "provider-side chain-of-thought expansion",
+        "recursive learning",
+        "user-feedback adaptation",
+        "response-shape changes",
+        "vector database rollout",
+        "vector search",
+        "embeddings rollout",
+    ],
+)
+def test_checker_rejects_forbidden_landed_scope_items(
+    tmp_path: Path, landed_scope_claim: str
+) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "- existing `VerificationBundle` truth preserved",
+            f"- existing `VerificationBundle` truth preserved\n- {landed_scope_claim}",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _run_checker(tmp_path)
+
+    assert any("landed scope includes forbidden surface" in error for error in errors)
 
 
 def test_checker_rejects_stale_pr1499_mapping_readiness_claim(tmp_path: Path) -> None:

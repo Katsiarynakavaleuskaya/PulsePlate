@@ -57,8 +57,11 @@ CLAIM_GAP = r"[^.!?\n]*"
 SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
 BACKEND_PATTERN = r"(?:redis|gpt[-\s]?cache)"
 FORBIDDEN_SURFACE_PATTERN = (
-    r"(?:graphrag|context\s*manifest|contextmanifest|openapi|dto|routes?|"
-    r"db\s+(?:persistence|rollout)|(?:vector\s+)?database\s+(?:persistence|rollout))"
+    r"(?:graphrag|context\s*manifest|contextmanifest|embeddings?|vector\s+(?:db|database|search)|"
+    r"openapi|dto|(?:public\s+)?routes?(?:\s+changes?)?|response[-\s]+shape|"
+    r"db\s+(?:persistence|rollout)|(?:vector\s+)?database\s+(?:persistence|rollout)|"
+    r"provider[-\s]+side\s+(?:chain|tree)[-\s]+of[-\s]+thought|"
+    r"(?:chain|tree)[-\s]+of[-\s]+thought|recursive\s+learning|user[-\s]+feedback)"
 )
 RAW_CACHEABLE_PATTERN = (
     r"(?:raw\s+(?:(?:user|llm|model|provider|assistant)\s+)?"
@@ -194,7 +197,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 )
 
 NEGATABLE_ACTION_PATTERN = rf"(?:{POSITIVE_ACTION_PATTERN}|active|open|live)"
-NEGATION_BINDING_BREAK_PATTERN = re.compile(r"\b(?:and|but|however|then)\b|[.;:]", re.I)
+NEGATION_BINDING_BREAK_PATTERN = re.compile(r"\b(?:and|but|however|then)\b|[.,;:]", re.I)
 NON_BINDING_NOT_PATTERN = re.compile(r"\b(?:not|does\s+not|doesn't)\b", re.I)
 
 
@@ -422,7 +425,7 @@ def _validate_roadmap(text: str) -> list[str]:
 
     in_scope = _subsection_between(block, heading="#### Landed W1 scope")
     if re.search(
-        rf"\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|graphrag|contextmanifest|openapi|dto)\b",
+        rf"\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN})\b",
         _normalize_text(in_scope),
         re.I,
     ):
