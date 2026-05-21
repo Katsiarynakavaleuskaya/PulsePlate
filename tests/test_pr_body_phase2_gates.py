@@ -357,6 +357,26 @@ Host preflight already ran.
     assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
 
 
+def test_lane_start_provenance_rejects_labeled_host_preflight_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Authority note: host preflight already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_weak_negation_preflight_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Host preflight cannot be ignored; it already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
 def test_lane_start_provenance_rejects_cursor_preflight_authority() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
 Starter: scripts/orchestration/start_pr_lane.sh
