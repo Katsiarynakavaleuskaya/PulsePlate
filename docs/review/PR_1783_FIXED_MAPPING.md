@@ -1,4 +1,4 @@
-# PR #1783 Fixed In Commit Mapping
+# PR #1783 Fixed in Commit Mapping
 
 PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783
 
@@ -68,7 +68,7 @@ Role-agent dispositions:
 - `bug-hunter`: Disposition `PASS`. Evidence: identified false-green risks for
   candidate drift, unsafe prose, PR17 handoff, GraphMap, and Experiment Runner
   attribution; PR18 tests and packet close those risks.
-- Post-open `bug-hunter`: Disposition `FIXED`. Evidence: commit `PENDING`
+- Post-open `bug-hunter`: Disposition `FIXED`. Evidence: commit `0a102a39d`
   corrects the fixed-mapping parser heading, adds the required discussion-thread
   pass section, removes machine-specific validation paths from the artifact,
   leaves merge-readiness checklist items unchecked until the final merge cycle,
