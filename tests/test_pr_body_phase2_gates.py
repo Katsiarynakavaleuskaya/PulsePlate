@@ -241,10 +241,15 @@ Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-2
     assert warnings == []
 
 
-def test_lane_start_provenance_accepts_mixed_case_repo_packet_reference() -> None:
-    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+def test_lane_start_provenance_accepts_mixed_case_repo_packet_reference(
+    tmp_path: Path,
+) -> None:
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
 Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
-""")
+""",
+        repo_root=tmp_path,
+    )
 
     assert errors == []
     assert any("not available locally" in warning for warning in warnings)
