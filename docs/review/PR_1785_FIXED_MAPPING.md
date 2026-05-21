@@ -19,9 +19,10 @@ defers any external MLflow-backed required check to a future governed slice.
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1785#discussion_r3279635965 -> 2a36e337f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1785#pullrequestreview-4336465654 -> 2a36e337f
 Disposition: FIXED
 Commit: 2a36e337f
-Evidence: `tests/test_rag_release_gates_runner.py` now asserts the required JSON Schema constraints for optional MLflow identity fields individually instead of requiring exact schema-object equality.
+Evidence: `tests/test_rag_release_gates_runner.py` now asserts the required JSON Schema constraints for optional MLflow identity fields individually instead of requiring exact schema-object equality; the top-level CodeRabbit review repeats the same finding.
 
 ## Implementation Evidence
 
