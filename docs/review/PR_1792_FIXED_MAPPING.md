@@ -122,9 +122,9 @@ Evidence: stale-wording validation now applies PR-A8 section context; `tests/tes
 
 
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284702357 -> e5a5990b1
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284702357 -> 1d45f37b2
 Disposition: FIXED
-Commit: e5a5990b1
+Commit: 1d45f37b2
 Evidence: `docs/review/PR_1792_FIXED_MAPPING.md` Local Validation and prior FIXED evidence lines now use portable `python3` / `PATH="$(pwd)/.venv/bin:$PATH"` commands instead of machine-specific absolute interpreter paths.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284698655 -> cb8ea9a18
