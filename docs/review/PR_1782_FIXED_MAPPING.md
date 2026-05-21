@@ -8,6 +8,16 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: b7302fe7f
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281137824 -> b7302fe7f
+
+Disposition: FIXED
+Commit: b7302fe7f
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281137830 -> b7302fe7f
+
+Disposition: FIXED
 Commit: 32cd74b8b
 Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3280955266 -> 32cd74b8b
@@ -94,6 +104,9 @@ Reason: Sourcery suggested a maintainability refactor/centralization. The curren
 
 ## Implementation Commits
 
+- `b7302fe7f` — fixes follow-up Codex review findings by preserving adjacent
+  duplicate JSON bridge role slots and rejecting contradictory host-preflight
+  authority lines.
 - `32cd74b8b` — fixes follow-up Codex review findings by rejecting empty
   primary JSON bridge slugs and tightening host/Codex preflight authority
   detection for labeled and weak-negation claims.
