@@ -70,6 +70,11 @@ Reason: These two Codex review comments were generated against stale reviewed co
     `chooses Redis`, direct `GraphRAG is implemented`, semantic-cache raw-prompt
     storage claims, generic checked CI-green boxes, all-required-checks boxes,
     and `required checks are still pending` stale-readiness wording.
+- QA rerun guard-probe fix: `4891c5813`
+  - Evidence: closes `#1499 opens semantic-cache serving`, non-`not` negator
+    clause breaks such as `GraphRAG is out of scope, but approved by PR-A7`,
+    target-to-action raw-cache line wraps such as `Raw responses\nare cacheable`,
+    and checked historical readiness bullets using `* [x]`.
 
 ## Premortem Findings
 
@@ -88,6 +93,10 @@ Reason: These two Codex review comments were generated against stale reviewed co
   approval/status vocab and adds deterministic tests for semantic-cache approval
   phrasing, backend choice phrasing, direct forbidden-surface implementation,
   raw-prompt storage claims, and stale readiness wording.
+- FIXED: post-open QA rerun guard probes. Evidence: `4891c5813` makes PR-A7
+  token matching work for `#1499`, normalizes target-to-action raw-cache line
+  wraps, prevents non-`not` negators from spanning adversative clauses, and
+  catches checked readiness bullets that use `* [x]`.
 
 ## Experiment Runner Evidence
 
