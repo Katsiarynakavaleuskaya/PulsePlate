@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -250,6 +251,23 @@ def test_local_session_bootstrap_rejects_relative_venv_python() -> None:
     assert result.returncode == 1
     assert "VENV_PYTHON must be an absolute executable path" in result.stderr
     assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+
+
+def test_local_session_bootstrap_accepts_absolute_venv_python() -> None:
+    """Absolute VENV_PYTHON is accepted and becomes the printed local test path."""
+
+    result = run_bootstrap(
+        "--goal",
+        "B0",
+        "--task-class",
+        "Orchestration",
+        env={**os.environ, "VENV_PYTHON": sys.executable},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"Repo Python: {sys.executable}" in result.stdout
+    assert "VENV_PYTHON=${VENV_PYTHON:-" in result.stdout
+    assert "$VENV_PYTHON -m pytest" in result.stdout
 
 
 def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:

@@ -337,7 +337,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--experiment-runner-evidence-mode",
-        type=_experiment_runner_evidence_mode,
         default=os.environ.get("PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE", "advisory"),
         help=(
             "Forward Experiment Runner Evidence enforcement to Phase2: advisory "

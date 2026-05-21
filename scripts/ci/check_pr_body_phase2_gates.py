@@ -124,10 +124,14 @@ class ExperimentRunnerEvidenceMode(str, Enum):
     REQUIRED = "required"
 
 
-def _experiment_runner_evidence_mode(value: str | None) -> ExperimentRunnerEvidenceMode:
+def _experiment_runner_evidence_mode(
+    value: str | ExperimentRunnerEvidenceMode | None,
+) -> ExperimentRunnerEvidenceMode:
     """Normalize Experiment Runner evidence enforcement mode."""
 
-    normalized = (value or ExperimentRunnerEvidenceMode.ADVISORY.value).strip().lower()
+    if isinstance(value, ExperimentRunnerEvidenceMode):
+        return value
+    normalized = str(value or ExperimentRunnerEvidenceMode.ADVISORY.value).strip().lower()
     try:
         return ExperimentRunnerEvidenceMode(normalized)
     except ValueError as exc:
@@ -718,7 +722,6 @@ def main() -> int:
     )
     parser.add_argument(
         "--experiment-runner-evidence-mode",
-        type=_experiment_runner_evidence_mode,
         default=os.environ.get(
             "PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE",
             ExperimentRunnerEvidenceMode.ADVISORY.value,

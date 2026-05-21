@@ -408,7 +408,7 @@ esac
     git_stub.chmod(0o755)
 
     python_stub = bin_dir / "python3"
-    python_stub.write_text('#!/usr/bin/env bash\nexec /usr/bin/python3 "$@"\n', encoding="utf-8")
+    python_stub.write_text(f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
     python_stub.chmod(0o755)
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
 
@@ -442,7 +442,7 @@ esac
     )
     git_stub.chmod(0o755)
     python_stub = bin_dir / "python3"
-    python_stub.write_text('#!/usr/bin/env bash\nexec /usr/bin/python3 "$@"\n', encoding="utf-8")
+    python_stub.write_text(f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
     python_stub.chmod(0o755)
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
 
@@ -483,7 +483,7 @@ esac
     )
     git_stub.chmod(0o755)
     python_stub = bin_dir / "python3"
-    python_stub.write_text('#!/usr/bin/env bash\nexec /usr/bin/python3 "$@"\n', encoding="utf-8")
+    python_stub.write_text(f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
     python_stub.chmod(0o755)
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
 
