@@ -76,6 +76,12 @@ Role-agent dispositions:
 - `dev-operator`: Disposition `PASS`. Evidence: approved non-draft PR flow from
   synced green main, isolated worktree, narrow local gates, push, post-open
   governance, and no full local `make verify` by default.
+- Post-open `security-auditor`: Disposition `PASS`. Evidence: reviewed the
+  current PR18 diff, CodeRabbit result, and local Codex Security scan report at
+  `/tmp/codex-security-scans/BMI-App_2025_clean/cf769df4feec_20260521T074722Z/report.md`;
+  found no hidden network, API, provider, scraping, download, DB, cache,
+  runtime, OpenAPI, product, nutrition-authority, dependency-security, or
+  Experiment Runner attribution issue.
 
 ## Experiment Runner Evidence
 
@@ -140,6 +146,9 @@ seller, partner, portal, or scraping sources.
 - `$VENV_PYTHON -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`: PASS after post-open QA fix.
 - Pre-push hooks: PASS for mypy changed files, pip-audit, backend tests,
   full-repo Bandit, and docker build test.
+- Codex Security diff-scoped scan: PASS / no findings. Evidence: local report
+  `/tmp/codex-security-scans/BMI-App_2025_clean/cf769df4feec_20260521T074722Z/report.md`.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha "$BASE" --head-sha "$HEAD" --body "$(cat /tmp/pr1783_body.md)"`: PASS after PR body split justification update.
 
 Full local `make verify` is intentionally deferred by operator instruction for
 this governance-only lane. Merge readiness still requires PR current-head CI
@@ -184,14 +193,14 @@ Evidence: left post-open merge-readiness checklist items unchecked until final m
 
 ## Post-Open Governance Checklist
 
-- [ ] Non-draft PR opened.
-- [ ] Fixed mapping artifact created.
-- [ ] PR body mirror refreshed after fixed mapping commit.
-- [ ] Post-open `task_bootstrap.py --pr-phase post_open_review` packet recorded.
-- [ ] Mandatory `qa-engineer-agent -> bug-hunter` post-open pass recorded.
-- [ ] CodeRabbit review inspected and dispositioned.
-- [ ] Codex Security diff-scoped scan inspected and dispositioned.
-- [ ] Security-auditor post-open pass recorded.
+- [x] Non-draft PR opened.
+- [x] Fixed mapping artifact created.
+- [x] PR body mirror refreshed after fixed mapping commit.
+- [x] Post-open `task_bootstrap.py --pr-phase post_open_review` packet recorded.
+- [x] Mandatory `qa-engineer-agent -> bug-hunter` post-open pass recorded.
+- [x] CodeRabbit review inspected and dispositioned.
+- [x] Codex Security diff-scoped scan inspected and dispositioned.
+- [x] Security-auditor post-open pass recorded.
 - [ ] Current-head checks inspected.
-- [ ] Review-thread disposition guard run with auth.
+- [x] Review-thread disposition guard run with auth.
 - [ ] Strict merge-readiness gate run with auth.
