@@ -19,13 +19,19 @@ that PR #1499 already merged on `2026-04-23T01:37:29Z` with merge commit
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: see mapping entries below
+Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces, comma negation breaks, raw-cache newline normalization, stale active-state checks, and historical-readiness checkbox checks; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280833326 -> b4809f7e3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856839 -> a8f18ade4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856849 -> a8f18ade4
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280856855 -> a8f18ade4
-Disposition: FIXED
-Commit: b4809f7e3, a8f18ade4
-Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thread checkboxes; `scripts/ci/check_ai_recursive_methods_w1_closeout.py` expands landed-scope forbidden surfaces and comma negation breaks; `tests/test_ai_recursive_methods_w1_closeout.py` covers the regressions.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919726 -> 2d1f43929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919738 -> 2d1f43929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919743 -> 2d1f43929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919750 -> 2d1f43929
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280919753 -> 2d1f43929
 
 ## Commit Evidence
 
@@ -41,6 +47,9 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - Bug-hunter guard false-negative fix: `a8f18ade4`
   - Evidence: expands landed-scope forbidden surfaces and rejects comma-separated
     non-binding negation before forbidden positive claims.
+- Security-auditor guard false-negative fix: `2d1f43929`
+  - Evidence: closes raw-cache newline, `without` negation, stale active-state,
+    broader forbidden-surface, and checked local-readiness false negatives.
 
 ## Premortem Findings
 
@@ -86,10 +95,10 @@ machine-budget policy; this is not a merge-readiness claim.
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-Post-open QA, bug-hunter, and CodeRabbit/Codex connector findings are mapped in
-this artifact as FIXED. Any Sourcery, Cubic, Codex Security, or
-security-auditor finding will be mapped here as FIXED, NOT-A-BUG, or DEFERRED
-with evidence before resolution.
+Post-open QA, bug-hunter, CodeRabbit/Codex connector, and security-auditor
+findings are mapped in this artifact as FIXED. Any Sourcery, Cubic, or Codex
+Security finding will be mapped here as FIXED, NOT-A-BUG, or DEFERRED with
+evidence before resolution.
 
 ## Merge Readiness
 
