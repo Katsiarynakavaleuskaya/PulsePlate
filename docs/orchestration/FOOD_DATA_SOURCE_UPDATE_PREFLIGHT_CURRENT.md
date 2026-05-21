@@ -61,6 +61,10 @@ current tooling packet for food-data lanes that need non-dated links.
   [`FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md`](./FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md)
 - Current PR18 regional catalog provider terms matrix:
   [`FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json`](../architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json)
+- Current PR19 regional catalog source-specific terms review packet:
+  [`FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_REVIEW_PR19_PACKET_2026-05-21.md`](./FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_REVIEW_PR19_PACKET_2026-05-21.md)
+- Current PR19 regional catalog source-specific terms review:
+  [`FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_REVIEW_PR19_2026-05-21.json`](../architecture/FOOD_DATA_REGIONAL_CATALOG_SOURCE_SPECIFIC_TERMS_REVIEW_PR19_2026-05-21.json)
 - Current PR3 source catalog packet:
   [`FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`](./FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md)
 - Current PR3 source catalog:
@@ -85,3 +89,5 @@ Update it again when a later accepted packet supersedes PR17 regional catalog
 identity/license review governance.
 Update it again when a later accepted packet supersedes PR18 regional catalog
 provider terms matrix governance.
+Update it again when a later accepted packet supersedes PR19 regional catalog
+source-specific terms review governance.
