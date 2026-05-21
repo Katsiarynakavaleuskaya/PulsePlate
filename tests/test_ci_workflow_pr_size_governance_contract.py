@@ -283,6 +283,13 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert "PR4_PRECONDITION_CHANGED=0" in docs_phase1_section
+    assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
+        docs_phase1_section
+    )
+    assert 'case "$status" in' in docs_phase1_section
+    assert "R*|C*)" in docs_phase1_section
+    assert 'CHANGED_PATHS+=("$old_path" "$new_path")' in docs_phase1_section
+    assert 'CHANGED_PATHS+=("$path")' in docs_phase1_section
     for pr4_companion_input in (
         "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json",
         "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json",
@@ -294,11 +301,11 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json",
         "docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md",
         "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
-        "docs/roadmap/BACKLOG_LEDGER.md",
         "scripts/ci/check_philosophy_gate_open_preconditions.py",
         "tests/test_philosophy_gate_open_preconditions.py",
     ):
         assert pr4_companion_input in docs_phase1_section
+    assert "docs/roadmap/BACKLOG_LEDGER.md|\\" not in docs_phase1_section
     assert (
         "python scripts/ci/check_philosophy_gate_open_preconditions.py --check --files"
         in docs_phase1_section
