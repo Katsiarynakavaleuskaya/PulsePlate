@@ -67,10 +67,10 @@ LANE_STARTER_RE = re.compile(r"(?im)^\s*(?:-\s*)?Starter:\s*`?(?P<path>[^`\s]+)`
 LANE_START_EXCEPTION_RE = re.compile(r"(?im)^\s*(?:-\s*)?Exception:\s*(?P<reason>\S.+?)\s*$")
 FORBIDDEN_PREFLIGHT_AUTHORITY_RE = re.compile(
     r"(?im)^"
-    r"(?![^\n]*\b(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s+"
-    r"(?:is\s+not|isn't)\s+authoritative\b)"
-    r"(?![^\n]*\b(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s+"
-    r"must\s+not\s+(?:be\s+)?(?:used|treated|cited)\s+as\s+authority\b)"
+    r"(?!\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s+"
+    r"(?:is\s+not|isn't)\s+authoritative(?:\s+lane\s+provenance)?\.?\s*$)"
+    r"(?!\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s+"
+    r"must\s+not\s+(?:be\s+)?(?:used|treated|cited)\s+as\s+authority\.?\s*$)"
     r"[^\n]*\b(?:host/codex|host|codex|cursor|raw|local)\s+preflight\b"
 )
 LANE_START_PACKET_PREFIX = "artifacts/orchestration/task_packets/"

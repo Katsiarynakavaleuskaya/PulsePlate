@@ -159,6 +159,28 @@ def test_parse_task_bootstrap_json_packet_preserves_repeated_roles(
     ]
 
 
+def test_parse_task_bootstrap_json_packet_preserves_adjacent_repeated_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Adjacent duplicate JSON bindings still represent distinct packet slots."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "reviewer": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [],
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "agent-coordinator",
+    ]
+
+
 def test_task_bootstrap_json_reviewer_tail_resolves_code_review() -> None:
     """Reviewer-capable slugs from JSON packets should get CodeReview in tail slot."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"
