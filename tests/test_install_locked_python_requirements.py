@@ -340,11 +340,49 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "bandit",
         "certifi",
         "pillow",
+        "protobuf",
         "python-multipart",
         "requests",
+        "wrapt",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
     assert ("python-multipart", "0.0.27") in requirements_ci_lite_pins
+
+
+def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_downloads: list[tuple[str, str, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination.name, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+        constraints_file=REPO_ROOT / "constraints.txt",
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=_repo_emergency_manifest_path(),
+    )
+
+    observed_by_filename = {filename: (url, sha256) for url, filename, sha256 in observed_downloads}
+    assert {
+        path.name for path in staged if path.name.startswith(("protobuf-6.33.5-", "wrapt-2.0.1-"))
+    } == {
+        "protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl",
+        "wrapt-2.0.1-py3-none-any.whl",
+    }
+    assert observed_by_filename["protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl"] == (
+        "https://files.pythonhosted.org/packages/9b/53/a9443aa3ca9ba8724fdfa02dd1887c1bcd8e89556b715cfbacca6b63dbec/protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl",
+        "cbf16ba3350fb7b889fca858fb215967792dc125b35c7976ca4818bee3521cf0",
+    )
+    assert observed_by_filename["wrapt-2.0.1-py3-none-any.whl"] == (
+        "https://files.pythonhosted.org/packages/15/d1/b51471c11592ff9c012bd3e2f7334a6ff2f42a7aed2caffcf0bdddc9cb89/wrapt-2.0.1-py3-none-any.whl",
+        "4d2ce1bf1a48c5277d7969259232b57645aae5686dba1eaeade39442277afbca",
+    )
 
 
 def test_repo_idna_security_floor_matches_dependabot_alert_surfaces() -> None:
@@ -2101,6 +2139,64 @@ def test_install_from_proxy_with_emergency_fallback_continues_for_second_request
 
     assert health_packages == ["requests", "cryptography"]
     assert staged_packages == [["requests"], ["cryptography"]]
+    assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
+    assert install_attempts["count"] == 3
+
+
+def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    install_attempts = {"count": 0}
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+    staged_filenames: list[list[str]] = []
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        install_attempts["count"] += 1
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if install_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("protobuf", "6.33.5")
+        if install_attempts["count"] == 2:
+            raise _resolver_miss_runtimeerror_like_run_command("wrapt", "2.0.1")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        artifacts = kwargs["artifacts"]
+        assert isinstance(artifacts, list)
+        filenames = [str(artifact["filename"]) for artifact in artifacts]
+        staged_filenames.append(filenames)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / filename for filename in filenames]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+        constraints_file=REPO_ROOT / "constraints.txt",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=_repo_emergency_manifest_path(),
+    )
+
+    assert health_packages == ["protobuf", "wrapt"]
+    assert staged_filenames == [
+        ["protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl"],
+        ["wrapt-2.0.1-py3-none-any.whl"],
+    ]
     assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
     assert install_attempts["count"] == 3
 
