@@ -31,7 +31,58 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-No human or bot review threads have been resolved yet.
+Post-open bot review findings are fixed or dispositioned below. Review threads must remain
+open until the PR-body mirror and GitHub thread disposition pass are updated.
+
+### Sourcery
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434507 -> 6884773c2
+Disposition: FIXED
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py` now removes the unused `_contains_negation` helper and routes negation handling through `_claim_is_locally_negated` / `_surface_claim_is_negated`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` passed.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434510 -> 6884773c2
+Disposition: FIXED
+Evidence: `A8_REF_RE` no longer accepts a bare `a8` token; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_does_not_treat_bare_a8_as_lane_reference` proves the false-positive guard.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434514 -> 6884773c2
+Disposition: FIXED
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_runtime_expansion_action_verbs` is parametrized and includes semantic-caching, database-persistence, and public-endpoint aliases.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434520 -> 6884773c2
+Disposition: FIXED
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_mixed_negation_stale_a8_wording` is parametrized.
+
+Review-level note: Sourcery suggested direct checker introspection. Disposition: FIXED.
+Commit: 246e08488
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` imports the checker module and calls `validate_closeout(...)` directly.
+
+### Codex
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471268 -> 6884773c2
+Disposition: FIXED
+Evidence: `validate_closeout(...)` resolves default docs/mapping paths through `_default_repo_path(repo_root, ...)`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_resolves_default_docs_relative_to_repo_root` covers the false-green case.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471270 -> 6884773c2
+Disposition: FIXED
+Evidence: forbidden A8 runtime-expansion checks now scan full roadmap/backlog/review text; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_forbidden_runtime_claim_outside_a8_sections` covers the bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471272 -> 6884773c2
+Disposition: FIXED
+Evidence: `_validate_pr_evidence(...)` now requires PR number, title, merge timestamp/date, merge commit, and original branch in each corresponding mapping file, not only in combined docs.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471277 -> 6884773c2
+Disposition: FIXED
+Evidence: `_surface_claim_is_negated(...)` accepts post-surface negation such as `Semantic cache is not active for live traffic`; covered by `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_allows_negated_semantic_cache_status`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471279 -> 6884773c2
+Disposition: FIXED
+Evidence: benchmark overclaim checks now distinguish negated A8 benchmark disclaimers from positive claims; covered by `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_allows_negated_a8_benchmark_disclaimer`.
+
+### CodeRabbit
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#issuecomment-4512882485
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit reported a review-rate-limit/usage notice, not a code, docs, security, or test finding. No repository fix is required for that notice.
 
 ## Local Validation
 
