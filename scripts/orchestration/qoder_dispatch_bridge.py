@@ -413,11 +413,11 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
             ordered.append(slug)
 
     add_slug(bridge.get("primary"))
-    add_slug(bridge.get("reviewer"))
     secondary_items = bridge.get("secondary")
     if isinstance(secondary_items, list):
         for item in secondary_items:
             add_slug(item)
+    add_slug(bridge.get("reviewer"))
     advisory_items = bridge.get("advisory")
     if isinstance(advisory_items, list):
         for item in advisory_items:

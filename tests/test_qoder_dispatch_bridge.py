@@ -107,10 +107,54 @@ def test_parse_task_bootstrap_json_packet_roles(
 
     assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
         "agent-coordinator",
-        "architecture-specialist",
         "cursor-specialist-agent",
         "security-auditor",
+        "architecture-specialist",
     ]
+
+
+def test_parse_task_bootstrap_json_packet_places_reviewer_tail(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Declared JSON reviewer must remain in tail slot for reviewer semantics."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "reviewer": {"repo_agent_slug": "security-auditor"},
+            "secondary": [{"repo_agent_slug": "architecture-specialist"}],
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "security-auditor",
+    ]
+
+
+def test_task_bootstrap_json_reviewer_tail_resolves_code_review() -> None:
+    """Reviewer-capable slugs from JSON packets should get CodeReview in tail slot."""
+    agents_dir = REPO_ROOT / ".cursor" / "agents"
+    slugs = ["agent-coordinator", "architecture-specialist", "security-auditor"]
+    for slug in slugs:
+        if not (agents_dir / f"{slug}.md").is_file():
+            pytest.skip(f"Agent definition not found: {slug}")
+
+    manifest = qoder_dispatch_bridge.build_dispatch_manifest(
+        role_slugs=slugs,
+        mode="analysis",
+        packet_source="test",
+    )
+    by_slug = {
+        entry["role_slug"]: entry["qoder_subagent_type"] for entry in manifest["dispatch_sequence"]
+    }
+
+    assert by_slug["architecture-specialist"] == "Research"
+    assert by_slug["security-auditor"] == "CodeReview"
 
 
 def test_parse_task_bootstrap_json_packet_forces_coordinator_first(

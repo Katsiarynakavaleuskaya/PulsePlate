@@ -35,7 +35,7 @@ agent-coordinator -> architecture-specialist -> security-auditor -> qa-engineer-
 Supporting bridge-dispatch reviewers from the bootstrap packet:
 
 ```text
-agent-coordinator -> architecture-specialist -> cursor-specialist-agent -> security-auditor
+agent-coordinator -> cursor-specialist-agent -> security-auditor -> architecture-specialist
 ```
 
 Mandatory closure reviewers:
