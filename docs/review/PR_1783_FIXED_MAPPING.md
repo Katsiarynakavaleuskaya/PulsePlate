@@ -61,7 +61,7 @@ Role-agent dispositions:
   tests, adjacent food-source regressions, repo policy guard, CLI smoke,
   pre-commit, and `make validate-changed`.
 - Post-open `qa-engineer-agent`: Disposition `FIXED`. Evidence: commit
-  `PENDING` changes `load_regional_catalog_provider_terms_governance`
+  `23b2cc7bb` changes `load_regional_catalog_provider_terms_governance`
   `pr17_gate` from `object` to `RegionalCatalogIdentityGovernance` and validates
   the test JSON helper return type. The exact QA command now passes:
   `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`.
@@ -145,7 +145,7 @@ No human or bot review threads have been resolved yet.
   - Adds PR18 artifact, validator/report builder, CLI, focused tests, packet,
     current pointer update, and backlog update.
   - Evidence: focused and adjacent validation commands listed above.
-- Post-open QA typecheck fix: `PENDING`
+- Post-open QA typecheck fix: `23b2cc7bb`
   - Fixes focused mypy failures in the new PR18 loader signature and test JSON
     helper.
   - Evidence: exact focused mypy command listed above now passes.
