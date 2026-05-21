@@ -39,6 +39,12 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217241
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217246
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217249
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459086
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459090
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459095
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459097
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459100
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459104
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084
 Disposition: FIXED
@@ -54,6 +60,7 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/tes
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now reject comma/although contradictory approvals, whitespace-wrapped stale phrases, `not only` approval claims, and past-tense `opened` / `enabled` semantic-cache activation claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now treat `because`, `while`, `since`, `if`, punctuation separators, and scoped `or` separators as claim boundaries only when they carry a later approval-equivalent clause.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now accept explicit `lacks approval` / `without approval` denials, preserve clause offsets while trimming, recognize spaced `GPT Cache` labels, reject passive `selected/selection`, reject `authorized/authorization`, and reject qualified raw user/LLM prompt/response cacheability claims.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now normalize non-breaking spaces, match wrapped `PR-\nV1` and `semantic\ncache` terms, reject passive `opened` activation, and treat `despite` / dash-without-space joins as claim boundaries when they lead to a later approval-equivalent clause.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3274300516 -> 9b79b240b
@@ -80,6 +87,12 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217241 -> f80b0023f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217246 -> f80b0023f
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277217249 -> f80b0023f
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459086 -> 27dcba482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459090 -> 27dcba482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459095 -> 27dcba482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459097 -> 27dcba482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459100 -> 27dcba482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459104 -> 27dcba482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> 8f6e11329
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084 -> 3d95a61f8
 
@@ -242,6 +255,30 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `c2f8cee53`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `or PR-V1 approves/allows` and `or permits semantic-cache serving` while allowing `PR-V1 does not permit Redis or semantic-cache serving`.
+- CodeRabbit finding: `despite`-joined negated lead-ins could hide later semantic-cache approval.
+  - Disposition: FIXED
+  - Commit: `27dcba482`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `despite PR-V1 approves semantic-cache serving`.
+- CodeRabbit finding: wrapped `semantic\ncache` terms could evade forbidden activation detection.
+  - Disposition: FIXED
+  - Commit: `27dcba482`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1 opens semantic\ncache serving`.
+- CodeRabbit finding: wrapped `PR-\nV1` identifiers could evade PR-scoped forbidden claims.
+  - Disposition: FIXED
+  - Commit: `27dcba482`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-\nV1 opens semantic-cache serving`.
+- CodeRabbit finding: passive `was opened by PR-V1` activation wording evaded the semantic-cache status matcher.
+  - Disposition: FIXED
+  - Commit: `27dcba482`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `Semantic-cache serving was opened by PR-V1`.
+- CodeRabbit finding: non-breaking spaces in semantic-cache terms could evade forbidden claim matching.
+  - Disposition: FIXED
+  - Commit: `27dcba482`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `PR-V1 opens semantic cache serving` with a non-breaking space.
+- CodeRabbit finding: dash-joined clauses without surrounding spaces could hide later approval claims.
+  - Disposition: FIXED
+  - Commit: `27dcba482`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects an em-dash joined Redis-denial / semantic-cache-approval sentence.
 
 ## Local Evidence
 
@@ -256,7 +293,7 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - Pre-commit: `pre-commit run --all-files` passed.
 - Pre-push: mypy, pip-audit, backend pytest, full-repo Bandit, and docker build test passed.
 - Experiment Runner: oracle-only governance reviewer accepted `artifacts/orchestration/experiments/results/exp-ceddfe3387fc.json`.
-- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/c2f8cee53_20260520T215232Z/report.md` reported no findings.
+- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/27dcba482_20260521T033401Z/report.md` reported no findings.
 
 ## Experiment Runner Evidence
 
