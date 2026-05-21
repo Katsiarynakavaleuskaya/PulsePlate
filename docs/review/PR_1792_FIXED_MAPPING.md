@@ -152,6 +152,10 @@ Disposition: FIXED
 Commit: 906b89b75
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` calls `validate_closeout(...)` directly without forbidden dynamic-import tokens.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4341163629
+Disposition: NOT-A-BUG
+Evidence: PR scope is A8 closeout (docs + fail-closed checker + regression tests), not docs-only; `## Split Justification` in PR body documents the single-lane contract. Inline actionables duplicate already-mapped threads fixed in cb8ea9a18 and 1d45f37b2 (`discussion_r3284702357`, `discussion_r3284702365`, `discussion_r3284702367`, `discussion_r3284702379`).
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#issuecomment-4512882485
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit/usage notice, not a code, docs, security, or test finding. No repository fix is required for that notice.
