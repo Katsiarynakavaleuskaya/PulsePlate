@@ -6,8 +6,8 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `AGENTS.md`; `docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md`;
 `docs/orchestration/AGENTS.md`.
 
-- [ ] Discussion-thread pass completed after CodeRabbit/Sourcery/Cubic and human/bot review.
-- [ ] Fixed in commit mapping completed after all actionable comments are dispositioned.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Lane Start Provenance
 
@@ -34,11 +34,6 @@ Canonical review-governance artifact and PR-body mirror requirements:
 
 ## Fixed in Commit Mapping
 
-Post-open bot review findings are fixed or dispositioned below. Review threads must remain
-open until the PR-body mirror and GitHub thread disposition pass are updated.
-
-### Sourcery
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434507 -> 6884773c2
 Disposition: FIXED
 Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py` now removes the unused `_contains_negation` helper and routes negation handling through `_claim_is_locally_negated` / `_surface_claim_is_negated`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` passed.
@@ -54,12 +49,6 @@ Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_ru
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434520 -> 6884773c2
 Disposition: FIXED
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_mixed_negation_stale_a8_wording` is parametrized.
-
-Review-level note: Sourcery suggested direct checker introspection. Disposition: FIXED.
-Commit: 906b89b75
-Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` loads the checker namespace without forbidden dynamic-import tokens and calls `validate_closeout(...)` directly.
-
-### Codex
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284471268 -> 6884773c2
 Disposition: FIXED
@@ -81,11 +70,16 @@ Evidence: `_surface_claim_is_negated(...)` accepts post-surface negation such as
 Disposition: FIXED
 Evidence: benchmark overclaim checks now distinguish negated A8 benchmark disclaimers from positive claims; covered by `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_allows_negated_a8_benchmark_disclaimer`.
 
-### CodeRabbit
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#issuecomment-4512882485
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit/usage notice, not a code, docs, security, or test finding. No repository fix is required for that notice.
+
+## Review-Level Notes
+
+Sourcery suggested direct checker introspection in its aggregate review text.
+Disposition: FIXED
+Commit: 906b89b75
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` loads the checker namespace without forbidden dynamic-import tokens and calls `validate_closeout(...)` directly.
 
 ## Local Validation
 
