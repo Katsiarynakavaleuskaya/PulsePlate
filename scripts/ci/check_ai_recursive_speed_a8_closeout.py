@@ -79,7 +79,7 @@ NEGATION_RE = re.compile(
 FORBIDDEN_SURFACE_PATTERN = (
     r"semantic[-\s]?(?:cache|caching)|semanticcache|redis|gpt[-\s]?cache|"
     r"graph[-\s]?rag|context[-\s]?manifest|contextmanifest|"
-    r"(?:db|database)\s+persistence|public\s+(?:routes?|endpoints?)(?:\s+changes?)?|"
+    r"(?:db|database)\s+persistence|public\s+(?:routes?|endpoints?|api)(?:\s+changes?)?|"
     r"openapi|dtos?|recursive\s+learning|chain[-\s]?of[-\s]?thought|"
     r"tree[-\s]?of[-\s]?thought|default\s+activation|default[-\s]?on|"
     r"production[-\s]?ready|rollout[-\s]?ready"
@@ -100,9 +100,10 @@ BENCHMARK_CLAIM_RE = re.compile(
 )
 FORBIDDEN_SURFACE_RE = re.compile(rf"\b({FORBIDDEN_SURFACE_PATTERN})\b", re.I)
 POSITIVE_ACTION_RE = re.compile(
-    r"\b(opens?|opened|enables?|enabled|implements?|implemented|approves?|approved|"
-    r"authorizes?|authorized|permits?|permitted|allows?|allowed|adds?|added|"
-    r"ships?|shipped|selects?|selected|activates?|activated|rolls?\s+out|"
+    r"\b(opens?|opened|opening|enables?|enabled|implements?|implemented|approves?|approved|"
+    r"authorizes?|authorized|permits?|permitted|allows?|allowed|adds?|added|ships?|shipped|"
+    r"selects?|selected|activates?|activated|activating|rolls?\s+out|"
+    r"turns?\s+(?:[A-Za-z0-9_/-]+\s+){0,8}on(?:\s+by\s+default)?|"
     r"wired|wires|"
     r"production[-\s]?ready|rollout[-\s]?ready|default[-\s]?on|"
     r"default\s+activation|active|live)\b",
@@ -141,7 +142,10 @@ def _normalize(text: str) -> str:
 
 def _sentences(text: str) -> list[str]:
     normalized = _normalize(text)
-    parts = re.split(r"(?<=[.!?])\s+|\n+", normalized)
+    parts: list[str] = []
+    for paragraph in re.split(r"\n{2,}", normalized):
+        soft_wrapped = re.sub(r"[ \t]*\n[ \t]*", " ", paragraph.strip())
+        parts.extend(re.split(r"(?<=[.!?])\s+", soft_wrapped))
     return [part.strip() for part in parts if part.strip()]
 
 
@@ -257,7 +261,8 @@ def _validate_stale_a8_wording(active_text: str, errors: list[str]) -> None:
         for clause in CONTRAST_SPLIT_RE.split(sentence):
             residual_clause = re.sub(
                 r"\b(?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't)\b"
-                r"[^,;.]{0,80}\b(?:pending|in\s+progress|active)\b",
+                r"[^,;.]{0,100}\b(?:pending|in\s+progress|"
+                r"active(?:\s+implementation\s+lane)?|implementation\s+lane)\b",
                 " ",
                 clause,
                 flags=re.I,
