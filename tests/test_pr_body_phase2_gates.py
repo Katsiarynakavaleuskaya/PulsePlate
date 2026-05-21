@@ -566,9 +566,9 @@ def test_git_commit_messages_does_not_fallback_by_default() -> None:
     assert gates._git_commit_messages("refs/heads/definitely-missing..HEAD") is None
 
 
-
-
-def test_git_commit_messages_passes_end_of_options_separator(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_git_commit_messages_passes_end_of_options_separator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     captured: list[str] = []
 
     class _Completed:
@@ -583,12 +583,42 @@ def test_git_commit_messages_passes_end_of_options_separator(monkeypatch: pytest
     monkeypatch.setattr(gates.subprocess, "run", _fake_run)
 
     assert gates._git_commit_messages("HEAD") == "ok"
-    assert "--" in captured
+    assert captured[-3:] == ["--end-of-options", "HEAD", "--"]
+
+
+def test_commit_range_arg_accepts_valid_input() -> None:
+    assert (
+        gates._validate_git_commit_range_arg("HEAD~5..HEAD", arg_name="--commit-range")
+        == "HEAD~5..HEAD"
+    )
 
 
 def test_commit_range_arg_rejects_git_option_like_input() -> None:
     with pytest.raises(argparse.ArgumentTypeError):
         gates._validate_git_commit_range_arg("--output=/tmp/pwned", arg_name="--commit-range")
+
+
+@pytest.mark.parametrize("arg_name", ["--commit-range", "--commit-range-fallback"])
+def test_commit_range_arg_rejects_git_option_like_input_through_argparse(
+    arg_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_body_phase2_gates.py",
+            f"{arg_name}=--output=/tmp/pwned",
+        ],
+    )
+
+    with pytest.raises(SystemExit) as exc_info:
+        gates.main()
+
+    assert exc_info.value.code == 2
+    assert "cannot start with '-'" in capsys.readouterr().err
+
 
 def test_git_commit_messages_returns_none_when_git_unavailable(
     monkeypatch: pytest.MonkeyPatch,

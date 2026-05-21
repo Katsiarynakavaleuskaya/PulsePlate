@@ -259,8 +259,6 @@ def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
     return errors, []
 
 
-
-
 def _validate_git_commit_range_arg(value: str, *, arg_name: str) -> str:
     """Reject values that could be parsed as git options instead of ranges."""
 
@@ -269,6 +267,7 @@ def _validate_git_commit_range_arg(value: str, *, arg_name: str) -> str:
             f"{arg_name} must be a git revision range/ref and cannot start with '-'."
         )
     return value
+
 
 def _git_commit_messages(
     commit_range: str = "origin/main..HEAD",
@@ -287,7 +286,14 @@ def _git_commit_messages(
     for resolved_range in ranges:
         try:
             completed = subprocess.run(  # nosec B603: absolute git binary, fixed log command, no shell (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
-                [git_bin, "log", f"--format=%B{COMMIT_MESSAGE_SEPARATOR}", "--", resolved_range],
+                [
+                    git_bin,
+                    "log",
+                    f"--format=%B{COMMIT_MESSAGE_SEPARATOR}",
+                    "--end-of-options",
+                    resolved_range,
+                    "--",
+                ],
                 cwd=REPO_ROOT,
                 text=True,
                 capture_output=True,
@@ -481,9 +487,11 @@ def main() -> int:
     )
     parser.add_argument(
         "--commit-range-fallback",
-        type=lambda value: _validate_git_commit_range_arg(value, arg_name="--commit-range-fallback")
-        if value
-        else value,
+        type=lambda value: (
+            _validate_git_commit_range_arg(value, arg_name="--commit-range-fallback")
+            if value
+            else value
+        ),
         default="",
         help=(
             "Fallback git commit range for advisory Experiment Runner co-author "
