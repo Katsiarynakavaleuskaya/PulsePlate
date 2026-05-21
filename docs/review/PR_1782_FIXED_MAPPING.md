@@ -8,6 +8,21 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: bbae4177c
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3280797017 -> bbae4177c
+
+Disposition: FIXED
+Commit: bbae4177c
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3280797022 -> bbae4177c
+
+Disposition: FIXED
+Commit: bbae4177c
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3280797025 -> bbae4177c
+
+Disposition: FIXED
 Commit: 28ba03d8f
 Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279490497 -> 28ba03d8f
@@ -64,6 +79,9 @@ Reason: Sourcery suggested a maintainability refactor/centralization. The curren
 
 ## Implementation Commits
 
+- `bbae4177c` — fixes follow-up Codex review findings by rejecting host/Codex
+  preflight authority sentences, keeping advisory JSON bridge roles non-runnable,
+  and rejecting JSON bridge packets without a spawnable primary binding.
 - `90b43005c` — fixes the CodeRabbit mixed-case packet test by using an
   isolated temporary repo root.
 - `28ba03d8f` — fixes the Codex review finding by making empty or fully
