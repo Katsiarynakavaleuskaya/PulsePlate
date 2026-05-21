@@ -7,6 +7,9 @@ defers any external MLflow-backed required check to a future governed slice.
 
 ## Discussion Thread Pass
 
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
 - Initial PR open: no GitHub review threads were resolved before this artifact
   was created.
 - New review comments must be dispositioned as `FIXED`, `NOT-A-BUG`, or
@@ -15,10 +18,11 @@ defers any external MLflow-backed required check to a future governed slice.
 
 ## Fixed in Commit Mapping
 
-### Implementation
+- No actionable review comments
+
+## Implementation Evidence
 
 - Commit: `e6b081248`
-- Disposition: `FIXED`
 - Evidence:
   - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md` documents that external
     MLflow runs are not required PR checks and that repo-native artifacts remain
