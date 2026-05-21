@@ -223,8 +223,10 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
     [
         ("PR-A7 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
         ("PR-A7\nopens semantic-cache serving.", "PR-A7 opens semantic cache"),
+        ("PR-A7\n\nopens semantic-cache serving.", "PR-A7 opens semantic cache"),
         ("PR\nA7 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
         ("PR #1499 enables semantic cache.", "PR-A7 opens semantic cache"),
+        ("PR-A7 opens semanticcache serving.", "PR-A7 opens semantic cache"),
         ("#1499 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
         ("PR-1499 opens semantic-cache serving.", "PR-A7 opens semantic cache"),
         (
@@ -243,6 +245,9 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("Semantic-cache opened.", "semantic cache direct activation"),
         ("Semantic-cache enabled.", "semantic cache direct activation"),
         ("Semantic-cache is approved.", "semantic cache direct activation"),
+        ("Semantic-cache was enabled.", "semantic cache direct activation"),
+        ("Semantic-cache was approved.", "semantic cache direct activation"),
+        ("Semanticcache enabled.", "semantic cache direct activation"),
         ("Semantic-cache gate is approved.", "semantic cache direct activation"),
         ("Semantic-cache serving is selected.", "semantic cache direct activation"),
         ("Semantic-cache remains open.", "semantic cache active status"),
@@ -271,11 +276,15 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("PR-A7 approves vector-search rollout.", "forbidden runtime surface"),
         ("PR-A7 approves OpenAPI route changes.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved.", "forbidden runtime surface"),
+        ("GraphRAG rollout was approved.", "forbidden runtime surface"),
+        ("GraphRAG rollout got approved.", "forbidden runtime surface"),
+        ("Graph-RAG rollout is approved.", "forbidden runtime surface"),
         ("GraphRAG is implemented.", "forbidden runtime surface"),
         ("GraphRAG rollout remains open.", "forbidden runtime surface"),
         ("Context Manifest is supported.", "forbidden runtime surface"),
         ("Context Manifest is live.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved by PR-A7.", "forbidden runtime surface"),
+        ("PR-A7 approves Graph-RAG rollout.", "forbidden runtime surface"),
         ("Context Manifest rollout is authorized by PR-A7.", "forbidden runtime surface"),
         ("Database rollout is approved by PR-A7.", "forbidden runtime surface"),
         ("OpenAPI route changes are approved by PR-A7.", "forbidden runtime surface"),
@@ -372,6 +381,22 @@ def test_checker_allows_negated_forbidden_landed_scope_items(tmp_path: Path) -> 
     )
 
     assert _run_checker(tmp_path) == []
+
+
+def test_checker_rejects_mixed_landed_scope_line_after_negated_item(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "- existing `VerificationBundle` truth preserved",
+            "- existing `VerificationBundle` truth preserved\n- no DB persistence changes but GraphRAG rollout",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _run_checker(tmp_path)
+
+    assert any("landed scope includes forbidden surface" in error for error in errors)
 
 
 def test_checker_rejects_stale_pr1499_mapping_readiness_claim(tmp_path: Path) -> None:

@@ -55,10 +55,10 @@ UNICODE_DASH_TRANSLATION = str.maketrans(
 PR_A7_PATTERN = r"(?:pr(?:[-\s]+)?a7|pr\s*(?:#|-)?\s*1499|#1499)"
 PR_A7_TOKEN_PATTERN = rf"(?<!\w){PR_A7_PATTERN}(?!\w)"
 CLAIM_GAP = r"[^.!?\n]*"
-SEMANTIC_CACHE_PATTERN = r"semantic[-\s]+cache"
+SEMANTIC_CACHE_PATTERN = r"semantic(?:[-\s]+)?cache"
 BACKEND_PATTERN = r"(?:redis|gpt[-\s]?cache)"
 FORBIDDEN_SURFACE_PATTERN = (
-    r"(?:graphrag|context[-\s]*manifest|contextmanifest|embeddings?|"
+    r"(?:graph[-\s]*rag|context[-\s]*manifest|contextmanifest|embeddings?|"
     r"vector[-\s]+(?:db|database|search)|"
     r"openapi|dto|(?:public\s+)?routes?(?:\s+changes?)?|response[-\s]+shape|"
     r"db\s+(?:persistence|rollout)|(?:vector\s+)?database\s+(?:persistence|rollout)|"
@@ -88,6 +88,7 @@ DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN = (
 DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN = (
     rf"(?:{DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN}|implemented|available|supported)"
 )
+STATUS_AUX_PATTERN = r"(?:is|was|were|has\s+been|had\s+been|got|gets|now|remains?)"
 NEGATION_PATTERN = (
     r"(?:no|not|never|does\s+not|doesn't|must\s+not|cannot|can't|"
     r"out\s+of\s+scope|blocked|deferred|remains\s+closed|remained\s+closed)"
@@ -195,7 +196,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b"
             r"(?:\s+(?:serving|runtime|gate))?\s+"
-            r"(?:(?:is|has\s+been|now|remains?)\s+)?"
+            rf"(?:(?:{STATUS_AUX_PATTERN})\s+)?"
             rf"\b{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN}\b",
             re.I,
         ),
@@ -204,7 +205,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "semantic cache active status",
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
-            r"(?:is|has\s+been|now|remains?)\s+"
+            rf"{STATUS_AUX_PATTERN}\s+"
             r"(?:active|enabled|open|opened|live|production[-\s]+ready|rollout[-\s]+ready)\b",
             re.I,
         ),
@@ -246,7 +247,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             rf"\b{FORBIDDEN_SURFACE_PATTERN}\b"
             r"(?:\s+(?:rollout|serving|runtime|implementation|persistence|changes?)){0,3}"
-            r"\s+(?:is|has\s+been|now)?\s*"
+            rf"\s+(?:{STATUS_AUX_PATTERN})?\s*"
             rf"\b{DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN}\b",
             re.I,
         ),
@@ -255,7 +256,7 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "forbidden runtime surface active status",
         re.compile(
             rf"\b{FORBIDDEN_SURFACE_PATTERN}\b{CLAIM_GAP}\b"
-            r"(?:is|has\s+been|now|remains?)\s+"
+            rf"{STATUS_AUX_PATTERN}\s+"
             rf"{DIRECT_FORBIDDEN_SURFACE_BE_STATUS_PATTERN}\b",
             re.I,
         ),
@@ -310,26 +311,26 @@ def _normalize_text(text: str) -> str:
     text = re.sub(r"\bpr\s*-\s*\n\s*a7\b", "PR-A7", text, flags=re.I)
     text = re.sub(r"\bpr\s*\n\s*a7\b", "PR-A7", text, flags=re.I)
     text = re.sub(
-        rf"({PR_A7_TOKEN_PATTERN})[ \t]*(?:\n[ \t]*)+(?=\b{POSITIVE_ACTION_PATTERN}\b)",
+        rf"({PR_A7_TOKEN_PATTERN})(?:[ \t]*\n[ \t]*)+(?=\b{POSITIVE_ACTION_PATTERN}\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(r"\bsemantic\s*\n\s*cache\b", "semantic-cache", text, flags=re.I)
     text = re.sub(
-        rf"\b({SEMANTIC_CACHE_PATTERN})\b[ \t]*(?:\n[ \t]*)+(?=\b(?:is|has\s+been|now|remains?)\b)",
+        rf"\b({SEMANTIC_CACHE_PATTERN})\b(?:[ \t]*\n[ \t]*)+(?=\b{STATUS_AUX_PATTERN}\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(
-        rf"\b({RAW_CACHEABLE_PATTERN})\b[ \t]*(?:\n[ \t]*)+(?=\b(?:{POSITIVE_ACTION_PATTERN}|are\s+{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN})\b)",
+        rf"\b({RAW_CACHEABLE_PATTERN})\b(?:[ \t]*\n[ \t]*)+(?=\b(?:{POSITIVE_ACTION_PATTERN}|are\s+{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN})\b)",
         r"\1 ",
         text,
         flags=re.I,
     )
     text = re.sub(
-        rf"\b({POSITIVE_ACTION_PATTERN})\b[ \t]*(?:\n[ \t]*)+"
+        rf"\b({POSITIVE_ACTION_PATTERN})\b(?:[ \t]*\n[ \t]*)+"
         rf"(?=\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN}|{RAW_CACHEABLE_PATTERN})\b)",
         r"\1 ",
         text,
@@ -456,18 +457,24 @@ def _validate_forbidden_claims(label: str, text: str) -> list[str]:
 
 def _has_forbidden_landed_scope_item(text: str) -> bool:
     for line in _normalize_text(text).splitlines():
-        match = re.search(
+        for match in re.finditer(
             rf"\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN})\b",
             line,
             re.I,
-        )
-        if not match:
-            continue
-        prefix = line[: match.start()]
-        if re.search(rf"\b{NEGATION_PATTERN}\b", prefix, re.I):
-            continue
-        return True
+        ):
+            if _is_negated_landed_scope_match(line, match):
+                continue
+            return True
     return False
+
+
+def _is_negated_landed_scope_match(line: str, match: re.Match[str]) -> bool:
+    prefix = line[: match.start()]
+    negations = list(re.finditer(rf"\b{NEGATION_PATTERN}\b", prefix, re.I))
+    if not negations:
+        return False
+    between = prefix[negations[-1].end() :]
+    return NEGATION_BINDING_BREAK_PATTERN.search(between) is None
 
 
 def _validate_runtime_files(repo_root: Path) -> list[str]:
