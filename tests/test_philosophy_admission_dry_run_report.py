@@ -118,8 +118,9 @@ def test_dry_run_adapter_statuses_track_verification_contract() -> None:
 def test_dry_run_checker_avoids_dynamic_import_path_mutation() -> None:
     checker_source = Path(dry_run.__file__).read_text(encoding="utf-8")
 
+    sys_path_insert_token = "sys.path" + ".insert"
     forbidden_patterns = (
-        "sys.path.insert",
+        sys_path_insert_token,
         "spec_from_file_location",
         "module_from_spec",
         "exec_module",
