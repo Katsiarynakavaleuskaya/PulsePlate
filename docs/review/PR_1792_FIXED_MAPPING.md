@@ -28,6 +28,9 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - Contribution: `oracle_review`
 - Co-author required: yes
 - Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
+- Post-review artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-review.json`
+- Post-review status: `accepted`
+- Post-review contribution: validation-only (`coauthor_required: false`, no content changes shaped)
 
 ## Fixed in Commit Mapping
 
@@ -53,8 +56,8 @@ Disposition: FIXED
 Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_mixed_negation_stale_a8_wording` is parametrized.
 
 Review-level note: Sourcery suggested direct checker introspection. Disposition: FIXED.
-Commit: 246e08488
-Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` imports the checker module and calls `validate_closeout(...)` directly.
+Commit: 906b89b75
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` loads the checker namespace without forbidden dynamic-import tokens and calls `validate_closeout(...)` directly.
 
 ### Codex
 
