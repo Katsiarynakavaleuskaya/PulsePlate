@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Repo-level PR lane starter for coordinator-first PulsePlate work.
 # Creates an isolated worktree, runs analyze preflight, and emits a bootstrap packet.
+# Experiment Runner participation is evidence after bootstrap, never lane-start authority.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -40,6 +41,8 @@ Options:
 
 The plugin list is a checklist only. Missing host/runtime plugins do not fail repo startup.
 Open the PR non-draft by default so bot review and current-head checks run.
+Repo lane authority remains check_preflight.py -> task_bootstrap.py -> agent-coordinator.
+Experiment Runner joins after bootstrap as oracle-only evidence.
 EOF
 }
 
@@ -261,6 +264,8 @@ for plugin in "${PLUGIN_ARGS[@]}"; do
     echo "  - ${plugin}"
 done
 echo "PR open mode: non-draft by default; draft requires explicit operator exception."
+echo "Lane authority: check_preflight.py -> task_bootstrap.py -> agent-coordinator."
+echo "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence."
 echo ""
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
@@ -358,4 +363,5 @@ echo ""
 echo "Next steps:"
 echo "  1. cd ${WORKTREE_REL}"
 echo "  2. Follow the generated task packet before implementation."
-echo "  3. Open the PR non-draft after local validation and initial PR body/mapping are ready."
+echo "  3. Create Experiment Runner oracle-only evidence after coordinator bootstrap when the lane is non-trivial."
+echo "  4. Open the PR non-draft after local validation and initial PR body/mapping are ready."

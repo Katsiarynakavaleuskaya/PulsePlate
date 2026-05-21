@@ -83,6 +83,18 @@ Before the final checklist above, coordinator should run the full PR lifecycle e
 
 1. **Initialize the PR correctly**
    - Start with preflight and task analysis.
+   - Treat repo custom orchestration as the lane-start authority:
+     `check_preflight.py` -> `task_bootstrap.py` -> `agent-coordinator`.
+     Host/Codex preflight is supporting context only and must not be cited as
+     lane provenance.
+   - Record lane-start provenance in the PR body or fixed-mapping artifact:
+     `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow
+     documented exception for trivial docs cleanup, main cleanup, cache cleanup,
+     or an operator-declared emergency infrastructure repair. `Starter:
+     scripts/orchestration/start_pr_lane.sh` is supplemental evidence when
+     present, but cannot satisfy provenance alone. Missing provenance is
+     diagnostic dry-run in this hardening wave; malformed provenance is an
+     error because it creates false proof.
    - Open non-draft by default once scope, initial artifacts, and first local gates are coherent so bot review and current-head checks run.
    - Use draft only with an explicit operator exception when review/check suppression is intentional.
 2. **Control each push cycle**
@@ -104,6 +116,10 @@ This lifecycle is mandatory operating behavior, not just a recommendation. The f
 - `## Discussion Thread Pass` with checkboxes completed.
 - `### Fixed in Commit Mapping` present as a mirror section for human review.
 - `## Experiment Runner Evidence` with either a local result artifact path or an explicit `Not applicable:` reason. Non-trivial PRs should create oracle-only evidence by default; `Not applicable` requires a concrete reason. Missing evidence is advisory in the first hardening wave; malformed evidence is a Phase2 error.
+- `## Lane Start Provenance` with a bootstrap packet or a narrow documented
+  exception. `start_pr_lane.sh` may be listed as supplemental evidence, but not
+  as the only proof. Missing provenance is diagnostic dry-run in this wave and
+  shows what would fail after promotion to a hard gate.
 - `## Merge Readiness` section.
 
 Canonical review-thread mappings live in `docs/review/PR_<N>_FIXED_MAPPING.md`. The PR body no longer needs late-cycle URL→SHA duplication once the canonical artifact exists.

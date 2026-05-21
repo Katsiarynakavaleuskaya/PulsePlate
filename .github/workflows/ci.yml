@@ -266,6 +266,7 @@ jobs:
           done < <(git diff --name-only -z --diff-filter=AMRT "$BASE_REF"...HEAD -- \
             'docs/orchestration/contracts/*.schema.json' \
             'docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json' \
+            'docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json' \
             'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json')
 
           if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then
@@ -693,6 +694,7 @@ jobs:
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
+                  tests/test_philosophy_admission_dry_run_report.py \
                   tests/test_philosophy_admission_policy_oracle.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py
@@ -950,6 +952,7 @@ jobs:
                   tests/test_paywall_exposure_ledger_service.py \
                   tests/test_semantic_cache_bounded_insight_experiment_contract.py \
                   tests/test_semantic_cache_backend_selection_contract.py \
+                  tests/test_philosophy_admission_dry_run_report.py \
                   tests/test_philosophy_admission_policy_oracle.py \
                   tests/test_semantic_cache_observability_contract.py \
                   tests/test_semantic_cache_scaffold_contract.py

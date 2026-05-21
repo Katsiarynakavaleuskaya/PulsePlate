@@ -1,0 +1,213 @@
+# PR #1783 Fixed in Commit Mapping
+
+PR: https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783
+
+Lane: `regional_catalog_provider_terms_matrix`
+
+## Scope Boundary
+
+PR #1783 is a food-data governance/file-only lane downstream of merged PR17 /
+#1771. It records the PR17 regional catalog candidate set as a provider terms
+matrix, adds a typed validator/report builder, adds a CLI smoke path, and
+updates the food-data current packet and backlog ledger.
+
+This PR does not approve API calls, scraping, downloads, paid provider use,
+seller or partner API access, source ingest, database writes, cache authority,
+redistribution, product display, nutrition authority, runtime source authority,
+PostgreSQL cutover, OpenAPI changes, or runtime behavior.
+
+## Split Justification
+
+This PR is intentionally kept together because the PR18 artifact, validator,
+CLI, tests, packet, current-pointer update, and backlog update form one
+file-only governance gate. Splitting the JSON artifact from the validator/tests
+would leave either unvalidated governance truth or tests without the canonical
+artifact they protect. The diff does not change runtime, provider, API, DB,
+OpenAPI, frontend, iOS, or dependency-security surfaces.
+
+## Coordinator And Role-Agent Evidence
+
+Pre-open bootstrap packet:
+`artifacts/orchestration/task_packets/ddad07b7789b.json`
+
+Post-open bootstrap packet:
+`artifacts/orchestration/task_packets/b476fd577513.json`
+
+Coordinator-declared role order:
+`agent-coordinator -> architecture-specialist -> cursor-specialist-agent -> security-auditor -> data-scientist-agent -> backend-engineer -> qa-engineer-agent -> bug-hunter -> dev-operator`
+
+Post-open mandatory role lane:
+`qa-engineer-agent -> bug-hunter`
+
+Role-agent dispositions:
+
+- `agent-coordinator`: Disposition `PASS`. Evidence: coordinator packet
+  `ddad07b7789b` approved PR18 branch/worktree only after synced-main startup
+  and declared the role order used for the lane.
+- `architecture-specialist`: Disposition `PASS`. Evidence: approved additive
+  governance-only PR18 artifact/validator/CLI/test shape and required no
+  runtime/provider/API changes.
+- `cursor-specialist-agent`: Disposition `PASS`. Evidence: confirmed PR18
+  branch/worktree isolation, no unrelated worktree edits, and GraphMap /
+  Experiment Runner process requirements.
+- `security-auditor`: Disposition `PASS`. Evidence: approved file-only scope
+  with no network, API, scraping, provider client, DB, cache, runtime, OpenAPI,
+  or dependency-security surface.
+- `data-scientist-agent`: Disposition `PASS`. Evidence: approved evidence-only
+  provider terms matrix and exact PR17 candidate set inheritance.
+- `backend-engineer`: Disposition `PASS`. Evidence: approved PR17-pattern
+  typed validator/report builder, CLI, artifact, and focused tests.
+- `qa-engineer-agent`: Disposition `PASS`. Evidence: required focused PR18
+  tests, adjacent food-source regressions, repo policy guard, CLI smoke,
+  pre-commit, and `make validate-changed`.
+- Post-open `qa-engineer-agent`: Disposition `FIXED`. Evidence: commit
+  `23b2cc7bb` changes `load_regional_catalog_provider_terms_governance`
+  `pr17_gate` from `object` to `RegionalCatalogIdentityGovernance` and validates
+  the test JSON helper return type. The exact QA command now passes:
+  `$VENV_PYTHON -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`.
+- `bug-hunter`: Disposition `PASS`. Evidence: identified false-green risks for
+  candidate drift, unsafe prose, PR17 handoff, GraphMap, and Experiment Runner
+  attribution; PR18 tests and packet close those risks.
+- Post-open `bug-hunter`: Disposition `FIXED`. Evidence: commit `0a102a39d`
+  corrects the fixed-mapping parser heading, adds the required discussion-thread
+  pass section, removes machine-specific validation paths from the artifact,
+  leaves merge-readiness checklist items unchecked until the final merge cycle,
+  and wraps the long packet validation command flagged by CodeRabbit.
+- `dev-operator`: Disposition `PASS`. Evidence: approved non-draft PR flow from
+  synced green main, isolated worktree, narrow local gates, push, post-open
+  governance, and no full local `make verify` by default.
+- Post-open `security-auditor`: Disposition `PASS`. Evidence: reviewed the
+  current PR18 diff, CodeRabbit result, and local Codex Security scan report at
+  `/tmp/codex-security-scans/BMI-App_2025_clean/cf769df4feec_20260521T074722Z/report.md`;
+  found no hidden network, API, provider, scraping, download, DB, cache,
+  runtime, OpenAPI, product, nutrition-authority, dependency-security, or
+  Experiment Runner attribution issue.
+
+## Experiment Runner Evidence
+
+Oracle-only packet:
+`artifacts/orchestration/experiments/artifacts/orchestration/experiments/pr18_provider_terms_oracle_packet.json`
+
+Oracle-only result:
+`artifacts/orchestration/experiments/results/pr18_provider_terms_oracle_result.json`
+
+Result summary: `accepted`, `shared_tree_untouched=true`,
+`promotion_ready=false`, `contribution_kind=none`, `coauthor_required=false`.
+
+Attribution disposition: `NOT-A-BUG`. The Experiment Runner validated the
+existing diff but did not materially change commit content or decisions, so no
+`Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer is
+required for commit `c779f770a`.
+
+Not applicable: Experiment Runner accepted the oracle-only review with
+`contribution_kind=none` and `coauthor_required=false`.
+
+## Premortem
+
+`pulseplate-premortem-risk-review` frame: six months after merge, PR18 failed
+because a provider terms matrix was treated as permission to use commercial,
+seller, partner, portal, or scraping sources.
+
+- Finding: terms matrix wording becomes provider approval.
+  Disposition: `FIXED`.
+  Evidence: commit `c779f770a`; validator requires
+  `allowed_role == review_only_no_provider_use`, blocked status fields, and
+  unsafe provider/source approval prose rejection.
+- Finding: candidate set drifts from PR17.
+  Disposition: `FIXED`.
+  Evidence: commit `c779f770a`; validator requires PR17 report success, PR17
+  next lane, exact candidate IDs, and PR17 candidate row field parity.
+- Finding: API/scraper/seller/partner/premium routes bypass dedicated terms
+  governance.
+  Disposition: `FIXED`.
+  Evidence: commit `c779f770a`; unsafe flags for API calls, scraping, downloads,
+  paid use, seller or partner access, cache, redistribution, runtime, product
+  display, nutrition authority, and DB writes remain false and tested.
+- Finding: Experiment Runner evidence becomes ambiguous attribution.
+  Disposition: `NOT-A-BUG`.
+  Evidence: local result
+  `artifacts/orchestration/experiments/results/pr18_provider_terms_oracle_result.json`
+  records `contribution_kind=none` and `coauthor_required=false`.
+- Finding: GraphMap becomes noisy hand-edited drift.
+  Disposition: `NOT-A-BUG`.
+  Evidence: `python3 tools/graphmap/build_graph.py --out docs/graph/graph.json`
+  and temp rebuild produced matching SHA-256 hashes; broad generated refresh was
+  not committed because PR18 does not need graph topology changes.
+
+## Validation Evidence
+
+- `python3 scripts/orchestration/check_preflight.py`: PASS.
+- `python3 scripts/orchestration/check_agent_consistency.py`: PASS.
+- `$VENV_PYTHON -m pytest -q tests/test_food_source_regional_catalog_provider_terms.py`: PASS.
+- `$VENV_PYTHON -m pytest -q tests/test_food_source_regional_catalog_identity.py tests/test_food_source_preference_mapping_closeout.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py tests/test_repo_policy_guards.py`: PASS.
+- `$VENV_PYTHON -m scripts.food_source_regional_catalog_provider_terms --json`: PASS.
+- `PATH="$VENV_BIN:$PATH" pre-commit run --all-files`: PASS.
+- `make validate-changed VENV_PYTHON="$VENV_PYTHON"`: PASS.
+- `$VENV_PYTHON -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`: PASS after post-open QA fix.
+- Pre-push hooks: PASS for mypy changed files, pip-audit, backend tests,
+  full-repo Bandit, and docker build test.
+- Codex Security diff-scoped scan: PASS / no findings. Evidence: local report
+  `/tmp/codex-security-scans/BMI-App_2025_clean/cf769df4feec_20260521T074722Z/report.md`.
+- `python3 scripts/ci/check_pr_size_governance.py --base-sha "$BASE" --head-sha "$HEAD" --body "$(cat /tmp/pr1783_body.md)"`: PASS after PR body split justification update.
+- Current-head CI for head `6ea40b984`: PASS. Evidence: CI run
+  `26213082761` completed successfully, including `pr_scope_guard`,
+  `PR Body Phase2 gates`, `Merge readiness gate`, `lint`, `test-pr (3.13)`,
+  `OpenAPI sync`, `security`, `coverage-pr`, and `diff-coverage`; build run
+  `26213082728` completed successfully.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1783 --require-auth`: PASS.
+- `GITHUB_TOKEN="$(gh auth token)" python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1783 --repo Katsiarynakavaleuskaya/PulsePlate`: PASS.
+
+Full local `make verify` is intentionally deferred by operator instruction for
+this governance-only lane. Merge readiness still requires PR current-head CI
+parity and strict review-governance checks before any readiness claim.
+
+## Discussion Thread Pass
+
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 23b2cc7bb
+Evidence: typed `pr17_gate` as `RegionalCatalogIdentityGovernance`, narrowed test JSON helper return type, and reran focused mypy successfully.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279338059 -> 23b2cc7bb
+
+Disposition: FIXED
+Commit: 0a102a39d
+Evidence: removed machine-specific validation paths from this artifact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352599 -> 0a102a39d
+
+Disposition: FIXED
+Commit: 0a102a39d
+Evidence: added the required artifact-level `## Discussion Thread Pass` section and exact checked boxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352627 -> 0a102a39d
+
+Disposition: FIXED
+Commit: 0a102a39d
+Evidence: wrapped the long packet pytest command and preserved the PR18 type fix evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334774106 -> 0a102a39d
+
+Disposition: FIXED
+Commit: 0a102a39d
+Evidence: fixed the PR body/mapping artifact contract issues reported in the review summary.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334791252 -> 0a102a39d
+
+Disposition: FIXED
+Commit: 0a102a39d
+Evidence: left post-open merge-readiness checklist items unchecked until final merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334834799 -> 0a102a39d
+
+## Post-Open Governance Checklist
+
+- [x] Non-draft PR opened.
+- [x] Fixed mapping artifact created.
+- [x] PR body mirror refreshed after fixed mapping commit.
+- [x] Post-open `task_bootstrap.py --pr-phase post_open_review` packet recorded.
+- [x] Mandatory `qa-engineer-agent -> bug-hunter` post-open pass recorded.
+- [x] CodeRabbit review inspected and dispositioned.
+- [x] Codex Security diff-scoped scan inspected and dispositioned.
+- [x] Security-auditor post-open pass recorded.
+- [x] Current-head checks inspected.
+- [x] Review-thread disposition guard run with auth.
+- [x] Strict merge-readiness gate run with auth.

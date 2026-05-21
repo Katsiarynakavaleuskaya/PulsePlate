@@ -66,9 +66,11 @@ The deterministic export includes:
 }
 ```
 
-`mlflow_run_id` and `model_version` are reserved optional fields. The runner
-emits them only when a future explicitly scoped integration supplies non-empty
-values in the metrics summary.
+`mlflow_run_id` and `model_version` are reserved optional identity fields. The
+runner emits them only when a future explicitly scoped integration supplies
+non-empty values in the metrics summary. They are not required inputs, do not
+replace `threshold_results` or `release_decision`, and must not make an external
+MLflow tracking server the canonical eval-gate source of truth.
 
 ## Boundaries
 
@@ -76,6 +78,7 @@ This PR-2 contract does not:
 
 - change RAG retrieval, generation, thresholds, calibration, or route behavior;
 - create a product dashboard or second eval source of truth;
+- require MLflow, a remote tracking URI, or an MLflow-backed PR status check;
 - upload artifacts outside the existing GitHub Actions artifact mechanism;
 - read secrets, provider credentials, App Store credentials, or protected
   release environments;

@@ -25,6 +25,10 @@ Phase2 PR body gate implementation.
 
 ## Experiment Runner Evidence
 Artifact: artifacts/orchestration/experiments/results/exp-719.json
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
 
 VALID_BODY_MIRROR_ONLY = """## Summary
@@ -39,6 +43,10 @@ Phase2 PR body gate implementation.
 
 ## Experiment Runner Evidence
 Artifact: artifacts/orchestration/experiments/results/exp-998.json
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
 
 
@@ -206,6 +214,237 @@ Not applicable: this should not be mixed with an artifact.
 
     assert warnings == []
     assert any("not both" in error for error in errors)
+
+
+def test_lane_start_provenance_accepts_local_task_packet_and_starter(tmp_path: Path) -> None:
+    packet = tmp_path / "artifacts" / "orchestration" / "task_packets" / "a733b2e09986.json"
+    packet.parent.mkdir(parents=True)
+    packet.write_text("{}", encoding="utf-8")
+
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: artifacts/orchestration/task_packets/a733b2e09986.json
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        repo_root=tmp_path,
+    )
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_accepts_repo_tracked_packet_reference() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_accepts_mixed_case_repo_packet_reference(
+    tmp_path: Path,
+) -> None:
+    packet = tmp_path / "docs" / "orchestration" / "Philosophy_Epic_V2_Packet_2026-05-20.md"
+    packet.parent.mkdir(parents=True)
+    packet.write_text("# Packet\n", encoding="utf-8")
+
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
+""",
+        repo_root=tmp_path,
+    )
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_accepts_narrow_exception() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Exception: trivial docs cleanup: no branch bootstrap needed.
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_missing_is_dry_run_warning() -> None:
+    errors, warnings = gates.check_lane_start_provenance("## Summary\nNo lane provenance.\n")
+
+    assert errors == []
+    assert any(
+        "would fail when lane-start provenance is promoted" in warning for warning in warnings
+    )
+
+
+def test_lane_start_provenance_rejects_local_only_packet_escape() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: artifacts/orchestration/experiments/results/not-a-packet.json
+""")
+
+    assert warnings == []
+    assert any("artifacts/orchestration/task_packets/" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_non_packet_orchestration_doc() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/AGENTS.md
+""")
+
+    assert warnings == []
+    assert any("docs/orchestration/*.md` packet" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_negated_exception_reason() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Exception: not a trivial docs cleanup, real governance work.
+""")
+
+    assert warnings == []
+    assert any("exception must be limited" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_starter_only() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Starter: scripts/orchestration/start_pr_lane.sh
+""")
+
+    assert warnings == []
+    assert any("starter is supplemental" in error for error in errors)
+
+
+def test_lane_start_provenance_allows_exception_with_supplemental_starter() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Exception: trivial docs cleanup
+Starter: scripts/orchestration/start_pr_lane.sh
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_warns_on_unavailable_local_packet() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: artifacts/orchestration/task_packets/fake.json
+Starter: scripts/orchestration/start_pr_lane.sh
+""")
+
+    assert errors == []
+    assert any("not available locally" in warning for warning in warnings)
+
+
+def test_lane_start_provenance_rejects_unavailable_repo_packet(tmp_path: Path) -> None:
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: docs/orchestration/MISSING_PACKET_2099-01-01.md
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        repo_root=tmp_path,
+    )
+
+    assert warnings == []
+    assert any("repo packet is referenced but not available" in error for error in errors)
+
+
+def test_lane_start_provenance_warns_on_symlink_loop_packet(
+    tmp_path: Path,
+) -> None:
+    packet = tmp_path / "artifacts" / "orchestration" / "task_packets" / "loop.json"
+    packet.parent.mkdir(parents=True)
+    packet.symlink_to(packet)
+
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: artifacts/orchestration/task_packets/loop.json
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        repo_root=tmp_path,
+    )
+
+    assert errors == []
+    assert any("not available locally" in warning for warning in warnings)
+
+
+def test_lane_start_provenance_rejects_host_preflight_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Host preflight: Codex preflight already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_host_preflight_sentence_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Host preflight already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_labeled_host_preflight_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Authority note: host preflight already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_weak_negation_preflight_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Host preflight cannot be ignored; it already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_contradictory_negated_preflight() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Host preflight is not authoritative, but it already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_rejects_cursor_preflight_authority() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Starter: scripts/orchestration/start_pr_lane.sh
+Cursor preflight: already ran.
+""")
+
+    assert warnings == []
+    assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_allows_negated_host_preflight_context() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
+Host/Codex preflight is not authoritative lane provenance.
+""")
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_lane_start_provenance_allows_negated_host_preflight_explanation() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
+Host/Codex preflight is not authoritative lane provenance; use repo bootstrap evidence.
+""")
+
+    assert errors == []
+    assert warnings == []
 
 
 def test_experiment_runner_coauthor_advisory_warns_when_required_trailer_missing(
@@ -797,7 +1036,17 @@ def test_extract_pr_body_returns_empty_for_non_object_pull_request(tmp_path: Pat
 
 def test_phase2_uses_artifact_when_pr_number_in_event(tmp_path: Path) -> None:
     """When event has pr_number, Phase2 validates canonical artifact evidence."""
-    event = {"pull_request": {"number": 998, "body": VALID_BODY_MIRROR_ONLY}}
+    mirror_body = """## Summary
+Artifact-first validation fixture.
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+### Fixed in Commit Mapping
+- canonical artifact: `docs/review/PR_998_FIXED_MAPPING.md`
+"""
+    event = {"pull_request": {"number": 998, "body": mirror_body}}
     (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
     artifact_content = """# PR 998 — Fixed in Commit Mapping
 
@@ -812,6 +1061,10 @@ Commit: abc1234
 
 ## Experiment Runner Evidence
 Not applicable: canonical artifact evidence controls artifact-first mode.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -833,6 +1086,156 @@ Not applicable: canonical artifact evidence controls artifact-first mode.
     assert "WARNING:" not in result.stdout
 
 
+def test_phase2_body_can_satisfy_evidence_when_mapping_lacks_it(tmp_path: Path) -> None:
+    """Experiment Runner Evidence may live in body or mapping artifact."""
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": """## Summary
+Body-owned runner evidence.
+
+## Experiment Runner Evidence
+Not applicable: trivial docs cleanup without runner output.
+""",
+        }
+    }
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "missing `## Experiment Runner Evidence`" not in result.stdout
+
+
+def test_phase2_body_can_satisfy_lane_provenance_when_mapping_lacks_it(
+    tmp_path: Path,
+) -> None:
+    """Lane Start Provenance may live in body or mapping artifact."""
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": """## Summary
+Body-owned lane provenance.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        }
+    }
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: fixture keeps runner evidence out of this split-source check.
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    assert result.returncode == 0
+    assert "missing `## Lane Start Provenance`" not in result.stdout
+
+
+def test_phase2_rejects_malformed_mapping_lane_even_when_body_is_valid(
+    tmp_path: Path,
+) -> None:
+    """Malformed present mapping provenance remains an error in split-source mode."""
+    event = {
+        "pull_request": {
+            "number": 998,
+            "body": """## Summary
+Body-owned valid lane provenance.
+
+## Experiment Runner Evidence
+Not applicable: split-source negative fixture with no runner output.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        }
+    }
+    (tmp_path / "event.json").write_text(json.dumps(event), encoding="utf-8")
+    artifact_content = """# PR 998 — Fixed in Commit Mapping
+
+## Discussion Thread Pass
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
+
+## Fixed in Commit Mapping
+Disposition: FIXED
+Commit: abc1234
+- https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Lane Start Provenance
+Starter: scripts/orchestration/start_pr_lane.sh
+"""
+    (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, "REVIEW_MAPPING_ARTIFACT_DIR": str(tmp_path)}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "scripts/ci/check_pr_body_phase2_gates.py",
+            "--event-path",
+            str(tmp_path / "event.json"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(repo_root),
+        env=env,
+    )
+
+    assert result.returncode == 1
+    assert "starter is supplemental" in result.stdout
+
+
 def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> None:
     """Artifact-first mode does not fail solely because the body mirror is omitted."""
     event = {"pull_request": {"number": 998, "body": ""}}
@@ -847,6 +1250,13 @@ def test_phase2_accepts_empty_pr_body_when_artifact_is_valid(tmp_path: Path) -> 
 Disposition: FIXED
 Commit: abc1234
 - https://github.com/org/repo/pull/998#discussion_r1 -> abc1234
+
+## Experiment Runner Evidence
+Not applicable: empty body fixture uses artifact-first validation only.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -884,6 +1294,10 @@ Commit: abc1234
 
 ## Experiment Runner Evidence
 Not applicable: fixture artifact only checks body mirror failure behavior.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -927,6 +1341,10 @@ Commit: abc1234
 
 ## Experiment Runner Evidence
 Not applicable: fixture artifact only checks body mirror failure behavior.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -964,6 +1382,10 @@ Commit: abc1234
 
 ## Experiment Runner Evidence
 Artifact: artifacts/orchestration/experiments/results/exp-998.json
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]
@@ -1008,6 +1430,10 @@ Commit: abc1234
 
 ## Experiment Runner Evidence
 Not applicable: fixture artifact only checks body mirror failure behavior.
+
+## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
 """
     (tmp_path / "PR_998_FIXED_MAPPING.md").write_text(artifact_content, encoding="utf-8")
     repo_root = Path(__file__).resolve().parents[1]

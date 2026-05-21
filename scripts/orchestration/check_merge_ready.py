@@ -274,6 +274,10 @@ def _print_merge_ready_bundle() -> None:
         "- Experiment Runner Evidence is advisory in this phase; Phase2 reports missing "
         "oracle-only artifact or not-applicable reason without blocking merge readiness"
     )
+    print(
+        "- Lane Start Provenance is diagnostic dry-run in this phase; Phase2 reports "
+        "missing repo bootstrap packet/start_pr_lane evidence without blocking merge readiness"
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

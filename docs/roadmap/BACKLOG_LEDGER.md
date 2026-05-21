@@ -2133,9 +2133,9 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P1: Food data source-update preflight and diff-based ingest guard
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
-  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`) -> PR #1743 (PR14: `feat(food-data): add recipe dish corpus governance gate`) -> PR #1747 (PR15: `feat(food-data): add preference recipe mapping contract`) -> PR #1768 (PR16: `feat(food-data): close preference recipe mapping review`) -> PR #1771 (PR17: `feat(food-data): add regional catalog identity license gate`)
-  - Status: 🚧 Active PR17 regional catalog identity/license review lane
-    - Merged: PR1 planning baseline (`#1513`), PR2 tooling baseline (`#1517`), PR3 lineage hardening (`#1532`), PR4 collision policy (`#1531`), PR5 source-onboarding gate (`#1559`), PR6 USDA manifest preflight (`#1563`), PR7 Open Food Facts manifest preflight (`#1572`), PR8 JPTN identity/license gate (`#1577`), PR9 MenuStat replacement gate (`#1590`), PR10 MenuStat source decision (`#1597`), PR11 coverage/source-gap audit (`#1601`), PR12 chain public nutrition governance (`#1609`), PR13 per-chain legal / anti-scraping review (`#1613`), PR14 recipe/dish corpus governance (`#1743`), PR15 preference recipe mapping contract (`#1747`), and PR16 preference recipe mapping closeout (`#1768`)
+  - Target PR: PR `#1613` (PR13: `docs(food-data): add per-chain legal review gate`) -> PR #1743 (PR14: `feat(food-data): add recipe dish corpus governance gate`) -> PR #1747 (PR15: `feat(food-data): add preference recipe mapping contract`) -> PR #1768 (PR16: `feat(food-data): close preference recipe mapping review`) -> PR #1771 (PR17: `feat(food-data): add regional catalog identity license gate`) -> PR18 (regional catalog provider terms matrix)
+  - Status: 🚧 Active PR18 regional catalog provider terms matrix lane
+    - Merged: PR1 planning baseline (`#1513`), PR2 tooling baseline (`#1517`), PR3 lineage hardening (`#1532`), PR4 collision policy (`#1531`), PR5 source-onboarding gate (`#1559`), PR6 USDA manifest preflight (`#1563`), PR7 Open Food Facts manifest preflight (`#1572`), PR8 JPTN identity/license gate (`#1577`), PR9 MenuStat replacement gate (`#1590`), PR10 MenuStat source decision (`#1597`), PR11 coverage/source-gap audit (`#1601`), PR12 chain public nutrition governance (`#1609`), PR13 per-chain legal / anti-scraping review (`#1613`), PR14 recipe/dish corpus governance (`#1743`), PR15 preference recipe mapping contract (`#1747`), PR16 preference recipe mapping closeout (`#1768`), and PR17 regional catalog identity/license review (`#1771`)
   - Area: data ingestion / food catalog / quality
   - Finding Type: upstream data-change readiness gap
   - Reason (EN): USDA Foundation Foods, USDA Branded, USDA FNDDS, Open Food Facts, JPTN Food Facts, restaurant-menu data, and external recipe corpora can change the shape, volume, licensing, and dedupe behavior of ingestible records. The repo does not yet have a canonical preflight contract for source-version discovery, schema diffing, dedupe/mapping collisions, source replacement decisions, storage choice, and rollback before updating the unified food catalog.
@@ -2156,6 +2156,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md`
     - `docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md`
     - `docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md`
+    - `docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md`
     - `docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md`
     - `docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json`
     - `docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json`
@@ -2169,6 +2170,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json`
     - `docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json`
     - `docs/architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json`
+    - `docs/architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json`
     - `docs/architecture/ADR_FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_2026-04-24.md`
     - `docs/architecture/FOOD_DATABASE_PLATFORM_STRATEGY_v1.md`
     - `docs/legal/EXTERNAL_FOOD_SOURCE_OPERATING_POLICY.md`
@@ -2199,6 +2201,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR15 records preference-to-recipe mapping contract governance while keeping preference labels, recipe text, user preference text, LLM output, public chain evidence, Edamam, Spoonacular, and public menu pages non-authoritative; source use, API calls, paid plans, downloads, scraping, caching, redistribution, ingest, DB writes, DigitalOcean Postgres, runtime authority, product display, and nutrition authority remain unapproved
     - PR16 closes out the PR15 preference-to-recipe mapping contract lane, records operator-provided food-source research artifacts as review context only, preserves USDA + Open Food Facts as the budget-first canonical nutrition baseline, keeps paid/API/scraper/provider work deferred, and selects `regional_catalog_identity_license_review` as the next substantive food-data source governance lane
     - PR17 records regional catalog identity/license review candidates for data.europa.eu / national open-data portals, Kroger, Walmart, Pepesto Grocery, PricesAPI, Yandex EDA, Wildberries, Ozon, and scraping-style providers as evidence-only; source use, API calls, seller or partner API use, paid plans, downloads, scraping, caching, redistribution, ingest, DB writes, DigitalOcean Postgres, runtime authority, product display, and nutrition authority remain unapproved, with next lane set by the PR17 artifact
+    - PR18 records the PR17 regional catalog candidate set as a provider terms matrix while keeping every candidate review-only; provider use, API calls, seller or partner API access, paid plans, downloads, scraping, cache authority, redistribution, ingest, DB writes, DigitalOcean Postgres, runtime authority, product display, and nutrition authority remain unapproved, with the next lane set to source-specific regional catalog terms review
     - DigitalOcean production PostgreSQL load and runtime cutover stay blocked until source preflight, staging proof, rollback, and cutover packet are complete
     - Data-ingest docs and runbooks point to the same preflight source of truth
 
@@ -2303,6 +2306,39 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Tests prove sidecar generation and no threshold/decision drift
     - Docs explain sidecar semantics and limitations
     - No runtime/API/frontend/iOS/billing/OpenAPI/App Store/Claude/Opus/MCP changes
+<a id="ledger-p2-mlflow-required-check-integration"></a>
+- [ ] P2: MLflow-backed eval identity integration without required-check drift
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P2
+  - Target PR: PR-TBD (`evals/mlflow-identity-integration`)
+  - Status: Deferred
+  - Area: evals / RAG / release gates / ML identity
+  - Finding Type: external eval-source integration risk
+  - Reason (EN): The RAG release-gates runner already emits canonical
+    `metrics_summary.json`, `threshold_results`, `release_decision`, and
+    `rag_gate_result.json`. Promoting an external MLflow tracking run directly
+    into a required PR check would introduce secret, network, run-selection, and
+    source-of-truth risk before the repo has an approved tracking URI, retention
+    policy, and deterministic local fallback.
+  - Links:
+    - `docs/evals/PULSEPLATE_RAG_RELEASE_GATES.md`
+    - `docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md`
+    - `scripts/evals/run_rag_release_gates.py`
+    - `tests/test_rag_release_gates_runner.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+  - DoD:
+    - MLflow integration is optional identity metadata over repo-native
+      `rag_gate_result.json`, not a replacement for `threshold_results` or
+      `release_decision`
+    - An approved tracking URI, secret policy, network/SLA posture, and artifact
+      retention policy are documented before any CI integration
+    - Deterministic local fallback exists and tests prove missing/unreachable
+      MLflow does not block ordinary repo-native eval validation
+    - Required-check status is not enabled until reliability is proven in a
+      non-required lane and branch-protection impact is reviewed
+    - The integration does not open the semantic-cache gate, add runtime
+      `/insight` wiring, require provider calls, or persist raw prompts,
+      responses, user context, secrets, or local paths
 <a id="ledger-p1-judgment-validity-sidecar"></a>
 - [ ] P1: Judgment replay validity sidecar integration
   - Owner: @katsiaryna_kavaleuskaya
@@ -2911,11 +2947,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - PR body mirrors review-thread disposition, deferred/follow-up, and merge-readiness sections after PR open
 
 <a id="ledger-p1-philosophy-epic-v2-pr2-policy-oracle"></a>
-- [ ] P1: Philosophy Epic V2 PR-2 admission policy spec generator / claim-family oracle
+- [x] P1: Philosophy Epic V2 PR-2 admission policy spec generator / claim-family oracle
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: #1777 (`codex/philosophy-epic-v2-pr2-policy-oracle`)
-  - Status: 🟡 Active in PR-2 branch
+  - Status: ✅ Merged PR #1777 on 2026-05-21 (`101a6d2e6461cb86f23ff79458b9f0b36c4032ff`)
   - Area: AI / RAG / philosophy / semantic-cache governance / test infrastructure
   - Finding Type: false-green prevention, policy-as-data oracle, temporal/modal claim drift guard
   - Reason (EN): PR #1761 closed the Philosophy PR-1 admission contract but review loops exposed a systemic failure mode: hand-expanded regexes and test grammars made the same semantic claim family reappear as fresh comments. PR-2 makes the admission claim policy canonical JSON data, generates deterministic oracle fixtures, and checks policy/schema/fixture drift before runtime semantic-cache work resumes.
@@ -2932,6 +2968,33 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Policy-driven checker preserves gate-closed behavior and does not add Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, or runtime cache wiring
     - Phase 1 docs gates validate the policy, schema, and oracle fixture, and downstream Philosophy docs still reject forbidden admission claims while allowing explicitly negative examples
     - PR-2 documents the deterministic oracle boundary: semantic/research input may generate hypotheses, but admission truth is decided by policy/spec/oracle checks and does not mutate Experiment Runner or runtime oracle surfaces
+    - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
+
+<a id="ledger-p1-philosophy-epic-v2-pr3-admission-dry-run"></a>
+- [ ] P1: Philosophy Epic V2 PR-3 admission oracle dry-run / verification-bundle adapter
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR #1784 (`codex/philosophy-epic-v2-pr3-admission-dry-run`)
+  - Status: 🟡 Active in PR #1784
+  - Area: AI / RAG / philosophy / semantic-cache governance / verification-bundle adapter
+  - Finding Type: false-green prevention, provenance/report drift, gate-closed verification-bundle dry-run
+  - Reason (EN): PR #1777 made philosophical admission claims deterministic through policy JSON and a generated oracle fixture. PR-3 adds the next governance guard: a deterministic dry-run report that connects the PR-2 oracle to synthetic verification-bundle states and proves that missing, failed, warning, and passed bundles still do not permit cache read, cache write, or serving while the semantic-cache gate remains closed.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR3_ADMISSION_DRY_RUN_PACKET_2026-05-21.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.schema.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json`
+    - `tests/fixtures/orchestration/philosophy_admission_claim_oracle.json`
+    - `scripts/ci/check_philosophy_admission_dry_run.py`
+    - `tests/test_philosophy_admission_dry_run_report.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+  - DoD:
+    - Canonical dry-run report is generated from PR-2 policy/oracle truth and guarded by a closed JSON schema
+    - Checker validates policy, policy schema, oracle fixture, dry-run report schema, and generated report together
+    - Report records missing, failed, warning, and passed verification-bundle states with deterministic decisions
+    - Passed verification bundle stays `gate_closed_deferred`; every decision keeps `cache_read_allowed=false`, `cache_write_allowed=false`, and `serving_allowed=false`
+    - Phase 1 docs gates and CI workflow tests cover report/schema drift
+    - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 

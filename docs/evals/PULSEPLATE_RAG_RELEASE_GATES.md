@@ -250,6 +250,23 @@ under the gitignored `artifacts/rag_eval/<experiment_id>/...` family. The
 canonical runner may ingest it for reporting, but it does not execute `ragas`
 itself and it does not become a second eval source of truth.
 
+### MLflow required-check decision
+
+External MLflow runs are not a required PR check for this lane. The canonical
+PR-visible eval evidence remains the repo-native artifact pack emitted by
+`scripts/evals/run_rag_release_gates.py`, especially `metrics_summary.json`,
+`threshold_results`, `release_decision`, and `rag_gate_result.json`.
+
+`mlflow_run_id` is reserved as optional identity metadata only. It must not be
+used to make an external tracking server the source of threshold truth, to
+select a control run by mutable remote state, or to block ordinary PR merges
+through a secret/network-dependent status check.
+
+A future MLflow integration must be a separately scoped slice and must satisfy
+the backlog criteria in
+[`ledger-p2-mlflow-required-check-integration`](../roadmap/BACKLOG_LEDGER.md#ledger-p2-mlflow-required-check-integration)
+before it can be considered for required-check status.
+
 Future selective graph-eval work is also subordinate to this lane. The offline
 contract in
 [`PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT.md`](./PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT.md)
