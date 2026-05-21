@@ -50,6 +50,10 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580686
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580690
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580694
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051938
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051944
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051950
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051953
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084
 Disposition: FIXED
@@ -67,6 +71,7 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/tes
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now accept explicit `lacks approval` / `without approval` denials, preserve clause offsets while trimming, recognize spaced `GPT Cache` labels, reject passive `selected/selection`, reject `authorized/authorization`, and reject qualified raw user/LLM prompt/response cacheability claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now normalize non-breaking spaces, match wrapped `PR-\nV1` and `semantic\ncache` terms, reject passive `opened` activation, and treat `despite` / dash-without-space joins as claim boundaries when they lead to a later approval-equivalent clause.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now scope conjunction boundaries to follow-up approval clauses, require semantic-cache rollout/serving/runtime context for open/approval status wording, accept `has no` and `never allows` gate-closed denials, and reject `rollout-ready` activation claims.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now treat bare line breaks, causal connectors such as `therefore`, and slash/pipe separators as claim boundaries while allowing documentation-only semantic-cache permission-model prose.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:41` and `tests/test_ai_verification_registry_closeout.py:153` replace exact stale-phrase checks with structural stale active-state patterns and a broader verification-bundle regression case.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
@@ -105,6 +110,10 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580686 -> 9c2d27c53
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580690 -> 9c2d27c53
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580694 -> 9c2d27c53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051938 -> 717f1a7a3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051944 -> 717f1a7a3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051950 -> 717f1a7a3
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3279051953 -> 717f1a7a3
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> fa7dc6d50
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084 -> 3d95a61f8
 
@@ -317,6 +326,22 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `9c2d27c53`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `PR-V1 never allows semantic-cache serving` and `PR-V1 never allows Redis rollout`.
+- CodeRabbit finding: bare line breaks could let an earlier negation swallow a later positive PR-V1 semantic-cache serving claim.
+  - Disposition: FIXED
+  - Commit: `717f1a7a3`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects a Redis-denial line followed by `PR-V1 allows semantic-cache serving`.
+- CodeRabbit finding: causal connectors such as `therefore` could carry a prior negation across a later semantic-cache approval claim.
+  - Disposition: FIXED
+  - Commit: `717f1a7a3`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `therefore PR-V1 approves semantic-cache serving`.
+- CodeRabbit finding: slash/pipe clause separators could carry a prior negation across later semantic-cache approval claims.
+  - Disposition: FIXED
+  - Commit: `717f1a7a3`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects slash- and pipe-separated Redis-denial / semantic-cache-approval claims.
+- CodeRabbit finding: contextual semantic-cache approval patterns overflagged documentation-only permission-model prose.
+  - Disposition: FIXED
+  - Commit: `717f1a7a3`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows semantic-cache backend-selection permission-model documentation claims without allowing runtime activation claims.
 
 ## Local Evidence
 
@@ -331,7 +356,7 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - Pre-commit: `pre-commit run --all-files` passed.
 - Pre-push: mypy, pip-audit, backend pytest, full-repo Bandit, and docker build test passed.
 - Experiment Runner: oracle-only governance reviewer accepted `artifacts/orchestration/experiments/results/exp-ceddfe3387fc.json`.
-- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/9c2d27c53_20260521T041848Z/report.md` reported no findings.
+- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/717f1a7a3_20260521T062737Z/report.md` reported no findings.
 
 ## Experiment Runner Evidence
 
