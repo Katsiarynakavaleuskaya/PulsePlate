@@ -9,6 +9,7 @@ parity for coordinator-owned PR lanes.
 
 - `190577d0e` - `feat(orchestration): gate experiment runner evidence mode`
 - `10668b0a` - `fix(orchestration): close evidence mode review findings`
+- `b5133c5` - `fix(orchestration): harden bootstrap python parity`
 
 ## Discussion Thread Pass
 
@@ -27,33 +28,32 @@ Artifact: artifacts/orchestration/experiments/results/evidence-hard-gate-switch.
 Local oracle-only result, gitignored and not committed. Runner mode:
 `oracle_only_governance_reviewer`; `mutated_paths: []`; `promotion_ready: false`;
 `contribution_kind: commit_decision`; `coauthor_required: true`. Commits
-`190577d0e` and `10668b0a` include the canonical Experiment Runner co-author
-trailer.
+`190577d0e`, `10668b0a`, and `b5133c5` include the canonical Experiment
+Runner co-author trailer.
 
 ## Fixed in Commit Mapping
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340694578 -> `10668b0a`
-  - Disposition: FIXED
-  - Commit: `10668b0a`
-  - Evidence: post-open Sourcery review actionables are mapped to the
-    discussion-level fixes below.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313517 -> `10668b0a`
-  - Disposition: FIXED
-  - Commit: `10668b0a`
-  - Evidence: `scripts/ci/check_pr_body_phase2_gates.py` and
-    `scripts/orchestration/check_merge_ready.py` no longer double-normalize
-    `--experiment-runner-evidence-mode` through `argparse type=...` and
-    post-parse validation.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313523 -> `10668b0a`
-  - Disposition: FIXED
-  - Commit: `10668b0a`
-  - Evidence: `tests/test_start_pr_lane.py` stubs now delegate to
-    `sys.executable` instead of hard-coded `/usr/bin/python3`.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313533 -> `10668b0a`
-  - Disposition: FIXED
-  - Commit: `10668b0a`
-  - Evidence: `tests/test_local_session_bootstrap.py` covers absolute
-    `VENV_PYTHON` acceptance and confirms `$VENV_PYTHON -m pytest` guidance.
+Disposition: FIXED
+Commit: 10668b0a
+Evidence: fixed Sourcery evidence-mode parsing and bootstrap Python test coverage findings.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340694578 -> 10668b0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313517 -> 10668b0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313523 -> 10668b0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284313533 -> 10668b0a
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284339562 -> 10668b0a
+
+Disposition: FIXED
+Commit: b5133c5
+Evidence: fixed CodeRabbit and Codex bootstrap Python parity findings for parent venv scope, dry-run validation, absolute VENV guidance, and typed test doubles.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340732615 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284339492 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284339531 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284339552 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340748415 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284350079 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284350084 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284350085 -> b5133c5
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284350088 -> b5133c5
 
 ## Pre-Open Role-Agent Findings
 
