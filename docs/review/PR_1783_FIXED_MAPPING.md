@@ -93,6 +93,9 @@ existing diff but did not materially change commit content or decisions, so no
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer is
 required for commit `c779f770a`.
 
+Not applicable: Experiment Runner accepted the oracle-only review with
+`contribution_kind=none` and `coauthor_required=false`.
+
 ## Premortem
 
 `pulseplate-premortem-risk-review` frame: six months after merge, PR18 failed
