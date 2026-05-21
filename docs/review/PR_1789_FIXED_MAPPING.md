@@ -46,6 +46,8 @@ OpenAPI/frontend/iOS changes, and no release-manifest mutation.
 
 ## Fixed in Commit Mapping
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3283621254 -> 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3283621290 -> 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#pullrequestreview-4339796645 -> 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
 Disposition: FIXED
 Commit: 94ed4ce2141fbd9160bf3f5c42b93d1f256db943
