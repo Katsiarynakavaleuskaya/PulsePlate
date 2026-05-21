@@ -16,6 +16,11 @@ Commit: e7b56ce39
 Evidence: Added PR-4 governance packet, deterministic gate-open precondition report/schema, precondition checker, docs-phase/workflow guard wiring, GraphMap refresh, and regression tests that keep Philosophy semantic-cache runtime handoff blocked.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791 -> e7b56ce39
 
+Disposition: FIXED
+Commit: 9542dbff6
+Evidence: Closed post-open QA/bug/security findings by moving the PR-4 workflow guard before docs-phase early exit, adding `core/rag/**` to the no-runtime boundary, normalizing touched paths before matching forbidden runtime paths, requiring constrained PR #1789 alignment schema properties, tightening report schema ledger/precondition/reason-code constraints, and adding focused regressions for each gap. Covered local post-open findings: workflow PR-4 guard early-exit bypass; missing `core/rag/**` runtime boundary; weak PR #1789 alignment schema shape acceptance; arbitrary ledger anchor/precondition/reason-code schema acceptance; touched-path normalization bypass; alignment schema missing from explicit Phase1 inputs; and premature mapping completion before post-open findings were closed.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791 -> 9542dbff6
+
 ## Premortem Disposition
 
 - FIXED: Closed roadmap markers and false runtime/cache permissions are enforced by report, schema, checker, docs-phase wiring, workflow regression coverage, and tests.
@@ -43,7 +48,7 @@ Evidence: Added PR-4 governance packet, deterministic gate-open precondition rep
 ## Post-Open Review
 
 - Post-open bootstrap packet: `artifacts/orchestration/task_packets/e3ff837cf33d.json` (local gitignored artifact).
-- Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass: pending.
+- Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass: completed locally; all actionable findings are fixed in `9542dbff6`.
 - CodeRabbit/Cubic/Codex-security-style review: pending.
 - Current-head checks: pending.
 - Review-thread disposition guard: pending.
