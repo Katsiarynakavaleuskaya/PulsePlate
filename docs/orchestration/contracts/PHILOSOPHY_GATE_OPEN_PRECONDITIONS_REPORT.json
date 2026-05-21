@@ -1,0 +1,157 @@
+{
+  "report_id": "philosophy_gate_open_preconditions_report",
+  "report_version": "2026-05-21",
+  "generated_at": "static-2026-05-21",
+  "rollout_phase": "PHILOSOPHY-PR4",
+  "gate_status": "closed",
+  "runtime_allowed": false,
+  "implementation_allowed": false,
+  "requires_dedicated_gate": true,
+  "gate_open_allowed": false,
+  "runtime_handoff_allowed": false,
+  "cache_read_allowed": false,
+  "cache_write_allowed": false,
+  "serving_allowed": false,
+  "source_policy": {
+    "policy_id": "philosophy_semantic_cache_admission_policy",
+    "policy_version": "2026-05-20",
+    "rollout_phase": "PHILOSOPHY-PR2",
+    "gate_status": "closed",
+    "runtime_allowed": false,
+    "implementation_allowed": false
+  },
+  "source_dry_run": {
+    "report_id": "philosophy_admission_dry_run_report",
+    "report_version": "2026-05-21",
+    "rollout_phase": "PHILOSOPHY-PR3",
+    "gate_status": "closed",
+    "runtime_allowed": false,
+    "implementation_allowed": false,
+    "dry_run_decision_count": 7,
+    "all_cache_permissions_false": true,
+    "all_decision_cache_permissions_false": true
+  },
+  "semantic_cache_markers": {
+    "gate_status_closed": true,
+    "runtime_allowed_false": true,
+    "implementation_allowed_false": true,
+    "dedicated_gate_required": true
+  },
+  "ledger_anchor_present": {
+    "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation": true,
+    "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough": true,
+    "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet": true,
+    "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction": true,
+    "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates": true
+  },
+  "ledger_anchor_presence_does_not_verify_closure": true,
+  "preconditions": [
+    {
+      "id": "pr2_policy_oracle_current",
+      "label": "PR-2 policy oracle validates and remains gate-closed",
+      "status": "source_current",
+      "required_for_gate_open": true,
+      "blocks_gate_open": false,
+      "evidence": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json"
+    },
+    {
+      "id": "pr3_dry_run_current",
+      "label": "PR-3 dry-run adapter validates and keeps cache permissions false",
+      "status": "source_current",
+      "required_for_gate_open": true,
+      "blocks_gate_open": false,
+      "evidence": "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json"
+    },
+    {
+      "id": "pr1789_alignment_rule_schema_landed",
+      "label": "PR #1789 alignment-rule trust schema is present on this base",
+      "status": "pending_external_predecessor",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "PR #1789 / codex/philosophy-alignment-rule-trust-schema is external to this PR-4 branch"
+    },
+    {
+      "id": "pr_a1b_reconciled",
+      "label": "PR-A1b",
+      "status": "not_verified_by_pr4",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-pro-monthly-quota-ledger-reconciliation"
+    },
+    {
+      "id": "pr_a2_rag_hardening_closed",
+      "label": "PR-A2",
+      "status": "not_verified_by_pr4",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-rag-hardening-followthrough"
+    },
+    {
+      "id": "pr_a3_bounded_context_packet_closed",
+      "label": "PR-A3",
+      "status": "not_verified_by_pr4",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-packet"
+    },
+    {
+      "id": "pr_a4_bounded_context_extraction_closed",
+      "label": "PR-A4",
+      "status": "not_verified_by_pr4",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-ai-bounded-context-extraction"
+    },
+    {
+      "id": "pr_a5_llm_reliability_security_closed",
+      "label": "PR-A5",
+      "status": "not_verified_by_pr4",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-llm-reliability-security-gates"
+    },
+    {
+      "id": "dedicated_gate_open_pr_changes_markers",
+      "label": "A later reviewed gate-open PR changes machine-checkable markers",
+      "status": "absent",
+      "required_for_gate_open": true,
+      "blocks_gate_open": true,
+      "evidence": "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    }
+  ],
+  "handoff_decision": {
+    "decision": "gate_open_blocked_preconditions_incomplete",
+    "reason_codes": [
+      "semantic_cache_gate_closed",
+      "runtime_prerequisites_not_verified",
+      "dedicated_gate_open_pr_absent",
+      "alignment_rule_schema_predecessor_pending"
+    ],
+    "blocking_precondition_count": 7,
+    "runtime_handoff_allowed": false,
+    "cache_read_allowed": false,
+    "cache_write_allowed": false,
+    "serving_allowed": false
+  },
+  "research_basis": [
+    "W3C PROV-DM: preserve explicit source lineage for policy, dry-run, and roadmap evidence.",
+    "OPA decision logs: derive handoff decisions from structured policy inputs.",
+    "NIST AI 600-1: keep red-team findings as governance evidence, not runtime authority.",
+    "Metamorphic testing: pair current governance sources with blocking runtime preconditions."
+  ],
+  "out_of_scope_paths": [
+    "app/**",
+    "core/ai/**",
+    "core/insight/**",
+    "core/knowledge/**",
+    "core/verification/**",
+    "core/evidence/**",
+    "legacy_app.py",
+    "mcp_pulseplate_server.py",
+    "providers/**",
+    "frontend/**",
+    "ios/**",
+    "alembic/**",
+    "openapi/**"
+  ]
+}

@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.schema.json",
+  "title": "Philosophy Gate-Open Preconditions Report",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "report_id",
+    "report_version",
+    "generated_at",
+    "rollout_phase",
+    "gate_status",
+    "runtime_allowed",
+    "implementation_allowed",
+    "requires_dedicated_gate",
+    "gate_open_allowed",
+    "runtime_handoff_allowed",
+    "cache_read_allowed",
+    "cache_write_allowed",
+    "serving_allowed",
+    "source_policy",
+    "source_dry_run",
+    "semantic_cache_markers",
+    "ledger_anchor_present",
+    "ledger_anchor_presence_does_not_verify_closure",
+    "preconditions",
+    "handoff_decision",
+    "research_basis",
+    "out_of_scope_paths"
+  ],
+  "properties": {
+    "report_id": {
+      "const": "philosophy_gate_open_preconditions_report"
+    },
+    "report_version": {
+      "const": "2026-05-21"
+    },
+    "generated_at": {
+      "const": "static-2026-05-21"
+    },
+    "rollout_phase": {
+      "const": "PHILOSOPHY-PR4"
+    },
+    "gate_status": {
+      "const": "closed"
+    },
+    "runtime_allowed": {
+      "const": false
+    },
+    "implementation_allowed": {
+      "const": false
+    },
+    "requires_dedicated_gate": {
+      "const": true
+    },
+    "gate_open_allowed": {
+      "const": false
+    },
+    "runtime_handoff_allowed": {
+      "const": false
+    },
+    "cache_read_allowed": {
+      "const": false
+    },
+    "cache_write_allowed": {
+      "const": false
+    },
+    "serving_allowed": {
+      "const": false
+    },
+    "source_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "policy_id",
+        "policy_version",
+        "rollout_phase",
+        "gate_status",
+        "runtime_allowed",
+        "implementation_allowed"
+      ],
+      "properties": {
+        "policy_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "rollout_phase": {
+          "const": "PHILOSOPHY-PR2"
+        },
+        "gate_status": {
+          "const": "closed"
+        },
+        "runtime_allowed": {
+          "const": false
+        },
+        "implementation_allowed": {
+          "const": false
+        }
+      }
+    },
+    "source_dry_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_id",
+        "report_version",
+        "rollout_phase",
+        "gate_status",
+        "runtime_allowed",
+        "implementation_allowed",
+        "dry_run_decision_count",
+        "all_cache_permissions_false",
+        "all_decision_cache_permissions_false"
+      ],
+      "properties": {
+        "report_id": {
+          "const": "philosophy_admission_dry_run_report"
+        },
+        "report_version": {
+          "type": "string"
+        },
+        "rollout_phase": {
+          "const": "PHILOSOPHY-PR3"
+        },
+        "gate_status": {
+          "const": "closed"
+        },
+        "runtime_allowed": {
+          "const": false
+        },
+        "implementation_allowed": {
+          "const": false
+        },
+        "dry_run_decision_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "all_cache_permissions_false": {
+          "const": true
+        },
+        "all_decision_cache_permissions_false": {
+          "const": true
+        }
+      }
+    },
+    "semantic_cache_markers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gate_status_closed",
+        "runtime_allowed_false",
+        "implementation_allowed_false",
+        "dedicated_gate_required"
+      ],
+      "properties": {
+        "gate_status_closed": {
+          "const": true
+        },
+        "runtime_allowed_false": {
+          "const": true
+        },
+        "implementation_allowed_false": {
+          "const": true
+        },
+        "dedicated_gate_required": {
+          "const": true
+        }
+      }
+    },
+    "ledger_anchor_present": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "ledger_anchor_presence_does_not_verify_closure": {
+      "const": true
+    },
+    "preconditions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "label",
+          "status",
+          "required_for_gate_open",
+          "blocks_gate_open",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "source_current",
+              "source_present_not_merge_verified",
+              "pending_external_predecessor",
+              "not_verified_by_pr4",
+              "absent"
+            ]
+          },
+          "required_for_gate_open": {
+            "const": true
+          },
+          "blocks_gate_open": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      },
+      "minItems": 1
+    },
+    "handoff_decision": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "reason_codes",
+        "blocking_precondition_count",
+        "runtime_handoff_allowed",
+        "cache_read_allowed",
+        "cache_write_allowed",
+        "serving_allowed"
+      ],
+      "properties": {
+        "decision": {
+          "const": "gate_open_blocked_preconditions_incomplete"
+        },
+        "reason_codes": {
+          "type": "array",
+          "items": {
+            "enum": [
+              "semantic_cache_gate_closed",
+              "runtime_prerequisites_not_verified",
+              "dedicated_gate_open_pr_absent",
+              "alignment_rule_schema_predecessor_pending"
+            ]
+          },
+          "minItems": 1
+        },
+        "blocking_precondition_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "runtime_handoff_allowed": {
+          "const": false
+        },
+        "cache_read_allowed": {
+          "const": false
+        },
+        "cache_write_allowed": {
+          "const": false
+        },
+        "serving_allowed": {
+          "const": false
+        }
+      }
+    },
+    "research_basis": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "out_of_scope_paths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  }
+}

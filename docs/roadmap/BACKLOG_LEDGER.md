@@ -2971,11 +2971,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 <a id="ledger-p1-philosophy-epic-v2-pr3-admission-dry-run"></a>
-- [ ] P1: Philosophy Epic V2 PR-3 admission oracle dry-run / verification-bundle adapter
+- [x] P1: Philosophy Epic V2 PR-3 admission oracle dry-run / verification-bundle adapter
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1784 (`codex/philosophy-epic-v2-pr3-admission-dry-run`)
-  - Status: 🟡 Active in PR #1784
+  - Status: ✅ Merged PR #1784 on 2026-05-21 (`18be0c53c143714c38cbe5a021dd0c33ff73d6ef`)
   - Area: AI / RAG / philosophy / semantic-cache governance / verification-bundle adapter
   - Finding Type: false-green prevention, provenance/report drift, gate-closed verification-bundle dry-run
   - Reason (EN): PR #1777 made philosophical admission claims deterministic through policy JSON and a generated oracle fixture. PR-3 adds the next governance guard: a deterministic dry-run report that connects the PR-2 oracle to synthetic verification-bundle states and proves that missing, failed, warning, and passed bundles still do not permit cache read, cache write, or serving while the semantic-cache gate remains closed.
@@ -2994,6 +2994,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Report records missing, failed, warning, and passed verification-bundle states with deterministic decisions
     - Passed verification bundle stays `gate_closed_deferred`; every decision keeps `cache_read_allowed=false`, `cache_write_allowed=false`, and `serving_allowed=false`
     - Phase 1 docs gates and CI workflow tests cover report/schema drift
+    - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
+    - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
+
+<a id="ledger-p1-philosophy-epic-v2-pr4-gate-open-preconditions"></a>
+- [ ] P1: Philosophy Epic V2 PR-4 semantic-cache gate-open preconditions / runtime admission handoff
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: `codex/philosophy-epic-v2-pr4-gate-open-preconditions`
+  - Status: 🟡 Active branch
+  - Area: AI / RAG / philosophy / semantic-cache governance / runtime handoff readiness
+  - Finding Type: gate-open false-positive prevention, prerequisite drift guard, blocked runtime handoff inventory
+  - Reason (EN): PR #1777 made Philosophy admission claim families deterministic, and PR #1784 connected them to a verification-bundle dry-run while preserving the closed gate. PR-4 adds the next guard: a compact machine-checkable precondition report that proves PR-2/PR-3 sources are current but runtime handoff remains blocked until PR #1789, PR-A1b through PR-A5, and a later reviewed gate-open PR are all proven.
+  - Links:
+    - `docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json`
+    - `docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.schema.json`
+    - `scripts/ci/check_philosophy_gate_open_preconditions.py`
+    - `tests/test_philosophy_gate_open_preconditions.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-philosophy-epic-v2-alignment-rule-trust-schema`
+  - DoD:
+    - PR-4 report validates PR-2 policy/oracle truth, PR-3 dry-run truth, semantic-cache roadmap markers, and runtime prerequisite anchors without opening the gate
+    - Report distinguishes `source_current` governance sources from runtime readiness and records that ledger anchor presence does not verify closure
+    - `gate_open_allowed=false`, `runtime_handoff_allowed=false`, `cache_read_allowed=false`, `cache_write_allowed=false`, and `serving_allowed=false` are enforced by report, schema, checker, and tests
+    - PR #1789 alignment-rule schema remains a blocking external predecessor unless its artifact is present and minimally valid on the current base; file presence alone is not accepted
+    - Phase 1 docs gates validate PR-4 report/schema drift when the report, schema, roadmap, ledger, PR-2 policy/oracle, or PR-3 dry-run inputs change
     - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 

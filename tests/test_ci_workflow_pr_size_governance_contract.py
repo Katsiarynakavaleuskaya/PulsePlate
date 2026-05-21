@@ -256,6 +256,10 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "'docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json'"
+        in docs_phase1_section
+    )
+    assert (
         "'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json'"
         in docs_phase1_section
     )
@@ -273,6 +277,11 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     )
     assert (
         'python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"'
+        in docs_phase1_section
+    )
+    assert "PR4_PRECONDITION_CHANGED=0" in docs_phase1_section
+    assert (
+        "python scripts/ci/check_philosophy_gate_open_preconditions.py --check --files"
         in docs_phase1_section
     )
     assert (

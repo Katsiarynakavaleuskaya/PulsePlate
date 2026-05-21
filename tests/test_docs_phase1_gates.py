@@ -9,6 +9,31 @@ import pytest
 
 import scripts.ci.check_docs_phase1_gates as gates
 
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _disable_gate_open_preconditions_validator(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_gate_open_preconditions_validator",
+        lambda: lambda **_kwargs: [],
+    )
+
+
+def _copy_gate_open_precondition_companions(
+    tmp_path: Path,
+    *,
+    skip: set[str] | None = None,
+) -> None:
+    skipped = skip or set()
+    for relpath in gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_INPUTS:
+        if relpath in skipped:
+            continue
+        source = REPO_ROOT / relpath
+        destination = tmp_path / relpath
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
 
 def _expected_forbidden_philosophy_claim(path: str, claim: str) -> str:
     return (
@@ -94,6 +119,7 @@ def test_phase1_guard_accepts_dot_prefixed_file_anchor(
 def test_phase1_guard_runs_semantic_cache_gate_for_gate_doc(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _disable_gate_open_preconditions_validator(monkeypatch)
     gate_doc = tmp_path / "docs" / "roadmap" / "PulsePlate_Semantic_Cache_Gate_and_Plan.md"
     gate_doc.parent.mkdir(parents=True)
     gate_doc.write_text(
@@ -122,6 +148,7 @@ If the gate opens later, rollout order is fixed:
 """,
         encoding="utf-8",
     )
+    _copy_gate_open_precondition_companions(tmp_path, skip={gates.SEMANTIC_CACHE_GATE_DOC})
     monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
 
     errors = gates.check_docs_phase1_guards(
@@ -150,10 +177,15 @@ def test_phase1_guard_does_not_run_semantic_cache_gate_for_unrelated_roadmap_doc
 def test_phase1_guard_still_scans_philosophy_downstream_ledger_doc(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    _disable_gate_open_preconditions_validator(monkeypatch)
     claim = "philosophical semantic-cache is live"
     backlog_doc = tmp_path / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
     backlog_doc.parent.mkdir(parents=True)
     backlog_doc.write_text(f"{claim}.\n", encoding="utf-8")
+    _copy_gate_open_precondition_companions(
+        tmp_path,
+        skip={"docs/roadmap/BACKLOG_LEDGER.md"},
+    )
     monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
 
     errors = gates.check_docs_phase1_guards(markdown_files=["docs/roadmap/BACKLOG_LEDGER.md"])
@@ -422,3 +454,79 @@ def test_phase1_guard_validates_philosophy_admission_dry_run_schema_only_edits(
     )
 
     assert any("dry-run schema const missing for gate_status" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_gate_open_preconditions_report_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_gate_open_preconditions_validator",
+        lambda: lambda **_kwargs: ["gate-open preconditions validator called"],
+    )
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT]
+    )
+
+    assert any("gate-open preconditions validator called" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_gate_open_preconditions_for_roadmap_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_gate_open_preconditions_validator",
+        lambda: lambda **_kwargs: ["gate-open preconditions validator called for roadmap"],
+    )
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[gates.SEMANTIC_CACHE_GATE_DOC])
+
+    assert any("gate-open preconditions validator called for roadmap" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_gate_open_preconditions_schema_only_edits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_report = gates.REPO_ROOT / gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT
+    source_schema = gates.REPO_ROOT / gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA
+    source_policy = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY
+    source_policy_schema = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA
+    source_oracle = gates.REPO_ROOT / gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE
+    source_dry_run = gates.REPO_ROOT / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT
+    source_dry_run_schema = gates.REPO_ROOT / gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA
+    source_roadmap = gates.REPO_ROOT / gates.SEMANTIC_CACHE_GATE_DOC
+    source_ledger = gates.REPO_ROOT / "docs/roadmap/BACKLOG_LEDGER.md"
+
+    targets = {
+        gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT: source_report,
+        gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA: source_schema,
+        gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY: source_policy,
+        gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA: source_policy_schema,
+        gates.PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_ORACLE: source_oracle,
+        gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT: source_dry_run,
+        gates.PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA: source_dry_run_schema,
+        gates.SEMANTIC_CACHE_GATE_DOC: source_roadmap,
+        "docs/roadmap/BACKLOG_LEDGER.md": source_ledger,
+    }
+    for relpath, source in targets.items():
+        destination = tmp_path / relpath
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
+
+    schema_path = tmp_path / gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    del schema["properties"]["runtime_allowed"]["const"]
+    schema_path.write_text(json.dumps(schema, sort_keys=True), encoding="utf-8")
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+
+    errors = gates.check_docs_phase1_guards(
+        markdown_files=[gates.PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT_SCHEMA]
+    )
+
+    assert any(
+        "gate-open preconditions schema const missing for runtime_allowed" in error
+        for error in errors
+    )
