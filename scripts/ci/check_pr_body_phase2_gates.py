@@ -768,7 +768,9 @@ def main() -> int:
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
         evidence_texts.append(artifact_text)
-        evidence_errors, evidence_warnings = check_experiment_runner_evidence(artifact_text)
+        evidence_errors, evidence_warnings = check_experiment_runner_evidence(
+            artifact_text, mode=args.experiment_runner_evidence_mode
+        )
         artifact_errors.extend(evidence_errors)
         evidence_warning_candidates.extend(evidence_warnings)
         if not evidence_errors and not evidence_warnings:
@@ -800,7 +802,9 @@ def main() -> int:
             )
         if not artifact_checked or has_experiment_runner_evidence:
             evidence_texts.append(body)
-            evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
+            evidence_errors, evidence_warnings = check_experiment_runner_evidence(
+                body, mode=args.experiment_runner_evidence_mode
+            )
             if evidence_errors:
                 body_checked = True
             body_errors.extend(evidence_errors)
@@ -821,11 +825,7 @@ def main() -> int:
 
     if not experiment_runner_evidence_seen:
         missing_evidence = list(dict.fromkeys(evidence_warning_candidates))
-        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.REQUIRED:
-            artifact_errors.extend(
-                warning.replace("Advisory:", "Required:") for warning in missing_evidence
-            )
-        else:
+        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.ADVISORY:
             advisory_warnings.extend(missing_evidence)
     if experiment_runner_evidence_seen:
         commit_messages = _git_commit_messages(
