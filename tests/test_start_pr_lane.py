@@ -139,10 +139,21 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "No finding may be ignored as advisory." in result.stdout
     assert ". .venv/bin/activate" in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
-    assert "Experiment Runner evidence" in result.stdout
-    assert "create oracle-only Experiment Runner evidence by default for non-trivial PRs" in (
+    assert "Lane authority: check_preflight.py -> task_bootstrap.py -> agent-coordinator." in (
         result.stdout
     )
+    assert "Host/Codex preflight is not authoritative lane provenance" in result.stdout
+    assert "Experiment Runner evidence" in result.stdout
+    assert "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence." in (
+        result.stdout
+    )
+    assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in (
+        result.stdout
+    )
+    assert "runner joins the lane and must not replace agent-coordinator" in result.stdout
+    assert "Lane Start Provenance" in result.stdout
+    assert "Starter: scripts/orchestration/start_pr_lane.sh` is supplemental" in result.stdout
+    assert "cannot be used alone" in result.stdout
     assert "Not applicable: <reason>" in result.stdout
     assert (
         "Default PR review checklist: agent-coordinator, architecture-specialist, "
@@ -243,6 +254,8 @@ esac
     assert ". .venv/bin/activate" in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Experiment Runner evidence" in result.stdout
+    assert "Experiment Runner joins after coordinator bootstrap" in result.stdout
+    assert "Lane start provenance" in result.stdout
     assert "did not run authoritative task_bootstrap.py" not in result.stdout
     assert "auto-start" not in result.stdout.lower()
 

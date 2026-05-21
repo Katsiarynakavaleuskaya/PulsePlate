@@ -112,6 +112,12 @@ Rules:
   advisory evidence: either a local oracle-only result artifact or a documented
   `not applicable` reason in the PR lane notes. This is not a merge-readiness
   gate until a later hardening PR explicitly promotes it.
+- Experiment Runner participation joins after repo coordinator bootstrap. The
+  runner must not replace `check_preflight.py`, `task_bootstrap.py`, or
+  `agent-coordinator` as lane-start authority.
+- `Not applicable` is narrow. It is intended for trivial docs cleanup, main
+  cleanup, cache cleanup, or operator-declared emergency infrastructure repair
+  where the runner result is genuinely unused or inapplicable.
 - Oracle-only result artifacts may require the canonical co-author trailer when
   the artifact materially shapes the plan, validation approach, admission
   decision, fixed mapping, review disposition, or commit decision. The artifact
@@ -128,6 +134,13 @@ Rules:
   `Not applicable: <reason>`. Phase2 validation reports missing evidence as an
   advisory diagnostic in the first hardening wave; malformed evidence is a
   normal gate error because it creates false governance proof.
+- PR body mirrors or fixed-mapping artifacts should also include
+  `## Lane Start Provenance` with the repo bootstrap packet or a narrow
+  documented cleanup/emergency `Exception: <reason>`. `Starter:
+  scripts/orchestration/start_pr_lane.sh` is useful supplemental evidence when
+  present, but it cannot satisfy provenance alone. Host/Codex preflight is not
+  authoritative provenance. Missing provenance is diagnostic dry-run in the
+  first hardening wave; malformed provenance is a normal gate error.
 - Slack identity is not a cryptographic Git identity. A Slack bot/display
   identity remains a separate security-governed follow-up, not part of this
   experimentation protocol.

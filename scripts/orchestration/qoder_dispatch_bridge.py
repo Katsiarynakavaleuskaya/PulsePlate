@@ -386,18 +386,82 @@ def _known_role_slugs_from_text(text: str, known: set[str]) -> List[str]:
     return slugs
 
 
+def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
+    """Extract ordered role slugs from a task_bootstrap JSON packet."""
+    bridge = payload.get("native_subagent_bridge")
+    if not isinstance(bridge, dict):
+        return []
+
+    ordered: List[str] = []
+
+    def binding_is_spawnable(value: Any, *, default_when_unspecified: bool) -> bool:
+        if not isinstance(value, dict):
+            return False
+        dispatch_contract = value.get("dispatch_contract")
+        if not isinstance(dispatch_contract, dict):
+            return default_when_unspecified
+        return not (
+            dispatch_contract.get("advisory_only")
+            or dispatch_contract.get("spawn_with_native_subagent") is False
+        )
+
+    def add_slug(value: Any, *, default_when_unspecified: bool = True) -> None:
+        if not binding_is_spawnable(value, default_when_unspecified=default_when_unspecified):
+            return
+        slug = str(value.get("repo_agent_slug", "")).strip()
+        if slug and (not ordered or ordered[-1] != slug):
+            ordered.append(slug)
+
+    add_slug(bridge.get("primary"))
+    add_slug(bridge.get("reviewer"))
+    secondary_items = bridge.get("secondary")
+    if isinstance(secondary_items, list):
+        for item in secondary_items:
+            add_slug(item)
+    advisory_items = bridge.get("advisory")
+    if isinstance(advisory_items, list):
+        for item in advisory_items:
+            add_slug(item, default_when_unspecified=False)
+    return list(dict.fromkeys(["agent-coordinator", *ordered]))
+
+
+def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:
+    """Return JSON packet payload when the packet is a JSON object."""
+    try:
+        payload = json.loads(packet_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return payload
+
+
 def _parse_packet_roles(packet_path: Path) -> List[str]:
-    """Extract ordered role slugs from a governance packet markdown file.
+    """Extract ordered role slugs from a governance packet.
 
     Looks for:
-    1. A ``## Coordinator Role Order`` section with numbered/bulleted slugs.
-    2. Fallback: any numbered list containing agent slugs.
+    1. A task_bootstrap JSON packet with ``native_subagent_bridge``.
+    2. A ``## Coordinator Role Order`` section with numbered/bulleted slugs.
+    3. Fallback: any numbered list containing agent slugs.
     """
     if not packet_path.is_file():
         print(f"FAIL: Packet file not found: {packet_path}", file=sys.stderr)
         sys.exit(1)
+    try:
+        resolved_packet_path = packet_path.resolve(strict=True)
+        resolved_packet_path.relative_to(REPO_ROOT.resolve())
+    except (OSError, RuntimeError, ValueError):
+        print(
+            f"FAIL: Packet file must stay under repo root: {packet_path}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    text = packet_path.read_text(encoding="utf-8")
+    json_payload = _load_json_packet(resolved_packet_path)
+    if json_payload is not None:
+        return _parse_json_packet_roles(json_payload)
+
+    text = resolved_packet_path.read_text(encoding="utf-8")
     lines = text.splitlines()
 
     # Strategy 1: dedicated section

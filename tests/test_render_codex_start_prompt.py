@@ -139,9 +139,17 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
         in prompt
     )
     assert "Skills are passive/discovery-only" in prompt
+    assert "Host/Codex preflight is not authoritative lane provenance" in prompt
+    assert "check_preflight.py -> task_bootstrap.py -> agent-coordinator" in prompt
+    assert "Experiment Runner joins after coordinator bootstrap" in prompt
+    assert "must not replace agent-coordinator" in prompt
     assert "for every non-trivial PR, create oracle-only evidence by default" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt
     assert "Not applicable: <reason>" in prompt
+    assert "Lane start provenance" in prompt
+    assert "Packet: artifacts/orchestration/task_packets/<id>.json" in prompt
+    assert "Starter: scripts/orchestration/start_pr_lane.sh` is supplemental" in prompt
+    assert "cannot be used alone" in prompt
     assert "Premortem closure rule: every premortem finding must be fixed" in prompt
     assert "No finding may be ignored as advisory." in prompt
     assert ". .venv/bin/activate" in prompt
@@ -168,8 +176,13 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "did not create a task packet" in prompt
     assert "Requested role order seed: agent-coordinator, qa-engineer-agent" in prompt
     assert "Next required repo command: run task_bootstrap.py" in prompt
-    assert "create oracle-only Experiment Runner evidence by default for non-trivial PRs" in prompt
+    assert "Host/Codex preflight is not authoritative lane provenance" in prompt
+    assert "After coordinator bootstrap, create oracle-only Experiment Runner evidence" in prompt
+    assert "runner joins the lane and must not replace agent-coordinator" in prompt
     assert "Artifact: artifacts/orchestration/experiments/results/<id>.json" in prompt
+    assert "Lane Start Provenance" in prompt
+    assert "Starter: scripts/orchestration/start_pr_lane.sh` is supplemental" in prompt
+    assert "cannot be used alone" in prompt
     assert "Not applicable: <reason>" in prompt
     assert "No finding may be ignored as advisory." in prompt
 

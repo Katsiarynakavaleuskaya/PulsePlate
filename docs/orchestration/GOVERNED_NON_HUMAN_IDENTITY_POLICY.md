@@ -71,6 +71,12 @@ under `artifacts/orchestration/experiments/results/` or an explicit
 gate is deliberately promoted in a later PR; malformed evidence is still
 rejected because it can misrepresent runner participation.
 
+The Experiment Runner is never the lane-start authority. It joins after the
+repo coordinator bootstrap (`check_preflight.py` -> `task_bootstrap.py` ->
+`agent-coordinator`) as oracle/review/design-of-experiment evidence. A runner
+artifact can still require co-author attribution when its insight shapes the
+engineering decision, even though the runner did not mutate files.
+
 ## Notification Boundary
 
 Experiment result delivery is governed by `scripts/orchestration/experiment_notify.py`, `scripts/orchestration/experiment_pipeline.py`, and `docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md`.

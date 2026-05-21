@@ -26,6 +26,7 @@ PHASE2_CONFIG = {
     "discussion_heading": "Discussion Thread Pass",
     "mapping_heading": "Fixed in Commit Mapping",
     "experiment_runner_heading": "Experiment Runner Evidence",
+    "lane_start_heading": "Lane Start Provenance",
     "discussion_checkbox_label": "Discussion-thread pass completed",
     "mapping_checkbox_label": "Fixed in commit mapping completed",
     "mapping_na_alternatives": ("N/A", "No actionable review comments"),
@@ -61,6 +62,12 @@ EXPERIMENT_RUNNER_ARTIFACT_RE = re.compile(
 )
 EXPERIMENT_RUNNER_NA_RE = re.compile(r"(?im)^\s*(?:-\s*)?Not applicable:\s*(?P<reason>\S.+?)\s*$")
 EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results/"
+LANE_START_PACKET_RE = re.compile(r"(?im)^\s*(?:-\s*)?Packet:\s*`?(?P<path>[^`\s]+)`?\s*$")
+LANE_STARTER_RE = re.compile(r"(?im)^\s*(?:-\s*)?Starter:\s*`?(?P<path>[^`\s]+)`?\s*$")
+LANE_START_EXCEPTION_RE = re.compile(r"(?im)^\s*(?:-\s*)?Exception:\s*(?P<reason>\S.+?)\s*$")
+LANE_START_PACKET_PREFIX = "artifacts/orchestration/task_packets/"
+LANE_START_REPO_PACKET_PREFIX = "docs/orchestration/"
+LANE_STARTER_PATH = "scripts/orchestration/start_pr_lane.sh"
 COMMIT_MESSAGE_SEPARATOR = "\x1e"
 MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING = (
     "Advisory: missing `## Experiment Runner Evidence` section with "
@@ -78,6 +85,18 @@ UNVERIFIED_EXPERIMENT_RUNNER_ARTIFACT_WARNING = (
 INVALID_EXPERIMENT_RUNNER_ARTIFACT_METADATA_WARNING = (
     "Advisory: Experiment Runner artifact `{path}` has invalid co-author metadata, "
     "so coauthor_required cannot be verified against branch commits."
+)
+MISSING_LANE_START_PROVENANCE_WARNING = (
+    "Dry-run advisory: missing `## Lane Start Provenance` section with "
+    "`Packet: artifacts/orchestration/task_packets/<id>.json` or "
+    "`Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` "
+    "is supplemental and cannot be used alone. "
+    "This would fail when lane-start provenance is promoted to a hard gate."
+)
+UNVERIFIED_LANE_START_PACKET_WARNING = (
+    "Dry-run advisory: Lane Start Provenance packet `{path}` is referenced but "
+    "is not available locally, so bootstrap provenance cannot be verified. "
+    "This would fail when lane-start provenance is promoted to a hard gate."
 )
 
 
@@ -189,6 +208,161 @@ def _valid_experiment_runner_artifact_path(path: str) -> bool:
     if any(part in ("", ".", "..") for part in path_parts):
         return False
     return len(path_parts[-1].removesuffix(".json")) > 0
+
+
+def _valid_lane_start_packet_path(path: str) -> bool:
+    """Return True for repo bootstrap packet references accepted as provenance."""
+    cleaned = path.strip().strip("`")
+    if "\\" in cleaned:
+        return False
+    if cleaned.startswith(("/", "../", "./")):
+        return False
+    if "/../" in cleaned or cleaned.endswith("/.."):
+        return False
+
+    if cleaned.startswith(LANE_START_PACKET_PREFIX):
+        if not cleaned.endswith(".json"):
+            return False
+        relative_path = cleaned.removeprefix(LANE_START_PACKET_PREFIX)
+        path_parts = relative_path.split("/")
+        if any(part in ("", ".", "..") for part in path_parts):
+            return False
+        return len(path_parts[-1].removesuffix(".json")) > 0
+
+    if cleaned.startswith(LANE_START_REPO_PACKET_PREFIX):
+        if not cleaned.endswith(".md"):
+            return False
+        if "PACKET" not in Path(cleaned).name:
+            return False
+        path_parts = cleaned.split("/")
+        if any(part in ("", ".", "..") for part in path_parts):
+            return False
+        return True
+
+    return False
+
+
+def _valid_lane_start_exception_reason(reason: str) -> bool:
+    """Return True for narrow documented provenance exceptions."""
+    normalized = re.sub(r"\s+", " ", reason.strip().lower())
+    allowed_phrases = (
+        "trivial docs cleanup",
+        "docs-only cleanup",
+        "main cleanup",
+        "cache cleanup",
+        "operator-declared emergency infrastructure repair",
+        "operator-declared emergency infra repair",
+        "emergency infrastructure repair",
+    )
+    return any(
+        normalized == phrase
+        or normalized.startswith(f"{phrase}:")
+        or normalized.startswith(f"{phrase} -")
+        for phrase in allowed_phrases
+    )
+
+
+def _lane_start_packet_available(path: str, *, repo_root: Path) -> bool:
+    """Return True when a lane-start packet reference is locally verifiable."""
+    cleaned = path.strip().strip("`")
+    candidate = (repo_root / cleaned).resolve(strict=False)
+    try:
+        candidate.relative_to(repo_root.resolve())
+    except ValueError:
+        return False
+    return candidate.is_file()
+
+
+def check_lane_start_provenance(
+    text: str,
+    *,
+    repo_root: Path = REPO_ROOT,
+) -> tuple[list[str], list[str]]:
+    """Validate dry-run lane-start provenance.
+
+    Missing provenance is advisory in this wave. Malformed present provenance is
+    an error because it would create false proof that repo bootstrap ran.
+    """
+
+    cleaned = _strip_fenced_code_blocks(text)
+    section = _extract_section_by_h2(cleaned, str(PHASE2_CONFIG["lane_start_heading"]))
+    if not section:
+        return [], [MISSING_LANE_START_PROVENANCE_WARNING]
+
+    packet_matches = list(LANE_START_PACKET_RE.finditer(section))
+    starter_matches = list(LANE_STARTER_RE.finditer(section))
+    exception_matches = list(LANE_START_EXCEPTION_RE.finditer(section))
+    errors: list[str] = []
+    warnings: list[str] = []
+
+    if exception_matches and (packet_matches or starter_matches):
+        errors.append(
+            "Lane Start Provenance must use repo bootstrap evidence or Exception, not both."
+        )
+
+    invalid_packets = [
+        match.group("path")
+        for match in packet_matches
+        if not _valid_lane_start_packet_path(match.group("path"))
+    ]
+    if invalid_packets:
+        errors.append(
+            "Lane Start Provenance packet must be "
+            f"`{LANE_START_PACKET_PREFIX}<id>.json` or a repo-tracked "
+            "`docs/orchestration/*.md` packet: " + ", ".join(invalid_packets)
+        )
+    for match in packet_matches:
+        path = match.group("path")
+        if path not in invalid_packets and not _lane_start_packet_available(
+            path, repo_root=repo_root
+        ):
+            warnings.append(UNVERIFIED_LANE_START_PACKET_WARNING.format(path=path))
+
+    if starter_matches and not packet_matches and not exception_matches:
+        errors.append("Lane Start Provenance starter is supplemental and cannot be used alone.")
+
+    invalid_starters = [
+        match.group("path").strip().strip("`")
+        for match in starter_matches
+        if match.group("path").strip().strip("`") != LANE_STARTER_PATH
+    ]
+    if invalid_starters:
+        errors.append(
+            "Lane Start Provenance starter must be "
+            f"`{LANE_STARTER_PATH}`: " + ", ".join(invalid_starters)
+        )
+
+    invalid_exceptions = [
+        match.group("reason")
+        for match in exception_matches
+        if not _valid_lane_start_exception_reason(match.group("reason"))
+    ]
+    if invalid_exceptions:
+        errors.append(
+            "Lane Start Provenance exception must be limited to trivial docs cleanup, "
+            "main cleanup, cache cleanup, or operator-declared emergency infrastructure repair."
+        )
+
+    forbidden_preflight_authority = (
+        "host preflight",
+        "codex preflight",
+        "cursor preflight",
+        "raw preflight",
+        "local preflight",
+    )
+    if any(phrase in section.lower() for phrase in forbidden_preflight_authority):
+        errors.append(
+            "Lane Start Provenance must not cite host/Codex/Cursor/raw preflight as authority; "
+            "use repo `check_preflight.py`, `task_bootstrap.py`, or `start_pr_lane.sh` evidence."
+        )
+
+    if not packet_matches and not starter_matches and not exception_matches:
+        errors.append(
+            "Lane Start Provenance must include `Packet: ...` or "
+            "`Exception: <reason>`; `Starter: ...` is supplemental."
+        )
+
+    return errors, warnings
 
 
 def _experiment_runner_artifact_paths(text: str) -> list[str]:
@@ -496,6 +670,8 @@ def main() -> int:
     evidence_warning_candidates: list[str] = []
     evidence_texts: list[str] = []
     experiment_runner_evidence_seen = False
+    lane_start_warning_candidates: list[str] = []
+    lane_start_seen = False
 
     if pr_number is not None:
         try:
@@ -511,11 +687,22 @@ def main() -> int:
         evidence_warning_candidates.extend(evidence_warnings)
         if not evidence_errors and not evidence_warnings:
             experiment_runner_evidence_seen = True
+        lane_errors, lane_warnings = check_lane_start_provenance(artifact_text)
+        artifact_errors.extend(lane_errors)
+        lane_start_warning_candidates.extend(lane_warnings)
+        if not lane_errors and not lane_warnings:
+            lane_start_seen = True
 
     if body.strip():
         cleaned_body = _strip_fenced_code_blocks(body)
         has_phase2_mirror = bool(
             DISCUSSION_SECTION_RE.search(cleaned_body) or MAPPING_SECTION_RE.search(cleaned_body)
+        )
+        has_experiment_runner_evidence = bool(
+            _extract_section_by_h2(cleaned_body, str(PHASE2_CONFIG["experiment_runner_heading"]))
+        )
+        has_lane_start_provenance = bool(
+            _extract_section_by_h2(cleaned_body, str(PHASE2_CONFIG["lane_start_heading"]))
         )
         if not artifact_checked or has_phase2_mirror:
             body_checked = True
@@ -525,7 +712,7 @@ def main() -> int:
                     mode=_select_body_validation_mode(artifact_checked=artifact_checked),
                 )
             )
-        if not artifact_checked:
+        if not artifact_checked or has_experiment_runner_evidence:
             evidence_texts.append(body)
             evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
             if evidence_errors:
@@ -534,6 +721,14 @@ def main() -> int:
             evidence_warning_candidates.extend(evidence_warnings)
             if not evidence_errors and not evidence_warnings:
                 experiment_runner_evidence_seen = True
+        if not artifact_checked or has_lane_start_provenance:
+            lane_errors, lane_warnings = check_lane_start_provenance(body)
+            if lane_errors:
+                body_checked = True
+            body_errors.extend(lane_errors)
+            lane_start_warning_candidates.extend(lane_warnings)
+            if not lane_errors and not lane_warnings:
+                lane_start_seen = True
     elif not artifact_checked:
         print("ERROR: Empty PR body. Fill the required Phase2 checklist sections.")
         return 1
@@ -553,6 +748,9 @@ def main() -> int:
                 )
             )
         advisory_warnings = list(dict.fromkeys(advisory_warnings))
+    if not lane_start_seen:
+        advisory_warnings.extend(dict.fromkeys(lane_start_warning_candidates))
+    advisory_warnings = list(dict.fromkeys(advisory_warnings))
 
     errors = [*artifact_errors, *body_errors]
     if errors:

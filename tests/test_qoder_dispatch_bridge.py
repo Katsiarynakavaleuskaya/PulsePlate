@@ -82,6 +82,106 @@ def test_manifest_generation_from_packet() -> None:
     assert produced_slugs == existing
 
 
+def test_parse_task_bootstrap_json_packet_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The bridge must consume the JSON packets emitted by task_bootstrap.py."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+            "secondary": [
+                {"repo_agent_slug": "cursor-specialist-agent"},
+                {"repo_agent_slug": "security-auditor"},
+            ],
+            "advisory": [
+                {"repo_agent_slug": "qa-engineer-agent"},
+                {"repo_agent_slug": "bug-hunter"},
+                {"repo_agent_slug": "dev-operator"},
+            ],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "cursor-specialist-agent",
+        "security-auditor",
+    ]
+
+
+def test_parse_task_bootstrap_json_packet_forces_coordinator_first(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Cursor-led packet projections must still dispatch coordinator first."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "cursor-specialist-agent"},
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+            "secondary": [],
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "cursor-specialist-agent",
+        "architecture-specialist",
+    ]
+
+
+def test_parse_task_bootstrap_json_packet_skips_no_spawn_secondary(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No-spawn metadata must be honored even if a future packet misplaces it."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "reviewer": {"repo_agent_slug": "architecture-specialist"},
+            "secondary": [
+                {
+                    "repo_agent_slug": "qa-engineer-agent",
+                    "dispatch_contract": {
+                        "advisory_only": True,
+                        "spawn_with_native_subagent": False,
+                    },
+                }
+            ],
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "architecture-specialist",
+    ]
+
+
+def test_parse_packet_roles_rejects_symlink_escape(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Packet reads must stay under the resolved repo root."""
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text(json.dumps({"native_subagent_bridge": {}}), encoding="utf-8")
+    link = repo_root / "packet.json"
+    link.symlink_to(outside)
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", repo_root)
+
+    with pytest.raises(SystemExit):
+        qoder_dispatch_bridge._parse_packet_roles(link)
+
+
 # ---------------------------------------------------------------------------
 # 2. test_role_to_qoder_type_mapping
 # ---------------------------------------------------------------------------
@@ -557,8 +657,11 @@ def test_roles_flag_explicit_list() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_packet_without_role_section_errors(tmp_path: Path) -> None:
+def test_packet_without_role_section_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A packet without 'Coordinator Role Order' section should produce empty dispatch_sequence."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     fake_packet = tmp_path / "fake_packet.md"
     fake_packet.write_text(
         "# Fake Packet\n\n## Goal\n\nDo something.\n\n## Validation\n\nRun tests.\n",
@@ -740,8 +843,9 @@ def test_mode_review_forces_code_review() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_fenced_code_blocks_skipped(tmp_path: Path) -> None:
+def test_fenced_code_blocks_skipped(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """Fenced code blocks in packets should not produce false role matches."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     known = sorted(item.stem for item in agents_dir.glob("*.md") if item.stem != "AGENTS")
     if not known:
@@ -768,8 +872,11 @@ def test_fenced_code_blocks_skipped(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_repeated_coordinator_entries_preserved(tmp_path: Path) -> None:
+def test_repeated_coordinator_entries_preserved(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Repeated non-consecutive entries in role order should be preserved."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     if not (agents_dir / "agent-coordinator.md").is_file():
         pytest.skip("agent-coordinator definition not found")
@@ -782,6 +889,10 @@ def test_repeated_coordinator_entries_preserved(tmp_path: Path) -> None:
     if not other_slugs:
         pytest.skip("Need at least two different agent definitions")
     other = other_slugs[0]
+    tmp_agents_dir = tmp_path / ".cursor" / "agents"
+    tmp_agents_dir.mkdir(parents=True)
+    (tmp_agents_dir / "agent-coordinator.md").write_text("---\nslug: agent-coordinator\n---\n")
+    (tmp_agents_dir / f"{other}.md").write_text(f"---\nslug: {other}\n---\n")
 
     packet_content = (
         "# Test\n\n"
@@ -839,13 +950,20 @@ def test_bracket_group_detection_strips_inline_code_ticks(tmp_path: Path) -> Non
     assert groups == [[slug_a, slug_b]]
 
 
-def test_fallback_role_order_field_continuation_is_parsed(tmp_path: Path) -> None:
+def test_fallback_role_order_field_continuation_is_parsed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Fallback parsing includes indented continuations for role-order fields."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
     agents_dir = REPO_ROOT / ".cursor" / "agents"
     slugs = ["agent-coordinator", "architecture-specialist", "qa-engineer-agent"]
     for s in slugs:
         if not (agents_dir / f"{s}.md").is_file():
             pytest.skip(f"Agent definition not found: {s}")
+    tmp_agents_dir = tmp_path / ".cursor" / "agents"
+    tmp_agents_dir.mkdir(parents=True)
+    for slug in slugs:
+        (tmp_agents_dir / f"{slug}.md").write_text(f"---\nslug: {slug}\n---\n")
 
     packet_content = (
         "# Test\n\n"
