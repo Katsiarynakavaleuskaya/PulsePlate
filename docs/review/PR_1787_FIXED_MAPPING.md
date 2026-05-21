@@ -47,6 +47,14 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190464 -> 6b80e07e7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190475 -> 6b80e07e7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190479 -> 6b80e07e7
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316169 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316177 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316187 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316191 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316200 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316210 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316216 -> b4d2bad28
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281316221 -> b4d2bad28
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336528102 -> 6b80e07e7
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#pullrequestreview-4336697950 -> 6b80e07e7
 
@@ -101,6 +109,12 @@ Reason: These CodeRabbit comments were generated from stale reviewed context aft
     open`, `Semantic-cache\nis open`, `Raw prompt/response caching remains
     blocked by policy`, checked `+ [x]` readiness bullets, and negated landed
     scope wording such as `no DB persistence changes`.
+- CodeRabbit guard-probe fix: `b4d2bad28`
+  - Evidence: closes ordered checked readiness boxes, `PR-1499` references,
+    comma-only `No, ...` clause breaks, blank-line action-to-target splits,
+    blocked raw-cache statements with rationale, blank-line semantic-cache
+    splits, and hyphenated `context-manifest` / `vector-search` forbidden
+    surface variants.
 
 ## Premortem Findings
 
