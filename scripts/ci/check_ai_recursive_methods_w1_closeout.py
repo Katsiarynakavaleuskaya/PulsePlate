@@ -75,7 +75,7 @@ POSITIVE_ACTION_PATTERN = (
     r"production[-\s]+ready|rollout[-\s]+ready)"
 )
 NEGATION_PATTERN = (
-    r"(?:no|not|never|does\s+not|doesn't|must\s+not|cannot|can't|without|"
+    r"(?:no|not|never|does\s+not|doesn't|must\s+not|cannot|can't|"
     r"out\s+of\s+scope|blocked|deferred|remains\s+closed|remained\s+closed)"
 )
 
@@ -95,6 +95,24 @@ STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "pending current-head merge-cycle claim",
         re.compile(r"\bcurrent[-\s]+head\b.*\bstill\s+pending\b", re.I),
+    ),
+    (
+        "PR-A7 stale active/pending closeout claim",
+        re.compile(
+            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}"
+            r"\b(?:lane|closeout|closure|implementation|status)\b"
+            rf"{CLAIM_GAP}\b(?:active|pending|in\s+progress|open)\b",
+            re.I,
+        ),
+    ),
+    (
+        "PR-A7 stale active/pending closeout claim",
+        re.compile(
+            rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}"
+            r"\b(?:active|pending|in\s+progress|open)\b"
+            rf"{CLAIM_GAP}\b(?:lane|closeout|closure|implementation|tasks?)\b",
+            re.I,
+        ),
     ),
 )
 
@@ -118,6 +136,14 @@ CHECKED_READINESS_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "checked wait-window assertion",
         re.compile(r"^\s*-\s*\[x\].*\bwait[-\s]+window\b", re.I | re.M),
+    ),
+    (
+        "checked pre-commit assertion",
+        re.compile(r"^\s*-\s*\[x\].*\bpre[-\s]+commit\b", re.I | re.M),
+    ),
+    (
+        "checked make verify assertion",
+        re.compile(r"^\s*-\s*\[x\].*\bmake\s+verify\b", re.I | re.M),
     ),
 )
 
@@ -221,7 +247,7 @@ def _normalize_text(text: str) -> str:
     text = re.sub(r"\bsemantic\s*\n\s*cache\b", "semantic-cache", text, flags=re.I)
     text = re.sub(
         rf"\b({POSITIVE_ACTION_PATTERN})\b[ \t]*\n[ \t]*"
-        rf"(?=\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN})\b)",
+        rf"(?=\b(?:{SEMANTIC_CACHE_PATTERN}|{BACKEND_PATTERN}|{FORBIDDEN_SURFACE_PATTERN}|{RAW_CACHEABLE_PATTERN})\b)",
         r"\1 ",
         text,
         flags=re.I,

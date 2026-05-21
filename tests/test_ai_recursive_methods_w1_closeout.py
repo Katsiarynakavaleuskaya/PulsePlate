@@ -233,6 +233,10 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
             "PR-A7 is not merely documentation, opens semantic-cache serving.",
             "PR-A7 opens semantic cache",
         ),
+        (
+            "Without extra approvals PR-A7 opens semantic-cache serving.",
+            "PR-A7 opens semantic cache",
+        ),
         ("Semantic-cache serving is enabled by PR-A7.", "semantic cache enabled"),
         ("Semantic-cache is production-ready.", "semantic cache active status"),
         ("Semantic-cache has been opened.", "semantic cache active status"),
@@ -250,6 +254,10 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
         ("Database rollout is approved by PR-A7.", "forbidden runtime surface"),
         ("OpenAPI route changes are approved by PR-A7.", "forbidden runtime surface"),
         ("PR-A7 permits raw prompt and raw response caching.", "raw prompt/response"),
+        ("PR-A7 allows\nraw responses.", "raw prompt/response"),
+        ("PR-A7 permits\nraw account data caching.", "raw prompt/response"),
+        ("PR-A7 authorizes\nraw HealthKit data caching.", "raw prompt/response"),
+        ("PR-A7 can cache\nraw secret data.", "raw prompt/response"),
         ("PR #1499 allows caching raw responses.", "raw prompt/response"),
         ("PR-A7 can cache raw answers.", "raw prompt/response"),
         ("PR-A7 permits raw account data caching.", "raw prompt/response"),
@@ -334,6 +342,24 @@ def test_checker_rejects_stale_pr1499_mapping_readiness_claim(tmp_path: Path) ->
     assert any("pending final merge-cycle claim" in error for error in errors)
 
 
+def test_checker_rejects_broader_stale_a7_active_closeout_claim(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            '<a id="next"></a>',
+            'PR-A7 lane remains active and pending final closure tasks.\n\n<a id="next"></a>',
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _run_checker(tmp_path)
+
+    assert any("PR-A7 stale active/pending closeout claim" in error for error in errors)
+
+
 def test_checker_rejects_forbidden_claim_outside_pr1499_closeout_block(
     tmp_path: Path,
 ) -> None:
@@ -368,6 +394,24 @@ def test_checker_rejects_checked_historical_readiness_assertions(
 
     assert any("checked current-head CI assertion" in error for error in errors)
     assert any("checked required-checks assertion" in error for error in errors)
+
+
+def test_checker_rejects_checked_historical_local_readiness_assertions(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    mapping = tmp_path / "docs/review/PR_1499_FIXED_MAPPING.md"
+    mapping.write_text(
+        _valid_mapping()
+        + "\n- [x] Pre-commit green on latest pushed head\n"
+        + "- [x] `make verify` green on latest pushed head\n",
+        encoding="utf-8",
+    )
+
+    errors = _run_checker(tmp_path)
+
+    assert any("checked pre-commit assertion" in error for error in errors)
+    assert any("checked make verify assertion" in error for error in errors)
 
 
 def test_checker_rejects_missing_recursive_runtime_file(tmp_path: Path) -> None:
