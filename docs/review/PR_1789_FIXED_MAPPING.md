@@ -64,10 +64,10 @@ Commit: c670951654e82f6bd926cb65617f1fe9c2150987
 Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now fails closed on nested `provenance`/`assertion_hints` object type drift, unexpected root/property JSON Schema keywords, and `assertion_hints.required` drift; `tests/test_philosophy_alignment_rules.py` covers each false-green path.
 Evidence: `scripts/ci/check_docs_phase1_gates.py` now routes future `docs/orchestration/contracts/philosophy_alignment_rules/*.json` record edits through `validate_alignment_rules(...)` with the schema plus rule texts; `tests/test_docs_phase1_gates.py` covers the Phase1 rule-record route.
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284280175 -> 65a49b8bb5e9f296f45b842f090f7370f8ea5beb
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284280179 -> 65a49b8bb5e9f296f45b842f090f7370f8ea5beb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284280175 -> 65a49b8bbec3403f5e81969bcc167c890fb5ff13
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284280179 -> 65a49b8bbec3403f5e81969bcc167c890fb5ff13
 Disposition: FIXED
-Commit: 65a49b8bb5e9f296f45b842f090f7370f8ea5beb
+Commit: 65a49b8bbec3403f5e81969bcc167c890fb5ff13
 Evidence: `.github/workflows/ci.yml` now includes the `:(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json` pathspec in `PHASE1_CHANGED_FILES`, so rule-record JSON edits trigger the docs Phase1 gate in CI.
 Evidence: `scripts/ci/check_docs_phase1_gates.py` now uses `records_dir.rglob("*.json")`, so nested alignment-rule records are included in duplicate-ID and record-shape validation. `tests/test_docs_phase1_gates.py` covers nested record collection, and `tests/test_ci_workflow_pr_size_governance_contract.py` pins the workflow pathspec.
 
