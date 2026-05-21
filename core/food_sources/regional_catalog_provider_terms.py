@@ -623,7 +623,7 @@ def load_regional_catalog_provider_terms_governance(
     provider_terms_path: Path | str,
     *,
     pr17_report: dict[str, object],
-    pr17_gate: object,
+    pr17_gate: RegionalCatalogIdentityGovernance,
     expected_pr17_identity_ref: str | None = None,
 ) -> RegionalCatalogProviderTermsGovernance:
     """Load and validate a PR18 regional catalog provider terms JSON artifact."""

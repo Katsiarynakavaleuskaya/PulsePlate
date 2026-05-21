@@ -146,7 +146,9 @@ def _pr17_gate() -> RegionalCatalogIdentityGovernance:
 
 
 def _provider_terms_payload() -> dict[str, object]:
-    return json.loads(_PROVIDER_TERMS_PATH.read_text(encoding="utf-8"))
+    payload = json.loads(_PROVIDER_TERMS_PATH.read_text(encoding="utf-8"))
+    assert isinstance(payload, dict)
+    return payload
 
 
 def _write_payload(path: Path, payload: dict[str, object]) -> Path:

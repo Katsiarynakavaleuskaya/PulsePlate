@@ -60,6 +60,11 @@ Role-agent dispositions:
 - `qa-engineer-agent`: Disposition `PASS`. Evidence: required focused PR18
   tests, adjacent food-source regressions, repo policy guard, CLI smoke,
   pre-commit, and `make validate-changed`.
+- Post-open `qa-engineer-agent`: Disposition `FIXED`. Evidence: commit
+  `PENDING` changes `load_regional_catalog_provider_terms_governance`
+  `pr17_gate` from `object` to `RegionalCatalogIdentityGovernance` and validates
+  the test JSON helper return type. The exact QA command now passes:
+  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`.
 - `bug-hunter`: Disposition `PASS`. Evidence: identified false-green risks for
   candidate drift, unsafe prose, PR17 handoff, GraphMap, and Experiment Runner
   attribution; PR18 tests and packet close those risks.
@@ -124,6 +129,7 @@ seller, partner, portal, or scraping sources.
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m scripts.food_source_regional_catalog_provider_terms --json`: PASS.
 - `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`: PASS.
 - `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`: PASS.
+- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`: PASS after post-open QA fix.
 - Pre-push hooks: PASS for mypy changed files, pip-audit, backend tests,
   full-repo Bandit, and docker build test.
 
@@ -139,6 +145,10 @@ No human or bot review threads have been resolved yet.
   - Adds PR18 artifact, validator/report builder, CLI, focused tests, packet,
     current pointer update, and backlog update.
   - Evidence: focused and adjacent validation commands listed above.
+- Post-open QA typecheck fix: `PENDING`
+  - Fixes focused mypy failures in the new PR18 loader signature and test JSON
+    helper.
+  - Evidence: exact focused mypy command listed above now passes.
 
 ## Post-Open Governance Checklist
 
