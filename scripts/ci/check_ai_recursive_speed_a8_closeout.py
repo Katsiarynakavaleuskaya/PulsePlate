@@ -122,6 +122,9 @@ STALE_A8_REVERSED_RE = re.compile(
     re.I,
 )
 CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and)\b|[;]", re.I)
+COMMA_SPLIT_RE = re.compile(r",\s*")
+
+
 OVERCLAIM_RE = re.compile(
     r"\b(proves?|proved|scientifically\s+validated|validated|guarantees?|"
     r"guaranteed|maintains?|maintained|achieves?|achieved|delivers?|delivered)\b",
@@ -148,6 +151,16 @@ def _sentences(text: str) -> list[str]:
         soft_wrapped = re.sub(r"[ \t]*\n[ \t]*", " ", paragraph.strip())
         parts.extend(re.split(r"(?<=[.!?])\s+", soft_wrapped))
     return [part.strip() for part in parts if part.strip()]
+
+
+def _iter_eval_subclauses(clause: str) -> list[str]:
+    subclauses: list[str] = []
+    for contrast_part in CONTRAST_SPLIT_RE.split(clause):
+        for comma_part in COMMA_SPLIT_RE.split(contrast_part):
+            trimmed = comma_part.strip()
+            if trimmed:
+                subclauses.append(trimmed)
+    return subclauses
 
 
 def _claim_is_locally_negated(text: str) -> bool:
@@ -248,8 +261,10 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
             symbols.add(node.arg)
         elif isinstance(node, ast.keyword) and node.arg is not None:
             symbols.add(node.arg)
-        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
-            symbols.add(node.value)
+        elif isinstance(node, ast.Dict):
+            for key in node.keys:
+                if isinstance(key, ast.Constant) and isinstance(key.value, str):
+                    symbols.add(key.value)
     return symbols
 
 
@@ -326,8 +341,8 @@ def _validate_forbidden_claims(
 ) -> None:
     for sentence in _sentences(active_text):
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
-        for clause in CONTRAST_SPLIT_RE.split(sentence):
-            residual_clause = LOCAL_NEGATED_CLAIM_RE.sub(" ", clause)
+        for sub_clause in _iter_eval_subclauses(sentence):
+            residual_clause = LOCAL_NEGATED_CLAIM_RE.sub(" ", sub_clause)
             if _surface_claim_is_negated(residual_clause):
                 continue
             if not FORBIDDEN_SURFACE_RE.search(residual_clause):

@@ -297,6 +297,39 @@ def test_checker_rejects_comment_only_landed_symbol(tmp_path: Path) -> None:
     assert any("recursive_retrieval.py landed symbol" in error for error in errors)
 
 
+def test_checker_rejects_string_literal_only_landed_symbol(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        (
+            '"_should_short_circuit_from_hints"\n'
+            '"early_stop_aggressive_short_circuit"\n'
+            '"early_stop_pragmatic_usefulness"\n'
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("recursive_retrieval.py landed symbol" in error for error in errors)
+
+
+def test_checker_rejects_unrelated_negation_with_positive_forbidden_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 is not pending, semantic cache is active.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
 def test_checker_rejects_stale_pr_a8_active_writing(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
