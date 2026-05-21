@@ -10,18 +10,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - [x] Discussion-thread pass completed
 - [x] Fixed in commit mapping completed
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338682892 -> 4736bd3bf
-  - Disposition: FIXED
-  - Commit: `4736bd3bf`
-  - Evidence: `tests/test_install_locked_python_requirements.py` derives
-    protobuf and wrapt wheel expectations from the active emergency manifest
-    instead of duplicating filename, URL, or SHA256 literals.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282690538 -> 4736bd3bf
-  - Disposition: FIXED
-  - Commit: `4736bd3bf`
-  - Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected`
-    now compares staged downloads to the manifest-derived expected artifact set
-    and asserts no unexpected emergency wheels are staged.
+Sourcery review feedback was fixed and mapped below.
 
 ## Lane Start Provenance
 
@@ -39,18 +28,13 @@ fallback choice and validation plan, so commit `749560148` includes
 
 ## Fixed in Commit Mapping
 
+Disposition: FIXED
+Commit: 4736bd3bf
+Evidence: `tests/test_install_locked_python_requirements.py` derives protobuf/wrapt wheel expectations from the active emergency manifest instead of duplicating filename, URL, or SHA256 literals.
+Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected` compares staged downloads to the manifest-derived expected artifact set and asserts no unexpected emergency wheels are staged.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#pullrequestreview-4338682892 -> 4736bd3bf
-  - Disposition: FIXED
-  - Commit: `4736bd3bf`
-  - Evidence: `tests/test_install_locked_python_requirements.py` derives
-    protobuf and wrapt wheel expectations from the active emergency manifest
-    instead of duplicating filename, URL, or SHA256 literals.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1788#discussion_r3282690538 -> 4736bd3bf
-  - Disposition: FIXED
-  - Commit: `4736bd3bf`
-  - Evidence: `test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected`
-    now compares staged downloads to the manifest-derived expected artifact set
-    and asserts no unexpected emergency wheels are staged.
 
 ## Pre-Open Role-Agent Findings
 
