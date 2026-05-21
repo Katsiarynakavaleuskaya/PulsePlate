@@ -148,7 +148,24 @@ def test_checker_rejects_stale_active_ledger_claim(tmp_path: Path) -> None:
 
     errors = closeout.validate_closeout(repo_root=tmp_path)
 
-    assert any("still lacks one first-class verification bundle" in error for error in errors)
+    assert any("stale missing verification-bundle claim" in error for error in errors)
+
+
+def test_checker_rejects_structural_stale_bundle_claim_variant(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "PR-V1 is landed and reconciled.",
+            "PR-V1 is landed and reconciled. Write admission still lacks a canonical "
+            "verification bundle.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = closeout.validate_closeout(repo_root=tmp_path)
+
+    assert any("stale missing verification-bundle claim" in error for error in errors)
 
 
 def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None:
@@ -419,7 +436,7 @@ def test_checker_rejects_stale_pr1491_mapping_readiness_claim(tmp_path: Path) ->
 
     errors = closeout.validate_closeout(repo_root=tmp_path)
 
-    assert any("current head needs one final current-head CI pass" in error for error in errors)
+    assert any("pending final current-head CI claim" in error for error in errors)
 
 
 def test_checker_rejects_stale_pr1491_mapping_readiness_claim_case_insensitive(
@@ -434,7 +451,7 @@ def test_checker_rejects_stale_pr1491_mapping_readiness_claim_case_insensitive(
 
     errors = closeout.validate_closeout(repo_root=tmp_path)
 
-    assert any("current head needs one final current-head CI pass" in error for error in errors)
+    assert any("pending final current-head CI claim" in error for error in errors)
 
 
 def test_checker_rejects_stale_pr1491_mapping_readiness_claim_wrapped(
@@ -449,7 +466,7 @@ def test_checker_rejects_stale_pr1491_mapping_readiness_claim_wrapped(
 
     errors = closeout.validate_closeout(repo_root=tmp_path)
 
-    assert any("current head needs one final current-head CI pass" in error for error in errors)
+    assert any("pending final current-head CI claim" in error for error in errors)
 
 
 def test_checker_rejects_missing_verification_registry_file(tmp_path: Path) -> None:

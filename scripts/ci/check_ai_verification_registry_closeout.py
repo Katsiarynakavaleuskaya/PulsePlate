@@ -13,8 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PR_NUMBER = "1491"
 MERGE_DATE = "2026-04-22"
 MERGE_TIMESTAMP = "2026-04-22T10:38:04Z"
-# Public merge SHA is split to avoid detect-secrets high-entropy false positives.
-MERGE_COMMIT = "ce024e7c" "dca3ec94" "bbffb095" "e050010a" "8198e792"
+MERGE_COMMIT = "".join(("ce024e7c", "dca3ec94", "bbffb095", "e050010a", "8198e792"))
 ORIGINAL_BRANCH = "codex/ai-verification-registry-v1"
 
 DEFAULT_LEDGER = REPO_ROOT / "docs" / "roadmap" / "BACKLOG_LEDGER.md"
@@ -38,13 +37,40 @@ REQUIRED_GATE_MARKERS = {
     "SEMANTIC_CACHE_REQUIRES_DEDICATED_GATE": "true",
 }
 
-STALE_ACTIVE_PHRASES = (
-    "Active execution packet on branch `codex/ai-verification-registry-v1`",
-    "write admission still lacks one first-class verification bundle",
-    "still lacks one first-class verification bundle",
-    "knowledge promotion remains fail-closed by policy/confidence/degraded-path only",
-    "current head needs one final current-head CI pass",
-    "current head is still waiting on the post-fix CI rerun",
+STALE_ACTIVE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "active PR-V1 execution packet",
+        re.compile(
+            r"\bactive\s+execution\s+packet\b.*\bcodex/ai-verification-registry-v1\b",
+            re.I,
+        ),
+    ),
+    (
+        "stale missing verification-bundle claim",
+        re.compile(
+            r"\bwrite\s+admission\b.*\bstill\s+lacks\b.*\bverification\s+bundle\b",
+            re.I,
+        ),
+    ),
+    (
+        "stale first-class verification-bundle claim",
+        re.compile(r"\bstill\s+lacks\b.*\bfirst[-\s]+class\s+verification\s+bundle\b", re.I),
+    ),
+    (
+        "policy/confidence-only knowledge-promotion claim",
+        re.compile(
+            r"\bknowledge\s+promotion\b.*\bremains\b.*\bfail[-\s]+closed\b.*\bonly\b",
+            re.I,
+        ),
+    ),
+    (
+        "pending final current-head CI claim",
+        re.compile(r"\bcurrent\s+head\b.*\bfinal\b.*\bcurrent[-\s]+head\s+ci\s+pass\b", re.I),
+    ),
+    (
+        "pending post-fix CI rerun claim",
+        re.compile(r"\bcurrent\s+head\b.*\bwaiting\b.*\bpost[-\s]+fix\s+ci\s+rerun\b", re.I),
+    ),
 )
 
 SENSITIVE_CACHE_TERMS = (
@@ -324,11 +350,15 @@ def _require_contains(errors: list[str], label: str, text: str, needle: str) -> 
         errors.append(f"{label}: missing required evidence `{needle}`")
 
 
-def _reject_contains(errors: list[str], label: str, text: str, needle: str) -> None:
-    normalized_text = re.sub(r"\s+", " ", text).casefold()
-    normalized_needle = re.sub(r"\s+", " ", needle).casefold()
-    if normalized_needle in normalized_text:
-        errors.append(f"{label}: stale or forbidden phrase remains `{needle}`")
+def _normalize_prose(text: str) -> str:
+    return re.sub(r"\s+", " ", _normalize_claim_text(text))
+
+
+def _reject_stale_active_claims(errors: list[str], label: str, text: str) -> None:
+    normalized_text = _normalize_prose(text)
+    for claim, pattern in STALE_ACTIVE_PATTERNS:
+        if pattern.search(normalized_text):
+            errors.append(f"{label}: stale or forbidden active-state claim remains `{claim}`")
 
 
 def _validate_semantic_cache_gate_markers(text: str) -> list[str]:
@@ -429,8 +459,7 @@ def _validate_ledger(text: str) -> list[str]:
     ):
         _require_contains(errors, "BACKLOG_LEDGER.md V1 block", block, needle)
 
-    for stale in STALE_ACTIVE_PHRASES:
-        _reject_contains(errors, "BACKLOG_LEDGER.md V1 block", block, stale)
+    _reject_stale_active_claims(errors, "BACKLOG_LEDGER.md V1 block", block)
     errors.extend(_validate_forbidden_claims("BACKLOG_LEDGER.md V1 block", block))
     return errors
 
@@ -466,13 +495,11 @@ def _validate_roadmap(text: str) -> list[str]:
             needle,
         )
 
-    for stale in STALE_ACTIVE_PHRASES:
-        _reject_contains(
-            errors,
-            "PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md PR-V1 block",
-            block,
-            stale,
-        )
+    _reject_stale_active_claims(
+        errors,
+        "PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md PR-V1 block",
+        block,
+    )
     errors.extend(
         _validate_forbidden_claims(
             "PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md PR-V1 block",
@@ -499,8 +526,7 @@ def _validate_pr1491_mapping(text: str) -> list[str]:
     ):
         _require_contains(errors, "PR_1491_FIXED_MAPPING.md closeout block", closeout_block, needle)
 
-    for stale in STALE_ACTIVE_PHRASES:
-        _reject_contains(errors, "PR_1491_FIXED_MAPPING.md closeout block", closeout_block, stale)
+    _reject_stale_active_claims(errors, "PR_1491_FIXED_MAPPING.md closeout block", closeout_block)
     errors.extend(_validate_forbidden_claims("PR_1491_FIXED_MAPPING.md", closeout_block))
     return errors
 
