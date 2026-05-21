@@ -74,6 +74,8 @@ Oracle-only packet:
 Oracle-only result:
 `artifacts/orchestration/experiments/results/exp-1e19cac99ab0.json`
 
+Artifact: `artifacts/orchestration/experiments/results/exp-1e19cac99ab0.json`
+
 Result summary: `accepted`, `runner_mode=oracle_only_governance_reviewer`,
 `mutated_paths=[]`, `promotion_ready=false`, `contribution_kind=none`,
 `coauthor_required=false`.
@@ -82,6 +84,11 @@ Attribution disposition: `NOT-A-BUG`. The Experiment Runner validated the
 existing diff but did not materially change commit content or decisions, so no
 `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` trailer is
 required for commit `bd3fff7e4`.
+
+## Lane Start Provenance
+
+Packet: `artifacts/orchestration/task_packets/cd933449cccf.json`
+Starter: `scripts/orchestration/start_pr_lane.sh`
 
 ## Premortem
 
@@ -138,16 +145,12 @@ parity and strict review-governance checks before any readiness claim.
 
 ## Discussion Thread Pass
 
-- [ ] Discussion-thread pass completed
-- [ ] Fixed in commit mapping completed
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-Disposition: FIXED
-Commit: bd3fff7e4
-Evidence: staged and committed PR19 Python files, then reran
-`make validate-changed`; the gate selected the PR19 Python files and passed.
-- Pre-open role finding `BH-PR19-001` -> bd3fff7e4
+- No actionable review comments
 
 ## Post-Open Governance Checklist
 
