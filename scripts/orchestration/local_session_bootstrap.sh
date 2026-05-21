@@ -33,6 +33,42 @@ die_usage() {
     exit 2
 }
 
+die() {
+    echo "ERROR: $1" >&2
+    exit 1
+}
+
+resolve_repo_python() {
+    if [[ -n "${VENV_PYTHON:-}" ]]; then
+        case "${VENV_PYTHON}" in
+            /*) ;;
+            *) die "VENV_PYTHON must be an absolute executable path: ${VENV_PYTHON}" ;;
+        esac
+        if [[ -x "${VENV_PYTHON}" ]]; then
+            printf "%s" "${VENV_PYTHON}"
+            return
+        fi
+        die "VENV_PYTHON is set but is not executable: ${VENV_PYTHON}"
+    fi
+
+    local candidate
+    for candidate in \
+        "${REPO_ROOT}/.venv/bin/python" \
+        "${REPO_ROOT}/../../.venv/bin/python"
+    do
+        if [[ -x "${candidate}" ]]; then
+            printf "%s" "${candidate}"
+            return
+        fi
+    done
+
+    if command -v python3 >/dev/null 2>&1; then
+        command -v python3
+        return
+    fi
+    die "python3 not found in PATH and no repo .venv python is available"
+}
+
 normalize_scope_path() {
     local raw_path="$1"
     local repo_prefix="${REPO_ROOT}/"
@@ -67,10 +103,7 @@ for arg in "$@"; do
     fi
 done
 
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "ERROR: python3 not found in PATH (required for check_preflight)." >&2
-    exit 1
-fi
+REPO_PYTHON="$(resolve_repo_python)"
 
 PREFLIGHT_PY="${REPO_ROOT}/scripts/orchestration/check_preflight.py"
 if [[ ! -f "${PREFLIGHT_PY}" ]]; then
@@ -149,15 +182,17 @@ fi
 
 # analyze: allows a dirty tree; appropriate for cold-start / task analysis.
 # For --mode execute|merge, run scripts/orchestration/check_preflight.py directly.
-python3 "${PREFLIGHT_PY}" --mode analyze ${PATH_ARGS[@]+"${PATH_ARGS[@]}"}
+"${REPO_PYTHON}" "${PREFLIGHT_PY}" --mode analyze ${PATH_ARGS[@]+"${PATH_ARGS[@]}"}
 
 echo ""
 echo "OK: preflight passed (analyze). Coordinator routing and skill selection are"
 echo "    deterministic only after you invoke task_bootstrap (and follow the packet)."
+echo "Repo Python: ${REPO_PYTHON}"
+echo "Python gate rule: use VENV_PYTHON or repo .venv python; avoid bare python3 -m pytest when .venv exists."
 echo ""
 if [[ "${BOOTSTRAP_OPTION_SEEN}" -eq 1 ]]; then
     echo "Generate the selected task packet:"
-    printf "  python3 %q \\\\\n" "${TASK_BOOTSTRAP_PY}"
+    printf "  %q %q \\\\\n" "${REPO_PYTHON}" "${TASK_BOOTSTRAP_PY}"
     printf "    --goal %q \\\\\n" "${GOAL}"
     printf "    --task-class %q \\\\\n" "${TASK_CLASS}"
     printf "    --pr-phase %q" "${PR_PHASE}"
@@ -170,7 +205,7 @@ if [[ "${BOOTSTRAP_OPTION_SEEN}" -eq 1 ]]; then
     printf "\n"
 else
     echo "Generate a task packet (minimal example):"
-    echo "  python3 ${TASK_BOOTSTRAP_PY} \\"
+    printf "  %q %q \\\\\n" "${REPO_PYTHON}" "${TASK_BOOTSTRAP_PY}"
     echo "    --goal \"<short goal>\" \\"
     echo "    --task-class \"<task_class>\""
     echo ""
@@ -180,11 +215,11 @@ else
     echo "  --requested-agent <slug>   (repeatable)"
 fi
 echo ""
-echo "Full CLI: python3 scripts/orchestration/task_bootstrap.py --help"
+printf "Full CLI: %q scripts/orchestration/task_bootstrap.py --help\n" "${REPO_PYTHON}"
 echo "Automation matrix: docs/orchestration/AUTOMATION_READINESS_MATRIX.md"
 echo ""
 prompt_cmd=(
-    python3 "${RENDER_CODEX_PROMPT_PY}"
+    "${REPO_PYTHON}" "${RENDER_CODEX_PROMPT_PY}"
     recipe
     --preflight-ran
     --goal "${GOAL}"

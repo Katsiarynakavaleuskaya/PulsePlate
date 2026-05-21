@@ -18,6 +18,12 @@ DEFAULT_PR_REVIEW_CHECKLIST = (
     "bug-hunter",
     "dev-operator",
 )
+PYTHON_ENV_GUIDANCE = (
+    "For local Python gates in the worktree, set "
+    "`VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}` and run Make targets or "
+    "`$VENV_PYTHON -m pytest ...`; do not use bare `python3 -m pytest` when "
+    "the repo `.venv` exists, because it can miss FastAPI and other locked deps."
+)
 
 
 class PromptError(ValueError):
@@ -161,7 +167,7 @@ def render_packet_prompt(
             "Experiment Runner evidence: for every non-trivial PR, create oracle-only evidence by default and record `## Experiment Runner Evidence` as `Artifact: artifacts/orchestration/experiments/results/<id>.json`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Lane start provenance: record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
-            "For local Python gates in the worktree, run: . .venv/bin/activate",
+            PYTHON_ENV_GUIDANCE,
             "Then run only the scoped validation bundle required by the lane before any readiness claim.",
         ]
     )
@@ -212,7 +218,7 @@ def render_recipe_prompt(
             "Record `## Experiment Runner Evidence` as `Artifact: artifacts/orchestration/experiments/results/<id>.json`; use `Not applicable: <reason>` only when the runner result is genuinely unused or inapplicable.",
             "Record `## Lane Start Provenance` with `Packet: artifacts/orchestration/task_packets/<id>.json` or a narrow documented cleanup/emergency `Exception: <reason>`; `Starter: scripts/orchestration/start_pr_lane.sh` is supplemental and cannot be used alone.",
             "Premortem closure rule: every premortem finding must be fixed in code/docs/tests or formally dispositioned as NOT-A-BUG/DEFERRED with evidence/backlog. No finding may be ignored as advisory.",
-            "For local Python gates in the worktree, run: . .venv/bin/activate",
+            PYTHON_ENV_GUIDANCE,
         ]
     )
     return "\n".join(lines)

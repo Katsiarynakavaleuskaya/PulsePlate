@@ -179,6 +179,40 @@ def test_experiment_runner_evidence_missing_is_advisory_warning() -> None:
     assert any("missing `## Experiment Runner Evidence`" in warning for warning in warnings)
 
 
+def test_experiment_runner_evidence_required_mode_fails_missing_block() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence(
+        "## Summary\nNo evidence.\n",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+    )
+
+    assert warnings == []
+    assert any("Required: missing `## Experiment Runner Evidence`" in error for error in errors)
+
+
+def test_experiment_runner_evidence_required_mode_accepts_valid_artifact_path() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence(
+        """## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp-required.json
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+    )
+
+    assert errors == []
+    assert warnings == []
+
+
+def test_experiment_runner_evidence_required_mode_accepts_not_applicable_reason() -> None:
+    errors, warnings = gates.check_experiment_runner_evidence(
+        """## Experiment Runner Evidence
+Not applicable: trivial docs cleanup with no runner result used.
+""",
+        mode=gates.ExperimentRunnerEvidenceMode.REQUIRED,
+    )
+
+    assert errors == []
+    assert warnings == []
+
+
 def test_experiment_runner_evidence_rejects_artifact_outside_results() -> None:
     errors, warnings = gates.check_experiment_runner_evidence("""## Experiment Runner Evidence
 Artifact: artifacts/orchestration/task_packets/packet.json
@@ -214,6 +248,69 @@ Not applicable: this should not be mixed with an artifact.
 
     assert warnings == []
     assert any("not both" in error for error in errors)
+
+
+def test_phase2_cli_required_mode_fails_missing_experiment_runner_evidence() -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        """## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp-719.json
+
+""",
+        "",
+    )
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(gates.__file__)),
+            "--body",
+            body,
+            "--experiment-runner-evidence-mode",
+            "required",
+            "--commit-range",
+            "HEAD..HEAD",
+        ],
+        cwd=gates.REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+
+    assert result.returncode == 1
+    assert "Required: missing `## Experiment Runner Evidence`" in result.stdout
+
+
+def test_phase2_cli_env_required_mode_fails_missing_experiment_runner_evidence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        """## Experiment Runner Evidence
+Artifact: artifacts/orchestration/experiments/results/exp-719.json
+
+""",
+        "",
+    )
+    monkeypatch.setenv("PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE", "required")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(Path(gates.__file__)),
+            "--body",
+            body,
+            "--commit-range",
+            "HEAD..HEAD",
+        ],
+        cwd=gates.REPO_ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=30,
+        env=os.environ.copy(),
+    )
+
+    assert result.returncode == 1
+    assert "Required: missing `## Experiment Runner Evidence`" in result.stdout
 
 
 def test_lane_start_provenance_accepts_local_task_packet_and_starter(tmp_path: Path) -> None:

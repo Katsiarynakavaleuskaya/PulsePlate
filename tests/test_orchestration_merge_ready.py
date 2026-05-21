@@ -42,7 +42,17 @@ def test_local_mode_runs_all_gates_in_order(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert exit_code == 0
     assert calls == [
-        ("phase2-pr-body-gates", ["--pr-number", "1005", "--body", "## Summary\nmirror"]),
+        (
+            "phase2-pr-body-gates",
+            [
+                "--pr-number",
+                "1005",
+                "--body",
+                "## Summary\nmirror",
+                "--experiment-runner-evidence-mode",
+                "advisory",
+            ],
+        ),
         (
             "merge-readiness-gate",
             ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"],
@@ -71,7 +81,62 @@ def test_local_mode_uses_artifact_first_phase2_args_when_body_not_provided(
     )
 
     assert exit_code == 0
-    assert calls[0] == ("phase2-pr-body-gates", ["--pr-number", "1005"])
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        ["--pr-number", "1005", "--experiment-runner-evidence-mode", "advisory"],
+    )
+
+
+def test_required_experiment_runner_evidence_mode_forwards_to_phase2(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+
+    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
+
+    exit_code = merge_ready.main(
+        [
+            "--pr-number",
+            "1005",
+            "--repo",
+            "Katsiarynakavaleuskaya/PulsePlate",
+            "--experiment-runner-evidence-mode",
+            "required",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        ["--pr-number", "1005", "--experiment-runner-evidence-mode", "required"],
+    )
+
+
+def test_required_experiment_runner_evidence_mode_can_come_from_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+
+    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setenv("PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE", "required")
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
+
+    exit_code = merge_ready.main(
+        ["--pr-number", "1005", "--repo", "Katsiarynakavaleuskaya/PulsePlate"]
+    )
+
+    assert exit_code == 0
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        ["--pr-number", "1005", "--experiment-runner-evidence-mode", "required"],
+    )
 
 
 def test_fetch_pr_body_uses_gh_auth_status_when_env_token_is_missing(
@@ -123,7 +188,10 @@ def test_local_mode_does_not_fetch_pr_body_when_body_not_provided(
     )
 
     assert exit_code == 0
-    assert calls[0] == ("phase2-pr-body-gates", ["--pr-number", "1005"])
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        ["--pr-number", "1005", "--experiment-runner-evidence-mode", "advisory"],
+    )
 
 
 def test_event_mode_passes_require_auth_only_to_disposition(
@@ -149,11 +217,53 @@ def test_event_mode_passes_require_auth_only_to_disposition(
 
     assert exit_code == 0
     assert calls == [
-        ("phase2-pr-body-gates", ["--event-path", str(event_path)]),
+        (
+            "phase2-pr-body-gates",
+            [
+                "--event-path",
+                str(event_path),
+                "--experiment-runner-evidence-mode",
+                "advisory",
+            ],
+        ),
         ("merge-readiness-gate", ["--event-path", str(event_path)]),
         ("current-head-checks", ["--event-path", str(event_path)]),
         ("review-threads-disposition", ["--pr-number", "1007", "--require-auth"]),
     ]
+
+
+def test_event_mode_forwards_required_experiment_runner_evidence_mode(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    calls: list[tuple[str, list[str]]] = []
+    event_path = tmp_path / "event.json"
+    event_path.write_text(json.dumps({"pull_request": {"number": 1007}}), encoding="utf-8")
+
+    def fake_run_gate(name: str, script_path, extra_args: list[str]) -> merge_ready.GateResult:
+        calls.append((name, extra_args))
+        return _ok_result(name, [str(script_path), *extra_args])
+
+    monkeypatch.setattr(merge_ready, "_run_gate", fake_run_gate)
+
+    exit_code = merge_ready.main(
+        [
+            "--event-path",
+            str(event_path),
+            "--experiment-runner-evidence-mode",
+            "required",
+        ]
+    )
+
+    assert exit_code == 0
+    assert calls[0] == (
+        "phase2-pr-body-gates",
+        [
+            "--event-path",
+            str(event_path),
+            "--experiment-runner-evidence-mode",
+            "required",
+        ],
+    )
 
 
 def test_event_pr_number_accepts_numeric_string(tmp_path: Path) -> None:
@@ -254,12 +364,13 @@ def test_merge_ready_bundle_uses_declared_blocking_policy(
         ),
     )
 
-    merge_ready._print_merge_ready_bundle()
+    merge_ready._print_merge_ready_bundle(experiment_runner_evidence_mode="required")
 
     captured = capsys.readouterr()
     assert "phase2-pr-body-gates: class=hard, lane=pr-governance, blocking=yes" in captured.out
+    assert "Experiment Runner Evidence mode=required" in captured.out
+    assert "Lane Start Provenance is diagnostic dry-run" in captured.out
     assert "merge-readiness-gate: class=hard, lane=review-governance, blocking=no" in captured.out
-    assert "Experiment Runner Evidence is advisory in this phase" in captured.out
 
 
 def test_wrapper_fails_when_disposition_gate_skips_in_advisory_mode(

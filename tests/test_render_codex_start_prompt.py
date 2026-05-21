@@ -152,7 +152,9 @@ def test_packet_prompt_contains_coordinator_stop_marker_and_closure_contract() -
     assert "cannot be used alone" in prompt
     assert "Premortem closure rule: every premortem finding must be fixed" in prompt
     assert "No finding may be ignored as advisory." in prompt
-    assert ". .venv/bin/activate" in prompt
+    assert "VENV_PYTHON" in prompt
+    assert "$VENV_PYTHON -m pytest" in prompt
+    assert "do not use bare `python3 -m pytest` when the repo `.venv` exists" in prompt
     assert "automatically start" not in prompt.lower()
     assert "auto-start" not in prompt.lower()
 
@@ -185,6 +187,8 @@ def test_recipe_prompt_says_authoritative_bootstrap_has_not_run() -> None:
     assert "cannot be used alone" in prompt
     assert "Not applicable: <reason>" in prompt
     assert "No finding may be ignored as advisory." in prompt
+    assert "VENV_PYTHON" in prompt
+    assert "$VENV_PYTHON -m pytest" in prompt
 
 
 def test_recipe_prompt_can_say_preflight_did_not_run() -> None:
