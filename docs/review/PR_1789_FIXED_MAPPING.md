@@ -71,10 +71,10 @@ Evidence: `scripts/ci/check_docs_phase1_gates.py` now routes future `docs/orches
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` - PASS, packet `artifacts/orchestration/task_packets/d2e36e91b405.json`
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` - PASS, packet `artifacts/orchestration/task_packets/0cd5f8098592.json`
 - `.venv/bin/python scripts/ci/check_philosophy_alignment_rules.py` - PASS, `schema_hash=31d165ca54e37c0255c8103c52d9fbe29c70084398d665b1ada5f98532453f50`
-- `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`29 passed`)
+- `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`34 passed`)
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json docs/roadmap/BACKLOG_LEDGER.md` - PASS
 - `python3 scripts/ci/check_semantic_cache_gate.py` - PASS; semantic-cache gates remain closed
-- `make validate-changed` - PASS (`42 passed`)
+- `make validate-changed` - PASS (`47 passed`)
 - `pre-commit run --all-files` - PASS
 - pre-push hooks - PASS, including mypy, pip-audit, backend pre-push tests, full-repo Bandit, and docker build test
 
