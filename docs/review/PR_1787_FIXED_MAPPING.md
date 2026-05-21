@@ -67,14 +67,12 @@ Evidence: `docs/review/PR_1787_FIXED_MAPPING.md` now has required discussion-thr
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_ai_recursive_methods_w1_closeout.py` already normalized raw-cache action line breaks and rejected checked historical `pre-commit` / `make verify` boxes on the current branch before the stale review comment was emitted; `tests/test_ai_recursive_methods_w1_closeout.py` covers `PR-A7 allows\nraw responses.`, `- [x] Pre-commit green on latest pushed head`, and `- [x] make verify green on latest pushed head`.
 Reason: These two Codex review comments were generated against stale reviewed commit `4fc72f007c`; the current head already contained the requested guard/test behavior via `2d1f43929`.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993866
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3280993873
 
 Disposition: NOT-A-BUG
 Evidence: `scripts/ci/check_ai_recursive_methods_w1_closeout.py` and `tests/test_ai_recursive_methods_w1_closeout.py` already rejected direct forbidden-surface approvals and terse semantic-cache activation claims before these stale duplicate review comments were emitted; the same current head also rejects `#1499 opens semantic-cache serving`.
 Reason: These CodeRabbit comments were generated from stale reviewed context after the branch already contained the requested behavior, so no additional code change was needed for these duplicate findings.
-
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117025
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281117033
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1787#discussion_r3281190469
