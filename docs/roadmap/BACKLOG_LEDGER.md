@@ -10070,13 +10070,14 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
 - [ ] P2: Promote Experiment Runner PR evidence from advisory to hard gate
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P2 (review-governance hardening after advisory signal proves stable)
-  - Target PR: Future governance PR after PR #1775 advisory rollout
-  - Status: 📋 Deferred from PR #1775
+  - Target PR: `codex/experiment-runner-evidence-hard-gate-switch`
+  - Status: 🛠️ In progress: configurable fail-closed mode is being added with advisory as the default rollback-safe mode
   - Dependencies:
     - [P1: PR3 experiment runner MVP for bounded candidate loops](#ledger-p1-agent-experiment-runner)
   - Reason (EN): PR #1775 introduces Phase2 advisory Experiment Runner evidence for non-trivial PR lanes. A later PR should promote that evidence to a hard merge gate only after the advisory signal is stable and false-positive behavior is understood.
   - DoD:
-    - `check_merge_ready.py` blocks non-trivial PRs missing valid Experiment Runner evidence or an explicit not-applicable reason
+    - `check_pr_body_phase2_gates.py` exposes advisory/required Experiment Runner evidence modes with required mode failing closed on missing evidence
+    - `check_merge_ready.py` forwards the configured Experiment Runner evidence mode to Phase2 and documents advisory rollback
     - PR-body and fixed-mapping validators share one parser contract for artifact paths and not-applicable reasons
     - Rollback notes document how to return the gate to advisory mode if review throughput regresses
 

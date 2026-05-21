@@ -22,6 +22,7 @@ MERGE_GATE = REPO_ROOT / "scripts" / "ci" / "check_pr_merge_readiness.py"
 CURRENT_HEAD_CHECKS_GATE = REPO_ROOT / "scripts" / "ci" / "check_current_head_pr_checks.py"
 DISPOSITION_GATE = REPO_ROOT / "scripts" / "orchestration" / "check_review_threads_disposition.py"
 RUN_TIMEOUT_SEC = 120
+EXPERIMENT_RUNNER_EVIDENCE_MODES = ("advisory", "required")
 
 
 @dataclass(frozen=True)
@@ -80,6 +81,18 @@ def _validate_args(args: argparse.Namespace, parser: argparse.ArgumentParser) ->
 
     if args.pr_number is None and not (args.repo or "").strip():
         parser.error("Provide either --event-path (CI) or both --pr-number and --repo (local).")
+
+
+def _experiment_runner_evidence_mode(value: str | None) -> str:
+    """Normalize the Phase2 Experiment Runner evidence mode."""
+
+    normalized = (value or "advisory").strip().lower()
+    if normalized not in EXPERIMENT_RUNNER_EVIDENCE_MODES:
+        allowed = ", ".join(EXPERIMENT_RUNNER_EVIDENCE_MODES)
+        raise argparse.ArgumentTypeError(
+            f"Experiment Runner evidence mode must be one of: {allowed}"
+        )
+    return normalized
 
 
 def _run_gate(name: str, script_path: Path, extra_args: list[str]) -> GateResult:
@@ -173,10 +186,16 @@ def _fetch_pr_body(pr_number: int, repo: str) -> str:
 
 def _phase2_args(args: argparse.Namespace) -> list[str]:
     if args.event_path:
-        return ["--event-path", args.event_path]
+        return [
+            "--event-path",
+            args.event_path,
+            "--experiment-runner-evidence-mode",
+            args.experiment_runner_evidence_mode,
+        ]
     phase2_args = ["--pr-number", str(args.pr_number)]
     if args.body:
         phase2_args.extend(["--body", args.body])
+    phase2_args.extend(["--experiment-runner-evidence-mode", args.experiment_runner_evidence_mode])
     return phase2_args
 
 
@@ -257,7 +276,7 @@ def _print_gate_output(result: GateResult) -> None:
         print(result.stderr)
 
 
-def _print_merge_ready_bundle() -> None:
+def _print_merge_ready_bundle(*, experiment_runner_evidence_mode: str = "advisory") -> None:
     """Render the canonical blocking bundle before gate execution output."""
 
     print("Blocking merge-ready bundle:")
@@ -270,10 +289,17 @@ def _print_merge_ready_bundle() -> None:
         )
     print("Advisory / external signals:")
     print("- third-party review bots remain advisory unless GitHub branch protection promotes them")
-    print(
-        "- Experiment Runner Evidence is advisory in this phase; Phase2 reports missing "
-        "oracle-only artifact or not-applicable reason without blocking merge readiness"
-    )
+    if experiment_runner_evidence_mode == "required":
+        print(
+            "- Experiment Runner Evidence mode=required; Phase2 fails closed when the "
+            "PR body/mapping lacks a valid oracle-only artifact or explicit "
+            "not-applicable reason"
+        )
+    else:
+        print(
+            "- Experiment Runner Evidence mode=advisory; Phase2 reports missing "
+            "oracle-only artifact or not-applicable reason without blocking merge readiness"
+        )
     print(
         "- Lane Start Provenance is diagnostic dry-run in this phase; Phase2 reports "
         "missing repo bootstrap packet/start_pr_lane evidence without blocking merge readiness"
@@ -309,7 +335,22 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Upgrade local disposition checks to strict CI-like auth semantics.",
     )
+    parser.add_argument(
+        "--experiment-runner-evidence-mode",
+        default=os.environ.get("PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE", "advisory"),
+        help=(
+            "Forward Experiment Runner Evidence enforcement to Phase2: advisory "
+            "(default) or required. Can also be set with "
+            "PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE."
+        ),
+    )
     parsed = parser.parse_args(argv)
+    try:
+        parsed.experiment_runner_evidence_mode = _experiment_runner_evidence_mode(
+            parsed.experiment_runner_evidence_mode
+        )
+    except argparse.ArgumentTypeError as exc:
+        parser.error(str(exc))
     _validate_args(parsed, parser)
 
     phase2_args = _phase2_args(parsed)
@@ -334,7 +375,9 @@ def main(argv: list[str] | None = None) -> int:
     disposition_skipped = any(_disposition_gate_skipped(result) for result in gate_results)
     if disposition_skipped:
         failed.append("review-threads-disposition")
-    _print_merge_ready_bundle()
+    _print_merge_ready_bundle(
+        experiment_runner_evidence_mode=parsed.experiment_runner_evidence_mode
+    )
     for result in gate_results:
         _print_gate_output(result)
 

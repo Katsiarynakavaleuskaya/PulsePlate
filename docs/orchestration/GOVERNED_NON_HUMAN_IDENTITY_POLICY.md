@@ -67,9 +67,11 @@ used, or the PR records `Not applicable: <reason>`, the trailer is not required.
 Every non-trivial PR lane should record Experiment Runner participation in an
 `Experiment Runner Evidence` block: either a local oracle-only result artifact
 under `artifacts/orchestration/experiments/results/` or an explicit
-`Not applicable:` reason. This evidence is advisory until the merge-readiness
-gate is deliberately promoted in a later PR; malformed evidence is still
-rejected because it can misrepresent runner participation.
+`Not applicable:` reason. Phase2 can run this evidence check in `advisory` or
+`required` mode. Advisory mode reports absence as a diagnostic; required mode
+fails closed when the block is missing or lacks a valid artifact/not-applicable
+reason. Malformed evidence is rejected in every mode because it can
+misrepresent runner participation.
 
 The Experiment Runner is never the lane-start authority. It joins after the
 repo coordinator bootstrap (`check_preflight.py` -> `task_bootstrap.py` ->

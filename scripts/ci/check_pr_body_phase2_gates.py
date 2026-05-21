@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import shutil
 import subprocess  # nosec B404: bounded git log advisory for local co-author diagnostics (remove-by: 2026-07-31, ref: experiment-runner-oracle-attribution-semantics)
@@ -114,6 +115,30 @@ class BodyValidationMode(str, Enum):
 
     FULL_MAPPING = "full_mapping"
     MIRROR_ONLY = "mirror_only"
+
+
+class ExperimentRunnerEvidenceMode(str, Enum):
+    """Phase2 enforcement mode for Experiment Runner Evidence."""
+
+    ADVISORY = "advisory"
+    REQUIRED = "required"
+
+
+def _experiment_runner_evidence_mode(
+    value: str | ExperimentRunnerEvidenceMode | None,
+) -> ExperimentRunnerEvidenceMode:
+    """Normalize Experiment Runner evidence enforcement mode."""
+
+    if isinstance(value, ExperimentRunnerEvidenceMode):
+        return value
+    normalized = str(value or ExperimentRunnerEvidenceMode.ADVISORY.value).strip().lower()
+    try:
+        return ExperimentRunnerEvidenceMode(normalized)
+    except ValueError as exc:
+        allowed = ", ".join(mode.value for mode in ExperimentRunnerEvidenceMode)
+        raise argparse.ArgumentTypeError(
+            f"Experiment Runner evidence mode must be one of: {allowed}"
+        ) from exc
 
 
 def _strip_fenced_code_blocks(text: str) -> str:
@@ -395,17 +420,28 @@ def _experiment_runner_artifact_paths(text: str) -> list[str]:
     return list(dict.fromkeys(paths))
 
 
-def check_experiment_runner_evidence(text: str) -> tuple[list[str], list[str]]:
-    """Validate advisory Experiment Runner evidence.
+def check_experiment_runner_evidence(
+    text: str,
+    *,
+    mode: ExperimentRunnerEvidenceMode = ExperimentRunnerEvidenceMode.ADVISORY,
+    missing_section_is_warning: bool = False,
+) -> tuple[list[str], list[str]]:
+    """Validate Experiment Runner evidence.
 
-    Missing evidence is a warning for this PR series. Malformed evidence is an
-    error because an invalid path or empty N/A reason creates false governance
-    proof.
+    Missing evidence is a warning in advisory mode and an error in required
+    mode. Malformed evidence is always an error because invalid paths or empty
+    N/A reasons create false governance proof.
     """
 
     cleaned = _strip_fenced_code_blocks(text)
     section = _extract_section_by_h2(cleaned, str(PHASE2_CONFIG["experiment_runner_heading"]))
     if not section:
+        if missing_section_is_warning:
+            return [], [MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING]
+        if mode is ExperimentRunnerEvidenceMode.REQUIRED:
+            return [
+                MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING.replace("Advisory:", "Required:")
+            ], []
         return [], [MISSING_EXPERIMENT_RUNNER_EVIDENCE_WARNING]
 
     artifact_matches = list(EXPERIMENT_RUNNER_ARTIFACT_RE.finditer(section))
@@ -687,7 +723,24 @@ def main() -> int:
             "instead of scanning unrelated history."
         ),
     )
+    parser.add_argument(
+        "--experiment-runner-evidence-mode",
+        default=os.environ.get(
+            "PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE",
+            ExperimentRunnerEvidenceMode.ADVISORY.value,
+        ),
+        help=(
+            "Experiment Runner Evidence enforcement mode: advisory (default) or required. "
+            "Can also be set with PULSEPLATE_EXPERIMENT_RUNNER_EVIDENCE_MODE."
+        ),
+    )
     args = parser.parse_args()
+    try:
+        args.experiment_runner_evidence_mode = _experiment_runner_evidence_mode(
+            args.experiment_runner_evidence_mode
+        )
+    except argparse.ArgumentTypeError as exc:
+        parser.error(str(exc))
 
     body = args.body
     if not body and args.event_path:
@@ -718,7 +771,11 @@ def main() -> int:
         artifact_checked = True
         artifact_errors.extend(validate_mapping_artifact_text(artifact_text))
         evidence_texts.append(artifact_text)
-        evidence_errors, evidence_warnings = check_experiment_runner_evidence(artifact_text)
+        evidence_errors, evidence_warnings = check_experiment_runner_evidence(
+            artifact_text,
+            mode=args.experiment_runner_evidence_mode,
+            missing_section_is_warning=True,
+        )
         artifact_errors.extend(evidence_errors)
         evidence_warning_candidates.extend(evidence_warnings)
         if not evidence_errors and not evidence_warnings:
@@ -750,7 +807,11 @@ def main() -> int:
             )
         if not artifact_checked or has_experiment_runner_evidence:
             evidence_texts.append(body)
-            evidence_errors, evidence_warnings = check_experiment_runner_evidence(body)
+            evidence_errors, evidence_warnings = check_experiment_runner_evidence(
+                body,
+                mode=args.experiment_runner_evidence_mode,
+                missing_section_is_warning=True,
+            )
             if evidence_errors:
                 body_checked = True
             body_errors.extend(evidence_errors)
@@ -770,7 +831,13 @@ def main() -> int:
         return 1
 
     if not experiment_runner_evidence_seen:
-        advisory_warnings.extend(dict.fromkeys(evidence_warning_candidates))
+        missing_evidence = list(dict.fromkeys(evidence_warning_candidates))
+        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.REQUIRED:
+            artifact_errors.extend(
+                warning.replace("Advisory:", "Required:") for warning in missing_evidence
+            )
+        else:
+            advisory_warnings.extend(missing_evidence)
     if experiment_runner_evidence_seen:
         commit_messages = _git_commit_messages(
             args.commit_range,
