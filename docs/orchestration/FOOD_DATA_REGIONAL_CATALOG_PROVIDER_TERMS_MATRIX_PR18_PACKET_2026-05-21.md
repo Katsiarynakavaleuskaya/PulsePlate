@@ -121,7 +121,12 @@ python3 scripts/orchestration/check_preflight.py
 python3 scripts/orchestration/check_agent_consistency.py
 VENV_PYTHON="${VENV_PYTHON:-.venv/bin/python}"
 "${VENV_PYTHON}" -m pytest -q tests/test_food_source_regional_catalog_provider_terms.py
-"${VENV_PYTHON}" -m pytest -q tests/test_food_source_regional_catalog_identity.py tests/test_food_source_preference_mapping_closeout.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py
+"${VENV_PYTHON}" -m pytest -q \
+  tests/test_food_source_regional_catalog_identity.py \
+  tests/test_food_source_preference_mapping_closeout.py \
+  tests/test_food_source_gap_audit.py \
+  tests/test_food_source_catalog.py \
+  tests/test_food_source_onboarding.py
 "${VENV_PYTHON}" -m pytest -q tests/test_repo_policy_guards.py
 "${VENV_PYTHON}" -m scripts.food_source_regional_catalog_provider_terms --json
 python tools/graphmap/build_graph.py --out docs/graph/graph.json

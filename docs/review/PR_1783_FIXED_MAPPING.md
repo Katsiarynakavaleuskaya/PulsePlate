@@ -64,10 +64,15 @@ Role-agent dispositions:
   `23b2cc7bb` changes `load_regional_catalog_provider_terms_governance`
   `pr17_gate` from `object` to `RegionalCatalogIdentityGovernance` and validates
   the test JSON helper return type. The exact QA command now passes:
-  `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`.
+  `$VENV_PYTHON -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`.
 - `bug-hunter`: Disposition `PASS`. Evidence: identified false-green risks for
   candidate drift, unsafe prose, PR17 handoff, GraphMap, and Experiment Runner
   attribution; PR18 tests and packet close those risks.
+- Post-open `bug-hunter`: Disposition `FIXED`. Evidence: commit `PENDING`
+  corrects the fixed-mapping parser heading, adds the required discussion-thread
+  pass section, removes machine-specific validation paths from the artifact,
+  leaves merge-readiness checklist items unchecked until the final merge cycle,
+  and wraps the long packet validation command flagged by CodeRabbit.
 - `dev-operator`: Disposition `PASS`. Evidence: approved non-draft PR flow from
   synced green main, isolated worktree, narrow local gates, push, post-open
   governance, and no full local `make verify` by default.
@@ -124,12 +129,12 @@ seller, partner, portal, or scraping sources.
 
 - `python3 scripts/orchestration/check_preflight.py`: PASS.
 - `python3 scripts/orchestration/check_agent_consistency.py`: PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_food_source_regional_catalog_provider_terms.py`: PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_food_source_regional_catalog_identity.py tests/test_food_source_preference_mapping_closeout.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py tests/test_repo_policy_guards.py`: PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m scripts.food_source_regional_catalog_provider_terms --json`: PASS.
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files`: PASS.
-- `make validate-changed VENV_PYTHON=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python`: PASS.
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`: PASS after post-open QA fix.
+- `$VENV_PYTHON -m pytest -q tests/test_food_source_regional_catalog_provider_terms.py`: PASS.
+- `$VENV_PYTHON -m pytest -q tests/test_food_source_regional_catalog_identity.py tests/test_food_source_preference_mapping_closeout.py tests/test_food_source_gap_audit.py tests/test_food_source_catalog.py tests/test_food_source_onboarding.py tests/test_repo_policy_guards.py`: PASS.
+- `$VENV_PYTHON -m scripts.food_source_regional_catalog_provider_terms --json`: PASS.
+- `PATH="$VENV_BIN:$PATH" pre-commit run --all-files`: PASS.
+- `make validate-changed VENV_PYTHON="$VENV_PYTHON"`: PASS.
+- `$VENV_PYTHON -m mypy --no-incremental --cache-dir=/dev/null core/food_sources/regional_catalog_provider_terms.py scripts/food_source_regional_catalog_provider_terms.py tests/test_food_source_regional_catalog_provider_terms.py`: PASS after post-open QA fix.
 - Pre-push hooks: PASS for mypy changed files, pip-audit, backend tests,
   full-repo Bandit, and docker build test.
 
@@ -137,25 +142,54 @@ Full local `make verify` is intentionally deferred by operator instruction for
 this governance-only lane. Merge readiness still requires PR current-head CI
 parity and strict review-governance checks before any readiness claim.
 
-## Fixed In Commit Mapping
+## Discussion Thread Pass
 
-No human or bot review threads have been resolved yet.
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-- Initial implementation commit: `c779f770a`
-  - Adds PR18 artifact, validator/report builder, CLI, focused tests, packet,
-    current pointer update, and backlog update.
-  - Evidence: focused and adjacent validation commands listed above.
-- Post-open QA typecheck fix: `23b2cc7bb`
-  - Fixes focused mypy failures in the new PR18 loader signature and test JSON
-    helper.
-  - Evidence: exact focused mypy command listed above now passes.
+## Fixed in Commit Mapping
+
+Disposition: FIXED
+Commit: 23b2cc7bb
+Evidence: typed `pr17_gate` as `RegionalCatalogIdentityGovernance`, narrowed
+test JSON helper return type, and reran focused mypy successfully.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279338059 -> 23b2cc7bb
+
+Disposition: FIXED
+Commit: PENDING
+Evidence: removed machine-specific validation paths from this artifact.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352599 -> PENDING
+
+Disposition: FIXED
+Commit: PENDING
+Evidence: added the required artifact-level `## Discussion Thread Pass` section
+and exact checked boxes.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#discussion_r3279352627 -> PENDING
+
+Disposition: FIXED
+Commit: PENDING
+Evidence: wrapped the long packet pytest command and preserved the PR18 type
+fix evidence.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334774106 -> PENDING
+
+Disposition: FIXED
+Commit: PENDING
+Evidence: fixed the PR body/mapping artifact contract issues reported in the
+review summary.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334791252 -> PENDING
+
+Disposition: FIXED
+Commit: PENDING
+Evidence: left post-open merge-readiness checklist items unchecked until final
+merge cycle.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1783#pullrequestreview-4334834799 -> PENDING
 
 ## Post-Open Governance Checklist
 
-- [x] Non-draft PR opened.
-- [x] Fixed mapping artifact created.
+- [ ] Non-draft PR opened.
+- [ ] Fixed mapping artifact created.
 - [ ] PR body mirror refreshed after fixed mapping commit.
-- [x] Post-open `task_bootstrap.py --pr-phase post_open_review` packet recorded.
+- [ ] Post-open `task_bootstrap.py --pr-phase post_open_review` packet recorded.
 - [ ] Mandatory `qa-engineer-agent -> bug-hunter` post-open pass recorded.
 - [ ] CodeRabbit review inspected and dispositioned.
 - [ ] Codex Security diff-scoped scan inspected and dispositioned.
