@@ -45,6 +45,11 @@ resolved without disposition evidence.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459097
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459100
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459104
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580677
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580682
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580686
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580690
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580694
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084
 Disposition: FIXED
@@ -61,6 +66,7 @@ Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/tes
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now treat `because`, `while`, `since`, `if`, punctuation separators, and scoped `or` separators as claim boundaries only when they carry a later approval-equivalent clause.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now accept explicit `lacks approval` / `without approval` denials, preserve clause offsets while trimming, recognize spaced `GPT Cache` labels, reject passive `selected/selection`, reject `authorized/authorization`, and reject qualified raw user/LLM prompt/response cacheability claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now normalize non-breaking spaces, match wrapped `PR-\nV1` and `semantic\ncache` terms, reject passive `opened` activation, and treat `despite` / dash-without-space joins as claim boundaries when they lead to a later approval-equivalent clause.
+Evidence: `scripts/ci/check_ai_verification_registry_closeout.py` and `tests/test_ai_verification_registry_closeout.py` now scope conjunction boundaries to follow-up approval clauses, require semantic-cache rollout/serving/runtime context for open/approval status wording, accept `has no` and `never allows` gate-closed denials, and reject `rollout-ready` activation claims.
 Evidence: `scripts/ci/check_ai_verification_registry_closeout.py:41` and `tests/test_ai_verification_registry_closeout.py:153` replace exact stale-phrase checks with structural stale active-state patterns and a broader verification-bundle regression case.
 Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards and tests while keeping the closeout checker focused on critical state, PR number, scope boundary, and gate markers.
 
@@ -94,6 +100,11 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459097 -> 27dcba482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459100 -> 27dcba482
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3277459104 -> 27dcba482
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580677 -> 9c2d27c53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580682 -> 9c2d27c53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580686 -> 9c2d27c53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580690 -> 9c2d27c53
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#discussion_r3278580694 -> 9c2d27c53
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4328916750 -> fa7dc6d50
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1779#pullrequestreview-4332106084 -> 3d95a61f8
 
@@ -286,6 +297,26 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
   - Disposition: FIXED
   - Commit: `27dcba482`
   - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects an em-dash joined Redis-denial / semantic-cache-approval sentence.
+- CodeRabbit finding: unconditional connector boundaries caused false positives for gate-closed clauses such as `because semantic-cache gate is closed`.
+  - Disposition: FIXED
+  - Commit: `9c2d27c53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `PR-V1 does not allow Redis because semantic-cache gate is closed`.
+- CodeRabbit finding: semantic-cache status matcher overflagged benign `open issue` and `authorization header` statements.
+  - Disposition: FIXED
+  - Commit: `9c2d27c53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows those benign non-rollout statements while keeping contextual serving/runtime approval checks.
+- CodeRabbit finding: `has no` semantic-cache status denials were false positives.
+  - Disposition: FIXED
+  - Commit: `9c2d27c53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `Semantic-cache has no active serving runtime` and `Semantic-cache has no production-ready rollout`.
+- CodeRabbit finding: `rollout-ready` semantic-cache activation wording was a false green.
+  - Disposition: FIXED
+  - Commit: `9c2d27c53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` rejects `Semantic-cache is rollout-ready` and `PR-V1 marks semantic-cache rollout-ready`.
+- CodeRabbit finding: `never allows` gate-closed PR-V1 wording was a false positive.
+  - Disposition: FIXED
+  - Commit: `9c2d27c53`
+  - Evidence: `tests/test_ai_verification_registry_closeout.py` allows `PR-V1 never allows semantic-cache serving` and `PR-V1 never allows Redis rollout`.
 
 ## Local Evidence
 
@@ -300,7 +331,7 @@ Reason: Sourcery's prose-coupling feedback is closed by wider class-based guards
 - Pre-commit: `pre-commit run --all-files` passed.
 - Pre-push: mypy, pip-audit, backend pytest, full-repo Bandit, and docker build test passed.
 - Experiment Runner: oracle-only governance reviewer accepted `artifacts/orchestration/experiments/results/exp-ceddfe3387fc.json`.
-- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/fa7dc6d50_20260521T035629Z/report.md` reported no findings.
+- Codex Security final diff-scoped report: `/tmp/codex-security-scans/BMI-App_2025_clean/9c2d27c53_20260521T041848Z/report.md` reported no findings.
 
 ## Experiment Runner Evidence
 
