@@ -7,14 +7,19 @@ Canonical review-governance artifact and PR-body mirror requirements:
 `docs/orchestration/AGENTS.md`.
 
 - [x] Artifact created after PR open
-- [ ] Discussion-thread pass completed after bot and post-open role-agent review
-- [ ] Fixed in commit mapping completed after actionable findings are dispositioned
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
-No GitHub review threads have been resolved. Post-open review is in progress.
+No GitHub review threads have been resolved. Post-open role-agent findings are
+tracked below.
 
 ## Fixed in Commit Mapping
 
-No GitHub review-thread mappings yet.
+- No actionable review comments
+
+## Experiment Runner Evidence
+
+Artifact: `artifacts/orchestration/experiments/results/exp-5d7a4fca1a4c.json`
 
 ## Pre-Open Role-Agent And Premortem Findings
 
@@ -70,6 +75,23 @@ No GitHub review-thread mappings yet.
     `coauthor_required: true`; commit `451d21164` includes
     `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
+## Post-Open QA Findings
+
+- qa-engineer-agent finding: PR body and mapping artifact failed Phase2
+  governance because the canonical checkboxes were not checked and the mapping
+  section used prose instead of the canonical no-actionables marker.
+  - Disposition: FIXED
+  - Commit: pending
+  - Evidence: `docs/review/PR_1784_FIXED_MAPPING.md` uses checked Phase2 boxes
+    and the canonical `- No actionable review comments` marker.
+- qa-engineer-agent finding: PR size governance requires a split justification
+  because the generated report/schema/checker/test bundle is over 800 changed
+  lines.
+  - Disposition: FIXED
+  - Commit: pending
+  - Evidence: PR body includes `## Split Justification` explaining why PR-3 is
+    one governance/test-only slice.
+
 ## Post-Open Role-Agent Findings
 
-Pending post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass.
+Pending post-open `bug-hunter -> security-auditor` pass.
