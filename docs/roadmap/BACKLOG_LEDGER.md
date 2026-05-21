@@ -2975,7 +2975,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - Owner: @katsiaryna_kavaleuskaya
   - Priority: P1
   - Target PR: PR #1784 (`codex/philosophy-epic-v2-pr3-admission-dry-run`)
-  - Status: 🟡 Active in PR #1784
+  - Status: ✅ Merged PR #1784 on 2026-05-21 (`18be0c53c51e2d7d6a085d204c3a0a8f71689980`)
   - Area: AI / RAG / philosophy / semantic-cache governance / verification-bundle adapter
   - Finding Type: false-green prevention, provenance/report drift, gate-closed verification-bundle dry-run
   - Reason (EN): PR #1777 made philosophical admission claims deterministic through policy JSON and a generated oracle fixture. PR-3 adds the next governance guard: a deterministic dry-run report that connects the PR-2 oracle to synthetic verification-bundle states and proves that missing, failed, warning, and passed bundles still do not permit cache read, cache write, or serving while the semantic-cache gate remains closed.
@@ -2997,6 +2997,32 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - No Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, or runtime activation changes are made
     - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
+<a id="ledger-p1-philosophy-epic-v2-alignment-rule-trust-schema"></a>
+- [ ] P1: Philosophy Epic V2 alignment-rule trust schema
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: `codex/philosophy-alignment-rule-trust-schema`
+  - Status: 🟡 Active branch
+  - Area: AI / RAG / philosophy / semantic-cache governance / trust schema
+  - Finding Type: provenance, schema-hash, and future admission-rule auditability
+  - Reason (EN): PR #1784 connected the admission oracle to verification-bundle dry-run truth while keeping cache read, cache write, and serving disabled. The next safe slice defines a machine-readable alignment-rule record shape and deterministic validator so future admission-rule artifacts can carry stable provenance, executable assertion hints, schema version, and schema hash before any later release-manifest or runtime semantic-cache linkage is considered.
+  - Links:
+    - `docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json`
+    - `scripts/ci/check_philosophy_alignment_rules.py`
+    - `tests/test_philosophy_alignment_rules.py`
+    - `scripts/ci/check_docs_phase1_gates.py`
+    - `docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md`
+    - `docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json`
+  - Deferred / Follow-ups:
+    - Future release-manifest slice: add `alignment_schema_hash` only after the release evidence contract explicitly accepts the field and current-head CI proves deterministic manifest hashing.
+    - Future runtime semantic-cache slice: add cache-row `rule_id` linkage only after the global semantic-cache gate opens and a reviewed runtime packet covers DB/cache migration, replay safety, rollback, and verification-bundle admission.
+  - DoD:
+    - Alignment-rule JSON schema is repo-native, closed to unknown fields, and requires rule identity, provenance, assertion hints, schema version, and schema hash
+    - Validator computes the schema hash deterministically from canonical sorted JSON bytes and fails closed on mismatched rule records
+    - Validator rejects duplicate `rule_id` values, malformed provenance, unknown keys, and invalid regex hints
+    - Phase 1 docs gates validate the alignment-rule schema when the schema changes
+    - PR stays governance/test-only with no Redis, GPTCache, embeddings, vector search, provider/client, DB, OpenAPI, frontend, iOS, `/insight`, connection-string, cache-adapter, release-manifest mutation, or runtime activation changes
+    - Premortem, architecture, philosophy, QA, security, and bug-hunter findings are fixed or formally dispositioned before readiness claims
 
 <a id="ledger-p1-recursive-methods"></a>
 - [ ] P1: Recursive methods for LLM/RAG/AI assistant (multi-hop retrieval, recursive reasoning, self-refinement, self-verification, learning)

@@ -422,3 +422,17 @@ def test_phase1_guard_validates_philosophy_admission_dry_run_schema_only_edits(
     )
 
     assert any("dry-run schema const missing for gate_status" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_alignment_rule_schema_edits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        gates,
+        "_load_philosophy_alignment_rule_validator",
+        lambda: lambda **_kwargs: ["alignment validator called"],
+    )
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA])
+
+    assert any("alignment validator called" in error for error in errors)
