@@ -168,6 +168,23 @@ def test_alignment_rule_schema_rejects_provenance_required_drift() -> None:
     assert "alignment provenance schema required keys mismatch" in errors
 
 
+def test_alignment_rule_schema_rejects_nested_object_type_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    provenance = properties["provenance"]
+    assertion_hints = properties["assertion_hints"]
+    assert isinstance(provenance, dict)
+    assert isinstance(assertion_hints, dict)
+    del provenance["type"]
+    del assertion_hints["type"]
+
+    errors = validate_alignment_rule_schema(json.dumps(schema, sort_keys=True))
+
+    assert "alignment provenance schema type must be object" in errors
+    assert "alignment assertion_hints schema type must be object" in errors
+
+
 def test_alignment_rule_schema_rejects_identity_drift() -> None:
     schema = _schema()
     schema["$id"] = "https://example.invalid/wrong.json"
@@ -246,6 +263,41 @@ def test_alignment_rule_schema_rejects_tags_unique_items_drift() -> None:
     errors = validate_alignment_rule_schema(json.dumps(schema, sort_keys=True))
 
     assert "alignment schema property tags uniqueItems mismatch" in errors
+
+
+def test_alignment_rule_schema_rejects_unknown_root_keyword() -> None:
+    schema = _schema()
+    schema["not"] = {}
+
+    errors = validate_alignment_rule_schema(json.dumps(schema, sort_keys=True))
+
+    assert "alignment rule schema unknown schema keyword not" in errors
+
+
+def test_alignment_rule_schema_rejects_unknown_property_keyword() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    schema_hash_property = properties["schema_hash"]
+    assert isinstance(schema_hash_property, dict)
+    schema_hash_property["not"] = {"type": "string"}
+
+    errors = validate_alignment_rule_schema(json.dumps(schema, sort_keys=True))
+
+    assert "alignment schema property schema_hash unknown schema keyword not" in errors
+
+
+def test_alignment_rule_schema_rejects_assertion_hints_required_drift() -> None:
+    schema = _schema()
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    assertion_hints = properties["assertion_hints"]
+    assert isinstance(assertion_hints, dict)
+    assertion_hints["required"] = ["boolean_checks", "regexes"]
+
+    errors = validate_alignment_rule_schema(json.dumps(schema, sort_keys=True))
+
+    assert "alignment assertion_hints schema required keys mismatch" in errors
 
 
 def test_alignment_rule_cli_prints_schema_hash(capsys: CaptureFixture[str]) -> None:

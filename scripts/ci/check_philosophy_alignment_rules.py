@@ -39,6 +39,20 @@ OPTIONAL_RULE_KEYS = ("notes", "tags")
 RULE_ID_RE = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 SHA256_RE = re.compile(r"^[a-f0-9]{64}$")
 DATE_TIME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})$")
+ROOT_SCHEMA_KEYS = {
+    "$id",
+    "$schema",
+    "additionalProperties",
+    "properties",
+    "required",
+    "title",
+    "type",
+}
+OBJECT_SCHEMA_KEYS = {"additionalProperties", "properties", "required", "type"}
+OPTIONAL_OBJECT_SCHEMA_KEYS = {"additionalProperties", "properties", "type"}
+ENUM_SCHEMA_KEYS = {"enum", "type"}
+ARRAY_SCHEMA_KEYS = {"items", "type", "uniqueItems"}
+ITEM_SCHEMA_KEYS = {"type"}
 
 
 def canonical_json_bytes(payload: object) -> bytes:
@@ -108,10 +122,25 @@ def _validate_enum_property(
     prop, errors = _as_object(properties.get(key), label=f"alignment schema property {key}")
     if errors:
         return errors
+    errors.extend(
+        _reject_unknown_schema_keys(prop, ENUM_SCHEMA_KEYS, f"alignment schema property {key}")
+    )
+    if prop.get("type") != "string":
+        errors.append(f"alignment schema property {key} type must be string")
     enum = prop.get("enum")
     if enum != list(expected):
-        return [f"alignment schema enum mismatch for {key}"]
-    return []
+        errors.append(f"alignment schema enum mismatch for {key}")
+    return errors
+
+
+def _reject_unknown_schema_keys(
+    schema_part: dict[str, object],
+    allowed_keys: set[str],
+    label: str,
+) -> list[str]:
+    return [
+        f"{label} unknown schema keyword {key}" for key in sorted(set(schema_part) - allowed_keys)
+    ]
 
 
 def _object_property(
@@ -132,6 +161,18 @@ def _validate_string_property(
     prop, errors = _object_property(properties, key)
     if errors:
         return errors
+    allowed_keys = {"type"}
+    if min_length is not None:
+        allowed_keys.add("minLength")
+    if pattern is not None:
+        allowed_keys.add("pattern")
+    if const is not None:
+        allowed_keys.add("const")
+    if format_name is not None:
+        allowed_keys.add("format")
+    errors.extend(
+        _reject_unknown_schema_keys(prop, allowed_keys, f"alignment schema property {key}")
+    )
     if prop.get("type") != "string":
         errors.append(f"alignment schema property {key} type must be string")
     if min_length is not None and prop.get("minLength") != min_length:
@@ -154,6 +195,9 @@ def _validate_string_array_property(
     prop, errors = _object_property(properties, key)
     if errors:
         return errors
+    errors.extend(
+        _reject_unknown_schema_keys(prop, ARRAY_SCHEMA_KEYS, f"alignment schema property {key}")
+    )
     if prop.get("type") != "array":
         errors.append(f"alignment schema property {key} type must be array")
     if prop.get("uniqueItems") is not unique_items:
@@ -163,8 +207,16 @@ def _validate_string_array_property(
         label=f"alignment schema property {key}.items",
     )
     errors.extend(item_errors)
-    if not item_errors and items.get("type") != "string":
-        errors.append(f"alignment schema property {key}.items type must be string")
+    if not item_errors:
+        errors.extend(
+            _reject_unknown_schema_keys(
+                items,
+                ITEM_SCHEMA_KEYS,
+                f"alignment schema property {key}.items",
+            )
+        )
+        if items.get("type") != "string":
+            errors.append(f"alignment schema property {key}.items type must be string")
     return errors
 
 
@@ -200,6 +252,9 @@ def validate_alignment_rule_schema(schema_text: str) -> list[str]:
         errors.append("alignment rule schema root type must be object")
     if schema_obj.get("additionalProperties") is not False:
         errors.append("alignment rule schema must set additionalProperties false")
+    errors.extend(
+        _reject_unknown_schema_keys(schema_obj, ROOT_SCHEMA_KEYS, "alignment rule schema")
+    )
 
     required = schema_obj.get("required")
     if required != list(REQUIRED_RULE_KEYS):
@@ -217,7 +272,14 @@ def validate_alignment_rule_schema(schema_text: str) -> list[str]:
     if set(properties) != allowed_keys:
         errors.append("alignment rule schema properties keys mismatch")
 
-    errors.extend(_validate_string_property(properties, key="rule_id", pattern=RULE_ID_RE.pattern))
+    errors.extend(
+        _validate_string_property(
+            properties,
+            key="rule_id",
+            min_length=1,
+            pattern=RULE_ID_RE.pattern,
+        )
+    )
     errors.extend(_validate_string_property(properties, key="rule_text", min_length=1))
     errors.extend(_validate_string_property(properties, key="created_by", min_length=1))
     errors.extend(
@@ -243,6 +305,15 @@ def validate_alignment_rule_schema(schema_text: str) -> list[str]:
     )
     errors.extend(provenance_errors)
     if not provenance_errors:
+        errors.extend(
+            _reject_unknown_schema_keys(
+                provenance,
+                OBJECT_SCHEMA_KEYS,
+                "alignment provenance schema",
+            )
+        )
+        if provenance.get("type") != "object":
+            errors.append("alignment provenance schema type must be object")
         if provenance.get("additionalProperties") is not False:
             errors.append("alignment provenance schema must set additionalProperties false")
         if provenance.get("required") != ["source_id", "source_type", "version", "anchor_hash"]:
@@ -272,8 +343,19 @@ def validate_alignment_rule_schema(schema_text: str) -> list[str]:
     )
     errors.extend(hints_errors)
     if not hints_errors:
+        errors.extend(
+            _reject_unknown_schema_keys(
+                assertion_hints,
+                OPTIONAL_OBJECT_SCHEMA_KEYS,
+                "alignment assertion_hints schema",
+            )
+        )
+        if assertion_hints.get("type") != "object":
+            errors.append("alignment assertion_hints schema type must be object")
         if assertion_hints.get("additionalProperties") is not False:
             errors.append("alignment assertion_hints schema must set additionalProperties false")
+        if "required" in assertion_hints:
+            errors.append("alignment assertion_hints schema required keys mismatch")
         hint_props, hint_prop_errors = _as_object(
             assertion_hints.get("properties"),
             label="alignment assertion_hints schema properties",

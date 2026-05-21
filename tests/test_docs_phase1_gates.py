@@ -436,3 +436,31 @@ def test_phase1_guard_validates_philosophy_alignment_rule_schema_edits(
     errors = gates.check_docs_phase1_guards(markdown_files=[gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA])
 
     assert any("alignment validator called" in error for error in errors)
+
+
+def test_phase1_guard_validates_philosophy_alignment_rule_record_edits(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    schema_path = tmp_path / gates.PHILOSOPHY_ALIGNMENT_RULE_SCHEMA
+    schema_path.parent.mkdir(parents=True, exist_ok=True)
+    schema_path.write_text("{}", encoding="utf-8")
+    record_relpath = f"{gates.PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX}sample.json"
+    record_path = tmp_path / record_relpath
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text('{"rule_id": "sample"}', encoding="utf-8")
+    calls: list[dict[str, object]] = []
+
+    def _fake_validator(**kwargs: object) -> list[str]:
+        calls.append(kwargs)
+        return ["record validator called"]
+
+    monkeypatch.setattr(gates, "REPO_ROOT", tmp_path)
+    monkeypatch.setattr(gates, "_load_philosophy_alignment_rule_validator", lambda: _fake_validator)
+
+    errors = gates.check_docs_phase1_guards(markdown_files=[record_relpath])
+
+    assert any("record validator called" in error for error in errors)
+    assert calls
+    assert calls[0]["schema_text"] == "{}"
+    assert calls[0]["rule_texts"] == {record_relpath: '{"rule_id": "sample"}'}

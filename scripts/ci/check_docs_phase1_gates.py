@@ -100,6 +100,7 @@ PHILOSOPHY_ADMISSION_DRY_RUN_REPORT_SCHEMA = (
 PHILOSOPHY_ALIGNMENT_RULE_SCHEMA = (
     "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json"
 )
+PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX = "docs/orchestration/contracts/philosophy_alignment_rules/"
 PHILOSOPHY_ADMISSION_DRY_RUN_INPUTS: tuple[str, ...] = (
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY,
     PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY_SCHEMA,
@@ -231,6 +232,26 @@ class AlignmentRuleValidator(Protocol):
 
 def _load_philosophy_alignment_rule_validator() -> AlignmentRuleValidator:
     return cast(AlignmentRuleValidator, _validate_alignment_rules)
+
+
+def _is_philosophy_alignment_rule_record(path: str) -> bool:
+    return path.startswith(PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX) and path.endswith(".json")
+
+
+def _read_philosophy_alignment_rule_records(
+    *,
+    changed_relpath: str,
+    changed_content: str,
+) -> dict[str, str]:
+    records: dict[str, str] = {}
+    records_dir = REPO_ROOT / PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX
+    if records_dir.is_dir():
+        for path in sorted(records_dir.glob("*.json")):
+            relpath = path.relative_to(REPO_ROOT).as_posix()
+            records[relpath] = path.read_text(encoding="utf-8")
+    if _is_philosophy_alignment_rule_record(changed_relpath):
+        records[changed_relpath] = changed_content
+    return records
 
 
 def _read_text(relpath: str) -> str:
@@ -512,11 +533,24 @@ def check_docs_phase1_guards(markdown_files: list[str]) -> list[str]:
                     )
                 )
 
-        if relpath == PHILOSOPHY_ALIGNMENT_RULE_SCHEMA:
+        if relpath == PHILOSOPHY_ALIGNMENT_RULE_SCHEMA or _is_philosophy_alignment_rule_record(
+            relpath
+        ):
             validate_alignment_rules = _load_philosophy_alignment_rule_validator()
+            schema_text = (
+                content
+                if relpath == PHILOSOPHY_ALIGNMENT_RULE_SCHEMA
+                else _read_text(PHILOSOPHY_ALIGNMENT_RULE_SCHEMA)
+            )
+            rule_texts = _read_philosophy_alignment_rule_records(
+                changed_relpath=relpath,
+                changed_content=content,
+            )
             errors.extend(
                 f"{relpath}: {error}"
-                for error in validate_alignment_rules(schema_text=content, rule_texts={})
+                for error in validate_alignment_rules(
+                    schema_text=schema_text, rule_texts=rule_texts
+                )
             )
 
     return errors
