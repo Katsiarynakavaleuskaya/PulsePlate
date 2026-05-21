@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import importlib.util
+from collections.abc import Callable
 from pathlib import Path
+import runpy
 import subprocess
 import sys
-from types import ModuleType
+from typing import cast
 
 import pytest
 
@@ -177,13 +178,9 @@ def _errors_with_repo_root_only(repo_root: Path) -> list[str]:
     return [line for line in f"{result.stderr}\n{result.stdout}".splitlines() if line.strip()]
 
 
-def _load_checker_module() -> ModuleType:
-    spec = importlib.util.spec_from_file_location("check_ai_recursive_speed_a8_closeout", CHECKER)
-    assert spec is not None
-    assert spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def _load_validate_closeout() -> Callable[..., list[str]]:
+    namespace = runpy.run_path(str(CHECKER), run_name="a8_closeout_checker")
+    return cast(Callable[..., list[str]], namespace["validate_closeout"])
 
 
 def test_checker_passes_on_current_repository() -> None:
@@ -198,9 +195,8 @@ def test_checker_passes_on_valid_minimal_fixture(tmp_path: Path) -> None:
 
 def test_validate_closeout_direct_api_passes_valid_minimal_fixture(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
-    validate_closeout = getattr(_load_checker_module(), "validate_closeout")
 
-    assert validate_closeout(repo_root=tmp_path) == []
+    assert _load_validate_closeout()(repo_root=tmp_path) == []
 
 
 def test_checker_rejects_missing_pr1578_evidence(tmp_path: Path) -> None:
