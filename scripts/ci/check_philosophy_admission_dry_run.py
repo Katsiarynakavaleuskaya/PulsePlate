@@ -383,6 +383,7 @@ def _validate_report_schema(
     for key in (
         "report_id",
         "report_version",
+        "generated_at",
         "rollout_phase",
         "gate_status",
         "runtime_allowed",

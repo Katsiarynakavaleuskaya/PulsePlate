@@ -225,6 +225,15 @@ def test_dry_run_schema_requires_closed_gate_constants() -> None:
     assert "philosophy admission dry-run schema const missing for gate_status" in errors
 
 
+def test_dry_run_schema_requires_generated_at_const() -> None:
+    schema = json.loads(_report_schema_text())
+    del schema["properties"]["generated_at"]["const"]
+
+    errors = _validate(schema_text=json.dumps(schema, indent=2) + "\n")
+
+    assert "philosophy admission dry-run schema const missing for generated_at" in errors
+
+
 def test_dry_run_schema_requires_nested_cache_permission_consts() -> None:
     schema = json.loads(_report_schema_text())
     decision_properties = schema["properties"]["dry_run_decisions"]["items"]["properties"]
