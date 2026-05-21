@@ -17,7 +17,7 @@ try:
         validate_philosophy_semantic_cache_admission_policy,
     )
 except ModuleNotFoundError:  # pragma: no cover - file-mode CLI fallback
-    from check_semantic_cache_gate import (  # type: ignore[no-redef]
+    from check_semantic_cache_gate import (
         validate_philosophy_admission_oracle_fixture,
         validate_philosophy_semantic_cache_admission_policy,
     )
