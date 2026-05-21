@@ -246,7 +246,7 @@ def _read_philosophy_alignment_rule_records(
     records: dict[str, str] = {}
     records_dir = REPO_ROOT / PHILOSOPHY_ALIGNMENT_RULE_RECORD_PREFIX
     if records_dir.is_dir():
-        for path in sorted(records_dir.glob("*.json")):
+        for path in sorted(records_dir.rglob("*.json")):
             relpath = path.relative_to(REPO_ROOT).as_posix()
             records[relpath] = path.read_text(encoding="utf-8")
     if _is_philosophy_alignment_rule_record(changed_relpath):
