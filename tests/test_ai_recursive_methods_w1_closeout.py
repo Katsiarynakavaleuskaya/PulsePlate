@@ -238,17 +238,25 @@ def test_checker_rejects_semantic_cache_gate_open_marker(tmp_path: Path) -> None
             "PR-A7 opens semantic cache",
         ),
         ("Semantic-cache serving is enabled by PR-A7.", "semantic cache enabled"),
+        ("Semantic-cache opened.", "semantic cache direct activation"),
+        ("Semantic-cache enabled.", "semantic cache direct activation"),
         ("Semantic-cache is production-ready.", "semantic cache active status"),
         ("Semantic-cache has been opened.", "semantic cache active status"),
         ("PR-A7 approves Redis for semantic-cache rollout.", "PR-A7 approves Redis"),
         ("GPTCache is rollout-ready for semantic-cache serving.", "Redis/GPTCache"),
         ("PR-A7 authorizes GraphRAG rollout.", "forbidden runtime surface"),
+        (
+            "PR-A7 does not open semantic-cache serving, but opens GraphRAG rollout.",
+            "forbidden runtime surface",
+        ),
         ("PR-A7 authorizes Context Manifest rollout.", "forbidden runtime surface"),
         ("PR-A7 approved database persistence.", "forbidden runtime surface"),
         ("PR-A7 approves DB rollout.", "forbidden runtime surface"),
         ("PR-A7 approves database rollout.", "forbidden runtime surface"),
         ("PR-A7 approves vector database rollout.", "forbidden runtime surface"),
         ("PR-A7 approves OpenAPI route changes.", "forbidden runtime surface"),
+        ("GraphRAG rollout is approved.", "forbidden runtime surface"),
+        ("Context Manifest is live.", "forbidden runtime surface"),
         ("GraphRAG rollout is approved by PR-A7.", "forbidden runtime surface"),
         ("Context Manifest rollout is authorized by PR-A7.", "forbidden runtime surface"),
         ("Database rollout is approved by PR-A7.", "forbidden runtime surface"),
@@ -288,7 +296,8 @@ def test_checker_allows_explicit_out_of_scope_negative_claims(tmp_path: Path) ->
         + "\nPR-A7 does not open semantic-cache serving.\n"
         + "Redis is not approved for semantic-cache rollout.\n"
         + "GraphRAG is out of scope for PR-A7.\n"
-        + "Semantic-cache gate remained closed.\n",
+        + "Semantic-cache gate remained closed.\n"
+        + "Raw prompt/response caching remains blocked.\n",
         encoding="utf-8",
     )
 

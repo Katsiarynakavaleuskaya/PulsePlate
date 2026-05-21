@@ -74,6 +74,14 @@ POSITIVE_ACTION_PATTERN = (
     r"activates?|activated|rolls?\s+out|caches?|cached|caching|cacheable|can\s+cache|"
     r"production[-\s]+ready|rollout[-\s]+ready)"
 )
+DIRECT_SEMANTIC_CACHE_ACTION_PATTERN = (
+    r"(?:opened|enabled|activated|approved|selected|cached|cacheable|"
+    r"production[-\s]+ready|rollout[-\s]+ready)"
+)
+DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN = (
+    r"(?:approved|enabled|authorized|selected|activated|"
+    r"active|open|opened|live|production[-\s]+ready|rollout[-\s]+ready)"
+)
 NEGATION_PATTERN = (
     r"(?:no|not|never|does\s+not|doesn't|must\s+not|cannot|can't|"
     r"out\s+of\s+scope|blocked|deferred|remains\s+closed|remained\s+closed)"
@@ -165,6 +173,15 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
+        "semantic cache direct activation",
+        re.compile(
+            rf"\b{SEMANTIC_CACHE_PATTERN}\b"
+            r"(?:\s+(?:serving|runtime|gate))?\s+"
+            rf"\b{DIRECT_SEMANTIC_CACHE_ACTION_PATTERN}\b",
+            re.I,
+        ),
+    ),
+    (
         "semantic cache active status",
         re.compile(
             rf"\b{SEMANTIC_CACHE_PATTERN}\b{CLAIM_GAP}\b"
@@ -206,6 +223,25 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         ),
     ),
     (
+        "forbidden runtime surface direct approval",
+        re.compile(
+            rf"\b{FORBIDDEN_SURFACE_PATTERN}\b"
+            r"(?:\s+(?:rollout|serving|runtime|implementation|persistence|changes?)){0,3}"
+            r"\s+(?:is|has\s+been|now)?\s*"
+            rf"\b{DIRECT_FORBIDDEN_SURFACE_STATUS_PATTERN}\b",
+            re.I,
+        ),
+    ),
+    (
+        "forbidden runtime surface active status",
+        re.compile(
+            rf"\b{FORBIDDEN_SURFACE_PATTERN}\b{CLAIM_GAP}\b"
+            r"(?:is|has\s+been|now)\s+"
+            r"(?:active|enabled|open|opened|live|production[-\s]+ready|rollout[-\s]+ready)\b",
+            re.I,
+        ),
+    ),
+    (
         "raw prompt/response/data cache permission",
         re.compile(
             rf"\b{PR_A7_PATTERN}\b{CLAIM_GAP}\b{POSITIVE_ACTION_PATTERN}\b"
@@ -225,6 +261,12 @@ FORBIDDEN_CLAIM_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
 NEGATABLE_ACTION_PATTERN = rf"(?:{POSITIVE_ACTION_PATTERN}|active|open|live)"
 NEGATION_BINDING_BREAK_PATTERN = re.compile(r"\b(?:and|but|however|then)\b|[.,;:]", re.I)
 NON_BINDING_NOT_PATTERN = re.compile(r"\b(?:not|does\s+not|doesn't)\b", re.I)
+TRAILING_BLOCKER_PATTERN = re.compile(
+    r"^\s*(?:remains?\s+)?"
+    r"(?:blocked|closed|deferred|out\s+of\s+scope|forbidden|disallowed|"
+    r"not\s+(?:allowed|approved|enabled|open|opened|active|live))\s*$",
+    re.I,
+)
 
 
 def _read_text(path: Path) -> str:
@@ -306,10 +348,28 @@ def _is_negated_claim(text: str, match: re.Match[str]) -> bool:
         )
         + 1
     )
+    sentence_end_candidates = [
+        pos
+        for pos in (
+            text.find(".", match.end()),
+            text.find("!", match.end()),
+            text.find("?", match.end()),
+            text.find("\n", match.end()),
+            text.find(";", match.end()),
+            text.find(":", match.end()),
+        )
+        if pos != -1
+    ]
+    sentence_end = min(sentence_end_candidates) if sentence_end_candidates else len(text)
     snippet = text[local_start : match.end()]
-    action = re.search(rf"\b{NEGATABLE_ACTION_PATTERN}\b", snippet, re.I)
+    actions = list(re.finditer(rf"\b{NEGATABLE_ACTION_PATTERN}\b", snippet, re.I))
+    action = actions[-1] if actions else None
     if not action:
         return re.search(rf"\b{NEGATION_PATTERN}\b", snippet, re.I) is not None
+
+    suffix = text[match.end() : sentence_end]
+    if TRAILING_BLOCKER_PATTERN.fullmatch(suffix):
+        return True
 
     prefix = snippet[: action.start()]
     negations = list(re.finditer(rf"\b{NEGATION_PATTERN}\b", prefix, re.I))
