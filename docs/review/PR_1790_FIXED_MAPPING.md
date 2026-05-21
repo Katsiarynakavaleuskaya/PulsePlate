@@ -11,6 +11,7 @@ parity for coordinator-owned PR lanes.
 - `10668b0a` - `fix(orchestration): close evidence mode review findings`
 - `b5133c5` - `fix(orchestration): harden bootstrap python parity`
 - `b50ab6e` - `docs(review): normalize pr 1790 mapping format`
+- `a978b76` - `fix(ci): forward experiment evidence mode directly`
 
 ## Discussion Thread Pass
 
@@ -29,8 +30,8 @@ Artifact: artifacts/orchestration/experiments/results/evidence-hard-gate-switch.
 Local oracle-only result, gitignored and not committed. Runner mode:
 `oracle_only_governance_reviewer`; `mutated_paths: []`; `promotion_ready: false`;
 `contribution_kind: commit_decision`; `coauthor_required: true`. Commits
-`190577d0e`, `10668b0a`, `b5133c5`, and `b50ab6e` include the canonical
-Experiment Runner co-author trailer.
+`190577d0e`, `10668b0a`, `b5133c5`, `b50ab6e`, and `a978b76` include the
+canonical Experiment Runner co-author trailer.
 
 ## Fixed in Commit Mapping
 
@@ -59,8 +60,12 @@ Evidence: fixed CodeRabbit and Codex bootstrap Python parity findings for parent
 Disposition: FIXED
 Commit: b50ab6e
 Evidence: normalized the canonical mapping artifact into parser-compatible disposition blocks with single-line URL-to-SHA mappings.
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340867011 -> b50ab6e
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#discussion_r3284439459 -> b50ab6e
+
+Disposition: FIXED
+Commit: a978b76
+Evidence: forwarded the configured Experiment Runner evidence mode directly into artifact/body evidence validation instead of relying on diagnostic post-processing.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1790#pullrequestreview-4340867011 -> a978b76
 
 ## Pre-Open Role-Agent Findings
 
