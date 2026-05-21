@@ -149,6 +149,13 @@ seller, partner, portal, or scraping sources.
 - Codex Security diff-scoped scan: PASS / no findings. Evidence: local report
   `/tmp/codex-security-scans/BMI-App_2025_clean/cf769df4feec_20260521T074722Z/report.md`.
 - `python3 scripts/ci/check_pr_size_governance.py --base-sha "$BASE" --head-sha "$HEAD" --body "$(cat /tmp/pr1783_body.md)"`: PASS after PR body split justification update.
+- Current-head CI for head `6ea40b984`: PASS. Evidence: CI run
+  `26213082761` completed successfully, including `pr_scope_guard`,
+  `PR Body Phase2 gates`, `Merge readiness gate`, `lint`, `test-pr (3.13)`,
+  `OpenAPI sync`, `security`, `coverage-pr`, and `diff-coverage`; build run
+  `26213082728` completed successfully.
+- `GH_TOKEN="$(gh auth token)" python3 scripts/orchestration/check_review_threads_disposition.py --pr-number 1783 --require-auth`: PASS.
+- `GITHUB_TOKEN="$(gh auth token)" python3 scripts/ci/check_pr_merge_readiness.py --pr-number 1783 --repo Katsiarynakavaleuskaya/PulsePlate`: PASS.
 
 Full local `make verify` is intentionally deferred by operator instruction for
 this governance-only lane. Merge readiness still requires PR current-head CI
@@ -201,6 +208,6 @@ Evidence: left post-open merge-readiness checklist items unchecked until final m
 - [x] CodeRabbit review inspected and dispositioned.
 - [x] Codex Security diff-scoped scan inspected and dispositioned.
 - [x] Security-auditor post-open pass recorded.
-- [ ] Current-head checks inspected.
+- [x] Current-head checks inspected.
 - [x] Review-thread disposition guard run with auth.
-- [ ] Strict merge-readiness gate run with auth.
+- [x] Strict merge-readiness gate run with auth.
