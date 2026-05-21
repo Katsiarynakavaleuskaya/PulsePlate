@@ -64,6 +64,13 @@ Commit: c670951654e82f6bd926cb65617f1fe9c2150987
 Evidence: `scripts/ci/check_philosophy_alignment_rules.py` now fails closed on nested `provenance`/`assertion_hints` object type drift, unexpected root/property JSON Schema keywords, and `assertion_hints.required` drift; `tests/test_philosophy_alignment_rules.py` covers each false-green path.
 Evidence: `scripts/ci/check_docs_phase1_gates.py` now routes future `docs/orchestration/contracts/philosophy_alignment_rules/*.json` record edits through `validate_alignment_rules(...)` with the schema plus rule texts; `tests/test_docs_phase1_gates.py` covers the Phase1 rule-record route.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284280175 -> 65a49b8bb5e9f296f45b842f090f7370f8ea5beb
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1789#discussion_r3284280179 -> 65a49b8bb5e9f296f45b842f090f7370f8ea5beb
+Disposition: FIXED
+Commit: 65a49b8bb5e9f296f45b842f090f7370f8ea5beb
+Evidence: `.github/workflows/ci.yml` now includes the `:(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json` pathspec in `PHASE1_CHANGED_FILES`, so rule-record JSON edits trigger the docs Phase1 gate in CI.
+Evidence: `scripts/ci/check_docs_phase1_gates.py` now uses `records_dir.rglob("*.json")`, so nested alignment-rule records are included in duplicate-ID and record-shape validation. `tests/test_docs_phase1_gates.py` covers nested record collection, and `tests/test_ci_workflow_pr_size_governance_contract.py` pins the workflow pathspec.
+
 ## Local Validation Evidence
 
 - `python3 scripts/orchestration/check_preflight.py` - PASS
@@ -71,7 +78,9 @@ Evidence: `scripts/ci/check_docs_phase1_gates.py` now routes future `docs/orches
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase pre_open` - PASS, packet `artifacts/orchestration/task_packets/d2e36e91b405.json`
 - `python3 scripts/orchestration/task_bootstrap.py ... --pr-phase post_open_review` - PASS, packet `artifacts/orchestration/task_packets/0cd5f8098592.json`
 - `.venv/bin/python scripts/ci/check_philosophy_alignment_rules.py` - PASS, `schema_hash=31d165ca54e37c0255c8103c52d9fbe29c70084398d665b1ada5f98532453f50`
-- `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`34 passed`)
+- `.venv/bin/python -m pytest -q tests/test_philosophy_alignment_rules.py tests/test_docs_phase1_gates.py -k "alignment or philosophy"` - PASS (`35 passed`)
+- `.venv/bin/python -m pytest -q tests/test_ci_workflow_pr_size_governance_contract.py -k docs_phase1_gates_include_schema_only_contract_changes` - PASS
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/philosophy_alignment_rules/wellness/scope.json` - PASS
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json docs/roadmap/BACKLOG_LEDGER.md` - PASS
 - `python3 scripts/ci/check_semantic_cache_gate.py` - PASS; semantic-cache gates remain closed
 - `make validate-changed` - PASS (`47 passed`)
