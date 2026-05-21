@@ -241,6 +241,15 @@ Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-2
     assert warnings == []
 
 
+def test_lane_start_provenance_accepts_mixed_case_repo_packet_reference() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/Philosophy_Epic_V2_Packet_2026-05-20.md
+""")
+
+    assert errors == []
+    assert any("not available locally" in warning for warning in warnings)
+
+
 def test_lane_start_provenance_accepts_narrow_exception() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
 Exception: trivial docs cleanup: no branch bootstrap needed.
@@ -305,6 +314,25 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert any("not available locally" in warning for warning in warnings)
 
 
+def test_lane_start_provenance_warns_on_symlink_loop_packet(
+    tmp_path: Path,
+) -> None:
+    packet = tmp_path / "artifacts" / "orchestration" / "task_packets" / "loop.json"
+    packet.parent.mkdir(parents=True)
+    packet.symlink_to(packet)
+
+    errors, warnings = gates.check_lane_start_provenance(
+        """## Lane Start Provenance
+Packet: artifacts/orchestration/task_packets/loop.json
+Starter: scripts/orchestration/start_pr_lane.sh
+""",
+        repo_root=tmp_path,
+    )
+
+    assert errors == []
+    assert any("not available locally" in warning for warning in warnings)
+
+
 def test_lane_start_provenance_rejects_host_preflight_authority() -> None:
     errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
 Host preflight: Codex preflight already ran.
@@ -322,6 +350,17 @@ Cursor preflight: already ran.
 
     assert warnings == []
     assert any("must not cite host/Codex/Cursor/raw preflight" in error for error in errors)
+
+
+def test_lane_start_provenance_allows_negated_host_preflight_context() -> None:
+    errors, warnings = gates.check_lane_start_provenance("""## Lane Start Provenance
+Packet: docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md
+Starter: scripts/orchestration/start_pr_lane.sh
+Host/Codex preflight is not authoritative lane provenance.
+""")
+
+    assert errors == []
+    assert warnings == []
 
 
 def test_experiment_runner_coauthor_advisory_warns_when_required_trailer_missing(

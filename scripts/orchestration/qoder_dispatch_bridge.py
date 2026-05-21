@@ -422,7 +422,9 @@ def _parse_json_packet_roles(payload: Dict[str, Any]) -> List[str]:
     if isinstance(advisory_items, list):
         for item in advisory_items:
             add_slug(item, default_when_unspecified=False)
-    return list(dict.fromkeys(["agent-coordinator", *ordered]))
+    if not ordered or ordered[0] != "agent-coordinator":
+        return ["agent-coordinator", *ordered]
+    return ordered
 
 
 def _load_json_packet(packet_path: Path) -> Optional[Dict[str, Any]]:

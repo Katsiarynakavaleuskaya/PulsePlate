@@ -136,6 +136,29 @@ def test_parse_task_bootstrap_json_packet_places_reviewer_tail(
     ]
 
 
+def test_parse_task_bootstrap_json_packet_preserves_repeated_roles(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """JSON packets may intentionally reuse a role in distinct positions."""
+    monkeypatch.setattr(qoder_dispatch_bridge, "REPO_ROOT", tmp_path)
+    packet = {
+        "native_subagent_bridge": {
+            "primary": {"repo_agent_slug": "agent-coordinator"},
+            "reviewer": {"repo_agent_slug": "agent-coordinator"},
+            "secondary": [{"repo_agent_slug": "architecture-specialist"}],
+            "advisory": [],
+        }
+    }
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(json.dumps(packet), encoding="utf-8")
+
+    assert qoder_dispatch_bridge._parse_packet_roles(packet_path) == [
+        "agent-coordinator",
+        "architecture-specialist",
+        "agent-coordinator",
+    ]
+
+
 def test_task_bootstrap_json_reviewer_tail_resolves_code_review() -> None:
     """Reviewer-capable slugs from JSON packets should get CodeReview in tail slot."""
     agents_dir = REPO_ROOT / ".cursor" / "agents"

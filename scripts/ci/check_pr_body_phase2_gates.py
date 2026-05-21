@@ -65,6 +65,9 @@ EXPERIMENT_RUNNER_ARTIFACT_PREFIX = "artifacts/orchestration/experiments/results
 LANE_START_PACKET_RE = re.compile(r"(?im)^\s*(?:-\s*)?Packet:\s*`?(?P<path>[^`\s]+)`?\s*$")
 LANE_STARTER_RE = re.compile(r"(?im)^\s*(?:-\s*)?Starter:\s*`?(?P<path>[^`\s]+)`?\s*$")
 LANE_START_EXCEPTION_RE = re.compile(r"(?im)^\s*(?:-\s*)?Exception:\s*(?P<reason>\S.+?)\s*$")
+FORBIDDEN_PREFLIGHT_AUTHORITY_RE = re.compile(
+    r"(?im)^\s*(?:-\s*)?(?:host/codex|host|codex|cursor|raw|local)\s+preflight\s*:"
+)
 LANE_START_PACKET_PREFIX = "artifacts/orchestration/task_packets/"
 LANE_START_REPO_PACKET_PREFIX = "docs/orchestration/"
 LANE_STARTER_PATH = "scripts/orchestration/start_pr_lane.sh"
@@ -232,7 +235,7 @@ def _valid_lane_start_packet_path(path: str) -> bool:
     if cleaned.startswith(LANE_START_REPO_PACKET_PREFIX):
         if not cleaned.endswith(".md"):
             return False
-        if "PACKET" not in Path(cleaned).name:
+        if "packet" not in Path(cleaned).name.lower():
             return False
         path_parts = cleaned.split("/")
         if any(part in ("", ".", "..") for part in path_parts):
@@ -265,10 +268,10 @@ def _valid_lane_start_exception_reason(reason: str) -> bool:
 def _lane_start_packet_available(path: str, *, repo_root: Path) -> bool:
     """Return True when a lane-start packet reference is locally verifiable."""
     cleaned = path.strip().strip("`")
-    candidate = (repo_root / cleaned).resolve(strict=False)
     try:
+        candidate = (repo_root / cleaned).resolve(strict=False)
         candidate.relative_to(repo_root.resolve())
-    except ValueError:
+    except (OSError, RuntimeError, ValueError):
         return False
     return candidate.is_file()
 
@@ -343,14 +346,7 @@ def check_lane_start_provenance(
             "main cleanup, cache cleanup, or operator-declared emergency infrastructure repair."
         )
 
-    forbidden_preflight_authority = (
-        "host preflight",
-        "codex preflight",
-        "cursor preflight",
-        "raw preflight",
-        "local preflight",
-    )
-    if any(phrase in section.lower() for phrase in forbidden_preflight_authority):
+    if FORBIDDEN_PREFLIGHT_AUTHORITY_RE.search(section):
         errors.append(
             "Lane Start Provenance must not cite host/Codex/Cursor/raw preflight as authority; "
             "use repo `check_preflight.py`, `task_bootstrap.py`, or `start_pr_lane.sh` evidence."
