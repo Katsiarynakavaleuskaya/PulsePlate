@@ -15,7 +15,11 @@ tracked below.
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1784#discussion_r3279524313 -> 78d2cffe4
+Disposition: FIXED
+Commit: `78d2cffe4`
+Evidence: `scripts/ci/check_philosophy_admission_dry_run.py` no longer uses `sys.path.insert`, dynamic module execution, or `sys.modules` mutation; it reads `core/verification/contracts.py` with AST for the `VerificationStatus` literal.
+Evidence: `tests/test_philosophy_admission_dry_run_report.py` adds a regression that rejects those forbidden import/path mutation patterns in the checker.
 
 ## Experiment Runner Evidence
 
@@ -57,7 +61,7 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5d7a4fca1a4c.json`
   - Disposition: FIXED
   - Commit: `451d21164`
   - Evidence: `scripts/ci/check_philosophy_admission_dry_run.py` uses local JSON
-    files and a direct local `core/verification/contracts.py` load for enum
+    files and local `core/verification/contracts.py` AST parsing for enum
     anchoring only.
 - bug-hunter finding: PR-3 dry-run decisions must not silently permit any serving
   or cache action in non-passed, warning, or failed bundle states.
@@ -102,5 +106,17 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5d7a4fca1a4c.json`
     `generated_at` in root schema const enforcement, and
     `tests/test_philosophy_admission_dry_run_report.py` rejects schema-only
     removal of that const.
-
-Pending post-open `security-auditor` pass.
+- security-auditor finding: live PR head was stale and did not include the
+  bug-hunter schema-const fix while local mapping claimed it was fixed.
+  - Disposition: FIXED
+  - Commit: `7fb92938d`
+  - Evidence: the branch was pushed so live PR head includes commits
+    `76bf469b1` and `7fb92938d`; follow-up security review found no additional
+    actionable security issues.
+- CodeRabbit finding: the dry-run checker used `sys.path.insert`, dynamic
+  `importlib.util` module loading, and `sys.modules` mutation.
+  - Disposition: FIXED
+  - Commit: `78d2cffe4`
+  - Evidence: `scripts/ci/check_philosophy_admission_dry_run.py` now avoids those
+    patterns, and `tests/test_philosophy_admission_dry_run_report.py` covers the
+    forbidden-pattern regression.
