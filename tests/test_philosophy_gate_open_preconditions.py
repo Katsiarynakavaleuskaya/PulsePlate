@@ -124,7 +124,7 @@ def test_gate_open_preconditions_keep_all_runtime_permissions_false() -> None:
     assert handoff["serving_allowed"] is False
 
 
-def test_gate_open_preconditions_block_on_pending_alignment_schema() -> None:
+def test_gate_open_preconditions_block_on_alignment_schema_without_merge_proof() -> None:
     report = _report()
     precondition_rows = report["preconditions"]
     assert isinstance(precondition_rows, list)
@@ -134,7 +134,7 @@ def test_gate_open_preconditions_block_on_pending_alignment_schema() -> None:
         if isinstance(item, dict) and item["id"] == "pr1789_alignment_rule_schema_landed"
     )
 
-    assert alignment["status"] == "pending_external_predecessor"
+    assert alignment["status"] == "source_present_not_merge_verified"
     assert alignment["blocks_gate_open"] is True
     assert report["runtime_handoff_allowed"] is False
 
@@ -288,7 +288,7 @@ def test_gate_open_preconditions_reject_precondition_blocking_drift() -> None:
     pending = next(
         item
         for item in precondition_rows
-        if isinstance(item, dict) and item["status"] == "pending_external_predecessor"
+        if isinstance(item, dict) and item["id"] == "pr1789_alignment_rule_schema_landed"
     )
     pending["blocks_gate_open"] = False
     report_text = json.dumps(report, indent=2) + "\n"

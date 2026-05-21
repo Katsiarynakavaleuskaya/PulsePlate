@@ -260,6 +260,10 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json'"
+        in docs_phase1_section
+    )
+    assert (
         "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json" in docs_phase1_section
     )
     assert (

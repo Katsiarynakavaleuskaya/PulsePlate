@@ -65,10 +65,10 @@
     {
       "id": "pr1789_alignment_rule_schema_landed",
       "label": "PR #1789 alignment-rule trust schema is present on this base",
-      "status": "pending_external_predecessor",
+      "status": "source_present_not_merge_verified",
       "required_for_gate_open": true,
       "blocks_gate_open": true,
-      "evidence": "PR #1789 / codex/philosophy-alignment-rule-trust-schema is external to this PR-4 branch"
+      "evidence": "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json; schema shape validated, but merge/current-head proof is still required"
     },
     {
       "id": "pr_a1b_reconciled",

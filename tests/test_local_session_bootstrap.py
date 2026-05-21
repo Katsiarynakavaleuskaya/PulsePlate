@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +13,11 @@ BOOTSTRAP_SCRIPT = REPO_ROOT / "scripts/orchestration/local_session_bootstrap.sh
 PREFLIGHT_SUCCESS_MARKER = "OK: preflight passed (analyze)"
 
 
-def run_bootstrap(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+def run_bootstrap(
+    *args: str,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
     """Run the shell bridge without mutating the repo checkout."""
 
     bash_path = shutil.which("bash")
@@ -25,6 +31,7 @@ def run_bootstrap(*args: str, cwd: Path | None = None) -> subprocess.CompletedPr
         capture_output=True,
         check=False,
         timeout=60,
+        env=env,
     )
 
 
@@ -60,8 +67,10 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
 
     assert result.returncode == 0, result.stderr
     assert "OK: preflight passed (analyze)" in result.stdout
+    assert "Repo Python:" in result.stdout
+    assert "avoid bare python3 -m pytest when .venv exists" in result.stdout
     assert "Generate the selected task packet:" in result.stdout
-    assert f"python3 {BOOTSTRAP_SCRIPT.parent / 'task_bootstrap.py'} \\" in result.stdout
+    assert f"{BOOTSTRAP_SCRIPT.parent / 'task_bootstrap.py'} \\" in result.stdout
     assert "--goal B0 \\" in result.stdout
     assert "--task-class Orchestration \\" in result.stdout
     assert "--pr-phase pre_open \\" in result.stdout
@@ -80,7 +89,8 @@ def test_local_session_bootstrap_prints_exact_selected_bootstrap_command(
     assert "Skills are passive/discovery-only" in result.stdout
     assert "Premortem closure rule: every premortem finding must be fixed" in result.stdout
     assert "No finding may be ignored as advisory." in result.stdout
-    assert ". .venv/bin/activate" in result.stdout
+    assert "VENV_PYTHON" in result.stdout
+    assert "$VENV_PYTHON -m pytest" in result.stdout
     assert "automatically start" not in result.stdout.lower()
 
 
@@ -98,7 +108,8 @@ def test_local_session_bootstrap_legacy_no_arg_prompt_is_explicit(tmp_path: Path
     assert "Goal: <set --goal>" in result.stdout
     assert "Task class: <set --task-class>" in result.stdout
     assert "Requested role order seed: agent-coordinator" in result.stdout
-    assert ". .venv/bin/activate" in result.stdout
+    assert "VENV_PYTHON" in result.stdout
+    assert "$VENV_PYTHON -m pytest" in result.stdout
     assert "automatically start" not in result.stdout.lower()
     assert "auto-start" not in result.stdout.lower()
 
@@ -224,6 +235,40 @@ def test_local_session_bootstrap_rejects_paths_outside_repo() -> None:
     assert result.returncode == 2
     assert "must be repo-relative or under repo root" in result.stderr
     assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+
+
+def test_local_session_bootstrap_rejects_relative_venv_python() -> None:
+    """The local bridge must not execute cwd-controlled relative Python paths."""
+
+    result = run_bootstrap(
+        "--goal",
+        "B0",
+        "--task-class",
+        "Orchestration",
+        env={**os.environ, "VENV_PYTHON": ".venv/bin/python"},
+    )
+
+    assert result.returncode == 1
+    assert "VENV_PYTHON must be an absolute executable path" in result.stderr
+    assert PREFLIGHT_SUCCESS_MARKER not in result.stdout
+
+
+def test_local_session_bootstrap_accepts_absolute_venv_python() -> None:
+    """Absolute VENV_PYTHON is accepted and becomes the printed local test path."""
+
+    result = run_bootstrap(
+        "--goal",
+        "B0",
+        "--task-class",
+        "Orchestration",
+        env={**os.environ, "VENV_PYTHON": sys.executable},
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert f"Repo Python: {sys.executable}" in result.stdout
+    assert "$PWD/.venv/bin/python" in result.stdout
+    assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
 
 
 def test_local_session_bootstrap_rejects_parent_traversal_at_path_end() -> None:
