@@ -61,6 +61,15 @@ def _active_manifest_artifact_version(package: str) -> str:
     return versions[0]
 
 
+def _single_active_manifest_artifact(package: str) -> dict[str, str]:
+    artifacts = [item for item in _repo_active_emergency_artifacts() if item["package"] == package]
+    assert artifacts, f"Active emergency wheel manifest must include {package!r}."
+    assert (
+        len(artifacts) == 1
+    ), f"Expected a single active emergency artifact for {package!r}, found {artifacts!r}."
+    return artifacts[0]
+
+
 def _compatible_release_version(contents: str, package: str) -> str | None:
     pattern = re.compile(rf"^{re.escape(package)}(?:\[[^]]+\])?\s*~=\s*([^\s;#]+)(?:\s*;.*)?$")
     matched_versions: list[str] = []
@@ -340,11 +349,54 @@ def test_repo_emergency_manifest_tracks_current_active_fallback_set() -> None:
         "bandit",
         "certifi",
         "pillow",
+        "protobuf",
         "python-multipart",
         "requests",
+        "wrapt",
     }
     assert ci_lite_emergency_pairs <= requirements_ci_lite_pins
     assert ("python-multipart", "0.0.27") in requirements_ci_lite_pins
+
+
+def test_repo_ci_lite_main_mirror_lag_emergency_wheels_are_selected(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    observed_downloads: list[tuple[str, str, str]] = []
+
+    def fake_download(*, url: str, destination: Path, expected_sha256: str) -> None:
+        observed_downloads.append((url, destination.name, expected_sha256))
+        destination.write_bytes(b"wheel-bytes")
+
+    monkeypatch.setattr(installer, "_download_with_sha256", fake_download)
+    expected_artifacts = {
+        artifact["filename"]: (artifact["url"], artifact["sha256"])
+        for artifact in installer.emergency_artifacts_requested_by_surfaces(
+            requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+            constraints_file=REPO_ROOT / "constraints.txt",
+            manifest_path=_repo_emergency_manifest_path(),
+        )
+    }
+    hotfix_artifacts = {
+        _single_active_manifest_artifact("protobuf")["filename"],
+        _single_active_manifest_artifact("wrapt")["filename"],
+    }
+
+    staged = installer.stage_emergency_wheels(
+        requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+        constraints_file=REPO_ROOT / "constraints.txt",
+        wheelhouse_dir=tmp_path / "wheelhouse",
+        manifest_path=_repo_emergency_manifest_path(),
+    )
+
+    observed_by_filename = {filename: (url, sha256) for url, filename, sha256 in observed_downloads}
+    staged_by_filename = {path.name for path in staged}
+
+    assert staged_by_filename == set(expected_artifacts)
+    assert staged_by_filename >= hotfix_artifacts
+    assert {
+        filename: observed_by_filename[filename] for filename in expected_artifacts
+    } == expected_artifacts
 
 
 def test_repo_idna_security_floor_matches_dependabot_alert_surfaces() -> None:
@@ -2101,6 +2153,66 @@ def test_install_from_proxy_with_emergency_fallback_continues_for_second_request
 
     assert health_packages == ["requests", "cryptography"]
     assert staged_packages == [["requests"], ["cryptography"]]
+    assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
+    assert install_attempts["count"] == 3
+
+
+def test_repo_ci_lite_direct_proxy_retry_stages_protobuf_then_wrapt(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    install_attempts = {"count": 0}
+    observed_find_links: list[Path | None] = []
+    health_packages: list[str] = []
+    staged_filenames: list[list[str]] = []
+    protobuf_artifact = _single_active_manifest_artifact("protobuf")
+    wrapt_artifact = _single_active_manifest_artifact("wrapt")
+
+    def fake_install_from_proxy(**kwargs: object) -> None:
+        install_attempts["count"] += 1
+        find_links_dir = kwargs["find_links_dir"]
+        observed_find_links.append(None if find_links_dir is None else Path(find_links_dir))
+        if install_attempts["count"] == 1:
+            raise _resolver_miss_runtimeerror_like_run_command("protobuf", "6.33.5")
+        if install_attempts["count"] == 2:
+            raise _resolver_miss_runtimeerror_like_run_command("wrapt", "2.0.1")
+
+    def allow_health(*, index_url: str, package: str, trusted_host: str | None) -> None:
+        assert index_url == APPROVED_PROXY_URL
+        assert trusted_host is None
+        health_packages.append(package)
+
+    def fake_stage_emergency_artifacts(**kwargs: object) -> list[Path]:
+        artifacts = kwargs["artifacts"]
+        assert isinstance(artifacts, list)
+        filenames = [str(artifact["filename"]) for artifact in artifacts]
+        staged_filenames.append(filenames)
+        wheelhouse_dir = Path(kwargs["wheelhouse_dir"])
+        staged = [wheelhouse_dir / filename for filename in filenames]
+        for destination in staged:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(b"wheel-bytes")
+        return staged
+
+    monkeypatch.setattr(installer, "install_from_proxy", fake_install_from_proxy)
+    monkeypatch.setattr(installer, "_require_private_index_project_health", allow_health)
+    monkeypatch.setattr(installer, "_stage_emergency_artifacts", fake_stage_emergency_artifacts)
+
+    installer.install_from_proxy_with_emergency_fallback(
+        python_executable="python",
+        requirement_files=[REPO_ROOT / "requirements-ci-lite.txt"],
+        constraints_file=REPO_ROOT / "constraints.txt",
+        index_url=APPROVED_PROXY_URL,
+        trusted_host=None,
+        emergency_wheelhouse_dir=tmp_path / "wheelhouse",
+        emergency_wheel_manifest=_repo_emergency_manifest_path(),
+    )
+
+    assert health_packages == ["protobuf", "wrapt"]
+    assert staged_filenames == [
+        [protobuf_artifact["filename"]],
+        [wrapt_artifact["filename"]],
+    ]
     assert observed_find_links == [None, tmp_path / "wheelhouse", tmp_path / "wheelhouse"]
     assert install_attempts["count"] == 3
 
