@@ -8,6 +8,11 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: 79ea81243
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3279238724 -> 79ea81243
+
+Disposition: FIXED
 Commit: e49746305
 Evidence: tests/test_qoder_dispatch_bridge.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#pullrequestreview-4334608995 -> e49746305
@@ -19,6 +24,9 @@ Reason: Sourcery suggested a maintainability refactor/centralization. The curren
 
 ## Implementation Commits
 
+- `79ea81243` — fixes the Codex review finding by placing task-bootstrap JSON
+  reviewer roles in the tail reviewer slot so reviewer-capable slugs keep
+  `CodeReview` semantics.
 - `e49746305` — fixes the CodeRabbit test-fixture finding by creating the
   patched `REPO_ROOT` agent definition used by the fenced-code packet parser
   test.
