@@ -8,6 +8,26 @@
 ## Fixed in Commit Mapping
 
 Disposition: FIXED
+Commit: 4842f81a0
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281317744 -> 4842f81a0
+
+Disposition: FIXED
+Commit: 4842f81a0
+Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281317750 -> 4842f81a0
+
+Disposition: FIXED
+Commit: 4842f81a0
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281317756 -> 4842f81a0
+
+Disposition: FIXED
+Commit: 4842f81a0
+Evidence: scripts/ci/check_pr_body_phase2_gates.py and tests/test_pr_body_phase2_gates.py
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281317760 -> 4842f81a0
+
+Disposition: FIXED
 Commit: b7302fe7f
 Evidence: scripts/orchestration/qoder_dispatch_bridge.py and tests/test_qoder_dispatch_bridge.py
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1782#discussion_r3281137824 -> b7302fe7f
@@ -104,6 +124,10 @@ Reason: Sourcery suggested a maintainability refactor/centralization. The curren
 
 ## Implementation Commits
 
+- `4842f81a0` — fixes follow-up Codex review findings by allowing
+  exception-plus-starter provenance, failing closed on malformed dispatch
+  contracts, accepting safe negated preflight explanations, and treating missing
+  repo-tracked packet docs as malformed provenance.
 - `b7302fe7f` — fixes follow-up Codex review findings by preserving adjacent
   duplicate JSON bridge role slots and rejecting contradictory host-preflight
   authority lines.
