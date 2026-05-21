@@ -94,4 +94,13 @@ Artifact: `artifacts/orchestration/experiments/results/exp-5d7a4fca1a4c.json`
 
 ## Post-Open Role-Agent Findings
 
-Pending post-open `bug-hunter -> security-auditor` pass.
+- bug-hunter finding: schema-only validation did not require the deterministic
+  `generated_at` const even though the report schema declares it.
+  - Disposition: FIXED
+  - Commit: `76bf469b1`
+  - Evidence: `scripts/ci/check_philosophy_admission_dry_run.py` now includes
+    `generated_at` in root schema const enforcement, and
+    `tests/test_philosophy_admission_dry_run_report.py` rejects schema-only
+    removal of that const.
+
+Pending post-open `security-auditor` pass.
