@@ -43,7 +43,7 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434507 -> 6884773c2
 Disposition: FIXED
 Commit: 6884773c2
-Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py` now removes the unused `_contains_negation` helper and routes negation handling through `_claim_is_locally_negated` / `_surface_claim_is_negated`; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` passed.
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py` now removes the unused `_contains_negation` helper and routes negation handling through `_claim_is_locally_negated` / `_surface_claim_is_negated`; `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` passed.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284434510
 Disposition: NOT-A-BUG
@@ -120,6 +120,38 @@ Disposition: FIXED
 Commit: fd3982fe9
 Evidence: stale-wording validation now applies PR-A8 section context; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_section_local_stale_a8_wording` covers omitted lane-token active wording.
 
+
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284702357 -> e5a5990b1
+Disposition: FIXED
+Commit: e5a5990b1
+Evidence: `docs/review/PR_1792_FIXED_MAPPING.md` Local Validation and prior FIXED evidence lines now use portable `python3` / `PATH="$(pwd)/.venv/bin:$PATH"` commands instead of machine-specific absolute interpreter paths.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284698655 -> cb8ea9a18
+Disposition: FIXED
+Commit: cb8ea9a18
+Evidence: `_python_ast_symbols` no longer treats string `ast.Constant` values as landed symbols; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_string_literal_only_landed_symbol` covers the false-green case.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284702365 -> cb8ea9a18
+Disposition: FIXED
+Commit: cb8ea9a18
+Evidence: `_validate_forbidden_claims` evaluates negation per sub-clause via `_iter_eval_subclauses`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_unrelated_negation_with_positive_forbidden_claim` covers whole-clause negation bypass.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284702367 -> cb8ea9a18
+Disposition: FIXED
+Commit: cb8ea9a18
+Evidence: same string-literal landed-symbol fix as `discussion_r3284698655`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_string_literal_only_landed_symbol`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284702379 -> cb8ea9a18
+Disposition: FIXED
+Commit: cb8ea9a18
+Evidence: adversarial negation regression `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_unrelated_negation_with_positive_forbidden_claim` plus string-literal regression above.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4340861452 -> 906b89b75
+Disposition: FIXED
+Commit: 906b89b75
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_direct_api_passes_valid_minimal_fixture` calls `validate_closeout(...)` directly without forbidden dynamic-import tokens.
+
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#issuecomment-4512882485
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit/usage notice, not a code, docs, security, or test finding. No repository fix is required for that notice.
@@ -134,7 +166,7 @@ Evidence: `tests/test_ai_recursive_speed_a8_closeout.py::test_validate_closeout_
 Post-open bug-hunter found wrapped-claim and activation-phrase checker gaps.
 Disposition: FIXED
 Commit: a581ea60b
-Evidence: `tests/test_ai_recursive_speed_a8_closeout.py` now covers wrapped stale wording, wrapped runtime expansion, wrapped benchmark overclaim, progressive activation phrases, public API wording, and negated active-lane wording; `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_repo_policy_guards.py` passed.
+Evidence: `tests/test_ai_recursive_speed_a8_closeout.py` now covers wrapped stale wording, wrapped runtime expansion, wrapped benchmark overclaim, progressive activation phrases, public API wording, and negated active-lane wording; `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_repo_policy_guards.py` passed.
 
 Post-open security-auditor found review-governance proof, section-local A8 wording, active-docs evidence, and landed-symbol proof gaps.
 Disposition: FIXED
@@ -152,15 +184,19 @@ Evidence: `/tmp/codex-security-scans/ai-recursive-speed-optimization-a8-closeout
 
 ## Local Validation
 
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_preflight.py` -> passed
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_agent_consistency.py` -> passed
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_semantic_cache_gate.py` -> passed
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
-- `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH make validate-changed` -> passed after the implementation commit
-- `PATH=/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin:$PATH pre-commit run --all-files` -> passed
+Portable commands (repo root, activate `.venv` via `PATH` when needed):
+
+- `python3 scripts/orchestration/check_preflight.py` -> passed
+- `python3 scripts/orchestration/check_agent_consistency.py` -> passed
+- `python3 scripts/orchestration/task_bootstrap.py --goal "PR 1792 A8 closeout merge-ready" --task-class Orchestration --pr-phase merge_ready --path scripts/ci/check_ai_recursive_speed_a8_closeout.py --path tests/test_ai_recursive_speed_a8_closeout.py --path docs/review/PR_1792_FIXED_MAPPING.md --requested-agent agent-coordinator --requested-agent architecture-specialist --requested-agent data-scientist-agent --requested-agent backend-engineer --requested-agent security-auditor --requested-agent qa-engineer-agent --requested-agent bug-hunter` -> passed (task_packet_id: `5f01082fd2d8`)
+- `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
+- `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
+- `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (50 tests after cb8ea9a18)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
+- `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
+- `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
+- `PATH="$(pwd)/.venv/bin:$PATH" pre-commit run --all-files` -> passed
 
 Full local `make verify` is intentionally deferred per operator-approved machine budget; this PR uses the bounded local bundle plus current-head CI and strict merge-readiness governance.
 
@@ -171,6 +207,9 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - Semantic-cache/runtime wording creep risk: FIXED by forbidden-claim checker and regressions.
 - Benchmark overclaim risk: FIXED by hypothesis/benchmark validation guard.
 - Hook false-positive risk: FIXED by splitting SHA literals instead of adding detect-secrets allowlist comments.
+- String-literal landed-symbol false-green risk: FIXED by cb8ea9a18 (`test_checker_rejects_string_literal_only_landed_symbol`).
+- Whole-clause negation bypass risk: FIXED by cb8ea9a18 (`test_checker_rejects_unrelated_negation_with_positive_forbidden_claim`).
+- Portable validation evidence drift: FIXED by governance mapping update (this artifact).
 
 ## Merge Readiness
 
