@@ -96,12 +96,13 @@ LOCAL_NEGATED_CLAIM_RE = re.compile(
 )
 BENCHMARK_CLAIM_RE = re.compile(
     r"(?=.*\b(?:latency|quality|reduction|maintained|accuracy)\b)"
-    r"(?=.*(?:\d+(?:-\d+)?%|>=?\s*\d+%|<=?\s*\d+%)).+",
+    r"(?=.*(?:\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%|>=?\s*\d+(?:\.\d+)?%|<=?\s*\d+(?:\.\d+)?%)).+",
     re.I,
 )
 FORBIDDEN_SURFACE_RE = re.compile(rf"\b({FORBIDDEN_SURFACE_PATTERN})\b", re.I)
 POSITIVE_ACTION_RE = re.compile(
-    r"\b(opens?|opened|opening|enables?|enabled|implements?|implemented|approves?|approved|"
+    r"\b(opens?|opened|opening|enables?|enabled|introduces?|introduced|introducing|"
+    r"implements?|implemented|approves?|approved|"
     r"authorizes?|authorized|permits?|permitted|allows?|allowed|adds?|added|ships?|shipped|"
     r"selects?|selected|activates?|activated|activating|rolls?\s+out|"
     r"turns?\s+(?:[A-Za-z0-9_/-]+\s+){0,8}on(?:\s+by\s+default)?|"
@@ -124,8 +125,15 @@ STALE_A8_REVERSED_RE = re.compile(
 CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|or|while)\b|[;]", re.I)
 COMMA_SPLIT_RE = re.compile(r",\s*")
 PHASE_SPLIT_RE = re.compile(r"\s*[:|/]\s*")
-DASH_SPLIT_RE = re.compile(r"\s+[-—–]\s+")
-SYMBOL_SPLIT_RE = re.compile(r"\s+(?:[+&]|\band\b)\s+", re.I)
+DASH_SPLIT_RE = re.compile(
+    r"\s+[-—–]\s+"
+    r"|(?<=[a-z])[—–](?=[a-z])"
+    r"|(?<=pending)-(?=active)"
+    r"|(?<=open)-(?=runtime)"
+    r"|(?<=in)-(?=progress)"
+    r"|(?<=implementation)-(?=lane)"
+)
+SYMBOL_SPLIT_RE = re.compile(r"(?:\s+|(?<=\w))(?:[+&]|\band\b)(?:\s+|(?=\w))", re.I)
 BRACKETED_FRAGMENT_RE = re.compile(r"\([^)]*\)|\[[^\]]*\]|\{[^}]*\}")
 
 
@@ -425,20 +433,30 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
                     if param in PARAM_ONLY_SYMBOLS:
                         symbols.add(param)
                 symbols.update(_collect_param_only_wiring(node.body))
-        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
-            target = node.target if isinstance(node, ast.AnnAssign) else node.targets[0]
-            symbols.update(_assign_target_names(target))
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                symbols.update(_assign_target_names(target))
+        elif isinstance(node, ast.AnnAssign):
+            if node.target is not None:
+                symbols.update(_assign_target_names(node.target))
     return symbols
 
 
 def _validate_semantic_cache_gate(gate_text: str, errors: list[str]) -> None:
     for marker, expected in REQUIRED_GATE_MARKERS.items():
         pattern = re.compile(rf"{re.escape(marker)}:\s*([A-Za-z0-9_-]+)")
-        match = pattern.search(gate_text)
-        if match is None:
+        matches = pattern.findall(gate_text)
+        if not matches:
             errors.append(f"missing semantic-cache marker: {marker}")
             continue
-        actual = match.group(1).lower()
+        normalized_values = {value.lower() for value in matches}
+        if len(normalized_values) > 1:
+            errors.append(
+                f"conflicting semantic-cache marker values for {marker}: "
+                f"{', '.join(sorted(normalized_values))}"
+            )
+            continue
+        actual = next(iter(normalized_values))
         if actual != expected:
             errors.append(f"{marker} expected {expected!r}, got {actual!r}")
 

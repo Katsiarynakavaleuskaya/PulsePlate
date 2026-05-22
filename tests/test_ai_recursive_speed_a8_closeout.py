@@ -1035,3 +1035,105 @@ def test_checker_rejects_bracketed_rollout_claim_after_negation(tmp_path: Path) 
         or "backend rollout approval claim" in error
         for error in errors
     )
+
+
+def test_checker_rejects_conflicting_semantic_cache_gate_markers(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    gate = tmp_path / "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md"
+    gate.write_text(
+        _valid_gate().replace(
+            "<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->",
+            "<!-- SEMANTIC_CACHE_GATE_STATUS: closed -->\n<!-- SEMANTIC_CACHE_GATE_STATUS: open -->",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any(
+        "conflicting semantic-cache marker values for SEMANTIC_CACHE_GATE_STATUS" in error
+        for error in errors
+    )
+
+
+def test_checker_rejects_introduces_forbidden_runtime_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 introduces Redis production-ready rollout for semantic cache.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
+def test_checker_rejects_tight_em_dash_stale_a8_tail(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 is not pending—active implementation lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_accepts_multi_target_assign_landed_symbol(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/ai/insight_runtime.py"
+    path.write_text(
+        "X, RecursiveRolloutPolicy = None, None\n\n"
+        "def _build_recursive_optimization_hints() -> None:\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert not any("RecursiveRolloutPolicy" in error for error in errors)
+
+
+def test_checker_rejects_decimal_benchmark_overclaim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained >=95%.",
+            "PR-A8 not only proves latency reduction 50.5% average and quality maintained >=95%.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+def test_checker_rejects_unspaced_symbol_joined_forbidden_runtime_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 does not open semantic cache+enables Redis production-ready rollout.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "backend rollout approval claim" in error
+        for error in errors
+    )
