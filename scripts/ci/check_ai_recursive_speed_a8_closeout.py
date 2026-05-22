@@ -90,7 +90,7 @@ LOCAL_NEGATED_CLAIM_RE = re.compile(
     r"\b(no|not|never|does\s+not|do\s+not|must\s+not|cannot|can't|"
     r"out\s+of\s+scope|deferred|remains?\s+closed|remained\s+closed|"
     r"gate[-\s]+closed|without|no\s+default)\b"
-    r"[^,;.]{0,140}"
+    r"[^,;.()[\]{}]{0,140}"
     rf"\b({FORBIDDEN_SURFACE_PATTERN})\b",
     re.I,
 )
@@ -125,6 +125,9 @@ CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|or|whi
 COMMA_SPLIT_RE = re.compile(r",\s*")
 PHASE_SPLIT_RE = re.compile(r"\s*[:|/]\s*")
 DASH_SPLIT_RE = re.compile(r"\s+[-—–]\s+")
+SYMBOL_SPLIT_RE = re.compile(r"\s+(?:[+&]|\band\b)\s+", re.I)
+BRACKETED_FRAGMENT_RE = re.compile(r"\([^)]*\)|\[[^\]]*\]|\{[^}]*\}")
+
 
 PARAM_ONLY_SYMBOLS = frozenset({"recursive_optimization_hints"})
 PARAM_ONLY_PATHS = frozenset(
@@ -163,15 +166,35 @@ def _sentences(text: str) -> list[str]:
     return [part.strip() for part in parts if part.strip()]
 
 
+def _bracket_fragments(text: str) -> list[str]:
+    fragments: list[str] = []
+    last_end = 0
+    for match in BRACKETED_FRAGMENT_RE.finditer(text):
+        outer = text[last_end : match.start()].strip()
+        if outer:
+            fragments.append(outer)
+        inner = match.group(0)[1:-1].strip()
+        if inner:
+            fragments.append(inner)
+        last_end = match.end()
+    tail = text[last_end:].strip()
+    if tail:
+        fragments.append(tail)
+    stripped = text.strip()
+    return fragments if fragments else ([stripped] if stripped else [])
+
+
 def _iter_eval_subclauses(clause: str) -> list[str]:
     subclauses: list[str] = []
     for contrast_part in CONTRAST_SPLIT_RE.split(clause):
         for comma_part in COMMA_SPLIT_RE.split(contrast_part):
             for dash_part in DASH_SPLIT_RE.split(comma_part):
-                for phase_part in PHASE_SPLIT_RE.split(dash_part):
-                    trimmed = phase_part.strip()
-                    if trimmed:
-                        subclauses.append(trimmed)
+                for symbol_part in SYMBOL_SPLIT_RE.split(dash_part):
+                    for bracket_part in _bracket_fragments(symbol_part):
+                        for phase_part in PHASE_SPLIT_RE.split(bracket_part):
+                            trimmed = phase_part.strip()
+                            if trimmed:
+                                subclauses.append(trimmed)
     return subclauses
 
 
@@ -449,11 +472,11 @@ def _validate_stale_a8_wording(
     for sentence in _sentences(active_text):
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for clause in _iter_eval_subclauses(sentence):
-            if _stale_status_is_negated(clause):
-                continue
             contextual_clause = (
                 f"PR-A8 {clause}" if sentence_has_a8 and not A8_REF_RE.search(clause) else clause
             )
+            if _stale_status_is_negated(contextual_clause):
+                continue
             if STALE_A8_RE.search(contextual_clause) or STALE_A8_REVERSED_RE.search(
                 contextual_clause
             ):

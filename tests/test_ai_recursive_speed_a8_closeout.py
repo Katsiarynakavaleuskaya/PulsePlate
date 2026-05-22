@@ -979,3 +979,59 @@ def test_checker_rejects_not_only_proves_benchmark_overclaim(tmp_path: Path) -> 
     errors = _errors(tmp_path)
 
     assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+def test_checker_rejects_symbol_joined_forbidden_runtime_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 does not open semantic cache + enables Redis production-ready rollout.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "backend rollout approval claim" in error
+        for error in errors
+    )
+
+
+def test_checker_rejects_parenthetical_stale_a8_tail(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 (not pending) active implementation lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_rejects_bracketed_rollout_claim_after_negation(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 does not open semantic cache (enables Redis production-ready rollout).",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "backend rollout approval claim" in error
+        for error in errors
+    )
