@@ -37,6 +37,10 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - Post-security artifact: `artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-security.json`
 - Post-security status: `accepted`
 - Post-security contribution: validation-only (`coauthor_required: false`, no content changes shaped)
+- Rescope artifact: `artifacts/orchestration/experiments/results/pr1792_a8_closeout_rescope_oracle.json`
+- Rescope status: `accepted`
+- Rescope contribution: `oracle_review` (`coauthor_required: true`)
+- Rescope commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on commit `838a3b79e`
 
 ## Fixed in Commit Mapping
 
@@ -342,6 +346,56 @@ Disposition: FIXED
 Commit: 58ff40308
 Evidence: `STALE_STATUS_RE` and `_stale_status_is_negated` accept hyphenated variants (`in-progress`, `open-runtime`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_hyphenated_in_progress_stale_a8` and `test_checker_rejects_hyphenated_open_runtime_stale_a8`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289408107 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:138-144` splits causal connectors including `because`, `since`, `as`, and `unless`; `tests/test_ai_recursive_speed_a8_closeout.py:1241-1254` and `tests/test_ai_recursive_speed_a8_closeout.py:1257-1270` cover because/unless bypasses.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289408114 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: landed symbol proof rejects `None`/value-only assignment spoofing and requires AST declarations/callable seams; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:500-519`, `tests/test_ai_recursive_speed_a8_closeout.py:1125-1137`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289408116
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-starlette-fastapi-compatibility-pr
+Reason: Starlette/FastAPI dependency and lockfile changes were removed from #1792 to preserve closeout-only scope; compatibility/security dependency work is tracked for `PR-TBD-DEPENDENCY-STARLETTE-FASTAPI-COMPATIBILITY`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289408118 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:883-891` now fails closed when `ledger-p1-recursive-methods` is missing and applies stale/runtime/benchmark checks to the ledger A8 section; `tests/test_ai_recursive_speed_a8_closeout.py:1236-1284` covers section-local stale/runtime/benchmark bypasses.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289417987
+Disposition: DEFERRED
+Backlog: docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-starlette-fastapi-compatibility-pr
+Reason: The CodeRabbit dependency/security question became out-of-scope after removing FastAPI/Starlette bumps and requirements changes from #1792. Dedicated compatibility PR must handle the dependency evidence and runtime tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289644887 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: `_validate_forbidden_claims` no longer skips parent-disqualified hypothesis wording before forbidden-claim checks; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:674-700`, `tests/test_ai_recursive_speed_a8_closeout.py:1290-1304`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289644891 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: `_walk_executable_nodes` ignores `if False:` bodies while preserving executable `else` branches; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:523-533`, `tests/test_ai_recursive_speed_a8_closeout.py:1156-1177`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289644895 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: phase-prefixed lines are no longer blanket-skipped in `_validate_forbidden_claims`; section-local forbidden/runtime checks execute under `assume_a8_context`; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:674-700`, `scripts/ci/check_ai_recursive_speed_a8_closeout.py:886-889`, `tests/test_ai_recursive_speed_a8_closeout.py:1290-1304`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289644900 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: `_validate_pr_evidence` requires active docs evidence separately from mapping-file evidence; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:863-873`; existing regression `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_requires_pr_evidence_in_active_docs_not_only_mapping` remains passing in the bounded gate.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3289644903 -> 838a3b79e
+Disposition: FIXED
+Commit: 838a3b79e
+Evidence: `_PENDING_LOOKAHEAD` excludes review/approval/merge/verification/audit/validation/closeout contexts from stale implementation-state matching; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:127-135`, `scripts/ci/check_ai_recursive_speed_a8_closeout.py:306-317`.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
@@ -383,6 +437,16 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" pre-commit run --all-files` -> passed
+- Rescope bounded bundle on 2026-05-22 after removing runtime/dependency drift:
+  - `./.venv/bin/python scripts/orchestration/check_preflight.py` -> passed
+  - `./.venv/bin/python scripts/orchestration/check_agent_consistency.py` -> passed
+  - `./.venv/bin/python scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
+  - `./.venv/bin/python scripts/ci/check_semantic_cache_gate.py` -> passed
+  - `./.venv/bin/python scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md docs/review/PR_1792_FIXED_MAPPING.md docs/ENGINEERING_LESSONS.md` -> passed
+  - `./.venv/bin/python -m pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
+  - `./.venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
+  - `make validate-changed` -> passed
+  - Experiment Runner oracle artifact `artifacts/orchestration/experiments/results/pr1792_a8_closeout_rescope_oracle.json` -> accepted
 
 Full local `make verify` is intentionally deferred per operator-approved machine budget; this PR uses the bounded local bundle plus current-head CI and strict merge-readiness governance.
 
