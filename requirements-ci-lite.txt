@@ -83,7 +83,7 @@ email-validator==2.3.0
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
-fastapi==0.135.1
+fastapi==0.136.1
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
@@ -324,7 +324,7 @@ sqlalchemy==2.0.48
     #   -c requirements.txt
     #   -r requirements-ci-lite.in
     #   alembic
-starlette==0.52.1
+starlette==1.0.1
     # via
     #   -c requirements.txt
     #   -r requirements-ci-lite.in

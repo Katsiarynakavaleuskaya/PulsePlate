@@ -44,7 +44,7 @@ dnspython==2.8.0
     # via email-validator
 email-validator==2.3.0
     # via -r requirements.in
-fastapi==0.135.1
+fastapi==0.136.1
     # via -r requirements.in
 fonttools==4.61.1
     # via matplotlib
@@ -171,7 +171,7 @@ sqlalchemy==2.0.48
     # via
     #   -r requirements.in
     #   alembic
-starlette==0.52.1
+starlette==1.0.1
     # via
     #   -r requirements.in
     #   fastapi
