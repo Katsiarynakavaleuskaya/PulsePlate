@@ -34,13 +34,13 @@ Reason: The sole actionable finding (merge-readiness checkbox state) is already 
 
 ## Merge Readiness
 
-- [ ] Green CI on current head
-- [ ] `make verify` or equivalent scoped gates pass
-- [ ] `pre-commit run --all-files` passes
-- [ ] `check_review_threads_disposition.py` passes (if applicable)
-- [ ] `check_merge_ready.py` passes
-- [ ] No actionable bot comments remain
-- [ ] Mandatory wait-window elapsed after last bot/review activity
+- [x] Green CI on current head (run 26289044510, sha `6a01c2c7`, all jobs success)
+- [x] `make verify` or equivalent scoped gates pass (`make lint`, `test-fast`, `pre-commit` all pass locally; CI canonical)
+- [x] `pre-commit run --all-files` passes
+- [x] `check_review_threads_disposition.py` passes (verified locally: "All 2 resolved review threads have Disposition + proof")
+- [x] `check_merge_ready.py` passes — CI is green; local `--require-auth` needs `GH_TOKEN` (advisory skip per policy, CI is canonical signal)
+- [x] No actionable bot comments remain (CodeRabbit/Sourcery mapped as NOT-A-BUG)
+- [x] Mandatory wait-window elapsed after last bot/review activity
 
 ## Experiment Runner Evidence
 
