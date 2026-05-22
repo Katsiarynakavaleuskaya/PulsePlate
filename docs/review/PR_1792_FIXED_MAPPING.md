@@ -237,6 +237,21 @@ Disposition: FIXED
 Commit: e6a1722b2
 Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:579-586` (`_overclaim_match_is_negated` ignores `not only` prefix); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_not_only_proves_benchmark_overclaim`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287027939 -> ee3725259
+Disposition: FIXED
+Commit: ee3725259
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:128` (`SYMBOL_SPLIT_RE`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:192-193` (symbol split before bracket/phase split in `_iter_eval_subclauses`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_symbol_joined_forbidden_runtime_claim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287027941 -> ee3725259
+Disposition: FIXED
+Commit: ee3725259
+Evidence: `_validate_stale_a8_wording()` now applies `_stale_status_is_negated()` per contextual subclause instead of the unsplit whole clause; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:478`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_parenthetical_stale_a8_tail`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287027943 -> ee3725259
+Disposition: FIXED
+Commit: ee3725259
+Evidence: `LOCAL_NEGATED_CLAIM_RE` negation-to-claim gap excludes bracket characters (`scripts/ci/check_ai_recursive_speed_a8_closeout.py:89-91`); bracket fragments split via `_bracket_fragments` (`scripts/ci/check_ai_recursive_speed_a8_closeout.py:169-175`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_bracketed_rollout_claim_after_negation`.
+
 
 ## Review-Level Notes
 
@@ -274,7 +289,7 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
 - `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (63 tests after e6a1722b2)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (66 tests after ee3725259)
 - `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
@@ -305,6 +320,10 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - Identifier-only landed-symbol false-green risk: FIXED by e6a1722b2 (`test_checker_rejects_identifier_only_landed_symbol_bypass`).
 - Dash-separated stale A8 tail bypass risk: FIXED by e6a1722b2 (`test_checker_rejects_dash_separated_stale_a8_tail`).
 - "Not only" false negation on benchmark overclaim risk: FIXED by e6a1722b2 (`test_checker_rejects_not_only_proves_benchmark_overclaim`).
+
+- Symbol-joined mixed-claim bypass risk: FIXED by ee3725259 (`test_checker_rejects_symbol_joined_forbidden_runtime_claim`).
+- Parenthetical stale A8 tail bypass risk: FIXED by ee3725259 (`test_checker_rejects_parenthetical_stale_a8_tail`).
+- Bracketed negation-span bypass risk: FIXED by ee3725259 (`test_checker_rejects_bracketed_rollout_claim_after_negation`).
 
 
 ## Merge Readiness
