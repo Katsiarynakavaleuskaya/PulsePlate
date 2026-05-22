@@ -34,6 +34,16 @@ Disposition: FIXED
 Commit: e4feeb11e
 Evidence: `tests/fixtures/dependency_security_schema.json:2-8` includes `starlette: 1.0.1`; `requirements-dev.in` / `requirements-dev.txt` include the same security floor so `tests/test_dependency_security_guard.py` enforces the advisory across repo-managed surfaces.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1795#pullrequestreview-4349013801 -> d24efe54c
+Disposition: FIXED
+Commit: d24efe54c
+Evidence: Aggregate CodeRabbit review covered the initial dependency/runtime compatibility implementation; implementation commit `d24efe54c` aligns constraints, patches `app/bootstrap/food_search.py`, and adds focused lifespan tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1795#pullrequestreview-4349129363 -> e4feeb11e
+Disposition: FIXED
+Commit: e4feeb11e
+Evidence: Aggregate CodeRabbit review covered `discussion_r3291373376` and `discussion_r3291373391`; both are mapped above to `e4feeb11e` with direct code/test/schema evidence.
+
 ## Local Validation
 
 - `/Users/katsiaryna_kavaleuskaya/Developer/BMI-App_2025_clean/.venv/bin/python scripts/orchestration/check_preflight.py` -> passed
