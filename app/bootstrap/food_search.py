@@ -108,12 +108,14 @@ def _ensure_meili_http_shutdown_handler(app: FastAPI) -> None:
 
     @contextlib.asynccontextmanager
     async def _wrapped_lifespan(app: FastAPI) -> AsyncIterator[None]:
-        if original_lifespan is not None:
-            async with original_lifespan(app):
+        try:
+            if original_lifespan is not None:
+                async with original_lifespan(app):
+                    yield
+            else:
                 yield
-        else:
-            yield
-        _dispose_meili_http_client(app)
+        finally:
+            _dispose_meili_http_client(app)
 
     app.router.lifespan_context = _wrapped_lifespan
     app.state._meili_http_shutdown_registered = True
