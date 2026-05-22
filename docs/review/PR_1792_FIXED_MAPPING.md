@@ -28,13 +28,13 @@ Canonical review-governance artifact and PR-body mirror requirements:
 - Contribution: `oracle_review`
 - Co-author required: yes
 - Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`
-- Post-review artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-review.json`
+- Post-review artifact: `artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-review.json`
 - Post-review status: `accepted`
 - Post-review contribution: validation-only (`coauthor_required: false`, no content changes shaped)
-- Post-bug-hunter artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-bughunter.json`
+- Post-bug-hunter artifact: `artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-bughunter.json`
 - Post-bug-hunter status: `accepted`
 - Post-bug-hunter contribution: validation-only (`coauthor_required: false`, no content changes shaped)
-- Post-security artifact: `artifacts/orchestration/experiments/results/artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-security.json`
+- Post-security artifact: `artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-security.json`
 - Post-security status: `accepted`
 - Post-security contribution: validation-only (`coauthor_required: false`, no content changes shaped)
 
@@ -197,6 +197,20 @@ Disposition: FIXED
 Commit: 914c5d6cf
 Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:126` (`PHASE_SPLIT_RE`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:157-161` (`_iter_eval_subclauses` slash split); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_slash_separated_stale_a8_tail`.
 
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4341447866 -> f96dd7496
+Disposition: FIXED
+Commit: f96dd7496
+Evidence: aggregate review duplicates `discussion_r3284983221`; landed-symbol collection uses selective `ast.keyword` only at `scripts/ci/check_ai_recursive_speed_a8_closeout.py:309-320` (no `ast.Dict` key string harvesting).
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4341460106
+Disposition: FIXED
+Evidence: deduplicated Experiment Runner Evidence paths in this artifact (`artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-{review,bughunter,security}.json`); PR body mirror updated in the same governance cycle.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4343544556
+Disposition: NOT-A-BUG
+Evidence: CodeRabbit nitpick on unreachable branches in `_validate_forbidden_claims` (`scripts/ci/check_ai_recursive_speed_a8_closeout.py`); forbidden-claim violations still fail closed via the generic forbidden-claim error path covered by adversarial tests in `tests/test_ai_recursive_speed_a8_closeout.py`.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
@@ -257,6 +271,7 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - Or-clause mixed negation bypass risk: FIXED by 914c5d6cf (`test_checker_rejects_or_joined_mixed_negation_runtime_expansion_claim`).
 - Colon-separated negation bleed risk: FIXED by 914c5d6cf (`test_checker_rejects_colon_separated_negation_bleed_claim`).
 - Slash-separated stale A8 tail bypass risk: FIXED by 914c5d6cf (`test_checker_rejects_slash_separated_stale_a8_tail`).
+- Duplicated Experiment Runner Evidence paths: FIXED by governance artifact path dedupe (this commit).
 
 
 ## Merge Readiness
