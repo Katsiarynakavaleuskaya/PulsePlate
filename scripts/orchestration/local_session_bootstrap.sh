@@ -2,6 +2,7 @@
 # Opt-in local bridge for coordinator-first sessions (repo SoT only).
 # RU: Не заменяет host launcher; вызывает preflight и напоминает про task_bootstrap.
 # EN: Does not replace a machine launcher; runs preflight then prints bootstrap hints.
+# Supports both Codex and Kimi Code CLI runtimes.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -226,6 +227,14 @@ fi
 echo ""
 printf "Full CLI: %q scripts/orchestration/task_bootstrap.py --help\n" "${REPO_PYTHON}"
 echo "Automation matrix: docs/orchestration/AUTOMATION_READINESS_MATRIX.md"
+echo ""
+echo "Kimi Code CLI runtime note:"
+echo "  - The same task_bootstrap.py command above produces a packet valid for Kimi."
+echo "  - When the Kimi runtime signals support, the packet carries"
+echo "    transport: 'kimi-native-subagents' and reuses .cursor/agents/*.md"
+echo "    instructions plus .agents/skills/ skills."
+echo "  - Run coordinator-first, load the agent definition for the routed primary,"
+echo "    then proceed per docs/orchestration/KIMI_NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md"
 echo ""
 prompt_cmd=(
     "${REPO_PYTHON}" "${RENDER_CODEX_PROMPT_PY}"

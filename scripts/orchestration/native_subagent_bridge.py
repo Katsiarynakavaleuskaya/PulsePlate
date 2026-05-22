@@ -1,10 +1,10 @@
 """Deterministic bridge between repo agents and native subagent runtimes.
 
 RU: Сохраняет repo-agent slug как каноническую роль и добавляет transport-only
-mapping на native subagent runtime для новых Codex/ChatGPT execution flows.
+mapping на native subagent runtime для новых Codex/ChatGPT и Kimi execution flows.
 EN: Keeps the repo-agent slug as the canonical role while adding a
 transport-only mapping to native subagent runtimes for newer Codex/ChatGPT
-execution flows.
+and Kimi Code CLI execution flows.
 """
 
 from __future__ import annotations
@@ -19,6 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 AGENTS_DIR = REPO_ROOT / ".cursor" / "agents"
 BRIDGE_PROTOCOL_VERSION = "1.0"
 BRIDGE_TRANSPORT = "codex-native-subagents"
+KIMI_BRIDGE_TRANSPORT = "kimi-native-subagents"
 
 
 @dataclass(frozen=True)
@@ -165,13 +166,18 @@ def build_native_subagent_bridge(
     secondary_agents: list[str],
     reviewer: str,
     advisory_agents: list[str] | None = None,
+    transport: str = BRIDGE_TRANSPORT,
 ) -> dict[str, Any]:
     """Build transport metadata for runtimes that expose native subagents.
 
     RU: Канон роли остаётся repo-agent slug; native type нужен только как
-    transport hint для нового runtime.
+    transport hint для нового runtime. Параметр ``transport`` позволяет
+    генерировать bridge для Codex (по умолчанию) или для Kimi без дублирования
+    профилей агентов.
     EN: The canonical role remains the repo-agent slug; the native type is only
-    a transport hint for the newer runtime.
+    a transport hint for the newer runtime. The ``transport`` parameter lets the
+    caller build a bridge for Codex (default) or Kimi without duplicating agent
+    profiles.
     """
 
     validate_native_subagent_bridge_profiles()
@@ -195,7 +201,7 @@ def build_native_subagent_bridge(
         )
     return {
         "protocol_version": BRIDGE_PROTOCOL_VERSION,
-        "transport": BRIDGE_TRANSPORT,
+        "transport": transport,
         "dispatch_policy": {
             "canonical_agent_identity": "repo_agent_slug",
             "native_executor_identity": "transport_only",
@@ -217,3 +223,31 @@ def build_native_subagent_bridge(
             role="reviewer",
         ),
     }
+
+
+def build_kimi_native_subagent_bridge(
+    *,
+    primary_agent: str,
+    secondary_agents: list[str],
+    reviewer: str,
+    advisory_agents: list[str] | None = None,
+) -> dict[str, Any]:
+    """Convenience wrapper for Kimi-native-subagents transport.
+
+    RU: Идентичен ``build_native_subagent_bridge`` с
+    ``transport=KIMI_BRIDGE_TRANSPORT``.  Профили агентов переиспользуются из
+    ``REPO_AGENT_EXECUTOR_PROFILES``; инструкции загружаются из
+    ``.cursor/agents/*.md``.
+    EN: Identical to ``build_native_subagent_bridge`` with
+    ``transport=KIMI_BRIDGE_TRANSPORT``.  Agent profiles are reused from
+    ``REPO_AGENT_EXECUTOR_PROFILES``; instructions are loaded from
+    ``.cursor/agents/*.md``.
+    """
+
+    return build_native_subagent_bridge(
+        primary_agent=primary_agent,
+        secondary_agents=secondary_agents,
+        reviewer=reviewer,
+        advisory_agents=advisory_agents,
+        transport=KIMI_BRIDGE_TRANSPORT,
+    )
