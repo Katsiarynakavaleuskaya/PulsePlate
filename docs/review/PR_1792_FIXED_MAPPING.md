@@ -282,7 +282,65 @@ Disposition: FIXED
 Commit: b3f11655b
 Evidence: `SYMBOL_SPLIT_RE` splits unspaced `+`, `&`, and `and` joins; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_unspaced_symbol_joined_forbidden_runtime_claim`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287669674 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_claim_is_locally_negated` skips spans preceded by `not only`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_not_only_forbidden_claim`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287669679 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `CONTRAST_SPLIT_RE` includes `whereas`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_whereas_split_forbidden_claim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287669685 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_stale_status_is_negated` skips spans preceded by `not only`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_not_only_stale_a8_wording`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287669691 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `DASH_SPLIT_RE` uses `(?<=[a-zA-Z])` for em-dash boundaries; `_normalize` pre-splits em-dashes; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_uppercase_em_dash_stale_a8_tail`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287669694 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_python_ast_symbols` rejects `None` assignments for required symbols; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_none_assigned_landed_symbol`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287669700 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_overclaim_match_is_negated` scopes negation to the same predicate verb; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_because_split_benchmark_overclaim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287946615 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_collect_string_literals_from_function` skips first docstring constant; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_excludes_docstring_from_early_stop_literals`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287946619 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_validate_stale_a8_wording` propagates `assume_a8_context` through `_eval_text_units`; ledger-anchor stale wording is covered by existing section-local tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287946622 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_validate_forbidden_claims` propagates `assume_a8_context` through `_eval_text_units`; ledger-anchor forbidden claims are covered by existing section-local tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287946626 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `_validate_benchmark_claims` propagates `assume_a8_context` through `_eval_text_units`; ledger-anchor benchmark overclaims are covered by existing section-local tests.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287946632 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `POSITIVE_ACTION_RE` expanded with `uses`, `supports`, `includes` and variants; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_additional_runtime_expansion_verbs`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287946638 -> 58ff40308
+Disposition: FIXED
+Commit: 58ff40308
+Evidence: `STALE_STATUS_RE` and `_stale_status_is_negated` accept hyphenated variants (`in-progress`, `open-runtime`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_hyphenated_in_progress_stale_a8` and `test_checker_rejects_hyphenated_open_runtime_stale_a8`.
 
 ## Review-Level Notes
 
@@ -320,7 +378,7 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
 - `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (72 tests after b3f11655b)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (89 tests after 58ff40308)
 - `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
