@@ -121,8 +121,9 @@ STALE_A8_REVERSED_RE = re.compile(
     r"implementation\s+lane|open\s+runtime)\b.*\b(pr[-\s]?a8|#1506|#1578)\b",
     re.I,
 )
-CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|while)\b|[;]", re.I)
+CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|or|while)\b|[;]", re.I)
 COMMA_SPLIT_RE = re.compile(r",\s*")
+PHASE_SPLIT_RE = re.compile(r"\s*[:|/]\s*")
 
 
 OVERCLAIM_RE = re.compile(
@@ -157,9 +158,10 @@ def _iter_eval_subclauses(clause: str) -> list[str]:
     subclauses: list[str] = []
     for contrast_part in CONTRAST_SPLIT_RE.split(clause):
         for comma_part in COMMA_SPLIT_RE.split(contrast_part):
-            trimmed = comma_part.strip()
-            if trimmed:
-                subclauses.append(trimmed)
+            for phase_part in PHASE_SPLIT_RE.split(comma_part):
+                trimmed = phase_part.strip()
+                if trimmed:
+                    subclauses.append(trimmed)
     return subclauses
 
 

@@ -507,6 +507,58 @@ def test_checker_rejects_runtime_expansion_action_verbs(tmp_path: Path, claim: s
     assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors), claim
 
 
+def test_checker_rejects_or_joined_mixed_negation_runtime_expansion_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 does not open semantic cache or approves Redis production-ready rollout.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
+def test_checker_rejects_colon_separated_negation_bleed_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "Semantic cache remains closed: Redis is production-ready for A8 rollout.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any(
+        "forbidden PR-A8 runtime expansion claim" in error
+        or "backend rollout approval claim" in error
+        for error in errors
+    )
+
+
+def test_checker_rejects_slash_separated_stale_a8_tail(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 is not pending / active implementation lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
 def test_checker_rejects_stale_a8_wording_in_ledger(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
