@@ -115,6 +115,7 @@ POSITIVE_ACTION_RE = re.compile(
     r"implements?|implemented|approves?|approved|"
     r"authorizes?|authorized|permits?|permitted|allows?|allowed|adds?|added|ships?|shipped|"
     r"selects?|selected|activates?|activated|activating|rolls?\s+out|"
+    r"uses?|used|using|supports?|supported|supporting|includes?|included|including|"
     r"turns?\s+(?:[A-Za-z0-9_/-]+\s+){0,8}on(?:\s+by\s+default)?|"
     r"wired|wires|"
     r"production[-\s]?ready|rollout[-\s]?ready|default[-\s]?on|"
@@ -123,26 +124,19 @@ POSITIVE_ACTION_RE = re.compile(
 )
 A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
 STALE_A8_RE = re.compile(
-    r"\b(pr[-\s]?a8|#1506|#1578)\b.*\b(pending|in\s+progress|active|"
-    r"next\s+logical|will\s+implement|implementation\s+lane|open\s+runtime)\b",
+    r"\b(pr[-\s]?a8|#1506|#1578)\b.*\b(pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
     re.I,
 )
 STALE_A8_REVERSED_RE = re.compile(
-    r"\b(pending|in\s+progress|active|next\s+logical|will\s+implement|"
-    r"implementation\s+lane|open\s+runtime)\b.*\b(pr[-\s]?a8|#1506|#1578)\b",
+    r"\b(pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b.*\b(pr[-\s]?a8|#1506|#1578)\b",
     re.I,
 )
-CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|or|while)\b|[;]", re.I)
+CONTRAST_SPLIT_RE = re.compile(
+    r"\b(?:but|however|though|although|yet|and|or|while|whereas)\b|[;]", re.I
+)
 COMMA_SPLIT_RE = re.compile(r",\s*")
 PHASE_SPLIT_RE = re.compile(r"\s*[:|/]\s*")
-DASH_SPLIT_RE = re.compile(
-    r"\s+[-—–]\s+"
-    r"|(?<=[a-z])[—–](?=[a-z])"
-    r"|(?<=pending)-(?=active)"
-    r"|(?<=open)-(?=runtime)"
-    r"|(?<=in)-(?=progress)"
-    r"|(?<=implementation)-(?=lane)"
-)
+DASH_SPLIT_RE = re.compile(r"\s+[-—–]\s+" r"|(?<=[a-zA-Z])[—–](?=[a-zA-Z])")
 SYMBOL_SPLIT_RE = re.compile(r"(?:\s+|(?<=\w))(?:[+&]|\band\b)(?:\s+|(?=\w))", re.I)
 BRACKETED_FRAGMENT_RE = re.compile(r"\([^)]*\)|\[[^\]]*\]|\{[^}]*\}")
 
@@ -162,6 +156,16 @@ OVERCLAIM_RE = re.compile(
     re.I,
 )
 
+PROOF_OVERCLAIM_RE = re.compile(
+    r"\b(proves?|proved|scientifically\s+validated|validated|guarantees?|"
+    r"guaranteed|achieves?|achieved|delivers?|delivered)\b",
+    re.I,
+)
+METRIC_MAINTAINED_RE = re.compile(
+    r"\b(?:quality\s+)?maintains?\b[^,;.]{0,20}(?:>=|≥|\d)",
+    re.I,
+)
+
 
 def _read_text(path: Path, errors: list[str]) -> str:
     try:
@@ -172,6 +176,7 @@ def _read_text(path: Path, errors: list[str]) -> str:
 
 
 def _normalize(text: str) -> str:
+    text = re.sub(r"(?<=[a-zA-Z])[\u2013\u2014](?=[a-zA-Z])", " - ", text)
     return text.translate(UNICODE_TRANSLATION)
 
 
@@ -182,6 +187,44 @@ def _sentences(text: str) -> list[str]:
         soft_wrapped = re.sub(r"[ \t]*\n[ \t]*", " ", paragraph.strip())
         parts.extend(re.split(r"(?<=[.!?])\s+", soft_wrapped))
     return [part.strip() for part in parts if part.strip()]
+
+
+def _markdown_list_units(text: str) -> list[str]:
+    normalized = _normalize(text)
+    units: list[str] = []
+    chunks = re.split(r"(?:^|\n)\s*- ", normalized)
+    for index, chunk in enumerate(chunks):
+        trimmed = chunk.strip()
+        if not trimmed:
+            continue
+        if index > 0:
+            trimmed = f"- {trimmed}"
+        units.extend(_sentences(trimmed))
+    if not units:
+        return _sentences(normalized)
+    return [unit for unit in units if unit.strip()]
+
+
+def _eval_text_units(text: str, *, assume_a8_context: bool = False) -> list[str]:
+    if assume_a8_context:
+        return _markdown_list_units(text)
+    return _sentences(text)
+
+
+def _parent_disqualifies_claims(sentence: str) -> bool:
+    """Skip only pure disclaimer sentences; never skip mixed benchmark claims."""
+    if BENCHMARK_CLAIM_RE.search(sentence):
+        return False
+    lowered = sentence.lower()
+    if "гипотез" in lowered and (
+        "benchmark validation" in lowered or "валидац" in lowered or "валидацией" in lowered
+    ):
+        return True
+    if "hypotheses only" in lowered and "benchmark validation" in lowered:
+        return True
+    if "hypothesis" in lowered and "not shipped performance claims" in lowered:
+        return True
+    return False
 
 
 def _bracket_fragments(text: str) -> list[str]:
@@ -217,7 +260,15 @@ def _iter_eval_subclauses(clause: str) -> list[str]:
 
 
 def _claim_is_locally_negated(text: str) -> bool:
-    return LOCAL_NEGATED_CLAIM_RE.search(_normalize(text)) is not None
+    normalized = _normalize(text)
+    for match in LOCAL_NEGATED_CLAIM_RE.finditer(normalized):
+        neg_text = match.group(1)
+        if neg_text.lower() == "not":
+            after = normalized[match.end(1) : match.end(1) + 10]
+            if re.match(r"\s+only\b", after, re.I):
+                continue
+        return True
+    return False
 
 
 def _surface_claim_is_negated(text: str) -> bool:
@@ -226,7 +277,7 @@ def _surface_claim_is_negated(text: str) -> bool:
         return True
     if (
         re.search(
-            rf"\b({FORBIDDEN_SURFACE_PATTERN})\b[^,;.]{{0,100}}"
+            r"\b(" + FORBIDDEN_SURFACE_PATTERN + r")\b[^,;\.]{0,100}"
             r"\b(?:is|are|was|were|remains?|remained)?\s*"
             r"(?:not|never)\s+"
             r"(?:active|live|enabled|opened|allowed|approved|selected|"
@@ -239,7 +290,7 @@ def _surface_claim_is_negated(text: str) -> bool:
         return True
     return (
         re.search(
-            rf"\b({FORBIDDEN_SURFACE_PATTERN})\b[^,;.]{{0,140}}"
+            r"\b(" + FORBIDDEN_SURFACE_PATTERN + r")\b[^,;\.]{0,140}"
             r"\b(?:remain|remains|remained)\s+(?:out\s+of\s+scope|closed)\b",
             normalized,
             re.I,
@@ -249,25 +300,27 @@ def _surface_claim_is_negated(text: str) -> bool:
 
 
 STALE_STATUS_RE = re.compile(
-    r"\b(?:pending|in\s+progress|active(?:\s+implementation\s+lane)?|"
-    r"implementation\s+lane|next\s+logical|will\s+implement|open\s+runtime)\b",
+    r"\b(?:pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
     re.I,
 )
 
 
 def _stale_status_is_negated(clause: str) -> bool:
     normalized = _normalize(clause)
-    return (
-        re.search(
-            r"\b(?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't)\b"
-            r"[^,;.]{0,80}\b(?:pending|in\s+progress|"
-            r"active(?:\s+implementation\s+lane)?|implementation\s+lane|"
-            r"next\s+logical|will\s+implement|open\s+runtime)\b",
-            normalized,
-            re.I,
-        )
-        is not None
+    match = re.search(
+        r"\b((?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't))\b"
+        r"[^,;.]{0,80}\b(?:pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
+        normalized,
+        re.I,
     )
+    if match is None:
+        return False
+    neg_text = match.group(1)
+    if neg_text.lower() == "not":
+        after = normalized[match.end(1) : match.end(1) + 10]
+        if re.match(r"\s+only\b", after, re.I):
+            return False
+    return True
 
 
 def _subclause_has_actionable_forbidden(sub_clause: str, *, sentence_has_a8: bool) -> bool:
@@ -444,11 +497,13 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
                         symbols.add(param)
                 symbols.update(_collect_param_only_wiring(node.body))
         elif isinstance(node, ast.Assign):
-            for target in node.targets:
-                symbols.update(_assign_target_names(target))
+            if not (isinstance(node.value, ast.Constant) and node.value.value is None):
+                for target in node.targets:
+                    symbols.update(_assign_target_names(target))
         elif isinstance(node, ast.AnnAssign):
             if node.target is not None:
-                symbols.update(_assign_target_names(node.target))
+                if not (isinstance(node.value, ast.Constant) and node.value.value is None):
+                    symbols.update(_assign_target_names(node.target))
     return symbols
 
 
@@ -456,9 +511,18 @@ def _collect_string_literals_from_function(
     node: ast.FunctionDef | ast.AsyncFunctionDef,
 ) -> set[str]:
     literals: set[str] = set()
-    for child in ast.walk(node):
-        if isinstance(child, ast.Constant) and isinstance(child.value, str):
-            literals.add(child.value)
+    start_index = 0
+    if (
+        node.body
+        and isinstance(node.body[0], ast.Expr)
+        and isinstance(node.body[0].value, ast.Constant)
+        and isinstance(node.body[0].value.value, str)
+    ):
+        start_index = 1
+    for stmt in node.body[start_index:]:
+        for child in ast.walk(stmt):
+            if isinstance(child, ast.Constant) and isinstance(child.value, str):
+                literals.add(child.value)
     return literals
 
 
@@ -555,16 +619,20 @@ def _validate_roadmap_section(roadmap_text: str, errors: list[str]) -> None:
 def _validate_stale_a8_wording(
     active_text: str, errors: list[str], *, assume_a8_context: bool = False
 ) -> None:
-    for sentence in _sentences(active_text):
+    for sentence in _eval_text_units(active_text, assume_a8_context=assume_a8_context):
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for clause in _iter_eval_subclauses(sentence):
-            contextual_clause = (
-                f"PR-A8 {clause}" if sentence_has_a8 and not A8_REF_RE.search(clause) else clause
-            )
+            clause_lower = clause.strip().lower()
+            contextual_clause = clause
+            if sentence_has_a8 and not A8_REF_RE.search(clause):
+                if not clause_lower.startswith(("not ", "no ", "never ", "nor ")):
+                    contextual_clause = f"PR-A8 {clause}"
             if _stale_status_is_negated(contextual_clause):
                 continue
-            if STALE_A8_RE.search(contextual_clause) or STALE_A8_REVERSED_RE.search(
-                contextual_clause
+            if (
+                STALE_A8_RE.search(contextual_clause)
+                or STALE_A8_REVERSED_RE.search(contextual_clause)
+                or (assume_a8_context and STALE_STATUS_RE.search(contextual_clause))
             ):
                 errors.append(f"stale PR-A8 active/pending wording: {sentence}")
                 break
@@ -580,7 +648,12 @@ def _validate_mapping_closeout(mapping_text: str, number: str, errors: list[str]
 def _validate_forbidden_claims(
     active_text: str, errors: list[str], *, assume_a8_context: bool = False
 ) -> None:
-    for sentence in _sentences(active_text):
+    for sentence in _eval_text_units(active_text, assume_a8_context=assume_a8_context):
+        if _parent_disqualifies_claims(sentence):
+            continue
+        if assume_a8_context and A8_REF_RE.search(sentence) is None:
+            if re.search(r"^\s*(?:-\s+)?Phase\s+\d+\s*[:.]", sentence, re.I):
+                continue
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for sub_clause in _iter_eval_subclauses(sentence):
             if not _subclause_has_actionable_forbidden(sub_clause, sentence_has_a8=sentence_has_a8):
@@ -609,10 +682,14 @@ def _validate_forbidden_claims(
 def _validate_benchmark_claims(
     active_text: str, errors: list[str], *, assume_a8_context: bool = False
 ) -> None:
-    for sentence in _sentences(active_text):
+    for sentence in _eval_text_units(active_text, assume_a8_context=assume_a8_context):
+        if _parent_disqualifies_claims(sentence):
+            continue
         if not assume_a8_context and A8_REF_RE.search(sentence) is None:
             continue
         if not BENCHMARK_CLAIM_RE.search(sentence):
+            continue
+        if _benchmark_claim_is_qualified(sentence) and not _has_proof_style_overclaim(sentence):
             continue
         subclauses = _iter_eval_subclauses(sentence)
         claim_clauses = [clause for clause in subclauses if BENCHMARK_CLAIM_RE.search(clause)]
@@ -630,6 +707,16 @@ def _validate_benchmark_claims(
             continue
         if not all(_benchmark_claim_is_qualified(clause) for clause in claim_clauses):
             errors.append(f"unvalidated benchmark claim: {sentence}")
+
+
+def _has_proof_style_overclaim(text: str) -> bool:
+    normalized = _normalize(text)
+    if METRIC_MAINTAINED_RE.search(normalized):
+        return False
+    return any(
+        not _overclaim_match_is_negated(normalized, match)
+        for match in PROOF_OVERCLAIM_RE.finditer(normalized)
+    )
 
 
 def _benchmark_claim_is_qualified(text: str) -> bool:
@@ -654,6 +741,8 @@ def _benchmark_claim_is_qualified(text: str) -> bool:
 
 
 def _benchmark_clause_is_overclaim(text: str, *, assume_a8_context: bool = False) -> bool:
+    if _benchmark_claim_is_qualified(text):
+        return False
     if not _has_unnegated_overclaim(text):
         return False
     if assume_a8_context or A8_REF_RE.search(text):
@@ -691,15 +780,20 @@ def _overclaim_match_is_negated(text: str, match: re.Match[str]) -> bool:
     if re.search(r"\bnot\s+only\b\s*$", immediate_prefix, re.I):
         return False
     scoped = f"{immediate_prefix}{verb}"
-    return (
-        re.search(
-            rf"\b(?:does\s+not|do\s+not|not|never|cannot|can't|doesn't)\s+"
-            rf"(?:[\w-]+\s+){{0,4}}{re.escape(verb)}\b",
-            scoped,
-            re.I,
-        )
-        is not None
+    neg_match = re.search(
+        rf"\b((?:does\s+not|do\s+not|not|never|cannot|can't|doesn't))\s+"
+        rf"(?:[\w-]+\s+){{0,4}}{re.escape(verb)}\b",
+        scoped,
+        re.I,
     )
+    if neg_match is None:
+        return False
+    between = scoped[neg_match.end(1) : neg_match.start() + len(neg_match.group(0)) - len(verb)]
+    if re.search(
+        r"\b(because|while|although|though|but|yet|whereas|however)\b|[,;]", between, re.I
+    ):
+        return False
+    return True
 
 
 def validate_closeout(
@@ -765,10 +859,15 @@ def validate_closeout(
     _validate_stale_a8_wording(stale_scan_text, errors)
     _validate_mapping_closeout(normalized_mapping1506, "1506", errors)
     _validate_mapping_closeout(normalized_mapping1578, "1578", errors)
+    ledger_a8_section = _find_anchor_section(normalized_ledger, "ledger-p1-recursive-methods")
     _validate_forbidden_claims(claim_scan_text, errors)
     _validate_forbidden_claims(roadmap_a8_section, errors, assume_a8_context=True)
+    _validate_forbidden_claims(ledger_a8_section, errors, assume_a8_context=True)
     _validate_benchmark_claims(claim_scan_text, errors)
     _validate_benchmark_claims(roadmap_a8_section, errors, assume_a8_context=True)
+    _validate_benchmark_claims(ledger_a8_section, errors, assume_a8_context=True)
+    if ledger_a8_section:
+        _validate_stale_a8_wording(ledger_a8_section, errors, assume_a8_context=True)
 
     return errors
 

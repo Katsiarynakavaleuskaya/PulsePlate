@@ -1110,7 +1110,8 @@ def test_checker_accepts_multi_target_assign_landed_symbol(tmp_path: Path) -> No
     _write_valid_repo(tmp_path)
     path = tmp_path / "core/ai/insight_runtime.py"
     path.write_text(
-        "X, RecursiveRolloutPolicy = None, None\n\n"
+        "X = None\n"
+        "RecursiveRolloutPolicy = object()\n\n"
         "def _build_recursive_optimization_hints() -> None:\n"
         "    return None\n",
         encoding="utf-8",
@@ -1119,6 +1120,224 @@ def test_checker_accepts_multi_target_assign_landed_symbol(tmp_path: Path) -> No
     errors = _errors(tmp_path)
 
     assert not any("RecursiveRolloutPolicy" in error for error in errors)
+
+
+def test_checker_rejects_none_assigned_landed_symbol(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/ai/insight_runtime.py"
+    path.write_text(
+        "RecursiveRolloutPolicy = None\n\n"
+        "def _build_recursive_optimization_hints() -> None:\n"
+        "    return None\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("RecursiveRolloutPolicy" in error for error in errors)
+
+
+def test_checker_excludes_docstring_from_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        '    """Docstring with early_stop_aggressive_short_circuit."""\n'
+        '    return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n\n'
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        '    return ("done", "early_stop_aggressive_short_circuit")\n',
+        encoding="utf-8",
+    )
+
+    assert _errors(tmp_path) == []
+
+
+def test_checker_rejects_not_only_forbidden_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 not only enables semantic cache by default.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
+def test_checker_rejects_whereas_split_forbidden_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 does not open semantic cache whereas Redis is production-ready rollout.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
+def test_checker_rejects_not_only_stale_a8_wording(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 not only active implementation lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_rejects_uppercase_em_dash_stale_a8_tail(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 is not pending—Active implementation lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_rejects_because_split_benchmark_overclaim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained >=95%.",
+            "PR-A8 does not regress quality because proves latency reduction 50-60% average.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+def test_checker_rejects_stale_a8_wording_in_ledger_anchor_without_a8(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "    - Closeout note: semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.",
+            "    - Active implementation lane.\n"
+            "    - Closeout note: semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_rejects_forbidden_claim_in_ledger_anchor_without_a8(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "    - Closeout note: semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.",
+            "    - Semantic cache is active for live traffic.\n"
+            "    - Closeout note: semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
+def test_checker_rejects_benchmark_overclaim_in_ledger_anchor_without_a8(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "    - Closeout note: semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.",
+            "    - Hypothesis target: proves latency reduction 50-60% average and quality maintained >=95%.\n"
+            "    - Closeout note: semantic cache remains closed. Redis/GPTCache, GraphRAG, ContextManifest, DB persistence, public routes, OpenAPI, DTOs, recursive learning, provider chain-of-thought, provider tree-of-thought, and default activation remain out of scope.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "PR-A8 uses semantic cache in production.",
+        "PR-A8 supports semantic cache in production.",
+        "PR-A8 includes semantic cache for production use.",
+    ),
+)
+def test_checker_rejects_additional_runtime_expansion_verbs(tmp_path: Path, claim: str) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            claim,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors), claim
+
+
+def test_checker_rejects_hyphenated_in_progress_stale_a8(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 remains in-progress.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
+
+
+def test_checker_rejects_hyphenated_open_runtime_stale_a8(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 open-runtime lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
 
 
 def test_checker_rejects_decimal_benchmark_overclaim(tmp_path: Path) -> None:
