@@ -48,6 +48,11 @@ Evidence: Hardened PR-4 workflow diff routing to parse `git diff --name-status -
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284568559 -> f1470724a
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#discussion_r3284568560 -> f1470724a
 
+Disposition: FIXED
+Commit: 18b74f8da
+Evidence: Added `docs/orchestration/contracts/philosophy_alignment_rules/*.json` to the PR-4 workflow trigger that sets `PR4_PRECONDITION_CHANGED`, with regression coverage in `tests/test_ci_workflow_pr_size_governance_contract.py`, so alignment-rule record edits cannot skip the runtime-boundary check.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1791#pullrequestreview-4341383917 -> 18b74f8da
+
 ## Premortem Disposition
 
 - FIXED: Closed roadmap markers and false runtime/cache permissions are enforced by report, schema, checker, docs-phase wiring, workflow regression coverage, and tests.
@@ -77,9 +82,9 @@ Evidence: Hardened PR-4 workflow diff routing to parse `git diff --name-status -
 - Post-open bootstrap packet: `artifacts/orchestration/task_packets/e3ff837cf33d.json` (local gitignored artifact).
 - Mandatory post-open `qa-engineer-agent -> bug-hunter -> security-auditor` pass: completed locally; all actionable findings are fixed in `9542dbff6`.
 - Initial CodeRabbit review comments: fixed in `b415c0105`, `e68d2b17d`, `189168456`, `ace34b97d`, and `f1470724a`.
-- CodeRabbit/Cubic/Codex-security-style final review: pending.
-- Current-head checks: pending.
-- Review-thread disposition guard: pending.
+- CodeRabbit/Cubic/Codex-security-style final review: CodeRabbit duplicate aggregate finding fixed in `18b74f8da`; latest final review and current-head checks are pending after the mapping update.
+- Current-head checks: pending after latest mapping update.
+- Review-thread disposition guard: pending after latest mapping update.
 
 ## Experiment Runner
 
