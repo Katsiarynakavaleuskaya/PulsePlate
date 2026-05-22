@@ -18,10 +18,21 @@
 - Status: `accepted`
 - Contribution: `oracle_review` (`coauthor_required: true`)
 - Commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on implementation commit `d24efe54c`
+- Post-review status: `accepted`
+- Post-review contribution: `oracle_review` (`coauthor_required: true`)
+- Post-review commit trailer used: `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>` on hardening commit `e4feeb11e`
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1795#discussion_r3291373376 -> e4feeb11e
+Disposition: FIXED
+Commit: e4feeb11e
+Evidence: `app/bootstrap/food_search.py:109-118` wraps preserved lifespan execution in `try/finally` so `_dispose_meili_http_client(app)` always runs; `tests/test_food_search_foundation.py::test_food_search_shutdown_hook_disposes_when_existing_lifespan_raises` covers the shutdown-exception leak path.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1795#discussion_r3291373391 -> e4feeb11e
+Disposition: FIXED
+Commit: e4feeb11e
+Evidence: `tests/fixtures/dependency_security_schema.json:2-8` includes `starlette: 1.0.1`; `requirements-dev.in` / `requirements-dev.txt` include the same security floor so `tests/test_dependency_security_guard.py` enforces the advisory across repo-managed surfaces.
 
 ## Local Validation
 
