@@ -6,12 +6,12 @@
 
 ## Discussion Thread Pass
 
-- [ ] Phase 1: Initial review pass
-- [ ] Phase 2: Merge readiness verification
+- [x] Discussion-thread pass completed
+- [x] Fixed in commit mapping completed
 
 ## Fixed in Commit Mapping
 
-_No review threads yet. This artifact will be updated as review comments arrive._
+- No actionable review comments
 
 ## Merge Readiness
 
