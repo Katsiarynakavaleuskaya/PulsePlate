@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import threading
+from collections.abc import AsyncIterator
 from typing import cast
 
 import httpx
@@ -97,15 +99,23 @@ def _build_meili_http_client() -> httpx.Client:
 
 
 def _ensure_meili_http_shutdown_handler(app: FastAPI) -> None:
-    """Register a single shutdown handler to close the pooled Meili client."""
+    """Register a single lifespan shutdown hook to close the pooled Meili client."""
 
     if getattr(app.state, "_meili_http_shutdown_registered", False):
         return
 
-    def _on_shutdown() -> None:
+    original_lifespan = app.router.lifespan_context
+
+    @contextlib.asynccontextmanager
+    async def _wrapped_lifespan(app: FastAPI) -> AsyncIterator[None]:
+        if original_lifespan is not None:
+            async with original_lifespan(app):
+                yield
+        else:
+            yield
         _dispose_meili_http_client(app)
 
-    app.add_event_handler("shutdown", _on_shutdown)
+    app.router.lifespan_context = _wrapped_lifespan
     app.state._meili_http_shutdown_registered = True
 
 
