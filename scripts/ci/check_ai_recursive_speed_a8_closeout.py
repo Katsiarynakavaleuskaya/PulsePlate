@@ -121,7 +121,7 @@ STALE_A8_REVERSED_RE = re.compile(
     r"implementation\s+lane|open\s+runtime)\b.*\b(pr[-\s]?a8|#1506|#1578)\b",
     re.I,
 )
-CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and)\b|[;]", re.I)
+CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|while)\b|[;]", re.I)
 COMMA_SPLIT_RE = re.compile(r",\s*")
 
 
@@ -195,6 +195,55 @@ def _surface_claim_is_negated(text: str) -> bool:
     )
 
 
+STALE_STATUS_RE = re.compile(
+    r"\b(?:pending|in\s+progress|active(?:\s+implementation\s+lane)?|"
+    r"implementation\s+lane|next\s+logical|will\s+implement|open\s+runtime)\b",
+    re.I,
+)
+
+
+def _stale_status_is_negated(clause: str) -> bool:
+    normalized = _normalize(clause)
+    return (
+        re.search(
+            r"\b(?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't)\b"
+            r"[^,;.]{0,80}\b(?:pending|in\s+progress|"
+            r"active(?:\s+implementation\s+lane)?|implementation\s+lane|"
+            r"next\s+logical|will\s+implement|open\s+runtime)\b",
+            normalized,
+            re.I,
+        )
+        is not None
+    )
+
+
+def _subclause_has_actionable_forbidden(sub_clause: str, *, sentence_has_a8: bool) -> bool:
+    normalized = _normalize(sub_clause)
+    has_a8_ref = A8_REF_RE.search(normalized) is not None or sentence_has_a8
+    if not has_a8_ref:
+        return False
+    if not FORBIDDEN_SURFACE_RE.search(normalized):
+        return False
+    if _surface_claim_is_negated(normalized):
+        return False
+    if POSITIVE_ACTION_RE.search(normalized):
+        return True
+    if re.search(r"\bsemantic[-\s]?cache|semanticcache\b", normalized, re.I) and re.search(
+        r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+        r"production[-\s]?ready|rollout[-\s]?ready)\b",
+        normalized,
+        re.I,
+    ):
+        return True
+    if re.search(r"\b(redis|gpt[-\s]?cache)\b", normalized, re.I) and re.search(
+        r"\b(approved|selected|production[-\s]?ready|rollout[-\s]?ready|enabled)\b",
+        normalized,
+        re.I,
+    ):
+        return True
+    return False
+
+
 def _default_repo_path(repo_root: Path, default_path: Path) -> Path:
     return repo_root / default_path.relative_to(REPO_ROOT)
 
@@ -257,6 +306,7 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
         errors.append(f"{relpath}: unable to parse Python for landed symbols: {exc}")
         return set()
 
+    required_for_file = set(REQUIRED_SYMBOLS.get(relpath, ()))
     symbols: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
@@ -267,7 +317,7 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
             symbols.add(node.attr)
         elif isinstance(node, ast.arg):
             symbols.add(node.arg)
-        elif isinstance(node, ast.keyword) and node.arg is not None:
+        elif isinstance(node, ast.keyword) and node.arg in required_for_file:
             symbols.add(node.arg)
     return symbols
 
@@ -312,19 +362,11 @@ def _validate_stale_a8_wording(
 ) -> None:
     for sentence in _sentences(active_text):
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
-        for clause in CONTRAST_SPLIT_RE.split(sentence):
-            residual_clause = re.sub(
-                r"\b(?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't)\b"
-                r"[^,;.]{0,100}\b(?:pending|in\s+progress|"
-                r"active(?:\s+implementation\s+lane)?|implementation\s+lane)\b",
-                " ",
-                clause,
-                flags=re.I,
-            )
+        for clause in _iter_eval_subclauses(sentence):
+            if _stale_status_is_negated(clause):
+                continue
             contextual_clause = (
-                f"PR-A8 {residual_clause}"
-                if sentence_has_a8 and not A8_REF_RE.search(residual_clause)
-                else residual_clause
+                f"PR-A8 {clause}" if sentence_has_a8 and not A8_REF_RE.search(clause) else clause
             )
             if STALE_A8_RE.search(contextual_clause) or STALE_A8_REVERSED_RE.search(
                 contextual_clause
@@ -346,27 +388,23 @@ def _validate_forbidden_claims(
     for sentence in _sentences(active_text):
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for sub_clause in _iter_eval_subclauses(sentence):
-            residual_clause = LOCAL_NEGATED_CLAIM_RE.sub(" ", sub_clause)
-            if _surface_claim_is_negated(residual_clause):
+            if not _subclause_has_actionable_forbidden(sub_clause, sentence_has_a8=sentence_has_a8):
                 continue
-            if not FORBIDDEN_SURFACE_RE.search(residual_clause):
-                continue
-            has_a8_ref = A8_REF_RE.search(residual_clause) is not None or sentence_has_a8
-            if not has_a8_ref:
-                continue
-            has_direct_forbidden_status = POSITIVE_ACTION_RE.search(residual_clause) is not None
-            if has_a8_ref and has_direct_forbidden_status:
+            normalized = _normalize(sub_clause)
+            if POSITIVE_ACTION_RE.search(normalized):
                 errors.append(f"forbidden PR-A8 runtime expansion claim: {sentence}")
                 break
-            if (
-                re.search(r"\bsemantic[-\s]?cache|semanticcache\b", residual_clause, re.I)
-                and has_direct_forbidden_status
+            if re.search(r"\bsemantic[-\s]?cache|semanticcache\b", normalized, re.I) and re.search(
+                r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+                r"production[-\s]?ready|rollout[-\s]?ready)\b",
+                normalized,
+                re.I,
             ):
                 errors.append(f"semantic cache direct activation claim: {sentence}")
                 break
-            if re.search(r"\b(redis|gpt[-\s]?cache)\b", residual_clause, re.I) and re.search(
+            if re.search(r"\b(redis|gpt[-\s]?cache)\b", normalized, re.I) and re.search(
                 r"\b(approved|selected|production[-\s]?ready|rollout[-\s]?ready|enabled)\b",
-                residual_clause,
+                normalized,
                 re.I,
             ):
                 errors.append(f"backend rollout approval claim: {sentence}")
@@ -383,7 +421,7 @@ def _validate_benchmark_claims(
             continue
         claim_clauses = [
             clause
-            for clause in CONTRAST_SPLIT_RE.split(sentence)
+            for clause in _iter_eval_subclauses(sentence)
             if BENCHMARK_CLAIM_RE.search(clause)
         ]
         if any(
@@ -450,11 +488,14 @@ def _has_unnegated_overclaim(text: str) -> bool:
 
 
 def _overclaim_match_is_negated(text: str, match: re.Match[str]) -> bool:
-    prefix = text[max(0, match.start() - 100) : match.start()]
+    verb = match.group(0)
+    immediate_prefix = text[max(0, match.start() - 80) : match.start()]
+    scoped = f"{immediate_prefix}{verb}"
     return (
         re.search(
-            r"\b(?:does\s+not|do\s+not|not|never|cannot|can't|doesn't)\b[^,;.]*$",
-            prefix,
+            rf"\b(?:does\s+not|do\s+not|not|never|cannot|can't|doesn't)\s+"
+            rf"(?:[\w-]+\s+){{0,4}}{re.escape(verb)}\b",
+            scoped,
             re.I,
         )
         is not None

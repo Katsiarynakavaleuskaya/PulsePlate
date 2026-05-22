@@ -572,6 +572,29 @@ def test_checker_rejects_mixed_negation_stale_a8_wording(tmp_path: Path, claim: 
     assert any("stale PR-A8 active/pending wording" in error for error in errors), claim
 
 
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "PR-A8 is not pending while semantic cache is active.",
+        "PR-A8 is not pending while active implementation lane.",
+    ),
+)
+def test_checker_rejects_while_negation_stale_a8_wording(tmp_path: Path, claim: str) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            claim,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors), claim
+
+
 def test_checker_rejects_stale_a8_wording_outside_a8_sections(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
@@ -729,6 +752,22 @@ def test_checker_rejects_contrasted_benchmark_overclaim(tmp_path: Path) -> None:
         _valid_ledger().replace(
             "Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained >=95%.",
             "Hypothesis target requires benchmark validation, but PR-A8 proves latency reduction 50-60% and quality maintained >=95%.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+def test_checker_rejects_while_negated_benchmark_overclaim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained >=95%.",
+            "PR-A8 does not regress quality while proves latency reduction 50-60% average.",
         ),
         encoding="utf-8",
     )
