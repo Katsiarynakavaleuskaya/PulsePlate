@@ -160,6 +160,27 @@ Evidence: PR scope is A8 closeout (docs + fail-closed checker + regression tests
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit reported a review-rate-limit/usage notice, not a code, docs, security, or test finding. No repository fix is required for that notice.
 
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284983215 -> f96dd7496
+Disposition: FIXED
+Commit: f96dd7496
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:156` (`_iter_eval_subclauses`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:205` (`_stale_status_is_negated`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:365-366`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_while_negation_stale_a8_wording`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284983218 -> f96dd7496
+Disposition: FIXED
+Commit: f96dd7496
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:220` (`_subclause_has_actionable_forbidden`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:390-391`; per-clause stale wording validation in `_validate_stale_a8_wording`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284983219 -> f96dd7496
+Disposition: FIXED
+Commit: f96dd7496
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:490` (`_overclaim_match_is_negated` verb-scoped negation window); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_while_negated_benchmark_overclaim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3284983221 -> f96dd7496
+Disposition: FIXED
+Commit: f96dd7496
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:45` (`REQUIRED_SYMBOLS`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:309-320` (selective `ast.keyword` collection for landed symbols only).
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
@@ -196,7 +217,7 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
 - `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (50 tests after cb8ea9a18)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (55 tests after f96dd7496)
 - `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
@@ -214,6 +235,10 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - String-literal landed-symbol false-green risk: FIXED by cb8ea9a18 (`test_checker_rejects_string_literal_only_landed_symbol`).
 - Whole-clause negation bypass risk: FIXED by cb8ea9a18 (`test_checker_rejects_unrelated_negation_with_positive_forbidden_claim`).
 - Portable validation evidence drift: FIXED by governance mapping update (this artifact).
+- While-clause negation bypass on stale A8 wording: FIXED by f96dd7496 (`test_checker_rejects_while_negation_stale_a8_wording`).
+- Distant-prefix overclaim negation false negative: FIXED by f96dd7496 (`test_checker_rejects_while_negated_benchmark_overclaim`).
+- Dict-kwarg false landed-symbol evidence: FIXED by f96dd7496 (selective `ast.keyword` collection).
+
 
 ## Merge Readiness
 
