@@ -203,8 +203,9 @@ Disposition: FIXED
 Commit: f96dd7496
 Evidence: aggregate review duplicates `discussion_r3284983221`; landed-symbol collection uses selective `ast.keyword` only at `scripts/ci/check_ai_recursive_speed_a8_closeout.py:309-320` (no `ast.Dict` key string harvesting).
 
-- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4341460106
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4341460106 -> ec6d66c33
 Disposition: FIXED
+Commit: ec6d66c33
 Evidence: deduplicated Experiment Runner Evidence paths in this artifact (`artifacts/orchestration/experiments/results/exp-f50c8cffdc87-post-{review,bughunter,security}.json`); PR body mirror updated in the same governance cycle.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#pullrequestreview-4343544556
