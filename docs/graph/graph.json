@@ -2,26 +2,54 @@
   "edges": [
     {
       "evidence": [
-        "docs/agents/index.md:17"
+        "AGENTS.md:641",
+        "app/middleware/api_tiers.py:109"
       ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:agent-coordinator",
+      "source": "doc:AGENTS.md",
+      "target": "doc:app/middleware/api_tiers.py",
       "type": "references"
     },
     {
       "evidence": [
-        "docs/agents/index.md:29"
+        "AGENTS.md:117",
+        "docs/orchestration/AGENT_CAPABILITY_MATRIX.md:12"
       ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:ai-app-architect",
+      "source": "doc:AGENTS.md",
+      "target": "doc:docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
       "type": "references"
     },
     {
       "evidence": [
-        "docs/agents/index.md:18"
+        "AGENTS.md:133",
+        "docs/orchestration/AGENT_ROUTING_GRAPH.md:36"
       ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:ai-innovation-specialist",
+      "source": "doc:AGENTS.md",
+      "target": "doc:docs/orchestration/AGENT_ROUTING_GRAPH.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "AGENTS.md:418"
+      ],
+      "source": "doc:AGENTS.md",
+      "target": "doc:docs/orchestration/AUTOMATION_READINESS_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "AGENTS.md:418"
+      ],
+      "source": "doc:AGENTS.md",
+      "target": "doc:scripts/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "AGENTS.md:641",
+        "app/middleware/api_tiers.py:109"
+      ],
+      "source": "doc:AGENTS.md",
+      "target": "module:app",
       "type": "references"
     },
     {
@@ -29,12 +57,60 @@
         "docs/agents/index.md:19"
       ],
       "source": "doc:docs/agents/index.md",
+      "target": "agent:agent-coordinator",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:42"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:ai-app-architect",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:20"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:ai-innovation-specialist",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:34"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:ai-trend-reporter",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:30"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:app-store-release-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:21"
+      ],
+      "source": "doc:docs/agents/index.md",
       "target": "agent:architecture-specialist",
       "type": "references"
     },
     {
       "evidence": [
-        "docs/agents/index.md:26"
+        "docs/agents/index.md:23"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:backend-engineer",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:38"
       ],
       "source": "doc:docs/agents/index.md",
       "target": "agent:bayesian-uq-agent",
@@ -42,7 +118,7 @@
     },
     {
       "evidence": [
-        "docs/agents/index.md:20"
+        "docs/agents/index.md:22"
       ],
       "source": "doc:docs/agents/index.md",
       "target": "agent:bug-hunter",
@@ -53,87 +129,15 @@
         "docs/agents/index.md:33"
       ],
       "source": "doc:docs/agents/index.md",
+      "target": "agent:business-strategist-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:46"
+      ],
+      "source": "doc:docs/agents/index.md",
       "target": "agent:cbt-psychologist-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:21"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:creative-designer",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:28"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:cv-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:30"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:data-scientist-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:34"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:epistemology-discovery-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:25"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:logic-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:22"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:marketing-strategist",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:31"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:ml-engineer-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:32"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:nutritionist-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:24"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:philosophy-agent",
-      "type": "references"
-    },
-    {
-      "evidence": [
-        "docs/agents/index.md:35"
-      ],
-      "source": "doc:docs/agents/index.md",
-      "target": "agent:physics-sensor-agent",
       "type": "references"
     },
     {
@@ -141,15 +145,167 @@
         "docs/agents/index.md:27"
       ],
       "source": "doc:docs/agents/index.md",
+      "target": "agent:creative-designer",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:49"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:cursor-specialist-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:41"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:cv-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:43"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:data-scientist-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:28"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:designer-artist-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:25"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:dev-operator",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:47"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:epistemology-discovery-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:24"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:frontend-engineer",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:37"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:logic-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:31"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:marketing-strategist",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:44"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:ml-engineer-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:45"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:nutritionist-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:36"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:philosophy-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:48"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:physics-sensor-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:26"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:qa-engineer-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:39"
+      ],
+      "source": "doc:docs/agents/index.md",
       "target": "agent:rag-systems-agent",
       "type": "references"
     },
     {
       "evidence": [
-        "docs/agents/index.md:23"
+        "docs/agents/index.md:35"
       ],
       "source": "doc:docs/agents/index.md",
       "target": "agent:security-auditor",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:29"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:sora-prompt-engineer",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:50"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:tutor-mentor-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:40"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:web-research-agent",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/agents/index.md:32"
+      ],
+      "source": "doc:docs/agents/index.md",
+      "target": "agent:wellness-analyst-agent",
       "type": "references"
     },
     {
@@ -216,6 +372,1624 @@
     },
     {
       "evidence": [
+        "docs/orchestration/AGENTS.md:5"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:133"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:RUNBOOK_AGENT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:6"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/AUTOMATION_READINESS_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:26"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:43"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:44"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:45"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:100"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:101"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:63"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:112"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:111"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:132"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:84"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:72"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:71"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENTS.md:82"
+      ],
+      "source": "doc:docs/orchestration/AGENTS.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:165",
+        "docs/orchestration/AGENTS.md:157"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:251",
+        "docs/orchestration/AGENTS.md:31"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:254",
+        "docs/orchestration/AGENTS.md:265"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:267",
+        "docs/orchestration/AGENTS.md:31"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:284",
+        "docs/orchestration/AGENTS.md:265"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:300",
+        "docs/orchestration/AGENTS.md:265"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:321",
+        "docs/orchestration/AGENTS.md:265"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:338",
+        "docs/orchestration/AGENTS.md:265"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:484",
+        "docs/orchestration/AGENTS.md:968"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:484",
+        "docs/orchestration/AGENTS.md:969"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_CONTEXT_MAP.md:485",
+        "docs/orchestration/AGENTS.md:86"
+      ],
+      "source": "doc:docs/orchestration/AGENT_CONTEXT_MAP.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:150"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/memory/kpp_knowledge_promotion_pipeline.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:17"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/memory/kpp_knowledge_promotion_pipeline.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:12"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:135"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/AGENT_CAPABILITY_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:15"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:16"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:13"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:14"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/RESEARCH_TRACK_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:23"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/dod.template.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:22"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/synthesis.template.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:20"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/task_analysis.template.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:21"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/work_review.template.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:11"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/orchestration/workflow.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:18"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md:216"
+      ],
+      "source": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md:6"
+      ],
+      "source": "doc:docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md",
+      "target": "doc:docs/dev/CODEX_SKILLS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md:20"
+      ],
+      "source": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "target": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md:71"
+      ],
+      "source": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "target": "doc:docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md:19"
+      ],
+      "source": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "target": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md:18"
+      ],
+      "source": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "target": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md:16"
+      ],
+      "source": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "target": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md:47",
+        "docs/orchestration/AGENTS.md:227"
+      ],
+      "source": "doc:docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:52"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:.dockerignore",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:58"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:.github/actions/python-setup/action.yml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:54"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:.github/workflows/build.yml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:57"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:.github/workflows/cd.yml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:56"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:.github/workflows/trivy.yml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:38"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:50"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:Dockerfile",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:39"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:RUNBOOK_AGENT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:48"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:deploy/docker-compose.production.selfhosted.yaml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:47"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:deploy/docker-compose.production.yaml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:49"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:deploy/docker-compose.staging.yaml",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:46"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/deploy/PRODUCTION.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:40"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:42"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:43"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:41"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/orchestration/workflow.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:44"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:45"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:53"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:frontend/.dockerignore",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:51"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "doc:frontend/Dockerfile.caddy-spa",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:47"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "module:deploy",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:48"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "module:deploy",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:49"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "module:deploy",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:51"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "module:frontend",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md:53"
+      ],
+      "source": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "target": "module:frontend",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md:26"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md",
+      "target": "doc:docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md:26"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md",
+      "target": "doc:docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md:18"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:39"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:35"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:23"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:27"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:31"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:43"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:55"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:51"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:47"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:59"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:63"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:67"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:15"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:37"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_PACKET_2026-04-30.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:33"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_PACKET_2026-04-30.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:21"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:25"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:29"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:19"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:41"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:53"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:49"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:45"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:57"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:61"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:65"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:11"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:13"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:9"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:69"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:7"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:17"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/orchestration/FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md:71"
+      ],
+      "source": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:14"
+      ],
+      "source": "doc:docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "target": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:15"
+      ],
+      "source": "doc:docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "target": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md:16"
+      ],
+      "source": "doc:docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md:6"
+      ],
+      "source": "doc:docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md:6"
+      ],
+      "source": "doc:docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:142",
+        "docs/orchestration/AGENTS.md:47"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:143",
+        "docs/orchestration/AGENTS.md:64"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:144",
+        "docs/orchestration/AGENTS.md:81"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:155",
+        "docs/orchestration/AGENTS.md:103"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:22",
+        "docs/orchestration/AGENTS.md:102"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:22",
+        "docs/orchestration/AGENTS.md:103"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:22",
+        "docs/orchestration/AGENTS.md:39"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:22",
+        "docs/orchestration/AGENTS.md:434"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:22",
+        "docs/orchestration/AGENTS.md:435"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:260",
+        "docs/orchestration/AGENTS.md:120"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md:271",
+        "docs/orchestration/AGENTS.md:120"
+      ],
+      "source": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md:7"
+      ],
+      "source": "doc:docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md:7"
+      ],
+      "source": "doc:docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PULSEPLATE_SELECTIVE_GRAPHRAG_CONTRACT_TASK_PACKET_2026-04-22.md:7"
+      ],
+      "source": "doc:docs/orchestration/PULSEPLATE_SELECTIVE_GRAPHRAG_CONTRACT_TASK_PACKET_2026-04-22.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT_TASK_PACKET_2026-04-23.md:7"
+      ],
+      "source": "doc:docs/orchestration/PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT_TASK_PACKET_2026-04-23.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:10"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:48"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:533"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:10"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:47"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:531"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:507"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:10"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:169"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:48"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:530"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:10"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:529"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:75"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:10"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:532"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md:251"
+      ],
+      "source": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:278"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_EVIDENCE_PUBLICATION_PACKET_2026-05-07.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:208"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/BUILD_EQUIVALENCE_CONTRACT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:210"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:247"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:170"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:172"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:228"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:230"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:189"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/RELEASE_MANIFEST_CONTRACT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:191"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/RELEASE_MANIFEST_CONTRACT.schema.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:140"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/REVIEWER_PACKET_HASH_CONTRACT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:142"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md:7"
+      ],
+      "source": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md:23"
+      ],
+      "source": "doc:docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "target": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md:21"
+      ],
+      "source": "doc:docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "target": "doc:docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md:14"
+      ],
+      "source": "doc:docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "target": "doc:docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:14"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:14"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:14"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:14",
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:7"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:21"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:21",
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:34"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:39"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:39",
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:76"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:5"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:15"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:scripts/orchestration/skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:15"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:scripts/orchestration/skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:15"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:scripts/orchestration/skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:20"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:scripts/orchestration/skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:20"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:scripts/orchestration/skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:20"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:tests/test_skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:21"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "doc:tests/test_skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:20"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "module:tests",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md:21"
+      ],
+      "source": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "target": "module:tests",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:40"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/memory/kpp_knowledge_promotion_pipeline.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:31"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/AGENTS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:21"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:23"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:20"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:14"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:20"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:64"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/RESEARCH_TRACK_PROTOCOL.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:13"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:13"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:74"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:33"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md:32"
+      ],
+      "source": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "target": "doc:scripts/orchestration/skill_router.py",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md:67"
+      ],
+      "source": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "target": "doc:docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md:85"
+      ],
+      "source": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "target": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md:79"
+      ],
+      "source": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "target": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
+        "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md:73"
+      ],
+      "source": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "target": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md",
+      "type": "references"
+    },
+    {
+      "evidence": [
         "docs/orchestration/task_analysis.template.md:17"
       ],
       "source": "doc:docs/orchestration/task_analysis.template.md",
@@ -272,9 +2046,36 @@
       "type": "agent"
     },
     {
+      "id": "agent:ai-trend-reporter",
+      "label": ".cursor/agents/ai-trend-reporter.md",
+      "path": ".cursor/agents/ai-trend-reporter.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:app-store-release-agent",
+      "label": ".cursor/agents/app-store-release-agent.md",
+      "path": ".cursor/agents/app-store-release-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
       "id": "agent:architecture-specialist",
       "label": ".cursor/agents/architecture-specialist.md",
       "path": ".cursor/agents/architecture-specialist.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:backend-engineer",
+      "label": ".cursor/agents/backend-engineer.md",
+      "path": ".cursor/agents/backend-engineer.md",
       "tags": [
         "project"
       ],
@@ -299,6 +2100,15 @@
       "type": "agent"
     },
     {
+      "id": "agent:business-strategist-agent",
+      "label": ".cursor/agents/business-strategist-agent.md",
+      "path": ".cursor/agents/business-strategist-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
       "id": "agent:cbt-psychologist-agent",
       "label": ".cursor/agents/cbt-psychologist-agent.md",
       "path": ".cursor/agents/cbt-psychologist-agent.md",
@@ -311,6 +2121,15 @@
       "id": "agent:creative-designer",
       "label": ".cursor/agents/creative-designer.md",
       "path": ".cursor/agents/creative-designer.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:cursor-specialist-agent",
+      "label": ".cursor/agents/cursor-specialist-agent.md",
+      "path": ".cursor/agents/cursor-specialist-agent.md",
       "tags": [
         "project"
       ],
@@ -335,9 +2154,36 @@
       "type": "agent"
     },
     {
+      "id": "agent:designer-artist-agent",
+      "label": ".cursor/agents/designer-artist-agent.md",
+      "path": ".cursor/agents/designer-artist-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:dev-operator",
+      "label": ".cursor/agents/dev-operator.md",
+      "path": ".cursor/agents/dev-operator.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
       "id": "agent:epistemology-discovery-agent",
       "label": ".cursor/agents/epistemology-discovery-agent.md",
       "path": ".cursor/agents/epistemology-discovery-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:frontend-engineer",
+      "label": ".cursor/agents/frontend-engineer.md",
+      "path": ".cursor/agents/frontend-engineer.md",
       "tags": [
         "project"
       ],
@@ -398,6 +2244,15 @@
       "type": "agent"
     },
     {
+      "id": "agent:qa-engineer-agent",
+      "label": ".cursor/agents/qa-engineer-agent.md",
+      "path": ".cursor/agents/qa-engineer-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
       "id": "agent:rag-systems-agent",
       "label": ".cursor/agents/rag-systems-agent.md",
       "path": ".cursor/agents/rag-systems-agent.md",
@@ -416,6 +2271,72 @@
       "type": "agent"
     },
     {
+      "id": "agent:sora-prompt-engineer",
+      "label": ".cursor/agents/sora-prompt-engineer.md",
+      "path": ".cursor/agents/sora-prompt-engineer.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:tutor-mentor-agent",
+      "label": ".cursor/agents/tutor-mentor-agent.md",
+      "path": ".cursor/agents/tutor-mentor-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:web-research-agent",
+      "label": ".cursor/agents/web-research-agent.md",
+      "path": ".cursor/agents/web-research-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "agent:wellness-analyst-agent",
+      "label": ".cursor/agents/wellness-analyst-agent.md",
+      "path": ".cursor/agents/wellness-analyst-agent.md",
+      "tags": [
+        "project"
+      ],
+      "type": "agent"
+    },
+    {
+      "id": "doc:.dockerignore",
+      "label": ".dockerignore",
+      "path": ".dockerignore",
+      "type": "document"
+    },
+    {
+      "id": "doc:.github/actions/python-setup/action.yml",
+      "label": ".github/actions/python-setup/action.yml",
+      "path": ".github/actions/python-setup/action.yml",
+      "type": "document"
+    },
+    {
+      "id": "doc:.github/workflows/build.yml",
+      "label": ".github/workflows/build.yml",
+      "path": ".github/workflows/build.yml",
+      "type": "document"
+    },
+    {
+      "id": "doc:.github/workflows/cd.yml",
+      "label": ".github/workflows/cd.yml",
+      "path": ".github/workflows/cd.yml",
+      "type": "document"
+    },
+    {
+      "id": "doc:.github/workflows/trivy.yml",
+      "label": ".github/workflows/trivy.yml",
+      "path": ".github/workflows/trivy.yml",
+      "type": "document"
+    },
+    {
       "id": "doc:AGENTS.md",
       "label": "AGENTS.md",
       "path": "AGENTS.md",
@@ -426,9 +2347,180 @@
       "type": "document"
     },
     {
+      "id": "doc:Dockerfile",
+      "label": "Dockerfile",
+      "path": "Dockerfile",
+      "type": "document"
+    },
+    {
+      "id": "doc:RUNBOOK_AGENT.md",
+      "label": "RUNBOOK_AGENT.md",
+      "path": "RUNBOOK_AGENT.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:app/middleware/api_tiers.py",
+      "label": "app/middleware/api_tiers.py",
+      "path": "app/middleware/api_tiers.py",
+      "type": "document"
+    },
+    {
+      "id": "doc:deploy/docker-compose.production.selfhosted.yaml",
+      "label": "deploy/docker-compose.production.selfhosted.yaml",
+      "path": "deploy/docker-compose.production.selfhosted.yaml",
+      "type": "document"
+    },
+    {
+      "id": "doc:deploy/docker-compose.production.yaml",
+      "label": "deploy/docker-compose.production.yaml",
+      "path": "deploy/docker-compose.production.yaml",
+      "type": "document"
+    },
+    {
+      "id": "doc:deploy/docker-compose.staging.yaml",
+      "label": "deploy/docker-compose.staging.yaml",
+      "path": "deploy/docker-compose.staging.yaml",
+      "type": "document"
+    },
+    {
       "id": "doc:docs/agents/index.md",
       "label": "docs/agents/index.md",
       "path": "docs/agents/index.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json",
+      "label": "docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json",
+      "path": "docs/architecture/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_2026-04-30.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json",
+      "label": "docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json",
+      "path": "docs/architecture/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_2026-04-30.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json",
+      "label": "docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json",
+      "path": "docs/architecture/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_2026-04-29.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json",
+      "label": "docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json",
+      "path": "docs/architecture/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_2026-04-30.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json",
+      "label": "docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json",
+      "path": "docs/architecture/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_2026-04-30.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json",
+      "label": "docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json",
+      "path": "docs/architecture/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_2026-04-30.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json",
+      "label": "docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json",
+      "path": "docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_2026-05-19.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json",
+      "label": "docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json",
+      "path": "docs/architecture/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_2026-05-13.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json",
+      "label": "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json",
+      "path": "docs/architecture/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_2026-05-13.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json",
+      "label": "docs/architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json",
+      "path": "docs/architecture/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_2026-05-19.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json",
+      "label": "docs/architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json",
+      "path": "docs/architecture/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_2026-05-21.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+      "label": "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+      "path": "docs/architecture/FOOD_DATA_SOURCE_CATALOG_PR3_2026-04-24.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+      "label": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+      "path": "docs/architecture/FOOD_DATA_SOURCE_ONBOARDING_PR5_2026-04-28.json",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/AGENT_AI_FITCHEF_PRIORITY_VALIDATION_AUDIT_2026-03-30.md",
+      "label": "docs/audit/AGENT_AI_FITCHEF_PRIORITY_VALIDATION_AUDIT_2026-03-30.md",
+      "path": "docs/audit/AGENT_AI_FITCHEF_PRIORITY_VALIDATION_AUDIT_2026-03-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md",
+      "label": "docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md",
+      "path": "docs/audit/AGENT_ORCHESTRATION_MULTI_MODEL_AND_RESEARCH_AUDIT_2026-02-10.md",
+      "tags": [
+        "architecture"
+      ],
       "type": "document"
     },
     {
@@ -567,9 +2659,36 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md",
+      "label": "docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md",
+      "path": "docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md",
+      "label": "docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md",
+      "path": "docs/audit/CP3_SKIP_HEAVY_A1_NOOP_AUDIT_2026-02-16.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/DECISION_LOG_BMI_UNDEFINED.md",
       "label": "docs/audit/DECISION_LOG_BMI_UNDEFINED.md",
       "path": "docs/audit/DECISION_LOG_BMI_UNDEFINED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md",
+      "label": "docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md",
+      "path": "docs/audit/DEPENDABOT_RECURRING_SECURITY_DRIFT_AUDIT_2026-04-10.md",
       "tags": [
         "architecture"
       ],
@@ -597,6 +2716,33 @@
       "id": "doc:docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md",
       "label": "docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md",
       "path": "docs/audit/DESIGN_CONCEPT_IMPLEMENTATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/DESIGN_SYSTEM_COMPONENT_GALLERY_AUDIT.md",
+      "label": "docs/audit/DESIGN_SYSTEM_COMPONENT_GALLERY_AUDIT.md",
+      "path": "docs/audit/DESIGN_SYSTEM_COMPONENT_GALLERY_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md",
+      "label": "docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md",
+      "path": "docs/audit/EVMBENCH_INSPIRED_AGENT_EVALUATION_BRAINSTORM_2026-02-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/EXPERIMENT_EXP_84ECC3C1E995.md",
+      "label": "docs/audit/EXPERIMENT_EXP_84ECC3C1E995.md",
+      "path": "docs/audit/EXPERIMENT_EXP_84ECC3C1E995.md",
       "tags": [
         "architecture"
       ],
@@ -639,9 +2785,9 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/GREENLET_PR_DESCRIPTION.md",
-      "label": "docs/audit/GREENLET_PR_DESCRIPTION.md",
-      "path": "docs/audit/GREENLET_PR_DESCRIPTION.md",
+      "id": "doc:docs/audit/HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md",
+      "label": "docs/audit/HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md",
+      "path": "docs/audit/HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md",
       "tags": [
         "architecture"
       ],
@@ -711,9 +2857,126 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md",
+      "label": "docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md",
+      "path": "docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_DECISION_2026-03-10.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md",
+      "label": "docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md",
+      "path": "docs/audit/OPENAI_EXTERNAL_DOCS_FRESHNESS_PILOT_REVIEW_CYCLE_DECISION_2026-03-11.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md",
       "label": "docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md",
       "path": "docs/audit/PERSONAPLEX_INTEGRATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PHASE1_DOCS_GATES_AUDIT_2026-02-12.md",
+      "label": "docs/audit/PHASE1_DOCS_GATES_AUDIT_2026-02-12.md",
+      "path": "docs/audit/PHASE1_DOCS_GATES_AUDIT_2026-02-12.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PHASE2_PR_BODY_GATES_AUDIT_2026-02-12.md",
+      "label": "docs/audit/PHASE2_PR_BODY_GATES_AUDIT_2026-02-12.md",
+      "path": "docs/audit/PHASE2_PR_BODY_GATES_AUDIT_2026-02-12.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PHASE3_PR_INTENT_SCOPE_GATES_BRAINSTORM_2026-02-12.md",
+      "label": "docs/audit/PHASE3_PR_INTENT_SCOPE_GATES_BRAINSTORM_2026-02-12.md",
+      "path": "docs/audit/PHASE3_PR_INTENT_SCOPE_GATES_BRAINSTORM_2026-02-12.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md",
+      "label": "docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md",
+      "path": "docs/audit/PR4_ENTITLEMENT_ROUTING_CLOSEOUT_AUDIT_2026-04-02.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md",
+      "label": "docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md",
+      "path": "docs/audit/PR_1102_CV_EXPERIMENTATION_LANE_AUDIT_2026-03-11.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1199_RECURSIVE_RUNTIME_W1_BENCHMARK.md",
+      "label": "docs/audit/PR_1199_RECURSIVE_RUNTIME_W1_BENCHMARK.md",
+      "path": "docs/audit/PR_1199_RECURSIVE_RUNTIME_W1_BENCHMARK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1211_FITCHEF_JUDGMENT_OFFLINE_EVAL_AUDIT.md",
+      "label": "docs/audit/PR_1211_FITCHEF_JUDGMENT_OFFLINE_EVAL_AUDIT.md",
+      "path": "docs/audit/PR_1211_FITCHEF_JUDGMENT_OFFLINE_EVAL_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1_50_AUDIT_STATUS_VERIFICATION_2026-03.md",
+      "label": "docs/audit/PR_1_50_AUDIT_STATUS_VERIFICATION_2026-03.md",
+      "path": "docs/audit/PR_1_50_AUDIT_STATUS_VERIFICATION_2026-03.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1_50_BUG_HUNTER_AUDIT_2026-03.md",
+      "label": "docs/audit/PR_1_50_BUG_HUNTER_AUDIT_2026-03.md",
+      "path": "docs/audit/PR_1_50_BUG_HUNTER_AUDIT_2026-03.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1_50_CONSOLIDATED_AUDIT_2026-03.md",
+      "label": "docs/audit/PR_1_50_CONSOLIDATED_AUDIT_2026-03.md",
+      "path": "docs/audit/PR_1_50_CONSOLIDATED_AUDIT_2026-03.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md",
+      "label": "docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md",
+      "path": "docs/audit/PR_1_50_SECURITY_AUDIT_2026-03.md",
       "tags": [
         "architecture"
       ],
@@ -954,27 +3217,9 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/PR_528_PLAN.md",
-      "label": "docs/audit/PR_528_PLAN.md",
-      "path": "docs/audit/PR_528_PLAN.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
       "id": "doc:docs/audit/PR_529_PLAN.md",
       "label": "docs/audit/PR_529_PLAN.md",
       "path": "docs/audit/PR_529_PLAN.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/PR_529_WORKING_MAP.md",
-      "label": "docs/audit/PR_529_WORKING_MAP.md",
-      "path": "docs/audit/PR_529_WORKING_MAP.md",
       "tags": [
         "architecture"
       ],
@@ -1224,6 +3469,78 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md",
+      "label": "docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md",
+      "path": "docs/audit/PR_722_GREENLIGHT_INTEGRATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_745_TARGETSIN_UNIFY_AUDIT.md",
+      "label": "docs/audit/PR_745_TARGETSIN_UNIFY_AUDIT.md",
+      "path": "docs/audit/PR_745_TARGETSIN_UNIFY_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md",
+      "label": "docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md",
+      "path": "docs/audit/PR_764_SHOPLIST_HELPERS_ENABLE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md",
+      "label": "docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md",
+      "path": "docs/audit/PR_778_WEBSOCKET_FOUNDATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md",
+      "label": "docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md",
+      "path": "docs/audit/PR_781_HOME_PLATE_PROGRESS_AUDIT_RUNBOOK_2026-02-17.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md",
+      "label": "docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md",
+      "path": "docs/audit/PR_898_FOOD_DB_W2_C_LATENCY_BENCHMARK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md",
+      "label": "docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md",
+      "path": "docs/audit/PR_914_FOOD_DB_W4_SEMANTIC_BENCHMARK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md",
+      "label": "docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md",
+      "path": "docs/audit/PR_A9_SCIENTIFIC_RELIABILITY_EVIDENCE_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/PR_A_DESCRIPTION.md",
       "label": "docs/audit/PR_A_DESCRIPTION.md",
       "path": "docs/audit/PR_A_DESCRIPTION.md",
@@ -1269,6 +3586,33 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/PR_CP3_SKIP_DRIFT_AUDIT.md",
+      "label": "docs/audit/PR_CP3_SKIP_DRIFT_AUDIT.md",
+      "path": "docs/audit/PR_CP3_SKIP_DRIFT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_CP3_SKIP_DRIFT_CLEANUP_AUDIT_2026-02-20.md",
+      "label": "docs/audit/PR_CP3_SKIP_DRIFT_CLEANUP_AUDIT_2026-02-20.md",
+      "path": "docs/audit/PR_CP3_SKIP_DRIFT_CLEANUP_AUDIT_2026-02-20.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_CP3_SKIP_DRIFT_PR_BODY_SKELETON.md",
+      "label": "docs/audit/PR_CP3_SKIP_DRIFT_PR_BODY_SKELETON.md",
+      "path": "docs/audit/PR_CP3_SKIP_DRIFT_PR_BODY_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/PR_GUARD_COMMANDS.md",
       "label": "docs/audit/PR_GUARD_COMMANDS.md",
       "path": "docs/audit/PR_GUARD_COMMANDS.md",
@@ -1305,9 +3649,72 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md",
+      "label": "docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md",
+      "path": "docs/audit/PR_HPP_CTA_RUNTIME_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md",
+      "label": "docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md",
+      "path": "docs/audit/PR_HPP_CTA_RUNTIME_BRAINSTORMING.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md",
+      "label": "docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md",
+      "path": "docs/audit/PR_HPP_CTA_RUNTIME_PR_BODY_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_AUDIT.md",
+      "label": "docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_AUDIT.md",
+      "path": "docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_BRAINSTORMING.md",
+      "label": "docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_BRAINSTORMING.md",
+      "path": "docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_BRAINSTORMING.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_PR_BODY_SKELETON.md",
+      "label": "docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_PR_BODY_SKELETON.md",
+      "path": "docs/audit/PR_ORCHESTRATION_DIALOGUE_VISUALIZATION_PR_BODY_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/PR_P0_MOVE_LLM_INSIGHT_TO_VIP_TIER_AUDIT.md",
       "label": "docs/audit/PR_P0_MOVE_LLM_INSIGHT_TO_VIP_TIER_AUDIT.md",
       "path": "docs/audit/PR_P0_MOVE_LLM_INSIGHT_TO_VIP_TIER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md",
+      "label": "docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md",
+      "path": "docs/audit/PR_PAYMENTS_RUBY_IOS_CONTRACT_AUDIT.md",
       "tags": [
         "architecture"
       ],
@@ -1431,6 +3838,24 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md",
+      "label": "docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md",
+      "path": "docs/audit/PR_SHOPLIST_FLOW_STABILIZATION_WORK_PACKAGE_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_SHOPLIST_RUNTIME_PACKAGE_TEMPLATE.md",
+      "label": "docs/audit/PR_SHOPLIST_RUNTIME_PACKAGE_TEMPLATE.md",
+      "path": "docs/audit/PR_SHOPLIST_RUNTIME_PACKAGE_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/PR_SOFT_PAYWALL_AUDIT.md",
       "label": "docs/audit/PR_SOFT_PAYWALL_AUDIT.md",
       "path": "docs/audit/PR_SOFT_PAYWALL_AUDIT.md",
@@ -1440,9 +3865,18 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md",
-      "label": "docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md",
-      "path": "docs/audit/BACKLOG_LEDGER_POST_MERGE_SYNC_AUDIT_2026-02-07.md",
+      "id": "doc:docs/audit/PR_TBD_AGENT_INDEX_GUARDS_AUDIT_2026-02-11.md",
+      "label": "docs/audit/PR_TBD_AGENT_INDEX_GUARDS_AUDIT_2026-02-11.md",
+      "path": "docs/audit/PR_TBD_AGENT_INDEX_GUARDS_AUDIT_2026-02-11.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_TBD_ANALYTICS_INDEX_AND_GUARDS_AUDIT_2026-02-11.md",
+      "label": "docs/audit/PR_TBD_ANALYTICS_INDEX_AND_GUARDS_AUDIT_2026-02-11.md",
+      "path": "docs/audit/PR_TBD_ANALYTICS_INDEX_AND_GUARDS_AUDIT_2026-02-11.md",
       "tags": [
         "architecture"
       ],
@@ -1458,18 +3892,18 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
-      "label": "docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
-      "path": "docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "id": "doc:docs/audit/PR_TBD_MAIN_CI_FLAKE_ANALYSIS_2026-02-11.md",
+      "label": "docs/audit/PR_TBD_MAIN_CI_FLAKE_ANALYSIS_2026-02-11.md",
+      "path": "docs/audit/PR_TBD_MAIN_CI_FLAKE_ANALYSIS_2026-02-11.md",
       "tags": [
         "architecture"
       ],
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
-      "label": "docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
-      "path": "docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "id": "doc:docs/audit/PR_TBD_SECURITY_CVE_2026_26007_REMEDIATION_AUDIT_2026-02-11.md",
+      "label": "docs/audit/PR_TBD_SECURITY_CVE_2026_26007_REMEDIATION_AUDIT_2026-02-11.md",
+      "path": "docs/audit/PR_TBD_SECURITY_CVE_2026_26007_REMEDIATION_AUDIT_2026-02-11.md",
       "tags": [
         "architecture"
       ],
@@ -1479,6 +3913,69 @@
       "id": "doc:docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md",
       "label": "docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md",
       "path": "docs/audit/PR_TP2_DB_FALLBACK_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md",
+      "label": "docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md",
+      "path": "docs/audit/PR_WEB_PROGRESS_CLOSEOUT_AUDIT_2026-04-02.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_WS_EXPANSION_REALTIME_PACKAGE_AUDIT.md",
+      "label": "docs/audit/PR_WS_EXPANSION_REALTIME_PACKAGE_AUDIT.md",
+      "path": "docs/audit/PR_WS_EXPANSION_REALTIME_PACKAGE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md",
+      "label": "docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md",
+      "path": "docs/audit/PR_WS_IDLE_TIMEOUT_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md",
+      "label": "docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md",
+      "path": "docs/audit/PR_WS_OBSERVABILITY_HARDENING_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_WS_OBSERVABILITY_PR_BODY_SKELETON.md",
+      "label": "docs/audit/PR_WS_OBSERVABILITY_PR_BODY_SKELETON.md",
+      "path": "docs/audit/PR_WS_OBSERVABILITY_PR_BODY_SKELETON.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md",
+      "label": "docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md",
+      "path": "docs/audit/PR_WS_REALTIME_EXPANSION_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md",
+      "label": "docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md",
+      "path": "docs/audit/PR_XXX_API_TIERS_DB_LOOKUP_AUDIT.md",
       "tags": [
         "architecture"
       ],
@@ -1503,9 +4000,36 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md",
+      "label": "docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md",
+      "path": "docs/audit/RAG_IMPLEMENTATION_AND_AGENT_KNOWLEDGE_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/RESEARCH_BRAINSTORMING_AND_WEB_INNOVATION_PIPELINE_AUDIT_2026-02-10.md",
+      "label": "docs/audit/RESEARCH_BRAINSTORMING_AND_WEB_INNOVATION_PIPELINE_AUDIT_2026-02-10.md",
+      "path": "docs/audit/RESEARCH_BRAINSTORMING_AND_WEB_INNOVATION_PIPELINE_AUDIT_2026-02-10.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md",
       "label": "docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md",
       "path": "docs/audit/ROOT_CAUSE_ANALYSIS_BMI_UNDEFINED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "label": "docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
+      "path": "docs/audit/SCIENTIFIC_DISCOVERY_LAYER_AUDIT.md",
       "tags": [
         "architecture"
       ],
@@ -1521,6 +4045,33 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md",
+      "label": "docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md",
+      "path": "docs/audit/SKIPPED_TESTS_CLASSIFICATION_AUDIT_2026-02-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/TEST_SUITE_REVIEW_2026-03-13.md",
+      "label": "docs/audit/TEST_SUITE_REVIEW_2026-03-13.md",
+      "path": "docs/audit/TEST_SUITE_REVIEW_2026-03-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "label": "docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "path": "docs/audit/UNIVERSAL_AGENT_ORCHESTRATION_LAYER_AUDIT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/audit/WEBSOCKET_ANALYSIS.md",
       "label": "docs/audit/WEBSOCKET_ANALYSIS.md",
       "path": "docs/audit/WEBSOCKET_ANALYSIS.md",
@@ -1530,135 +4081,45 @@
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/WEB_SOFT_PAYWALL_AUDIT.md",
-      "label": "docs/audit/WEB_SOFT_PAYWALL_AUDIT.md",
-      "path": "docs/audit/WEB_SOFT_PAYWALL_AUDIT.md",
+      "id": "doc:docs/audit/artifacts/PHASE2_REVIEW_CONSTELLATION_PHILOSOPHY.md",
+      "label": "docs/audit/artifacts/PHASE2_REVIEW_CONSTELLATION_PHILOSOPHY.md",
+      "path": "docs/audit/artifacts/PHASE2_REVIEW_CONSTELLATION_PHILOSOPHY.md",
       "tags": [
         "architecture"
       ],
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/_local/PR_521A_COMMIT_CHECKLIST.md",
-      "label": "docs/audit/_local/PR_521A_COMMIT_CHECKLIST.md",
-      "path": "docs/audit/_local/PR_521A_COMMIT_CHECKLIST.md",
-      "tags": [
-        "architecture"
-      ],
+      "id": "doc:docs/deploy/PRODUCTION.md",
+      "label": "docs/deploy/PRODUCTION.md",
+      "path": "docs/deploy/PRODUCTION.md",
       "type": "document"
     },
     {
-      "id": "doc:docs/audit/_local/PR_521A_FINAL_PLAN.md",
-      "label": "docs/audit/_local/PR_521A_FINAL_PLAN.md",
-      "path": "docs/audit/_local/PR_521A_FINAL_PLAN.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521A_FRONTEND_ANSWERS.md",
-      "label": "docs/audit/_local/PR_521A_FRONTEND_ANSWERS.md",
-      "path": "docs/audit/_local/PR_521A_FRONTEND_ANSWERS.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521A_GATES.md",
-      "label": "docs/audit/_local/PR_521A_GATES.md",
-      "path": "docs/audit/_local/PR_521A_GATES.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521A_PRE_PUSH.md",
-      "label": "docs/audit/_local/PR_521A_PRE_PUSH.md",
-      "path": "docs/audit/_local/PR_521A_PRE_PUSH.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521A_PR_DESCRIPTION.md",
-      "label": "docs/audit/_local/PR_521A_PR_DESCRIPTION.md",
-      "path": "docs/audit/_local/PR_521A_PR_DESCRIPTION.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521B_FINAL_PLAN.md",
-      "label": "docs/audit/_local/PR_521B_FINAL_PLAN.md",
-      "path": "docs/audit/_local/PR_521B_FINAL_PLAN.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521B_REVIEW_COMMENT.md",
-      "label": "docs/audit/_local/PR_521B_REVIEW_COMMENT.md",
-      "path": "docs/audit/_local/PR_521B_REVIEW_COMMENT.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521_DIFF_MENTAL_MODEL.md",
-      "label": "docs/audit/_local/PR_521_DIFF_MENTAL_MODEL.md",
-      "path": "docs/audit/_local/PR_521_DIFF_MENTAL_MODEL.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521_FINAL_SUMMARY.md",
-      "label": "docs/audit/_local/PR_521_FINAL_SUMMARY.md",
-      "path": "docs/audit/_local/PR_521_FINAL_SUMMARY.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521_PLAN_REVISED.md",
-      "label": "docs/audit/_local/PR_521_PLAN_REVISED.md",
-      "path": "docs/audit/_local/PR_521_PLAN_REVISED.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_521_PR_DESCRIPTION_TEMPLATE.md",
-      "label": "docs/audit/_local/PR_521_PR_DESCRIPTION_TEMPLATE.md",
-      "path": "docs/audit/_local/PR_521_PR_DESCRIPTION_TEMPLATE.md",
-      "tags": [
-        "architecture"
-      ],
-      "type": "document"
-    },
-    {
-      "id": "doc:docs/audit/_local/PR_522_FINAL_PLAN.md",
-      "label": "docs/audit/_local/PR_522_FINAL_PLAN.md",
-      "path": "docs/audit/_local/PR_522_FINAL_PLAN.md",
-      "tags": [
-        "architecture"
-      ],
+      "id": "doc:docs/dev/CODEX_SKILLS.md",
+      "label": "docs/dev/CODEX_SKILLS.md",
+      "path": "docs/dev/CODEX_SKILLS.md",
       "type": "document"
     },
     {
       "id": "doc:docs/graph/GRAPHMAP_SPEC.md",
       "label": "docs/graph/GRAPHMAP_SPEC.md",
       "path": "docs/graph/GRAPHMAP_SPEC.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/memory/kpp_knowledge_promotion_pipeline.md",
+      "label": "docs/memory/kpp_knowledge_promotion_pipeline.md",
+      "path": "docs/memory/kpp_knowledge_promotion_pipeline.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENTS.md",
+      "label": "docs/orchestration/AGENTS.md",
+      "path": "docs/orchestration/AGENTS.md",
+      "tags": [
+        "architecture"
+      ],
       "type": "document"
     },
     {
@@ -1689,9 +4150,945 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+      "label": "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+      "path": "docs/orchestration/AGENT_EXPERIMENTATION_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md",
+      "label": "docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md",
+      "path": "docs/orchestration/AGENT_EXPERIMENT_PACKET_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/orchestration/AGENT_HANDOFF_PROTOCOL.md",
       "label": "docs/orchestration/AGENT_HANDOFF_PROTOCOL.md",
       "path": "docs/orchestration/AGENT_HANDOFF_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_INVENTORY.md",
+      "label": "docs/orchestration/AGENT_INVENTORY.md",
+      "path": "docs/orchestration/AGENT_INVENTORY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "label": "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "path": "docs/orchestration/AGENT_KNOWLEDGE_LIBRARY_WORKTREE_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_KNOWLEDGE_MAP.md",
+      "label": "docs/orchestration/AGENT_KNOWLEDGE_MAP.md",
+      "path": "docs/orchestration/AGENT_KNOWLEDGE_MAP.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+      "label": "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+      "path": "docs/orchestration/AGENT_MESSAGE_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md",
+      "label": "docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md",
+      "path": "docs/orchestration/AGENT_NON_ROUTABLE_SPECIALISTS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_REFLECTION_PROTOCOL.md",
+      "label": "docs/orchestration/AGENT_REFLECTION_PROTOCOL.md",
+      "path": "docs/orchestration/AGENT_REFLECTION_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_ROUTING_GRAPH.md",
+      "label": "docs/orchestration/AGENT_ROUTING_GRAPH.md",
+      "path": "docs/orchestration/AGENT_ROUTING_GRAPH.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+      "label": "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+      "path": "docs/orchestration/AGENT_SKILL_ROUTING_POLICY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md",
+      "label": "docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md",
+      "path": "docs/orchestration/AGENT_TASK_EVALUATION_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AI_RELIABILITY_EXPERIMENT_SUBLANE_W1_PACKET_2026-05-01.md",
+      "label": "docs/orchestration/AI_RELIABILITY_EXPERIMENT_SUBLANE_W1_PACKET_2026-05-01.md",
+      "path": "docs/orchestration/AI_RELIABILITY_EXPERIMENT_SUBLANE_W1_PACKET_2026-05-01.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/APPSTORE_RELEASE_READINESS_PR1_PRIVACY_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/APPSTORE_RELEASE_READINESS_PR1_PRIVACY_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/APPSTORE_RELEASE_READINESS_PR1_PRIVACY_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/APPSTORE_RELEASE_READINESS_PR2_PERMISSION_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/APPSTORE_RELEASE_READINESS_PR2_PERMISSION_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/APPSTORE_RELEASE_READINESS_PR2_PERMISSION_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/APPSTORE_RELEASE_READINESS_TASK_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/APPSTORE_RELEASE_READINESS_TASK_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/APPSTORE_RELEASE_READINESS_TASK_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/AUTOMATION_READINESS_MATRIX.md",
+      "label": "docs/orchestration/AUTOMATION_READINESS_MATRIX.md",
+      "path": "docs/orchestration/AUTOMATION_READINESS_MATRIX.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md",
+      "label": "docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md",
+      "path": "docs/orchestration/BUSINESS_WAVE_PR_SERIES_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md",
+      "label": "docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md",
+      "path": "docs/orchestration/BUSINESS_WAVE_TASK_PACKET_2026-03-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md",
+      "label": "docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md",
+      "path": "docs/orchestration/CODEX_SKILLS_ALIGNMENT_MATRIX.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CODEX_SKILLS_WAVE2_3_PACKET_2026-04-28.md",
+      "label": "docs/orchestration/CODEX_SKILLS_WAVE2_3_PACKET_2026-04-28.md",
+      "path": "docs/orchestration/CODEX_SKILLS_WAVE2_3_PACKET_2026-04-28.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md",
+      "label": "docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md",
+      "path": "docs/orchestration/CODEX_SKILL_PULSEPLATE_DESIGN_LAUNCH_SYSTEM_PACKET_2026-04-20.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "label": "docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "path": "docs/orchestration/COMPOSER_BOOTSTRAP_KIT_PR1.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "label": "docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "path": "docs/orchestration/COORDINATOR_MERGE_READINESS_RULES.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md",
+      "label": "docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md",
+      "path": "docs/orchestration/CREATIVE_RESEARCH_INTERNAL_PILOT_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md",
+      "label": "docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md",
+      "path": "docs/orchestration/CREATIVE_RESEARCH_OFFLINE_EVAL_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md",
+      "label": "docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md",
+      "path": "docs/orchestration/CREATIVE_RESEARCH_SUBLANE_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "label": "docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "path": "docs/orchestration/CURSOR_COMPOSER_PLATFORM_FACTS_VERIFIED.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+      "label": "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+      "path": "docs/orchestration/CV_EXPERIMENTATION_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md",
+      "label": "docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md",
+      "path": "docs/orchestration/CV_EXPERIMENT_PACKET_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_ALERTS_105_106_RECONCILIATION_TASK_PACKET_2026-04-11.md",
+      "label": "docs/orchestration/DEPENDABOT_ALERTS_105_106_RECONCILIATION_TASK_PACKET_2026-04-11.md",
+      "path": "docs/orchestration/DEPENDABOT_ALERTS_105_106_RECONCILIATION_TASK_PACKET_2026-04-11.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md",
+      "label": "docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md",
+      "path": "docs/orchestration/DEPENDABOT_ALERTS_110_113_REMEDIATION_TASK_PACKET_2026-04-16.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md",
+      "label": "docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md",
+      "path": "docs/orchestration/DEPENDABOT_ALERTS_114_116_REMEDIATION_TASK_PACKET_2026-04-17.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_ALERTS_118_119_PIP_REMEDIATION_TASK_PACKET_2026-04-25.md",
+      "label": "docs/orchestration/DEPENDABOT_ALERTS_118_119_PIP_REMEDIATION_TASK_PACKET_2026-04-25.md",
+      "path": "docs/orchestration/DEPENDABOT_ALERTS_118_119_PIP_REMEDIATION_TASK_PACKET_2026-04-25.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_ALERT_105_RECONCILIATION_TASK_PACKET_2026-04-10.md",
+      "label": "docs/orchestration/DEPENDABOT_ALERT_105_RECONCILIATION_TASK_PACKET_2026-04-10.md",
+      "path": "docs/orchestration/DEPENDABOT_ALERT_105_RECONCILIATION_TASK_PACKET_2026-04-10.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md",
+      "label": "docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md",
+      "path": "docs/orchestration/DEPENDABOT_PR_1471_TESTING_GROUP_REMEDIATION_PACKET_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_PR_1472_QUALITY_GROUP_REMEDIATION_PACKET_2026-04-19.md",
+      "label": "docs/orchestration/DEPENDABOT_PR_1472_QUALITY_GROUP_REMEDIATION_PACKET_2026-04-19.md",
+      "path": "docs/orchestration/DEPENDABOT_PR_1472_QUALITY_GROUP_REMEDIATION_PACKET_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_PR_1473_SENTENCE_TRANSFORMERS_REMEDIATION_PACKET_2026-04-19.md",
+      "label": "docs/orchestration/DEPENDABOT_PR_1473_SENTENCE_TRANSFORMERS_REMEDIATION_PACKET_2026-04-19.md",
+      "path": "docs/orchestration/DEPENDABOT_PR_1473_SENTENCE_TRANSFORMERS_REMEDIATION_PACKET_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md",
+      "label": "docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md",
+      "path": "docs/orchestration/DEPENDABOT_PR_1474_TRANSFORMERS_REMEDIATION_PACKET_2026-04-20.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md",
+      "label": "docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md",
+      "path": "docs/orchestration/DEPENDABOT_PR_1480_FRONTEND_CI_MYPY_HOTFIX_PACKET_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DEPENDABOT_PR_1520_POSTCSS_REPLACEMENT_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/DEPENDABOT_PR_1520_POSTCSS_REPLACEMENT_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/DEPENDABOT_PR_1520_POSTCSS_REPLACEMENT_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
+      "label": "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
+      "path": "docs/orchestration/DESIGN_AGENT_PR_TEMPLATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md",
+      "label": "docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md",
+      "path": "docs/orchestration/DESIGN_AGENT_RUNTIME_REALIGNMENT_PACKET.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_AGENT_WORKFLOW.md",
+      "label": "docs/orchestration/DESIGN_AGENT_WORKFLOW.md",
+      "path": "docs/orchestration/DESIGN_AGENT_WORKFLOW.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md",
+      "label": "docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md",
+      "path": "docs/orchestration/DESIGN_AUTOMATION_NEXT_LANE_PACKET_2026-05-08.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md",
+      "label": "docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md",
+      "path": "docs/orchestration/DESIGN_BRIDGE_OPERATIONALIZATION_PACKET_2026-04-11.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md",
+      "label": "docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md",
+      "path": "docs/orchestration/DESIGN_EPIC_PR_PROMPT_PROTOCOL_2026_05_08.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md",
+      "label": "docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md",
+      "path": "docs/orchestration/DESIGN_INTELLIGENCE_PR0_PACKET_2026-05-05.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_INTELLIGENCE_PR5_WEB_BRIEF_PACKET_2026-05-06.md",
+      "label": "docs/orchestration/DESIGN_INTELLIGENCE_PR5_WEB_BRIEF_PACKET_2026-05-06.md",
+      "path": "docs/orchestration/DESIGN_INTELLIGENCE_PR5_WEB_BRIEF_PACKET_2026-05-06.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_INTELLIGENCE_PR6_IOS_PARITY_PACKET_2026-05-06.md",
+      "label": "docs/orchestration/DESIGN_INTELLIGENCE_PR6_IOS_PARITY_PACKET_2026-05-06.md",
+      "path": "docs/orchestration/DESIGN_INTELLIGENCE_PR6_IOS_PARITY_PACKET_2026-05-06.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md",
+      "label": "docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md",
+      "path": "docs/orchestration/DESIGN_INTELLIGENCE_PR7_AGENT_WORKFLOW_PACKET_2026-05-06.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md",
+      "label": "docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md",
+      "path": "docs/orchestration/DESIGN_INTELLIGENCE_PR8_GEPA_PACKET_2026-05-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md",
+      "label": "docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md",
+      "path": "docs/orchestration/DESIGN_INTELLIGENCE_WEB_IOS_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_CLOSEOUT_NEXT_WAVE_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_CLOSEOUT_NEXT_WAVE_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_CLOSEOUT_NEXT_WAVE_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_FIGMA_SYNC_CLOSEOUT_2026-04-25.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_FIGMA_SYNC_CLOSEOUT_2026-04-25.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_FIGMA_SYNC_CLOSEOUT_2026-04-25.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR0_BOOTSTRAP_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR1_MISSING_GOVERNED_PRIMITIVES_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR2_SPECIALIZED_FAMILIES_NORMALIZATION_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR3_PRODUCT_TOKEN_EXPANSION_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR3_PRODUCT_TOKEN_EXPANSION_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR3_PRODUCT_TOKEN_EXPANSION_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR4_WEB_SHELL_CONVERGENCE_PACKET_2026-04-25.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR4_WEB_SHELL_CONVERGENCE_PACKET_2026-04-25.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR4_WEB_SHELL_CONVERGENCE_PACKET_2026-04-25.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5B_HOME_PLATE_PROGRESS_ADOPTION_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5B_HOME_PLATE_PROGRESS_ADOPTION_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5B_HOME_PLATE_PROGRESS_ADOPTION_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5_IOS_DESIGN_SYSTEM_ADOPTION_PACKET_2026-04-28.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5_IOS_DESIGN_SYSTEM_ADOPTION_PACKET_2026-04-28.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR5_IOS_DESIGN_SYSTEM_ADOPTION_PACKET_2026-04-28.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR6_ACCESSIBILITY_MOTION_STATE_CONTRACT_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR6_ACCESSIBILITY_MOTION_STATE_CONTRACT_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR6_ACCESSIBILITY_MOTION_STATE_CONTRACT_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR7_EXPORT_LOCK_AND_MANIFEST_HARDENING_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR7_EXPORT_LOCK_AND_MANIFEST_HARDENING_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR7_EXPORT_LOCK_AND_MANIFEST_HARDENING_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR8_STORYBOOK_PARITY_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR8_STORYBOOK_PARITY_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR8_STORYBOOK_PARITY_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR9_DESIGN_SYSTEM_AUTOMATION_PACKET_2026-05-08.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md",
+      "label": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md",
+      "path": "docs/orchestration/DESIGN_RUNTIME_SYSTEM_WEB_IOS_PR_SERIES_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "label": "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "path": "docs/orchestration/DOCKER_CI_DISCIPLINE_PR_SERIES_PACKET_2026-04-16.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/DOCKER_IMAGE_BUDGET_TELEMETRY_TASK_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/DOCKER_IMAGE_HARD_BUDGET_GATE_TASK_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DOCKER_RUNTIME_SLIMMING_TASK_PACKET_2026-04-21.md",
+      "label": "docs/orchestration/DOCKER_RUNTIME_SLIMMING_TASK_PACKET_2026-04-21.md",
+      "path": "docs/orchestration/DOCKER_RUNTIME_SLIMMING_TASK_PACKET_2026-04-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/DOCKER_SIGNED_BUILD_PROVENANCE_TASK_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md",
+      "label": "docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md",
+      "path": "docs/orchestration/DOCKER_WORKFLOW_BUILD_PATH_CONSOLIDATION_TASK_PACKET_2026-04-25.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md",
+      "label": "docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md",
+      "path": "docs/orchestration/EVIDENCE_RECONCILIATION_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/EXPERIMENT_RUNNER_LANE_START_PROVENANCE_PACKET_2026-05-21.md",
+      "label": "docs/orchestration/EXPERIMENT_RUNNER_LANE_START_PROVENANCE_PACKET_2026-05-21.md",
+      "path": "docs/orchestration/EXPERIMENT_RUNNER_LANE_START_PROVENANCE_PACKET_2026-05-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md",
+      "label": "docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md",
+      "path": "docs/orchestration/FITCHEF_SAFE_PERSONALIZATION_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md",
+      "label": "docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md",
+      "path": "docs/orchestration/FITCHEF_SANDBOX_INTEGRATION_PLAN.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md",
+      "label": "docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md",
+      "path": "docs/orchestration/FITCHEF_SANDBOX_PHASE2_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md",
+      "label": "docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md",
+      "path": "docs/orchestration/FOODS_CATALOG_FOUNDATION_PR_A_TASK_PACKET_2026-04-12.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md",
+      "label": "docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md",
+      "path": "docs/orchestration/FOODS_FOUNDATION_DOWNGRADE_OWNERSHIP_TASK_PACKET_2026-04-18.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md",
+      "label": "docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md",
+      "path": "docs/orchestration/FOODS_POSTGRES_POST_B3_CLOSEOUT_PACKET_2026-04-17.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md",
+      "label": "docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md",
+      "path": "docs/orchestration/FOODS_POSTGRES_PROMOTION_PR_B1_TASK_PACKET_2026-04-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md",
+      "label": "docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md",
+      "path": "docs/orchestration/FOODS_POSTGRES_RESTAURANT_BRIDGE_PR_B2_TASK_PACKET_2026-04-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md",
+      "label": "docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md",
+      "path": "docs/orchestration/FOODS_POSTGRES_SHADOW_READS_PR_B3_TASK_PACKET_2026-04-16.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/FOOD_DATA_CHAIN_PUBLIC_NUTRITION_PR12_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/FOOD_DATA_COVERAGE_SOURCE_GAP_PR11_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/FOOD_DATA_JPTN_IDENTITY_LICENSE_PR8_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/FOOD_DATA_MENUSTAT_REPLACEMENT_PR9_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/FOOD_DATA_MENUSTAT_SOURCE_DECISION_PR10_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/FOOD_DATA_OFF_MANIFEST_PREFLIGHT_PR7_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/FOOD_DATA_PER_CHAIN_LEGAL_ANTI_SCRAPING_PR13_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md",
+      "label": "docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md",
+      "path": "docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_CLOSEOUT_PR16_PACKET_2026-05-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md",
+      "label": "docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md",
+      "path": "docs/orchestration/FOOD_DATA_PREFERENCE_RECIPE_MAPPING_PR15_PACKET_2026-05-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md",
+      "label": "docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md",
+      "path": "docs/orchestration/FOOD_DATA_RECIPE_DISH_CORPUS_PR14_PACKET_2026-05-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md",
+      "label": "docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md",
+      "path": "docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_IDENTITY_LICENSE_PR17_PACKET_2026-05-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md",
+      "label": "docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md",
+      "path": "docs/orchestration/FOOD_DATA_REGIONAL_CATALOG_PROVIDER_TERMS_MATRIX_PR18_PACKET_2026-05-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/FOOD_DATA_SOURCE_CATALOG_PR3_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md",
+      "label": "docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md",
+      "path": "docs/orchestration/FOOD_DATA_SOURCE_DEDUPE_COLLISION_PR4_PACKET_2026-04-25.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md",
+      "label": "docs/orchestration/FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md",
+      "path": "docs/orchestration/FOOD_DATA_SOURCE_ONBOARDING_GATE_PR5_PACKET_2026-04-28.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/FOOD_DATA_SOURCE_PREFLIGHT_TOOLING_PR2_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "label": "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "path": "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_CURRENT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/FOOD_DATA_SOURCE_UPDATE_PREFLIGHT_PR1_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md",
+      "label": "docs/orchestration/FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md",
+      "path": "docs/orchestration/FOOD_DATA_USDA_MANIFEST_PREFLIGHT_PR6_PACKET_2026-04-28.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PACKET_2026-04-08.md",
+      "label": "docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PACKET_2026-04-08.md",
+      "path": "docs/orchestration/GOVERNANCE_COORDINATOR_FIRST_RAG_KARPATHY_TASK_PACKET_2026-04-08.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md",
+      "label": "docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md",
+      "path": "docs/orchestration/GOVERNED_NON_HUMAN_IDENTITY_POLICY.md",
       "tags": [
         "architecture"
       ],
@@ -1707,9 +5104,693 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md",
+      "label": "docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md",
+      "path": "docs/orchestration/JUDGMENT_ADJUDICATION_SUBLANE_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/KARPATHY_ADVISORY_WIKI_UMBRELLA_S0_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/KARPATHY_PR_B0_LAUNCHER_BOOTSTRAP_HARDENING_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KARPATHY_PR_B1_ADVISORY_WIKI_COMPILER_CLOSEOUT_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/KARPATHY_PR_B1_ADVISORY_WIKI_COMPILER_CLOSEOUT_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/KARPATHY_PR_B1_ADVISORY_WIKI_COMPILER_CLOSEOUT_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_CLOSEOUT_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_CLOSEOUT_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_CLOSEOUT_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/KARPATHY_PR_B3_ADVISORY_WIKI_QUERY_LINT_ENRICHMENT_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md",
+      "label": "docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md",
+      "path": "docs/orchestration/KARPATHY_PR_B4_BOUNDED_REFERENCE_CORPUS_POLICY_PACKET_2026-04-30.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md",
+      "label": "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md",
+      "path": "docs/orchestration/KIMI_PROTOTYPE_INTAKE_MODERNIZATION_BRIDGE_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md",
+      "label": "docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md",
+      "path": "docs/orchestration/LOCAL_EXECUTION_SANDBOX_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md",
+      "label": "docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md",
+      "path": "docs/orchestration/LOCAL_WIKI_SUPPORT_PLANE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "label": "docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "path": "docs/orchestration/LOCAL_WORKFORCE_PR_A_TASK_PACKET_2026-04-05.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MAINLINE_CI_XDIST_ROOT_CAUSE_AND_UUID117_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/MAINLINE_CI_XDIST_ROOT_CAUSE_AND_UUID117_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/MAINLINE_CI_XDIST_ROOT_CAUSE_AND_UUID117_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/MAINLINE_CI_XDIST_WORKER_STABILITY_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md",
+      "label": "docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md",
+      "path": "docs/orchestration/MAINLINE_NIGHTLY_RUFF_BOOTSTRAP_REMEDIATION_PACKET_2026-04-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/MAIN_CI_PY312_CONTAINMENT_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/MAIN_CI_PY312_TIMEOUT_ROOT_CAUSE_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MAIN_CI_PY313_TIMEOUT_PREVENTION_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/MAIN_CI_PY313_TIMEOUT_PREVENTION_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/MAIN_CI_PY313_TIMEOUT_PREVENTION_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MEILI_SWAP_PR_READINESS.md",
+      "label": "docs/orchestration/MEILI_SWAP_PR_READINESS.md",
+      "path": "docs/orchestration/MEILI_SWAP_PR_READINESS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md",
+      "label": "docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md",
+      "path": "docs/orchestration/METATRON_SECURITY_ASSESSMENT_WAVE_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md",
+      "label": "docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md",
+      "path": "docs/orchestration/METATRON_TRACK_A_EPIC1_TASK_PACKET_2026-04-06.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md",
+      "label": "docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md",
+      "path": "docs/orchestration/METATRON_TRACK_A_EPIC2_TASK_PACKET_2026-04-06.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md",
+      "label": "docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md",
+      "path": "docs/orchestration/MONETIZATION_PLANNING_WAVE_PR_SERIES_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md",
+      "label": "docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md",
+      "path": "docs/orchestration/MONETIZATION_PLANNING_WAVE_TASK_PACKET_2026-04-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md",
+      "label": "docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md",
+      "path": "docs/orchestration/NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md",
+      "label": "docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md",
+      "path": "docs/orchestration/ORCHESTRATION_TELEMETRY_SPEC.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
       "label": "docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
       "path": "docs/orchestration/PARALLEL_WORK_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PGVECTOR_EMBEDDING_MIGRATION_BLOCKER_PACKET_2026-04-12.md",
+      "label": "docs/orchestration/PGVECTOR_EMBEDDING_MIGRATION_BLOCKER_PACKET_2026-04-12.md",
+      "path": "docs/orchestration/PGVECTOR_EMBEDDING_MIGRATION_BLOCKER_PACKET_2026-04-12.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+      "label": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+      "path": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR0_PACKET_2026-05-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md",
+      "label": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md",
+      "path": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR1_PACKET_2026-05-17.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md",
+      "label": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md",
+      "path": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR2_POLICY_ORACLE_PACKET_2026-05-20.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PHILOSOPHY_EPIC_V2_PR3_ADMISSION_DRY_RUN_PACKET_2026-05-21.md",
+      "label": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR3_ADMISSION_DRY_RUN_PACKET_2026-05-21.md",
+      "path": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR3_ADMISSION_DRY_RUN_PACKET_2026-05-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md",
+      "label": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md",
+      "path": "docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PILOT_PARALLEL_TASK.md",
+      "label": "docs/orchestration/PILOT_PARALLEL_TASK.md",
+      "path": "docs/orchestration/PILOT_PARALLEL_TASK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/PLUGIN_CONTROL_PLANE_FAMILIES_UMBRELLA_S0_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/POSTGRES_DROPLET_LEDGER_RECONCILIATION_TASK_PACKET_2026-04-13.md",
+      "label": "docs/orchestration/POSTGRES_DROPLET_LEDGER_RECONCILIATION_TASK_PACKET_2026-04-13.md",
+      "path": "docs/orchestration/POSTGRES_DROPLET_LEDGER_RECONCILIATION_TASK_PACKET_2026-04-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md",
+      "label": "docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md",
+      "path": "docs/orchestration/PR_MERGE_WORKFLOW_MATRIX.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "label": "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "path": "docs/orchestration/PR_ORCHESTRATION_CONTRACT_MATRIX.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md",
+      "label": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md",
+      "path": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR2_CONTEXT_COLLECTOR_PACKET_2026-04-26.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md",
+      "label": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md",
+      "path": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR3_DRY_RUN_REPORT_PACKET_2026-04-28.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md",
+      "label": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md",
+      "path": "docs/orchestration/PULSEPLATE_PR_REVIEW_SKILL_PR4_CALIBRATION_PACKET_2026-04-28.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md",
+      "label": "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md",
+      "path": "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_TASK_PACKET_2026-04-20.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/PULSEPLATE_RAG_RELEASE_GATES_THRESHOLD_REPORTING_TASK_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_SELECTIVE_GRAPHRAG_CONTRACT_TASK_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/PULSEPLATE_SELECTIVE_GRAPHRAG_CONTRACT_TASK_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/PULSEPLATE_SELECTIVE_GRAPHRAG_CONTRACT_TASK_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT_TASK_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT_TASK_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/PULSEPLATE_SELECTIVE_GRAPH_EVAL_CONTRACT_TASK_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "label": "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "path": "docs/orchestration/PulsePlate_Local_Agent_Workforce_System_Design_Packet_v1_2.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_EVIDENCE_PUBLICATION_PACKET_2026-05-07.md",
+      "label": "docs/orchestration/RELEASE_CONTROL_PLANE_EVIDENCE_PUBLICATION_PACKET_2026-05-07.md",
+      "path": "docs/orchestration/RELEASE_CONTROL_PLANE_EVIDENCE_PUBLICATION_PACKET_2026-05-07.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/RELEASE_CONTROL_PLANE_TASK_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md",
+      "label": "docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md",
+      "path": "docs/orchestration/RESEARCH_BRAINSTORMING_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/RESEARCH_TRACK_PROTOCOL.md",
+      "label": "docs/orchestration/RESEARCH_TRACK_PROTOCOL.md",
+      "path": "docs/orchestration/RESEARCH_TRACK_PROTOCOL.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/SHARED_SAFETY_AUDIT_SCRIPT_TASK_PACKET_2026-04-24.md",
+      "label": "docs/orchestration/SHARED_SAFETY_AUDIT_SCRIPT_TASK_PACKET_2026-04-24.md",
+      "path": "docs/orchestration/SHARED_SAFETY_AUDIT_SCRIPT_TASK_PACKET_2026-04-24.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md",
+      "label": "docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md",
+      "path": "docs/orchestration/SKILL_ROUTING_WAVE2_CLOSEOUT_PACKET_2026-04-29.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md",
+      "label": "docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md",
+      "path": "docs/orchestration/TASK_ANALYSIS_LOCAL_WORKFORCE_PR_C_2026-04-05.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "label": "docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "path": "docs/orchestration/TIER1_CI_CD_PR_SERIES_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "label": "docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "path": "docs/orchestration/TIER1_CI_CD_TASK_PACKET_2026-03-26.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "label": "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "path": "docs/orchestration/TIER4_PR1548_AGENT_PASS_RECORD_2026-04-27.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "label": "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "path": "docs/orchestration/TIER4_SCIENTIFIC_CREATIVE_CELL_PR0_PACKET_2026-04-27.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md",
+      "label": "docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md",
+      "path": "docs/orchestration/TOP20_PR_RECOVERY_TASK_PACKETS_2026-03-08.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md",
+      "label": "docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md",
+      "path": "docs/orchestration/UI_EPIC_PR1_BOOTSTRAP_PACKET_2026-04-18.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md",
+      "label": "docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md",
+      "path": "docs/orchestration/UI_EPIC_PR_SERIES_RUNBOOK.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md",
+      "label": "docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md",
+      "path": "docs/orchestration/WAVE6_A1B_PRO_QUOTA_RECONCILIATION_TASK_PACKET_2026-04-17.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md",
+      "label": "docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md",
+      "path": "docs/orchestration/WAVE6_A3_AI_BOUNDED_CONTEXT_PACKET_2026-04-18.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/WAVE6_A6_PHILOSOPHICAL_ROLLOUT_W1_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A6_TASK_ANALYSIS_2026-04-22.md",
+      "label": "docs/orchestration/WAVE6_A6_TASK_ANALYSIS_2026-04-22.md",
+      "path": "docs/orchestration/WAVE6_A6_TASK_ANALYSIS_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md",
+      "label": "docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md",
+      "path": "docs/orchestration/WAVE6_A7_RECURSIVE_METHODS_W1_PACKET_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md",
+      "label": "docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md",
+      "path": "docs/orchestration/WAVE6_A7_TASK_ANALYSIS_2026-04-22.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A8_RECURSIVE_SPEED_OPTIMIZATION_W1_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/WAVE6_A8_RECURSIVE_SPEED_OPTIMIZATION_W1_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/WAVE6_A8_RECURSIVE_SPEED_OPTIMIZATION_W1_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A8_TASK_ANALYSIS_2026-04-23.md",
+      "label": "docs/orchestration/WAVE6_A8_TASK_ANALYSIS_2026-04-23.md",
+      "path": "docs/orchestration/WAVE6_A8_TASK_ANALYSIS_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md",
+      "label": "docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md",
+      "path": "docs/orchestration/WAVE6_A9_SCIENTIFIC_RELIABILITY_PACKET_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md",
+      "label": "docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md",
+      "path": "docs/orchestration/WAVE6_A9_TASK_ANALYSIS_2026-04-23.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md",
+      "label": "docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md",
+      "path": "docs/orchestration/WAVE6_AI_RUNTIME_AND_ADVISORY_SERIES_PACKET_2026-04-13.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_K1_DOD_2026-04-19.md",
+      "label": "docs/orchestration/WAVE6_K1_DOD_2026-04-19.md",
+      "path": "docs/orchestration/WAVE6_K1_DOD_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md",
+      "label": "docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md",
+      "path": "docs/orchestration/WAVE6_K1_KNOWLEDGE_PROMOTION_PACKET_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_K1_SYNTHESIS_2026-04-19.md",
+      "label": "docs/orchestration/WAVE6_K1_SYNTHESIS_2026-04-19.md",
+      "path": "docs/orchestration/WAVE6_K1_SYNTHESIS_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_K1_TASK_ANALYSIS_2026-04-19.md",
+      "label": "docs/orchestration/WAVE6_K1_TASK_ANALYSIS_2026-04-19.md",
+      "path": "docs/orchestration/WAVE6_K1_TASK_ANALYSIS_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_K1_WORK_REVIEW_2026-04-19.md",
+      "label": "docs/orchestration/WAVE6_K1_WORK_REVIEW_2026-04-19.md",
+      "path": "docs/orchestration/WAVE6_K1_WORK_REVIEW_2026-04-19.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md",
+      "label": "docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md",
+      "path": "docs/orchestration/WAVE6_V1_VERIFICATION_REGISTRY_PACKET_2026-04-21.md",
       "tags": [
         "architecture"
       ],
@@ -1734,6 +5815,123 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md",
+      "label": "docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md",
+      "path": "docs/orchestration/contracts/AI_RUNTIME_GATE_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md",
+      "label": "docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md",
+      "path": "docs/orchestration/contracts/CREATIVE_RESEARCH_EVAL_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md",
+      "label": "docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md",
+      "path": "docs/orchestration/contracts/CV_PHOTO_FOOD_EVAL_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
+      "label": "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
+      "path": "docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/EVIDENCE_ADVISORY_WIKI_BRIDGE.md",
+      "label": "docs/orchestration/contracts/EVIDENCE_ADVISORY_WIKI_BRIDGE.md",
+      "path": "docs/orchestration/contracts/EVIDENCE_ADVISORY_WIKI_BRIDGE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/EVIDENCE_EVENT_SCHEMA.md",
+      "label": "docs/orchestration/contracts/EVIDENCE_EVENT_SCHEMA.md",
+      "path": "docs/orchestration/contracts/EVIDENCE_EVENT_SCHEMA.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/EVIDENCE_METADATA_ADMISSION.md",
+      "label": "docs/orchestration/contracts/EVIDENCE_METADATA_ADMISSION.md",
+      "path": "docs/orchestration/contracts/EVIDENCE_METADATA_ADMISSION.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/EVIDENCE_PROMOTION_REPLAY.md",
+      "label": "docs/orchestration/contracts/EVIDENCE_PROMOTION_REPLAY.md",
+      "path": "docs/orchestration/contracts/EVIDENCE_PROMOTION_REPLAY.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md",
+      "label": "docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md",
+      "path": "docs/orchestration/contracts/EXACT_FUZZY_CACHE_SCAFFOLD.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md",
+      "label": "docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md",
+      "path": "docs/orchestration/contracts/JUDGMENT_EVAL_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md",
+      "label": "docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md",
+      "path": "docs/orchestration/contracts/LOGIC_PHILOSOPHY_REPLAY_EVAL_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+      "label": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+      "path": "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/RUNTIME_CONTEXT_MEMORY_CONTRACTS.md",
+      "label": "docs/orchestration/contracts/RUNTIME_CONTEXT_MEMORY_CONTRACTS.md",
+      "path": "docs/orchestration/contracts/RUNTIME_CONTEXT_MEMORY_CONTRACTS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md",
       "label": "docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md",
       "path": "docs/orchestration/contracts/SAFETY_LANGUAGE_POLICY.md",
@@ -1743,9 +5941,54 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+      "label": "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+      "path": "docs/orchestration/contracts/SEMANTIC_CACHE_BACKEND_SELECTION_CONTRACT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md",
+      "label": "docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md",
+      "path": "docs/orchestration/contracts/SEMANTIC_CACHE_BOUNDED_INSIGHT_EXPERIMENT.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md",
+      "label": "docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md",
+      "path": "docs/orchestration/contracts/SEMANTIC_CACHE_OBSERVABILITY_FALSE_HIT_HARNESS.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "label": "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "path": "docs/orchestration/contracts/SEMANTIC_CACHE_ROLLOUT_GATE.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/orchestration/dod.template.md",
       "label": "docs/orchestration/dod.template.md",
       "path": "docs/orchestration/dod.template.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md",
+      "label": "docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md",
+      "path": "docs/orchestration/plan_SEARCH_ZERO_DOWNTIME_SWAP_FOLLOWUP.md",
       "tags": [
         "architecture"
       ],
@@ -1770,6 +6013,15 @@
       "type": "document"
     },
     {
+      "id": "doc:docs/orchestration/task_analysis_SEARCH_PGTRGM_CANDIDATES_P2.md",
+      "label": "docs/orchestration/task_analysis_SEARCH_PGTRGM_CANDIDATES_P2.md",
+      "path": "docs/orchestration/task_analysis_SEARCH_PGTRGM_CANDIDATES_P2.md",
+      "tags": [
+        "architecture"
+      ],
+      "type": "document"
+    },
+    {
       "id": "doc:docs/orchestration/work_review.template.md",
       "label": "docs/orchestration/work_review.template.md",
       "path": "docs/orchestration/work_review.template.md",
@@ -1786,6 +6038,159 @@
         "architecture"
       ],
       "type": "document"
+    },
+    {
+      "id": "doc:docs/release/BUILD_EQUIVALENCE_CONTRACT.md",
+      "label": "docs/release/BUILD_EQUIVALENCE_CONTRACT.md",
+      "path": "docs/release/BUILD_EQUIVALENCE_CONTRACT.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json",
+      "label": "docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json",
+      "path": "docs/release/BUILD_EQUIVALENCE_CONTRACT.schema.json",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md",
+      "label": "docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md",
+      "path": "docs/release/PRODUCTION_RELEASE_EVIDENCE_WIRING.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md",
+      "label": "docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md",
+      "path": "docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json",
+      "label": "docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json",
+      "path": "docs/release/RAG_GATE_RESULT_EXPORT_CONTRACT.schema.json",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md",
+      "label": "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md",
+      "path": "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json",
+      "label": "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json",
+      "path": "docs/release/RELEASE_CONTROL_PLANE_CI_GATE.schema.json",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/RELEASE_MANIFEST_CONTRACT.md",
+      "label": "docs/release/RELEASE_MANIFEST_CONTRACT.md",
+      "path": "docs/release/RELEASE_MANIFEST_CONTRACT.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/RELEASE_MANIFEST_CONTRACT.schema.json",
+      "label": "docs/release/RELEASE_MANIFEST_CONTRACT.schema.json",
+      "path": "docs/release/RELEASE_MANIFEST_CONTRACT.schema.json",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/REVIEWER_PACKET_HASH_CONTRACT.md",
+      "label": "docs/release/REVIEWER_PACKET_HASH_CONTRACT.md",
+      "path": "docs/release/REVIEWER_PACKET_HASH_CONTRACT.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json",
+      "label": "docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json",
+      "path": "docs/release/REVIEWER_PACKET_HASH_CONTRACT.schema.json",
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/roadmap/BACKLOG_LEDGER.md",
+      "label": "docs/roadmap/BACKLOG_LEDGER.md",
+      "path": "docs/roadmap/BACKLOG_LEDGER.md",
+      "tags": [
+        "project"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md",
+      "label": "docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md",
+      "path": "docs/roadmap/DEPLOY_WEB_DIAGNOSIS_AND_FIX.md",
+      "tags": [
+        "project"
+      ],
+      "type": "document"
+    },
+    {
+      "id": "doc:frontend/.dockerignore",
+      "label": "frontend/.dockerignore",
+      "path": "frontend/.dockerignore",
+      "type": "document"
+    },
+    {
+      "id": "doc:frontend/Dockerfile.caddy-spa",
+      "label": "frontend/Dockerfile.caddy-spa",
+      "path": "frontend/Dockerfile.caddy-spa",
+      "type": "document"
+    },
+    {
+      "id": "doc:scripts/AGENTS.md",
+      "label": "scripts/AGENTS.md",
+      "path": "scripts/AGENTS.md",
+      "type": "document"
+    },
+    {
+      "id": "doc:scripts/orchestration/skill_router.py",
+      "label": "scripts/orchestration/skill_router.py",
+      "path": "scripts/orchestration/skill_router.py",
+      "type": "document"
+    },
+    {
+      "id": "doc:tests/test_skill_router.py",
+      "label": "tests/test_skill_router.py",
+      "path": "tests/test_skill_router.py",
+      "tags": [
+        "execution"
+      ],
+      "type": "test"
+    },
+    {
+      "id": "module:app",
+      "label": "app",
+      "path": "app/",
+      "tags": [
+        "module"
+      ],
+      "type": "module"
+    },
+    {
+      "id": "module:deploy",
+      "label": "deploy",
+      "path": "deploy/",
+      "tags": [
+        "module"
+      ],
+      "type": "module"
+    },
+    {
+      "id": "module:frontend",
+      "label": "frontend",
+      "path": "frontend/",
+      "tags": [
+        "module"
+      ],
+      "type": "module"
+    },
+    {
+      "id": "module:tests",
+      "label": "tests",
+      "path": "tests/",
+      "tags": [
+        "module"
+      ],
+      "type": "module"
     }
   ],
   "schema_version": "1.0"

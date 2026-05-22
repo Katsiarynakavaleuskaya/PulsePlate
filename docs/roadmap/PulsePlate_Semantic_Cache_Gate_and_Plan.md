@@ -73,6 +73,17 @@ decision at `cache_read_allowed=false`, `cache_write_allowed=false`, and
 consideration, but never sufficient while the semantic-cache gate remains
 closed.
 
+The Philosophy Epic V2 PR-4 gate-open preconditions report is defined by
+[`PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json`](../orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json).
+That report is a blocked handoff inventory, not a gate-opening approval. It
+validates PR-2 policy/oracle truth, PR-3 dry-run truth, this roadmap's closed
+machine markers, and runtime prerequisite anchors while keeping
+`gate_open_allowed=false`, `runtime_handoff_allowed=false`,
+`cache_read_allowed=false`, `cache_write_allowed=false`, and
+`serving_allowed=false`. Ledger anchor presence does not verify prerequisite
+closure; a later reviewed gate-open PR must still change the machine-checkable
+markers before runtime semantic-cache work can begin.
+
 Current `main` already contains:
 - merged `A1` fallback/readiness runtime truth
 - landed PRO/VIP tier-aware monthly quota machinery
@@ -120,6 +131,7 @@ If the gate opens later, the rollout order is fixed:
 5. SC-G5 backend selection
 6. Philosophy admission contract reconciliation for philosophical request classes
 7. Philosophy admission policy oracle and dry-run verification-bundle adapter
+8. Philosophy gate-open preconditions blocked handoff inventory
 
 ## First-Pass Safety Limits
 
