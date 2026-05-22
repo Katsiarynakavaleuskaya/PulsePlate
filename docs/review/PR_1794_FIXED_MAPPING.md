@@ -12,25 +12,25 @@
 ## Fixed in Commit Mapping
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1794#discussion_r3286839523 -> b08697ade
-  Disposition: FIXED
-  Commit: b08697ade
-  Evidence: docs/orchestration/AUTOMATION_READINESS_MATRIX.md:255
+Disposition: FIXED
+Commit: b08697ade
+Evidence: docs/orchestration/AUTOMATION_READINESS_MATRIX.md:255
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1794#pullrequestreview-4343653984
-  Disposition: NOT-A-BUG
-  Evidence: Aggregate bot review summary; no separate actionable finding beyond mapped discussion comment above.
-  Reason: Review comment r3286839523 is the sole actionable finding and is already mapped as FIXED.
+Disposition: NOT-A-BUG
+Evidence: Aggregate bot review summary; no separate actionable finding beyond mapped discussion comment above.
+Reason: Review comment r3286839523 is the sole actionable finding and is already mapped as FIXED.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1794#discussion_r3288190457 -> d808bf27d
-  Disposition: FIXED
-  Commit: d808bf27d
-  Evidence: docs/review/PR_1794_FIXED_MAPPING.md:26-31
-  Reason: Merge-readiness checklist items must stay `[ ]` until the actual final merge cycle per repo artifact contract.
+Disposition: FIXED
+Commit: d808bf27d
+Evidence: docs/review/PR_1794_FIXED_MAPPING.md:26-31
+Reason: Merge-readiness checklist items must stay `[ ]` until the actual final merge cycle per repo artifact contract.
 
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1794#pullrequestreview-4345210910
-  Disposition: NOT-A-BUG
-  Evidence: Aggregate bot review summary for comment r3288190457; no separate actionable finding.
-  Reason: The sole actionable finding (merge-readiness checkbox state) is already mapped as FIXED above.
+Disposition: NOT-A-BUG
+Evidence: Aggregate bot review summary for comment r3288190457; no separate actionable finding.
+Reason: The sole actionable finding (merge-readiness checkbox state) is already mapped as FIXED above.
 
 ## Merge Readiness
 
