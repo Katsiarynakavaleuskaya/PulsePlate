@@ -29,9 +29,9 @@ diff-cover>=9.7.2  # Updated to match requirements-dev.txt
 
 # Production runtime packages (mirror requirements.txt minimums)
 fastapi>=0.122.0
-# Starlette 0.50.0 is compatible with FastAPI 0.124.4+
-# See: https://github.com/encode/starlette/releases/tag/0.50.0
-starlette>=0.50.0
+# Starlette 1.0.1 fixes PYSEC-2026-161 / GHSA-86qp-5c8j-p5mr.
+# FastAPI 0.136.1 metadata allows Starlette >=0.46.0 with no upper cap.
+starlette>=1.0.1
 uvicorn>=0.38.0
 pydantic>=2.12.5
 openai>=2.8.1
