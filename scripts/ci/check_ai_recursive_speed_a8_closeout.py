@@ -124,6 +124,15 @@ STALE_A8_REVERSED_RE = re.compile(
 CONTRAST_SPLIT_RE = re.compile(r"\b(?:but|however|though|although|yet|and|or|while)\b|[;]", re.I)
 COMMA_SPLIT_RE = re.compile(r",\s*")
 PHASE_SPLIT_RE = re.compile(r"\s*[:|/]\s*")
+DASH_SPLIT_RE = re.compile(r"\s+[-—–]\s+")
+
+PARAM_ONLY_SYMBOLS = frozenset({"recursive_optimization_hints"})
+PARAM_ONLY_PATHS = frozenset(
+    {
+        "core/rag/orchestration.py",
+        "app/services/insight_runtime.py",
+    }
+)
 
 
 OVERCLAIM_RE = re.compile(
@@ -158,10 +167,11 @@ def _iter_eval_subclauses(clause: str) -> list[str]:
     subclauses: list[str] = []
     for contrast_part in CONTRAST_SPLIT_RE.split(clause):
         for comma_part in COMMA_SPLIT_RE.split(contrast_part):
-            for phase_part in PHASE_SPLIT_RE.split(comma_part):
-                trimmed = phase_part.strip()
-                if trimmed:
-                    subclauses.append(trimmed)
+            for dash_part in DASH_SPLIT_RE.split(comma_part):
+                for phase_part in PHASE_SPLIT_RE.split(dash_part):
+                    trimmed = phase_part.strip()
+                    if trimmed:
+                        subclauses.append(trimmed)
     return subclauses
 
 
@@ -298,7 +308,80 @@ def _validate_required_symbols(repo_root: Path, errors: list[str]) -> None:
         discovered_symbols = _python_ast_symbols(text, relpath, errors)
         for symbol in symbols:
             if symbol not in discovered_symbols:
-                errors.append(f"missing {relpath} landed symbol declaration/reference: {symbol}")
+                errors.append(f"missing {relpath} landed symbol declaration: {symbol}")
+
+
+def _function_param_names(node: ast.FunctionDef | ast.AsyncFunctionDef) -> set[str]:
+    params: set[str] = set()
+    args = node.args
+    for arg in args.posonlyargs + args.args + args.kwonlyargs:
+        params.add(arg.arg)
+    if args.vararg is not None:
+        params.add(args.vararg.arg)
+    if args.kwarg is not None:
+        params.add(args.kwarg.arg)
+    return params
+
+
+def _assign_target_names(target: ast.expr) -> set[str]:
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, (ast.Tuple, ast.List)):
+        names: set[str] = set()
+        for element in target.elts:
+            names.update(_assign_target_names(element))
+        return names
+    return set()
+
+
+def _collect_param_only_call_keywords(node: ast.Call) -> set[str]:
+    return {keyword.arg for keyword in node.keywords if keyword.arg in PARAM_ONLY_SYMBOLS}
+
+
+def _iter_calls_in_expr(expr: ast.expr | None) -> list[ast.Call]:
+    if expr is None:
+        return []
+    return [node for node in ast.walk(expr) if isinstance(node, ast.Call)]
+
+
+def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
+    found: set[str] = set()
+    for stmt in statements:
+        if isinstance(stmt, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            continue
+        if isinstance(stmt, ast.Assign):
+            for target in stmt.targets:
+                found.update(_assign_target_names(target) & PARAM_ONLY_SYMBOLS)
+            for call in _iter_calls_in_expr(stmt.value):
+                found.update(_collect_param_only_call_keywords(call))
+        elif isinstance(stmt, ast.AnnAssign) and stmt.target is not None:
+            found.update(_assign_target_names(stmt.target) & PARAM_ONLY_SYMBOLS)
+            for call in _iter_calls_in_expr(stmt.value):
+                found.update(_collect_param_only_call_keywords(call))
+        elif isinstance(stmt, ast.Return):
+            for call in _iter_calls_in_expr(stmt.value):
+                found.update(_collect_param_only_call_keywords(call))
+        elif isinstance(stmt, ast.Expr):
+            for call in _iter_calls_in_expr(stmt.value):
+                found.update(_collect_param_only_call_keywords(call))
+        elif isinstance(stmt, ast.If):
+            found.update(_collect_param_only_wiring(stmt.body))
+            found.update(_collect_param_only_wiring(stmt.orelse))
+        elif isinstance(stmt, ast.With):
+            found.update(_collect_param_only_wiring(stmt.body))
+        elif isinstance(stmt, ast.Try):
+            found.update(_collect_param_only_wiring(stmt.body))
+            for handler in stmt.handlers:
+                found.update(_collect_param_only_wiring(handler.body))
+            found.update(_collect_param_only_wiring(stmt.orelse))
+            found.update(_collect_param_only_wiring(stmt.finalbody))
+        elif isinstance(stmt, (ast.For, ast.While)):
+            found.update(_collect_param_only_wiring(stmt.body))
+            found.update(_collect_param_only_wiring(stmt.orelse))
+        elif isinstance(stmt, ast.Match):
+            for case in stmt.cases:
+                found.update(_collect_param_only_wiring(case.body))
+    return found
 
 
 def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
@@ -308,19 +391,20 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
         errors.append(f"{relpath}: unable to parse Python for landed symbols: {exc}")
         return set()
 
-    required_for_file = set(REQUIRED_SYMBOLS.get(relpath, ()))
     symbols: set[str] = set()
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef):
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef):
             symbols.add(node.name)
-        elif isinstance(node, ast.Name):
-            symbols.add(node.id)
-        elif isinstance(node, ast.Attribute):
-            symbols.add(node.attr)
-        elif isinstance(node, ast.arg):
-            symbols.add(node.arg)
-        elif isinstance(node, ast.keyword) and node.arg in required_for_file:
-            symbols.add(node.arg)
+        elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            symbols.add(node.name)
+            if relpath in PARAM_ONLY_PATHS:
+                for param in _function_param_names(node):
+                    if param in PARAM_ONLY_SYMBOLS:
+                        symbols.add(param)
+                symbols.update(_collect_param_only_wiring(node.body))
+        elif isinstance(node, (ast.Assign, ast.AnnAssign)):
+            target = node.target if isinstance(node, ast.AnnAssign) else node.targets[0]
+            symbols.update(_assign_target_names(target))
     return symbols
 
 
@@ -421,11 +505,14 @@ def _validate_benchmark_claims(
             continue
         if not BENCHMARK_CLAIM_RE.search(sentence):
             continue
-        claim_clauses = [
-            clause
-            for clause in _iter_eval_subclauses(sentence)
-            if BENCHMARK_CLAIM_RE.search(clause)
-        ]
+        subclauses = _iter_eval_subclauses(sentence)
+        claim_clauses = [clause for clause in subclauses if BENCHMARK_CLAIM_RE.search(clause)]
+        if not claim_clauses and subclauses:
+            claim_clauses = subclauses
+        elif not claim_clauses:
+            stripped = sentence.strip()
+            if stripped:
+                claim_clauses = [stripped]
         if any(
             _benchmark_clause_is_overclaim(clause, assume_a8_context=assume_a8_context)
             for clause in claim_clauses
@@ -492,6 +579,8 @@ def _has_unnegated_overclaim(text: str) -> bool:
 def _overclaim_match_is_negated(text: str, match: re.Match[str]) -> bool:
     verb = match.group(0)
     immediate_prefix = text[max(0, match.start() - 80) : match.start()]
+    if re.search(r"\bnot\s+only\b\s*$", immediate_prefix, re.I):
+        return False
     scoped = f"{immediate_prefix}{verb}"
     return (
         re.search(
