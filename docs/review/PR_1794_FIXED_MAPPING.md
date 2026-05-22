@@ -21,6 +21,12 @@
   Evidence: Aggregate bot review summary; no separate actionable finding beyond mapped discussion comment above.
   Reason: Review comment r3286839523 is the sole actionable finding and is already mapped as FIXED.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1794#discussion_r3288190457 -> d808bf27d
+  Disposition: FIXED
+  Commit: d808bf27d
+  Evidence: docs/review/PR_1794_FIXED_MAPPING.md:26-31
+  Reason: Merge-readiness checklist items must stay `[ ]` until the actual final merge cycle per repo artifact contract.
+
 ## Merge Readiness
 
 - [ ] Green CI on current head
