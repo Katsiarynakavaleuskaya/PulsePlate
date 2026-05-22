@@ -27,6 +27,11 @@
   Evidence: docs/review/PR_1794_FIXED_MAPPING.md:26-31
   Reason: Merge-readiness checklist items must stay `[ ]` until the actual final merge cycle per repo artifact contract.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1794#pullrequestreview-4345210910
+  Disposition: NOT-A-BUG
+  Evidence: Aggregate bot review summary for comment r3288190457; no separate actionable finding.
+  Reason: The sole actionable finding (merge-readiness checkbox state) is already mapped as FIXED above.
+
 ## Merge Readiness
 
 - [ ] Green CI on current head
