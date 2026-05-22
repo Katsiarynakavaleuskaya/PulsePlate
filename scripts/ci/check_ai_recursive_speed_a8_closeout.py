@@ -49,13 +49,23 @@ REQUIRED_SYMBOLS = {
     ),
     "core/rag/contracts.py": ("RecursiveOptimizationHints",),
     "core/rag/orchestration.py": ("recursive_optimization_hints",),
-    "core/rag/recursive_retrieval.py": (
-        "_should_short_circuit_from_hints",
-        "early_stop_aggressive_short_circuit",
-        "early_stop_pragmatic_usefulness",
-    ),
+    "core/rag/recursive_retrieval.py": ("_should_short_circuit_from_hints",),
     "app/services/insight_runtime.py": ("recursive_optimization_hints",),
 }
+
+RECURSIVE_RETRIEVAL_PATH = "core/rag/recursive_retrieval.py"
+RECURSIVE_EARLY_STOP_LITERALS = frozenset(
+    {
+        "early_stop_aggressive_short_circuit",
+        "early_stop_pragmatic_usefulness",
+    }
+)
+RECURSIVE_EARLY_STOP_LITERAL_FUNCTIONS = frozenset(
+    {
+        "_should_short_circuit_from_hints",
+        "_make_optimization_stats",
+    }
+)
 
 UNICODE_TRANSLATION = str.maketrans(
     {
@@ -442,6 +452,64 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
     return symbols
 
 
+def _collect_string_literals_from_function(
+    node: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> set[str]:
+    literals: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Constant) and isinstance(child.value, str):
+            literals.add(child.value)
+    return literals
+
+
+def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:
+    relpath = RECURSIVE_RETRIEVAL_PATH
+    path = repo_root / relpath
+    text = _read_text(path, errors)
+    if not text:
+        return
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        errors.append(f"{relpath}: unable to parse Python for early-stop literals: {exc}")
+        return
+
+    module_level_spoof: set[str] = set()
+    function_literals: dict[str, set[str]] = {}
+
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            if node.name in RECURSIVE_EARLY_STOP_LITERAL_FUNCTIONS:
+                function_literals[node.name] = _collect_string_literals_from_function(node)
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                module_level_spoof.update(
+                    _assign_target_names(target) & RECURSIVE_EARLY_STOP_LITERALS
+                )
+        elif isinstance(node, ast.AnnAssign) and node.target is not None:
+            module_level_spoof.update(
+                _assign_target_names(node.target) & RECURSIVE_EARLY_STOP_LITERALS
+            )
+
+    for spoof in sorted(module_level_spoof):
+        errors.append(
+            f"{relpath}: module-level assign for early-stop literal symbol is forbidden: {spoof}"
+        )
+
+    all_function_literals: set[str] = set()
+    for func_name in sorted(RECURSIVE_EARLY_STOP_LITERAL_FUNCTIONS):
+        if func_name not in function_literals:
+            errors.append(f"{relpath}: missing required early-stop literal function: {func_name}")
+            continue
+        all_function_literals.update(function_literals[func_name])
+
+    for literal in sorted(RECURSIVE_EARLY_STOP_LITERALS):
+        if literal not in all_function_literals:
+            errors.append(
+                f"{relpath}: missing early-stop string literal in whitelisted functions: {literal}"
+            )
+
+
 def _validate_semantic_cache_gate(gate_text: str, errors: list[str]) -> None:
     for marker, expected in REQUIRED_GATE_MARKERS.items():
         pattern = re.compile(rf"{re.escape(marker)}:\s*([A-Za-z0-9_-]+)")
@@ -690,6 +758,7 @@ def validate_closeout(
         errors=errors,
     )
     _validate_required_symbols(repo_root, errors)
+    _validate_recursive_retrieval_early_stop_literals(repo_root, errors)
     _validate_semantic_cache_gate(gate, errors)
     _validate_parent_checkbox(normalized_ledger, errors)
     _validate_roadmap_section(normalized_roadmap, errors)

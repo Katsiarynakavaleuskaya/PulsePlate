@@ -124,10 +124,11 @@ def _write_valid_repo(tmp_path: Path) -> None:
     _write(
         tmp_path / "core/rag/recursive_retrieval.py",
         (
-            "early_stop_aggressive_short_circuit = 'enabled'\n"
-            "early_stop_pragmatic_usefulness = 'enabled'\n\n"
-            "def _should_short_circuit_from_hints() -> bool:\n"
-            "    return True\n"
+            "def _make_optimization_stats() -> dict:\n"
+            '    return {"early_stop_aggressive_short_circuit": False, '
+            '"early_stop_pragmatic_usefulness": False}\n\n'
+            "def _should_short_circuit_from_hints() -> tuple:\n"
+            '    return ("done", "early_stop_aggressive_short_circuit")\n'
         ),
     )
     _write(
@@ -284,11 +285,7 @@ def test_checker_rejects_comment_only_landed_symbol(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "core/rag/recursive_retrieval.py"
     path.write_text(
-        (
-            "# _should_short_circuit_from_hints\n"
-            "# early_stop_aggressive_short_circuit\n"
-            "# early_stop_pragmatic_usefulness\n"
-        ),
+        ("# _should_short_circuit_from_hints\n"),
         encoding="utf-8",
     )
 
@@ -329,6 +326,27 @@ def test_checker_rejects_dict_key_only_landed_symbol(tmp_path: Path) -> None:
     errors = _errors(tmp_path)
 
     assert any("recursive_retrieval.py landed symbol" in error for error in errors)
+
+
+def test_checker_rejects_module_level_early_stop_assign(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        path.read_text(encoding="utf-8") + "early_stop_aggressive_short_circuit = 'enabled'\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("module-level assign for early-stop literal symbol" in error for error in errors)
+
+
+def test_checker_accepts_main_like_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+
+    errors = _errors(tmp_path)
+
+    assert errors == []
 
 
 def test_checker_rejects_unscoped_negation_with_positive_forbidden_claim(tmp_path: Path) -> None:
