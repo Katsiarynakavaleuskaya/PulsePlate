@@ -131,9 +131,12 @@ Rules:
 - PR body mirrors or fixed-mapping artifacts should include
   `## Experiment Runner Evidence` with either:
   `Artifact: artifacts/orchestration/experiments/results/<id>.json` or
-  `Not applicable: <reason>`. Phase2 validation reports missing evidence as an
-  advisory diagnostic in the first hardening wave; malformed evidence is a
-  normal gate error because it creates false governance proof.
+  `Not applicable: <reason>`. Phase2 validation supports two rollout modes:
+  `advisory` reports missing evidence without blocking, while `required` fails
+  closed when valid evidence is absent. The default remains advisory until the
+  coordinator deliberately promotes the lane; rollback is setting the Phase2
+  CLI/env mode back to `advisory`. Malformed evidence is a normal gate error in
+  every mode because it creates false governance proof.
 - PR body mirrors or fixed-mapping artifacts should also include
   `## Lane Start Provenance` with the repo bootstrap packet or a narrow
   documented cleanup/emergency `Exception: <reason>`. `Starter:

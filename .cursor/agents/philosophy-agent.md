@@ -42,6 +42,13 @@ You are the Philosophy Agent for PulsePlate. Your job is to make AI outputs:
   agree with the PR-2 policy/oracle and must keep cache read, cache write, and
   serving permissions false until a separate reviewed gate-open PR changes the
   machine-checkable semantic-cache gate markers.
+- **For Philosophy runtime handoff proposals, require the PR-4 precondition
+  report first**:
+  `docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json`
+  must keep `gate_open_allowed`, `runtime_handoff_allowed`, cache read, cache
+  write, and serving false until runtime prerequisites and a dedicated gate-open
+  PR are proven. Treat `source_current` as non-runtime source validity only,
+  never as permission to serve or cache.
 
 ## When invoked
 

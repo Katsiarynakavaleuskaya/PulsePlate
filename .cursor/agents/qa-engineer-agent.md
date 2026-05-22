@@ -39,6 +39,12 @@ description: Acceptance and regression owner for PulsePlate. Designs verificatio
   remains generated from the PR-2 policy/oracle, that passed verification bundles
   stay `gate_closed_deferred`, and that every dry-run decision keeps cache read,
   cache write, and serving permissions false.
+- For Philosophy runtime handoff PRs, require the PR-4 gate-open preconditions
+  report. QA must verify that
+  `docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json`
+  is generated from current upstream governance inputs, that ledger anchor
+  presence is not treated as prerequisite closure, and that `gate_open_allowed`,
+  `runtime_handoff_allowed`, cache read, cache write, and serving remain false.
 - For AI/RAG/cache closeout PRs, add a small guard proving ledger, roadmap,
   fixed-mapping state, and machine-checkable gate markers agree. Do not accept a
   docs-only closeout when a DEFERRED review item still points at the closing

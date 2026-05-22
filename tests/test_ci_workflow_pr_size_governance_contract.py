@@ -256,6 +256,17 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
+        "'docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json'"
+        in docs_phase1_section
+    )
+    assert (
+        "':(glob)docs/orchestration/contracts/philosophy_alignment_rules/**/*.json'"
+        in docs_phase1_section
+    )
+    assert (
+        "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json" in docs_phase1_section
+    )
+    assert (
         "'tests/fixtures/orchestration/philosophy_admission_claim_oracle.json'"
         in docs_phase1_section
     )
@@ -264,7 +275,7 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
         in docs_phase1_section
     )
     assert (
-        'if [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
+        'if [ "${PR4_PRECONDITION_CHANGED}" -eq 0 ] && [ "${#PHASE1_CHANGED_FILES[@]}" -eq 0 ] && [ "${#LINT_MD[@]}" -eq 0 ]; then'
         in docs_phase1_section
     )
     assert (
@@ -273,6 +284,35 @@ def test_docs_phase1_gates_include_schema_only_contract_changes() -> None:
     )
     assert (
         'python scripts/ci/check_docs_phase1_gates.py --files "${PHASE1_CHANGED_FILES[@]}"'
+        in docs_phase1_section
+    )
+    assert "PR4_PRECONDITION_CHANGED=0" in docs_phase1_section
+    assert 'git diff --name-status -z --diff-filter=ACDMRT "$BASE_REF"...HEAD' in (
+        docs_phase1_section
+    )
+    assert 'case "$status" in' in docs_phase1_section
+    assert "R*|C*)" in docs_phase1_section
+    assert 'CHANGED_PATHS+=("$old_path" "$new_path")' in docs_phase1_section
+    assert 'CHANGED_PATHS+=("$path")' in docs_phase1_section
+    for pr4_companion_input in (
+        "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.json",
+        "docs/orchestration/contracts/PHILOSOPHY_SEMANTIC_CACHE_ADMISSION_POLICY.schema.json",
+        "tests/fixtures/orchestration/philosophy_admission_claim_oracle.json",
+        "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.json",
+        "docs/orchestration/contracts/PHILOSOPHY_ADMISSION_DRY_RUN_REPORT.schema.json",
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.json",
+        "docs/orchestration/contracts/PHILOSOPHY_GATE_OPEN_PRECONDITIONS_REPORT.schema.json",
+        "docs/orchestration/contracts/PHILOSOPHY_ALIGNMENT_RULE.schema.json",
+        "docs/orchestration/contracts/philosophy_alignment_rules/*.json",
+        "docs/orchestration/PHILOSOPHY_EPIC_V2_PR4_GATE_OPEN_PRECONDITIONS_PACKET_2026-05-21.md",
+        "docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md",
+        "scripts/ci/check_philosophy_gate_open_preconditions.py",
+        "tests/test_philosophy_gate_open_preconditions.py",
+    ):
+        assert pr4_companion_input in docs_phase1_section
+    assert "docs/roadmap/BACKLOG_LEDGER.md|\\" not in docs_phase1_section
+    assert (
+        "python scripts/ci/check_philosophy_gate_open_preconditions.py --check --files"
         in docs_phase1_section
     )
     assert (

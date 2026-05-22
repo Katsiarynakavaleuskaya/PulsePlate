@@ -6,7 +6,9 @@ from scripts.orchestration.agent_consistency_loader import load_inventory_agents
 from scripts.orchestration.native_subagent_bridge import (
     BRIDGE_PROTOCOL_VERSION,
     BRIDGE_TRANSPORT,
+    KIMI_BRIDGE_TRANSPORT,
     REPO_AGENT_EXECUTOR_PROFILES,
+    build_kimi_native_subagent_bridge,
     build_native_subagent_binding,
     build_native_subagent_bridge,
     validate_native_subagent_bridge_profiles,
@@ -75,3 +77,57 @@ def test_build_native_subagent_bridge_keeps_advisory_collaborators_non_runnable(
     assert bridge["advisory"][0]["role"] == "advisory"
     assert bridge["advisory"][0]["execution_mode"] == "advisory_no_spawn"
     assert bridge["advisory"][0]["dispatch_contract"]["spawn_with_native_subagent"] is False
+
+
+def test_build_kimi_native_subagent_bridge_uses_kimi_transport() -> None:
+    """Kimi bridge wrapper must set transport to kimi-native-subagents."""
+
+    bridge = build_kimi_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=["cursor-specialist-agent", "security-auditor"],
+        reviewer="architecture-specialist",
+    )
+
+    assert bridge["transport"] == KIMI_BRIDGE_TRANSPORT
+    assert bridge["protocol_version"] == BRIDGE_PROTOCOL_VERSION
+    assert bridge["dispatch_policy"]["spawn_via_coordinator_only"] is True
+    assert bridge["primary"]["repo_agent_slug"] == "agent-coordinator"
+    assert bridge["reviewer"]["native_agent_type"] == "explorer"
+    assert bridge["reviewer"]["execution_mode"] == "review_read_only"
+
+
+def test_kimi_bridge_reuses_cursor_agent_instructions() -> None:
+    """Kimi runtime must load instructions from .cursor/agents/, not a separate dir."""
+
+    bridge = build_kimi_native_subagent_bridge(
+        primary_agent="backend-engineer",
+        secondary_agents=["bug-hunter"],
+        reviewer="architecture-specialist",
+    )
+
+    assert bridge["primary"]["instruction_path"] == ".cursor/agents/backend-engineer.md"
+    assert bridge["secondary"][0]["instruction_path"] == ".cursor/agents/bug-hunter.md"
+    assert bridge["reviewer"]["instruction_path"] == ".cursor/agents/architecture-specialist.md"
+
+
+def test_kimi_and_codex_bridges_are_structurally_identical_except_transport() -> None:
+    """The only difference between Codex and Kimi bridges must be the transport label."""
+
+    codex_bridge = build_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=["cursor-specialist-agent"],
+        reviewer="architecture-specialist",
+    )
+    kimi_bridge = build_kimi_native_subagent_bridge(
+        primary_agent="agent-coordinator",
+        secondary_agents=["cursor-specialist-agent"],
+        reviewer="architecture-specialist",
+    )
+
+    assert codex_bridge["transport"] == BRIDGE_TRANSPORT
+    assert kimi_bridge["transport"] == KIMI_BRIDGE_TRANSPORT
+
+    # Drop transport and compare the rest
+    codex_copy = {k: v for k, v in codex_bridge.items() if k != "transport"}
+    kimi_copy = {k: v for k, v in kimi_bridge.items() if k != "transport"}
+    assert codex_copy == kimi_copy

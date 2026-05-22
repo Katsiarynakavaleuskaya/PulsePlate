@@ -20,7 +20,7 @@ PulsePlate has two layers now:
    - SoT docs in `docs/orchestration/*`
 2. **Runtime transport layer**
    - native executor types exposed by the host runtime
-   - examples: `default`, `worker`, `explorer`
+   - examples: `default`, `worker`, `explorer` (Codex), or Kimi Code CLI
 
 Hard rule:
 
@@ -124,6 +124,7 @@ It must not:
 - Packet builder: `scripts/orchestration/task_bootstrap.py`
 - Coordinator SoT: `.cursor/agents/agent-coordinator.md`
 - Workflow SoT: `docs/orchestration/workflow.md`
+- Kimi-specific bridge SoT: `docs/orchestration/KIMI_NATIVE_SUBAGENT_BRIDGE_PROTOCOL.md`
 
 ---
 

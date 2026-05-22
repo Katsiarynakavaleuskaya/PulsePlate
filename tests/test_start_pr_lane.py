@@ -56,6 +56,7 @@ def test_start_pr_lane_help_is_non_mutating() -> None:
     assert result.returncode == 0
     assert "Usage:" in result.stdout
     assert "--branch <name>" in result.stdout
+    assert "--allow-dirty-launcher" in result.stdout
     assert "PulsePlate PR lane start" not in result.stdout
 
 
@@ -112,12 +113,11 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
         result.stdout
     )
     assert "Would run: git worktree add -b codex/example-pr-lane" in result.stdout
-    assert "Would run in worktree: python3 scripts/orchestration/check_preflight.py" in (
-        result.stdout
-    )
-    assert "Would run in worktree: python3 scripts/orchestration/task_bootstrap.py" in (
-        result.stdout
-    )
+    assert "Would run in worktree:" in result.stdout
+    assert "scripts/orchestration/check_preflight.py" in result.stdout
+    assert "scripts/orchestration/task_bootstrap.py" in result.stdout
+    assert "Repo Python:" in result.stdout
+    assert "avoid bare python3 -m pytest when .venv exists" in result.stdout
     assert "--path docs/dev/CODEX_SKILLS.md" in result.stdout
     assert "--path scripts/orchestration/start_pr_lane.sh" in result.stdout
     assert "--requested-agent agent-coordinator" in result.stdout
@@ -137,7 +137,9 @@ def test_start_pr_lane_dry_run_prints_stable_commands_and_plugins() -> None:
     assert "Skills are passive/discovery-only" in result.stdout
     assert "Premortem closure rule: every premortem finding must be fixed" in result.stdout
     assert "No finding may be ignored as advisory." in result.stdout
-    assert ". .venv/bin/activate" in result.stdout
+    assert "VENV_PYTHON" in result.stdout
+    assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Lane authority: check_preflight.py -> task_bootstrap.py -> agent-coordinator." in (
         result.stdout
@@ -193,7 +195,11 @@ case "$1" in
   show-ref) exit 1 ;;
   status) exit 0 ;;
   fetch) exit 0 ;;
-  rev-parse) echo abcdef1234567890; exit 0 ;;
+  rev-parse)
+    if [[ "${3:-}" == "main^{commit}" ]]; then exit 1; fi
+    echo abcdef1234567890
+    exit 0
+    ;;
   rev-list) printf '0\\t0\\n'; exit 0 ;;
   worktree) mkdir -p "$5"; exit 0 ;;
   *) exit 0 ;;
@@ -231,6 +237,7 @@ esac
     python_stub.chmod(0o755)
 
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+    env["VENV_PYTHON"] = str(python_stub)
     result = run_start(
         "--goal",
         "Start governed PR lane",
@@ -242,6 +249,7 @@ esac
         worktree_rel,
         "--path",
         "docs/dev/CODEX_SKILLS.md",
+        "--allow-dirty-launcher",
         env=env,
     )
     shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)
@@ -251,7 +259,9 @@ esac
     assert f"Task packet: {packet_path}" in result.stdout
     assert "Role order: agent-coordinator, backend-engineer, qa-engineer-agent" in result.stdout
     assert "Passive skills from packet: pulseplate-premortem-risk-review" in result.stdout
-    assert ". .venv/bin/activate" in result.stdout
+    assert "VENV_PYTHON" in result.stdout
+    assert "$VENV_PYTHON -m pytest" in result.stdout
+    assert "VENV_PYTHON=${VENV_PYTHON:-.venv/bin/python}" not in result.stdout
     assert "Open the PR non-draft by default" in result.stdout
     assert "Experiment Runner evidence" in result.stdout
     assert "Experiment Runner joins after coordinator bootstrap" in result.stdout
@@ -280,6 +290,240 @@ def test_start_pr_lane_dry_run_uses_default_plugin_checklist() -> None:
         assert f"  - {plugin}" in result.stdout
     assert result.stdout.index("  - GitHub") < result.stdout.index("  - CodeRabbit")
     assert "PR open mode: non-draft by default" in result.stdout
+
+
+def test_start_pr_lane_allows_dirty_launcher_for_synced_origin_main_lane(
+    tmp_path: Path,
+) -> None:
+    """A dirty launcher checkout requires an explicit isolated origin/main exception."""
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    packet_path = tmp_path / "packet.json"
+    packet_path.write_text(
+        json.dumps(
+            {
+                "goal": "Start governed PR lane",
+                "task_class": "pr_governance",
+                "pr_phase": "pre_open",
+                "candidate_paths": ["scripts/orchestration/start_pr_lane.sh"],
+                "recommended_skills": [],
+                "native_subagent_bridge": {
+                    "primary": {"repo_agent_slug": "agent-coordinator"},
+                    "reviewer": {"repo_agent_slug": "architecture-specialist"},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    worktree_rel = f"worktrees/dirty-origin-main-test-{tmp_path.name}"
+
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  check-ref-format) exit 0 ;;
+  show-ref) exit 1 ;;
+  fetch) exit 0 ;;
+  rev-parse) echo abcdef1234567890; exit 0 ;;
+  rev-list) printf '0\\t0\\n'; exit 0 ;;
+  status) printf ' M docs/foreign.md\\n'; exit 0 ;;
+  worktree) mkdir -p "$5"; exit 0 ;;
+  *) exit 0 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    git_stub.chmod(0o755)
+
+    python_stub = bin_dir / "python3"
+    real_python = sys.executable
+    python_stub.write_text(
+        f"""#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  *check_preflight.py)
+    echo "PASS: stub preflight"
+    exit 0
+    ;;
+  *task_bootstrap.py)
+    printf '{{"output": "{packet_path}", "primary_agent": "agent-coordinator", "reviewer": "architecture-specialist", "recommended_skills": []}}\\n'
+    exit 0
+    ;;
+  *render_codex_start_prompt.py)
+    shift
+    exec {real_python!r} {str(REPO_ROOT / "scripts/orchestration/render_codex_start_prompt.py")!r} "$@"
+    ;;
+  *)
+    exec {real_python!r} "$@"
+    ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    python_stub.chmod(0o755)
+
+    env = {
+        **os.environ,
+        "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+        "VENV_PYTHON": str(python_stub),
+    }
+    result = run_start(
+        "--goal",
+        "Start governed PR lane",
+        "--task-class",
+        "pr_governance",
+        "--branch",
+        "codex/dirty-origin-main-test",
+        "--worktree",
+        worktree_rel,
+        "--path",
+        "scripts/orchestration/start_pr_lane.sh",
+        "--allow-dirty-launcher",
+        env=env,
+    )
+    shutil.rmtree(REPO_ROOT / worktree_rel, ignore_errors=True)
+
+    assert result.returncode == 0, result.stderr
+    assert "Authoritative bootstrap already ran" in result.stdout
+
+
+def test_start_pr_lane_rejects_dirty_launcher_without_explicit_exception(
+    tmp_path: Path,
+) -> None:
+    """Dirty launcher state remains fail-closed unless the operator opts in."""
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  check-ref-format) exit 0 ;;
+  show-ref) exit 1 ;;
+  fetch) exit 0 ;;
+  rev-parse) echo abcdef1234567890; exit 0 ;;
+  rev-list) printf '0\\t0\\n'; exit 0 ;;
+  status) printf ' M docs/foreign.md\\n'; exit 0 ;;
+  *) exit 0 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    git_stub.chmod(0o755)
+
+    python_stub = bin_dir / "python3"
+    python_stub.write_text(f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
+    python_stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+
+    result = run_start(*_required_args(), env=env)
+
+    assert result.returncode == 1
+    assert "pass --allow-dirty-launcher for an isolated origin/main lane" in result.stderr
+
+
+def test_start_pr_lane_rejects_dirty_launcher_exception_for_non_origin_main_base(
+    tmp_path: Path,
+) -> None:
+    """The dirty-launcher exception is scoped only to isolated origin/main lanes."""
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  check-ref-format) exit 0 ;;
+  show-ref) exit 1 ;;
+  fetch) exit 0 ;;
+  rev-parse) echo abcdef1234567890; exit 0 ;;
+  status) printf ' M docs/foreign.md\\n'; exit 0 ;;
+  *) exit 0 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    git_stub.chmod(0o755)
+    python_stub = bin_dir / "python3"
+    python_stub.write_text(f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
+    python_stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+
+    result = run_start(
+        *_required_args(),
+        "--base",
+        "origin/release",
+        "--allow-dirty-launcher",
+        env=env,
+    )
+
+    assert result.returncode == 1
+    assert "--allow-dirty-launcher is only allowed with --base origin/main" in result.stderr
+
+
+def test_start_pr_lane_rejects_dirty_launcher_exception_for_non_origin_main_dry_run() -> None:
+    """Dry-run must reject dirty-launcher options that real execution rejects."""
+
+    result = run_start(
+        *_required_args(),
+        "--dry-run",
+        "--base",
+        "origin/release",
+        "--allow-dirty-launcher",
+    )
+
+    assert result.returncode == 1
+    assert "--allow-dirty-launcher is only allowed with --base origin/main" in result.stderr
+
+
+def test_start_pr_lane_dirty_launcher_exception_still_requires_synced_main(
+    tmp_path: Path,
+) -> None:
+    """The dirty-launcher flag must not bypass the main...origin/main sync guard."""
+
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    git_stub = bin_dir / "git"
+    git_stub.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+case "$1" in
+  check-ref-format) exit 0 ;;
+  show-ref) exit 1 ;;
+  fetch) exit 0 ;;
+  rev-parse) echo abcdef1234567890; exit 0 ;;
+  rev-list) printf '0\\t1\\n'; exit 0 ;;
+  status) printf ' M docs/foreign.md\\n'; exit 0 ;;
+  *) exit 0 ;;
+esac
+""",
+        encoding="utf-8",
+    )
+    git_stub.chmod(0o755)
+    python_stub = bin_dir / "python3"
+    python_stub.write_text(f'#!/usr/bin/env bash\nexec "{sys.executable}" "$@"\n', encoding="utf-8")
+    python_stub.chmod(0o755)
+    env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"}
+
+    result = run_start(*_required_args(), "--allow-dirty-launcher", env=env)
+
+    assert result.returncode == 1
+    assert "local main must be synced with origin/main" in result.stderr
+
+
+def test_start_pr_lane_rejects_relative_venv_python() -> None:
+    """Governance launcher must not execute cwd-controlled relative Python paths."""
+
+    env = {**os.environ, "VENV_PYTHON": ".venv/bin/python"}
+
+    result = run_start(*_required_args(), "--dry-run", env=env)
+
+    assert result.returncode == 1
+    assert "VENV_PYTHON must be an absolute executable path" in result.stderr
 
 
 def test_start_pr_lane_rejects_local_only_scope_paths() -> None:

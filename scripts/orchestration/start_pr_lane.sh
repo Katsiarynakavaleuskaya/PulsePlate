@@ -36,6 +36,7 @@ Options:
   --plugin <name>            Repeatable; operator/runtime plugin checklist item.
   --pr-phase <phase>         One of: pre_open, post_open_review, merge_ready, none. Default: pre_open.
   --base <ref>               Base ref for worktree creation. Default: origin/main.
+  --allow-dirty-launcher     Permit a dirty current checkout only for isolated origin/main lanes.
   --dry-run                  Validate args and print the planned commands without mutating git state.
   -h, --help                 Show this help.
 
@@ -55,6 +56,46 @@ die_usage() {
 die() {
     echo "ERROR: $1" >&2
     exit 1
+}
+
+resolve_repo_python() {
+    if [[ -n "${VENV_PYTHON:-}" ]]; then
+        case "${VENV_PYTHON}" in
+            /*) ;;
+            *) die "VENV_PYTHON must be an absolute executable path: ${VENV_PYTHON}" ;;
+        esac
+        if [[ -x "${VENV_PYTHON}" ]]; then
+            printf "%s" "${VENV_PYTHON}"
+            return
+        fi
+        die "VENV_PYTHON is set but is not executable: ${VENV_PYTHON}"
+    fi
+
+    local candidate
+    local git_common_dir
+    local parent_dir
+    local root_dir
+    local candidates=("${REPO_ROOT}/.venv/bin/python")
+    parent_dir="$(dirname "${REPO_ROOT}")"
+    if [[ "$(basename "${parent_dir}")" == "worktrees" ]] && git_common_dir="$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)"; then
+        root_dir="$(dirname "${parent_dir}")"
+        if [[ "${git_common_dir}" == "${root_dir}/.git"* ]]; then
+            candidates+=("${root_dir}/.venv/bin/python")
+        fi
+    fi
+
+    for candidate in "${candidates[@]}"; do
+        if [[ -x "${candidate}" ]]; then
+            printf "%s" "${candidate}"
+            return
+        fi
+    done
+
+    if command -v python3 >/dev/null 2>&1; then
+        command -v python3
+        return
+    fi
+    die "python3 not found in PATH and no repo .venv python is available"
 }
 
 normalize_scope_path() {
@@ -119,9 +160,7 @@ for arg in "$@"; do
     fi
 done
 
-if ! command -v python3 >/dev/null 2>&1; then
-    die "python3 not found in PATH"
-fi
+REPO_PYTHON="$(resolve_repo_python)"
 
 PREFLIGHT_PY="${REPO_ROOT}/scripts/orchestration/check_preflight.py"
 TASK_BOOTSTRAP_PY="${REPO_ROOT}/scripts/orchestration/task_bootstrap.py"
@@ -143,6 +182,7 @@ WORKTREE_REL=""
 PR_PHASE="pre_open"
 BASE_REF="origin/main"
 DRY_RUN=0
+ALLOW_DIRTY_LAUNCHER=0
 PATH_ARGS=()
 REQUESTED_ARGS=(--requested-agent "agent-coordinator")
 PLUGIN_ARGS=()
@@ -202,6 +242,10 @@ while [[ $# -gt 0 ]]; do
             DRY_RUN=1
             shift
             ;;
+        --allow-dirty-launcher)
+            ALLOW_DIRTY_LAUNCHER=1
+            shift
+            ;;
         *)
             die_usage "unknown arg: $1"
             ;;
@@ -227,6 +271,10 @@ fi
 
 WORKTREE_ABS="${REPO_ROOT}/${WORKTREE_REL}"
 
+if [[ "${ALLOW_DIRTY_LAUNCHER}" -eq 1 && "${BASE_REF}" != "origin/main" ]]; then
+    die "--allow-dirty-launcher is only allowed with --base origin/main"
+fi
+
 if [[ "${DRY_RUN}" -eq 0 ]]; then
     if [[ -e "${WORKTREE_ABS}" ]]; then
         die "worktree path already exists: ${WORKTREE_REL}"
@@ -234,18 +282,31 @@ if [[ "${DRY_RUN}" -eq 0 ]]; then
     if git show-ref --verify --quiet "refs/heads/${BRANCH}"; then
         die "branch already exists: ${BRANCH}"
     fi
-    if [[ -n "$(git status --porcelain)" ]]; then
-        die "current checkout must be clean before starting a new PR lane"
-    fi
     git fetch --prune origin
     if ! git rev-parse --verify --quiet "${BASE_REF}^{commit}" >/dev/null; then
         die "base ref not found: ${BASE_REF}"
     fi
     if [[ "${BASE_REF}" == "origin/main" ]]; then
-        ahead_behind="$(git rev-list --left-right --count HEAD...origin/main)"
-        if [[ "${ahead_behind}" != "0	0" ]]; then
-            die "current checkout must be synced with origin/main before lane start; got ${ahead_behind}"
+        launcher_status="$(git status --porcelain)"
+        if [[ -n "${launcher_status}" && "${ALLOW_DIRTY_LAUNCHER}" -ne 1 ]]; then
+            die "current checkout must be clean before starting a PR lane, or pass --allow-dirty-launcher for an isolated origin/main lane"
         fi
+        if [[ -n "${launcher_status}" ]]; then
+            if ! git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
+                die "local main ref not found; cannot prove origin/main dirty-lane parity"
+            fi
+            ahead_behind="$(git rev-list --left-right --count main...origin/main)"
+            if [[ "${ahead_behind}" != "0	0" ]]; then
+                die "local main must be synced with origin/main before dirty lane start; got ${ahead_behind}"
+            fi
+        elif git rev-parse --verify --quiet "main^{commit}" >/dev/null; then
+            ahead_behind="$(git rev-list --left-right --count main...origin/main)"
+            if [[ "${ahead_behind}" != "0	0" ]]; then
+                die "local main must be synced with origin/main before lane start; got ${ahead_behind}"
+            fi
+        fi
+    elif [[ -n "$(git status --porcelain)" ]]; then
+        die "current checkout must be clean before starting a non-origin/main PR lane"
     fi
 fi
 
@@ -266,17 +327,19 @@ done
 echo "PR open mode: non-draft by default; draft requires explicit operator exception."
 echo "Lane authority: check_preflight.py -> task_bootstrap.py -> agent-coordinator."
 echo "Experiment Runner: joins after coordinator bootstrap as oracle-only evidence."
+echo "Repo Python: ${REPO_PYTHON}"
+echo "Python gate rule: use VENV_PYTHON or repo .venv python; avoid bare python3 -m pytest when .venv exists."
 echo ""
 
 if [[ "${DRY_RUN}" -eq 1 ]]; then
     echo "DRY RUN: no git worktree, preflight, or bootstrap commands were executed."
     printf "Would run: git worktree add -b %q %q %q\n" "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
-    printf "Would run in worktree: python3 scripts/orchestration/check_preflight.py --mode analyze"
+    printf "Would run in worktree: %q scripts/orchestration/check_preflight.py --mode analyze" "${REPO_PYTHON}"
     for ((i = 0; i < ${#PATH_ARGS[@]}; i += 2)); do
         printf " %q %q" "${PATH_ARGS[i]}" "${PATH_ARGS[i + 1]}"
     done
     printf "\n"
-    printf "Would run in worktree: python3 scripts/orchestration/task_bootstrap.py --goal %q --task-class %q --pr-phase %q" "${GOAL}" "${TASK_CLASS}" "${PR_PHASE}"
+    printf "Would run in worktree: %q scripts/orchestration/task_bootstrap.py --goal %q --task-class %q --pr-phase %q" "${REPO_PYTHON}" "${GOAL}" "${TASK_CLASS}" "${PR_PHASE}"
     for ((i = 0; i < ${#PATH_ARGS[@]}; i += 2)); do
         printf " %q %q" "${PATH_ARGS[i]}" "${PATH_ARGS[i + 1]}"
     done
@@ -286,7 +349,7 @@ if [[ "${DRY_RUN}" -eq 1 ]]; then
     printf "\n"
     echo ""
     prompt_cmd=(
-        python3 scripts/orchestration/render_codex_start_prompt.py
+        "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py
         recipe
         --goal "${GOAL}"
         --task-class "${TASK_CLASS}"
@@ -308,14 +371,14 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
 
 (
     cd "${WORKTREE_ABS}"
-    preflight_cmd=(python3 scripts/orchestration/check_preflight.py --mode analyze)
+    preflight_cmd=("${REPO_PYTHON}" scripts/orchestration/check_preflight.py --mode analyze)
     if ((${#PATH_ARGS[@]})); then
         preflight_cmd+=("${PATH_ARGS[@]}")
     fi
     "${preflight_cmd[@]}"
 
     bootstrap_cmd=(
-        python3 scripts/orchestration/task_bootstrap.py
+        "${REPO_PYTHON}" scripts/orchestration/task_bootstrap.py
         --goal "${GOAL}"
         --task-class "${TASK_CLASS}"
         --pr-phase "${PR_PHASE}"
@@ -330,7 +393,7 @@ git worktree add -b "${BRANCH}" "${WORKTREE_REL}" "${BASE_REF}"
     echo "${BOOTSTRAP_OUTPUT}"
     echo ""
     BOOTSTRAP_PACKET_PATH="$(
-        BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" python3 - <<'PY'
+        BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" "${REPO_PYTHON}" - <<'PY'
 import json
 import os
 
@@ -338,7 +401,7 @@ payload = json.loads(os.environ["BOOTSTRAP_OUTPUT"])
 print(payload["output"])
 PY
     )"
-    BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" python3 - <<'PY'
+    BOOTSTRAP_OUTPUT="${BOOTSTRAP_OUTPUT}" "${REPO_PYTHON}" - <<'PY'
 import json
 import os
 
@@ -352,7 +415,7 @@ for skill in payload["recommended_skills"]:
     print(f"    - {skill}")
 PY
     echo ""
-    python3 scripts/orchestration/render_codex_start_prompt.py \
+    "${REPO_PYTHON}" scripts/orchestration/render_codex_start_prompt.py \
         packet \
         --packet "${BOOTSTRAP_PACKET_PATH}" \
         --branch "${BRANCH}" \
