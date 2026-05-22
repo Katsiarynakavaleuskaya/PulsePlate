@@ -1994,6 +1994,29 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Schema checks explicitly cover Pydantic v2 nullable-required semantics where they affect API contracts
     - Dependency upgrade/runbook docs link to the same compatibility gate source
 
+<a id="ledger-p1-starlette-fastapi-compatibility-pr"></a>
+- [ ] P1: Starlette/FastAPI dependency compatibility lane after A8 closeout rescope
+  - Owner: @katsiaryna_kavaleuskaya
+  - Priority: P1
+  - Target PR: PR-TBD-DEPENDENCY-STARLETTE-FASTAPI-COMPATIBILITY
+  - Status: 📋 Planned
+  - Area: dependencies / backend runtime compatibility / CI governance
+  - Finding Type: PR scope drift follow-up
+  - Reason (EN): PR #1792 must remain an A8 recursive-speed closeout-only lane. Starlette/FastAPI dependency upgrades and the related `app/bootstrap/food_search.py` lifecycle compatibility patch were removed from #1792 and need a separate dependency/runtime compatibility PR with focused tests and review.
+  - Links:
+    - `docs/review/PR_1792_FIXED_MAPPING.md`
+    - `app/bootstrap/food_search.py`
+    - `requirements.txt`
+    - `requirements-lock.txt`
+    - `requirements-ci-lite.txt`
+    - `requirements-docker-runtime.txt`
+    - `docs/roadmap/BACKLOG_LEDGER.md#ledger-p1-fastapi-compatibility-gates`
+  - DoD:
+    - Dedicated PR updates all relevant dependency surfaces coherently or documents why no bump is needed
+    - Runtime compatibility patch, if still required, is implemented outside #1792 with focused lifecycle tests
+    - CI evidence includes current-head lint, tests, diff coverage, dependency/security checks, and fixed-mapping dispositions
+    - PR body explicitly scopes the dependency/security compatibility lane and does not mix A8 closeout governance changes
+
 <a id="ledger-p1-dependency-governance-pr-series"></a>
 - [ ] P1: Dependency governance PR series (cluster policy + coordinator-led lane)
   - Owner: @katsiaryna_kavaleuskaya
@@ -3080,7 +3103,7 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
     - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
     - Phase 4: Recursive verification implemented (self-validation, claim checking)
-    - Phase 5: Recursive learning implemented (feedback analysis, prompt refinement)
+    - Phase 5: Recursive learning remains out of scope until a separate reviewed runtime PR defines storage, consent, privacy, and verification boundaries
     - Phase 6: Integrated recursive framework complete (`RecursiveAIAssistant`)
     - Hypothesis target (requires benchmark validation): Parallelization (asyncio.gather), GPTCache integration, Redis caching, batch verification (reduce latency from 2-3x to 1.2-1.5x)
     - Hypothesis target (requires benchmark validation): retrieval quality ≥85%, answer accuracy ≥85%, factual errors ≤5%, latency ≤1.5x baseline

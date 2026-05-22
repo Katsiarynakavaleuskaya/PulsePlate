@@ -1153,6 +1153,27 @@ def test_checker_excludes_docstring_from_early_stop_literals(tmp_path: Path) -> 
     assert _errors(tmp_path) == []
 
 
+def test_checker_rejects_dead_branch_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        "    if False:\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    if False:\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
 def test_checker_rejects_not_only_forbidden_claim(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
@@ -1231,6 +1252,22 @@ def test_checker_rejects_because_split_benchmark_overclaim(tmp_path: Path) -> No
     errors = _errors(tmp_path)
 
     assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+def test_checker_rejects_unless_split_stale_a8_wording(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 is not pending unless active implementation lane.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("stale PR-A8 active/pending wording" in error for error in errors)
 
 
 def test_checker_rejects_stale_a8_wording_in_ledger_anchor_without_a8(tmp_path: Path) -> None:

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+from collections.abc import Iterator
 from pathlib import Path
 import re
 import sys
@@ -123,16 +124,20 @@ POSITIVE_ACTION_RE = re.compile(
     re.I,
 )
 A8_REF_RE = re.compile(r"\b(?:pr[-\s]?a8|a8|pr\s*#?\s*(?:1506|1578)|#(?:1506|1578))\b", re.I)
+_PENDING_LOOKAHEAD = (
+    r"pending(?!\s+(?:review|approval|merge|verification|audit|validation|closeout))"
+)
 STALE_A8_RE = re.compile(
-    r"\b(pr[-\s]?a8|#1506|#1578)\b.*\b(pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
+    rf"\b(?:pr[-\s]?a8|#1506|#1578)\b.*\b({_PENDING_LOOKAHEAD}(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
     re.I,
 )
 STALE_A8_REVERSED_RE = re.compile(
-    r"\b(pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b.*\b(pr[-\s]?a8|#1506|#1578)\b",
+    rf"\b({_PENDING_LOOKAHEAD}(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b.*\b(?:pr[-\s]?a8|#1506|#1578)\b",
     re.I,
 )
 CONTRAST_SPLIT_RE = re.compile(
-    r"\b(?:but|however|though|although|yet|and|or|while|whereas)\b|[;]", re.I
+    r"\b(?:but|however|though|although|yet|and|or|while|whereas|because|since|as|unless)\b|[;]",
+    re.I,
 )
 COMMA_SPLIT_RE = re.compile(r",\s*")
 PHASE_SPLIT_RE = re.compile(r"\s*[:|/]\s*")
@@ -300,7 +305,7 @@ def _surface_claim_is_negated(text: str) -> bool:
 
 
 STALE_STATUS_RE = re.compile(
-    r"\b(?:pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
+    rf"\b(?:{_PENDING_LOOKAHEAD}(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
     re.I,
 )
 
@@ -308,8 +313,8 @@ STALE_STATUS_RE = re.compile(
 def _stale_status_is_negated(clause: str) -> bool:
     normalized = _normalize(clause)
     match = re.search(
-        r"\b((?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't))\b"
-        r"[^,;.]{0,80}\b(?:pending(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
+        rf"\b((?:not|no|never|does\s+not|do\s+not|must\s+not|cannot|can't))\b"
+        rf"[^,;.]{{0,80}}\b(?:{_PENDING_LOOKAHEAD}(?:[-\s]+active)?|in[-\s]+progress|active(?:\s+implementation\s+lane|-implementation-lane)?|next\s+logical|will\s+implement|implementation[-\s]+lane|open[-\s]+runtime)\b",
         normalized,
         re.I,
     )
@@ -387,12 +392,16 @@ def _validate_pr_evidence(
     for needle, label in (
         (f"#{number}", f"PR #{number} number"),
         (TITLE, f"PR #{number} title"),
-        (evidence["merged_at"], f"PR #{number} merge timestamp"),
-        (evidence["merge_date"], f"PR #{number} merge date"),
-        (evidence["merge_commit"], f"PR #{number} merge commit"),
-        (evidence["branch"], f"PR #{number} original branch"),
     ):
         _require_contains(mapping_text, needle, label, errors)
+    for needle, label in (
+        (evidence["merged_at"], "merge timestamp"),
+        (evidence["merge_date"], "merge date"),
+        (evidence["merge_commit"], "merge commit"),
+        (evidence["branch"], "original branch"),
+    ):
+        _require_contains(mapping_text, needle, f"PR #{number} {label}", errors)
+        _require_contains(active_text, needle, f"PR #{number} active docs {label}", errors)
 
 
 def _validate_required_symbols(repo_root: Path, errors: list[str]) -> None:
@@ -499,12 +508,35 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
         elif isinstance(node, ast.Assign):
             if not (isinstance(node.value, ast.Constant) and node.value.value is None):
                 for target in node.targets:
-                    symbols.update(_assign_target_names(target))
+                    if isinstance(target, (ast.Name, ast.Tuple, ast.List)):
+                        symbols.update(_assign_target_names(target))
         elif isinstance(node, ast.AnnAssign):
             if node.target is not None:
                 if not (isinstance(node.value, ast.Constant) and node.value.value is None):
-                    symbols.update(_assign_target_names(node.target))
+                    if isinstance(node.target, (ast.Name, ast.Tuple, ast.List)):
+                        symbols.update(_assign_target_names(node.target))
+        elif hasattr(ast, "TypeAlias") and isinstance(node, ast.TypeAlias):
+            if isinstance(node.name, ast.Name):
+                symbols.add(node.name.id)
     return symbols
+
+
+def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
+    if isinstance(node, ast.If) and isinstance(node.test, ast.Constant):
+        if node.test.value is False:
+            for stmt in node.orelse:
+                yield from _walk_executable_nodes(stmt)
+            return
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.arg):
+            continue
+        if isinstance(child, ast.AnnAssign):
+            yield child.target
+            if child.value is not None:
+                yield from _walk_executable_nodes(child.value)
+            continue
+        yield child
+        yield from _walk_executable_nodes(child)
 
 
 def _collect_string_literals_from_function(
@@ -520,7 +552,7 @@ def _collect_string_literals_from_function(
     ):
         start_index = 1
     for stmt in node.body[start_index:]:
-        for child in ast.walk(stmt):
+        for child in _walk_executable_nodes(stmt):
             if isinstance(child, ast.Constant) and isinstance(child.value, str):
                 literals.add(child.value)
     return literals
@@ -649,11 +681,6 @@ def _validate_forbidden_claims(
     active_text: str, errors: list[str], *, assume_a8_context: bool = False
 ) -> None:
     for sentence in _eval_text_units(active_text, assume_a8_context=assume_a8_context):
-        if _parent_disqualifies_claims(sentence):
-            continue
-        if assume_a8_context and A8_REF_RE.search(sentence) is None:
-            if re.search(r"^\s*(?:-\s+)?Phase\s+\d+\s*[:.]", sentence, re.I):
-                continue
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
         for sub_clause in _iter_eval_subclauses(sentence):
             if not _subclause_has_actionable_forbidden(sub_clause, sentence_has_a8=sentence_has_a8):
@@ -790,7 +817,9 @@ def _overclaim_match_is_negated(text: str, match: re.Match[str]) -> bool:
         return False
     between = scoped[neg_match.end(1) : neg_match.start() + len(neg_match.group(0)) - len(verb)]
     if re.search(
-        r"\b(because|while|although|though|but|yet|whereas|however)\b|[,;]", between, re.I
+        r"\b(because|unless|while|although|though|but|yet|whereas|however)\b|[,;]",
+        between,
+        re.I,
     ):
         return False
     return True
@@ -860,14 +889,16 @@ def validate_closeout(
     _validate_mapping_closeout(normalized_mapping1506, "1506", errors)
     _validate_mapping_closeout(normalized_mapping1578, "1578", errors)
     ledger_a8_section = _find_anchor_section(normalized_ledger, "ledger-p1-recursive-methods")
+    if not ledger_a8_section:
+        errors.append("missing ledger anchor for PR-A8 recursive methods")
     _validate_forbidden_claims(claim_scan_text, errors)
     _validate_forbidden_claims(roadmap_a8_section, errors, assume_a8_context=True)
-    _validate_forbidden_claims(ledger_a8_section, errors, assume_a8_context=True)
+    if ledger_a8_section:
+        _validate_forbidden_claims(ledger_a8_section, errors, assume_a8_context=True)
+        _validate_benchmark_claims(ledger_a8_section, errors, assume_a8_context=True)
+        _validate_stale_a8_wording(ledger_a8_section, errors, assume_a8_context=True)
     _validate_benchmark_claims(claim_scan_text, errors)
     _validate_benchmark_claims(roadmap_a8_section, errors, assume_a8_context=True)
-    _validate_benchmark_claims(ledger_a8_section, errors, assume_a8_context=True)
-    if ledger_a8_section:
-        _validate_stale_a8_wording(ledger_a8_section, errors, assume_a8_context=True)
 
     return errors
 
