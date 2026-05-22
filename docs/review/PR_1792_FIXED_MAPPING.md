@@ -212,6 +212,32 @@ Evidence: deduplicated Experiment Runner Evidence paths in this artifact (`artif
 Disposition: NOT-A-BUG
 Evidence: CodeRabbit nitpick on unreachable branches in `_validate_forbidden_claims` (`scripts/ci/check_ai_recursive_speed_a8_closeout.py`); forbidden-claim violations still fail closed via the generic forbidden-claim error path covered by adversarial tests in `tests/test_ai_recursive_speed_a8_closeout.py`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286838079 -> e6a1722b2
+Disposition: FIXED
+Commit: e6a1722b2
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:509-515` (fallback `claim_clauses` when split leaves no benchmark match); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_split_benchmark_overclaim_without_per_clause_match`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286838084 -> e6a1722b2
+Disposition: FIXED
+Commit: e6a1722b2
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:127` (`DASH_SPLIT_RE`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:170` (dash split in `_iter_eval_subclauses`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_dash_separated_forbidden_runtime_claim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286838088 -> e6a1722b2
+Disposition: FIXED
+Commit: e6a1722b2
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:337-404` (param-only wiring + module-level declarations, not bare `ast.walk` identifier counts); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_identifier_only_landed_symbol_bypass`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286838091 -> e6a1722b2
+Disposition: FIXED
+Commit: e6a1722b2
+Evidence: dash-split subclauses validated independently in `_validate_stale_a8_wording`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_dash_separated_stale_a8_tail`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286838094 -> e6a1722b2
+Disposition: FIXED
+Commit: e6a1722b2
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:579-586` (`_overclaim_match_is_negated` ignores `not only` prefix); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_not_only_proves_benchmark_overclaim`.
+
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
@@ -248,7 +274,7 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
 - `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (58 tests after 914c5d6cf)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (63 tests after e6a1722b2)
 - `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
@@ -273,6 +299,12 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - Colon-separated negation bleed risk: FIXED by 914c5d6cf (`test_checker_rejects_colon_separated_negation_bleed_claim`).
 - Slash-separated stale A8 tail bypass risk: FIXED by 914c5d6cf (`test_checker_rejects_slash_separated_stale_a8_tail`).
 - Duplicated Experiment Runner Evidence paths: FIXED by governance artifact path dedupe (this commit).
+
+- Split-benchmark empty-clause bypass risk: FIXED by e6a1722b2 (`test_checker_rejects_split_benchmark_overclaim_without_per_clause_match`).
+- Dash-joined mixed-claim bypass risk: FIXED by e6a1722b2 (`test_checker_rejects_dash_separated_forbidden_runtime_claim`).
+- Identifier-only landed-symbol false-green risk: FIXED by e6a1722b2 (`test_checker_rejects_identifier_only_landed_symbol_bypass`).
+- Dash-separated stale A8 tail bypass risk: FIXED by e6a1722b2 (`test_checker_rejects_dash_separated_stale_a8_tail`).
+- "Not only" false negation on benchmark overclaim risk: FIXED by e6a1722b2 (`test_checker_rejects_not_only_proves_benchmark_overclaim`).
 
 
 ## Merge Readiness
