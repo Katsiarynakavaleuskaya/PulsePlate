@@ -396,6 +396,36 @@ Disposition: FIXED
 Commit: 838a3b79e
 Evidence: `_PENDING_LOOKAHEAD` excludes review/approval/merge/verification/audit/validation/closeout contexts from stale implementation-state matching; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:127-135`, `scripts/ci/check_ai_recursive_speed_a8_closeout.py:306-317`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291218789 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: `_constant_is_false` handling now prunes compile-time false branches (`if False`, `if 0`, empty/None constants) from early-stop literal proof; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:542-547`, `tests/test_ai_recursive_speed_a8_closeout.py:1179-1197`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291218793 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: `POSITIVE_ACTION_RE` includes expose/exposed/exposing; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:116-125`, `tests/test_ai_recursive_speed_a8_closeout.py:1385-1398`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291218795 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: param-only `recursive_optimization_hints` evidence is restricted to canonical seam functions; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:151-163`, `scripts/ci/check_ai_recursive_speed_a8_closeout.py:517-525`, `tests/test_ai_recursive_speed_a8_closeout.py:1200-1211`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291218798 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: forbidden-surface context is carried across split clauses for the same sentence; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:337-355`, `tests/test_ai_recursive_speed_a8_closeout.py:1401-1416`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291218800 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: `BENCHMARK_CLAIM_RE` detects `percent` and `under <n>ms` benchmark overclaims, not only `%`; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:108-114`, `tests/test_ai_recursive_speed_a8_closeout.py:1467-1489`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3291219570 -> e2ba82c64
+Disposition: FIXED
+Commit: e2ba82c64
+Evidence: duplicate CodeRabbit finding for non-executable early-stop literal scopes; fixed by `_constant_is_false` branch pruning and covered by `tests/test_ai_recursive_speed_a8_closeout.py:1158-1197`.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
