@@ -181,6 +181,22 @@ Disposition: FIXED
 Commit: f96dd7496
 Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:45` (`REQUIRED_SYMBOLS`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:309-320` (selective `ast.keyword` collection for landed symbols only).
 
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286710605 -> 914c5d6cf
+Disposition: FIXED
+Commit: 914c5d6cf
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:124` (`CONTRAST_SPLIT_RE` includes `or`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:157-161` (`_iter_eval_subclauses`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_or_joined_mixed_negation_runtime_expansion_claim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286710622 -> 914c5d6cf
+Disposition: FIXED
+Commit: 914c5d6cf
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:126` (`PHASE_SPLIT_RE`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:157-161` (`_iter_eval_subclauses` colon split); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_colon_separated_negation_bleed_claim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3286710627 -> 914c5d6cf
+Disposition: FIXED
+Commit: 914c5d6cf
+Evidence: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:126` (`PHASE_SPLIT_RE`), `scripts/ci/check_ai_recursive_speed_a8_closeout.py:157-161` (`_iter_eval_subclauses` slash split); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_slash_separated_stale_a8_tail`.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
@@ -217,7 +233,7 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
 - `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (55 tests after f96dd7496)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (58 tests after 914c5d6cf)
 - `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
@@ -238,6 +254,9 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - While-clause negation bypass on stale A8 wording: FIXED by f96dd7496 (`test_checker_rejects_while_negation_stale_a8_wording`).
 - Distant-prefix overclaim negation false negative: FIXED by f96dd7496 (`test_checker_rejects_while_negated_benchmark_overclaim`).
 - Dict-kwarg false landed-symbol evidence: FIXED by f96dd7496 (selective `ast.keyword` collection).
+- Or-clause mixed negation bypass risk: FIXED by 914c5d6cf (`test_checker_rejects_or_joined_mixed_negation_runtime_expansion_claim`).
+- Colon-separated negation bleed risk: FIXED by 914c5d6cf (`test_checker_rejects_colon_separated_negation_bleed_claim`).
+- Slash-separated stale A8 tail bypass risk: FIXED by 914c5d6cf (`test_checker_rejects_slash_separated_stale_a8_tail`).
 
 
 ## Merge Readiness
