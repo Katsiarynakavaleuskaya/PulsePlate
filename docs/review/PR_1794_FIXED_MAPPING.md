@@ -23,12 +23,12 @@
 
 ## Merge Readiness
 
-- [ ] Green CI on current head
-- [ ] `make verify` or equivalent scoped gates pass
-- [ ] `pre-commit run --all-files` passes
-- [ ] `check_review_threads_disposition.py` passes (if applicable)
-- [ ] `check_merge_ready.py` passes
-- [ ] No actionable bot comments remain
+- [x] Green CI on current head
+- [x] `make verify` or equivalent scoped gates pass
+- [x] `pre-commit run --all-files` passes
+- [x] `check_review_threads_disposition.py` passes (if applicable)
+- [x] `check_merge_ready.py` passes
+- [x] No actionable bot comments remain
 - [ ] Mandatory wait-window elapsed after last bot/review activity
 
 ## Experiment Runner Evidence
