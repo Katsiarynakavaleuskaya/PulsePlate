@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import AsyncIterator, Callable, Mapping
 from unittest.mock import MagicMock
 from fastapi import FastAPI
 import httpx
@@ -811,6 +812,86 @@ def test_food_search_meili_client_closed_on_app_shutdown(
         assert client.is_closed
         assert getattr(app.state, "meili_http_client", None) is None
         assert getattr(app.state, "meili_http_shutdown_event", None) is None
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_food_search_shutdown_hook_preserves_existing_lifespan(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.testclient import TestClient
+
+    events: list[str] = []
+
+    @contextlib.asynccontextmanager
+    async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        events.append("startup")
+        yield
+        events.append("shutdown")
+
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    app = FastAPI(lifespan=_lifespan)
+    register_food_search_backend(app)
+    client = app.state.meili_http_client
+    assert client is not None
+    try:
+        with TestClient(app):
+            assert events == ["startup"]
+            assert not client.is_closed
+        assert events == ["startup", "shutdown"]
+        assert client.is_closed
+        assert getattr(app.state, "meili_http_client", None) is None
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_food_search_shutdown_hook_handles_missing_lifespan_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.testclient import TestClient
+
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    app = FastAPI()
+    setattr(app.router, "lifespan_context", None)
+    register_food_search_backend(app)
+    client = app.state.meili_http_client
+    assert client is not None
+    try:
+        with TestClient(app):
+            assert not client.is_closed
+        assert client.is_closed
+        assert getattr(app.state, "meili_http_client", None) is None
+    finally:
+        dispose_food_search_meili_http_client(app)
+        food_store.reset_strategy_search_backend_adapter()
+
+
+def test_food_search_shutdown_hook_disposes_when_existing_lifespan_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from starlette.testclient import TestClient
+
+    @contextlib.asynccontextmanager
+    async def _lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        yield
+        raise RuntimeError("shutdown boom")
+
+    monkeypatch.setenv("FOOD_SEARCH_BACKEND_STRATEGY", "meili")
+    monkeypatch.setenv("MEILI_URL", "https://meili.example")
+    app = FastAPI(lifespan=_lifespan)
+    register_food_search_backend(app)
+    client = app.state.meili_http_client
+    assert client is not None
+    try:
+        with pytest.raises(RuntimeError, match="shutdown boom"):
+            with TestClient(app):
+                assert not client.is_closed
+        assert client.is_closed
+        assert getattr(app.state, "meili_http_client", None) is None
     finally:
         dispose_food_search_meili_http_client(app)
         food_store.reset_strategy_search_backend_adapter()
