@@ -74,7 +74,8 @@ session start on one machine.
 
 ### Host-runtime constraint layer
 
-Owned by the Codex/OpenAI runtime and surrounding safety/integration rules.
+Owned by the Codex/OpenAI runtime, Kimi Code CLI runtime, and surrounding
+safety/integration rules.
 
 This layer may:
 
@@ -97,6 +98,7 @@ unconditionally guaranteed by Markdown alone.
 | Mandatory post-open bug-hunter pass | Yes | Yes | No | Medium | Deterministic once invoked via PR phase packet; not globally event-triggered |
 | Creative research lane | Yes | Yes | Likely yes for raw-session auto-start | Medium | Deterministic once invoked via explicit report/research triggers; not generic wellness wording |
 | Figma execution lane | Partial | Yes (packet gating only) | Likely yes for raw-session auto-start | High | Packet-gated and blocker-aware; `read_only` by default until valid metadata or explicit creation mode exists |
+| Kimi-native subagent bridge | Yes | Yes | No for manual invocation; yes for raw-session auto-start | Medium | Deterministic once invoked via `transport=kimi-native-subagents`; reuses `.cursor/agents/*.md` instructions and `.agents/skills/` skills |
 | Post-merge local sync / cleanup gating next PR | Yes | N/A | No | Low | Required by process, enforced by canon/runbook discipline |
 
 ## Claim Rules
@@ -132,6 +134,11 @@ Current approved wording:
   and never unconditional.
 - Launcher convenience can invoke canonical packets, but it does **not** bypass
   review-thread, required-check, or merge-readiness governance.
+- Kimi-native bridge is **deterministic once invoked** via
+  `build_kimi_native_subagent_bridge()` or `build_native_subagent_bridge(transport=KIMI_BRIDGE_TRANSPORT)`;
+  it reuses the same agent profiles and instruction files as the Codex bridge.
+- Kimi runtime prompt guidance printed by repo scripts is **copy-paste guidance**
+  for the active Kimi session; it does not execute by itself.
 
 ## Approved PR Series For This Wave
 
@@ -244,7 +251,8 @@ Operator path today (repo companion, **not** a guarantee of raw-session auto-sta
 
 1. `scripts/orchestration/start_pr_lane.sh --goal "<goal>" --task-class "<class>" --branch "codex/<slug>" --worktree "worktrees/<slug>" --path "<scope>"` from a clean checkout synced with `origin/main` — creates the isolated PR worktree, runs analyze preflight, invokes `task_bootstrap.py`, and prints the plugin/runtime checklist, packet summary, and `Paste into Codex now` block.
 2. (Optional) `scripts/orchestration/local_session_bootstrap.sh` from repo root — preflight analyze + printed `task_bootstrap` recipe + Codex-ready next-step block. It does not execute `task_bootstrap.py` or create the authoritative packet. For flag-specific option handling, use the script's `--help` output.
-3. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
+3. For Kimi Code CLI sessions, the same `start_pr_lane.sh` and `local_session_bootstrap.sh` entrypoints apply. The generated packet carries `transport: "kimi-native-subagents"` when the runtime signals Kimi support. Agent instructions are loaded from `.cursor/agents/*.md` and skills from `.agents/skills/` regardless of transport.
+4. `python3 scripts/orchestration/task_bootstrap.py ...` — deterministic packet + routing metadata once invoked.
 
 In:
 
