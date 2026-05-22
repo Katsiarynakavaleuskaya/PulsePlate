@@ -3097,10 +3097,10 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
     - ✅ LLM provider stable (`llm.py`)
     - ✅ Redis available in docker-compose (for caching optimization)
     - ⏳ Fact-checking system implemented (for recursive verification)
-    - ⏳ User feedback storage implemented (for recursive learning)
+    - ⏳ User feedback storage remains a future prerequisite for any separately reviewed recursive-learning lane
   - DoD:
     - Phase 1: Recursive RAG implemented (multi-hop retrieval, query refinement)
-    - Phase 2: Recursive reasoning implemented (decomposition, synthesis, tree-of-thought)
+    - Phase 2: Recursive reasoning remains a future target; provider chain-of-thought/tree-of-thought claims stay out of scope until a separate reviewed runtime PR
     - Phase 3: Recursive refinement implemented (self-critique, iterative improvement)
     - Phase 4: Recursive verification implemented (self-validation, claim checking)
     - Phase 5: Recursive learning remains out of scope until a separate reviewed runtime PR defines storage, consent, privacy, and verification boundaries

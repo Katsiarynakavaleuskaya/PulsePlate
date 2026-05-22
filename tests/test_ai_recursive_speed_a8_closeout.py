@@ -116,7 +116,7 @@ def _write_valid_repo(tmp_path: Path) -> None:
     _write(
         tmp_path / "core/rag/orchestration.py",
         (
-            "def orchestrate() -> object:\n"
+            "def retrieve_and_validate_rag() -> object:\n"
             "    recursive_optimization_hints = object()\n"
             "    return recursive_optimization_hints\n"
         ),
@@ -134,7 +134,9 @@ def _write_valid_repo(tmp_path: Path) -> None:
     _write(
         tmp_path / "app/services/insight_runtime.py",
         (
-            "def prepare(recursive_optimization_hints: object | None = None) -> object | None:\n"
+            "def _traced_retrieve_and_validate_rag(\n"
+            "    recursive_optimization_hints: object | None = None,\n"
+            ") -> object | None:\n"
             "    return recursive_optimization_hints\n"
         ),
     )
@@ -1174,6 +1176,41 @@ def test_checker_rejects_dead_branch_early_stop_literals(tmp_path: Path) -> None
     assert any("missing early-stop string literal" in error for error in errors)
 
 
+def test_checker_rejects_numeric_false_branch_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        "    if 0:\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    if 0:\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
+def test_checker_rejects_unrelated_param_only_symbol_function(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "app/services/insight_runtime.py"
+    path.write_text(
+        "def unrelated(recursive_optimization_hints=None):\n"
+        "    return recursive_optimization_hints\n",
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("app/services/insight_runtime.py landed symbol" in error for error in errors)
+
+
 def test_checker_rejects_not_only_forbidden_claim(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
@@ -1345,6 +1382,40 @@ def test_checker_rejects_additional_runtime_expansion_verbs(tmp_path: Path, clai
     assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors), claim
 
 
+def test_checker_rejects_exposes_runtime_expansion_claim(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 exposes semantic cache in production.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
+def test_checker_rejects_split_forbidden_surface_tail_without_repeated_subject(
+    tmp_path: Path,
+) -> None:
+    _write_valid_repo(tmp_path)
+    roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
+    roadmap.write_text(
+        _valid_roadmap().replace(
+            "This closeout reconciles stale roadmap/backlog/review truth.",
+            "PR-A8 semantic cache is not active, but enabled for live traffic.",
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("forbidden PR-A8 runtime expansion claim" in error for error in errors)
+
+
 def test_checker_rejects_hyphenated_in_progress_stale_a8(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     roadmap = tmp_path / "docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md"
@@ -1391,6 +1462,31 @@ def test_checker_rejects_decimal_benchmark_overclaim(tmp_path: Path) -> None:
     errors = _errors(tmp_path)
 
     assert any("unvalidated benchmark claim" in error for error in errors)
+
+
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "PR-A8 proves latency reduction 50 percent average and quality maintained 95 percent.",
+        "PR-A8 guarantees latency under 200ms.",
+    ),
+)
+def test_checker_rejects_non_percent_symbol_benchmark_overclaims(
+    tmp_path: Path, claim: str
+) -> None:
+    _write_valid_repo(tmp_path)
+    ledger = tmp_path / "docs/roadmap/BACKLOG_LEDGER.md"
+    ledger.write_text(
+        _valid_ledger().replace(
+            "Hypothesis target (requires benchmark validation): latency reduction 50-60% average, quality maintained >=95%.",
+            claim,
+        ),
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("unvalidated benchmark claim" in error for error in errors), claim
 
 
 def test_checker_rejects_unspaced_symbol_joined_forbidden_runtime_claim(tmp_path: Path) -> None:

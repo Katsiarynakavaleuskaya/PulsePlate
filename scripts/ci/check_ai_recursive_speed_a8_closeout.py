@@ -107,13 +107,15 @@ LOCAL_NEGATED_CLAIM_RE = re.compile(
 )
 BENCHMARK_CLAIM_RE = re.compile(
     r"(?=.*\b(?:latency|quality|reduction|maintained|accuracy)\b)"
-    r"(?=.*(?:\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%|>=?\s*\d+(?:\.\d+)?%|<=?\s*\d+(?:\.\d+)?%)).+",
+    r"(?=.*(?:\d+(?:\.\d+)?(?:-\d+(?:\.\d+)?)?%|"
+    r">=?\s*\d+(?:\.\d+)?%|<=?\s*\d+(?:\.\d+)?%|"
+    r"\d+(?:\.\d+)?\s*percent|under\s+\d+(?:\.\d+)?\s*ms)).+",
     re.I,
 )
 FORBIDDEN_SURFACE_RE = re.compile(rf"\b({FORBIDDEN_SURFACE_PATTERN})\b", re.I)
 POSITIVE_ACTION_RE = re.compile(
     r"\b(opens?|opened|opening|enables?|enabled|introduces?|introduced|introducing|"
-    r"implements?|implemented|approves?|approved|"
+    r"implements?|implemented|approves?|approved|exposes?|exposed|exposing|"
     r"authorizes?|authorized|permits?|permitted|allows?|allowed|adds?|added|ships?|shipped|"
     r"selects?|selected|activates?|activated|activating|rolls?\s+out|"
     r"uses?|used|using|supports?|supported|supporting|includes?|included|including|"
@@ -153,6 +155,10 @@ PARAM_ONLY_PATHS = frozenset(
         "app/services/insight_runtime.py",
     }
 )
+PARAM_ONLY_ALLOWED_FUNCTIONS = {
+    "core/rag/orchestration.py": frozenset({"retrieve_and_validate_rag", "_run_orchestration"}),
+    "app/services/insight_runtime.py": frozenset({"_traced_retrieve_and_validate_rag"}),
+}
 
 
 OVERCLAIM_RE = re.compile(
@@ -328,22 +334,29 @@ def _stale_status_is_negated(clause: str) -> bool:
     return True
 
 
-def _subclause_has_actionable_forbidden(sub_clause: str, *, sentence_has_a8: bool) -> bool:
+def _subclause_has_actionable_forbidden(
+    sub_clause: str, *, sentence_has_a8: bool, sentence_has_forbidden_surface: bool = False
+) -> bool:
     normalized = _normalize(sub_clause)
     has_a8_ref = A8_REF_RE.search(normalized) is not None or sentence_has_a8
     if not has_a8_ref:
         return False
-    if not FORBIDDEN_SURFACE_RE.search(normalized):
+    has_local_surface = FORBIDDEN_SURFACE_RE.search(normalized) is not None
+    if not (has_local_surface or sentence_has_forbidden_surface):
         return False
-    if _surface_claim_is_negated(normalized):
+    if has_local_surface and _surface_claim_is_negated(normalized):
         return False
     if POSITIVE_ACTION_RE.search(normalized):
         return True
-    if re.search(r"\bsemantic[-\s]?cache|semanticcache\b", normalized, re.I) and re.search(
-        r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
-        r"production[-\s]?ready|rollout[-\s]?ready)\b",
-        normalized,
-        re.I,
+    if (
+        (has_local_surface or sentence_has_forbidden_surface)
+        and re.search(r"\bsemantic[-\s]?cache|semanticcache\b", normalized, re.I)
+        and re.search(
+            r"\b(?:active|live|enabled|opened|allowed|approved|selected|"
+            r"production[-\s]?ready|rollout[-\s]?ready)\b",
+            normalized,
+            re.I,
+        )
     ):
         return True
     if re.search(r"\b(redis|gpt[-\s]?cache)\b", normalized, re.I) and re.search(
@@ -468,6 +481,9 @@ def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
             for call in _iter_calls_in_expr(stmt.value):
                 found.update(_collect_param_only_call_keywords(call))
         elif isinstance(stmt, ast.If):
+            if _constant_is_false(stmt.test):
+                found.update(_collect_param_only_wiring(stmt.orelse))
+                continue
             found.update(_collect_param_only_wiring(stmt.body))
             found.update(_collect_param_only_wiring(stmt.orelse))
         elif isinstance(stmt, ast.With):
@@ -501,10 +517,12 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
         elif isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             symbols.add(node.name)
             if relpath in PARAM_ONLY_PATHS:
-                for param in _function_param_names(node):
-                    if param in PARAM_ONLY_SYMBOLS:
-                        symbols.add(param)
-                symbols.update(_collect_param_only_wiring(node.body))
+                allowed_functions = PARAM_ONLY_ALLOWED_FUNCTIONS.get(relpath, frozenset())
+                if node.name in allowed_functions:
+                    for param in _function_param_names(node):
+                        if param in PARAM_ONLY_SYMBOLS:
+                            symbols.add(param)
+                    symbols.update(_collect_param_only_wiring(node.body))
         elif isinstance(node, ast.Assign):
             if not (isinstance(node.value, ast.Constant) and node.value.value is None):
                 for target in node.targets:
@@ -522,8 +540,8 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
 
 
 def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
-    if isinstance(node, ast.If) and isinstance(node.test, ast.Constant):
-        if node.test.value is False:
+    if isinstance(node, ast.If):
+        if _constant_is_false(node.test):
             for stmt in node.orelse:
                 yield from _walk_executable_nodes(stmt)
             return
@@ -556,6 +574,10 @@ def _collect_string_literals_from_function(
             if isinstance(child, ast.Constant) and isinstance(child.value, str):
                 literals.add(child.value)
     return literals
+
+
+def _constant_is_false(node: ast.expr) -> bool:
+    return isinstance(node, ast.Constant) and node.value in (False, 0, "", None)
 
 
 def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:
@@ -682,8 +704,13 @@ def _validate_forbidden_claims(
 ) -> None:
     for sentence in _eval_text_units(active_text, assume_a8_context=assume_a8_context):
         sentence_has_a8 = assume_a8_context or A8_REF_RE.search(sentence) is not None
+        sentence_has_forbidden_surface = FORBIDDEN_SURFACE_RE.search(sentence) is not None
         for sub_clause in _iter_eval_subclauses(sentence):
-            if not _subclause_has_actionable_forbidden(sub_clause, sentence_has_a8=sentence_has_a8):
+            if not _subclause_has_actionable_forbidden(
+                sub_clause,
+                sentence_has_a8=sentence_has_a8,
+                sentence_has_forbidden_surface=sentence_has_forbidden_surface,
+            ):
                 continue
             normalized = _normalize(sub_clause)
             if POSITIVE_ACTION_RE.search(normalized):
