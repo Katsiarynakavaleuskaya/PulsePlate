@@ -252,6 +252,37 @@ Disposition: FIXED
 Commit: ee3725259
 Evidence: `LOCAL_NEGATED_CLAIM_RE` negation-to-claim gap excludes bracket characters (`scripts/ci/check_ai_recursive_speed_a8_closeout.py:89-91`); bracket fragments split via `_bracket_fragments` (`scripts/ci/check_ai_recursive_speed_a8_closeout.py:169-175`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_bracketed_rollout_claim_after_negation`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287202183 -> b3f11655b
+Disposition: FIXED
+Commit: b3f11655b
+Evidence: `_validate_semantic_cache_gate()` now collects all normalized marker values via `findall` and fails when more than one distinct value appears; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_conflicting_semantic_cache_gate_markers`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287202189 -> b3f11655b
+Disposition: FIXED
+Commit: b3f11655b
+Evidence: `POSITIVE_ACTION_RE` includes `introduces?|introduced|introducing`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_introduces_forbidden_runtime_claim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287202197 -> b3f11655b
+Disposition: FIXED
+Commit: b3f11655b
+Evidence: `DASH_SPLIT_RE` splits em/en dashes and hyphen joins such as `pending-active`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_tight_em_dash_stale_a8_tail`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287202203 -> b3f11655b
+Disposition: FIXED
+Commit: b3f11655b
+Evidence: `_python_ast_symbols()` iterates all `ast.Assign` targets via `_assign_target_names()` and handles `AnnAssign`; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_accepts_multi_target_assign_landed_symbol`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287202209 -> b3f11655b
+Disposition: FIXED
+Commit: b3f11655b
+Evidence: `BENCHMARK_CLAIM_RE` accepts decimal percentages (`\d+(?:\.\d+)?%`); `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_decimal_benchmark_overclaim`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3287202212 -> b3f11655b
+Disposition: FIXED
+Commit: b3f11655b
+Evidence: `SYMBOL_SPLIT_RE` splits unspaced `+`, `&`, and `and` joins; `tests/test_ai_recursive_speed_a8_closeout.py::test_checker_rejects_unspaced_symbol_joined_forbidden_runtime_claim`.
+
+
 
 ## Review-Level Notes
 
@@ -289,7 +320,7 @@ Portable commands (repo root, activate `.venv` via `PATH` when needed):
 - `python3 scripts/ci/check_ai_recursive_speed_a8_closeout.py` -> passed
 - `python3 scripts/ci/check_semantic_cache_gate.py` -> passed
 - `python3 scripts/ci/check_docs_phase1_gates.py --files docs/roadmap/BACKLOG_LEDGER.md docs/roadmap/PulsePlate_RAG_LLM_Karpathy_Epic_Pipeline.md docs/roadmap/PulsePlate_Semantic_Cache_Gate_and_Plan.md docs/review/PR_1506_FIXED_MAPPING.md docs/review/PR_1578_FIXED_MAPPING.md` -> passed
-- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (66 tests after ee3725259)
+- `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py` -> passed (72 tests after b3f11655b)
 - `PATH="$(pwd)/.venv/bin:$PATH" pytest -q tests/test_ai_recursive_speed_a8_closeout.py tests/test_recursive_rag.py tests/test_rag_orchestration.py tests/test_core_ai_insight_runtime.py tests/test_insight_application_service.py tests/test_app_insight_runtime.py tests/test_semantic_cache_gate.py tests/test_repo_policy_guards.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" python3 -m mypy --no-incremental --cache-dir=/dev/null scripts/ci/check_ai_recursive_speed_a8_closeout.py tests/test_ai_recursive_speed_a8_closeout.py` -> passed
 - `PATH="$(pwd)/.venv/bin:$PATH" make validate-changed` -> passed
@@ -324,6 +355,14 @@ Full local `make verify` is intentionally deferred per operator-approved machine
 - Symbol-joined mixed-claim bypass risk: FIXED by ee3725259 (`test_checker_rejects_symbol_joined_forbidden_runtime_claim`).
 - Parenthetical stale A8 tail bypass risk: FIXED by ee3725259 (`test_checker_rejects_parenthetical_stale_a8_tail`).
 - Bracketed negation-span bypass risk: FIXED by ee3725259 (`test_checker_rejects_bracketed_rollout_claim_after_negation`).
+
+- Conflicting semantic-cache gate marker risk: FIXED by b3f11655b (`test_checker_rejects_conflicting_semantic_cache_gate_markers`).
+- Unlisted positive-action verb bypass risk: FIXED by b3f11655b (`test_checker_rejects_introduces_forbidden_runtime_claim`).
+- Unspaced dash stale-A8 tail bypass risk: FIXED by b3f11655b (`test_checker_rejects_tight_em_dash_stale_a8_tail`).
+- Multi-target AST landed-symbol bypass risk: FIXED by b3f11655b (`test_checker_accepts_multi_target_assign_landed_symbol`).
+- Decimal benchmark overclaim bypass risk: FIXED by b3f11655b (`test_checker_rejects_decimal_benchmark_overclaim`).
+- Unspaced symbol-join forbidden-claim bypass risk: FIXED by b3f11655b (`test_checker_rejects_unspaced_symbol_joined_forbidden_runtime_claim`).
+
 
 
 ## Merge Readiness
