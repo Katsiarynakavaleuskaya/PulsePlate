@@ -11,6 +11,10 @@
 Disposition: NOT-A-BUG
 Evidence: tests/test_no_bmi_math_outside_core.py:325, tests/test_no_bmi_math_outside_core.py:357, tests/test_no_bmi_math_outside_core.py:383, tests/test_no_bmi_math_outside_core.py:419, tests/test_no_bmi_math_outside_core.py:441, tests/test_no_bmi_math_outside_core.py:465, tests/test_no_bmi_math_outside_core.py:486; .venv/bin/python -m mypy --no-incremental --cache-dir=/dev/null tests/test_no_bmi_math_outside_core.py -> Success: no issues found in 1 source file
 Reason: Current-head test functions already include explicit `-> None` return annotations; the CodeRabbit comment was stale against the updated head.
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1799#issuecomment-4525995448 -> 2fd318855
+Disposition: FIXED
+Commit: 2fd318855
+Evidence: tests/test_no_bmi_math_outside_core.py:216, tests/test_no_bmi_math_outside_core.py:221; pre-commit run --all-files -> black/ruff/backend tests passed
 
 ## Local Findings Resolved Before PR Open
 
