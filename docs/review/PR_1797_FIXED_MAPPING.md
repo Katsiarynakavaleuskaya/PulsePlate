@@ -21,7 +21,65 @@
 
 ## Fixed in Commit Mapping
 
-- No actionable review comments
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578075 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: `DENIED_CANONICAL` now matches registry-denied reference/tool variants including Google Drive, generated code/briefs, screenshots, external design notes, and desktop exports; covered by `test_inventory_rejects_embedded_reference_tool_canonical_authority`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578077 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: `_load_vocabulary` now rejects duplicate vocabulary ids instead of overwriting; covered by `test_inventory_rejects_duplicate_vocabulary_ids`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578078 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: parametrized mutator callables now use explicit `InventoryMutator` type hints in `tests/test_design_bridge_coverage_inventory.py`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578162 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: `implementation_blocked_reason` is type-checked before `.lower()`; covered by `test_inventory_rejects_non_string_implementation_block_reason`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578163 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: canonical authority validation now uses boundary-aware matching for embedded reference-tool phrases; covered by `test_inventory_rejects_embedded_reference_tool_canonical_authority`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578164 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: coverage status fields are type-checked before membership checks; covered by `test_inventory_rejects_unhashable_coverage_status`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578165 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: duplicate vocabulary ids now fail closed in bridge inventory loader; covered by `test_inventory_rejects_duplicate_vocabulary_ids`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578167 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: evidence anchors must point to existing repo files; covered by `test_inventory_rejects_nonexistent_repo_evidence_anchor`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292578169 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: registry status is validated against allowed status enum before mirroring; covered by `test_inventory_rejects_invalid_registry_status`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292928692 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: registry `web_runtime_anchor` must be a non-empty string before deriving web coverage; covered by `test_inventory_rejects_registry_missing_web_runtime_anchor`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#discussion_r3292928694 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: vocabulary ids must exactly match registry/inventory ids; covered by `test_inventory_rejects_extra_vocabulary_id_not_in_registry`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1797#pullrequestreview-4350403958 -> 555bcaf26
+Disposition: FIXED
+Commit: 555bcaf26
+Evidence: aggregate CodeRabbit review covered the actionable bridge inventory validator/test findings mapped above.
 
 ## Local Validation
 
