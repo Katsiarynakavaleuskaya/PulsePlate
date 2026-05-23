@@ -1554,3 +1554,39 @@ Starter: scripts/orchestration/start_pr_lane.sh
     assert result.returncode == 1
     assert "PR body validation failed" in result.stdout
     assert "canonical mapping artifact validation failed" not in result.stdout
+def test_required_mode_promotes_unavailable_experiment_artifact_to_error() -> None:
+    warning = (
+        "Advisory: Experiment Runner artifact "
+        "`artifacts/orchestration/experiments/results/missing.json` is referenced "
+        "but unavailable locally, so coauthor_required cannot be verified against "
+        "branch commits."
+    )
+
+    promoted = gates._required_experiment_runner_artifact_warning_to_error(warning)
+
+    assert promoted is not None
+    assert promoted.startswith("Required: Experiment Runner artifact")
+
+
+def test_phase2_cli_required_mode_fails_unavailable_experiment_runner_artifact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    body = VALID_BODY_WITH_MAPPING.replace(
+        "artifacts/orchestration/experiments/results/exp-719.json",
+        "artifacts/orchestration/experiments/results/does-not-exist.json",
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "check_pr_body_phase2_gates.py",
+            "--body",
+            body,
+            "--experiment-runner-evidence-mode",
+            "required",
+        ],
+    )
+
+    assert gates.main() == 1
+
+

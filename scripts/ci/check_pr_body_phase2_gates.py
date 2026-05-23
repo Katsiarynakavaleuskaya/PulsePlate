@@ -627,6 +627,17 @@ def check_experiment_runner_coauthor_advisory(
     return warnings
 
 
+
+
+def _required_experiment_runner_artifact_warning_to_error(warning: str) -> str | None:
+    """Promote artifact-unverifiable advisories to required-mode hard errors."""
+
+    if not warning.startswith("Advisory: Experiment Runner artifact `"):
+        return None
+    if " unavailable locally" in warning or " invalid co-author metadata" in warning:
+        return warning.replace("Advisory:", "Required:", 1)
+    return None
+
 def _select_body_validation_mode(*, artifact_checked: bool) -> BodyValidationMode:
     """Choose body validation mode from the canonical artifact/body contract."""
     if artifact_checked:
@@ -851,6 +862,20 @@ def main() -> int:
                 )
             )
         advisory_warnings = list(dict.fromkeys(advisory_warnings))
+        if args.experiment_runner_evidence_mode is ExperimentRunnerEvidenceMode.REQUIRED:
+            promoted_artifact_errors = [
+                promoted
+                for warning in advisory_warnings
+                if (promoted := _required_experiment_runner_artifact_warning_to_error(warning))
+                is not None
+            ]
+            if promoted_artifact_errors:
+                artifact_errors.extend(promoted_artifact_errors)
+                advisory_warnings = [
+                    warning
+                    for warning in advisory_warnings
+                    if _required_experiment_runner_artifact_warning_to_error(warning) is None
+                ]
     if not lane_start_seen:
         advisory_warnings.extend(dict.fromkeys(lane_start_warning_candidates))
     advisory_warnings = list(dict.fromkeys(advisory_warnings))
