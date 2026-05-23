@@ -213,10 +213,12 @@ def _should_skip_threshold_check(rel_path: str) -> bool:
 
 
 def _path_has_excluded_scan_part(path: Path) -> bool:
+    """Return whether a path is inside a generated/transient scan directory."""
     return any(part in EXCLUDED_SCAN_DIR_NAMES for part in path.parts)
 
 
 def _is_allowed_transient_read_error(rel_path: str) -> bool:
+    """Return whether read-time disappearance is an expected xdist helper race."""
     return rel_path == _GUARD_WHR_SKIP_TEMP_REL_PATH
 
 
