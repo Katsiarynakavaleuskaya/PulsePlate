@@ -54,9 +54,9 @@ Commit: 329b2d2ab
 
 ## Experiment Runner Evidence
 - Artifact: artifacts/orchestration/experiments/results/pr-1800-evidence-gate-oracle.json
-- Status: rejected, environment-only after repo `.venv` bounded gates passed.
-- Raw rejection: `ModuleNotFoundError: No module named 'fastapi'` while isolated checkout loaded `conftest.py` for `python3 -m pytest -q tests/test_pr_body_phase2_gates.py -k 'experiment_runner or evidence or artifact'`.
-- Disposition: NOT-A-BUG; the isolated Experiment Runner checkout did not install repo dependencies, while repo `.venv` gates passed for the same Phase2 evidence tests.
+- Status: accepted.
+- Oracle evidence: 3 dependency-light Python oracles passed, covering required mode missing/malformed/invalid artifact failures, valid accepted artifact pass, rejected artifact failure, and advisory/default non-blocking CLI behavior.
+- Attribution: `coauthor_required=true`; commit `329b2d2ab` includes `Co-authored-by: PulsePlate Experiment Runner <pulseplate@pm.me>`.
 
 ## Deferred / Follow-ups
 - None.
