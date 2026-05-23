@@ -471,6 +471,36 @@ Disposition: FIXED
 Commit: 8eeaff6f8
 Evidence: `_iterable_is_non_iterable_constant` now treats all non-iterable constants (including int, float, bool, None, Ellipsis) as raising before loop body/else; `tests/test_ai_recursive_speed_a8_closeout.py:1244-1265` covers `1`, `1.0`, `True`, and `...`. Code: `scripts/ci/check_ai_recursive_speed_a8_closeout.py:628-634`.
 
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296459 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: module-level `recursive_optimization_hints` assignment no longer satisfies param-only landed symbols; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:591-600` subtracts `PARAM_ONLY_SYMBOLS` from module-level assignments and `tests/test_ai_recursive_speed_a8_closeout.py` covers spoofing.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296460 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: inherited forbidden-surface action tails are evaluated when runtime/production context is present; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:338-365`, `tests/test_ai_recursive_speed_a8_closeout.py:1549-1562`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296461 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: locally negated inherited activation tails are allowed; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:478-487`, `tests/test_ai_recursive_speed_a8_closeout.py:1565-1576`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296463 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: `therefore` is now a split boundary for forbidden/stale/benchmark checks; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:140-142`, `tests/test_ai_recursive_speed_a8_closeout.py:1667-1688`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296466 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: alias-bound empty iterable names are tracked for executable literal checks; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:490-502`, `scripts/ci/check_ai_recursive_speed_a8_closeout.py:607-639`, `tests/test_ai_recursive_speed_a8_closeout.py:1200-1265`.
+
+- https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1792#discussion_r3292296469 -> c1c0cb20c
+Disposition: FIXED
+Commit: c1c0cb20c
+Evidence: alias-bound empty loops are also ignored when collecting param-only wiring; `scripts/ci/check_ai_recursive_speed_a8_closeout.py:511-567`, `tests/test_ai_recursive_speed_a8_closeout.py:1235-1247`.
+
 ## Review-Level Notes
 
 Sourcery suggested direct checker introspection in its aggregate review text.
