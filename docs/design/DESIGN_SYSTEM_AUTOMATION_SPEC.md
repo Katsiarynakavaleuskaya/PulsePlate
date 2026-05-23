@@ -76,6 +76,8 @@ This seed is not runtime implementation. It does not change web UI, iOS UI, toke
 
 ## Bridge Coverage
 
+The current bridge coverage artifact is `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, validated by `scripts/design/design_bridge_coverage_inventory.py`.
+
 Bridge coverage must report, at minimum:
 
 - repo vocabulary anchor,
@@ -88,9 +90,13 @@ Bridge coverage must report, at minimum:
 
 Coverage status values for later implementation are `covered`, `partial`, `missing`, or `unspecified`.
 
+The bridge coverage inventory reports coverage only. Missing coverage blocks runtime implementation; it is not permission to copy Kimi, Figma, Canva, Penpot, Storybook, Code Connect, screenshot, or generated bundle evidence into web or iOS code.
+
 ## Visual And Accessibility Regression
 
 Visual and accessibility regression decisions are mandatory fail-closed gates for later implementation PRs.
+
+The visual regression decision lane follows the bridge coverage inventory. The accessibility regression lane follows visual regression. Token/runtime parity boundaries follow those visual and accessibility decisions.
 
 Fail-closed means missing visual or accessibility regression coverage blocks implementation readiness unless the coordinator records a `DEFERRED` disposition with a backlog anchor and PR-body follow-up.
 

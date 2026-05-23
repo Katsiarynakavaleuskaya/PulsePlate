@@ -1292,11 +1292,11 @@ Entries are sorted by priority, then theme, then title. Theme uses `Area:` when 
   - [ ] Design bridge coverage inventory:
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
-    - Status: next
-    - Target PR: TBD `feat(design): add design bridge coverage inventory`
+    - Status: active
+    - Target PR: `codex/design-bridge-coverage-inventory-v1` (`feat(design): add design bridge coverage inventory`)
     - Reason: The seeded component registry must be followed by a repo-owned coverage inventory before modern Kimi-derived direction can be scheduled into bounded web/iOS implementation slices.
-    - Links: `docs/orchestration/contracts/design_component_registry.v1.json`, `scripts/design/design_component_registry.py`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/design/ui_component_vocabulary.json`
-    - DoD: Inventory maps registry component ids across repo vocabulary, web runtime, iOS runtime, Storybook review, Figma reference, Penpot reference, and Code Connect anchors; unconfirmed values remain `unspecified`; external evidence remains non-authoritative; no runtime, token, generated mirror, Storybook config, screenshot, binary asset, or external write changes are made.
+    - Links: `docs/orchestration/contracts/design_component_registry.v1.json`, `docs/orchestration/contracts/design_bridge_coverage_inventory.v1.json`, `scripts/design/design_component_registry.py`, `scripts/design/design_bridge_coverage_inventory.py`, `docs/orchestration/contracts/DESIGN_COMPONENT_CONTRACT_REGISTRY.md`, `docs/design/ui_component_vocabulary.json`
+    - DoD: Inventory maps registry component ids across repo vocabulary, web runtime, iOS runtime, Storybook review, Figma reference, Penpot reference, and Code Connect anchors; validator exists and fails closed; tests exist; unconfirmed values remain `unspecified`; missing coverage blocks runtime implementation; external evidence remains non-authoritative; no runtime, token, generated mirror, Storybook config, screenshot, binary asset, or external write changes are made.
   - Deferred design automation lane: `design-automation-deferred-launch-copy-linter`
     - Owner: @katsiaryna_kavaleuskaya
     - Priority: P1
