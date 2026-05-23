@@ -314,6 +314,17 @@ def test_decisions_reject_invalid_bridge_inventory_component_status(tmp_path: Pa
     assert any("bridge inventory has invalid decision 'ready'" in error for error in errors)
 
 
+def test_decisions_reject_missing_source_registry_file(tmp_path: Path) -> None:
+    decisions = _load_decisions()
+    decision_path = _write_repo_inputs(tmp_path, decisions)
+    registry_path = tmp_path / "docs/orchestration/contracts/design_component_registry.v1.json"
+    registry_path.unlink()
+
+    errors = decisions_module.validate_decisions(decision_path, repo_root=tmp_path)
+
+    assert any("source_registry: file not found" in error for error in errors)
+
+
 def test_validator_has_no_runtime_network_or_subprocess_imports() -> None:
     source = (REPO_ROOT / "scripts/design/design_visual_regression_decisions.py").read_text(
         encoding="utf-8"

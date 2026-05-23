@@ -412,6 +412,8 @@ def validate_decisions(path: str | Path, *, repo_root: Path = REPO_ROOT) -> list
         errors.append(f"source_bridge_inventory: expected {str(BRIDGE_INVENTORY_PATH)!r}")
     if decisions.get("source_registry") != str(REGISTRY_PATH):
         errors.append(f"source_registry: expected {str(REGISTRY_PATH)!r}")
+    elif not (repo_root / REGISTRY_PATH).is_file():
+        errors.append(f"source_registry: file not found at '{REGISTRY_PATH}'")
     if decisions.get("decision_dimensions") != DECISION_DIMENSIONS:
         errors.append("decision_dimensions: unexpected dimensions or order")
     _validate_authority(decisions.get("authority"), errors)
