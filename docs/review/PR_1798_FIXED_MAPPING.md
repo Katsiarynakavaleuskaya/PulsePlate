@@ -15,7 +15,7 @@ This artifact is the canonical Fixed in Commit Mapping source of truth for PR #1
 
 ## Fixed in Commit Mapping
 
-No actionable review comments at PR open.
+- No actionable review comments
 
 ## Local Evidence
 
