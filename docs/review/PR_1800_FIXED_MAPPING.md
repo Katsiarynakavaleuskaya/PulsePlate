@@ -6,8 +6,8 @@
 
 ## Fixed in Commit Mapping
 Disposition: NOT-A-BUG
-Evidence: PR comment is rate-limit/no-review notification, not actionable code feedback.
-Reason: CodeRabbit did not start a review and selected no code action items.
+Evidence: PR comment says "No actionable comments were generated in the recent review"; docstring coverage note is advisory/pre-merge warning, not a repo-required merge gate.
+Reason: CodeRabbit provided no actionable code comments for PR #1800.
 - https://github.com/Katsiarynakavaleuskaya/PulsePlate/pull/1800#issuecomment-4526045756
 
 Disposition: NOT-A-BUG
