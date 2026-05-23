@@ -61,7 +61,11 @@ from scripts.orchestration.design_lane_contract import (
     normalize_design_enum,
     normalize_optional_text,
 )
-from scripts.orchestration.native_subagent_bridge import build_native_subagent_bridge
+from scripts.orchestration.native_subagent_bridge import (
+    BRIDGE_TRANSPORT,
+    KIMI_BRIDGE_TRANSPORT,
+    build_native_subagent_bridge,
+)
 from scripts.orchestration.route_with_telemetry import TELEMETRY_PATH, route
 from scripts.orchestration.routing_graph_loader import (
     BootstrapLaneActivation,
@@ -97,6 +101,10 @@ PR_PHASES: tuple[str, ...] = (
     PR_PHASE_PRE_OPEN,
     PR_PHASE_POST_OPEN_REVIEW,
     PR_PHASE_MERGE_READY,
+)
+NATIVE_BRIDGE_TRANSPORTS: tuple[str, ...] = (
+    BRIDGE_TRANSPORT,
+    KIMI_BRIDGE_TRANSPORT,
 )
 POST_OPEN_REVIEW_LANE: tuple[str, ...] = ("qa-engineer-agent", "bug-hunter")
 PR_REVIEW_ARTIFACT_TEMPLATE = "docs/review/PR_<N>_FIXED_MAPPING.md"
@@ -697,6 +705,7 @@ def build_task_packet(
     design_blockers: list[str] | tuple[str, ...] = (),
     code_native_design_brief_path: str | None = None,
     explicit_creation_mode: bool = False,
+    native_bridge_transport: str = BRIDGE_TRANSPORT,
     telemetry_path: Path = TELEMETRY_PATH,
 ) -> dict[str, Any]:
     """Build a deterministic task packet for orchestration tooling."""
@@ -826,6 +835,7 @@ def build_task_packet(
         secondary_agents=executable_secondaries,
         reviewer=requested_agent_resolution["reviewer"],
         advisory_agents=advisory_agents,
+        transport=native_bridge_transport,
     )
     judgment_activation = _validated_judgment_activation(
         require_bootstrap_lane_activation(
@@ -986,6 +996,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--telemetry", default=str(TELEMETRY_PATH))
     parser.add_argument(
+        "--native-bridge-transport",
+        default=BRIDGE_TRANSPORT,
+        choices=NATIVE_BRIDGE_TRANSPORTS,
+        help="Native subagent bridge transport label for runtime-specific packets.",
+    )
+    parser.add_argument(
         "--design-source",
         choices=DESIGN_SOURCES,
         default=None,
@@ -1046,6 +1062,7 @@ def main(argv: list[str] | None = None) -> int:
         design_blockers=args.design_blocker,
         code_native_design_brief_path=args.code_native_design_brief_path,
         explicit_creation_mode=args.explicit_creation_mode,
+        native_bridge_transport=args.native_bridge_transport,
         telemetry_path=Path(args.telemetry),
     )
     try:

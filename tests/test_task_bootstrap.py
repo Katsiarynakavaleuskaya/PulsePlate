@@ -1683,6 +1683,80 @@ def test_main_passes_pr_phase_flag(monkeypatch, capsys) -> None:
     assert json.loads(captured.out)["task_packet_id"] == "pr-phase-packet"
 
 
+def test_main_passes_native_bridge_transport_flag(monkeypatch, capsys) -> None:
+    """CLI should propagate --native-bridge-transport into the packet builder."""
+
+    observed: dict[str, object] = {}
+
+    def _fake_build_task_packet(**kwargs: object) -> dict[str, object]:
+        observed.update(kwargs)
+        return {
+            "schema_version": "2.0",
+            "task_packet_id": "bridge-transport-packet",
+            "goal": "Use kimi native transport",
+            "task_class": "Orchestration",
+            "domain": "orchestration",
+            "cluster": "ops",
+            "candidate_paths": ["scripts/orchestration/task_bootstrap.py"],
+            "primary_agent": "agent-coordinator",
+            "secondary_agents": ["bug-hunter"],
+            "reviewer": "qa-engineer-agent",
+            "requested_agents": [],
+            "requested_agent_disposition": [],
+            "required_context": ["AGENTS.md"],
+            "recommended_skills": ["pulseplate-workflow"],
+            "skill_routing": {
+                "policy_version": "2026-03-27",
+                "selection_mode": "deterministic-weighted",
+                "requested_agents": [],
+                "task_classification": {
+                    "label": "implementation",
+                    "score": 0,
+                    "reasons": ["fallback:default-implementation"],
+                },
+                "required": [
+                    {
+                        "skill": "pulseplate-workflow",
+                        "rationale": "Mandatory entry skill for all PulsePlate tasks.",
+                        "reasons": ["always-on"],
+                    }
+                ],
+                "recommended": [],
+                "conditional": [],
+                "blocked": [],
+            },
+            "native_subagent_bridge": {
+                "protocol_version": "1.0",
+                "transport": "kimi-native-subagents",
+                "primary": {"native_agent_type": "default"},
+                "secondary": [{"native_agent_type": "worker"}],
+                "reviewer": {"native_agent_type": "explorer"},
+            },
+            "routing_rationale": {"source": "canonical_only"},
+        }
+
+    monkeypatch.setattr(
+        "scripts.orchestration.task_bootstrap.build_task_packet",
+        _fake_build_task_packet,
+    )
+
+    exit_code = main(
+        [
+            "--goal",
+            "Use Kimi bridge transport",
+            "--task-class",
+            "Orchestration",
+            "--native-bridge-transport",
+            "kimi-native-subagents",
+        ]
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert observed["native_bridge_transport"] == "kimi-native-subagents"
+    assert json.loads(captured.out)["task_packet_id"] == "bridge-transport-packet"
+
+
 def test_main_passes_design_lane_flags(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
