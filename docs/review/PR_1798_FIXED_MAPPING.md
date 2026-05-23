@@ -27,7 +27,7 @@ Evidence: `scripts/design/design_visual_regression_decisions.py` now fails close
 - Task packet: `artifacts/orchestration/task_packets/8b20d2c58929.json`
 - Experiment Runner evidence: `artifacts/orchestration/experiments/results/exp-884d61c8da9a.json`
 - Validator evidence: `python scripts/design/design_visual_regression_decisions.py validate docs/orchestration/contracts/design_visual_regression_decisions.v1.json` -> `PASS: design visual regression decisions valid`
-- Focused tests: `python -m pytest -q tests/test_design_visual_regression_decisions.py` -> `41 passed`
+- Focused tests: `python -m pytest -q tests/test_design_visual_regression_decisions.py` -> `42 passed`
 - Focused existing tests: `python -m pytest -q tests/test_design_bridge_coverage_inventory.py tests/test_design_component_registry.py tests/test_design_automation_next_lane_docs.py` -> passed
 - Changed validation: `make validate-changed` -> passed
 - Pre-commit: `pre-commit run --all-files` -> passed
