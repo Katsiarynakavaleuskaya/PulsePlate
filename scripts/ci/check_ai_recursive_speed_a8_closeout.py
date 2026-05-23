@@ -501,7 +501,9 @@ def _collect_param_only_wiring(statements: list[ast.stmt]) -> set[str]:
             found.update(_collect_param_only_wiring(stmt.body))
             found.update(_collect_param_only_wiring(stmt.orelse))
         elif isinstance(stmt, ast.For):
-            if _constant_is_false(stmt.iter):
+            if _iterable_is_non_iterable_constant(stmt.iter):
+                continue
+            if _iterable_is_definitely_empty(stmt.iter):
                 found.update(_collect_param_only_wiring(stmt.orelse))
                 continue
             found.update(_collect_param_only_wiring(stmt.body))
@@ -557,6 +559,8 @@ def _python_ast_symbols(text: str, relpath: str, errors: list[str]) -> set[str]:
 
 
 def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
+    if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+        return
     if isinstance(node, ast.If):
         if _constant_is_false(node.test):
             for stmt in node.orelse:
@@ -568,7 +572,9 @@ def _walk_executable_nodes(node: ast.AST) -> Iterator[ast.AST]:
                 yield from _walk_executable_nodes(stmt)
             return
     if isinstance(node, ast.For):
-        if _constant_is_false(node.iter):
+        if _iterable_is_non_iterable_constant(node.iter):
+            return
+        if _iterable_is_definitely_empty(node.iter):
             for stmt in node.orelse:
                 yield from _walk_executable_nodes(stmt)
             return
@@ -609,6 +615,18 @@ def _constant_is_false(node: ast.expr) -> bool:
     return isinstance(node, (ast.Tuple, ast.List, ast.Set, ast.Dict)) and not getattr(
         node, "elts", getattr(node, "keys", [object()])
     )
+
+
+def _iterable_is_definitely_empty(node: ast.expr) -> bool:
+    if isinstance(node, ast.Constant):
+        return node.value in ("", b"")
+    return isinstance(node, (ast.Tuple, ast.List, ast.Set, ast.Dict)) and not getattr(
+        node, "elts", getattr(node, "keys", [object()])
+    )
+
+
+def _iterable_is_non_iterable_constant(node: ast.expr) -> bool:
+    return isinstance(node, ast.Constant) and node.value in (False, 0, None)
 
 
 def _validate_recursive_retrieval_early_stop_literals(repo_root: Path, errors: list[str]) -> None:

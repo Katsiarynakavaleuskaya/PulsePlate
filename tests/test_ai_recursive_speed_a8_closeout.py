@@ -1218,6 +1218,50 @@ def test_checker_rejects_dead_loop_early_stop_literals(tmp_path: Path) -> None:
     assert any("missing early-stop string literal" in error for error in errors)
 
 
+def test_checker_rejects_non_iterable_for_loop_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        "    for _ in 0:\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    else:\n"
+        '        return {"early_stop_aggressive_short_circuit": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    for _ in None:\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
+def test_checker_rejects_nested_function_early_stop_literals(tmp_path: Path) -> None:
+    _write_valid_repo(tmp_path)
+    path = tmp_path / "core/rag/recursive_retrieval.py"
+    path.write_text(
+        "def _make_optimization_stats() -> dict:\n"
+        "    def _dead() -> dict:\n"
+        '        return {"early_stop_aggressive_short_circuit": False, '
+        '"early_stop_pragmatic_usefulness": False}\n'
+        "    return {}\n\n"
+        "def _should_short_circuit_from_hints() -> tuple:\n"
+        "    def _dead() -> tuple:\n"
+        '        return ("done", "early_stop_aggressive_short_circuit")\n'
+        '    return ("keep", None)\n',
+        encoding="utf-8",
+    )
+
+    errors = _errors(tmp_path)
+
+    assert any("missing early-stop string literal" in error for error in errors)
+
+
 def test_checker_rejects_unrelated_param_only_symbol_function(tmp_path: Path) -> None:
     _write_valid_repo(tmp_path)
     path = tmp_path / "app/services/insight_runtime.py"
